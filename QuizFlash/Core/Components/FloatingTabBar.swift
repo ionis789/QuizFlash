@@ -29,7 +29,7 @@ struct FloatingTabBar: View {
                     }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
-                        .foregroundStyle(selectedTab == tab ? .accent : .red)
+                        .foregroundStyle(selectedTab == tab ? .accent : .gray)
                     .background {
                         if selectedTab == tab {
                             RoundedRectangle(cornerRadius: 60)
