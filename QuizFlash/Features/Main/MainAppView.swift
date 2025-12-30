@@ -31,35 +31,21 @@ struct MainAppView: View {
         
         if #available(iOS 26.0, *) {
             TabView(selection: $curentTab) {
-                LibraryView()
-                    .tag(AppTab.library)
-                    .tabItem {
-                        Label(AppTab.library.title, systemImage: AppTab.library.icon)
-                    }
-                
-                CreateView()
-                    .tag(AppTab.create)
-                    .tabItem {
-                        Label(AppTab.create.title, systemImage: AppTab.create.icon)
-                    }
-                
-                SettingsView()
-                    .tag(AppTab.settings)
-                    .tabItem {
-                        Label(AppTab.settings.title, systemImage: AppTab.settings.icon)
-                    }
+                tabs
             }
         }
+        
         else {
+            
             ZStack(alignment: .bottom) {
                 
                 TabView(selection: $curentTab) {
                     LibraryView()
                         .tag(AppTab.library)
-                    
+
                     CreateView()
                         .tag(AppTab.create)
-                    
+
                     SettingsView()
                         .tag(AppTab.settings)
                 }
@@ -69,7 +55,6 @@ struct MainAppView: View {
                     .ignoresSafeArea()
             }
         }
-        
     }
 }
 

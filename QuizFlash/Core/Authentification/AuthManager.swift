@@ -9,19 +9,22 @@ import SwiftUI
 import Combine
 
 class AuthManager: ObservableObject {
+
+ 
+
     @Published var isAuthenticated: Bool {
         didSet {
             UserDefaults.standard.set(isAuthenticated, forKey: "is_authenticated")
         }
     }
-    
+
     init() {
         self.isAuthenticated = UserDefaults.standard.bool(forKey: "is_authenticated")
     }
-    
+
     func loginWithGoogle() {
         print("Se conectează la Google...")
-        
+
         // Simulare succes
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             withAnimation {
@@ -29,7 +32,7 @@ class AuthManager: ObservableObject {
             }
         }
     }
-    
+
     func logout() {
         withAnimation {
             self.isAuthenticated = false

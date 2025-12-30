@@ -30,10 +30,10 @@ struct FloatingTabBar: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                         .foregroundStyle(selectedTab == tab ? .accent : .gray)
-                    .background {
+                        .background {
                         if selectedTab == tab {
                             RoundedRectangle(cornerRadius: 60)
-                                .fill(.black.opacity(0.3))
+                                .fill(.white.opacity(0.15))
                                 .shadow(color: .white.opacity(0.1), radius: 4, x: 0, y: 2)
                             // Animatia de slide de la un menu la altu
                             .matchedGeometryEffect(id: "activeTabBackground", in: animationNamespace)
@@ -45,7 +45,8 @@ struct FloatingTabBar: View {
             .padding(3)
             .background {
             Capsule()
-                .fill(.ultraThinMaterial)
+                .fill(.clear)
+                .modifier(LiquidGlassModifier(cornerRadius: 100))
             .shadow(color: .white.opacity(0.1), radius: 2, x: 0, y: 0)
         }
             .padding(.horizontal, 54)
