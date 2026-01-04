@@ -1,12 +1,12 @@
 import SwiftUI
 
 struct MainAppView: View {
-    
+
     @State private var curentTab: AppTab = .library
-    
-    
-    
-    
+
+
+
+
     init() {
         if #unavailable(iOS 26.0) {
 
@@ -23,22 +23,23 @@ struct MainAppView: View {
             UITabBar.appearance().scrollEdgeAppearance = appearance
 
         }
-        
+
     }
-    
-    
+
+
     var body: some View {
-        
+
+
         if #available(iOS 26.0, *) {
             TabView(selection: $curentTab) {
                 tabs
             }
         }
-        
+
         else {
-            
+
             ZStack(alignment: .bottom) {
-                
+
                 TabView(selection: $curentTab) {
                     LibraryView()
                         .tag(AppTab.library)
@@ -49,8 +50,8 @@ struct MainAppView: View {
                     SettingsView()
                         .tag(AppTab.settings)
                 }
-                .ignoresSafeArea()
-                
+                    .ignoresSafeArea()
+
                 FloatingTabBar(selectedTab: $curentTab)
                     .ignoresSafeArea()
             }
@@ -58,26 +59,26 @@ struct MainAppView: View {
     }
 }
 
-    @ViewBuilder
-    var tabs: some View {
-        LibraryView()
-            .tag(AppTab.library)
-            .tabItem {
-            Label(AppTab.library.title, systemImage: AppTab.library.icon)
-        }
-
-        CreateView()
-            .tag(AppTab.create)
-            .tabItem {
-            Label(AppTab.create.title, systemImage: AppTab.create.icon)
-        }
-
-        SettingsView()
-            .tag(AppTab.settings)
-            .tabItem {
-            Label(AppTab.settings.title, systemImage: AppTab.settings.icon)
-        }
+@ViewBuilder
+var tabs: some View {
+    LibraryView()
+        .tag(AppTab.library)
+        .tabItem {
+        Label(AppTab.library.title, systemImage: AppTab.library.icon)
     }
+
+    CreateView()
+        .tag(AppTab.create)
+        .tabItem {
+        Label(AppTab.create.title, systemImage: AppTab.create.icon)
+    }
+
+    SettingsView()
+        .tag(AppTab.settings)
+        .tabItem {
+        Label(AppTab.settings.title, systemImage: AppTab.settings.icon)
+    }
+}
 
 
 

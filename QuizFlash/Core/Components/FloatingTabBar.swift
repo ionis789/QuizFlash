@@ -17,13 +17,16 @@ struct FloatingTabBar: View {
         HStack(spacing: 0) {
             ForEach(AppTab.allCases) { tab in
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+//                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    withAnimation(.smooth(duration: 0.2, extraBounce: 0.1)) {
                         selectedTab = tab
                     }
                 } label: {
                     VStack(spacing: 4) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 20))
+                        withAnimation {
+                            Image(systemName: selectedTab == tab ? (tab.icon + ".fill") : tab.icon)
+                                .font(.system(size: 20))
+                        }
                         Text(tab.title)
                             .font(.caption2.bold())
                     }
