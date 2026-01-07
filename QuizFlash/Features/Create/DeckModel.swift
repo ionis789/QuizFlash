@@ -13,13 +13,13 @@ import SwiftData
 class DeckModel {
     var title: String
     var icon: String
-    var colorHex: String
+    var colorHex: String?
     var creationDate: Date
   
     @Relationship(deleteRule: .cascade)
     var cards: [CardModel] = []
     
-    init(title: String, icon: String, colorHex: String) {
+    init(title: String, icon: String, colorHex: String?) {
         self.title = title
         self.icon = icon
         self.colorHex = colorHex

@@ -8,23 +8,12 @@ struct LiquidGlassModifier: ViewModifier {
         content
             .background {
                 ZStack {
-                    // 1. FOLOSIM HACK-UL TĂU AICI
-                    // Asta va blura fundalul fără să adauge gri-ul urât
+
                     TransparentBlurView(removeAllFilteres: false)
-                        .blur(radius: 0) // Uneori ajută să forțezi render-ul
-                    
-                    // 2. TINT-UL CONTROLAT DE TINE
-                    // Acum tu decizi exact ce culoare are sticla.
-                    // Pentru efectul Dark Mode Telegram:
-//                    Color.white.opacity(0.1) // Un negru fin "Ochelari de soare"
-                    
-                    // 3. VIBRANCY
-//                    Color.white.opacity(0.1)
-//                        .blendMode(.overlay)
+                        .blur(radius: 0)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            // ... restul codului cu Overlay și Shadow rămâne la fel ...
             .overlay(
                  RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(

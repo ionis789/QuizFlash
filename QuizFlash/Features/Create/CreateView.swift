@@ -10,7 +10,7 @@ import SwiftData
 
 struct CreateView: View {
     @Environment(\.modelContext) var context
-    @Environment(\.dismiss) var dismiss // If this is pushed via NavigationLink
+    @Environment(\.dismiss) var dismiss
     
     // MARK: - State
     @State private var deckTitle: String = ""
@@ -21,7 +21,6 @@ struct CreateView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // 1. Deck Metadata Header
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Deck Title")
                         .font(.caption)
@@ -44,7 +43,6 @@ struct CreateView: View {
                         } else {
                             ForEach(draftCards) { card in
                                 CardRowView(card: card)
-                                    // Hides the default iOS separator lines
                                     .listRowSeparator(.hidden)
                                     .listRowBackground(Color.clear)
                                     .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
@@ -66,11 +64,10 @@ struct CreateView: View {
                     }
                 }
                 .listStyle(.plain)
-                .scrollContentBackground(.hidden) // Removes default gray background
+                .scrollContentBackground(.hidden)
                 
             }
             .background(Color(uiColor: .systemGroupedBackground))
-//            .navigationTitle("Create Deck")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -88,7 +85,7 @@ struct CreateView: View {
             .sheet(isPresented: $isShowingSheet) {
                 AddCardSheetView { front, back in
                     let newDraft = DraftCard(front: front, back: back)
-                    // Animation creates a smooth insertion effect
+
                     withAnimation {
                         draftCards.append(newDraft)
                     }
@@ -125,20 +122,16 @@ struct CreateView: View {
     }
     
     private func saveDeckToDatabase() {
-        // 1. Create the Deck
-        let newDeck = DeckModel(title: deckTitle, icon: "book.closed.fill", colorHex: "#007AFF")
+        let newDeck = DeckModel(title: deckTitle, icon: "book.closed.fill", colorHex: nil)
         context.insert(newDeck)
         
-        // 2. Convert Drafts to Real Models
+
         for draft in draftCards {
             let cardModel = CardModel(frontText: draft.front, backText: draft.back)
-            cardModel.deck = newDeck // Link relationship
-            context.insert(cardModel) // Insert into DB
+            cardModel.deck = newDeck
+            context.insert(cardModel)
         }
         
-        // 3. Reset or Dismiss
-        // dismiss() // specific to your navigation flow
-        // Or reset state:
         deckTitle = ""
         draftCards = []
         isSavedDeck = true

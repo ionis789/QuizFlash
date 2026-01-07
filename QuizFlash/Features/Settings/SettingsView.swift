@@ -12,13 +12,13 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            // Testing tabMenu background glass feature above a list of something
             List {
 
                 Section {
                     VStack(alignment: .center) {
                         Circle().frame(width: 60, height: 60).foregroundStyle(.blue)
                         Text("Ion Socol").font(.caption.bold())
+                            .padding(.top, 5)
                     }
                         .padding(.vertical, 8)
                         .frame(maxWidth: .infinity)

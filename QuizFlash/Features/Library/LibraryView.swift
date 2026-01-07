@@ -12,29 +12,33 @@ struct LibraryView: View {
     @Query private var decks: [DeckModel]
 
     var body: some View {
-        List {
-            if decks.isEmpty {
-                emptyStateView
-            } else {
-                ForEach(decks) { deck in
-                    DeckRowView(deck: deck)
-                }
+        NavigationStack {
+            ScrollView {
 
-                    .onDelete(perform: deleteDeck)
+                LazyVStack(spacing: 8) {
+                    if decks.isEmpty {
+                        emptyStateView
+                    } else {
+                        ForEach(decks) { deck in
+
+                            NavigationLink(destination: Text(deck.title)) {
+                                DeckRowView(deck: deck)
+                            }
+                                .buttonStyle(.plain)
+                                .contentShape(ContentShapeKinds.contextMenuPreview, RoundedRectangle(cornerRadius: 24))
+                        }
+                    }
+                }
+                    .navigationTitle("Decks")
             }
+
         }
     }
 
     // MARK: Logic
 
-    private func deleteDeck(at offsets: IndexSet) {
-        for index in offsets {
-            let deck = decks[index]
-            context.delete(deck)
-        }
-    }
 
-
+    // MARK: Views
     private var emptyStateView: some View {
         VStack(spacing: 12) {
             Image(systemName: "rectangle.slash")
