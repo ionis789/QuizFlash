@@ -14,16 +14,10 @@ struct CardRowView: View {
         VStack(alignment: .leading, spacing: 12) {
             // Header / Front
             HStack(alignment: .center) {
-               
                 Text(card.front)
                     .font(.headline)
                     .lineLimit(2)
-                Spacer()
-                Image(systemName: "questionmark.circle")
-                    .foregroundStyle(.blue)
-         
             }
-            .frame(maxWidth: .infinity)
             
             Divider()
             
@@ -39,9 +33,7 @@ struct CardRowView: View {
         .padding()
         .background(Color(uiColor: .secondarySystemGroupedBackground))
         .cornerRadius(30)
-        // Subtle shadow for depth
         .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
-        // Important: This padding separates the "cards" visually in the list
         .padding(.vertical, 4)
     }
 }

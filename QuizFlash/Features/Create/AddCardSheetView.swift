@@ -33,8 +33,6 @@ struct AddCardSheetView: View {
                     Text("Back")
                 }
             }
-            .navigationTitle("New Card")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

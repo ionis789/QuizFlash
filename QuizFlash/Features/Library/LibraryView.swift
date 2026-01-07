@@ -5,49 +5,55 @@
 //  Created by Ion Socol on 23.12.2025.
 //
 import SwiftUI
-
+import SwiftData
 struct LibraryView: View {
-    
-    @State private var counter: Int = 0
-    @State private var text: String = ""
-    
-    private var cards: [String] = ["One", "Oneee", "Three", "Four", "Five", "Seven", "Eight", "Nine", "Ten"]
-    
+
+    @Environment(\.modelContext) var context
+    @Query private var decks: [DeckModel]
+
     var body: some View {
-        VStack {
-            Text("\(counter)")
-                .font(.largeTitle.bold())
-            
-            Button {
-                // Actiunea butonului
-                counter += 1
-                calculateSum()
-            } label: {
-                Image(systemName: "plus")
-//               Text("Add")
-            }
-            
-            
-            TextField("Write...", text: $text)
-                .onChange(of: text) { old, new in
-                    if !new.isEmpty {
-                        print(cards.filter { $0.contains(new) })
-                    }
+        List {
+            if decks.isEmpty {
+                emptyStateView
+            } else {
+                ForEach(decks) { deck in
+                    DeckRowView(deck: deck)
                 }
 
-               
-
+                    .onDelete(perform: deleteDeck)
+            }
         }
-      
     }
-     func calculateSum() {
-        var randomSum:Int = 0
-        randomSum += Range(1...10).randomElement()!
-        print(randomSum)
+
+    // MARK: Logic
+
+    private func deleteDeck(at offsets: IndexSet) {
+        for index in offsets {
+            let deck = decks[index]
+            context.delete(deck)
+        }
     }
+
+
+    private var emptyStateView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "rectangle.slash")
+                .font(.system(size: 40))
+                .foregroundStyle(.gray.opacity(0.5))
+            Text("No decks yet")
+                .font(.headline)
+                .foregroundStyle(.gray)
+            Text("You can create a first deck in Create menu.")
+                .font(.body)
+                .foregroundStyle(.gray.opacity(0.8))
+                .multilineTextAlignment(.center)
+        }
+            .frame(maxWidth: .infinity, minHeight: 350)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+    }
+
 }
-
-
 
 #Preview {
     LibraryView()

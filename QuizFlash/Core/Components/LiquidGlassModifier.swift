@@ -30,9 +30,9 @@ struct LiquidGlassModifier: ViewModifier {
                     .stroke(
                         LinearGradient(
                             colors: [
-                                .white.opacity(0.25),
+                                .white.opacity(0.35),
                                 .white.opacity(0.05),
-                                .white.opacity(0.25)
+                                .white.opacity(0.35)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing

@@ -16,6 +16,7 @@ struct CreateView: View {
     @State private var deckTitle: String = ""
     @State private var draftCards: [DraftCard] = []
     @State private var isShowingSheet = false
+    @State private var isSavedDeck: Bool = false
     
     var body: some View {
         NavigationStack {
@@ -54,29 +55,19 @@ struct CreateView: View {
                         HStack {
                             Text("Cards in Deck (\(draftCards.count))")
                             Spacer()
+                            Button {
+                                isShowingSheet = true
+                            } label: {
+                               Image(systemName: "plus")
+                                    .font(.title.bold())
+                            }
                         }
-                        .padding(.bottom, 8)
+                        .padding(8)
                     }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden) // Removes default gray background
                 
-                // 3. Action Button
-                Button {
-                    isShowingSheet = true
-                } label: {
-                    HStack {
-                        Image(systemName: "plus")
-                        Text("Add Card")
-                    }
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundStyle(.white)
-                    .clipShape(Capsule())
-                }
-                .padding()
             }
             .background(Color(uiColor: .systemGroupedBackground))
 //            .navigationTitle("Create Deck")
@@ -87,6 +78,11 @@ struct CreateView: View {
                         saveDeckToDatabase()
                     }
                     .disabled(deckTitle.isEmpty || draftCards.isEmpty)
+                    .alert("Deck saved successfully", isPresented: $isSavedDeck) {
+                        Button("OK", role: .cancel) { }
+                    } message: {
+                        Text("You can check your deck in the Library menu.")
+                    }
                 }
             }
             .sheet(isPresented: $isShowingSheet) {
@@ -112,7 +108,7 @@ struct CreateView: View {
             Text("No cards yet")
                 .font(.headline)
                 .foregroundStyle(.gray)
-            Text("Tap the button below to add your first card.")
+            Text("Tap the plus button to add your first card.")
                 .font(.caption)
                 .foregroundStyle(.gray.opacity(0.8))
                 .multilineTextAlignment(.center)
@@ -145,5 +141,6 @@ struct CreateView: View {
         // Or reset state:
         deckTitle = ""
         draftCards = []
+        isSavedDeck = true
     }
 }
