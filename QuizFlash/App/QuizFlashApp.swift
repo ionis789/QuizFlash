@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-
+import SwiftData
 @main
 struct QuizFlashApp: App {
     
@@ -18,5 +18,6 @@ struct QuizFlashApp: App {
                 .environmentObject(authManager)
                 .preferredColorScheme(.dark)
         }
+        .modelContainer(for: [DeckModel.self, CardModel.self])
     }
 }

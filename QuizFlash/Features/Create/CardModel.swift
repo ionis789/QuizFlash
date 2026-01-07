@@ -6,12 +6,23 @@
 //
 
 import SwiftUI
+import SwiftData
 
-struct CardModel: Identifiable {
-    var id:UUID = UUID()
-    var type: CardType
-    var title: String
-    var textBody: String
+@Model
+class CardModel {
+    
+    var fronText: String
+    var backText: String
+    var createdAt: Date
+    
+    var deck: DeckModel?
+    
+    init(frontText: String, backText: String) {
+        self.fronText = frontText
+        self.backText = backText
+        self.createdAt = Date()
+    }
+    
     
 }
 
@@ -24,4 +35,11 @@ enum CardType: String, CaseIterable {
         case .textAndImage: "richtext.page"
         }
     }
+}
+
+// Temporary model for UI rendering before saving to Database
+struct DraftCard: Identifiable {
+    let id = UUID()
+    var front: String
+    var back: String
 }
