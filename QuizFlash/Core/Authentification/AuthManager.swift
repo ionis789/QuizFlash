@@ -22,10 +22,8 @@ class AuthManager: ObservableObject {
         self.isAuthenticated = UserDefaults.standard.bool(forKey: "is_authenticated")
     }
 
+    // MARK: Login logic here 
     func loginWithGoogle() {
-        print("Se conectează la Google...")
-
-        // Simulare succes
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             withAnimation {
                 self.isAuthenticated = true

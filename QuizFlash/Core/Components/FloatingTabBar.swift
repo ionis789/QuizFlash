@@ -1,57 +1,75 @@
-//
-//  FloatingTabBar.swift
-//  QuizFlash
-//
-//  Created by Ion Socol on 23.12.2025.
-//
-
 import SwiftUI
 
 struct FloatingTabBar: View {
     @Binding var selectedTab: AppTab
+    @ObservedObject var router: NavigationManager
 
-    // Pentru animatia de alunecare de la un menu la altul
-    @Namespace private var animationNamespace
+    private var accentColor: Color { ThemeManager.shared.accentColor.color }
+
+    @Namespace private var tabNamespace
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 10) {
             ForEach(AppTab.allCases) { tab in
                 Button {
-//                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    withAnimation(.smooth(duration: 0.2, extraBounce: 0.1)) {
-                        selectedTab = tab
-                    }
+                    handleTabSelection(tab)
                 } label: {
-                    VStack(spacing: 4) {
-                        withAnimation {
-                            Image(systemName: selectedTab == tab ? (tab.icon + ".fill") : tab.icon)
-                                .font(.system(size: 20))
-                        }
-                        Text(tab.title)
-                            .font(.caption2.bold())
-                    }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .foregroundStyle(selectedTab == tab ? .accent : .gray)
-                        .background {
-                        if selectedTab == tab {
-                            RoundedRectangle(cornerRadius: 60)
-                                .fill(.white.opacity(0.15))
-                                .shadow(color: .white.opacity(0.1), radius: 4, x: 0, y: 2)
-                            // Animatia de slide de la un menu la altu
-                            .matchedGeometryEffect(id: "activeTabBackground", in: animationNamespace)
-                        }
-                    }
+                    tabItem(tab)
                 }
+                .buttonStyle(.plain)
             }
         }
-            .padding(3)
-            .background {
-            Capsule()
-                .fill(.clear)
-                .modifier(LiquidGlassModifier(cornerRadius: 100))
-            .shadow(color: .white.opacity(0.1), radius: 2, x: 0, y: 0)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .glassEffect(cornerRadius: 40, style: .spotlight)
+        .padding(.horizontal, 24)
+        .padding(.bottom, 10)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: selectedTab)
+    }
+
+    @ViewBuilder
+    private func tabItem(_ tab: AppTab) -> some View {
+        let isSelected = selectedTab == tab
+
+        ZStack {
+            if isSelected {
+                Capsule(style: .continuous)
+                    .fill(accentColor.opacity(0.18))
+                    .matchedGeometryEffect(id: "tabIndicator", in: tabNamespace)
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: isSelected ? (tab.icon + ".fill") : tab.icon)
+                    .font(.system(size: 20, weight: .semibold))
+                    .symbolRenderingMode(.monochrome)
+
+                if isSelected {
+                    Text(tab.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                }
+            }
+            .foregroundStyle(isSelected ? accentColor : .secondary)
+            .padding(.horizontal, isSelected ? 14 : 12)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
         }
-            .padding(.horizontal, 54)
+        .frame(height: 46)
+        .frame(maxWidth: isSelected ? .infinity : 70)
+    }
+
+    private func handleTabSelection(_ tab: AppTab) {
+        if selectedTab == tab {
+            if tab == .library {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    router.popToRoot()
+                }
+            }
+        } else {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                selectedTab = tab
+            }
+        }
     }
 }

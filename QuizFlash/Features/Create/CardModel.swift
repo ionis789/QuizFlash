@@ -11,14 +11,14 @@ import SwiftData
 @Model
 class CardModel {
     
-    var fronText: String
+    var frontText: String
     var backText: String
     var createdAt: Date
     
     var deck: DeckModel?
     
     init(frontText: String, backText: String) {
-        self.fronText = frontText
+        self.frontText = frontText
         self.backText = backText
         self.createdAt = Date()
     }

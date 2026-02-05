@@ -1,31 +1,40 @@
 QuizFlash
 ├── App
-│   ├── QuizFlashApp.swift       (Punctul de intrare)
-│   └── Assets.xcassets          (Imagini, culori)
+│   ├── QuizFlashApp.swift
+│   └── Assets.xcassets
 │
-├── Core                         (Logica și componentele refolosibile peste tot)
+├── Core
 │   ├── Authentication
-│   │   └── AuthManager.swift    (Managerul de logare)
+│   │   └── AuthManager.swift
 │   ├── Navigation
-│   │   └── AppTab.swift         (Enum-ul cu tab-urile)
-│   └── Components               (UI Custom refolosibil)
-│       └── FloatingTabBar.swift (Bara ta plutitoare)
+│   │   └── AppTab.swift
+│   └── Components
+│       └── FloatingTabBar.swift
+│       └── GlassModifierr.swift
 │
-├── Features                     (Ecranele principale ale aplicației)
-│   ├── Main                     (Containerele principale)
-│   │   ├── RootView.swift       (Macazul Login vs App)
-│   │   └── MainAppView.swift    (Ecranul cu TabBar și ZStack)
+├── Features
+│   ├── Main
+│   │   ├── RootView.swift
+│   │   └── MainAppView.swift
 │   │
 │   ├── Auth                    
 │   │   └── LoginView.swift
 │   │
 │   ├── Library                  
 │   │   └── LibraryView.swift      
+│   │   └── DeckPlay      
+│   │       └── DeckView
+│   │       └── FlipCardPreview
+│   │       └── QuizGameView
 │   │
-│   ├── Create                   (Ecranul de creare)
-│   │   └── CreateView.swift     (Trebuie scos din Screens.swift)
+│   ├── Create
+│   │   └── AddCardSheetView.swift
+│   │   └── CardModel.swift
+│   │   └── CardRowView.swift
+│   │   └── CreateView.swift
+│   │   └── DeckModel.swift
 │   │
-│   └── Settings                 (Ecranul de setări)
-│       └── SettingsView.swift   (Trebuie scos din Screens.swift)
+│   └── Settings
+│       └── SettingsView.swift
 │
-└── Extensions                   (Folder gol momentan, pentru viitor)
+└── Extensions                 
