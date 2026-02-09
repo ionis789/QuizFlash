@@ -14,6 +14,7 @@ class CardModel {
     var frontText: String
     var backText: String
     var createdAt: Date
+    var editedAt: Date
     
     var deck: DeckModel?
     
@@ -21,6 +22,7 @@ class CardModel {
         self.frontText = frontText
         self.backText = backText
         self.createdAt = Date()
+        self.editedAt = Date()
     }
     
     

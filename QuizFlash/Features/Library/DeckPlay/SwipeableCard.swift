@@ -10,9 +10,14 @@ struct SwipeableCard<Content: View>: View {
     let onTap: (() -> Void)?
     @ViewBuilder let content: () -> Content
 
-    private let swipeThreshold: CGFloat = 100
+    // Distance threshold for slow, intentional drags.
+    private let swipeDistanceThreshold: CGFloat = 72
+    // Projected end threshold keeps fast flicks feeling responsive.
+    private let swipeProjectedThreshold: CGFloat = 100
 
     @GestureState private var dragOffset: CGFloat = 0
+    @GestureState private var isInThresholdZone: Bool = false
+
     @State private var exitOffset: CGFloat? = nil
 
     init(
@@ -34,7 +39,7 @@ struct SwipeableCard<Content: View>: View {
     }
 
     private var swipeProgress: CGFloat {
-        min(abs(currentOffset) / swipeThreshold, 1)
+        min(abs(currentOffset) / swipeProjectedThreshold, 1)
     }
 
     private var glowColor: Color {
@@ -46,7 +51,7 @@ struct SwipeableCard<Content: View>: View {
             content()
 
             // Glow border
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .stroke(glowColor.opacity(Double(swipeProgress) * 0.6), lineWidth: 3)
                 .shadow(color: glowColor.opacity(Double(swipeProgress) * 0.3), radius: 8)
                 .allowsHitTesting(false)
@@ -67,18 +72,41 @@ struct SwipeableCard<Content: View>: View {
     private var swipeGesture: some Gesture {
         DragGesture()
             .updating($dragOffset) { value, state, _ in
+                // Track the finger with no extra animation-induced lag.
                 state = value.translation.width
             }
-            .onEnded { value in
-                let velocity = value.predictedEndLocation.x - value.location.x
-                let finalOffset = value.translation.width + velocity * 0.4
+            .updating($isInThresholdZone) { value, state, transaction in
+                let enteredZone = abs(value.translation.width) >= swipeDistanceThreshold
 
-                if finalOffset > swipeThreshold {
+                // One-shot haptic on transition: outside → inside.
+                if enteredZone && !state {
+                    transaction.animation = nil // keep haptic logic totally decoupled from animations
+                    impactHaptic()
+                }
+
+                // Persist zone membership for the rest of this gesture.
+                state = enteredZone
+            }
+            .onEnded { value in
+                let translationX = value.translation.width
+                let velocityX = value.predictedEndLocation.x - value.location.x
+                let projected = translationX + velocityX * 0.4
+
+                // Distance-based for slow drags; projected-based for fast flicks.
+                if translationX >= swipeDistanceThreshold || projected >= swipeProjectedThreshold {
                     exit(.right)
-                } else if finalOffset < -swipeThreshold {
+                } else if translationX <= -swipeDistanceThreshold || projected <= -swipeProjectedThreshold {
                     exit(.left)
                 }
             }
+    }
+
+    private func impactHaptic() {
+        #if canImport(UIKit)
+        let generator = UIImpactFeedbackGenerator(style: .rigid)
+        generator.prepare()
+        generator.impactOccurred()
+        #endif
     }
 
     private func exit(_ direction: SwipeDirection) {
@@ -88,6 +116,7 @@ struct SwipeableCard<Content: View>: View {
             exitOffset = direction == .right ? screen : -screen
         }
 
+        // Keep this short delay; it allows the off-screen animation to start before advancing.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             onSwipe(direction)
         }

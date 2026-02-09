@@ -29,66 +29,66 @@ struct CreateView: View {
     @FocusState private var isTitleFocused: Bool
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                // Background - tap to dismiss keyboard
-                Color(uiColor: .systemGroupedBackground)
-                    .ignoresSafeArea()
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        isTitleFocused = false
-                    }
-
-                // Content
-                ScrollView {
-                    VStack(spacing: 24) {
-                        deckInfoSection
-                        cardsListSection
-                        Color.clear.frame(height: 80)
-                    }
-                }
-                .scrollDismissesKeyboard(.interactively)
-
-                // Success overlay - slides from top
-                if showSuccessOverlay {
-                    successOverlay
-                        .zIndex(100)
-                }
-            }
-            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: draftCards.count)
-            .navigationTitle(deckToEdit == nil ? "Create Deck" : "Edit Deck")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Save") {
-                        saveDeck()
-                    }
-                    .fontWeight(.semibold)
-                    .disabled(deckTitle.trimmingCharacters(in: .whitespaces).isEmpty || draftCards.isEmpty)
+        ZStack {
+            // Background - tap to dismiss keyboard
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    isTitleFocused = false
                 }
 
-                if deckToEdit != nil {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
-                            dismiss()
-                        }
-                        .foregroundStyle(.secondary)
+            // Content
+            ScrollView {
+                VStack(spacing: 24) {
+                    deckInfoSection
+                    cardsListSection
+                    Color.clear.frame(height: 80)
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+
+            // Success overlay - slides from top
+            if showSuccessOverlay {
+                successOverlay
+                    .zIndex(100)
+            }
+        }
+        .onAppear {
+            isTitleFocused = true
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: draftCards.count)
+        .navigationTitle(deckToEdit == nil ? "Create Deck" : "Edit Deck")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Save") {
+                    saveDeck()
+                }
+                .fontWeight(.semibold)
+                .disabled(deckTitle.trimmingCharacters(in: .whitespaces).isEmpty || draftCards.isEmpty)
+            }
+
+            if deckToEdit != nil {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
                     }
                 }
             }
-            .onAppear(perform: loadExistingData)
-            .onTapGesture {
-                hideKeyboard()
+        }
+        .onAppear(perform: loadExistingData)
+        .onTapGesture {
+            hideKeyboard()
+        }
+        .sheet(isPresented: $isCreatingNewCard) {
+            AddCardSheetView(initialFront: "", initialBack: "") { front, back in
+                addCard(front: front, back: back)
             }
-            .sheet(isPresented: $isCreatingNewCard) {
-                AddCardSheetView(initialFront: "", initialBack: "") { front, back in
-                    addCard(front: front, back: back)
-                }
-            }
-            .sheet(item: $cardToEdit) { card in
-                AddCardSheetView(initialFront: card.front, initialBack: card.back) { front, back in
-                    updateCard(card, newFront: front, newBack: back)
-                }
+        }
+        .sheet(item: $cardToEdit) { card in
+            AddCardSheetView(initialFront: card.front, initialBack: card.back) { front, back in
+                updateCard(card, newFront: front, newBack: back)
             }
         }
     }
@@ -307,7 +307,7 @@ private extension CreateView {
                 let newCard = CardModel(frontText: draft.front, backText: draft.back)
                 deck.cards.append(newCard)
             }
-            deck.lastEditedDate = Date()
+            deck.editedAt = Date()
         } else {
             let newDeck = DeckModel(
                 title: deckTitle.trimmingCharacters(in: .whitespaces),

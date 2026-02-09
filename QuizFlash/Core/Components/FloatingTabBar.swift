@@ -24,7 +24,7 @@ struct FloatingTabBar: View {
         .glassEffect(cornerRadius: 40, style: .spotlight)
         .padding(.horizontal, 24)
         .padding(.bottom, 10)
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: selectedTab)
+        
     }
 
     @ViewBuilder
@@ -35,28 +35,27 @@ struct FloatingTabBar: View {
             if isSelected {
                 Capsule(style: .continuous)
                     .fill(accentColor.opacity(0.18))
-                    .matchedGeometryEffect(id: "tabIndicator", in: tabNamespace)
+                    .padding(4)
+                    
             }
 
-            HStack(spacing: 8) {
+            VStack(spacing: 8) {
                 Image(systemName: isSelected ? (tab.icon + ".fill") : tab.icon)
-                    .font(.system(size: 20, weight: .semibold))
-                    .symbolRenderingMode(.monochrome)
+                    .font(.title3.bold())
 
-                if isSelected {
+                
                     Text(tab.title)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                        .transition(.opacity.combined(with: .move(edge: .trailing)))
-                }
+                    .font(.caption.bold())
+                        
+                
             }
             .foregroundStyle(isSelected ? accentColor : .secondary)
-            .padding(.horizontal, isSelected ? 14 : 12)
+            .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .contentShape(Rectangle())
         }
         .frame(height: 46)
-        .frame(maxWidth: isSelected ? .infinity : 70)
+        
     }
 
     private func handleTabSelection(_ tab: AppTab) {
@@ -67,9 +66,9 @@ struct FloatingTabBar: View {
                 }
             }
         } else {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+           
                 selectedTab = tab
-            }
+            
         }
     }
 }

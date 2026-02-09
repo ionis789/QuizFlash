@@ -8,7 +8,6 @@ struct DefaultModePlay: View {
     @State private var cards: [CardModel]
     @State private var currentIndex: Int = 0
     @State private var correctCount: Int = 0
-    @State private var isFlipped: Bool = false
     @State private var isComplete: Bool = false
     @State private var wrongCards: [CardModel] = []
 
@@ -29,22 +28,25 @@ struct DefaultModePlay: View {
 
     var body: some View {
         ZStack {
-            // Background
+         
             Color(uiColor: .systemGroupedBackground)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Minimal header
+             
                 header
                     .padding(.top, 12)
                     .padding(.horizontal, 20)
 
                 Spacer()
 
-                // Card
+            //MARK: Card
                 ZStack {
                     if currentIndex < cards.count {
-                        cardView(at: currentIndex)
+                        GameplayCard(
+                            card: cards[currentIndex],
+                            onSwipe: handleSwipe
+                        )
                             .transition(.asymmetric(
                             insertion: .scale(scale: 0.95).combined(with: .opacity),
                             removal: .identity
@@ -71,21 +73,16 @@ struct DefaultModePlay: View {
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isComplete)
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: currentIndex)
             .navigationBarHidden(true)
-            .onChange(of: currentIndex) {
-            isFlipped = false
-        }
     }
 
     // MARK: - Header
     private var header: some View {
         HStack {
-
-
-
-
-            // Score pill
-
-
+            
+            Text(deck.title)
+                .font(.title3.bold())
+                
+            
             Spacer()
 
             // Close button
@@ -94,28 +91,14 @@ struct DefaultModePlay: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
                     .padding(10)
                     .background(.ultraThinMaterial, in: Circle())
             }
         }
     }
 
-    // MARK: - Card View
-    @ViewBuilder
-    private func cardView(at index: Int) -> some View {
-        let card = cards[index]
 
-        SwipeableCard(onSwipe: handleSwipe, onTap: handleTap) {
-            FlipCardPreview(card: card, isPreviewMode: false, isFlipped: $isFlipped)
-        }
-    }
 
-    private func handleTap() {
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-            isFlipped.toggle()
-        }
-    }
 
     // MARK: - Footer
     private var footerHint: some View {
@@ -141,8 +124,8 @@ struct DefaultModePlay: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(.ultraThinMaterial, in: Capsule())
-            
-            
+
+
 
             HStack(spacing: 6) {
                 Image(systemName: "checkmark.circle.fill")
@@ -155,18 +138,6 @@ struct DefaultModePlay: View {
                 .padding(.vertical, 10)
                 .background(.ultraThinMaterial, in: Capsule())
         }
-
-//        HStack(spacing: 32) {
-//            Label("Wrong", systemImage: "arrow.left")
-//                .foregroundStyle(.red.opacity(0.8))
-//
-//            Label("Flip", systemImage: "hand.tap")
-//                .foregroundStyle(.secondary)
-//
-//            Label("Correct", systemImage: "arrow.right")
-//                .foregroundStyle(.green.opacity(0.8))
-//        }
-//        .font(.caption.weight(.medium))
     }
 
     // MARK: - Completion Overlay
@@ -259,7 +230,6 @@ struct DefaultModePlay: View {
         cards = retry.shuffled()
         currentIndex = 0
         correctCount = 0
-        isFlipped = false
         isComplete = false
     }
 }

@@ -6,15 +6,17 @@
 //
 
 import SwiftUI
-import SwiftData
 import Combine
 
-class NavigationManager: ObservableObject {
-    
-    @Published var libraryPath = NavigationPath()
-    
-    
+final class NavigationManager: ObservableObject {
+    @Published var path = NavigationPath()
+
     func popToRoot() {
-        libraryPath = NavigationPath()
+        path = NavigationPath()
     }
+}
+
+enum AppRoute: Hashable {
+    case createDeck
+    case settings
 }

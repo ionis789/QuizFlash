@@ -14,8 +14,8 @@ class DeckModel {
     var title: String
     var icon: String
     var colorHex: String
-    var creationDate: Date
-    var lastEditedDate: Date
+    var createdAt: Date
+    var editedAt: Date
   
     @Relationship(deleteRule: .cascade)
     var cards: [CardModel] = []
@@ -24,7 +24,7 @@ class DeckModel {
         self.title = title
         self.icon = icon
         self.colorHex = colorHex
-        self.creationDate = Date()
-        self.lastEditedDate = Date()
+        self.createdAt = Date()
+        self.editedAt = Date()
     }
 }

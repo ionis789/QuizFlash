@@ -47,11 +47,11 @@ private struct CardFace: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemBackground))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(Color(uiColor: .separator).opacity(0.35), lineWidth: 0.5)
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .strokeBorder(Color(uiColor: .separator).opacity(0.35), lineWidth: 1)
                 )
                 .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 5)
 
