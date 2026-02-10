@@ -116,7 +116,6 @@ struct SwipeableCard<Content: View>: View {
             exitOffset = direction == .right ? screen : -screen
         }
 
-        // Keep this short delay; it allows the off-screen animation to start before advancing.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             onSwipe(direction)
         }

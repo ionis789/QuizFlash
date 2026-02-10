@@ -17,7 +17,7 @@ struct DeckGalleryView: View {
     }
 
     private var deckColor: Color {
-        Color(deck.colorHex) ?? .blue
+        Color(hex: deck.colorHex) ?? .blue
     }
 
     var body: some View {
@@ -105,7 +105,7 @@ struct DeckGalleryView: View {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: DeckModel.self, CardModel.self, configurations: config)
 
-    // 1. Creăm un deck de test
+  
     let demoDeck = DeckModel(
         title: "SwiftUI Learning",
         icon: "swift",
@@ -113,7 +113,7 @@ struct DeckGalleryView: View {
     )
     container.mainContext.insert(demoDeck)
 
-    // 2. Creăm un card de test și îl atașăm deck-ului
+ 
     let demoCards = [
         CardModel(
             frontText: "Ce wrapper folosim pentru a observa obiecte în SwiftData?",
@@ -135,7 +135,7 @@ struct DeckGalleryView: View {
         Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
 
         DeckGalleryView(deck: demoDeck)
-            .frame(width: 250) // Simulăm lățimea din grid
+            .frame(width: 250)
     }
-        .modelContainer(container) // Inserăm containerul în preview
+        .modelContainer(container)
 }

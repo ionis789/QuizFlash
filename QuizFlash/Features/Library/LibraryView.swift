@@ -32,7 +32,7 @@ struct LibraryView: View {
     }
 
     private var groupedDecks: [DeckSection] {
-        // 1. Sort all decks first based on user preference
+        // Sort all decks first based on user preference
         let sortedAll = decks.sorted { d1, d2 in
             switch sortOrder {
             case .newest: return d1.createdAt > d2.createdAt
@@ -42,20 +42,20 @@ struct LibraryView: View {
             }
         }
 
-        // 2. If alphabetical, return one single section
+        // If alphabetical, return one single section
         if sortOrder == .alphabetical {
             if sortedAll.isEmpty { return [] }
             return [DeckSection(id: "all", title: "All Decks", decks: sortedAll, dateForSorting: Date())]
         }
 
-        // 3. Group by date logic
+        // Group by date logic
         let calendar = Calendar.current
         let groups = Dictionary(grouping: sortedAll) { deck -> Date in
             let dateToCheck = sortOrder == .lastEdited ? deck.editedAt : deck.createdAt
             return calendar.startOfDay(for: dateToCheck)
         }
 
-        // 4. Transform to Sections
+        //Transform to Sections
         var sections: [DeckSection] = groups.map { (startOfDay, decksInGroup) in
             let title = getSectionTitle(for: startOfDay, calendar: calendar)
             return DeckSection(
@@ -66,7 +66,7 @@ struct LibraryView: View {
             )
         }
 
-        // 5. Sort Sections based on user preference
+        // Sort Sections based on user preference
         sections.sort { s1, s2 in
             switch sortOrder {
             case .newest, .lastEdited:
@@ -119,8 +119,6 @@ struct LibraryView: View {
                 }
                     .padding(.top, 8)
                     .safeAreaInset(edge: .bottom) {
-                    // Keep content above floating buttons + selection bar
-                    // Animație pentru spațiul de jos
                     Color.clear
                         .frame(height: isSelecting ? 140 : 110)
                         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isSelecting)
@@ -133,10 +131,9 @@ struct LibraryView: View {
                 exitSelectionMode()
             }
 
-            // Bottom floating buttons (Notes style)
+          
             bottomFloatingButtons
 
-            // Selection bottom bar (Done + Delete)
             if isSelecting {
                 selectionBottomBar
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -320,9 +317,8 @@ struct LibraryView: View {
                 DeckRowView(deck: deck)
                     .frame(maxWidth: .infinity)
             }
-                .buttonStyle(ScaleButtonStyle()) // Adaugat stil custom
+                .buttonStyle(ScaleButtonStyle())
 
-            // Indicator Selection
             if isSelecting {
                 selectionIndicator(isSelected: isSelected) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
@@ -333,7 +329,6 @@ struct LibraryView: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        // FIXED GLOW - Gallery (Radius 22)
         .background {
             if isSelecting && isSelected {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -352,7 +347,6 @@ struct LibraryView: View {
         let isSelected = selectedDecks.contains(deck.id)
 
         HStack(spacing: 12) {
-            // 1. Indicatorul de selecție (Animat din stânga)
             if isSelecting {
                 selectionIndicator(isSelected: isSelected) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
@@ -361,24 +355,18 @@ struct LibraryView: View {
                 }
                     .transition(.move(edge: .leading).combined(with: .opacity))
             }
-
-            // 2. Cardul Unificat (Button)
-            // Folosind un singur buton, prevenim recrearea view-ului și redimensionarea bruscă
             Button {
                 if isSelecting {
-                    // Logică selectare
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                         toggleSelection(deck)
                     }
                 } else {
-                    // Logică navigare
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                         router.path.append(deck)
                     }
                 }
             } label: {
                 DeckRowView(deck: deck)
-                // FIXED GLOW - List (Radius 30)
                 .background {
                     if isSelecting && isSelected {
                         RoundedRectangle(cornerRadius: 30, style: .continuous)
@@ -387,9 +375,8 @@ struct LibraryView: View {
                     }
                 }
             }
-                .buttonStyle(ScaleButtonStyle()) // Adaugat stil custom
+                .buttonStyle(ScaleButtonStyle())
             .contextMenu {
-                // Ascundem meniul in mod selectare
                 if !isSelecting {
                     Button {
                         deckToEditColor = deck
@@ -405,7 +392,6 @@ struct LibraryView: View {
                     }
                 }
             }
-            // Scara persistentă pentru itemii selectați
             .scaleEffect(isSelecting && isSelected ? 0.9 : 1)
                 .animation(.spring(response: 0.32, dampingFraction: 0.85), value: isSelected)
         }
@@ -482,7 +468,6 @@ struct LibraryView: View {
 
     private var bottomFloatingButtons: some View {
         HStack {
-            // Settings (bottom-left)
             Button {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                     router.path.append(AppRoute.settings)
@@ -513,7 +498,7 @@ struct LibraryView: View {
                 .padding(.trailing, 22)
         }
             .padding(.bottom, 12)
-            .allowsHitTesting(!isSelecting) // avoid accidental taps while selecting
+            .allowsHitTesting(!isSelecting) 
         .opacity(isSelecting ? 0.0 : 1.0)
             .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isSelecting)
     }
@@ -645,7 +630,7 @@ struct DeckColorPickerSheet: View {
                     ForEach(colors, id: \.self) { color in
                         Button {
                             withAnimation(.spring(response: 0.3)) {
-                                deck.colorHex = color.toHex() ?? "#035efc"
+                                deck.colorHex = color.toHex()!
                             }
                         } label: {
                             ZStack {
@@ -681,6 +666,6 @@ struct DeckColorPickerSheet: View {
     }
 
     private var deckColor: Color {
-        Color(deck.colorHex) ?? .blue
+        Color(hex: deck.colorHex) ?? .blue
     }
 }

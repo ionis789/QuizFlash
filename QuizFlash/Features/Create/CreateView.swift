@@ -313,6 +313,7 @@ private extension CreateView {
                 title: deckTitle.trimmingCharacters(in: .whitespaces),
                 icon: "book.closed.fill",
                 colorHex: "#035efc"
+                
             )
             context.insert(newDeck)
             for draft in draftCards {
@@ -354,8 +355,3 @@ private extension CreateView {
     }
 }
 
-extension View {
-    func hideKeyboard() {
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    }
-}

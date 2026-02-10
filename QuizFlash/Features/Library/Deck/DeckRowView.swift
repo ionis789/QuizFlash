@@ -17,12 +17,12 @@ struct DeckRowView: View {
     }
     
     private var deckColor: Color {
-        Color(deck.colorHex)
+        Color(hex: deck.colorHex) ?? .blue
     }
 
     var body: some View {
         HStack(spacing: 14) {
-            // Icon with deck color
+        
             ZStack {
                 Circle()
                     .fill(
@@ -36,7 +36,8 @@ struct DeckRowView: View {
 
                 Image(systemName: deck.icon.isEmpty ? "sparkles.rectangle.stack.fill" : deck.icon)
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
+                
             }
 
             // Info

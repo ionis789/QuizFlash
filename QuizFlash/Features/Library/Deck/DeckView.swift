@@ -27,7 +27,7 @@ struct DeckView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // 1. Main Content
+            // Main
             VStack(spacing: 0) {
                 // Header Info
                 DeckHeaderView(deck: deck, onEdit: { isPresentingEdit = true })
@@ -36,7 +36,7 @@ struct DeckView: View {
                     // Play Modes
                     DeckPlayModesView(deck: deck, onPlay: { isPlayingQuiz = true })
 
-                    // Toolbar-ul Secțiunii (Include Meniul ... și Plus +)
+                    // Toolbar
                     DeckSectionToolbar(
                         deck: deck,
                         isSelecting: isSelecting,
@@ -73,7 +73,7 @@ struct DeckView: View {
                 }
             }
 
-            // 2. Bottom Selection Bar
+            // Bottom Selection Bar
             if isSelecting {
                 DeckSelectionBottomBar(
                     selectedCount: selectedCards.count,

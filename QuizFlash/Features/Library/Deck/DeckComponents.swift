@@ -13,7 +13,7 @@ struct DeckHeaderView: View {
     var onEdit: () -> Void
 
     private var deckColor: Color {
-        Color(deck.colorHex) ?? ThemeManager.shared.accentColor.color
+        Color(hex: deck.colorHex) ?? .blue
     }
 
     private var formattedDate: String {
@@ -25,7 +25,7 @@ struct DeckHeaderView: View {
     var body: some View {
         VStack(spacing: 16) {
             HStack(spacing: 16) {
-                // Icon
+               
                 ZStack {
                     Circle()
                         .fill(
@@ -136,11 +136,10 @@ private struct ModeButton: View {
     }
 }
 
-// MARK: - 3. Unified Toolbar (Ellipsis Menu + Add Button)
 struct DeckSectionToolbar: View {
     let deck: DeckModel
     let isSelecting: Bool
-    @Binding var sortOrder: SortOrder // Binding pentru sortare
+    @Binding var sortOrder: SortOrder
 
     var onAdd: () -> Void
     var onStartSelection: () -> Void
@@ -157,7 +156,7 @@ struct DeckSectionToolbar: View {
 
 
 
-            // Butonul de Plus
+      
             Button(action: onAdd) {
                 Image(systemName: "plus")
                     .font(.title3.weight(.semibold))
@@ -168,15 +167,15 @@ struct DeckSectionToolbar: View {
 
 
             if !deck.cards.isEmpty {
-                // Meniul cu 3 puncte (Conține Select + Sort)
+           
                 Menu {
-                    // 1. Select Option
+               
                     Button(action: onStartSelection) {
                         Label("Select Cards", systemImage: "checkmark.circle")
                     }
                         .disabled(isSelecting)
 
-                    // 2. Sort Menu
+               
                     Menu {
                         ForEach(SortOrder.allCases, id: \.self) { order in
                             Button {
@@ -201,7 +200,7 @@ struct DeckSectionToolbar: View {
                         .background(.ultraThinMaterial, in: Circle())
                         .foregroundStyle(accentColor)
                 }
-                    .disabled(isSelecting) // Dezactivăm meniul când selectăm
+                    .disabled(isSelecting)
                 .opacity(isSelecting ? 0.5 : 1)
             }
 

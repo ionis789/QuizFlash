@@ -12,9 +12,8 @@ struct SettingsView: View {
     @State private var themeManager = ThemeManager.shared
 
     var body: some View {
-        // AM ȘTERS NavigationStack DE AICI
         List {
-            // Profile section
+
             Section {
                 HStack(spacing: 14) {
                     Circle()
@@ -45,7 +44,6 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
             }
 
-            // Appearance section
             Section {
                 NavigationLink {
                     AccentColorPickerView()
@@ -70,7 +68,6 @@ struct SettingsView: View {
                 Text("Appearance")
             }
 
-            // Preferences section
             Section {
                 NavigationLink {
                     Text("Notifications")
@@ -87,7 +84,6 @@ struct SettingsView: View {
                 Text("Preferences")
             }
 
-            // About section
             Section {
                 NavigationLink {
                     Text("Help")
@@ -104,7 +100,6 @@ struct SettingsView: View {
                 Text("About")
             }
 
-            // Logout section
             Section {
                 Button {
                     authManager.logout()
@@ -118,14 +113,14 @@ struct SettingsView: View {
                 }
             }
         }
-            .navigationTitle("Settings") // Titlul rămâne, va fi preluat de stack-ul principal
+            .navigationTitle("Settings")
         .listStyle(.insetGrouped)
             .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: 90)
         }
     }
 }
-// ... restul fișierului (AccentColorPickerView) rămâne neschimbat
+
 
 // MARK: - Accent Color Picker View
 struct AccentColorPickerView: View {
