@@ -1,27 +1,27 @@
+//
+//  SwipeableCard.swift
+//  QuizFlash
+//
+//  Optimized swipe card. iOS 17+
+//
+
 import SwiftUI
 
 enum SwipeDirection {
     case left, right
 }
 
-/// Swipe card with proper gesture priority - swipe for horizontal, scroll for vertical
 struct SwipeableCard<Content: View>: View {
+    
     let onSwipe: (SwipeDirection) -> Void
     let onTap: (() -> Void)?
     @ViewBuilder let content: () -> Content
-
-    private let swipeThreshold: CGFloat = 70
-    private let velocityThreshold: CGFloat = 150
     
     @State private var offset: CGFloat = 0
-    @State private var hasTriggeredHaptic = false
-    @State private var isDragging = false
-    @State private var dragDirection: DragDirection = .undetermined
+    @State private var didHaptic = false
     
-    private enum DragDirection {
-        case undetermined, horizontal, vertical
-    }
-
+    private let threshold: CGFloat = 80
+    
     init(
         onSwipe: @escaping (SwipeDirection) -> Void,
         onTap: (() -> Void)? = nil,
@@ -31,107 +31,102 @@ struct SwipeableCard<Content: View>: View {
         self.onTap = onTap
         self.content = content
     }
-
+    
+    // Pre-calculate values to avoid recalculation during animation
     private var rotation: Double {
-        min(max(Double(offset / 30), -6), 6)
+        Double(offset) / 30.0
     }
-
-    private var glowOpacity: Double {
-        min(Double(abs(offset) / 100), 0.6)
+    
+    private var scale: CGFloat {
+        1.0 - Swift.min(Swift.abs(offset) / 800.0, 0.03)
     }
-
+    
     private var glowColor: Color {
-        offset >= 0 ? .green : .red
+        offset > 0 ? .green : .red
     }
-
+    
+    private var glowOpacity: Double {
+        Swift.min(Swift.abs(offset) / threshold, 1.0) * 0.6
+    }
+    
     var body: some View {
+        // Card with integrated glow - moves together
         ZStack {
-            content()
-                // Disable scroll when swiping horizontally
-                .allowsHitTesting(dragDirection != .horizontal)
-
-            // Glow effect overlay
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(glowColor.opacity(glowOpacity), lineWidth: 3)
-                .allowsHitTesting(false)
-        }
-        .offset(x: offset)
-        .rotationEffect(.degrees(rotation))
-        .gesture(swipeGesture)
-        .onTapGesture {
-            if !isDragging {
-                onTap?()
+            // Glow background (behind card)
+            if Swift.abs(offset) > 15 {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(glowColor.opacity(glowOpacity * 0.3))
+                    .blur(radius: 20)
+                    .scaleEffect(1.05)
             }
+            
+            // Card content with border glow
+            content()
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(glowColor.opacity(glowOpacity), lineWidth: 3)
+                        .opacity(Swift.abs(offset) > 15 ? 1 : 0)
+                )
         }
-        .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.75), value: offset)
+        .scaleEffect(scale)
+        .rotationEffect(.degrees(rotation), anchor: .bottom)
+        .offset(x: offset)
+        .gesture(dragGesture)
+        .onTapGesture {
+            onTap?()
+        }
     }
     
-    // MARK: - Swipe Gesture
-    
-    private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 10, coordinateSpace: .local)
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 8)
             .onChanged { value in
-                isDragging = true
+                let dx = value.translation.width
+                let dy = value.translation.height
                 
-                let horizontal = abs(value.translation.width)
-                let vertical = abs(value.translation.height)
+                // Only track horizontal movement
+                guard Swift.abs(dx) > Swift.abs(dy) * 0.8 else { return }
                 
-                // Determine direction once at start of drag
-                if dragDirection == .undetermined && (horizontal > 15 || vertical > 15) {
-                    if horizontal > vertical * 1.2 {
-                        dragDirection = .horizontal
-                    } else if vertical > horizontal * 1.2 {
-                        dragDirection = .vertical
-                    }
-                }
+                // Direct assignment - no animation during drag
+                offset = dx
                 
-                // Only move card if dragging horizontally
-                if dragDirection == .horizontal {
-                    offset = value.translation.width
-                    
-                    // Haptic at threshold
-                    if abs(offset) >= swipeThreshold && !hasTriggeredHaptic {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        hasTriggeredHaptic = true
-                    } else if abs(offset) < swipeThreshold && hasTriggeredHaptic {
-                        hasTriggeredHaptic = false
-                    }
+                // Haptic at threshold
+                if Swift.abs(offset) >= threshold && !didHaptic {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    didHaptic = true
+                } else if Swift.abs(offset) < threshold * 0.5 {
+                    didHaptic = false
                 }
             }
             .onEnded { value in
-                isDragging = false
+                didHaptic = false
                 
-                if dragDirection == .horizontal {
-                    let horizontal = value.translation.width
-                    let velocity = value.predictedEndLocation.x - value.location.x
-                    
-                    // Swipe completed
-                    if horizontal > swipeThreshold || velocity > velocityThreshold {
-                        exitCard(.right)
-                    } else if horizontal < -swipeThreshold || velocity < -velocityThreshold {
-                        exitCard(.left)
-                    } else {
-                        // Snap back
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                            offset = 0
-                        }
+                let dx = value.translation.width
+                let vx = value.velocity.width
+                
+                // Fast swipe or past threshold
+                if dx > threshold || vx > 400 {
+                    exitCard(.right)
+                } else if dx < -threshold || vx < -400 {
+                    exitCard(.left)
+                } else {
+                    // Snap back
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        offset = 0
                     }
                 }
-                
-                // Reset state
-                hasTriggeredHaptic = false
-                dragDirection = .undetermined
             }
     }
-
+    
     private func exitCard(_ direction: SwipeDirection) {
-        let exitX: CGFloat = direction == .right ? 500 : -500
+        let exitX: CGFloat = direction == .right ? 400 : -400
         
-        withAnimation(.easeOut(duration: 0.22)) {
+        withAnimation(.easeOut(duration: 0.18)) {
             offset = exitX
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+        // Callback after animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             onSwipe(direction)
         }
     }

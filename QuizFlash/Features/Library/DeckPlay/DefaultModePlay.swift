@@ -54,7 +54,6 @@ struct DefaultModePlay: View {
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isComplete)
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: currentIndex)
         .navigationBarHidden(true)
     }
     

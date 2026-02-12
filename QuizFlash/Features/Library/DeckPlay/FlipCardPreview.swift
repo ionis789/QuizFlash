@@ -44,7 +44,7 @@ struct FlipCardPreview: View {
                 .rotation3DEffect(.degrees(isFlipped ? -180 : 0), axis: (x: 0, y: 1, z: 0))
                 .opacity(isFlipped ? 0 : 1)
             }
-            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isFlipped)
+            .animation(.easeInOut(duration: 0.35), value: isFlipped)
         }
     }
     
@@ -127,12 +127,13 @@ struct FlipCardPreview: View {
     @ViewBuilder
     private func zoneFullContent(zone: ZoneModel, containerSize: CGSize) -> some View {
         if zone.hasContent {
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: true) {
                 // Use ZonePreviewView which correctly renders horizontal/vertical layouts
                 ZonePreviewView(zone: zone)
                     .padding(.horizontal, isCompact ? 16 : 24)
                     .padding(.vertical, 12)
             }
+            .scrollBounceBehavior(.basedOnSize)
         } else {
             emptyZoneContent
         }
