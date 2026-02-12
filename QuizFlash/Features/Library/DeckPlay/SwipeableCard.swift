@@ -4,21 +4,16 @@ enum SwipeDirection {
     case left, right
 }
 
-/// Simple, native swipe card with smooth animations
+/// Swipe card that allows scrolling inside
 struct SwipeableCard<Content: View>: View {
     let onSwipe: (SwipeDirection) -> Void
     let onTap: (() -> Void)?
     @ViewBuilder let content: () -> Content
 
-    // Distance threshold for slow, intentional drags.
-    private let swipeDistanceThreshold: CGFloat = 72
-    // Projected end threshold keeps fast flicks feeling responsive.
-    private let swipeProjectedThreshold: CGFloat = 100
-
-    @GestureState private var dragOffset: CGFloat = 0
-    @GestureState private var isInThresholdZone: Bool = false
-
-    @State private var exitOffset: CGFloat? = nil
+    private let swipeThreshold: CGFloat = 80
+    
+    @State private var offset: CGFloat = 0
+    @State private var hasTriggeredHaptic = false
 
     init(
         onSwipe: @escaping (SwipeDirection) -> Void,
@@ -30,94 +25,83 @@ struct SwipeableCard<Content: View>: View {
         self.content = content
     }
 
-    private var currentOffset: CGFloat {
-        exitOffset ?? dragOffset
-    }
-
     private var rotation: Double {
-        min(max(Double(currentOffset / 25), -8), 8)
+        min(max(Double(offset / CGFloat(30)), -6), 6)
     }
 
-    private var swipeProgress: CGFloat {
-        min(abs(currentOffset) / swipeProjectedThreshold, 1)
+    private var glowOpacity: Double {
+        min(Double(abs(offset) / CGFloat(120)), 0.5)
     }
 
     private var glowColor: Color {
-        currentOffset >= 0 ? .green : .red
+        offset >= 0 ? .green : .red
     }
 
     var body: some View {
         ZStack {
             content()
+                .allowsHitTesting(true) // Allow scroll inside
 
-            // Glow border
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .stroke(glowColor.opacity(Double(swipeProgress) * 0.6), lineWidth: 3)
-                .shadow(color: glowColor.opacity(Double(swipeProgress) * 0.3), radius: 8)
+            // Glow effect
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(glowColor.opacity(glowOpacity), lineWidth: 3)
                 .allowsHitTesting(false)
-
-            // Gesture capture layer
-            Color.clear
-                .contentShape(Rectangle())
-                .gesture(swipeGesture)
-                .onTapGesture {
-                    onTap?()
-                }
         }
-        .offset(x: currentOffset)
+        .offset(x: offset)
         .rotationEffect(.degrees(rotation))
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: currentOffset)
-    }
-
-    private var swipeGesture: some Gesture {
-        DragGesture()
-            .updating($dragOffset) { value, state, _ in
-                // Track the finger with no extra animation-induced lag.
-                state = value.translation.width
-            }
-            .updating($isInThresholdZone) { value, state, transaction in
-                let enteredZone = abs(value.translation.width) >= swipeDistanceThreshold
-
-                // One-shot haptic on transition: outside → inside.
-                if enteredZone && !state {
-                    transaction.animation = nil // keep haptic logic totally decoupled from animations
-                    impactHaptic()
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 20)
+                .onChanged { value in
+                    // Only track horizontal drags
+                    if abs(value.translation.width) > abs(value.translation.height) {
+                        offset = value.translation.width
+                        
+                        // Haptic feedback
+                        if abs(offset) >= swipeThreshold && !hasTriggeredHaptic {
+                            triggerHaptic()
+                            hasTriggeredHaptic = true
+                        } else if abs(offset) < swipeThreshold {
+                            hasTriggeredHaptic = false
+                        }
+                    }
                 }
-
-                // Persist zone membership for the rest of this gesture.
-                state = enteredZone
-            }
-            .onEnded { value in
-                let translationX = value.translation.width
-                let velocityX = value.predictedEndLocation.x - value.location.x
-                let projected = translationX + velocityX * 0.4
-
-                // Distance-based for slow drags; projected-based for fast flicks.
-                if translationX >= swipeDistanceThreshold || projected >= swipeProjectedThreshold {
-                    exit(.right)
-                } else if translationX <= -swipeDistanceThreshold || projected <= -swipeProjectedThreshold {
-                    exit(.left)
+                .onEnded { value in
+                    let horizontal = value.translation.width
+                    let velocity = value.predictedEndLocation.x - value.location.x
+                    
+                    if horizontal > swipeThreshold || velocity > 200 {
+                        exitCard(.right)
+                    } else if horizontal < -swipeThreshold || velocity < -200 {
+                        exitCard(.left)
+                    } else {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            offset = 0
+                        }
+                    }
+                    hasTriggeredHaptic = false
                 }
-            }
-    }
-
-    private func impactHaptic() {
-        #if canImport(UIKit)
-        let generator = UIImpactFeedbackGenerator(style: .rigid)
-        generator.prepare()
-        generator.impactOccurred()
-        #endif
-    }
-
-    private func exit(_ direction: SwipeDirection) {
-        let screen = UIScreen.main.bounds.width + 100
-
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-            exitOffset = direction == .right ? screen : -screen
+        )
+        .onTapGesture {
+            onTap?()
         }
+        .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.7), value: offset)
+    }
 
+    private func triggerHaptic() {
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+    }
+
+    private func exitCard(_ direction: SwipeDirection) {
+        let exitX: CGFloat = direction == .right ? 500 : -500
+        
+        withAnimation(.easeOut(duration: 0.25)) {
+            offset = exitX
+        }
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             onSwipe(direction)
         }
     }
 }
+

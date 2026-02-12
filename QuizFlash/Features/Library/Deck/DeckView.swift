@@ -4,6 +4,8 @@
 //
 //  Created by Ion Socol on 08.01.2026.
 //
+//  Deck view with card grid and play modes.
+//
 
 import SwiftUI
 import SwiftData
@@ -27,7 +29,7 @@ struct DeckView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Main Content
+            // Main
             VStack(spacing: 0) {
                 // Header Info
                 DeckHeaderView(deck: deck, onEdit: { isPresentingEdit = true })
@@ -36,7 +38,7 @@ struct DeckView: View {
                     // Play Modes
                     DeckPlayModesView(deck: deck, onPlay: { isPlayingQuiz = true })
 
-                    // Toolbar (Sort, Select, Add)
+                    // Toolbar
                     DeckSectionToolbar(
                         deck: deck,
                         isSelecting: isSelecting,
@@ -102,30 +104,18 @@ struct DeckView: View {
         } message: {
             Text("This action cannot be undone.")
         }
-        // --- FIX IPAD: fullScreenCover pentru adăugare card ---
+        // Add new card
         .fullScreenCover(isPresented: $isAddingCard) {
-            AddCardSheetView(
-                initialFront: "",
-                initialBack: "",
-                initialFrontLayout: [],
-                initialBackLayout: [],
-                initialFrontType: .text,
-                initialBackType: .text
-            ) { front, back, fLayout, bLayout, fType, bType in
-                // Salvare directă în model
+            AddCardSheetView { frontContent, backContent in
                 let newCard = CardModel(
-                    frontText: front,
-                    backText: back,
-                    frontType: fType,
-                    backType: bType,
-                    frontLayoutData: try? JSONEncoder().encode(fLayout), // Encodare
-                    backLayoutData: try? JSONEncoder().encode(bLayout)    // Encodare
+                    frontContent: frontContent,
+                    backContent: backContent
                 )
                 deck.cards.append(newCard)
                 deck.editedAt = Date()
             }
         }
-        .fullScreenCover(isPresented: $isPresentingEdit) {
+        .sheet(isPresented: $isPresentingEdit) {
             NavigationStack {
                 CreateView(deckToEdit: deck)
             }
@@ -165,6 +155,7 @@ extension DeckView {
     }
 
     private func requestSingleDelete(_ card: CardModel) {
+        // Context menu action. Ignore in multi-select mode.
         guard !isSelecting else { return }
         deleteSingleCard(card)
     }

@@ -1,29 +1,35 @@
+//
+//  CardRowView.swift
+//  QuizFlash
+//
+//  Created by Ion Socol on 12.02.2026.
+//
+//  Card row view for the create deck list.
+//
+
 import SwiftUI
-import PencilKit
 
 struct CardRowView: View {
     let card: DraftCard
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Rândul 1: Întrebare
+            // Row 1: Question
             contentRow(
                 label: "Q",
                 color: .blue,
-                text: card.front,
-                type: card.frontType,
-                hasImages: !card.frontLayout.isEmpty
+                content: card.frontContent,
+                type: card.frontType
             )
 
             Divider().opacity(0.3)
 
-            // Rândul 2: Răspuns
+            // Row 2: Answer
             contentRow(
                 label: "A",
                 color: .green,
-                text: card.back,
-                type: card.backType,
-                hasImages: !card.backLayout.isEmpty
+                content: card.backContent,
+                type: card.backType
             )
         }
         .padding(14)
@@ -36,8 +42,9 @@ struct CardRowView: View {
     }
     
     @ViewBuilder
-    private func contentRow(label: String, color: Color, text: String, type: CardContentType, hasImages: Bool) -> some View {
+    private func contentRow(label: String, color: Color, content: CardSideContent, type: CardContentType) -> some View {
         HStack(alignment: .top, spacing: 10) {
+            // Label badge
             ZStack {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(color.opacity(0.12))
@@ -48,33 +55,51 @@ struct CardRowView: View {
             }
             
             if type == .text {
+                let text = content.combinedText
+                let hasImages = !content.allImages.isEmpty
+                let hasSketch = content.blocks.contains { $0.type == .sketch }
+                
                 if text.isEmpty && hasImages {
                     Label("Image", systemImage: "photo")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else if text.isEmpty && hasSketch {
+                    Label("Sketch", systemImage: "scribble.variable")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
                     Text(text.isEmpty ? "Empty" : text)
                         .font(.subheadline)
                         .foregroundStyle(text.isEmpty ? Color.secondary.opacity(0.5) : Color.primary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                 }
                 
-                if hasImages {
-                    Image(systemName: "paperclip")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Spacer()
+                
+                // Attachment indicators
+                HStack(spacing: 4) {
+                    if hasImages {
+                        Image(systemName: "photo")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if hasSketch {
+                        Image(systemName: "scribble.variable")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             } else {
-                // Canvas Preview
+                // Canvas/Sketch type
                 HStack(spacing: 4) {
                     Image(systemName: "scribble.variable")
                     Text("Sketch")
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                
+                Spacer()
             }
-            
-            Spacer()
         }
     }
 }
