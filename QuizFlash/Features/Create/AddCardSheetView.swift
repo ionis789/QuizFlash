@@ -1,233 +1,264 @@
+//
+//  AddCardSheetView.swift
+//  QuizFlash
+//
+//  Created by Ion Socol on 12.02.2026.
+//
+
 import SwiftUI
+import PhotosUI
 
 struct AddCardSheetView: View {
     @Environment(\.dismiss) var dismiss
-    var onSave: (String, String) -> Void
+    @Environment(\.colorScheme) var colorScheme
+    
+    // Callback actualizat pentru a returna listele de CanvasItem
+    var onSave: (String, String, [CanvasItem], [CanvasItem], CardContentType, CardContentType) -> Void
 
+    // --- State ---
     @State private var frontText: String
     @State private var backText: String
-    @State private var activeField: CardSide = .question
+    @State private var frontItems: [CanvasItem] = []
+    @State private var backItems: [CanvasItem] = []
     
-    // This controls the logic: True = Keyboard Toolbar, False = Floating Button
+    // Selecție curentă
+    @State private var selectedItemID: UUID? = nil
+    
+    @State private var activeSide: CardSide = .question
     @FocusState private var isEditorFocused: Bool
+    
+    // UI State
+    @State private var showFabExpanded: Bool = false
+    @State private var showCanvasModal: Bool = false
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var maxZIndex: Double = 0
 
-    // Mocking ThemeManager for the example to compile
     private var accent: Color = ThemeManager.shared.accentColor.color
-    // If you have ThemeManager, use: ThemeManager.shared.accentColor.color
-
-    enum CardSide { case question, answer }
-
-    init(initialFront: String = "", initialBack: String = "", onSave: @escaping (String, String) -> Void) {
+    
+    init(
+        initialFront: String = "",
+        initialBack: String = "",
+        initialFrontLayout: [CanvasItem] = [],
+        initialBackLayout: [CanvasItem] = [],
+        initialFrontType: CardContentType = .text,
+        initialBackType: CardContentType = .text,
+        onSave: @escaping (String, String, [CanvasItem], [CanvasItem], CardContentType, CardContentType) -> Void
+    ) {
         _frontText = State(initialValue: initialFront)
         _backText = State(initialValue: initialBack)
+        _frontItems = State(initialValue: initialFrontLayout)
+        _backItems = State(initialValue: initialBackLayout)
         self.onSave = onSave
     }
 
-    private var currentEditorText: Binding<String> {
-        activeField == .question ? $frontText: $backText
-    }
-
-    private var canSave: Bool {
-        !frontText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !backText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    enum CardSide { case question, answer }
 
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                // Background Tap to Focus / Deselect
+                Color(uiColor: .systemBackground)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        selectedItemID = nil // Deselectăm imaginile
+                        if showFabExpanded {
+                            withAnimation { showFabExpanded = false }
+                        } else {
+                            isEditorFocused = true // Focus tastatură
+                        }
+                    }
 
                 VStack(spacing: 0) {
-                    // Top Tab Bar
-                    topTabBar
-
-                    // Editor
-                    editorSection
+                    customTabBar
+                        .padding(.top, 10)
+                        .zIndex(100)
+                    
+                    // ZStack principal: Text + Canvas Items
+                    GeometryReader { geo in
+                        ZStack(alignment: .topLeading) {
+                            
+                            // LAYER 1: TEXT (Full Screen, Transparent)
+                            TextEditor(text: activeSide == .question ? $frontText : $backText)
+                                .font(.system(size: 22, weight: .regular))
+                                .focused($isEditorFocused)
+                                .scrollContentBackground(.hidden)
+                                .padding(24) // Margine pentru text
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .zIndex(0)
+                            
+                            // Placeholder
+                            if (activeSide == .question ? frontText : backText).isEmpty {
+                                Text("Tap to type or add media...")
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(.tertiary)
+                                    .padding(28)
+                                    .allowsHitTesting(false)
+                                    .zIndex(1)
+                            }
+                            
+                            // LAYER 2: IMAGINI FREEFORM
+                            // Acestea plutesc peste text și sunt poziționate relativ la centrul containerului
+                            // sau la poziția salvată.
+                            ForEach(activeBindingItems) { $item in
+                                CanvasItemView(
+                                    item: $item,
+                                    isSelected: selectedItemID == item.id,
+                                    onSelect: {
+                                        selectedItemID = item.id
+                                        bringToFront(item: $item)
+                                        isEditorFocused = false // Ascundem tastatura
+                                    },
+                                    onDelete: {
+                                        deleteItem(id: item.id)
+                                    }
+                                )
+                                // Centrul este punctul 0,0 în CanvasItemView offset logic
+                                // Dar în ZStack, trebuie să le poziționăm în centru initial
+                                .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                            }
+                            .zIndex(10)
+                        }
+                    }
                 }
             }
-            // 1. PLACE THE FLOATING BUTTON IN AN OVERLAY
             .overlay(alignment: .bottomTrailing) {
-                floatingPlusButton
+                fabLayer.padding(30)
             }
-            // 2. KEYBOARD TOOLBAR (Only appears when keyboard is up)
             .toolbar {
-                ToolbarItem(placement: .keyboard) {
-                    keyboardToolbarView
-                }
-                
-                // Navigation Bar Items
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                        .foregroundStyle(.white)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        onSave(frontText, backText)
-                        dismiss()
-                    }
-                    .foregroundStyle(canSave ? accent : Color.gray)
-                    .disabled(!canSave)
-                }
-            }
-            .onAppear {
-                // Optional: Start focused, or remove to start with Floating Button visible
-                isEditorFocused = true
-            }
-        }
-    }
-
-    // MARK: - Floating Plus Button (Apple Notes Style)
-    private var floatingPlusButton: some View {
-        Group {
-            // Only show when keyboard is NOT focused
-            if !isEditorFocused {
-                Menu {
-                    Button {
-                        // Action for Camera
-                    } label: {
-                        Label("Scan Documents", systemImage: "doc.viewfinder")
-                    }
-                    
-                    Button {
-                        // Action for Photo
-                    } label: {
-                        Label("Choose Photo", systemImage: "photo")
-                    }
-                    
-                    Button {
-                        // Action for Format
-                    } label: {
-                        Label("Format Text", systemImage: "textformat")
-                    }
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .resizable()
-                        .frame(width: 50, height: 50)
+                    Button("Save") { saveCard() }
+                        .fontWeight(.bold)
                         .foregroundStyle(accent)
-                        .background(Color.black) // Hides content behind the circle
-                        .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                 }
-                .padding(24) // Distance from edges
-                .transition(.opacity.combined(with: .scale)) // Fade and scale effect
             }
-        }
-        .animation(.easeInOut(duration: 0.25), value: isEditorFocused)
-    }
-
-    // MARK: - Top Tab Bar
-    private var topTabBar: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                tabButton(
-                    title: "QUESTION",
-                    side: .question,
-                    textCount: frontText.count
-                )
-                tabButton(
-                    title: "ANSWER",
-                    side: .answer,
-                    textCount: backText.count
-                )
+            .fullScreenCover(isPresented: $showCanvasModal) {
+                CanvasModalView { imageData in
+                    addItem(imageData: imageData)
+                }
             }
-            .padding(.vertical, 12)
-
-            Divider()
-                .overlay(Color.white.opacity(0.15))
+            .photosPicker(isPresented: .constant(selectedPhotoItem != nil), selection: $selectedPhotoItem, matching: .images)
+            .onChange(of: selectedPhotoItem) { _, newItem in
+                processPhoto(newItem)
+            }
         }
     }
-
-    // MARK: - Editor Section
-    private var editorSection: some View {
-        ZStack(alignment: .topLeading) {
-            // Expanded TextEditor to take available space
-            TextEditor(text: currentEditorText)
-                .focused($isEditorFocused)
-                .font(.system(size: 18, weight: .regular))
-                .foregroundStyle(.white)
-                .scrollContentBackground(.hidden)
-                .padding(20)
-
-            if currentEditorText.wrappedValue.isEmpty {
-                Text(activeField == .question ? "Enter question..." : "Enter answer...")
-                    .font(.body)
-                    .foregroundStyle(Color.gray.opacity(0.5))
-                    .padding(24)
-                    .allowsHitTesting(false)
-            }
-        }
-        // Tapping background dismisses keyboard to show floating button
-        .contentShape(Rectangle())
-        .onTapGesture {
-            isEditorFocused = true
+    
+    // MARK: - Logic
+    
+    var activeBindingItems: Binding<[CanvasItem]> {
+        activeSide == .question ? $frontItems : $backItems
+    }
+    
+    private func addItem(imageData: Data) {
+        maxZIndex += 1
+        let newItem = CanvasItem(imageData: imageData, zIndex: maxZIndex)
+        withAnimation(.spring) {
+            if activeSide == .question { frontItems.append(newItem) }
+            else { backItems.append(newItem) }
         }
     }
-
-    // MARK: - Keyboard Toolbar View
-    // This looks like the native keyboard accessory bar
-    private var keyboardToolbarView: some View {
-        HStack(alignment: .center, spacing: 16) {
-            Button { } label: {
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 20))
-                    .foregroundStyle(accent)
-            }
-            
-            Spacer()
-            
-            // You can add the menu here too if you want it accessible from keyboard
-            Menu {
-                Button("Format", systemImage: "textformat") {}
-                Button("Photo", systemImage: "photo") {}
-            } label: {
-                 Image(systemName: "plus")
-                    .font(.system(size: 20))
-                    .foregroundStyle(accent)
-            }
+    
+    private func deleteItem(id: UUID) {
+        withAnimation {
+            if activeSide == .question { frontItems.removeAll(where: { $0.id == id }) }
+            else { backItems.removeAll(where: { $0.id == id }) }
         }
-        .padding(.vertical, 8)
     }
-
-    // MARK: - Tab Button
-    private func tabButton(title: String, side: CardSide, textCount: Int) -> some View {
-        let isActive = activeField == side
-
+    
+    private func bringToFront(item: Binding<CanvasItem>) {
+        maxZIndex += 1
+        item.wrappedValue.zIndex = maxZIndex
+    }
+    
+    private func processPhoto(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task {
+            if let data = try? await item.loadTransferable(type: Data.self) {
+                await MainActor.run { addItem(imageData: data) }
+            }
+            selectedPhotoItem = nil
+        }
+    }
+    
+    private func saveCard() {
+        onSave(frontText, backText, frontItems, backItems, .text, .text)
+        dismiss()
+    }
+    
+    // MARK: - Components
+    private var customTabBar: some View {
+        HStack(spacing: 0) {
+            tabButton(title: "QUESTION", side: .question)
+            tabButton(title: "ANSWER", side: .answer)
+        }
+        .padding(4)
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal)
+    }
+    
+    private func tabButton(title: String, side: CardSide) -> some View {
+        let isActive = activeSide == side
         return Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                activeField = side
-            }
-            isEditorFocused = true
+            isEditorFocused = false
+            withAnimation(.spring(response: 0.3)) { activeSide = side }
         } label: {
-            HStack {
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(
-                        isActive ? accent : Color.white.opacity(0.55)
-                    )
-
-                Text("(\(textCount))")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(Color.gray)
-            }
-            .padding()
-            .frame(maxWidth: .infinity)
-            .contentShape(Capsule())
-            .background {
-                if isActive {
-                    Capsule()
-                        .fill(.ultraThinMaterial)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(isActive ? .white : .primary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background {
+                    if isActive {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(accent)
+                            .matchedGeometryEffect(id: "Tab", in: namespace)
+                    }
                 }
-            }
         }
         .buttonStyle(.plain)
     }
-}
-
-// MARK: - Preview
-struct AddCardSheetView_Previews: PreviewProvider {
-    static var previews: some View {
-        AddCardSheetView { _, _ in }
+    @Namespace private var namespace
+    
+    private var fabLayer: some View {
+        MorphingButton(
+            backgroundColor: colorScheme.oppositeColor,
+            showExpandedContent: $showFabExpanded
+        ) {
+            Image(systemName: "plus").font(.title2).fontWeight(.bold)
+                .foregroundStyle(colorScheme.backgroundColor).frame(width: 60, height: 60)
+        } content: {
+            VStack(alignment: .leading, spacing: 15) {
+                fabOptionRow(icon: "scribble.variable", title: "Sketch") {
+                    isEditorFocused = false; showFabExpanded = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { showCanvasModal = true }
+                }
+                ZStack {
+                    fabOptionRow(icon: "photo.on.rectangle", title: "Photo") { }
+                    PhotosPicker(selection: $selectedPhotoItem, matching: .images) { Color.clear.frame(height: 45) }
+                        .onChange(of: selectedPhotoItem) { isEditorFocused = false; showFabExpanded = false }
+                }
+                fabOptionRow(icon: "keyboard", title: "Keyboard") {
+                    showFabExpanded = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { isEditorFocused = true }
+                }
+            }
+            .padding(15)
+        } expandedContent: { EmptyView() }
+    }
+    
+    private func fabOptionRow(icon: String, title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 15) {
+                Image(systemName: icon).font(.title2).frame(width: 45, height: 45)
+                    .background(colorScheme.backgroundColor, in: .circle)
+                Text(title).font(.title3.weight(.semibold))
+                    .foregroundStyle(colorScheme.backgroundColor)
+                Spacer()
+            }
+        }
     }
 }

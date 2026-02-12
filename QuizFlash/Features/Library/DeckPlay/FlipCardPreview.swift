@@ -7,90 +7,106 @@ struct FlipCardPreview: View {
 
     var body: some View {
         ZStack {
-            CardFace(
+            // Front
+            CardFaceView(
                 title: "QUESTION",
                 text: card.frontText,
-                isPreview: isPreviewMode,
-                enableScroll: false
+                layoutData: card.frontLayoutData,
+                isPreview: isPreviewMode
             )
             .opacity(isFlipped ? 0 : 1)
-            .rotation3DEffect(
-                .degrees(isFlipped ? 180 : 0),
-                axis: (x: 0, y: 1, z: 0),
-                perspective: 0.6
-            )
+            .rotation3DEffect(.degrees(isFlipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
 
-            CardFace(
+            // Back
+            CardFaceView(
                 title: "ANSWER",
                 text: card.backText,
-                isPreview: isPreviewMode,
-                enableScroll: !isPreviewMode
+                layoutData: card.backLayoutData,
+                isPreview: isPreviewMode
             )
             .opacity(isFlipped ? 1 : 0)
-            .rotation3DEffect(
-                .degrees(isFlipped ? 0 : -180),
-                axis: (x: 0, y: 1, z: 0),
-                perspective: 0.6
-            )
+            .rotation3DEffect(.degrees(isFlipped ? 0 : -180), axis: (x: 0, y: 1, z: 0))
         }
-        .compositingGroup()
-        .accessibilityAddTraits(.isButton)
-        .frame(width: isPreviewMode ? 160 : nil, height: isPreviewMode ? 220 : nil)
     }
 }
 
-private struct CardFace: View {
+private struct CardFaceView: View {
     let title: String
     let text: String
+    let layoutData: Data?
     let isPreview: Bool
-    let enableScroll: Bool
-
+    
+    // Decodăm itemii din JSON
+    var items: [CanvasItem] {
+        guard let data = layoutData else { return [] }
+        return (try? JSONDecoder().decode([CanvasItem].self, from: data)) ?? []
+    }
+    
     var body: some View {
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemBackground))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .strokeBorder(Color(uiColor: .separator).opacity(0.35), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 5)
+            // Background Card
+            RoundedRectangle(cornerRadius: isPreview ? 20 : 30, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 4)
 
-            VStack(alignment: .leading, spacing: 12) {
-                Text(title)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(1)
-
-                if isPreview {
-                    Text(text)
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
-                        .lineLimit(4)
-                        .multilineTextAlignment(.leading)
-                } else if enableScroll {
-                    ScrollView {
-                        Text(text)
-                            .font(.title3.weight(.medium))
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.leading)
-                            .lineSpacing(6)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+            // Content Container
+            GeometryReader { geo in
+                ZStack(alignment: .topLeading) {
+                    
+                    // 1. Text Layer (Scrollable in Play Mode)
+                    if isPreview {
+                        // Grid Mode: Simplu
+                        if !text.isEmpty {
+                            Text(text)
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                                .padding(20)
+                                .lineLimit(6)
+                        } else if !items.isEmpty {
+                            // Arată o mică iconiță dacă sunt doar imagini
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .font(.largeTitle)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    } else {
+                        // Play Mode: Full Text
+                        ScrollView {
+                            Text(text)
+                                .font(.system(size: 24))
+                                .foregroundStyle(.primary)
+                                .padding(24)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
-                    .scrollIndicators(.hidden)
-                } else {
-                    Text(text)
-                        .font(.title3.weight(.medium))
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.leading)
-                        .lineSpacing(6)
+                    
+                    // 2. Image Layer (Freeform)
+                    // Le redăm exact cum au fost salvate (relative la centru)
+                    ForEach(items) { item in
+                        if let uiImage = UIImage(data: item.imageData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 200, height: 200) // Baza, apoi scalăm
+                                .scaleEffect(item.scale * (isPreview ? 0.3 : 1.0)) // Micșorăm în preview
+                                .rotationEffect(Angle(degrees: item.rotation))
+                                .offset(item.offset) // Offset-ul original
+                                .position(x: geo.size.width / 2, y: geo.size.height / 2) // Centru container
+                                .zIndex(item.zIndex)
+                        }
+                    }
                 }
-
-                Spacer(minLength: 0)
             }
-            .padding(20)
+            
+            // Header Label
+            Text(title)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.secondary)
+                .padding(.top, 20)
+                .padding(.leading, 24)
+                .opacity(0.7)
+                .zIndex(100)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped() 
+        .frame(height: isPreview ? 220 : nil)
     }
 }

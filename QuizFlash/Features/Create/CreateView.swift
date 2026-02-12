@@ -55,7 +55,10 @@ struct CreateView: View {
             }
         }
         .onAppear {
-            isTitleFocused = true
+            // Focus pe titlu doar dacă e deck nou
+            if deckToEdit == nil && deckTitle.isEmpty {
+                isTitleFocused = true
+            }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: draftCards.count)
         .navigationTitle(deckToEdit == nil ? "Create Deck" : "Edit Deck")
@@ -81,14 +84,46 @@ struct CreateView: View {
         .onTapGesture {
             hideKeyboard()
         }
-        .sheet(isPresented: $isCreatingNewCard) {
-            AddCardSheetView(initialFront: "", initialBack: "") { front, back in
-                addCard(front: front, back: back)
+        // --- FIX IPAD: Folosim fullScreenCover pentru Editor ---
+        // Sheet-ul simplu apare mic pe iPad, fullScreenCover ocupă tot ecranul
+        .fullScreenCover(isPresented: $isCreatingNewCard) {
+            AddCardSheetView(
+                initialFront: "",
+                initialBack: "",
+                initialFrontLayout: [],
+                initialBackLayout: [],
+                initialFrontType: .text,
+                initialBackType: .text
+            ) { front, back, fLayout, bLayout, fType, bType in
+                addCard(
+                    front: front,
+                    back: back,
+                    fLayout: fLayout,
+                    bLayout: bLayout,
+                    fType: fType,
+                    bType: bType
+                )
             }
         }
-        .sheet(item: $cardToEdit) { card in
-            AddCardSheetView(initialFront: card.front, initialBack: card.back) { front, back in
-                updateCard(card, newFront: front, newBack: back)
+        // Editare Card Existent
+        .fullScreenCover(item: $cardToEdit) { card in
+            AddCardSheetView(
+                initialFront: card.front,
+                initialBack: card.back,
+                initialFrontLayout: card.frontLayout,
+                initialBackLayout: card.backLayout,
+                initialFrontType: card.frontType,
+                initialBackType: card.backType
+            ) { front, back, fLayout, bLayout, fType, bType in
+                updateCard(
+                    card,
+                    newFront: front,
+                    newBack: back,
+                    fLayout: fLayout,
+                    bLayout: bLayout,
+                    fType: fType,
+                    bType: bType
+                )
             }
         }
     }
@@ -262,28 +297,60 @@ private extension CreateView {
     }
 }
 
-// MARK: - Logic
+// MARK: - Logic & Helpers
 private extension CreateView {
+
+    // --- JSON HELPERS ---
+    func decodeLayout(_ data: Data?) -> [CanvasItem] {
+        guard let data else { return [] }
+        return (try? JSONDecoder().decode([CanvasItem].self, from: data)) ?? []
+    }
+    
+    func encodeLayout(_ items: [CanvasItem]) -> Data? {
+        return try? JSONEncoder().encode(items)
+    }
 
     func loadExistingData() {
         if let deck = deckToEdit {
             deckTitle = deck.title
-            draftCards = deck.cards.map { DraftCard(front: $0.frontText, back: $0.backText) }
+            // Încărcăm datele și decodăm Layout-ul JSON în obiecte CanvasItem
+            draftCards = deck.cards.map {
+                DraftCard(
+                    front: $0.frontText,
+                    back: $0.backText,
+                    frontLayout: decodeLayout($0.frontLayoutData),
+                    backLayout: decodeLayout($0.backLayoutData),
+                    frontType: $0.frontType,
+                    backType: $0.backType
+                )
+            }
         }
     }
 
-    func addCard(front: String, back: String) {
-        let newCard = DraftCard(front: front, back: back)
+    func addCard(front: String, back: String, fLayout: [CanvasItem], bLayout: [CanvasItem], fType: CardContentType, bType: CardContentType) {
+        let newCard = DraftCard(
+            front: front,
+            back: back,
+            frontLayout: fLayout,
+            backLayout: bLayout,
+            frontType: fType,
+            backType: bType
+        )
         withAnimation {
             draftCards.append(newCard)
         }
     }
 
-    func updateCard(_ card: DraftCard, newFront: String, newBack: String) {
+    func updateCard(_ card: DraftCard, newFront: String, newBack: String, fLayout: [CanvasItem], bLayout: [CanvasItem], fType: CardContentType, bType: CardContentType) {
         if let index = draftCards.firstIndex(where: { $0.id == card.id }) {
             var updatedCard = draftCards[index]
             updatedCard.front = newFront
             updatedCard.back = newBack
+            updatedCard.frontLayout = fLayout
+            updatedCard.backLayout = bLayout
+            updatedCard.frontType = fType
+            updatedCard.backType = bType
+            
             withAnimation {
                 draftCards[index] = updatedCard
             }
@@ -300,34 +367,47 @@ private extension CreateView {
         isTitleFocused = false
         
         if let deck = deckToEdit {
-            // Edit mode
+            // Edit mode: Update existing deck
             deck.title = deckTitle.trimmingCharacters(in: .whitespaces)
-            deck.cards.removeAll()
+            deck.cards.removeAll() // Rebuild cards
+            
             for draft in draftCards {
-                let newCard = CardModel(frontText: draft.front, backText: draft.back)
+                let newCard = CardModel(
+                    frontText: draft.front,
+                    backText: draft.back,
+                    frontType: draft.frontType,
+                    backType: draft.backType,
+                    frontLayoutData: encodeLayout(draft.frontLayout), // Encode
+                    backLayoutData: encodeLayout(draft.backLayout)    // Encode
+                )
                 deck.cards.append(newCard)
             }
             deck.editedAt = Date()
         } else {
+            // New Deck
             let newDeck = DeckModel(
                 title: deckTitle.trimmingCharacters(in: .whitespaces),
                 icon: "book.closed.fill",
                 colorHex: "#035efc"
-                
             )
             context.insert(newDeck)
             for draft in draftCards {
-                let newCard = CardModel(frontText: draft.front, backText: draft.back)
+                let newCard = CardModel(
+                    frontText: draft.front,
+                    backText: draft.back,
+                    frontType: draft.frontType,
+                    backType: draft.backType,
+                    frontLayoutData: encodeLayout(draft.frontLayout), // Encode
+                    backLayoutData: encodeLayout(draft.backLayout)    // Encode
+                )
                 newCard.deck = newDeck
             }
         }
 
-        // Show success banner sliding from top
         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
             showSuccessOverlay = true
         }
 
-        // Dismiss after delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             withAnimation(.easeOut(duration: 0.3)) {
                 showSuccessOverlay = false
@@ -354,4 +434,3 @@ private extension CreateView {
         isCreatingNewCard = false
     }
 }
-

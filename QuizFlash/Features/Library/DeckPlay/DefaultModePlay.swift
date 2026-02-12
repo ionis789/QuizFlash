@@ -2,7 +2,6 @@ import SwiftUI
 
 struct DefaultModePlay: View {
     let deck: DeckModel
-
     @Environment(\.dismiss) private var dismiss
 
     @State private var cards: [CardModel]
@@ -21,272 +20,114 @@ struct DefaultModePlay: View {
         return Double(currentIndex) / Double(cards.count)
     }
 
-    private var scorePercentage: Int {
-        guard currentIndex > 0 else { return 0 }
-        return Int((Double(correctCount) / Double(currentIndex)) * 100)
-    }
-
     var body: some View {
-        ZStack {
-         
-            Color(uiColor: .systemGroupedBackground)
-                .ignoresSafeArea()
+        GeometryReader { geo in
+            ZStack {
+                Color(uiColor: .systemGroupedBackground)
+                    .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-             
-                header
-                    .padding(.top, 12)
-                    .padding(.horizontal, 20)
-
-                Spacer()
-
-            //MARK: Card
-                ZStack {
-                    if currentIndex < cards.count {
-                        GameplayCard(
-                            card: cards[currentIndex],
-                            onSwipe: handleSwipe
-                        )
-                            .transition(.asymmetric(
-                            insertion: .scale(scale: 0.95).combined(with: .opacity),
-                            removal: .identity
-                        ))
-                            .id(cards[currentIndex].createdAt)
+                VStack(spacing: 0) {
+                    // Header
+                    HStack {
+                        Text(deck.title).font(.title3.bold())
+                        Spacer()
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark")
+                                .font(.subheadline.weight(.semibold))
+                                .padding(10)
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
                     }
+                    .padding(.top, 10)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 10)
+
+                    // CARD AREA (Dynamic Size pt iPad)
+                    ZStack {
+                        if currentIndex < cards.count {
+                            GameplayCard(
+                                card: cards[currentIndex],
+                                onSwipe: handleSwipe
+                            )
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.95).combined(with: .opacity),
+                                removal: .identity
+                            ))
+                            .id(cards[currentIndex].id)
+                        }
+                    }
+                    // AICI e fixul pentru iPad: lățime dinamică, max 600px
+                    .frame(width: min(geo.size.width - 40, 600), height: geo.size.height * 0.75)
+                    .padding(.vertical, 20)
+
+                    Spacer()
+
+                    // Footer
+                    HStack {
+                        // Progress
+                        HStack(spacing: 8) {
+                            Text("\(currentIndex)/\(cards.count)")
+                                .font(.subheadline.weight(.semibold))
+                                .monospacedDigit()
+                            Capsule().fill(Color(uiColor: .systemGray5)).frame(width: 150, height: 4)
+                                .overlay(alignment: .leading) {
+                                    Capsule().fill(Color.blue).frame(width: 150 * progress, height: 4)
+                                }
+                        }
+                        .padding(10).background(.ultraThinMaterial, in: Capsule())
+
+                        // Score
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                            Text("\(correctCount)").font(.subheadline.weight(.semibold)).monospacedDigit()
+                        }
+                        .padding(10).background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .padding(.bottom, 20)
                 }
-                    .frame(height: 480)
-                    .padding(.horizontal, 24)
+                .frame(width: geo.size.width, height: geo.size.height)
 
-                Spacer()
-
-                // Footer hints
-                footerHint
-                    .padding(.bottom, 40)
-            }
-
-            // Completion overlay
-            if isComplete {
-                completionOverlay
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            }
-        }
-            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isComplete)
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: currentIndex)
-            .navigationBarHidden(true)
-    }
-
-    // MARK: - Header
-    private var header: some View {
-        HStack {
-            
-            Text(deck.title)
-                .font(.title3.bold())
-                
-            
-            Spacer()
-
-            // Close button
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(10)
-                    .background(.ultraThinMaterial, in: Circle())
-            }
-        }
-    }
-
-
-
-
-    // MARK: - Footer
-    private var footerHint: some View {
-        HStack {
-
-            // Progress pill
-            HStack(spacing: 8) {
-                Text("\(currentIndex)/\(cards.count)")
-                    .font(.subheadline.weight(.semibold))
-                    .monospacedDigit()
-
-                // Mini progress bar
-                Capsule()
-                    .fill(Color(uiColor: .systemGray5))
-                    .frame(width: 200, height: 4)
-                    .overlay(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.blue)
-                        .frame(width: 200 * progress, height: 4)
-                        .animation(.spring(response: 0.3), value: progress)
+                // Completion Overlay
+                if isComplete {
+                    completionOverlay
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                        .zIndex(10)
                 }
             }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(.ultraThinMaterial, in: Capsule())
-
-
-
-            HStack(spacing: 6) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                Text("\(correctCount)")
-                    .font(.subheadline.weight(.semibold))
-                    .monospacedDigit()
-            }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(.ultraThinMaterial, in: Capsule())
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isComplete)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: currentIndex)
+        .navigationBarHidden(true)
     }
-
-    // MARK: - Completion Overlay
+    
+    // ... Logică identică ...
     private var completionOverlay: some View {
         ZStack {
-            Color.black.opacity(0.2)
-                .ignoresSafeArea()
-                .background(.ultraThinMaterial)
-                .ignoresSafeArea()
-
-            VStack(spacing: 20) {
-                // Icon
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 56))
-                    .foregroundStyle(.green)
-                    .padding(.bottom, 4)
-
-                // Title
-                Text("Complete!")
-                    .font(.title2.weight(.bold))
-
-                // Score
-                Text("\(correctCount) of \(cards.count) correct")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-
-                // Percentage
-                Text("\(scorePercentage)%")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-
-                // Buttons
-                VStack(spacing: 10) {
+            Color.black.opacity(0.4).ignoresSafeArea()
+            VStack(spacing: 24) {
+                Image(systemName: "checkmark.circle.fill").font(.system(size: 60)).foregroundStyle(.green)
+                Text("Complete!").font(.title.bold()).foregroundStyle(.white)
+                Text("Score: \(Int((Double(correctCount)/Double(cards.count))*100))%").font(.title2.bold()).foregroundStyle(.white.opacity(0.9))
+                HStack(spacing: 20) {
                     if !wrongCards.isEmpty {
-                        Button {
-                            retryWrongCards()
-                        } label: {
-                            Label("Retry \(wrongCards.count) Mistakes", systemImage: "arrow.counterclockwise")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        }
-                            .foregroundStyle(.primary)
+                        Button("Retry Mistakes") { retryWrongCards() }.buttonStyle(.borderedProminent).tint(.orange)
                     }
-
-                    Button {
-                        dismiss()
-                    } label: {
-                        Text("Done")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color.blue, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .foregroundStyle(.white)
-                    }
+                    Button("Done") { dismiss() }.buttonStyle(.borderedProminent).tint(.blue)
                 }
-                    .padding(.top, 8)
             }
-                .padding(28)
-                .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .shadow(color: .black.opacity(0.1), radius: 20, y: 10)
-            )
-                .padding(.horizontal, 32)
+            .padding(40).background(.ultraThinMaterial).clipShape(RoundedRectangle(cornerRadius: 24))
         }
     }
 
-    // MARK: - Actions
     private func handleSwipe(_ direction: SwipeDirection) {
         guard currentIndex < cards.count else { return }
-
-        if direction == .right {
-            correctCount += 1
-        } else {
-            wrongCards.append(cards[currentIndex])
-        }
-
+        if direction == .right { correctCount += 1 } else { wrongCards.append(cards[currentIndex]) }
         currentIndex += 1
-
-        if currentIndex >= cards.count {
-            isComplete = true
-        }
+        if currentIndex >= cards.count { isComplete = true }
     }
 
     private func retryWrongCards() {
-        let retry = wrongCards
-        wrongCards = []
-        cards = retry.shuffled()
-        currentIndex = 0
-        correctCount = 0
-        isComplete = false
+        cards = wrongCards.shuffled(); wrongCards = []; currentIndex = 0; correctCount = 0; isComplete = false
     }
 }
 
-// MARK: - Supporting Views
-
-private struct ScoreCard: View {
-    let icon: String
-    let value: String
-    let label: String
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(color)
-
-            Text(value)
-                .font(.subheadline.weight(.bold))
-
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(Color(uiColor: .secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-}
-
-private struct HintLabel: View {
-    let icon: String
-    let text: String
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-            Text(text)
-        }
-            .foregroundStyle(color)
-    }
-}
-
-private struct StatItem: View {
-    let value: String
-    let label: String
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.title3.weight(.bold))
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-}

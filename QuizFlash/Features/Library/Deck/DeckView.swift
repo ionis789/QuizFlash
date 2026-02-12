@@ -27,7 +27,7 @@ struct DeckView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Main
+            // Main Content
             VStack(spacing: 0) {
                 // Header Info
                 DeckHeaderView(deck: deck, onEdit: { isPresentingEdit = true })
@@ -36,7 +36,7 @@ struct DeckView: View {
                     // Play Modes
                     DeckPlayModesView(deck: deck, onPlay: { isPlayingQuiz = true })
 
-                    // Toolbar
+                    // Toolbar (Sort, Select, Add)
                     DeckSectionToolbar(
                         deck: deck,
                         isSelecting: isSelecting,
@@ -102,14 +102,30 @@ struct DeckView: View {
         } message: {
             Text("This action cannot be undone.")
         }
-        .sheet(isPresented: $isAddingCard) {
-            AddCardSheetView { front, back in
-                let newCard = CardModel(frontText: front, backText: back)
+        // --- FIX IPAD: fullScreenCover pentru adăugare card ---
+        .fullScreenCover(isPresented: $isAddingCard) {
+            AddCardSheetView(
+                initialFront: "",
+                initialBack: "",
+                initialFrontLayout: [],
+                initialBackLayout: [],
+                initialFrontType: .text,
+                initialBackType: .text
+            ) { front, back, fLayout, bLayout, fType, bType in
+                // Salvare directă în model
+                let newCard = CardModel(
+                    frontText: front,
+                    backText: back,
+                    frontType: fType,
+                    backType: bType,
+                    frontLayoutData: try? JSONEncoder().encode(fLayout), // Encodare
+                    backLayoutData: try? JSONEncoder().encode(bLayout)    // Encodare
+                )
                 deck.cards.append(newCard)
                 deck.editedAt = Date()
             }
         }
-        .sheet(isPresented: $isPresentingEdit) {
+        .fullScreenCover(isPresented: $isPresentingEdit) {
             NavigationStack {
                 CreateView(deckToEdit: deck)
             }
@@ -149,7 +165,6 @@ extension DeckView {
     }
 
     private func requestSingleDelete(_ card: CardModel) {
-        // Context menu action. Ignore in multi-select mode.
         guard !isSelecting else { return }
         deleteSingleCard(card)
     }

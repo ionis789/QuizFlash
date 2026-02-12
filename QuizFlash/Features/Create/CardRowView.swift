@@ -1,51 +1,30 @@
-//
-//  CardRowView.swift
-//  QuizFlash
-//
-//  Created by Ion Socol on 04.01.2026.
-//
-
 import SwiftUI
+import PencilKit
 
 struct CardRowView: View {
     let card: DraftCard
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.blue.opacity(0.12))
-                        .frame(width: 24, height: 24)
+            // Rândul 1: Întrebare
+            contentRow(
+                label: "Q",
+                color: .blue,
+                text: card.front,
+                type: card.frontType,
+                hasImages: !card.frontLayout.isEmpty
+            )
 
-                    Text("Q")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.blue)
-                }
-                Text(card.front)
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            Divider().opacity(0.3)
 
-            HStack(alignment: .top, spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.green.opacity(0.12))
-                        .frame(width: 24, height: 24)
-
-                    Text("A")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.green)
-                }
-
-                Text(card.back)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            // Rândul 2: Răspuns
+            contentRow(
+                label: "A",
+                color: .green,
+                text: card.back,
+                type: card.backType,
+                hasImages: !card.backLayout.isEmpty
+            )
         }
         .padding(14)
         .background(.ultraThinMaterial)
@@ -55,12 +34,47 @@ struct CardRowView: View {
                 .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
         )
     }
-}
-
-#Preview {
-    ZStack {
-        Color(uiColor: .systemGroupedBackground)
-        CardRowView(card: DraftCard(front: "What represents the powerhouse of the cell?", back: "Mitochondria is the powerhouse of the cell."))
-            .padding()
+    
+    @ViewBuilder
+    private func contentRow(label: String, color: Color, text: String, type: CardContentType, hasImages: Bool) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(color.opacity(0.12))
+                    .frame(width: 24, height: 24)
+                Text(label)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(color)
+            }
+            
+            if type == .text {
+                if text.isEmpty && hasImages {
+                    Label("Image", systemImage: "photo")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(text.isEmpty ? "Empty" : text)
+                        .font(.subheadline)
+                        .foregroundStyle(text.isEmpty ? Color.secondary.opacity(0.5) : Color.primary)
+                        .lineLimit(1)
+                }
+                
+                if hasImages {
+                    Image(systemName: "paperclip")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                // Canvas Preview
+                HStack(spacing: 4) {
+                    Image(systemName: "scribble.variable")
+                    Text("Sketch")
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+        }
     }
 }
