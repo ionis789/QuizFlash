@@ -131,7 +131,7 @@ struct LibraryView: View {
                 exitSelectionMode()
             }
 
-          
+
             bottomFloatingButtons
 
             if isSelecting {
@@ -329,7 +329,7 @@ struct LibraryView: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        .background {
+            .background {
             if isSelecting && isSelected {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(accent, lineWidth: 2)
@@ -367,7 +367,7 @@ struct LibraryView: View {
                 }
             } label: {
                 DeckRowView(deck: deck)
-                .background {
+                    .background {
                     if isSelecting && isSelected {
                         RoundedRectangle(cornerRadius: 30, style: .continuous)
                             .stroke(.gray.opacity(0.7), lineWidth: 2)
@@ -376,7 +376,7 @@ struct LibraryView: View {
                 }
             }
                 .buttonStyle(ScaleButtonStyle())
-            .contextMenu {
+                .contextMenu {
                 if !isSelecting {
                     Button {
                         deckToEditColor = deck
@@ -392,7 +392,7 @@ struct LibraryView: View {
                     }
                 }
             }
-            .scaleEffect(isSelecting && isSelected ? 0.9 : 1)
+                .scaleEffect(isSelecting && isSelected ? 0.9 : 1)
                 .animation(.spring(response: 0.32, dampingFraction: 0.85), value: isSelected)
         }
     }
@@ -489,8 +489,8 @@ struct LibraryView: View {
                     router.path.append(AppRoute.createDeck)
                 }
             } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 18, weight: .semibold))
+                Image(systemName: "plus")
+                    .font(.title3.bold())
                     .foregroundStyle(accent)
                     .padding(14)
                     .glassEffect(cornerRadius: 60, style: .spotlight)
@@ -498,8 +498,8 @@ struct LibraryView: View {
                 .padding(.trailing, 22)
         }
             .padding(.bottom, 12)
-            .allowsHitTesting(!isSelecting) 
-        .opacity(isSelecting ? 0.0 : 1.0)
+            .allowsHitTesting(!isSelecting)
+            .opacity(isSelecting ? 0.0 : 1.0)
             .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isSelecting)
     }
 

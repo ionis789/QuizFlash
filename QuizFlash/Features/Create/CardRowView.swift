@@ -12,7 +12,6 @@ struct CardRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Question section
             HStack(alignment: .top, spacing: 10) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -23,7 +22,6 @@ struct CardRowView: View {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.blue)
                 }
-
                 Text(card.front)
                     .font(.subheadline)
                     .foregroundStyle(.primary)
@@ -31,7 +29,6 @@ struct CardRowView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            // Answer section
             HStack(alignment: .top, spacing: 10) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
