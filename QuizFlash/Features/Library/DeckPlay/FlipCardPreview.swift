@@ -2,7 +2,7 @@
 //  FlipCardPreview.swift
 //  QuizFlash
 //
-//  Flip card view with text formatting, alignment, and image scaling support.
+//  Adaptive flip card with visible boundaries and orientation handling.
 //
 
 import SwiftUI
@@ -12,80 +12,99 @@ struct FlipCardPreview: View {
     var isPreviewMode: Bool = false
     @Binding var isFlipped: Bool
     
-    var body: some View {
-        ZStack {
-            // Back side (shown when flipped)
-            cardFace(
-                title: "ANSWER",
-                blocks: getBlocks(from: card.backContent, legacyText: card.backText, legacyImages: card.backImages)
-            )
-            .rotation3DEffect(.degrees(isFlipped ? 0 : 180), axis: (x: 0, y: 1, z: 0))
-            .opacity(isFlipped ? 1 : 0)
-            
-            // Front side
-            cardFace(
-                title: "QUESTION",
-                blocks: getBlocks(from: card.frontContent, legacyText: card.frontText, legacyImages: card.frontImages)
-            )
-            .rotation3DEffect(.degrees(isFlipped ? -180 : 0), axis: (x: 0, y: 1, z: 0))
-            .opacity(isFlipped ? 0 : 1)
-        }
-        .animation(.easeInOut(duration: 0.4), value: isFlipped)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var isCompact: Bool { horizontalSizeClass == .compact }
+    private var isLandscape: Bool { verticalSizeClass == .compact }
+    
+    private var cardCornerRadius: CGFloat {
+        isPreviewMode ? 16 : (isCompact ? 24 : 32)
     }
     
-    // Get blocks from new format or legacy
-    private func getBlocks(from content: CardSideContent, legacyText: String, legacyImages: [Data]) -> [ContentBlock] {
-        let validBlocks = content.blocks.filter { block in
-            switch block.type {
-            case .text: return !block.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            case .image, .sketch: return block.imageData != nil
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                // Back side - use zone directly
+                cardFaceWithZone(
+                    title: "ANSWER",
+                    zone: card.backZone,
+                    containerSize: geo.size
+                )
+                .rotation3DEffect(.degrees(isFlipped ? 0 : 180), axis: (x: 0, y: 1, z: 0))
+                .opacity(isFlipped ? 1 : 0)
+                
+                // Front side - use zone directly
+                cardFaceWithZone(
+                    title: "QUESTION",
+                    zone: card.frontZone,
+                    containerSize: geo.size
+                )
+                .rotation3DEffect(.degrees(isFlipped ? -180 : 0), axis: (x: 0, y: 1, z: 0))
+                .opacity(isFlipped ? 0 : 1)
             }
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isFlipped)
         }
-        
-        if !validBlocks.isEmpty { return validBlocks }
-        
-        // Fallback to legacy
-        var legacy: [ContentBlock] = []
-        if !legacyText.isEmpty { legacy.append(.text(legacyText)) }
-        for img in legacyImages { legacy.append(.image(data: img)) }
-        return legacy
     }
+    
+    // MARK: - Card Face with Zone (preserves layout structure)
     
     @ViewBuilder
-    private func cardFace(title: String, blocks: [ContentBlock]) -> some View {
-        ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: isPreviewMode ? 16 : 24, style: .continuous)
-                .fill(Color(uiColor: .systemBackground))
-                .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
+    private func cardFaceWithZone(title: String, zone: ZoneModel, containerSize: CGSize) -> some View {
+        ZStack {
+            // Card background with clear boundaries
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                .fill(cardBackgroundGradient)
+                .shadow(color: shadowColor, radius: isCompact ? 12 : 16, y: 6)
             
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 16)
-                    .padding(.leading, 16)
+            // Border for visibility
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                .stroke(borderColor, lineWidth: 1)
+            
+            // Content
+            VStack(alignment: .leading, spacing: 0) {
+                // Header
+                HStack {
+                    Text(title)
+                        .font(isCompact ? .caption2.weight(.bold) : .caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                    
+                    Spacer()
+                    
+                    // Orientation indicator
+                    if !isPreviewMode {
+                        zoneOrientationIndicator(for: zone)
+                    }
+                }
+                .padding(.top, isCompact ? 16 : 20)
+                .padding(.horizontal, isCompact ? 16 : 24)
                 
+                // Main content - render zone directly
                 if isPreviewMode {
-                    previewContent(blocks: blocks)
+                    zonePreviewContent(zone: zone)
                 } else {
-                    fullContent(blocks: blocks)
+                    zoneFullContent(zone: zone, containerSize: containerSize)
                 }
             }
         }
     }
     
-    // Preview mode (grid thumbnail)
+    // MARK: - Zone Preview Content (Thumbnail)
+    
     @ViewBuilder
-    private func previewContent(blocks: [ContentBlock]) -> some View {
+    private func zonePreviewContent(zone: ZoneModel) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            if let txt = blocks.first(where: { $0.type == .text })?.text {
-                Text(txt)
+            // Get first text
+            if let firstText = getFirstText(from: zone), !firstText.isEmpty {
+                Text(firstText)
                     .font(.subheadline)
                     .lineLimit(3)
             }
             
-            if let imgData = blocks.first(where: { $0.type == .image || $0.type == .sketch })?.imageData,
-               let img = UIImage(data: imgData) {
+            // Get first image
+            if let firstImageData = getFirstImage(from: zone),
+               let img = UIImage(data: firstImageData) {
                 Image(uiImage: img)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -93,85 +112,125 @@ struct FlipCardPreview: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             
-            if blocks.isEmpty {
+            if !zone.hasContent {
                 Text("Empty")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.bottom, 16)
+        .padding(.vertical, 12)
     }
     
-    // Full play mode
+    // MARK: - Zone Full Content (Uses ZonePreviewView which preserves layout)
+    
     @ViewBuilder
-    private func fullContent(blocks: [ContentBlock]) -> some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                ForEach(blocks) { block in
-                    blockRenderer(block)
-                }
-                
-                if blocks.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "text.quote")
-                            .font(.largeTitle)
-                            .foregroundStyle(.tertiary)
-                        Text("No content")
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 60)
-                }
+    private func zoneFullContent(zone: ZoneModel, containerSize: CGSize) -> some View {
+        if zone.hasContent {
+            ScrollView {
+                // Use ZonePreviewView which correctly renders horizontal/vertical layouts
+                ZonePreviewView(zone: zone)
+                    .padding(.horizontal, isCompact ? 16 : 24)
+                    .padding(.vertical, 12)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 24)
+        } else {
+            emptyZoneContent
         }
     }
     
+    private var emptyZoneContent: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "text.quote")
+                .font(isCompact ? .largeTitle : .system(size: 48))
+                .foregroundStyle(.tertiary)
+            Text("No content")
+                .font(isCompact ? .body : .title3)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    // MARK: - Zone Orientation Indicator
+    
     @ViewBuilder
-    private func blockRenderer(_ block: ContentBlock) -> some View {
-        let alignment: Alignment = {
-            switch block.textAlignment {
-            case .leading: return .leading
-            case .center: return .center
-            case .trailing: return .trailing
-            }
-        }()
+    private func zoneOrientationIndicator(for zone: ZoneModel) -> some View {
+        let orientation = zone.preferredOrientation
         
-        switch block.type {
-        case .text:
-            if !block.text.isEmpty {
-                Text(block.text)
-                    .font(block.textStyle.font)
-                    .fontWeight(block.isBold ? .bold : .regular)
-                    .italic(block.isItalic)
-                    .multilineTextAlignment(block.textAlignment.alignment)
-                    .frame(maxWidth: .infinity, alignment: alignment)
+        if orientation != .adaptive {
+            HStack(spacing: 4) {
+                Image(systemName: orientation == .landscape ? "rectangle.landscape.rotate" : "rectangle.portrait.rotate")
+                    .font(.caption2)
             }
-            
-        case .image:
-            if let data = block.imageData, let img = UIImage(data: data) {
-                Image(uiImage: img)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: UIScreen.main.bounds.width * block.imageScale * 0.8)
-                    .frame(maxHeight: 350)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .frame(maxWidth: .infinity, alignment: alignment)
+            .foregroundStyle(.tertiary)
+        }
+    }
+    
+    // MARK: - Helpers to extract content from zone
+    
+    private func getFirstText(from zone: ZoneModel) -> String? {
+        if zone.isLeaf {
+            if zone.contentType == .text && !zone.text.isEmpty {
+                return zone.text
             }
-            
-        case .sketch:
-            if let data = block.imageData, let img = UIImage(data: data) {
-                Image(uiImage: img)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: UIScreen.main.bounds.width * block.imageScale * 0.8)
-                    .frame(maxHeight: 350)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .frame(maxWidth: .infinity, alignment: alignment)
+        } else if let children = zone.children {
+            for child in children {
+                if let text = getFirstText(from: child) {
+                    return text
+                }
             }
         }
+        return nil
+    }
+    
+    private func getFirstImage(from zone: ZoneModel) -> Data? {
+        if zone.isLeaf {
+            if (zone.contentType == .image || zone.contentType == .sketch) && zone.imageData != nil {
+                return zone.imageData
+            }
+        } else if let children = zone.children {
+            for child in children {
+                if let data = getFirstImage(from: child) {
+                    return data
+                }
+            }
+        }
+        return nil
+    }
+    
+    // MARK: - Styling
+    
+    private var cardBackgroundGradient: some ShapeStyle {
+        if colorScheme == .dark {
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        Color(uiColor: .systemBackground),
+                        Color(uiColor: .systemBackground).opacity(0.95)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+        } else {
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        Color.white,
+                        Color(uiColor: .systemGray6)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+        }
+    }
+    
+    private var shadowColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.4) : Color.black.opacity(0.12)
+    }
+    
+    private var borderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.06)
     }
 }
 

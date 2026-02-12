@@ -23,7 +23,15 @@ class CardModel {
     var frontTypeRaw: String = CardContentType.text.rawValue
     var backTypeRaw: String = CardContentType.text.rawValue
     
-    // NEW: Linear content blocks (JSON encoded)
+    // NEW: Zone-based content (JSON encoded ZoneModel)
+    // This preserves the hierarchical structure (horizontal/vertical containers)
+    @Attribute(.externalStorage)
+    var frontZoneData: Data?
+    
+    @Attribute(.externalStorage)
+    var backZoneData: Data?
+    
+    // LEGACY: Linear content blocks (JSON encoded) - kept for migration
     @Attribute(.externalStorage)
     var frontBlocksData: Data?
     
@@ -67,7 +75,73 @@ class CardModel {
         set { backTypeRaw = newValue.rawValue }
     }
     
-    // MARK: - Content Block Accessors
+    // MARK: - Zone Accessors (NEW - preserves layout structure)
+    
+    /// Get front zone model (preserves horizontal/vertical structure)
+    var frontZone: ZoneModel {
+        get {
+            // Try new zone data first
+            if let data = frontZoneData,
+               let zone = ZoneModel.decode(from: data) {
+                return zone
+            }
+            // Migrate from old blocks data
+            if let data = frontBlocksData {
+                let content = CardSideContent.fromData(data)
+                return ZoneCardContent.from(oldContent: content).rootZone
+            }
+            // Migrate from legacy text/images
+            if !frontText.isEmpty || !frontImages.isEmpty {
+                let content = CardSideContent.fromLegacy(text: frontText, images: frontImages)
+                return ZoneCardContent.from(oldContent: content).rootZone
+            }
+            return .text()
+        }
+        set {
+            // Save zone structure
+            frontZoneData = newValue.encode()
+            // Also update legacy fields for search/preview
+            let content = ZoneCardContent(rootZone: newValue)
+            let oldContent = content.toOldContent()
+            frontBlocksData = oldContent.toData()
+            frontText = oldContent.combinedText
+            frontImages = oldContent.allImages
+        }
+    }
+    
+    /// Get back zone model (preserves horizontal/vertical structure)
+    var backZone: ZoneModel {
+        get {
+            // Try new zone data first
+            if let data = backZoneData,
+               let zone = ZoneModel.decode(from: data) {
+                return zone
+            }
+            // Migrate from old blocks data
+            if let data = backBlocksData {
+                let content = CardSideContent.fromData(data)
+                return ZoneCardContent.from(oldContent: content).rootZone
+            }
+            // Migrate from legacy text/images
+            if !backText.isEmpty || !backImages.isEmpty {
+                let content = CardSideContent.fromLegacy(text: backText, images: backImages)
+                return ZoneCardContent.from(oldContent: content).rootZone
+            }
+            return .text()
+        }
+        set {
+            // Save zone structure
+            backZoneData = newValue.encode()
+            // Also update legacy fields for search/preview
+            let content = ZoneCardContent(rootZone: newValue)
+            let oldContent = content.toOldContent()
+            backBlocksData = oldContent.toData()
+            backText = oldContent.combinedText
+            backImages = oldContent.allImages
+        }
+    }
+    
+    // MARK: - Content Block Accessors (Legacy - for compatibility)
     
     /// Get front content as CardSideContent
     var frontContent: CardSideContent {
@@ -153,15 +227,42 @@ class CardModel {
         self.createdAt = Date()
         self.editedAt = Date()
     }
+    
+    /// Initialize with zone models directly (preserves layout structure)
+    init(
+        frontZone: ZoneModel,
+        backZone: ZoneModel,
+        frontType: CardContentType = .text,
+        backType: CardContentType = .text
+    ) {
+        self.frontTypeRaw = frontType.rawValue
+        self.backTypeRaw = backType.rawValue
+        
+        // Save zone structure directly using helper
+        self.frontZoneData = frontZone.encode()
+        self.backZoneData = backZone.encode()
+        
+        // Also save as blocks for legacy compatibility
+        let frontContent = ZoneCardContent(rootZone: frontZone).toOldContent()
+        let backContent = ZoneCardContent(rootZone: backZone).toOldContent()
+        self.frontBlocksData = frontContent.toData()
+        self.backBlocksData = backContent.toData()
+        self.frontText = frontContent.combinedText
+        self.backText = backContent.combinedText
+        self.frontImages = frontContent.allImages
+        self.backImages = backContent.allImages
+        self.createdAt = Date()
+        self.editedAt = Date()
+    }
 }
 
 // MARK: - Draft Card (For CreateView)
 struct DraftCard: Identifiable {
     let id = UUID()
     
-    // Content blocks
-    var frontContent: CardSideContent
-    var backContent: CardSideContent
+    // Zone-based content (preserves layout)
+    var frontZone: ZoneModel
+    var backZone: ZoneModel
     
     // Type (text or canvas)
     var frontType: CardContentType
@@ -171,36 +272,44 @@ struct DraftCard: Identifiable {
     var frontData: Data?
     var backData: Data?
     
-    // MARK: - Computed
+    // MARK: - Computed (for compatibility)
     
     var front: String {
-        frontContent.combinedText
+        ZoneCardContent(rootZone: frontZone).toOldContent().combinedText
     }
     
     var back: String {
-        backContent.combinedText
+        ZoneCardContent(rootZone: backZone).toOldContent().combinedText
     }
     
     var frontImages: [Data] {
-        frontContent.allImages
+        ZoneCardContent(rootZone: frontZone).toOldContent().allImages
     }
     
     var backImages: [Data] {
-        backContent.allImages
+        ZoneCardContent(rootZone: backZone).toOldContent().allImages
+    }
+    
+    var frontContent: CardSideContent {
+        ZoneCardContent(rootZone: frontZone).toOldContent()
+    }
+    
+    var backContent: CardSideContent {
+        ZoneCardContent(rootZone: backZone).toOldContent()
     }
     
     // MARK: - Initializers
     
     init(
-        frontContent: CardSideContent = CardSideContent(blocks: [.text()]),
-        backContent: CardSideContent = CardSideContent(blocks: [.text()]),
+        frontZone: ZoneModel = .text(),
+        backZone: ZoneModel = .text(),
         frontType: CardContentType = .text,
         backType: CardContentType = .text,
         frontData: Data? = nil,
         backData: Data? = nil
     ) {
-        self.frontContent = frontContent
-        self.backContent = backContent
+        self.frontZone = frontZone
+        self.backZone = backZone
         self.frontType = frontType
         self.backType = backType
         self.frontData = frontData
@@ -210,8 +319,8 @@ struct DraftCard: Identifiable {
     /// Create from CardModel
     static func from(_ card: CardModel) -> DraftCard {
         DraftCard(
-            frontContent: card.frontContent,
-            backContent: card.backContent,
+            frontZone: card.frontZone,
+            backZone: card.backZone,
             frontType: card.frontType,
             backType: card.backType,
             frontData: card.frontData,

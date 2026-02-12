@@ -87,16 +87,16 @@ struct CreateView: View {
         .onAppear(perform: loadExistingData)
         // Full screen cover for card creation/editing (iPad support)
         .fullScreenCover(isPresented: $isCreatingNewCard) {
-            AddCardSheetView { frontContent, backContent in
-                addCard(frontContent: frontContent, backContent: backContent)
+            AddCardSheetView { frontZone, backZone in
+                addCard(frontZone: frontZone, backZone: backZone)
             }
         }
         .fullScreenCover(item: $cardToEdit) { card in
             AddCardSheetView(
-                frontContent: card.frontContent,
-                backContent: card.backContent
-            ) { frontContent, backContent in
-                updateCard(card, frontContent: frontContent, backContent: backContent)
+                frontZone: card.frontZone,
+                backZone: card.backZone
+            ) { frontZone, backZone in
+                updateCard(card, frontZone: frontZone, backZone: backZone)
             }
         }
     }
@@ -280,10 +280,10 @@ private extension CreateView {
         }
     }
 
-    func addCard(frontContent: CardSideContent, backContent: CardSideContent) {
+    func addCard(frontZone: ZoneModel, backZone: ZoneModel) {
         let newCard = DraftCard(
-            frontContent: frontContent,
-            backContent: backContent,
+            frontZone: frontZone,
+            backZone: backZone,
             frontType: .text,
             backType: .text
         )
@@ -292,11 +292,11 @@ private extension CreateView {
         }
     }
 
-    func updateCard(_ card: DraftCard, frontContent: CardSideContent, backContent: CardSideContent) {
+    func updateCard(_ card: DraftCard, frontZone: ZoneModel, backZone: ZoneModel) {
         if let index = draftCards.firstIndex(where: { $0.id == card.id }) {
             var updatedCard = draftCards[index]
-            updatedCard.frontContent = frontContent
-            updatedCard.backContent = backContent
+            updatedCard.frontZone = frontZone
+            updatedCard.backZone = backZone
             
             withAnimation {
                 draftCards[index] = updatedCard
@@ -320,8 +320,8 @@ private extension CreateView {
             
             for draft in draftCards {
                 let newCard = CardModel(
-                    frontContent: draft.frontContent,
-                    backContent: draft.backContent,
+                    frontZone: draft.frontZone,
+                    backZone: draft.backZone,
                     frontType: draft.frontType,
                     backType: draft.backType
                 )
@@ -339,8 +339,8 @@ private extension CreateView {
             
             for draft in draftCards {
                 let newCard = CardModel(
-                    frontContent: draft.frontContent,
-                    backContent: draft.backContent,
+                    frontZone: draft.frontZone,
+                    backZone: draft.backZone,
                     frontType: draft.frontType,
                     backType: draft.backType
                 )

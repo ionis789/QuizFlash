@@ -106,10 +106,10 @@ struct DeckView: View {
         }
         // Add new card
         .fullScreenCover(isPresented: $isAddingCard) {
-            AddCardSheetView { frontContent, backContent in
+            AddCardSheetView { frontZone, backZone in
                 let newCard = CardModel(
-                    frontContent: frontContent,
-                    backContent: backContent
+                    frontZone: frontZone,
+                    backZone: backZone
                 )
                 deck.cards.append(newCard)
                 deck.editedAt = Date()

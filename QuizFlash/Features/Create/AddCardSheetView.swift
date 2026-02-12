@@ -2,7 +2,7 @@
 //  AddCardSheetView.swift
 //  QuizFlash
 //
-//  Professional card editor with vertical line indicators and proper animations.
+//  Card editor with zone-based layout, image resize, split, and adaptive sizing.
 //
 
 import SwiftUI
@@ -12,14 +12,19 @@ struct AddCardSheetView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     
-    var onSave: (CardSideContent, CardSideContent) -> Void
+    // NEW: Save zones directly to preserve layout structure
+    var onSaveZones: (ZoneModel, ZoneModel) -> Void
     
-    @State private var frontContent: CardSideContent
-    @State private var backContent: CardSideContent
+    // Zone-based content
+    @State private var frontZoneContent: ZoneCardContent
+    @State private var backZoneContent: ZoneCardContent
     @State private var activeSide = 0
     
     // FAB Menu
     @State private var showFABMenu = false
+    
+    // Keyboard tracking
+    @State private var keyboardHeight: CGFloat = 0
     
     // Modals
     @State private var showPhotoPicker = false
@@ -27,25 +32,25 @@ struct AddCardSheetView: View {
     @State private var showPreview = false
     @State private var selectedPhoto: PhotosPickerItem?
     
-    // Formatting mode
-    @State private var formattingBlockIndex: Int? = nil
+    // Selection
+    @State private var selectedPath: ZonePath? = .root
     
     private var accent: Color { ThemeManager.shared.accentColor.color }
-    private var canSave: Bool { frontContent.hasContent || backContent.hasContent }
-    private var currentContent: CardSideContent { activeSide == 0 ? frontContent : backContent }
+    private var currentContent: ZoneCardContent { activeSide == 0 ? frontZoneContent : backZoneContent }
+    private var canSave: Bool { frontZoneContent.hasContent || backZoneContent.hasContent }
     
     // MARK: - Init
     
-    init(onSave: @escaping (CardSideContent, CardSideContent) -> Void) {
-        self.onSave = onSave
-        _frontContent = State(initialValue: CardSideContent(blocks: [.text()]))
-        _backContent = State(initialValue: CardSideContent(blocks: [.text()]))
+    init(onSave: @escaping (ZoneModel, ZoneModel) -> Void) {
+        self.onSaveZones = onSave
+        _frontZoneContent = State(initialValue: ZoneCardContent(rootZone: .text()))
+        _backZoneContent = State(initialValue: ZoneCardContent(rootZone: .text()))
     }
     
-    init(frontContent: CardSideContent, backContent: CardSideContent, onSave: @escaping (CardSideContent, CardSideContent) -> Void) {
-        self.onSave = onSave
-        _frontContent = State(initialValue: frontContent.blocks.isEmpty ? CardSideContent(blocks: [.text()]) : frontContent)
-        _backContent = State(initialValue: backContent.blocks.isEmpty ? CardSideContent(blocks: [.text()]) : backContent)
+    init(frontZone: ZoneModel, backZone: ZoneModel, onSave: @escaping (ZoneModel, ZoneModel) -> Void) {
+        self.onSaveZones = onSave
+        _frontZoneContent = State(initialValue: ZoneCardContent(rootZone: frontZone))
+        _backZoneContent = State(initialValue: ZoneCardContent(rootZone: backZone))
     }
     
     // MARK: - Body
@@ -53,66 +58,34 @@ struct AddCardSheetView: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                // Main content
                 VStack(spacing: 0) {
-                    // Side Picker
-                    Picker("Side", selection: $activeSide) {
-                        Text("Question").tag(0)
-                        Text("Answer").tag(1)
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .onChange(of: activeSide) { _, _ in
-                        // Cleanup empty blocks when switching sides
-                        cleanupEmptyBlocks(in: activeSide == 0 ? backContent : frontContent)
-                        formattingBlockIndex = nil
-                    }
-                    
+                    sidePicker
                     Divider()
+                    editorArea
                     
-                    // Editor
-                    if activeSide == 0 {
-                        BlockEditorView(
-                            content: frontContent,
-                            formattingIndex: $formattingBlockIndex
-                        )
-                    } else {
-                        BlockEditorView(
-                            content: backContent,
-                            formattingIndex: $formattingBlockIndex
-                        )
-                    }
-                    
-                    // Format Bar
-                    if let index = formattingBlockIndex, index < currentContent.blocks.count {
-                        FormatBarView(
+                    // Format bar at the bottom (when zone selected)
+                    if let path = selectedPath, currentContent.zone(at: path) != nil {
+                        ZoneFormatBar(
                             content: currentContent,
-                            index: index,
-                            onClose: { closeFormatting() }
+                            path: path,
+                            onAddZone: { direction in addZoneWithFocus(in: direction) },
+                            onSplit: { splitZone() },
+                            onClose: { selectedPath = nil }
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
                 
-                // FAB Overlay
-                if showFABMenu {
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            withAnimation(.spring(response: 0.3)) {
-                                showFABMenu = false
-                            }
-                        }
-                }
+                // Dismiss overlay when FAB menu is open
+                fabDismissOverlay
                 
-                // FAB Button
+                // FAB - ALWAYS visible, positioned above keyboard
                 VStack {
                     Spacer()
                     HStack {
                         Spacer()
-                        fabButton
-                            .padding(.trailing, 20)
-                            .padding(.bottom, 24)
+                        fabOverlay
                     }
                 }
             }
@@ -126,9 +99,150 @@ struct AddCardSheetView: View {
                 CanvasModalView { data in addSketch(data) }
             }
             .sheet(isPresented: $showPreview) {
-                CardPreviewSheet(front: frontContent, back: backContent)
+                ZonePreviewSheet(front: frontZoneContent, back: backZoneContent)
             }
-            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: formattingBlockIndex)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedPath)
+            // Keyboard observer
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
+                if let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+                    withAnimation(.spring(response: 0.3)) {
+                        keyboardHeight = frame.height
+                    }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                withAnimation(.spring(response: 0.3)) {
+                    keyboardHeight = 0
+                }
+            }
+        }
+    }
+    
+    // MARK: - Side Picker
+    
+    private var sidePicker: some View {
+        Picker("Side", selection: $activeSide) {
+            Text("Question").tag(0)
+            Text("Answer").tag(1)
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .onChange(of: activeSide) { _, _ in
+            (activeSide == 0 ? backZoneContent : frontZoneContent).cleanup()
+            selectedPath = .root
+        }
+    }
+    
+    // MARK: - Editor Area
+    
+    private var editorArea: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if activeSide == 0 {
+                        ZoneEditorView(
+                            content: frontZoneContent,
+                            path: .root,
+                            selectedPath: $selectedPath
+                        )
+                    } else {
+                        ZoneEditorView(
+                            content: backZoneContent,
+                            path: .root,
+                            selectedPath: $selectedPath
+                        )
+                    }
+                    
+                    // Tap below to add new zone at bottom
+                    Color.clear
+                        .frame(height: 100)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            addZoneAtBottom()
+                        }
+                        .id("bottom")
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                // Add bottom padding when format bar or FAB is visible
+                .padding(.bottom, selectedPath != nil ? 80 : 100)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            // Auto-scroll when selected zone changes
+            .onChange(of: selectedPath) { _, newPath in
+                if let path = newPath {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            proxy.scrollTo(path.id, anchor: .center)
+                        }
+                    }
+                }
+            }
+            // Auto-scroll when keyboard appears to keep selected zone visible
+            .onChange(of: keyboardHeight) { oldHeight, newHeight in
+                if newHeight > oldHeight, let path = selectedPath {
+                    // Keyboard appearing - scroll to keep zone visible
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            proxy.scrollTo(path.id, anchor: .bottom)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - FAB
+    
+    private var fabOverlay: some View {
+        VStack(alignment: .trailing, spacing: 12) {
+            if showFABMenu {
+                // Menu items
+                VStack(spacing: 8) {
+                    FABMenuItem(icon: "photo", label: "Photo") {
+                        showFABMenu = false
+                        showPhotoPicker = true
+                    }
+                    FABMenuItem(icon: "scribble.variable", label: "Sketch") {
+                        showFABMenu = false
+                        hideKeyboard()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { showSketchModal = true }
+                    }
+                }
+                .transition(.scale(scale: 0.5, anchor: .bottomTrailing).combined(with: .opacity))
+            }
+            
+            // Main FAB button - always visible
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { showFABMenu.toggle() }
+            } label: {
+                Image(systemName: showFABMenu ? "xmark" : "plus")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(colorScheme == .dark ? .black : .white)
+                    .frame(width: 56, height: 56)
+                    .background(accent)
+                    .clipShape(Circle())
+                    .shadow(color: accent.opacity(0.4), radius: 8, y: 4)
+                    .rotationEffect(.degrees(showFABMenu ? 45 : 0))
+            }
+        }
+        .padding(.trailing, 20)
+        // FAB sits above format bar (which handles keyboard), not above keyboard directly
+        // Format bar height is ~55px, so FAB just needs small offset above it
+        .padding(.bottom, selectedPath != nil ? 65 : 30)
+    }
+    
+    // Background overlay when FAB menu is open
+    private var fabDismissOverlay: some View {
+        Group {
+            if showFABMenu {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.3)) { showFABMenu = false }
+                    }
+            }
         }
     }
     
@@ -150,55 +264,14 @@ struct AddCardSheetView: View {
                 .disabled(!canSave)
                 
                 Button("Save") {
-                    cleanupEmptyBlocks(in: frontContent)
-                    cleanupEmptyBlocks(in: backContent)
-                    onSave(frontContent, backContent)
+                    frontZoneContent.cleanup()
+                    backZoneContent.cleanup()
+                    // Save zones directly to preserve layout structure
+                    onSaveZones(frontZoneContent.rootZone, backZoneContent.rootZone)
                     dismiss()
                 }
                 .fontWeight(.semibold)
                 .disabled(!canSave)
-            }
-        }
-    }
-    
-    // MARK: - FAB Button
-    
-    private var fabButton: some View {
-        VStack(alignment: .trailing, spacing: 12) {
-            if showFABMenu {
-                VStack(spacing: 8) {
-                    FABMenuItem(icon: "photo", label: "Photo") {
-                        showFABMenu = false
-                        showPhotoPicker = true
-                    }
-                    FABMenuItem(icon: "scribble.variable", label: "Sketch") {
-                        showFABMenu = false
-                        hideKeyboard()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                            showSketchModal = true
-                        }
-                    }
-                    FABMenuItem(icon: "keyboard.chevron.compact.down", label: "Done") {
-                        showFABMenu = false
-                        hideKeyboard()
-                    }
-                }
-                .transition(.scale(scale: 0.5, anchor: .bottomTrailing).combined(with: .opacity))
-            }
-            
-            Button {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                    showFABMenu.toggle()
-                }
-            } label: {
-                Image(systemName: showFABMenu ? "xmark" : "plus")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(colorScheme == .dark ? .black : .white)
-                    .frame(width: 56, height: 56)
-                    .background(accent)
-                    .clipShape(Circle())
-                    .shadow(color: accent.opacity(0.4), radius: 8, y: 4)
-                    .rotationEffect(.degrees(showFABMenu ? 45 : 0))
             }
         }
     }
@@ -209,14 +282,172 @@ struct AddCardSheetView: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     
+    private func addZone(in direction: AddDirection) {
+        guard let path = selectedPath else { return }
+        currentContent.addZone(relativeTo: path, direction: direction)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+    
+    /// Add zone and automatically focus on it
+    private func addZoneWithFocus(in direction: AddDirection) {
+        guard let path = selectedPath else { return }
+        
+        // Get info about structure before adding
+        let parentPath = path.parent
+        let childIndex = path.lastIndex ?? 0
+        let parentZone = parentPath != nil ? currentContent.zone(at: parentPath!) : nil
+        let parentDirection = parentZone?.direction
+        let isRoot = path.indices.isEmpty
+        
+        // Add the zone
+        currentContent.addZone(relativeTo: path, direction: direction)
+        
+        // Calculate new zone path based on how it was added
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            if isRoot {
+                // Root was wrapped in container
+                switch direction {
+                case .left, .up:
+                    selectedPath = ZonePath(indices: [0])
+                case .right, .down:
+                    selectedPath = ZonePath(indices: [1])
+                }
+            } else if let parentPath = parentPath, parentDirection == direction.zoneDirection {
+                // Same direction as parent - sibling was added
+                switch direction {
+                case .left, .up:
+                    selectedPath = parentPath.appending(childIndex)
+                case .right, .down:
+                    selectedPath = parentPath.appending(childIndex + 1)
+                }
+            } else {
+                // Different direction - current zone was wrapped in container
+                switch direction {
+                case .left, .up:
+                    selectedPath = path.appending(0)
+                case .right, .down:
+                    selectedPath = path.appending(1)
+                }
+            }
+            
+            // Trigger keyboard for new zone
+            triggerKeyboardForNewZone()
+        }
+        
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+    
+    private func addZoneAtBottom() {
+        // Add a new text zone at the bottom of root
+        currentContent.addZone(relativeTo: .root, direction: .down)
+        
+        // Select the new zone (last child of root if it's a container, or the new root)
+        if let children = currentContent.rootZone.children, !children.isEmpty {
+            selectedPath = ZonePath(indices: [children.count - 1])
+        } else {
+            selectedPath = .root
+        }
+        
+        // Trigger keyboard for new zone
+        triggerKeyboardForNewZone()
+        
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+    
+    /// Trigger keyboard focus for newly created zone
+    private func triggerKeyboardForNewZone() {
+        // Post notification to focus the text field
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            NotificationCenter.default.post(name: .focusNewZone, object: nil)
+        }
+    }
+    
+    private func splitZone() {
+        guard let path = selectedPath,
+              let zone = currentContent.zone(at: path),
+              zone.contentType == .text && !zone.text.isEmpty else { return }
+        
+        let text = zone.text
+        let lines = text.components(separatedBy: "\n")
+        
+        // Need at least 2 lines to split
+        guard lines.count >= 2 else {
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            return
+        }
+        
+        // Split in half by lines
+        let midPoint = lines.count / 2
+        let firstPart = lines[0..<midPoint].joined(separator: "\n")
+        let secondPart = lines[midPoint...].joined(separator: "\n")
+        
+        // Update current zone with first part
+        currentContent.updateZone(at: path) { z in
+            z.text = firstPart
+        }
+        
+        // Add new zone below with second part
+        currentContent.addZone(relativeTo: path, direction: .down)
+        
+        // Find the new zone and set its text
+        if let parent = path.parent {
+            if let children = currentContent.zone(at: parent)?.children,
+               let lastIndex = path.lastIndex,
+               lastIndex + 1 < children.count {
+                let newPath = parent.appending(lastIndex + 1)
+                currentContent.updateZone(at: newPath) { z in
+                    z.text = secondPart
+                    z.contentType = .text
+                    z.textStyle = zone.textStyle
+                    z.textAlignment = zone.textAlignment
+                    z.textColor = zone.textColor
+                    z.isBold = zone.isBold
+                    z.isItalic = zone.isItalic
+                    z.hasBullet = zone.hasBullet
+                }
+                // Select the new zone
+                selectedPath = newPath
+            }
+        } else {
+            // Root was split
+            if let children = currentContent.rootZone.children, children.count > 1 {
+                let newPath = ZonePath(indices: [1])
+                currentContent.updateZone(at: newPath) { z in
+                    z.text = secondPart
+                    z.contentType = .text
+                }
+            }
+        }
+        
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+    
     private func addPhoto(_ item: PhotosPickerItem?) {
         guard let item else { return }
         Task {
             if let data = try? await item.loadTransferable(type: Data.self) {
+                // Compress image for better performance
+                let compressedData = data.compressedImageData(maxDimension: 1200, compressionQuality: 0.7) ?? data
+                
                 await MainActor.run {
-                    let target = activeSide == 0 ? frontContent : backContent
-                    target.blocks.append(.image(data: data))
-                    target.blocks.append(.text())
+                    if let path = selectedPath, currentContent.zone(at: path) != nil {
+                        // Add to selected zone
+                        currentContent.updateZone(at: path) { zone in
+                            zone.contentType = .image
+                            zone.imageData = compressedData
+                        }
+                    } else {
+                        // No selection - add at bottom
+                        currentContent.addZone(relativeTo: .root, direction: .down)
+                        if let children = currentContent.rootZone.children, !children.isEmpty {
+                            let newPath = ZonePath(indices: [children.count - 1])
+                            currentContent.updateZone(at: newPath) { zone in
+                                zone.contentType = .image
+                                zone.imageData = compressedData
+                            }
+                            selectedPath = newPath
+                        }
+                    }
                 }
             }
             selectedPhoto = nil
@@ -224,30 +455,25 @@ struct AddCardSheetView: View {
     }
     
     private func addSketch(_ data: Data) {
-        let target = activeSide == 0 ? frontContent : backContent
-        target.blocks.append(.sketch(data: data))
-        target.blocks.append(.text())
-    }
-    
-    private func closeFormatting() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            formattingBlockIndex = nil
-        }
-    }
-    
-    private func cleanupEmptyBlocks(in content: CardSideContent) {
-        // Remove empty text blocks but keep at least one
-        let nonEmptyBlocks = content.blocks.filter { block in
-            if block.type == .text {
-                return !block.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
-            return true // Keep images and sketches
-        }
+        // Compress sketch for better performance
+        let compressedData = data.compressedImageData(maxDimension: 1200, compressionQuality: 0.8) ?? data
         
-        if nonEmptyBlocks.isEmpty {
-            content.blocks = [.text()]
+        if let path = selectedPath, currentContent.zone(at: path) != nil {
+            currentContent.updateZone(at: path) { zone in
+                zone.contentType = .sketch
+                zone.imageData = compressedData
+            }
         } else {
-            content.blocks = nonEmptyBlocks
+            // No selection - add at bottom
+            currentContent.addZone(relativeTo: .root, direction: .down)
+            if let children = currentContent.rootZone.children, !children.isEmpty {
+                let newPath = ZonePath(indices: [children.count - 1])
+                currentContent.updateZone(at: newPath) { zone in
+                    zone.contentType = .sketch
+                    zone.imageData = compressedData
+                }
+                selectedPath = newPath
+            }
         }
     }
 }
@@ -262,8 +488,7 @@ private struct FABMenuItem: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Text(label)
-                    .font(.subheadline.weight(.medium))
+                Text(label).font(.subheadline.weight(.medium))
                 Image(systemName: icon)
                     .font(.body.weight(.medium))
                     .frame(width: 36, height: 36)
@@ -279,566 +504,238 @@ private struct FABMenuItem: View {
     }
 }
 
-// MARK: - Block Editor View
+// MARK: - Zone Format Bar
 
-private struct BlockEditorView: View {
-    @Bindable var content: CardSideContent
-    @Binding var formattingIndex: Int?
-    
-    @FocusState private var focusedIndex: Int?
-    
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(content.blocks.enumerated()), id: \.element.id) { index, _ in
-                        BlockRowView(
-                            content: content,
-                            index: index,
-                            isFocused: focusedIndex == index,
-                            isFormatting: formattingIndex == index,
-                            focusedIndex: _focusedIndex,
-                            onEnterFormatting: {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                                    formattingIndex = index
-                                }
-                            },
-                            onExitFormatting: {
-                                if formattingIndex != nil {
-                                    withAnimation(.spring(response: 0.3)) {
-                                        formattingIndex = nil
-                                    }
-                                }
-                            }
-                        )
-                        .id(index)
-                    }
-                    
-                    // Tap below to add/focus
-                    Color.clear
-                        .frame(height: 200)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            formattingIndex = nil
-                            
-                            // Clean up empty blocks first
-                            cleanupEmptyTextBlocks()
-                            
-                            // Add new text block if needed
-                            if content.blocks.isEmpty || content.blocks.last?.type != .text {
-                                content.blocks.append(.text())
-                            } else if let last = content.blocks.last, last.type == .text && !last.text.isEmpty {
-                                content.blocks.append(.text())
-                            }
-                            
-                            // Focus last block
-                            let lastIndex = content.blocks.count - 1
-                            focusedIndex = lastIndex
-                            
-                            withAnimation {
-                                proxy.scrollTo(lastIndex, anchor: .center)
-                            }
-                        }
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 8)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .onChange(of: focusedIndex) { oldIndex, newIndex in
-                // Clean up empty block when losing focus
-                if let old = oldIndex, old != newIndex, old < content.blocks.count {
-                    let block = content.blocks[old]
-                    if block.type == .text && block.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        // Don't delete if it's the only block or if we're in formatting mode
-                        if content.blocks.count > 1 && formattingIndex != old {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                if old < content.blocks.count {
-                                    let blockToCheck = content.blocks[old]
-                                    if blockToCheck.type == .text && blockToCheck.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        withAnimation(.easeOut(duration: 0.25)) {
-                                            content.blocks.remove(at: old)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // Scroll to new focus
-                if let idx = newIndex {
-                    withAnimation {
-                        proxy.scrollTo(idx, anchor: .center)
-                    }
-                }
-            }
-        }
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                if let idx = content.blocks.firstIndex(where: { $0.type == .text }) {
-                    focusedIndex = idx
-                }
-            }
-        }
-    }
-    
-    private func cleanupEmptyTextBlocks() {
-        // Remove empty text blocks except the last one
-        var indicesToRemove: [Int] = []
-        for (index, block) in content.blocks.enumerated() {
-            if block.type == .text && block.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                // Keep if it's the only block or the last block
-                if content.blocks.count > 1 && index != content.blocks.count - 1 {
-                    indicesToRemove.append(index)
-                }
-            }
-        }
-        
-        // Remove in reverse order to maintain indices
-        for index in indicesToRemove.reversed() {
-            content.blocks.remove(at: index)
-        }
-    }
-}
-
-// MARK: - Block Row View
-
-private struct BlockRowView: View {
-    @Bindable var content: CardSideContent
-    let index: Int
-    let isFocused: Bool
-    let isFormatting: Bool
-    @FocusState var focusedIndex: Int?
-    
-    var onEnterFormatting: () -> Void
-    var onExitFormatting: () -> Void
-    
-    @Environment(\.colorScheme) private var colorScheme
-    
-    // Press animation states
-    @State private var isPressing = false
-    @State private var lineWidth: CGFloat = 3
-    @State private var lineGlow: CGFloat = 0
-    
-    private var accent: Color { ThemeManager.shared.accentColor.color }
-    
-    var body: some View {
-        let block = content.blocks[safe: index]
-        
-        HStack(alignment: .top, spacing: 0) {
-            // Vertical Line Indicator with press animation
-            verticalLine
-            
-            // Content
-            VStack(alignment: .leading, spacing: 0) {
-                switch block?.type {
-                case .text:
-                    textBlockView(block: block)
-                case .image:
-                    imageBlockView(block: block)
-                case .sketch:
-                    sketchBlockView(block: block)
-                case .none:
-                    EmptyView()
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .contentShape(Rectangle())
-        .onLongPressGesture(minimumDuration: 0.5, pressing: { pressing in
-            // Called when press state changes
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isPressing = pressing
-            }
-            
-            if pressing {
-                // Start pulsing animation
-                startPulseAnimation()
-            } else {
-                // Reset line state if released early
-                resetLineState()
-            }
-        }, perform: {
-            // Long press completed - enter formatting mode
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
-            
-            // Final pulse before entering formatting
-            withAnimation(.spring(response: 0.2, dampingFraction: 0.5)) {
-                lineWidth = 6
-                lineGlow = 1
-            }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                onEnterFormatting()
-                resetLineState()
-            }
-        })
-    }
-    
-    // MARK: - Vertical Line
-    
-    private var verticalLine: some View {
-        let block = content.blocks[safe: index]
-        let isTextBlock = block?.type == .text
-        
-        return ZStack {
-            // Glow effect
-            if lineGlow > 0 {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(accent)
-                    .frame(width: lineWidth + 4)
-                    .blur(radius: 4)
-                    .opacity(lineGlow * 0.5)
-            }
-            
-            // Main line
-            RoundedRectangle(cornerRadius: 2)
-                .fill(lineColor)
-                .frame(width: lineWidth)
-        }
-        .frame(maxHeight: .infinity)
-        .padding(.vertical, isTextBlock ? 8 : 12)
-        .padding(.trailing, 12)
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isFocused)
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isFormatting)
-        .onChange(of: isFocused) { _, focused in
-            if focused && !isFormatting {
-                // Quick pulse when focused
-                withAnimation(.easeOut(duration: 0.1)) {
-                    lineWidth = 4
-                }
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.6).delay(0.1)) {
-                    lineWidth = 3
-                }
-            }
-        }
-        .onChange(of: isFormatting) { _, formatting in
-            if formatting {
-                lineWidth = 4
-            } else if !isPressing {
-                lineWidth = 3
-            }
-        }
-    }
-    
-    private var lineColor: Color {
-        if isFormatting {
-            return accent
-        } else if isPressing {
-            return accent.opacity(0.8)
-        } else if isFocused {
-            return accent.opacity(0.6)
-        } else {
-            return Color.secondary.opacity(0.25)
-        }
-    }
-    
-    private func startPulseAnimation() {
-        // Animate line growing with pulse effect
-        withAnimation(.easeOut(duration: 0.2)) {
-            lineWidth = 5
-            lineGlow = 0.5
-        }
-        
-        // Continue pulsing while pressing
-        withAnimation(.easeInOut(duration: 0.3).repeatForever(autoreverses: true).delay(0.2)) {
-            lineGlow = 1.0
-        }
-    }
-    
-    private func resetLineState() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            lineWidth = isFormatting ? 4 : 3
-            lineGlow = 0
-        }
-    }
-    
-    // MARK: - Text Block
-    
-    @ViewBuilder
-    private func textBlockView(block: ContentBlock?) -> some View {
-        let alignment: TextAlignment = block?.textAlignment.alignment ?? .leading
-        
-        TextField("Type here...", text: textBinding, axis: .vertical)
-            .font(block?.textStyle.font ?? .system(size: 17))
-            .fontWeight(block?.isBold == true ? .bold : .regular)
-            .italic(block?.isItalic == true)
-            .multilineTextAlignment(alignment)
-            .focused($focusedIndex, equals: index)
-            .padding(.vertical, 8)
-            .onTapGesture {
-                onExitFormatting()
-                focusedIndex = index
-            }
-    }
-    
-    // MARK: - Image Block
-    
-    @ViewBuilder
-    private func imageBlockView(block: ContentBlock?) -> some View {
-        if let data = block?.imageData, let img = UIImage(data: data) {
-            let scale = block?.imageScale ?? 1.0
-            let alignment = alignmentFromBlock(block)
-            
-            HStack {
-                if alignment == .center || alignment == .trailing { Spacer() }
-                
-                ZStack(alignment: .topTrailing) {
-                    Image(uiImage: img)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: UIScreen.main.bounds.width * scale * 0.8)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
-                    
-                    if isFormatting {
-                        deleteButton
-                    }
-                }
-                .onTapGesture { onExitFormatting() }
-                
-                if alignment == .center || alignment == .leading { Spacer() }
-            }
-            .padding(.vertical, 8)
-        }
-    }
-    
-    // MARK: - Sketch Block
-    
-    @ViewBuilder
-    private func sketchBlockView(block: ContentBlock?) -> some View {
-        if let data = block?.imageData, let img = UIImage(data: data) {
-            let scale = block?.imageScale ?? 1.0
-            let alignment = alignmentFromBlock(block)
-            
-            HStack {
-                if alignment == .center || alignment == .trailing { Spacer() }
-                
-                ZStack(alignment: .topTrailing) {
-                    Image(uiImage: img)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: UIScreen.main.bounds.width * scale * 0.8)
-                        .background(colorScheme == .dark ? Color.gray.opacity(0.2) : Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                        )
-                    
-                    if isFormatting {
-                        deleteButton
-                    }
-                }
-                .onTapGesture { onExitFormatting() }
-                
-                if alignment == .center || alignment == .leading { Spacer() }
-            }
-            .padding(.vertical, 8)
-        }
-    }
-    
-    private var deleteButton: some View {
-        Button { deleteBlock() } label: {
-            Image(systemName: "xmark.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.white, .red.opacity(0.8))
-        }
-        .padding(8)
-        .transition(.scale.combined(with: .opacity))
-    }
-    
-    // MARK: - Helpers
-    
-    private var textBinding: Binding<String> {
-        Binding(
-            get: { content.blocks[safe: index]?.text ?? "" },
-            set: { if index < content.blocks.count { content.blocks[index].text = $0 } }
-        )
-    }
-    
-    private func alignmentFromBlock(_ block: ContentBlock?) -> Alignment {
-        switch block?.textAlignment ?? .leading {
-        case .leading: return .leading
-        case .center: return .center
-        case .trailing: return .trailing
-        }
-    }
-    
-    private func deleteBlock() {
-        guard content.blocks.count > 1, index < content.blocks.count else { return }
-        withAnimation(.spring(response: 0.3)) {
-            content.blocks.remove(at: index)
-        }
-    }
-}
-
-// MARK: - Format Bar View
-
-private struct FormatBarView: View {
-    @Bindable var content: CardSideContent
-    let index: Int
+private struct ZoneFormatBar: View {
+    @Bindable var content: ZoneCardContent
+    let path: ZonePath
+    var onAddZone: (AddDirection) -> Void
+    var onSplit: () -> Void
     var onClose: () -> Void
     
+    private var zone: ZoneModel? { content.zone(at: path) }
     private var accent: Color { ThemeManager.shared.accentColor.color }
     
     private var canSplit: Bool {
-        guard index < content.blocks.count else { return false }
-        let block = content.blocks[index]
-        // Can only split text blocks that have content
-        return block.type == .text && !block.text.isEmpty
+        guard let zone = zone else { return false }
+        // Can only split text zones with at least 2 lines
+        guard zone.contentType == .text && !zone.text.isEmpty else { return false }
+        let lines = zone.text.components(separatedBy: "\n")
+        return lines.count >= 2
+    }
+    
+    private var isTextZone: Bool {
+        zone?.contentType == .text || zone?.contentType == .empty
+    }
+    
+    private var isMediaZone: Bool {
+        zone?.contentType == .image || zone?.contentType == .sketch
     }
     
     var body: some View {
-        let block = content.blocks[safe: index]
-        
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                // Split button - only for text blocks with content
-                if canSplit {
-                    FormatButton(icon: "rectangle.split.1x2", tint: accent) {
-                        splitBlock()
-                    }
-                    Divider().frame(height: 24).padding(.horizontal, 4)
-                }
-                
-                // Text formatting
-                if block?.type == .text {
-                    Menu {
-                        Button { setStyle(.title) } label: { Label("Title", systemImage: "textformat.size.larger") }
-                        Button { setStyle(.headline) } label: { Label("Headline", systemImage: "textformat.size") }
-                        Button { setStyle(.body) } label: { Label("Body", systemImage: "textformat") }
-                        Button { setStyle(.caption) } label: { Label("Caption", systemImage: "textformat.size.smaller") }
-                    } label: {
-                        FormatButton(icon: "textformat.size")
+        HStack(spacing: 0) {
+            // LEFT: Add Zone button - FIXED
+            addZoneMenu
+                .padding(.leading, 12)
+                .padding(.trailing, 8)
+            
+            Divider().frame(height: 28)
+            
+            // CENTER: Scrollable formatting tools
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    // Split (for text)
+                    if canSplit {
+                        ToolbarButton(icon: "rectangle.split.1x2") { onSplit() }
                     }
                     
-                    FormatButton(icon: "bold", isActive: block?.isBold == true) { toggleBold() }
-                    FormatButton(icon: "italic", isActive: block?.isItalic == true) { toggleItalic() }
-                    
-                    Divider().frame(height: 24).padding(.horizontal, 4)
-                }
-                
-                // Alignment
-                FormatButton(icon: "text.alignleft", isActive: block?.textAlignment == .leading) { setAlignment(.leading) }
-                FormatButton(icon: "text.aligncenter", isActive: block?.textAlignment == .center) { setAlignment(.center) }
-                FormatButton(icon: "text.alignright", isActive: block?.textAlignment == .trailing) { setAlignment(.trailing) }
-                
-                // Size for images/sketches
-                if block?.type == .image || block?.type == .sketch {
-                    Divider().frame(height: 24).padding(.horizontal, 4)
-                    
-                    Menu {
-                        Button { setSize(0.4) } label: { Label("Small", systemImage: "square.resize.down") }
-                        Button { setSize(0.6) } label: { Label("Medium", systemImage: "square.resize") }
-                        Button { setSize(0.8) } label: { Label("Large", systemImage: "square.resize.up") }
-                        Button { setSize(1.0) } label: { Label("Full", systemImage: "arrow.left.and.right") }
-                    } label: {
-                        FormatButton(icon: "aspectratio")
+                    // Text/media specific tools
+                    if isTextZone {
+                        textTools
+                    } else if isMediaZone {
+                        mediaTools
                     }
+                    
+                    // Delete
+                    ToolbarButton(icon: "trash", tint: .red) { deleteZone() }
                 }
-                
-                Divider().frame(height: 24).padding(.horizontal, 4)
-                
-                // Delete
-                FormatButton(icon: "trash", tint: .red) { deleteBlock() }
-                
-                // Done
-                FormatButton(icon: "checkmark.circle.fill", tint: accent) { onClose() }
+                .padding(.horizontal, 8)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            
+            Divider().frame(height: 28)
+            
+            // RIGHT: Done button - FIXED
+            Button {
+                onClose()
+            } label: {
+                Text("Done")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(accent, in: Capsule())
+            }
+            .padding(.leading, 8)
+            .padding(.trailing, 12)
         }
-        .background(Color(uiColor: .secondarySystemBackground))
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+    }
+    
+    // MARK: - Add Zone Menu (Visual direction picker)
+    
+    private var addZoneMenu: some View {
+        Menu {
+            Section("Horizontal") {
+                Button { onAddZone(.left) } label: {
+                    Label("Left", systemImage: "arrow.left")
+                }
+                Button { onAddZone(.right) } label: {
+                    Label("Right", systemImage: "arrow.right")
+                }
+            }
+            Section("Vertical") {
+                Button { onAddZone(.up) } label: {
+                    Label("Above", systemImage: "arrow.up")
+                }
+                Button { onAddZone(.down) } label: {
+                    Label("Below", systemImage: "arrow.down")
+                }
+            }
+        } label: {
+            Image(systemName: "plus.square.dashed")
+                .font(.body.weight(.medium))
+                .foregroundStyle(accent)
+                .frame(width: 34, height: 34)
+                .background(accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        }
+    }
+    
+    // MARK: - Text Tools
+    
+    private var textTools: some View {
+        HStack(spacing: 8) {
+            // Style menu
+            Menu {
+                ForEach([TextBlockStyle.title, .headline, .body, .caption], id: \.self) { style in
+                    Button { setStyle(style) } label: {
+                        HStack {
+                            Text(style.rawValue.capitalized)
+                            if zone?.textStyle == style { Image(systemName: "checkmark") }
+                        }
+                    }
+                }
+            } label: {
+                ToolbarButton(icon: "textformat.size")
+            }
+            
+            // Bold/Italic
+            ToolbarButton(icon: "bold", isActive: zone?.isBold == true) { toggleBold() }
+            ToolbarButton(icon: "italic", isActive: zone?.isItalic == true) { toggleItalic() }
+            
+            // Alignment
+            alignmentMenu
+            
+            // Color
+            Menu {
+                ForEach(TextBlockColor.allCases, id: \.self) { color in
+                    Button { setColor(color) } label: {
+                        HStack {
+                            Circle().fill(color.color).frame(width: 14, height: 14)
+                            Text(color.name)
+                        }
+                    }
+                }
+            } label: {
+                ToolbarButton(icon: "paintpalette", tint: zone?.textColor.color ?? .primary)
+            }
+            
+            // Bullet
+            ToolbarButton(icon: "list.bullet", isActive: zone?.hasBullet == true) { toggleBullet() }
+        }
+    }
+    
+    // MARK: - Media Tools
+    
+    private var mediaTools: some View {
+        HStack(spacing: 8) {
+            // Alignment
+            alignmentMenu
+            
+            // Size
+            Menu {
+                Section("Image Size") {
+                    Button { setImageScale(0.3) } label: { Label("Small (30%)", systemImage: "square.resize.down") }
+                    Button { setImageScale(0.5) } label: { Label("Medium (50%)", systemImage: "square.resize") }
+                    Button { setImageScale(0.7) } label: { Label("Large (70%)", systemImage: "square.resize.up") }
+                    Button { setImageScale(1.0) } label: { Label("Full Width", systemImage: "arrow.left.and.right") }
+                }
+            } label: {
+                ToolbarButton(icon: "aspectratio")
+            }
+        }
+    }
+    
+    // MARK: - Alignment Menu
+    
+    private var alignmentMenu: some View {
+        Menu {
+            Button { setAlignment(.leading) } label: {
+                HStack {
+                    Label("Left", systemImage: "text.alignleft")
+                    if zone?.textAlignment == .leading { Image(systemName: "checkmark") }
+                }
+            }
+            Button { setAlignment(.center) } label: {
+                HStack {
+                    Label("Center", systemImage: "text.aligncenter")
+                    if zone?.textAlignment == .center { Image(systemName: "checkmark") }
+                }
+            }
+            Button { setAlignment(.trailing) } label: {
+                HStack {
+                    Label("Right", systemImage: "text.alignright")
+                    if zone?.textAlignment == .trailing { Image(systemName: "checkmark") }
+                }
+            }
+        } label: {
+            ToolbarButton(icon: alignmentIcon)
+        }
+    }
+    
+    private var alignmentIcon: String {
+        switch zone?.textAlignment ?? .leading {
+        case .leading: return "text.alignleft"
+        case .center: return "text.aligncenter"
+        case .trailing: return "text.alignright"
+        }
     }
     
     // MARK: - Actions
     
-    private func splitBlock() {
-        guard index < content.blocks.count else { return }
-        let block = content.blocks[index]
-        
-        guard block.type == .text && !block.text.isEmpty else { return }
-        
-        let text = block.text
-        
-        // Find middle point - try to split at newline or space
-        var splitIndex = text.index(text.startIndex, offsetBy: text.count / 2)
-        
-        // Look for nearest newline first
-        if let newlineIndex = text.range(of: "\n", range: splitIndex..<text.endIndex)?.lowerBound {
-            splitIndex = newlineIndex
-        } else if let newlineIndex = text.range(of: "\n", options: .backwards, range: text.startIndex..<splitIndex)?.lowerBound {
-            splitIndex = text.index(after: newlineIndex)
-        }
-        // If no newline, look for space
-        else if let spaceIndex = text.range(of: " ", range: splitIndex..<text.endIndex)?.lowerBound {
-            splitIndex = text.index(after: spaceIndex)
-        } else if let spaceIndex = text.range(of: " ", options: .backwards, range: text.startIndex..<splitIndex)?.lowerBound {
-            splitIndex = text.index(after: spaceIndex)
-        }
-        
-        // Split the text
-        let firstPart = String(text[..<splitIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
-        let secondPart = String(text[splitIndex...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Update current block with first part
-        content.blocks[index].text = firstPart
-        
-        // Create new block with second part
-        var newBlock = ContentBlock.text(secondPart)
-        newBlock.textStyle = block.textStyle
-        newBlock.textAlignment = block.textAlignment
-        newBlock.isBold = block.isBold
-        newBlock.isItalic = block.isItalic
-        
-        // Insert new block after current
-        withAnimation(.spring(response: 0.3)) {
-            content.blocks.insert(newBlock, at: index + 1)
-        }
-        
-        onClose()
+    private func updateZone(_ update: (inout ZoneModel) -> Void) {
+        content.updateZone(at: path, with: update)
     }
     
-    private func setStyle(_ style: TextBlockStyle) {
-        guard index < content.blocks.count else { return }
-        content.blocks[index].textStyle = style
-    }
+    private func setStyle(_ style: TextBlockStyle) { updateZone { $0.textStyle = style } }
+    private func toggleBold() { updateZone { $0.isBold.toggle() } }
+    private func toggleItalic() { updateZone { $0.isItalic.toggle() } }
+    private func setColor(_ color: TextBlockColor) { updateZone { $0.textColor = color } }
+    private func toggleBullet() { updateZone { $0.hasBullet.toggle() } }
+    private func setAlignment(_ alignment: TextBlockAlignment) { updateZone { $0.textAlignment = alignment } }
+    private func setImageScale(_ scale: CGFloat) { updateZone { $0.imageScale = scale } }
     
-    private func toggleBold() {
-        guard index < content.blocks.count else { return }
-        content.blocks[index].isBold.toggle()
-    }
-    
-    private func toggleItalic() {
-        guard index < content.blocks.count else { return }
-        content.blocks[index].isItalic.toggle()
-    }
-    
-    private func setAlignment(_ alignment: TextBlockAlignment) {
-        guard index < content.blocks.count else { return }
-        content.blocks[index].textAlignment = alignment
-    }
-    
-    private func setSize(_ scale: CGFloat) {
-        guard index < content.blocks.count else { return }
-        content.blocks[index].imageScale = scale
-    }
-    
-    private func deleteBlock() {
-        guard content.blocks.count > 1, index < content.blocks.count else { return }
-        withAnimation(.spring(response: 0.3)) {
-            content.blocks.remove(at: index)
-        }
+    private func deleteZone() {
+        content.deleteZone(at: path)
         onClose()
     }
 }
 
-// MARK: - Format Button
+// MARK: - Toolbar Button
 
-private struct FormatButton: View {
+private struct ToolbarButton: View {
     let icon: String
+    var label: String? = nil
     var isActive: Bool = false
     var tint: Color = .primary
     var action: (() -> Void)? = nil
@@ -847,24 +744,31 @@ private struct FormatButton: View {
     
     var body: some View {
         Button { action?() } label: {
-            Image(systemName: icon)
-                .font(.body.weight(.medium))
-                .foregroundStyle(isActive ? accent : tint)
-                .frame(width: 40, height: 40)
-                .background(isActive ? accent.opacity(0.15) : Color(uiColor: .tertiarySystemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.body.weight(.medium))
+                if let label = label {
+                    Text(label)
+                        .font(.caption.weight(.medium))
+                }
+            }
+            .foregroundStyle(isActive ? accent : tint)
+            .frame(height: 34)
+            .padding(.horizontal, label != nil ? 10 : 0)
+            .frame(minWidth: 34)
+            .background(isActive ? accent.opacity(0.12) : Color(uiColor: .tertiarySystemFill))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
 }
 
-// MARK: - Card Preview Sheet
+// MARK: - Zone Preview Sheet
 
-private struct CardPreviewSheet: View {
-    let front: CardSideContent
-    let back: CardSideContent
+private struct ZonePreviewSheet: View {
+    let front: ZoneCardContent
+    let back: ZoneCardContent
     @Environment(\.dismiss) private var dismiss
     @State private var showBack = false
-    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         NavigationStack {
@@ -882,25 +786,17 @@ private struct CardPreviewSheet: View {
                             .shadow(radius: 8)
                         
                         ScrollView {
-                            VStack(alignment: .leading, spacing: 12) {
-                                ForEach(showBack ? back.blocks : front.blocks) { block in
-                                    PreviewBlockView(block: block, colorScheme: colorScheme)
-                                }
-                            }
-                            .padding(20)
+                            ZonePreviewView(zone: showBack ? back.rootZone : front.rootZone)
+                                .padding(20)
                         }
                     }
                     .frame(height: 380)
                     .padding(.horizontal, 24)
                     .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            showBack.toggle()
-                        }
+                        withAnimation(.easeInOut(duration: 0.3)) { showBack.toggle() }
                     }
                     
-                    Text("Tap to flip")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                    Text("Tap to flip").font(.caption).foregroundStyle(.tertiary)
                 }
                 .padding(.top, 20)
             }
@@ -912,67 +808,6 @@ private struct CardPreviewSheet: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - Preview Block View
-
-private struct PreviewBlockView: View {
-    let block: ContentBlock
-    let colorScheme: ColorScheme
-    
-    var body: some View {
-        // Skip empty text blocks
-        if block.type == .text && block.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            EmptyView()
-        } else {
-            let hAlignment: HorizontalAlignment = {
-                switch block.textAlignment {
-                case .leading: return .leading
-                case .center: return .center
-                case .trailing: return .trailing
-                }
-            }()
-            
-            VStack(alignment: hAlignment) {
-                switch block.type {
-                case .text:
-                    Text(block.text)
-                        .font(block.textStyle.font)
-                        .fontWeight(block.isBold ? .bold : .regular)
-                        .italic(block.isItalic)
-                        .multilineTextAlignment(block.textAlignment.alignment)
-                    
-                case .image:
-                    if let data = block.imageData, let img = UIImage(data: data) {
-                        Image(uiImage: img)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxWidth: UIScreen.main.bounds.width * block.imageScale * 0.7)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
-                    
-                case .sketch:
-                    if let data = block.imageData, let img = UIImage(data: data) {
-                        Image(uiImage: img)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxWidth: UIScreen.main.bounds.width * block.imageScale * 0.7)
-                            .background(colorScheme == .dark ? Color.gray.opacity(0.2) : .white)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: Alignment(horizontal: hAlignment, vertical: .center))
-        }
-    }
-}
-
-// MARK: - Safe Array Extension
-
-extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
     }
 }
 

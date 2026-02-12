@@ -57,6 +57,41 @@ enum TextBlockStyle: String, Codable, Equatable {
     }
 }
 
+// MARK: - Text Color
+enum TextBlockColor: String, Codable, Equatable, CaseIterable {
+    case primary
+    case red
+    case orange
+    case yellow
+    case green
+    case blue
+    case purple
+    
+    var color: Color {
+        switch self {
+        case .primary: return .primary
+        case .red: return .red
+        case .orange: return .orange
+        case .yellow: return .yellow
+        case .green: return .green
+        case .blue: return .blue
+        case .purple: return .purple
+        }
+    }
+    
+    var name: String {
+        switch self {
+        case .primary: return "Default"
+        case .red: return "Red"
+        case .orange: return "Orange"
+        case .yellow: return "Yellow"
+        case .green: return "Green"
+        case .blue: return "Blue"
+        case .purple: return "Purple"
+        }
+    }
+}
+
 // MARK: - Content Block Model
 /// A single block of content in the linear editor flow.
 /// Blocks are ordered in a VStack, creating a natural reading flow.
@@ -70,6 +105,8 @@ struct ContentBlock: Identifiable, Codable, Equatable, Hashable {
     var textStyle: TextBlockStyle = .body
     var isBold: Bool = false
     var isItalic: Bool = false
+    var textColor: TextBlockColor = .primary
+    var hasBullet: Bool = false
     
     // Image/Sketch data (stored externally)
     var imageData: Data?
@@ -79,6 +116,9 @@ struct ContentBlock: Identifiable, Codable, Equatable, Hashable {
     
     // Image scale (0.3 to 1.0, for resizing images)
     var imageScale: CGFloat = 1.0
+    
+    // Lateral content (side-by-side with image/sketch)
+    var lateralContent: [ContentBlock]? = nil
     
     // Creation timestamp for ordering
     var createdAt: Date = Date()
@@ -113,7 +153,7 @@ struct ContentBlock: Identifiable, Codable, Equatable, Hashable {
     // MARK: - Codable
     
     enum CodingKeys: String, CodingKey {
-        case id, type, text, textAlignment, textStyle, isBold, isItalic, imageData, displayHeight, imageScale, createdAt
+        case id, type, text, textAlignment, textStyle, isBold, isItalic, textColor, hasBullet, imageData, displayHeight, imageScale, lateralContent, createdAt
     }
     
     init(from decoder: Decoder) throws {
@@ -125,9 +165,12 @@ struct ContentBlock: Identifiable, Codable, Equatable, Hashable {
         textStyle = try container.decodeIfPresent(TextBlockStyle.self, forKey: .textStyle) ?? .body
         isBold = try container.decodeIfPresent(Bool.self, forKey: .isBold) ?? false
         isItalic = try container.decodeIfPresent(Bool.self, forKey: .isItalic) ?? false
+        textColor = try container.decodeIfPresent(TextBlockColor.self, forKey: .textColor) ?? .primary
+        hasBullet = try container.decodeIfPresent(Bool.self, forKey: .hasBullet) ?? false
         imageData = try container.decodeIfPresent(Data.self, forKey: .imageData)
         displayHeight = try container.decodeIfPresent(CGFloat.self, forKey: .displayHeight) ?? 200
         imageScale = try container.decodeIfPresent(CGFloat.self, forKey: .imageScale) ?? 1.0
+        lateralContent = try container.decodeIfPresent([ContentBlock].self, forKey: .lateralContent)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
     }
     
@@ -139,9 +182,12 @@ struct ContentBlock: Identifiable, Codable, Equatable, Hashable {
         textStyle: TextBlockStyle = .body,
         isBold: Bool = false,
         isItalic: Bool = false,
+        textColor: TextBlockColor = .primary,
+        hasBullet: Bool = false,
         imageData: Data? = nil,
         displayHeight: CGFloat = 200,
         imageScale: CGFloat = 1.0,
+        lateralContent: [ContentBlock]? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -151,9 +197,12 @@ struct ContentBlock: Identifiable, Codable, Equatable, Hashable {
         self.textStyle = textStyle
         self.isBold = isBold
         self.isItalic = isItalic
+        self.textColor = textColor
+        self.hasBullet = hasBullet
         self.imageData = imageData
         self.displayHeight = displayHeight
         self.imageScale = imageScale
+        self.lateralContent = lateralContent
         self.createdAt = createdAt
     }
 }

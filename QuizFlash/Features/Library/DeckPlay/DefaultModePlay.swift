@@ -1,97 +1,55 @@
+//
+//  DefaultModePlay.swift
+//  QuizFlash
+//
+//  Adaptive card game for iPhone/iPad with swipe mechanics.
+//
+
 import SwiftUI
 
 struct DefaultModePlay: View {
     let deck: DeckModel
+    
     @Environment(\.dismiss) private var dismiss
-
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    
     @State private var cards: [CardModel]
     @State private var currentIndex: Int = 0
     @State private var correctCount: Int = 0
     @State private var isComplete: Bool = false
     @State private var wrongCards: [CardModel] = []
-
+    
+    private var isCompact: Bool { horizontalSizeClass == .compact }
+    private var isLandscape: Bool { verticalSizeClass == .compact }
+    private var isIPad: Bool { horizontalSizeClass == .regular && verticalSizeClass == .regular }
+    
     init(deck: DeckModel) {
         self.deck = deck
         _cards = State(initialValue: deck.cards.shuffled())
     }
-
+    
     private var progress: Double {
         guard !cards.isEmpty else { return 0 }
         return Double(currentIndex) / Double(cards.count)
     }
-
+    
     var body: some View {
         GeometryReader { geo in
             ZStack {
                 Color(uiColor: .systemGroupedBackground)
                     .ignoresSafeArea()
-
-                VStack(spacing: 0) {
-                    // Header
-                    HStack {
-                        Text(deck.title).font(.title3.bold())
-                        Spacer()
-                        Button { dismiss() } label: {
-                            Image(systemName: "xmark")
-                                .font(.subheadline.weight(.semibold))
-                                .padding(10)
-                                .background(.ultraThinMaterial, in: Circle())
-                        }
-                    }
-                    .padding(.top, 10)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 10)
-
-                    // CARD AREA (Dynamic Size pt iPad)
-                    ZStack {
-                        if currentIndex < cards.count {
-                            GameplayCard(
-                                card: cards[currentIndex],
-                                onSwipe: handleSwipe
-                            )
-                            .transition(.asymmetric(
-                                insertion: .scale(scale: 0.95).combined(with: .opacity),
-                                removal: .identity
-                            ))
-                            .id(cards[currentIndex].id)
-                        }
-                    }
-                    // AICI e fixul pentru iPad: lățime dinamică, max 600px
-                    .frame(width: min(geo.size.width - 40, 600), height: geo.size.height * 0.75)
-                    .padding(.vertical, 20)
-
-                    Spacer()
-
-                    // Footer
-                    HStack {
-                        // Progress
-                        HStack(spacing: 8) {
-                            Text("\(currentIndex)/\(cards.count)")
-                                .font(.subheadline.weight(.semibold))
-                                .monospacedDigit()
-                            Capsule().fill(Color(uiColor: .systemGray5)).frame(width: 150, height: 4)
-                                .overlay(alignment: .leading) {
-                                    Capsule().fill(Color.blue).frame(width: 150 * progress, height: 4)
-                                }
-                        }
-                        .padding(10).background(.ultraThinMaterial, in: Capsule())
-
-                        // Score
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                            Text("\(correctCount)").font(.subheadline.weight(.semibold)).monospacedDigit()
-                        }
-                        .padding(10).background(.ultraThinMaterial, in: Capsule())
-                    }
-                    .padding(.bottom, 20)
+                
+                if isLandscape {
+                    landscapeLayout(size: geo.size)
+                } else {
+                    portraitLayout(size: geo.size)
                 }
-                .frame(width: geo.size.width, height: geo.size.height)
-
-                // Completion Overlay
+                
+                // Completion overlay
                 if isComplete {
                     completionOverlay
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                        .zIndex(10)
                 }
             }
         }
@@ -100,34 +58,276 @@ struct DefaultModePlay: View {
         .navigationBarHidden(true)
     }
     
-    // ... Logică identică ...
-    private var completionOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.4).ignoresSafeArea()
-            VStack(spacing: 24) {
-                Image(systemName: "checkmark.circle.fill").font(.system(size: 60)).foregroundStyle(.green)
-                Text("Complete!").font(.title.bold()).foregroundStyle(.white)
-                Text("Score: \(Int((Double(correctCount)/Double(cards.count))*100))%").font(.title2.bold()).foregroundStyle(.white.opacity(0.9))
-                HStack(spacing: 20) {
-                    if !wrongCards.isEmpty {
-                        Button("Retry Mistakes") { retryWrongCards() }.buttonStyle(.borderedProminent).tint(.orange)
-                    }
-                    Button("Done") { dismiss() }.buttonStyle(.borderedProminent).tint(.blue)
-                }
-            }
-            .padding(40).background(.ultraThinMaterial).clipShape(RoundedRectangle(cornerRadius: 24))
+    // MARK: - Portrait Layout
+    
+    private func portraitLayout(size: CGSize) -> some View {
+        // Calculate card dimensions based on available space
+        let horizontalPadding: CGFloat = isIPad ? 80 : 24
+        let headerFooterHeight: CGFloat = isIPad ? 180 : 160
+        
+        // Card takes most of the available height
+        let cardHeight = size.height - headerFooterHeight
+        let cardWidth = size.width - (horizontalPadding * 2)
+        
+        // Maintain reasonable aspect ratio (max 1.6:1 height to width)
+        let maxHeight = cardWidth * 1.6
+        let finalCardHeight = min(cardHeight, maxHeight)
+        
+        return VStack(spacing: 0) {
+            header
+                .padding(.top, 12)
+                .padding(.horizontal, 20)
+            
+            Spacer()
+            
+            // Card - adaptive size
+            cardArea(width: cardWidth, height: finalCardHeight)
+            
+            Spacer()
+            
+            // Footer
+            footerHint
+                .padding(.bottom, isCompact ? 40 : 60)
         }
     }
-
+    
+    // MARK: - Landscape Layout
+    
+    private func landscapeLayout(size: CGSize) -> some View {
+        let sidebarWidth: CGFloat = 150
+        let statsWidth: CGFloat = 100
+        let cardAreaWidth = size.width - sidebarWidth - statsWidth - 60
+        let cardHeight = size.height * 0.85
+        let cardWidth = min(cardAreaWidth, cardHeight * 1.3)
+        
+        return HStack(spacing: 0) {
+            // Left side - info
+            VStack(spacing: 20) {
+                Text(deck.title)
+                    .font(.title3.bold())
+                    .multilineTextAlignment(.center)
+                
+                progressIndicator
+                
+                Spacer()
+                
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark")
+                        .font(.body.weight(.semibold))
+                        .padding(12)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+            }
+            .frame(width: sidebarWidth)
+            .padding(.vertical, 20)
+            
+            // Center - card
+            cardArea(width: cardWidth, height: cardHeight)
+                .frame(maxWidth: .infinity)
+            
+            // Right side - stats
+            VStack(spacing: 16) {
+                StatItem(value: "\(correctCount)", label: "Correct", color: .green)
+                StatItem(value: "\(wrongCards.count)", label: "Wrong", color: .red)
+            }
+            .frame(width: statsWidth)
+            .padding(.vertical, 20)
+        }
+        .padding(.horizontal, 20)
+    }
+    
+    // MARK: - Card Area
+    
+    private func cardArea(width: CGFloat, height: CGFloat) -> some View {
+        // Ensure valid dimensions (minimum 100x100)
+        let safeWidth = max(width, 100)
+        let safeHeight = max(height, 100)
+        
+        return ZStack {
+            if currentIndex < cards.count {
+                GameplayCard(
+                    card: cards[currentIndex],
+                    onSwipe: handleSwipe
+                )
+                .frame(width: safeWidth, height: safeHeight)
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.95).combined(with: .opacity),
+                    removal: .identity
+                ))
+                .id(cards[currentIndex].createdAt)
+            }
+        }
+    }
+    
+    // MARK: - Header
+    
+    private var header: some View {
+        HStack {
+            Text(deck.title)
+                .font(.title3.bold())
+            
+            Spacer()
+            
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(10)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+        }
+    }
+    
+    // MARK: - Progress Indicator
+    
+    private var progressIndicator: some View {
+        VStack(spacing: 8) {
+            Text("\(currentIndex)/\(cards.count)")
+                .font(.headline.monospacedDigit())
+            
+            Capsule()
+                .fill(Color(uiColor: .systemGray5))
+                .frame(width: isCompact ? 200 : 120, height: 4)
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.blue)
+                        .frame(width: (isCompact ? 200 : 120) * progress, height: 4)
+                        .animation(.spring(response: 0.3), value: progress)
+                }
+        }
+    }
+    
+    // MARK: - Footer
+    
+    private var footerHint: some View {
+        HStack(spacing: isCompact ? 16 : 24) {
+            progressIndicator
+            
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("\(correctCount)")
+                        .font(.subheadline.weight(.semibold))
+                }
+                
+                HStack(spacing: 4) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.red)
+                    Text("\(wrongCards.count)")
+                        .font(.subheadline.weight(.semibold))
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial, in: Capsule())
+        }
+    }
+    
+    // MARK: - Completion Overlay
+    
+    private var completionOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 24) {
+                // Trophy
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: isCompact ? 60 : 80))
+                    .foregroundStyle(.yellow)
+                
+                Text("Complete!")
+                    .font(isCompact ? .title : .largeTitle)
+                    .fontWeight(.bold)
+                
+                // Stats
+                HStack(spacing: isCompact ? 24 : 40) {
+                    StatItem(value: "\(correctCount)", label: "Correct", color: .green)
+                    StatItem(value: "\(wrongCards.count)", label: "Wrong", color: .red)
+                    StatItem(value: "\(cards.count)", label: "Total", color: .blue)
+                }
+                
+                // Buttons
+                VStack(spacing: 12) {
+                    if !wrongCards.isEmpty {
+                        Button {
+                            retryWrongCards()
+                        } label: {
+                            Label("Retry Wrong Cards", systemImage: "arrow.counterclockwise")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: isCompact ? .infinity : 280)
+                                .padding(.vertical, 14)
+                                .background(Color.orange, in: RoundedRectangle(cornerRadius: 14))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Done")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: isCompact ? .infinity : 280)
+                            .padding(.vertical, 14)
+                            .background(Color.blue, in: RoundedRectangle(cornerRadius: 14))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .padding(.top, 8)
+            }
+            .padding(isCompact ? 28 : 40)
+            .background(
+                RoundedRectangle(cornerRadius: isCompact ? 24 : 32)
+                    .fill(.ultraThinMaterial)
+                    .shadow(color: .black.opacity(0.1), radius: 20, y: 10)
+            )
+            .padding(.horizontal, isCompact ? 32 : 60)
+        }
+    }
+    
+    // MARK: - Actions
+    
     private func handleSwipe(_ direction: SwipeDirection) {
         guard currentIndex < cards.count else { return }
-        if direction == .right { correctCount += 1 } else { wrongCards.append(cards[currentIndex]) }
+        
+        if direction == .right {
+            correctCount += 1
+        } else {
+            wrongCards.append(cards[currentIndex])
+        }
+        
         currentIndex += 1
-        if currentIndex >= cards.count { isComplete = true }
+        
+        if currentIndex >= cards.count {
+            isComplete = true
+        }
     }
-
+    
     private func retryWrongCards() {
-        cards = wrongCards.shuffled(); wrongCards = []; currentIndex = 0; correctCount = 0; isComplete = false
+        let retry = wrongCards
+        wrongCards = []
+        cards = retry.shuffled()
+        currentIndex = 0
+        correctCount = 0
+        isComplete = false
     }
 }
 
+// MARK: - Supporting Views
+
+private struct StatItem: View {
+    let value: String
+    let label: String
+    var color: Color = .primary
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.title2.weight(.bold))
+                .foregroundStyle(color)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
