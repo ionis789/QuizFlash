@@ -2,7 +2,7 @@
 //  SwipeableCard.swift
 //  QuizFlash
 //
-//  Optimized swipe card. iOS 17+
+//  Optimized swipe card.
 //
 
 import SwiftUI
@@ -15,58 +15,47 @@ struct SwipeableCard<Content: View>: View {
     
     let onSwipe: (SwipeDirection) -> Void
     let onTap: (() -> Void)?
-    @ViewBuilder let content: () -> Content
+    // Changed: Now accepts a Bool (isSwiping) to pass down to content
+    @ViewBuilder let content: (Bool) -> Content
     
     @State private var offset: CGFloat = 0
+    @State private var isSwiping = false
     @State private var didHaptic = false
     
+    private let haptic = UIImpactFeedbackGenerator(style: .light)
     private let threshold: CGFloat = 80
     
     init(
         onSwipe: @escaping (SwipeDirection) -> Void,
         onTap: (() -> Void)? = nil,
-        @ViewBuilder content: @escaping () -> Content
+        @ViewBuilder content: @escaping (Bool) -> Content
     ) {
         self.onSwipe = onSwipe
         self.onTap = onTap
         self.content = content
     }
     
-    // Pre-calculate values to avoid recalculation during animation
     private var rotation: Double {
         Double(offset) / 30.0
     }
     
     private var scale: CGFloat {
-        1.0 - Swift.min(Swift.abs(offset) / 800.0, 0.03)
+        1.0 - min(abs(offset) / 800.0, 0.03)
     }
     
-    private var glowColor: Color {
+    private var borderColor: Color {
         offset > 0 ? .green : .red
     }
     
-    private var glowOpacity: Double {
-        Swift.min(Swift.abs(offset) / threshold, 1.0) * 0.6
-    }
-    
     var body: some View {
-        // Card with integrated glow - moves together
         ZStack {
-            // Glow background (behind card)
-            if Swift.abs(offset) > 15 {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(glowColor.opacity(glowOpacity * 0.3))
-                    .blur(radius: 20)
-                    .scaleEffect(1.05)
-            }
-            
-            // Card content with border glow
-            content()
+            // Pass the swipe state to the content (to disable scrolling)
+            content(isSwiping)
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(glowColor.opacity(glowOpacity), lineWidth: 3)
-                        .opacity(Swift.abs(offset) > 15 ? 1 : 0)
+                        .stroke(borderColor.opacity(min(abs(offset) / threshold, 1.0)), lineWidth: 3)
+                        .opacity(abs(offset) > 10 ? 1 : 0)
                 )
         }
         .scaleEffect(scale)
@@ -74,58 +63,70 @@ struct SwipeableCard<Content: View>: View {
         .offset(x: offset)
         .gesture(dragGesture)
         .onTapGesture {
-            onTap?()
+            if abs(offset) < 5 {
+                onTap?()
+            }
         }
     }
     
     private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 8)
+        DragGesture(minimumDistance: 10)
             .onChanged { value in
                 let dx = value.translation.width
                 let dy = value.translation.height
                 
-                // Only track horizontal movement
-                guard Swift.abs(dx) > Swift.abs(dy) * 0.8 else { return }
+                // Locking Logic:
+                // 1. Determine direction if not locked yet
+                if !isSwiping {
+                    if abs(dx) > abs(dy) {
+                        isSwiping = true
+                    } else {
+                        // Vertical movement detected, ignore this drag for swipe
+                        return
+                    }
+                }
                 
-                // Direct assignment - no animation during drag
+                // 2. Update position if locked to swipe
                 offset = dx
                 
-                // Haptic at threshold
-                if Swift.abs(offset) >= threshold && !didHaptic {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                // Haptic feedback
+                if abs(offset) >= threshold && !didHaptic {
+                    haptic.impactOccurred()
                     didHaptic = true
-                } else if Swift.abs(offset) < threshold * 0.5 {
+                } else if abs(offset) < threshold * 0.5 {
                     didHaptic = false
                 }
             }
             .onEnded { value in
+                isSwiping = false
                 didHaptic = false
                 
                 let dx = value.translation.width
                 let vx = value.velocity.width
                 
-                // Fast swipe or past threshold
                 if dx > threshold || vx > 400 {
                     exitCard(.right)
                 } else if dx < -threshold || vx < -400 {
                     exitCard(.left)
                 } else {
-                    // Snap back
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        offset = 0
-                    }
+                    resetPosition()
                 }
             }
     }
     
+    private func resetPosition() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+            offset = 0
+        }
+    }
+    
     private func exitCard(_ direction: SwipeDirection) {
-        let exitX: CGFloat = direction == .right ? 400 : -400
+        let exitX: CGFloat = direction == .right ? 500 : -500
         
-        withAnimation(.easeOut(duration: 0.18)) {
+        withAnimation(.easeOut(duration: 0.2)) {
             offset = exitX
         }
         
-        // Callback after animation
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             onSwipe(direction)
         }

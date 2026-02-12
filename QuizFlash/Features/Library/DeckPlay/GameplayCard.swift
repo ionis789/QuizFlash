@@ -13,11 +13,13 @@ struct GameplayCard: View {
     @State private var isFlipped = false
     
     var body: some View {
-        SwipeableCard(onSwipe: onSwipe, onTap: handleTap) {
+        // Now receives 'isSwiping' boolean from the closure
+        SwipeableCard(onSwipe: onSwipe, onTap: handleTap) { isSwiping in
             FlipCardPreview(
                 card: card,
                 isPreviewMode: false,
-                isFlipped: $isFlipped 
+                isFlipped: $isFlipped,
+                scrollDisabled: isSwiping // Passes the lock state to the inner view
             )
         }
     }
