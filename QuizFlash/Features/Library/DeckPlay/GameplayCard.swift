@@ -15,7 +15,7 @@ struct GameplayCard: View {
     var body: some View {
         // Now receives 'isSwiping' boolean from the closure
         SwipeableCard(onSwipe: onSwipe, onTap: handleTap) { isSwiping in
-            FlipCardPreview(
+            FlipCard(
                 card: card,
                 isPreviewMode: false,
                 isFlipped: $isFlipped,

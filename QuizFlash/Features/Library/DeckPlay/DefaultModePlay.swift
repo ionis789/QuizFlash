@@ -9,20 +9,32 @@ import SwiftUI
 
 struct DefaultModePlay: View {
     let deck: DeckModel
-    
+
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
-    
+
     @State private var cards: [CardModel]
     @State private var currentIndex: Int = 0
     @State private var correctCount: Int = 0
     @State private var isComplete: Bool = false
     @State private var wrongCards: [CardModel] = []
-    
+
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var isLandscape: Bool { verticalSizeClass == .compact }
     private var isIPad: Bool { horizontalSizeClass == .regular && verticalSizeClass == .regular }
+
+    /// Same background as editor card preview — depth and consistency
+    private var screenBackground: some View {
+        LinearGradient(
+            colors: colorScheme == .dark
+                ? [Color(uiColor: .systemBackground), Color(uiColor: .secondarySystemBackground)]
+                : [Color(uiColor: .systemGray6), Color(uiColor: .systemBackground)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
     
     init(deck: DeckModel) {
         self.deck = deck
@@ -37,9 +49,9 @@ struct DefaultModePlay: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                Color(uiColor: .systemGroupedBackground)
+                screenBackground
                     .ignoresSafeArea()
-                
+
                 if isLandscape {
                     landscapeLayout(size: geo.size)
                 } else {
@@ -132,7 +144,7 @@ struct DefaultModePlay: View {
     private func cardArea(width: CGFloat, height: CGFloat) -> some View {
         let safeWidth = max(width, 100)
         let safeHeight = max(height, 100)
-        
+
         return ZStack {
             if currentIndex < cards.count {
                 GameplayCard(
@@ -142,14 +154,15 @@ struct DefaultModePlay: View {
                 .frame(width: safeWidth, height: safeHeight)
                 .transition(
                     .asymmetric(
-                        insertion: .scale(scale: 0.9).combined(with: .opacity).animation(.easeOut(duration: 0.25)),
+                        insertion: .scale(scale: 0.92).combined(with: .opacity)
+                            .animation(.spring(response: 0.4, dampingFraction: 0.82)),
                         removal: .identity
                     )
                 )
                 .id(cards[currentIndex].createdAt)
             }
         }
-        .animation(.default, value: currentIndex)
+        .animation(.spring(response: 0.4, dampingFraction: 0.82), value: currentIndex)
     }
     
     // MARK: - Header

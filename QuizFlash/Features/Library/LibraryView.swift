@@ -39,92 +39,9 @@ struct LibraryView: View {
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
 
-
-
-    // MARK: - Grouping Logic
-
-    // Structure to hold section data
-    struct DeckSection: Identifiable {
-        let id: String
-        let title: String
-        let decks: [DeckModel]
-        let dateForSorting: Date
-    }
-
+    /// Sections for list/gallery; computed via LibraryGrouping (logic lives in LibraryGrouping.swift).
     private var groupedDecks: [DeckSection] {
-        // Sort all decks first based on user preference
-        let sortedAll = decks.sorted { d1, d2 in
-            switch sortOrder {
-            case .newest: return d1.createdAt > d2.createdAt
-            case .oldest: return d1.createdAt < d2.createdAt
-            case .lastEdited: return d1.editedAt > d2.editedAt
-            case .alphabetical: return d1.title.localizedCaseInsensitiveCompare(d2.title) == .orderedAscending
-            }
-        }
-
-        // If alphabetical, return one single section
-        if sortOrder == .alphabetical {
-            if sortedAll.isEmpty { return [] }
-            return [DeckSection(id: "all", title: "All Decks", decks: sortedAll, dateForSorting: Date())]
-        }
-
-        // Group by date logic
-        let calendar = Calendar.current
-        let groups = Dictionary(grouping: sortedAll) { deck -> Date in
-            let dateToCheck = sortOrder == .lastEdited ? deck.editedAt : deck.createdAt
-            return calendar.startOfDay(for: dateToCheck)
-        }
-
-        //Transform to Sections
-        var sections: [DeckSection] = groups.map { (startOfDay, decksInGroup) in
-            let title = getSectionTitle(for: startOfDay, calendar: calendar)
-            return DeckSection(
-                id: title,
-                title: title,
-                decks: decksInGroup, // Already sorted from step 1
-                dateForSorting: startOfDay
-            )
-        }
-
-        // Sort Sections based on user preference
-        sections.sort { s1, s2 in
-            switch sortOrder {
-            case .newest, .lastEdited:
-                return s1.dateForSorting > s2.dateForSorting // Newest dates first
-            case .oldest:
-                return s1.dateForSorting < s2.dateForSorting // Oldest dates first
-            default:
-                return true
-            }
-        }
-
-        return sections
-    }
-
-    // Flexible Date Headers
-    private func getSectionTitle(for date: Date, calendar: Calendar) -> String {
-        if calendar.isDateInToday(date) { return "Today" }
-        if calendar.isDateInYesterday(date) { return "Yesterday" }
-
-        let now = Date()
-        // Check if in current week (but not today/yesterday)
-        if calendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) {
-            let weekdayFormatter = DateFormatter()
-            weekdayFormatter.dateFormat = "EEEE" // e.g., "Monday"
-            return "This Week - " + weekdayFormatter.string(from: date)
-        }
-
-        // Check if in current month
-        if calendar.isDate(date, equalTo: now, toGranularity: .month) {
-            let dayFormatter = DateFormatter()
-            dayFormatter.dateFormat = "MMMM d" // e.g., "October 12"
-            return dayFormatter.string(from: date)
-        }
-
-        // Older
-        let fullFormatter = DateFormatter()
-        fullFormatter.dateFormat = "MMMM yyyy" // e.g., "September 2025"
-        return fullFormatter.string(from: date)
+        LibraryGrouping.sections(decks: decks, sortOrder: sortOrder)
     }
 
     var body: some View {
@@ -370,6 +287,8 @@ struct LibraryView: View {
             }
         }
     }
+
+    // MARK: - Gallery
 
     private var galleryGrid: some View {
         let cols = [GridItem(.adaptive(minimum: 160), spacing: 14)]
@@ -789,88 +708,5 @@ struct LibraryView: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - Deck Color Picker Sheet
-struct DeckColorPickerSheet: View {
-    @Bindable var deck: DeckModel
-    @Environment(\.dismiss) var dismiss
-
-    private let colors: [Color] = [
-            .blue, .purple, .pink, .red, .orange,
-            .yellow, .green, .mint, .teal, .cyan
-    ]
-
-    private let columns = [
-        GridItem(.adaptive(minimum: 60, maximum: 80), spacing: 16)
-    ]
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                // Preview
-                ZStack {
-                    Circle()
-                        .fill(
-                        LinearGradient(
-                            colors: [deckColor.opacity(0.7), deckColor.opacity(0.3)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                        .frame(width: 80, height: 80)
-
-                    Image(systemName: deck.icon.isEmpty ? "sparkles.rectangle.stack.fill" : deck.icon)
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-                    .padding(.top, 20)
-
-                Text(deck.title)
-                    .font(.title3.weight(.semibold))
-
-                // Color grid
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(colors, id: \.self) { color in
-                        Button {
-                            withAnimation(.spring(response: 0.3)) {
-                                deck.colorHex = color.toHex()!
-                            }
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(color)
-                                    .frame(width: 50, height: 50)
-                                    .shadow(color: color.opacity(0.4), radius: 6, y: 3)
-
-                                if deckColor.toHex() == color.toHex() {
-                                    Image(systemName: "checkmark")
-                                        .font(.body.weight(.bold))
-                                        .foregroundStyle(.white)
-                                }
-                            }
-                        }
-                    }
-                }
-                    .padding(.horizontal, 40)
-
-                Spacer()
-            }
-                .navigationTitle("Deck Color")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                        .fontWeight(.semibold)
-                }
-            }
-        }
-    }
-
-    private var deckColor: Color {
-        Color(hex: deck.colorHex) ?? .blue
     }
 }

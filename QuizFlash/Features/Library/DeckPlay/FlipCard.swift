@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct FlipCardPreview: View {
+struct FlipCard: View {
     let card: CardModel
     var isPreviewMode: Bool = false
     @Binding var isFlipped: Bool
@@ -56,15 +56,14 @@ struct FlipCardPreview: View {
     @ViewBuilder
     private func cardFaceWithZone(title: String, zone: ZoneModel, containerSize: CGSize) -> some View {
         ZStack {
-            // Background
+            // Background — same depth as editor card preview
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .fill(cardBackgroundGradient)
-                
-                .shadow(color: shadowColor, radius: isCompact ? 12 : 16, y: 6)
-            
-            // Border
+                .fill(cardBackground)
+                .shadow(color: cardShadowColor, radius: isCompact ? 16 : 24, y: 8)
+
+            // Border — subtle like editor
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .stroke(borderColor, lineWidth: 3)
+                .stroke(cardBorderColor, lineWidth: 1)
             
             // Content Container
             VStack(alignment: .leading, spacing: 0) {
@@ -174,19 +173,18 @@ struct FlipCardPreview: View {
         return nil
     }
     
-    // Styling
-    private var cardBackgroundGradient: some ShapeStyle {
-        let colors: [Color] = colorScheme == .dark
-            ? [Color(uiColor: .systemBackground), Color(uiColor: .systemBackground).opacity(0.95)]
-            : [.white, Color(uiColor: .systemGray6)]
-        return AnyShapeStyle(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+    // MARK: - Styling (matches editor card preview for consistency)
+    private var cardBackground: some ShapeStyle {
+        colorScheme == .dark
+            ? AnyShapeStyle(Color(uiColor: .secondarySystemBackground))
+            : AnyShapeStyle(Color.white)
     }
-    
-    private var shadowColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.4) : Color.black.opacity(0.12)
+
+    private var cardShadowColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.5) : Color.black.opacity(0.15)
     }
-    
-    private var borderColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.2) : Color.black.opacity(0.06)
+
+    private var cardBorderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.08)
     }
 }
