@@ -13,9 +13,9 @@ import SwiftData
 struct CreateView: View {
     @Environment(\.modelContext) var context
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject private var router: NavigationManager
 
     var deckToEdit: DeckModel?
-    var onSwitchToLibrary: (() -> Void)?
 
     // MARK: - State
     @State private var deckTitle: String = ""
@@ -27,9 +27,9 @@ struct CreateView: View {
 
     // UI Feedback
     @State private var showSuccessOverlay = false
-    
+
     @FocusState private var isTitleFocused: Bool
-    
+
     private var accent: Color { ThemeManager.shared.accentColor.color }
 
     var body: some View {
@@ -52,7 +52,7 @@ struct CreateView: View {
             }
             .scrollDismissesKeyboard(.interactively)
 
-            // Success overlay - slides from top
+            // Success overlay: blur background + centered card, then dismiss to Library
             if showSuccessOverlay {
                 successOverlay
                     .zIndex(100)
@@ -178,9 +178,9 @@ private extension CreateView {
             if draftCards.isEmpty {
                 emptyStateView
             } else {
-                LazyVStack(spacing: 10) {
-                    ForEach(draftCards) { card in
-                        CardRowView(card: card)
+                LazyVStack(spacing: 12) {
+                    ForEach(Array(draftCards.enumerated()), id: \.element.id) { index, card in
+                        CardRowView(card: card, index: index + 1)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 isTitleFocused = false
@@ -192,14 +192,13 @@ private extension CreateView {
                                 } label: {
                                     Label("Edit", systemImage: "pencil")
                                 }
-
                                 Button(role: .destructive) {
                                     deleteCard(card)
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
                             }
-                            .transition(.scale(scale: 0.95).combined(with: .opacity))
+                            .transition(.scale(scale: 0.96).combined(with: .opacity))
                     }
                 }
                 .padding(.horizontal, 20)
@@ -233,40 +232,33 @@ private extension CreateView {
     }
 
     var successOverlay: some View {
-        VStack {
-            // Success banner from top
-            VStack(spacing: 16) {
-                HStack(spacing: 14) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(.green)
-                        .symbolEffect(.bounce, value: showSuccessOverlay)
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Deck Saved!")
-                            .font(.subheadline.weight(.semibold))
-                        
-                        Text("\(draftCards.count) cards added")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
-                )
-                .padding(.horizontal, 20)
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 56))
+                    .foregroundStyle(.green)
+                    .symbolEffect(.bounce, value: showSuccessOverlay)
+
+                Text("Deck Saved!")
+                    .font(.title2.weight(.bold))
+
+                Text("\(draftCards.count) card\(draftCards.count == 1 ? "" : "s")")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-            .transition(.move(edge: .top).combined(with: .opacity))
-            
-            Spacer()
+            .padding(40)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(.regularMaterial)
+                    .shadow(color: .black.opacity(0.2), radius: 24, y: 12)
+            )
+            .padding(32)
+            .transition(.scale(scale: 0.9).combined(with: .opacity))
         }
-        .padding(.top, 8)
     }
 }
 
@@ -348,23 +340,19 @@ private extension CreateView {
             }
         }
 
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             showSuccessOverlay = true
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            withAnimation(.easeOut(duration: 0.3)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) {
+            withAnimation(.easeOut(duration: 0.25)) {
                 showSuccessOverlay = false
             }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 if deckToEdit == nil {
                     resetForm()
-                }
-                
-                if let switchAction = onSwitchToLibrary {
-                    switchAction()
-                } else if deckToEdit != nil {
+                    router.popToRoot()
+                } else {
                     dismiss()
                 }
             }

@@ -2,15 +2,17 @@
 //  DefaultModePlay.swift
 //  QuizFlash
 //
-//  Adaptive card game for iPhone/iPad with swipe mechanics.
+//  Adaptive card game with swipe and study-order (learning) algorithm.
 //
 
 import SwiftUI
+import SwiftData
 
 struct DefaultModePlay: View {
     let deck: DeckModel
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
@@ -35,10 +37,24 @@ struct DefaultModePlay: View {
             endPoint: .bottom
         )
     }
-    
+
+    /// Study order: never seen first, then oldest seen, then most wrong (prioritize weak cards)
+    private static func studyOrderedCards(_ deckCards: [CardModel]) -> [CardModel] {
+        deckCards.sorted { a, b in
+            let aSeen = a.lastSeenAt != nil
+            let bSeen = b.lastSeenAt != nil
+            if !aSeen, bSeen { return true }
+            if aSeen, !bSeen { return false }
+            if !aSeen, !bSeen { return a.createdAt < b.createdAt }
+            guard let aDate = a.lastSeenAt, let bDate = b.lastSeenAt else { return false }
+            if aDate != bDate { return aDate < bDate }
+            return a.timesWrong > b.timesWrong
+        }
+    }
+
     init(deck: DeckModel) {
         self.deck = deck
-        _cards = State(initialValue: deck.cards.shuffled())
+        _cards = State(initialValue: Self.studyOrderedCards(deck.cards))
     }
     
     private var progress: Double {
@@ -289,27 +305,32 @@ struct DefaultModePlay: View {
     }
     
     // MARK: - Actions
-    
+
     private func handleSwipe(_ direction: SwipeDirection) {
         guard currentIndex < cards.count else { return }
-        
+        let card = cards[currentIndex]
+        let now = Date()
+
         if direction == .right {
             correctCount += 1
+            card.lastSeenAt = now
+            card.timesCorrect += 1
         } else {
-            wrongCards.append(cards[currentIndex])
+            wrongCards.append(card)
+            card.lastSeenAt = now
+            card.timesWrong += 1
         }
-        
+
         currentIndex += 1
-        
         if currentIndex >= cards.count {
             isComplete = true
         }
     }
-    
+
     private func retryWrongCards() {
         let retry = wrongCards
         wrongCards = []
-        cards = retry.shuffled()
+        cards = DefaultModePlay.studyOrderedCards(retry)
         currentIndex = 0
         correctCount = 0
         isComplete = false

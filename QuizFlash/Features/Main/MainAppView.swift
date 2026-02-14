@@ -6,7 +6,6 @@ struct MainAppView: View {
     var body: some View {
         NavigationStack(path: $router.path) {
             LibraryView()
-                .environmentObject(router)
                 .navigationDestination(for: DeckModel.self) { deck in
                     DeckView(deck: deck)
                 }
@@ -19,5 +18,6 @@ struct MainAppView: View {
                     }
                 }
         }
+        .environmentObject(router)
     }
 }

@@ -59,7 +59,12 @@ class CardModel {
     // Timestamps
     var createdAt: Date = Date()
     var editedAt: Date = Date()
-    
+
+    // Learning stats (for study order and progress)
+    var lastSeenAt: Date?
+    var timesCorrect: Int = 0
+    var timesWrong: Int = 0
+
     // Relationship
     var deck: DeckModel?
     

@@ -170,6 +170,27 @@ struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         }
     }
     
+    /// Short preview text for lists (first line or first N chars from leaves)
+    func previewText(maxLength: Int = 60) -> String {
+        if isLeaf {
+            switch contentType {
+            case .text:
+                let line = text.split(separator: "\n").first.map(String.init) ?? text
+                if line.count <= maxLength { return line }
+                return String(line.prefix(maxLength)).trimmingCharacters(in: .whitespaces) + "…"
+            case .image: return "Image"
+            case .sketch: return "Sketch"
+            case .empty: return "Empty"
+            }
+        }
+        guard let kids = children else { return "Empty" }
+        for child in kids {
+            let p = child.previewText(maxLength: maxLength)
+            if p != "Empty" { return p }
+        }
+        return "Empty"
+    }
+
     /// Add a sibling zone when we're already in a container
     mutating func addSibling(at index: Int, direction: AddDirection) {
         guard var kids = children else { return }

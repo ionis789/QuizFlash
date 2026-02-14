@@ -2,104 +2,91 @@
 //  CardRowView.swift
 //  QuizFlash
 //
-//  Created by Ion Socol on 12.02.2026.
-//
-//  Card row view for the create deck list.
+//  Informative card row for CreateView: index, question/answer preview from zones.
 //
 
 import SwiftUI
 
 struct CardRowView: View {
     let card: DraftCard
+    var index: Int = 0
+
+    private var accent: Color { ThemeManager.shared.accentColor.color }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Row 1: Question
-            contentRow(
-                label: "Q",
-                color: .blue,
-                content: card.frontContent,
-                type: card.frontType
-            )
-
-            Divider().opacity(0.3)
-
-            // Row 2: Answer
-            contentRow(
-                label: "A",
-                color: .green,
-                content: card.backContent,
-                type: card.backType
-            )
+        HStack(alignment: .top, spacing: 14) {
+            indexBadge
+            VStack(alignment: .leading, spacing: 10) {
+                previewRow(label: "Q", zone: card.frontZone, color: .blue)
+                Divider().opacity(0.35)
+                previewRow(label: "A", zone: card.backZone, color: .green)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
         }
-        .padding(14)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                .strokeBorder(accent.opacity(0.15), lineWidth: 1)
         )
     }
-    
+
+    private var indexBadge: some View {
+        Text("\(index)")
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(accent)
+            .frame(width: 28, height: 28)
+            .background(accent.opacity(0.12), in: Circle())
+    }
+
     @ViewBuilder
-    private func contentRow(label: String, color: Color, content: CardSideContent, type: CardContentType) -> some View {
+    private func previewRow(label: String, zone: ZoneModel, color: Color) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            // Label badge
-            ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(color.opacity(0.12))
-                    .frame(width: 24, height: 24)
-                Text(label)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(color)
-            }
-            
-            if type == .text {
-                let text = content.combinedText
-                let hasImages = !content.allImages.isEmpty
-                let hasSketch = content.blocks.contains { $0.type == .sketch }
-                
-                if text.isEmpty && hasImages {
-                    Label("Image", systemImage: "photo")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                } else if text.isEmpty && hasSketch {
-                    Label("Sketch", systemImage: "scribble.variable")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(text.isEmpty ? "Empty" : text)
-                        .font(.subheadline)
-                        .foregroundStyle(text.isEmpty ? Color.secondary.opacity(0.5) : Color.primary)
-                        .lineLimit(2)
-                }
-                
-                Spacer()
-                
-                // Attachment indicators
-                HStack(spacing: 4) {
-                    if hasImages {
-                        Image(systemName: "photo")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if hasSketch {
-                        Image(systemName: "scribble.variable")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            Text(label)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(color)
+                .frame(width: 18, alignment: .center)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(zone.previewText(maxLength: 50))
+                    .font(.subheadline)
+                    .foregroundStyle(zone.hasContent ? Color.primary : Color.secondary)
+                    .lineLimit(2)
+                if zone.hasContent && (zone.contentType == .image || zone.contentType == .sketch || zoneHasImageOrSketch(zone)) {
+                    HStack(spacing: 6) {
+                        if zoneHasImage(zone) {
+                            Label("Image", systemImage: "photo")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        if zoneHasSketch(zone) {
+                            Label("Sketch", systemImage: "scribble.variable")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
-            } else {
-                // Canvas/Sketch type
-                HStack(spacing: 4) {
-                    Image(systemName: "scribble.variable")
-                    Text("Sketch")
-                }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                
-                Spacer()
             }
+            Spacer(minLength: 0)
         }
+    }
+
+    private func zoneHasImage(_ zone: ZoneModel) -> Bool {
+        if zone.isLeaf { return zone.contentType == .image }
+        return zone.children?.contains(where: zoneHasImage) ?? false
+    }
+
+    private func zoneHasSketch(_ zone: ZoneModel) -> Bool {
+        if zone.isLeaf { return zone.contentType == .sketch }
+        return zone.children?.contains(where: zoneHasSketch) ?? false
+    }
+
+    private func zoneHasImageOrSketch(_ zone: ZoneModel) -> Bool {
+        zoneHasImage(zone) || zoneHasSketch(zone)
     }
 }

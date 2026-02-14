@@ -2,14 +2,10 @@
 //  SwipeableCard.swift
 //  QuizFlash
 //
-//  Smooth swipe card with spring animations and no lag.
+//  Smooth swipe: no scale (avoids center lag), immediate drag, single smooth exit.
 //
 
 import SwiftUI
-
-private let resetSpring = Animation.spring(response: 0.42, dampingFraction: 0.78)
-private let exitSpring = Animation.spring(response: 0.38, dampingFraction: 0.84)
-private let exitDuration: TimeInterval = 0.38
 
 enum SwipeDirection {
     case left, right
@@ -26,7 +22,8 @@ struct SwipeableCard<Content: View>: View {
 
     private let haptic = UIImpactFeedbackGenerator(style: .light)
     private let swipeThreshold: CGFloat = 100
-    private let exitDistance: CGFloat = 600
+    private let exitDistance: CGFloat = 500
+    private let exitDuration: TimeInterval = 0.32
 
     init(
         onSwipe: @escaping (SwipeDirection) -> Void,
@@ -38,12 +35,9 @@ struct SwipeableCard<Content: View>: View {
         self.content = content
     }
 
+    /// Rotation only; no scale — avoids micro-lag when passing through center
     private var rotation: Double {
-        Double(offset) / 22
-    }
-
-    private var scale: CGFloat {
-        1.0 - min(abs(offset) / 1200, 0.04)
+        Double(offset) / 20
     }
 
     private var swipeProgress: CGFloat {
@@ -63,7 +57,6 @@ struct SwipeableCard<Content: View>: View {
                         .opacity(swipeProgress > 0.08 ? 1 : 0)
                 )
         }
-        .scaleEffect(scale)
         .rotationEffect(.degrees(rotation), anchor: .center)
         .offset(x: offset)
         .gesture(dragGesture)
@@ -75,7 +68,7 @@ struct SwipeableCard<Content: View>: View {
     }
 
     private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 12)
+        DragGesture(minimumDistance: 10)
             .onChanged { value in
                 let dx = value.translation.width
                 let dy = value.translation.height
@@ -100,7 +93,7 @@ struct SwipeableCard<Content: View>: View {
             .onEnded { value in
                 let dx = value.translation.width
                 let predicted = value.predictedEndTranslation.width
-                let flickThreshold: CGFloat = 180
+                let flickThreshold: CGFloat = 160
 
                 let shouldExitRight = dx > swipeThreshold || predicted > flickThreshold
                 let shouldExitLeft = dx < -swipeThreshold || predicted < -flickThreshold
@@ -119,15 +112,16 @@ struct SwipeableCard<Content: View>: View {
     }
 
     private func resetPosition() {
-        withAnimation(resetSpring) {
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
             offset = 0
         }
     }
 
+    /// Single smooth exit — no freeze: easeOut so no spring overshoot, then callback
     private func exitCard(_ direction: SwipeDirection) {
         let exitX = direction == .right ? exitDistance : -exitDistance
 
-        withAnimation(exitSpring) {
+        withAnimation(.easeOut(duration: exitDuration)) {
             offset = exitX
         }
 
@@ -136,4 +130,3 @@ struct SwipeableCard<Content: View>: View {
         }
     }
 }
-
