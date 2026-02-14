@@ -21,31 +21,32 @@ extension Notification.Name {
 @MainActor
 final class ZoneFocusManager: ObservableObject {
     static let shared = ZoneFocusManager()
-    
-    /// ID-ul zonei care așteaptă să primească focus
+
     @Published var pendingFocusZoneID: UUID?
-    
-    /// Flag care indică dacă tastatura trebuie menținută deschisă
-    /// Folosit pentru a preveni flickerul la left/above
     @Published var shouldRetainKeyboard: Bool = false
-    
-    /// Cere focus pentru o zonă nouă - va fi aplicat când zona este randată
+
+    // Păstrăm referința la task pentru a-l putea anula dacă apeși repede!
+    private var releaseTask: Task<Void, Never>?
+
     func requestFocus(for zoneID: UUID) {
         pendingFocusZoneID = zoneID
     }
-    
-    /// Confirmă că focusul a fost aplicat
+
     func clearPendingFocus() {
         pendingFocusZoneID = nil
-        // După ce focusul e aplicat, putem elibera keyboard retention
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.shouldRetainKeyboard = false
+
+        // Anulăm eliberarea tastaturii dacă s-a cerut alta nouă
+        releaseTask?.cancel()
+        releaseTask = Task {
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+            if !Task.isCancelled {
+                self.shouldRetainKeyboard = false
+            }
         }
     }
-    
-    /// Pregătește pentru inserarea unei zone noi
-    /// Setează flag-ul de reținere a tastaturii ÎNAINTE de modificarea datelor
+
     func prepareForInsertion() {
+        releaseTask?.cancel()
         shouldRetainKeyboard = true
     }
 }
@@ -94,7 +95,7 @@ struct ZoneEditorView: View {
         let isHorizontal = zone.direction == .horizontal
 
         if isHorizontal {
-            HStack(spacing: 20) {
+            HStack(alignment: .top, spacing: 20) {
                 ForEach(Array(children.enumerated()), id: \.element.id) { index, _ in
                     ZoneEditorView(
                         content: content,
@@ -103,6 +104,7 @@ struct ZoneEditorView: View {
                     )
                 }
             }
+                .fixedSize(horizontal: false, vertical: true) // <-- MAGIA 1: Obligă coloanele să ia înălțimea celei mai mari
         } else {
             VStack(spacing: 8) {
                 ForEach(Array(children.enumerated()), id: \.element.id) { index, _ in
@@ -113,6 +115,7 @@ struct ZoneEditorView: View {
                     )
                 }
             }
+                .frame(maxHeight: .infinity, alignment: .top) // <-- MAGIA 2: Lipește elementele de sus dacă fratele lor orizontal e mai mare
         }
     }
 
@@ -129,31 +132,47 @@ private struct ZoneContentView: View {
     let path: ZonePath
     let isSelected: Bool
     var onSelect: () -> Void
-
     @FocusState private var isFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var focusManager = ZoneFocusManager.shared
+    @State private var cursorIndex: Int? = nil
 
     private var zone: ZoneModel? { content.zone(at: path) }
     private var accent: Color { ThemeManager.shared.accentColor.color }
-    
+
     /// ID-ul zonei curente pentru comparație cu pendingFocusZoneID
     private var currentZoneID: UUID? { zone?.id }
+    // CALCULATOR PENTRU A PĂSTRA ÎNĂLȚIMEA LINIILOR GOALE:
+    private var dynamicMinHeight: CGFloat {
+        let text = zone?.text ?? ""
+        // Numărăm câte linii (inclusiv goale) există
+        let lineCount = max(1, text.components(separatedBy: "\n").count)
+
+        // Estimăm înălțimea per linie în funcție de stil
+        let style = zone?.textStyle ?? .body
+        let lineHeight: CGFloat
+        switch style {
+        case .body: lineHeight = 22
+        case .title: lineHeight = 34
+        case .headline: lineHeight = 26
+        case .caption: lineHeight = 17
+        }
+
+        return CGFloat(lineCount) * lineHeight
+    }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            // Vertical line indicator
+        contentView
+            .frame(maxWidth: .infinity, alignment: alignmentFor(zone))
+            .frame(maxHeight: .infinity, alignment: .top)
+            .overlay(alignment: .leading) {
+            // Indicatorul mutat în afara view-ului folosind offset
             Capsule()
                 .fill(isSelected ? accent : Color.secondary.opacity(0.25))
                 .frame(width: isSelected ? 4 : 3)
-                .frame(maxHeight: .infinity)
                 .padding(.vertical, 8)
-                .padding(.trailing, 10)
+                .offset(x: -10)
                 .animation(.spring(response: 0.3), value: isSelected)
-
-            // Content based on type
-            contentView
-                .frame(maxWidth: .infinity, alignment: alignmentFor(zone))
         }
             .contentShape(Rectangle())
             .onTapGesture {
@@ -162,26 +181,32 @@ private struct ZoneContentView: View {
                 isFocused = true
             }
         }
+        // Prindem cererile de focus și când componenta e nou re-creată
+        .onAppear {
+            checkPendingFocus()
+        }
+            .onChange(of: focusManager.pendingFocusZoneID) { _, _ in
+            checkPendingFocus()
+        }
             .onChange(of: isFocused) { _, focused in
-            // FIX CRITIC: Anunțăm părintele DOAR dacă am primit focus
-            // ȘI nu suntem deja selectați. Asta rupe bucla infinită.
             if focused && !isSelected {
                 onSelect()
             }
         }
-        // FIX KEYBOARD FLICKER: Verificăm dacă această zonă trebuie să primească focus
-        .onChange(of: focusManager.pendingFocusZoneID) { _, pendingID in
+            .onChange(of: isSelected) { _, selected in
+            if !selected && isFocused {
+                isFocused = false
+            }
+        }
+            .onChange(of: focusManager.pendingFocusZoneID) { _, pendingID in
             if let pendingID, let currentID = currentZoneID, pendingID == currentID {
-                // Această zonă este ținta - aplicăm focus și curățăm
                 if zone?.contentType == .text || zone?.contentType == .empty {
                     isFocused = true
                 }
                 focusManager.clearPendingFocus()
             }
         }
-        // Fallback: Listen for focus trigger notification (pentru compatibilitate)
-        .onReceive(NotificationCenter.default.publisher(for: .focusNewZone)) { notification in
-            // Dacă notificarea conține un zoneID specific, verificăm
+            .onReceive(NotificationCenter.default.publisher(for: .focusNewZone)) { notification in
             if let targetID = notification.object as? UUID {
                 if let currentID = currentZoneID, targetID == currentID {
                     if zone?.contentType == .text || zone?.contentType == .empty {
@@ -189,19 +214,13 @@ private struct ZoneContentView: View {
                     }
                 }
             } else if isSelected && (zone?.contentType == .text || zone?.contentType == .empty) {
-                // Fallback pentru notificări fără ID (compatibilitate)
                 isFocused = true
             }
         }
-        // Auto-focus când zona devine selectată și textul e gol
-        .task(id: isSelected) {
-            // Folosim task în loc de DispatchQueue pentru timing mai bun cu SwiftUI
+            .task(id: isSelected) {
             if isSelected && zone?.text.isEmpty == true {
-                // Mic delay pentru a permite UI-ului să se stabilizeze
                 try? await Task.sleep(for: .milliseconds(80))
-                if isSelected { // Verificăm din nou că încă suntem selectați
-                    isFocused = true
-                }
+                if isSelected { isFocused = true }
             }
         }
     }
@@ -220,6 +239,7 @@ private struct ZoneContentView: View {
 
     // MARK: - Text View
 
+
     @ViewBuilder
     private var textView: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -230,7 +250,8 @@ private struct ZoneContentView: View {
                     .padding(.top, 8)
             }
 
-            TextField("Type here...", text: textBinding, axis: .vertical)
+            // Simplu, nativ. Datorită textBinding-ului de mai sus, nu se va mai strivi cursorul!
+            TextField("", text: textBinding, axis: .vertical)
                 .font(textFont)
                 .fontWeight(zone?.isBold == true ? .bold : .regular)
                 .italic(zone?.isItalic == true)
@@ -240,26 +261,27 @@ private struct ZoneContentView: View {
                 .padding(.vertical, 8)
                 .padding(.horizontal, zone?.highlightColor != HighlightColor.none ? 6 : 0)
                 .background(
-                    zone?.highlightColor.color.map { color in
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(color)
-                    }
-                )
+                zone?.highlightColor.color.map { color in
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(color)
+                }
+            )
                 .onChange(of: zone?.text) { _, _ in
-                //MARK: AutoScroll
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(name: .scrollToCursor, object: nil)
                 }
             }
         }
     }
-    
+
+
+
     /// Computed font based on textStyle and fontFamily
     private var textFont: Font {
         let style = zone?.textStyle ?? .body
         let family = zone?.fontFamily ?? .system
         let weight: Font.Weight = zone?.isBold == true ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
-        
+
         let size: CGFloat
         switch style {
         case .body: size = 18
@@ -267,7 +289,7 @@ private struct ZoneContentView: View {
         case .headline: size = 22
         case .caption: size = 14
         }
-        
+
         return family.font(size: size, weight: weight)
     }
 
@@ -330,9 +352,9 @@ private struct ZoneContentView: View {
                         .background(colorScheme == .dark ? Color.black : Color.white)
                         .clipShape(RoundedRectangle(cornerRadius: 30))
                         .overlay {
-                            RoundedRectangle(cornerRadius: 30)
-                                .stroke(Color.white.opacity(0.6), lineWidth: 1)
-                        }
+                        RoundedRectangle(cornerRadius: 30)
+                            .stroke(Color.white.opacity(0.6), lineWidth: 1)
+                    }
 
                     if isSelected {
                         deleteButton
@@ -397,10 +419,18 @@ private struct ZoneContentView: View {
 
     private var textBinding: Binding<String> {
         Binding(
-            get: { zone?.text ?? "" },
+            get: {
+                var t = zone?.text ?? ""
+                // MAGIC FIX: Dacă textul se termină cu Enter, punem un spațiu invizibil
+                // pentru a forța SwiftUI să calculeze înălțimea corectă a cursorului
+                if t.hasSuffix("\n") { t += "\u{200B}" }
+                return t
+            },
             set: { newValue in
+                // Când utilizatorul scrie, curățăm spațiul invizibil
+                let cleanValue = newValue.replacingOccurrences(of: "\u{200B}", with: "")
                 content.updateZone(at: path) { zone in
-                    zone.text = newValue
+                    zone.text = cleanValue
                     if zone.contentType == .empty {
                         zone.contentType = .text
                     }
@@ -414,6 +444,17 @@ private struct ZoneContentView: View {
         case .leading: return .leading
         case .center: return .center
         case .trailing: return .trailing
+        }
+    }
+    private func checkPendingFocus() {
+        if let pendingID = focusManager.pendingFocusZoneID,
+            let currentID = currentZoneID,
+            pendingID == currentID {
+
+            if zone?.contentType == .text || zone?.contentType == .empty {
+                isFocused = true
+            }
+            focusManager.clearPendingFocus()
         }
     }
 }
@@ -436,7 +477,8 @@ struct ZonePreviewView: View {
     private var leafPreview: some View {
         switch zone.contentType {
         case .empty:
-            EmptyView()
+//            EmptyView()
+            Color.clear.frame(height: 28).padding(.vertical, 4)
 
         case .text:
             if !zone.text.isEmpty {
@@ -457,11 +499,11 @@ struct ZonePreviewView: View {
                         .padding(.vertical, 4)
                         .padding(.horizontal, zone.highlightColor != HighlightColor.none ? 6 : 0)
                         .background(
-                            zone.highlightColor.color.map { color in
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(color)
-                            }
-                        )
+                        zone.highlightColor.color.map { color in
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(color)
+                        }
+                    )
                 }
                     .frame(maxWidth: .infinity, alignment: alignmentFor(zone))
             }
@@ -518,13 +560,13 @@ struct ZonePreviewView: View {
         case .trailing: return .trailing
         }
     }
-    
+
     /// Computed font for preview based on textStyle and fontFamily
     private func previewFont(for zone: ZoneModel) -> Font {
         let style = zone.textStyle
         let family = zone.fontFamily
         let weight: Font.Weight = zone.isBold ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
-        
+
         let size: CGFloat
         switch style {
         case .body: size = 18
@@ -532,7 +574,7 @@ struct ZonePreviewView: View {
         case .headline: size = 22
         case .caption: size = 14
         }
-        
+
         return family.font(size: size, weight: weight)
     }
 }
@@ -629,7 +671,7 @@ struct CachedImageView: View {
                     .frame(height: 100)
             }
         }
-        .task {
+            .task {
             loadImage()
         }
     }
@@ -646,11 +688,11 @@ struct CachedImageView: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: UIScreen.main.bounds.width * scale * 0.85)
                 .background {
-                    if isSketch {
-                        RoundedRectangle(cornerRadius: cornerRadius)
-                            .fill(colorScheme == .dark ? Color.black : Color.white)
-                    }
+                if isSketch {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .fill(colorScheme == .dark ? Color.black : Color.white)
                 }
+            }
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                 .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
 

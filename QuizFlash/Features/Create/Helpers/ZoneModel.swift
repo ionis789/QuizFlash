@@ -391,7 +391,7 @@ class ZoneCardContent {
             }
             
             // Remove empty children
-            kids = kids.filter { $0.hasContent || !$0.isLeaf }
+//            kids = kids.filter { $0.hasContent || !$0.isLeaf }    
             
             if kids.count == 1 {
                 // Collapse single child

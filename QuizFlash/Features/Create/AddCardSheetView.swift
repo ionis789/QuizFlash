@@ -19,7 +19,9 @@ struct AddCardSheetView: View {
     @State private var frontZoneContent: ZoneCardContent
     @State private var backZoneContent: ZoneCardContent
     @State private var activeSide = 0
-
+    @State private var layoutTask: Task<Void, Never>? = nil
+    @State private var frontSavedPath: ZonePath? = .root
+    @State private var backSavedPath: ZonePath? = .root
     // FAB Menu
     @State private var showFABMenu = false
 
@@ -39,6 +41,7 @@ struct AddCardSheetView: View {
 
     // Selection
     @State private var selectedPath: ZonePath? = .root
+    @State private var currentCursorIndex: Int? = nil
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var currentContent: ZoneCardContent { activeSide == 0 ? frontZoneContent : backZoneContent }
@@ -63,6 +66,7 @@ struct AddCardSheetView: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                backgroundGradient.ignoresSafeArea()
                 // Hidden TextField for keyboard retention during zone insertion
                 TextField("", text: $retainerText)
                     .focused($isRetainerFocused)
@@ -108,7 +112,6 @@ struct AddCardSheetView: View {
                     }
                 }
             }
-                .background(Color(uiColor: .systemBackground))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
                 .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
@@ -172,97 +175,117 @@ struct AddCardSheetView: View {
     // MARK: - Side Picker
 
     private var sidePicker: some View {
-        Picker("Side", selection: $activeSide) {
-            Text("Question").tag(0)
-            Text("Answer").tag(1)
-        }
+            Picker("Side", selection: $activeSide) {
+                Text("Question").tag(0)
+                Text("Answer").tag(1)
+            }
             .pickerStyle(.segmented)
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .onChange(of: activeSide) { _, newSide in
-            // FIX KEYBOARD: Pregătim reținerea tastaturii înainte de switch
-            ZoneFocusManager.shared.prepareForInsertion()
+            .onChange(of: activeSide) { oldSide, newSide in
+                // Salvăm unde eram înainte de switch
+                if oldSide == 0 { frontSavedPath = selectedPath }
+                else { backSavedPath = selectedPath }
 
-            (newSide == 0 ? backZoneContent : frontZoneContent).cleanup()
-            selectedPath = nil
+                executeWithKeyboardRetention {
+                    (newSide == 0 ? backZoneContent : frontZoneContent).cleanup()
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                selectedPath = .root
-                // Folosim ZoneFocusManager pentru partea selectată
-                let targetContent = newSide == 0 ? frontZoneContent : backZoneContent
-                ZoneFocusManager.shared.requestFocus(for: targetContent.rootZone.id)
+                    // Restaurăm calea pentru noua secțiune
+                    selectedPath = newSide == 0 ? frontSavedPath : backSavedPath
+                } afterLayout: {
+                    let targetContent = newSide == 0 ? frontZoneContent : backZoneContent
+                    if let path = selectedPath, let zoneID = targetContent.zone(at: path)?.id {
+                        ZoneFocusManager.shared.requestFocus(for: zoneID)
+                    } else {
+                        selectedPath = .root
+                        ZoneFocusManager.shared.requestFocus(for: targetContent.rootZone.id)
+                    }
+                }
             }
         }
-    }
 
     // MARK: - Editor Area
 
     private var editorArea: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 30)
-                .background(.ultraThinMaterial)
-                .padding()
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
 
-
-                        if activeSide == 0 {
-                            ZoneEditorView(content: frontZoneContent, path: .root, selectedPath: $selectedPath)
-                        } else {
-                            ZoneEditorView(content: backZoneContent, path: .root, selectedPath: $selectedPath)
-                        }
-
-                        Color.clear
-                            .frame(height: 100)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                            addZoneAtBottom()
-                        }
-                            .id("bottom")
-
+                    // Eticheta QUESTION / ANSWER în interiorul cardului
+                    HStack {
+                        Text(activeSide == 0 ? "QUESTION" : "ANSWER")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
                     }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                        .padding(.bottom, max((selectedPath != nil ? 80 : 100), keyboardHeight + 20))
-                }
-                    .scrollDismissesKeyboard(.interactively)
+                        .padding(.bottom, 16)
 
-                // Auto-scroll when selection changes
-                .onChange(of: selectedPath) { _, newPath in
-                    if let path = newPath {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                            withAnimation(.spring(response: 0.6, dampingFraction: 1.0)) {
-                                proxy.scrollTo(path.id, anchor: .center)
-                            }
+                    if activeSide == 0 {
+                        ZoneEditorView(content: frontZoneContent, path: .root, selectedPath: $selectedPath)
+                    } else {
+                        ZoneEditorView(content: backZoneContent, path: .root, selectedPath: $selectedPath)
+                    }
+
+                    Color.clear
+                        .frame(height: 100)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                        addZoneAtBottom()
+                    }
+                        .id("bottom")
+                }
+                    .padding(.horizontal, 24) // Padding-ul interior al cardului
+                .padding(.top, 24)
+                    .background(// Fundalul efectiv al Cardului
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .fill(cardBackground)
+                    .shadow(color: shadowColor, radius: 16, y: 8)
+                )
+                    .overlay(// Border-ul Cardului
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .stroke(borderColor, lineWidth: 1)
+                )
+                    .padding(.horizontal, 32) // Padding exterior (lasă loc pentru indicatoare în stânga)
+                .padding(.top, 24)
+                    .padding(.bottom, max((selectedPath != nil ? 80 : 100), keyboardHeight + 20))
+            }
+                .scrollDismissesKeyboard(.interactively)
+
+            // Auto-scroll when selection changes
+            .onChange(of: selectedPath) { _, newPath in
+                if let path = newPath {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        withAnimation(.spring(response: 0.6, dampingFraction: 1.0)) {
+                            proxy.scrollTo(path.id, anchor: .center)
                         }
                     }
                 }
+            }
 
-                // Auto-scroll for typing
-                .onReceive(NotificationCenter.default.publisher(for: .scrollToCursor)) { _ in
-                    if let path = selectedPath {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                proxy.scrollTo(path.id) // Anchor nil = Scroll to Visible
-                            }
-                        }
-                    }
-                }
-
-                // Auto-scroll when keyboard appears (no animation conflict)
-                .onChange(of: keyboardHeight) { oldHeight, newHeight in
-                    if newHeight > oldHeight, let path = selectedPath {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                            // Folosim scrollTo simplu (fără withAnimation) pentru a corecta poziția
-                            // dacă padding-ul nu a fost suficient
+            // Auto-scroll for typing
+            .onReceive(NotificationCenter.default.publisher(for: .scrollToCursor)) { _ in
+                if let path = selectedPath {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
                             proxy.scrollTo(path.id)
                         }
                     }
                 }
             }
 
-
+            // Auto-scroll when keyboard appears
+            .onChange(of: keyboardHeight) { oldHeight, newHeight in
+                if newHeight > oldHeight, let path = selectedPath {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        proxy.scrollTo(path.id)
+                    }
+                }
+            }
+                .onReceive(NotificationCenter.default.publisher(for: Notification.Name("UpdateCursorIndex"))) { notification in
+                if let index = notification.object as? Int {
+                    self.currentCursorIndex = index
+                }
+            }
         }
     }
 
@@ -270,89 +293,72 @@ struct AddCardSheetView: View {
 
     /// FIX CRITIC 2: Logică de adăugare robustă care calculează path-ul instantaneu
     private func addZoneWithFocus(in direction: AddDirection) {
-        guard let path = selectedPath else { return }
+            guard let path = selectedPath else { return }
 
-        // 1. Snapshot la starea curentă
-        let parentPath = path.parent
-        let childIndex = path.lastIndex ?? 0
-        let parentZone = parentPath != nil ? currentContent.zone(at: parentPath!) : nil
-        let parentDirection = parentZone?.direction
-        let isRoot = path.indices.isEmpty
+            let parentPath = path.parent
+            let childIndex = path.lastIndex ?? 0
+            let parentZone = parentPath != nil ? currentContent.zone(at: parentPath!) : nil
+            let parentDirection = parentZone?.direction
+            let isRoot = path.indices.isEmpty
 
-        // FIX KEYBOARD: Pregătim reținerea tastaturii pentru TOATE direcțiile
-        // Aceasta previne flickerul când se adaugă zone noi
-        ZoneFocusManager.shared.prepareForInsertion()
+            var newZoneID: UUID?
+            var newPath: ZonePath = .root
 
-        // 2. Modificăm datele și capturăm ID-ul zonei noi
-        let newZoneID = currentContent.addZone(relativeTo: path, direction: direction)
+            executeWithKeyboardRetention {
+                newZoneID = self.currentContent.addZone(relativeTo: path, direction: direction)
 
-        // 3. Calculăm calea nouă INSTANTANEU (matematic)
-        let newPath: ZonePath
-
-        if isRoot {
-            // Rădăcina devine container
-            switch direction {
-            case .left, .up: newPath = ZonePath(indices: [0])
-            case .right, .down: newPath = ZonePath(indices: [1])
-            }
-        } else if let pPath = parentPath, parentDirection == direction.zoneDirection {
-            // Adăugăm frate (sibling)
-            switch direction {
-            case .left, .up: newPath = pPath.appending(childIndex)
-            case .right, .down: newPath = pPath.appending(childIndex + 1)
-            }
-        } else {
-            // Split nou (container nou)
-            switch direction {
-            case .left, .up: newPath = path.appending(0)
-            case .right, .down: newPath = path.appending(1)
+                if isRoot {
+                    switch direction {
+                    case .left, .up: newPath = ZonePath(indices: [0])
+                    case .right, .down: newPath = ZonePath(indices: [1])
+                    }
+                } else if let pPath = parentPath, parentDirection == direction.zoneDirection {
+                    switch direction {
+                    case .left, .up: newPath = pPath.appending(childIndex)
+                    case .right, .down: newPath = pPath.appending(childIndex + 1)
+                    }
+                } else {
+                    switch direction {
+                    case .left, .up: newPath = path.appending(0)
+                    case .right, .down: newPath = path.appending(1)
+                    }
+                }
+                self.selectedPath = newPath
+            } afterLayout: {
+                if let zoneID = newZoneID {
+                    ZoneFocusManager.shared.requestFocus(for: zoneID)
+                }
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }
         }
-
-        // 4. Setăm selecția imediat
-        selectedPath = newPath
-
-        // 5. Trigger focus folosind ID-ul zonei noi
-        triggerKeyboardForNewZone(zoneID: newZoneID)
-
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-    }
 
     private func addZoneAtBottom() {
-        let root = currentContent.rootZone
-        var newZoneID: UUID?
+            let root = currentContent.rootZone
+            var newZoneID: UUID?
 
-        // FIX KEYBOARD: Pregătim reținerea tastaturii
-        ZoneFocusManager.shared.prepareForInsertion()
+            executeWithKeyboardRetention {
+                if !root.isLeaf && root.direction == .vertical {
+                    let newIndex = root.children?.count ?? 0
+                    let newZone = ZoneModel.empty()
+                    newZoneID = newZone.id
 
-        // Dacă rădăcina e deja verticală, adăugăm la final
-        if !root.isLeaf && root.direction == .vertical {
-            let newIndex = root.children?.count ?? 0
-            let newZone = ZoneModel.empty()
-            newZoneID = newZone.id
-
-            // Injectăm manual pentru siguranță
-            currentContent.updateZone(at: .root) { rootZone in
-                var kids = rootZone.children ?? []
-                kids.append(newZone)
-                rootZone.children = kids
+                    self.currentContent.updateZone(at: .root) { rootZone in
+                        var kids = rootZone.children ?? []
+                        kids.append(newZone)
+                        rootZone.children = kids
+                    }
+                    self.selectedPath = ZonePath(indices: [newIndex])
+                } else {
+                    newZoneID = self.currentContent.addZone(relativeTo: .root, direction: .down)
+                    self.selectedPath = ZonePath(indices: [1])
+                }
+            } afterLayout: {
+                if let zoneID = newZoneID {
+                    ZoneFocusManager.shared.requestFocus(for: zoneID)
+                }
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }
-
-            let newPath = ZonePath(indices: [newIndex])
-            selectedPath = newPath
-        } else {
-            // Altfel, împachetăm totul
-            newZoneID = currentContent.addZone(relativeTo: .root, direction: .down)
-            selectedPath = ZonePath(indices: [1])
         }
-
-        if let zoneID = newZoneID {
-            triggerKeyboardForNewZone(zoneID: zoneID)
-        } else {
-            triggerKeyboardForNewZoneLegacy()
-        }
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-    }
 
     private func triggerKeyboardForNewZone(zoneID: UUID) {
         // Folosim ZoneFocusManager pentru sincronizare precisă cu ciclul de randare
@@ -438,42 +444,52 @@ struct AddCardSheetView: View {
     }
 
     private func splitZone() {
-        guard let path = selectedPath,
-            let zone = currentContent.zone(at: path),
-            zone.contentType == .text && !zone.text.isEmpty else { return }
+            guard let path = selectedPath,
+                  let zone = currentContent.zone(at: path),
+                  zone.contentType == .text else { return }
 
-        let text = zone.text
-        let lines = text.components(separatedBy: "\n")
-        guard lines.count >= 2 else {
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
-            return
-        }
+            let text = zone.text
+            let lines = text.components(separatedBy: "\n")
 
-        let midPoint = lines.count / 2
-        let firstPart = lines[0..<midPoint].joined(separator: "\n")
-        let secondPart = lines[midPoint...].joined(separator: "\n")
+            if lines.count >= 2 {
+                executeWithKeyboardRetention {
+                    let midPoint = lines.count / 2
+                    let firstPart = lines[0..<midPoint].joined(separator: "\n")
+                    let secondPart = lines[midPoint...].joined(separator: "\n")
 
-        currentContent.updateZone(at: path) { z in z.text = firstPart }
-        currentContent.addZone(relativeTo: path, direction: .down)
+                    self.currentContent.updateZone(at: path) { z in z.text = firstPart }
+                    self.currentContent.addZone(relativeTo: path, direction: .down)
 
-        // Logică calcul path split
-        if let parent = path.parent {
-            if let children = currentContent.zone(at: parent)?.children,
-                let lastIndex = path.lastIndex,
-                lastIndex + 1 < children.count {
-                let newPath = parent.appending(lastIndex + 1)
-                updateSplitZoneContent(at: newPath, text: secondPart, original: zone)
-                selectedPath = newPath
+                    let newPath: ZonePath
+                    if let parent = path.parent {
+                        newPath = parent.appending((path.lastIndex ?? 0) + 1)
+                    } else {
+                        newPath = ZonePath(indices: [1])
+                    }
+
+                    self.updateSplitZoneContent(at: newPath, text: secondPart, original: zone)
+                    
+                    // CRITIC: Păstrăm calea pe zona veche (Cea de sus)
+                    self.selectedPath = path
+                } afterLayout: {
+                    if let topZoneID = self.currentContent.zone(at: path)?.id {
+                        ZoneFocusManager.shared.requestFocus(for: topZoneID)
+                    }
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                }
+                return
             }
-        } else {
-            if let children = currentContent.rootZone.children, children.count > 1 {
-                let newPath = ZonePath(indices: [1])
-                updateSplitZoneContent(at: newPath, text: secondPart, original: zone)
-                selectedPath = newPath
+
+            // Dacă e un singur rând
+            executeWithKeyboardRetention {
+                self.currentContent.addZone(relativeTo: path, direction: .down)
+            } afterLayout: {
+                if let topZoneID = self.currentContent.zone(at: path)?.id {
+                    ZoneFocusManager.shared.requestFocus(for: topZoneID)
+                }
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }
         }
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-    }
 
     private func updateSplitZoneContent(at path: ZonePath, text: String, original: ZoneModel) {
         currentContent.updateZone(at: path) { z in
@@ -488,7 +504,32 @@ struct AddCardSheetView: View {
         }
     }
 
+    /// Execută o mutație de layout menținând tastatura deschisă, apoi aplică focusul
+    private func executeWithKeyboardRetention(action: @escaping () -> Void, afterLayout: @escaping () -> Void) {
+            // 1. OPRIM orice animație/focus anterior care încă nu s-a terminat!
+            layoutTask?.cancel()
+            
+            ZoneFocusManager.shared.prepareForInsertion()
 
+            // 2. Creăm un nou Task pe care îl putem controla
+            layoutTask = Task {
+                // Pauză scurtă de 50 milisecunde
+                try? await Task.sleep(nanoseconds: 50_000_000)
+                
+                // Dacă între timp ai apăsat pe altceva, ne oprim aici!
+                if Task.isCancelled { return }
+                
+                await MainActor.run { action() }
+
+                // Pauză pentru a lăsa SwiftUI să deseneze zonele noi (100 milisecunde)
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                
+                // Verificăm din nou dacă nu ai dat spam la click-uri
+                if Task.isCancelled { return }
+                
+                await MainActor.run { afterLayout() }
+            }
+        }
 
     private func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
@@ -564,7 +605,35 @@ struct AddCardSheetView: View {
             }
         }
     }
+
+
+    // MARK: - Styling
+    private var backgroundGradient: some View {
+        LinearGradient(
+            colors: colorScheme == .dark
+                ? [Color(uiColor: .systemBackground), Color(uiColor: .secondarySystemBackground)]
+            : [Color(uiColor: .systemGray6), Color(uiColor: .systemBackground)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var cardBackground: some ShapeStyle {
+        colorScheme == .dark
+            ? AnyShapeStyle(Color(uiColor: .secondarySystemBackground))
+        : AnyShapeStyle(Color.white)
+    }
+
+    private var shadowColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.5) : Color.black.opacity(0.15)
+    }
+
+    private var borderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.08)
+    }
+
 }
+
 
 // MARK: - Helper Views
 
@@ -741,8 +810,11 @@ private struct ZoneFormatBar: View {
 
             // Scale menu
             Menu {
-                Button { content.updateZone(at: path) { $0.imageScale = 0.5 } } label: {
-                    HStack { Text("Medium"); if zone?.imageScale == 0.5 { Image(systemName: "checkmark") } }
+                Button { content.updateZone(at: path) { $0.imageScale = 0.3 } } label: {
+                    HStack { Text("Small"); if zone?.imageScale == 0.3 { Image(systemName: "checkmark") } }
+                }
+                Button { content.updateZone(at: path) { $0.imageScale = 0.7 } } label: {
+                    HStack { Text("Medium"); if zone?.imageScale == 0.7 { Image(systemName: "checkmark") } }
                 }
                 Button { content.updateZone(at: path) { $0.imageScale = 1.0 } } label: {
                     HStack { Text("Full Width"); if zone?.imageScale == 1.0 { Image(systemName: "checkmark") } }
@@ -776,7 +848,7 @@ private struct ToolbarButton: View {
     }
 }
 
-//MARK: Card Preview 
+//MARK: Card Preview
 
 private struct ZonePreviewSheet: View {
     let front: ZoneCardContent
@@ -827,8 +899,8 @@ private struct ZonePreviewSheet: View {
                                 .opacity(isFlipped ? 0 : 1)
                         }
                             .frame(
-                            width: geo.size.width * (isCompact ? 0.75 : 0.85),
-                            height: geo.size.height * (isCompact ? 0.75 : 0.85)
+                            width: geo.size.width * 0.85,
+                            height: geo.size.height * 0.85
                         )
                             .onTapGesture {
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
