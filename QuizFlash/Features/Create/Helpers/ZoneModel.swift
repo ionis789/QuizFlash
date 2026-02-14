@@ -51,6 +51,8 @@ struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     var isBold: Bool = false
     var isItalic: Bool = false
     var hasBullet: Bool = false
+    var fontFamily: FontFamily = .system
+    var highlightColor: HighlightColor = .none
     
     // Image/Sketch scale (0.3 to 1.0)
     var imageScale: CGFloat = 1.0
@@ -288,10 +290,14 @@ class ZoneCardContent {
     }
     
     /// Add zone in direction relative to zone at path
-    func addZone(relativeTo path: ZonePath, direction: AddDirection) {
+    /// Returns the UUID of the newly created zone for focus targeting
+    @discardableResult
+    func addZone(relativeTo path: ZonePath, direction: AddDirection) -> UUID {
+        let newZone = ZoneModel.empty()
+        let newZoneID = newZone.id
+        
         if path.indices.isEmpty {
             // Adding relative to root - wrap root in container
-            let newZone = ZoneModel.empty()
             let oldRoot = rootZone
             
             switch direction {
@@ -304,20 +310,19 @@ class ZoneCardContent {
             case .down:
                 rootZone = .container(direction: .vertical, children: [oldRoot, newZone])
             }
-            return
+            return newZoneID
         }
         
         // Get parent path and child index
-        guard let parentPath = path.parent, let childIndex = path.lastIndex else { return }
+        guard let parentPath = path.parent, let childIndex = path.lastIndex else { return newZoneID }
         
         // Check if parent direction matches add direction
         let parentZone = parentPath.indices.isEmpty ? rootZone : zone(at: parentPath)
-        guard let parent = parentZone else { return }
+        guard let parent = parentZone else { return newZoneID }
         
         if !parent.isLeaf && parent.direction == direction.zoneDirection {
             // Same direction - just add sibling
             updateZone(at: parentPath) { parentZone in
-                let newZone = ZoneModel.empty()
                 var kids = parentZone.children ?? []
                 switch direction {
                 case .left, .up:
@@ -331,7 +336,6 @@ class ZoneCardContent {
             // Different direction - wrap current zone in new container
             updateZone(at: path) { currentZone in
                 let oldZone = currentZone
-                let newZone = ZoneModel.empty()
                 
                 switch direction {
                 case .left:
@@ -345,6 +349,7 @@ class ZoneCardContent {
                 }
             }
         }
+        return newZoneID
     }
     
     /// Delete zone at path

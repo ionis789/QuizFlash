@@ -57,6 +57,81 @@ enum TextBlockStyle: String, Codable, Equatable {
     }
 }
 
+// MARK: - Font Family
+enum FontFamily: String, Codable, Equatable, CaseIterable {
+    case system     // Default SF Pro
+    case serif      // New York
+    case mono       // SF Mono
+    case rounded    // SF Rounded
+    
+    var name: String {
+        switch self {
+        case .system: return "Sans-Serif"
+        case .serif: return "Serif"
+        case .mono: return "Monospaced"
+        case .rounded: return "Rounded"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .system: return "textformat"
+        case .serif: return "textformat.abc"
+        case .mono: return "chevron.left.forwardslash.chevron.right"
+        case .rounded: return "a.circle"
+        }
+    }
+    
+    func font(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        switch self {
+        case .system:
+            return .system(size: size, weight: weight)
+        case .serif:
+            return .system(size: size, weight: weight, design: .serif)
+        case .mono:
+            return .system(size: size, weight: weight, design: .monospaced)
+        case .rounded:
+            return .system(size: size, weight: weight, design: .rounded)
+        }
+    }
+}
+
+// MARK: - Highlight Color (Marker)
+enum HighlightColor: String, Codable, Equatable, CaseIterable {
+    case none
+    case yellow
+    case green
+    case pink
+    case cyan
+    
+    var color: Color? {
+        switch self {
+        case .none: return nil
+        case .yellow: return Color.yellow.opacity(0.4)
+        case .green: return Color.green.opacity(0.35)
+        case .pink: return Color.pink.opacity(0.35)
+        case .cyan: return Color.cyan.opacity(0.35)
+        }
+    }
+    
+    var name: String {
+        switch self {
+        case .none: return "None"
+        case .yellow: return "Yellow"
+        case .green: return "Green"
+        case .pink: return "Pink"
+        case .cyan: return "Cyan"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .none: return "xmark"
+        default: return "highlighter"
+        }
+    }
+}
+
 // MARK: - Text Color
 enum TextBlockColor: String, Codable, Equatable, CaseIterable {
     case primary

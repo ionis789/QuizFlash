@@ -23,14 +23,14 @@ struct CanvasModalView: View {
         NavigationStack {
             ZStack {
                 // Canvas background - adapts to color scheme
-                (colorScheme == .dark ? Color(uiColor: .systemGray6) : Color.white)
+                (colorScheme == .dark ? Color(uiColor: .black) : Color.white)
                     .ignoresSafeArea()
                 
                 // Drawing canvas
                 CanvasViewRepresentable(
                     canvasView: $canvasView,
                     toolPicker: toolPicker,
-                    backgroundColor: colorScheme == .dark ? .darkGray : .white
+                    backgroundColor: colorScheme == .dark ? .black : .white
                 )
                 .ignoresSafeArea(edges: .bottom)
             }

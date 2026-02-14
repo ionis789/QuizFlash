@@ -140,9 +140,10 @@ struct DeckSectionToolbar: View {
     let deck: DeckModel
     let isSelecting: Bool
     @Binding var sortOrder: SortOrder
-
+    
     var onAdd: () -> Void
     var onStartSelection: () -> Void
+    var onExport: (() -> Void)? = nil
 
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
 
@@ -174,6 +175,13 @@ struct DeckSectionToolbar: View {
                         Label("Select Cards", systemImage: "checkmark.circle")
                     }
                         .disabled(isSelecting)
+                    
+                    // Export deck option
+                    if let onExport = onExport {
+                        Button(action: onExport) {
+                            Label("Export Deck", systemImage: "square.and.arrow.up")
+                        }
+                    }
 
                
                     Menu {

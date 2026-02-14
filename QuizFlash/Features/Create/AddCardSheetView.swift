@@ -11,60 +11,78 @@ import PhotosUI
 struct AddCardSheetView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
-    
-    // NEW: Save zones directly to preserve layout structure
+
+    // Save zones directly to preserve layout structure
     var onSaveZones: (ZoneModel, ZoneModel) -> Void
-    
+
     // Zone-based content
     @State private var frontZoneContent: ZoneCardContent
     @State private var backZoneContent: ZoneCardContent
     @State private var activeSide = 0
-    
+
     // FAB Menu
     @State private var showFABMenu = false
-    
+
     // Keyboard tracking
     @State private var keyboardHeight: CGFloat = 0
-    
+
+    // Keyboard retention for smooth transitions
+    @FocusState private var isRetainerFocused: Bool
+    @State private var retainerText: String = ""
+    @StateObject private var focusManager = ZoneFocusManager.shared
+
     // Modals
     @State private var showPhotoPicker = false
     @State private var showSketchModal = false
     @State private var showPreview = false
     @State private var selectedPhoto: PhotosPickerItem?
-    
+
     // Selection
     @State private var selectedPath: ZonePath? = .root
-    
+
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var currentContent: ZoneCardContent { activeSide == 0 ? frontZoneContent : backZoneContent }
     private var canSave: Bool { frontZoneContent.hasContent || backZoneContent.hasContent }
-    
+
     // MARK: - Init
-    
+
     init(onSave: @escaping (ZoneModel, ZoneModel) -> Void) {
         self.onSaveZones = onSave
         _frontZoneContent = State(initialValue: ZoneCardContent(rootZone: .text()))
         _backZoneContent = State(initialValue: ZoneCardContent(rootZone: .text()))
     }
-    
+
     init(frontZone: ZoneModel, backZone: ZoneModel, onSave: @escaping (ZoneModel, ZoneModel) -> Void) {
         self.onSaveZones = onSave
         _frontZoneContent = State(initialValue: ZoneCardContent(rootZone: frontZone))
         _backZoneContent = State(initialValue: ZoneCardContent(rootZone: backZone))
     }
-    
+
     // MARK: - Body
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
+                // Hidden TextField for keyboard retention during zone insertion
+                TextField("", text: $retainerText)
+                    .focused($isRetainerFocused)
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+                    .allowsHitTesting(false)
+
                 // Main content
+
+
                 VStack(spacing: 0) {
+
                     sidePicker
+
                     Divider()
+
                     editorArea
-                    
-                    // Format bar at the bottom (when zone selected)
+
+
+                    // Format bar at the bottom
                     if let path = selectedPath, currentContent.zone(at: path) != nil {
                         ZoneFormatBar(
                             content: currentContent,
@@ -73,14 +91,15 @@ struct AddCardSheetView: View {
                             onSplit: { splitZone() },
                             onClose: { selectedPath = nil }
                         )
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-                
+
+
                 // Dismiss overlay when FAB menu is open
                 fabDismissOverlay
-                
-                // FAB - ALWAYS visible, positioned above keyboard
+
+                // FAB
                 VStack {
                     Spacer()
                     HStack {
@@ -89,355 +108,289 @@ struct AddCardSheetView: View {
                     }
                 }
             }
-            .background(Color(uiColor: .systemBackground))
-            .navigationTitle("New Card")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { toolbarContent }
-            .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
-            .onChange(of: selectedPhoto) { _, item in addPhoto(item) }
-            .fullScreenCover(isPresented: $showSketchModal) {
+                .background(Color(uiColor: .systemBackground))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { toolbarContent }
+                .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
+                .onChange(of: selectedPhoto) { _, item in addPhoto(item) }
+                .fullScreenCover(isPresented: $showSketchModal) {
                 CanvasModalView { data in addSketch(data) }
             }
-            .sheet(isPresented: $showPreview) {
+            // Keyboard retention observer
+            .onChange(of: focusManager.shouldRetainKeyboard) { _, shouldRetain in
+                if shouldRetain {
+                    // Activăm TextField-ul ascuns pentru a menține tastatura
+                    isRetainerFocused = true
+                }
+            }
+                .fullScreenCover(isPresented: $showPreview) {
                 ZonePreviewSheet(front: frontZoneContent, back: backZoneContent)
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedPath)
-            // Keyboard observer
-            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedPath)
+
+            // MARK: - Observers
+
+                .onAppear {
+                if selectedPath == nil { selectedPath = .root }
+                // Focus initial - zona root deja există
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                    if let rootZoneID = currentContent.rootZone.id as UUID? {
+                        ZoneFocusManager.shared.requestFocus(for: rootZoneID)
+                    }
+                }
+            }
+
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
                 if let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
                     withAnimation(.spring(response: 0.3)) {
                         keyboardHeight = frame.height
                     }
                 }
             }
+
+            // FIX CRITIC 1: Prevenim pierderea selecției când deschidem Galeria
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
                 withAnimation(.spring(response: 0.3)) {
                     keyboardHeight = 0
                 }
+
+                // Dacă deschidem un picker sau meniu, NU ștergem selecția!
+                if showPhotoPicker || showSketchModal || showFABMenu {
+                    return
+                }
+
+                // Altfel, dacă e doar ascundere de tastatură, deselectăm doar textul
+                if let path = selectedPath,
+                    let zone = currentContent.zone(at: path),
+                    (zone.contentType == .text || zone.contentType == .empty) {
+                    selectedPath = nil
+                }
             }
         }
     }
-    
+
     // MARK: - Side Picker
-    
+
     private var sidePicker: some View {
         Picker("Side", selection: $activeSide) {
             Text("Question").tag(0)
             Text("Answer").tag(1)
         }
-        .pickerStyle(.segmented)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .onChange(of: activeSide) { _, _ in
-            (activeSide == 0 ? backZoneContent : frontZoneContent).cleanup()
-            selectedPath = .root
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .onChange(of: activeSide) { _, newSide in
+            // FIX KEYBOARD: Pregătim reținerea tastaturii înainte de switch
+            ZoneFocusManager.shared.prepareForInsertion()
+
+            (newSide == 0 ? backZoneContent : frontZoneContent).cleanup()
+            selectedPath = nil
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                selectedPath = .root
+                // Folosim ZoneFocusManager pentru partea selectată
+                let targetContent = newSide == 0 ? frontZoneContent : backZoneContent
+                ZoneFocusManager.shared.requestFocus(for: targetContent.rootZone.id)
+            }
         }
     }
-    
+
     // MARK: - Editor Area
-    
+
     private var editorArea: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    if activeSide == 0 {
-                        ZoneEditorView(
-                            content: frontZoneContent,
-                            path: .root,
-                            selectedPath: $selectedPath
-                        )
-                    } else {
-                        ZoneEditorView(
-                            content: backZoneContent,
-                            path: .root,
-                            selectedPath: $selectedPath
-                        )
-                    }
-                    
-                    // Tap below to add new zone at bottom
-                    Color.clear
-                        .frame(height: 100)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
+        ZStack {
+            RoundedRectangle(cornerRadius: 30)
+                .background(.ultraThinMaterial)
+                .padding()
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+
+
+                        if activeSide == 0 {
+                            ZoneEditorView(content: frontZoneContent, path: .root, selectedPath: $selectedPath)
+                        } else {
+                            ZoneEditorView(content: backZoneContent, path: .root, selectedPath: $selectedPath)
+                        }
+
+                        Color.clear
+                            .frame(height: 100)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
                             addZoneAtBottom()
                         }
-                        .id("bottom")
+                            .id("bottom")
+
+                    }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, max((selectedPath != nil ? 80 : 100), keyboardHeight + 20))
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                // Add bottom padding when format bar or FAB is visible
-                .padding(.bottom, selectedPath != nil ? 80 : 100)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            // Auto-scroll when selected zone changes
-            .onChange(of: selectedPath) { _, newPath in
-                if let path = newPath {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            proxy.scrollTo(path.id, anchor: .center)
+                    .scrollDismissesKeyboard(.interactively)
+
+                // Auto-scroll when selection changes
+                .onChange(of: selectedPath) { _, newPath in
+                    if let path = newPath {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            withAnimation(.spring(response: 0.6, dampingFraction: 1.0)) {
+                                proxy.scrollTo(path.id, anchor: .center)
+                            }
+                        }
+                    }
+                }
+
+                // Auto-scroll for typing
+                .onReceive(NotificationCenter.default.publisher(for: .scrollToCursor)) { _ in
+                    if let path = selectedPath {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                proxy.scrollTo(path.id) // Anchor nil = Scroll to Visible
+                            }
+                        }
+                    }
+                }
+
+                // Auto-scroll when keyboard appears (no animation conflict)
+                .onChange(of: keyboardHeight) { oldHeight, newHeight in
+                    if newHeight > oldHeight, let path = selectedPath {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            // Folosim scrollTo simplu (fără withAnimation) pentru a corecta poziția
+                            // dacă padding-ul nu a fost suficient
+                            proxy.scrollTo(path.id)
                         }
                     }
                 }
             }
-            // Auto-scroll when keyboard appears to keep selected zone visible
-            .onChange(of: keyboardHeight) { oldHeight, newHeight in
-                if newHeight > oldHeight, let path = selectedPath {
-                    // Keyboard appearing - scroll to keep zone visible
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            proxy.scrollTo(path.id, anchor: .bottom)
-                        }
-                    }
-                }
-            }
+
+
         }
     }
-    
-    // MARK: - FAB
-    
-    private var fabOverlay: some View {
-        VStack(alignment: .trailing, spacing: 12) {
-            if showFABMenu {
-                // Menu items
-                VStack(spacing: 8) {
-                    FABMenuItem(icon: "photo", label: "Photo") {
-                        showFABMenu = false
-                        showPhotoPicker = true
-                    }
-                    FABMenuItem(icon: "scribble.variable", label: "Sketch") {
-                        showFABMenu = false
-                        hideKeyboard()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { showSketchModal = true }
-                    }
-                }
-                .transition(.scale(scale: 0.5, anchor: .bottomTrailing).combined(with: .opacity))
-            }
-            
-            // Main FAB button - always visible
-            Button {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { showFABMenu.toggle() }
-            } label: {
-                Image(systemName: showFABMenu ? "xmark" : "plus")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(colorScheme == .dark ? .black : .white)
-                    .frame(width: 56, height: 56)
-                    .background(accent)
-                    .clipShape(Circle())
-                    .shadow(color: accent.opacity(0.4), radius: 8, y: 4)
-                    .rotationEffect(.degrees(showFABMenu ? 45 : 0))
-            }
-        }
-        .padding(.trailing, 20)
-        // FAB sits above format bar (which handles keyboard), not above keyboard directly
-        // Format bar height is ~55px, so FAB just needs small offset above it
-        .padding(.bottom, selectedPath != nil ? 65 : 30)
-    }
-    
-    // Background overlay when FAB menu is open
-    private var fabDismissOverlay: some View {
-        Group {
-            if showFABMenu {
-                Color.black.opacity(0.3)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        withAnimation(.spring(response: 0.3)) { showFABMenu = false }
-                    }
-            }
-        }
-    }
-    
-    // MARK: - Toolbar
-    
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .cancellationAction) {
-            Button("Cancel") { dismiss() }
-        }
-        ToolbarItem(placement: .primaryAction) {
-            HStack(spacing: 16) {
-                Button {
-                    hideKeyboard()
-                    showPreview = true
-                } label: {
-                    Image(systemName: "eye")
-                }
-                .disabled(!canSave)
-                
-                Button("Save") {
-                    frontZoneContent.cleanup()
-                    backZoneContent.cleanup()
-                    // Save zones directly to preserve layout structure
-                    onSaveZones(frontZoneContent.rootZone, backZoneContent.rootZone)
-                    dismiss()
-                }
-                .fontWeight(.semibold)
-                .disabled(!canSave)
-            }
-        }
-    }
-    
-    // MARK: - Actions
-    
-    private func hideKeyboard() {
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    }
-    
-    private func addZone(in direction: AddDirection) {
-        guard let path = selectedPath else { return }
-        currentContent.addZone(relativeTo: path, direction: direction)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-    }
-    
-    /// Add zone and automatically focus on it
+
+    // MARK: - Logic & Actions
+
+    /// FIX CRITIC 2: Logică de adăugare robustă care calculează path-ul instantaneu
     private func addZoneWithFocus(in direction: AddDirection) {
         guard let path = selectedPath else { return }
-        
-        // Get info about structure before adding
+
+        // 1. Snapshot la starea curentă
         let parentPath = path.parent
         let childIndex = path.lastIndex ?? 0
         let parentZone = parentPath != nil ? currentContent.zone(at: parentPath!) : nil
         let parentDirection = parentZone?.direction
         let isRoot = path.indices.isEmpty
-        
-        // Add the zone
-        currentContent.addZone(relativeTo: path, direction: direction)
-        
-        // Calculate new zone path based on how it was added
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            if isRoot {
-                // Root was wrapped in container
-                switch direction {
-                case .left, .up:
-                    selectedPath = ZonePath(indices: [0])
-                case .right, .down:
-                    selectedPath = ZonePath(indices: [1])
-                }
-            } else if let parentPath = parentPath, parentDirection == direction.zoneDirection {
-                // Same direction as parent - sibling was added
-                switch direction {
-                case .left, .up:
-                    selectedPath = parentPath.appending(childIndex)
-                case .right, .down:
-                    selectedPath = parentPath.appending(childIndex + 1)
-                }
-            } else {
-                // Different direction - current zone was wrapped in container
-                switch direction {
-                case .left, .up:
-                    selectedPath = path.appending(0)
-                case .right, .down:
-                    selectedPath = path.appending(1)
-                }
+
+        // FIX KEYBOARD: Pregătim reținerea tastaturii pentru TOATE direcțiile
+        // Aceasta previne flickerul când se adaugă zone noi
+        ZoneFocusManager.shared.prepareForInsertion()
+
+        // 2. Modificăm datele și capturăm ID-ul zonei noi
+        let newZoneID = currentContent.addZone(relativeTo: path, direction: direction)
+
+        // 3. Calculăm calea nouă INSTANTANEU (matematic)
+        let newPath: ZonePath
+
+        if isRoot {
+            // Rădăcina devine container
+            switch direction {
+            case .left, .up: newPath = ZonePath(indices: [0])
+            case .right, .down: newPath = ZonePath(indices: [1])
             }
-            
-            // Trigger keyboard for new zone
-            triggerKeyboardForNewZone()
+        } else if let pPath = parentPath, parentDirection == direction.zoneDirection {
+            // Adăugăm frate (sibling)
+            switch direction {
+            case .left, .up: newPath = pPath.appending(childIndex)
+            case .right, .down: newPath = pPath.appending(childIndex + 1)
+            }
+        } else {
+            // Split nou (container nou)
+            switch direction {
+            case .left, .up: newPath = path.appending(0)
+            case .right, .down: newPath = path.appending(1)
+            }
         }
-        
+
+        // 4. Setăm selecția imediat
+        selectedPath = newPath
+
+        // 5. Trigger focus folosind ID-ul zonei noi
+        triggerKeyboardForNewZone(zoneID: newZoneID)
+
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
-    
+
     private func addZoneAtBottom() {
-        // Add a new text zone at the bottom of root
-        currentContent.addZone(relativeTo: .root, direction: .down)
-        
-        // Select the new zone (last child of root if it's a container, or the new root)
-        if let children = currentContent.rootZone.children, !children.isEmpty {
-            selectedPath = ZonePath(indices: [children.count - 1])
+        let root = currentContent.rootZone
+        var newZoneID: UUID?
+
+        // FIX KEYBOARD: Pregătim reținerea tastaturii
+        ZoneFocusManager.shared.prepareForInsertion()
+
+        // Dacă rădăcina e deja verticală, adăugăm la final
+        if !root.isLeaf && root.direction == .vertical {
+            let newIndex = root.children?.count ?? 0
+            let newZone = ZoneModel.empty()
+            newZoneID = newZone.id
+
+            // Injectăm manual pentru siguranță
+            currentContent.updateZone(at: .root) { rootZone in
+                var kids = rootZone.children ?? []
+                kids.append(newZone)
+                rootZone.children = kids
+            }
+
+            let newPath = ZonePath(indices: [newIndex])
+            selectedPath = newPath
         } else {
-            selectedPath = .root
+            // Altfel, împachetăm totul
+            newZoneID = currentContent.addZone(relativeTo: .root, direction: .down)
+            selectedPath = ZonePath(indices: [1])
         }
-        
-        // Trigger keyboard for new zone
-        triggerKeyboardForNewZone()
-        
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        if let zoneID = newZoneID {
+            triggerKeyboardForNewZone(zoneID: zoneID)
+        } else {
+            triggerKeyboardForNewZoneLegacy()
+        }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
-    
-    /// Trigger keyboard focus for newly created zone
-    private func triggerKeyboardForNewZone() {
-        // Post notification to focus the text field
+
+    private func triggerKeyboardForNewZone(zoneID: UUID) {
+        // Folosim ZoneFocusManager pentru sincronizare precisă cu ciclul de randare
+        // Aceasta evită flickerul cauzat de notificările timing-sensitive
+        Task { @MainActor in
+            // Delay mic pentru a permite SwiftUI să randeze noul view
+            try? await Task.sleep(for: .milliseconds(30))
+            ZoneFocusManager.shared.requestFocus(for: zoneID)
+        }
+    }
+
+    /// Fallback pentru cazuri când nu avem zoneID
+    private func triggerKeyboardForNewZoneLegacy() {
+        // Apel întârziat pentru siguranță (prinde cazurile de layout complex)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             NotificationCenter.default.post(name: .focusNewZone, object: nil)
         }
     }
-    
-    private func splitZone() {
-        guard let path = selectedPath,
-              let zone = currentContent.zone(at: path),
-              zone.contentType == .text && !zone.text.isEmpty else { return }
-        
-        let text = zone.text
-        let lines = text.components(separatedBy: "\n")
-        
-        // Need at least 2 lines to split
-        guard lines.count >= 2 else {
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
-            return
-        }
-        
-        // Split in half by lines
-        let midPoint = lines.count / 2
-        let firstPart = lines[0..<midPoint].joined(separator: "\n")
-        let secondPart = lines[midPoint...].joined(separator: "\n")
-        
-        // Update current zone with first part
-        currentContent.updateZone(at: path) { z in
-            z.text = firstPart
-        }
-        
-        // Add new zone below with second part
-        currentContent.addZone(relativeTo: path, direction: .down)
-        
-        // Find the new zone and set its text
-        if let parent = path.parent {
-            if let children = currentContent.zone(at: parent)?.children,
-               let lastIndex = path.lastIndex,
-               lastIndex + 1 < children.count {
-                let newPath = parent.appending(lastIndex + 1)
-                currentContent.updateZone(at: newPath) { z in
-                    z.text = secondPart
-                    z.contentType = .text
-                    z.textStyle = zone.textStyle
-                    z.textAlignment = zone.textAlignment
-                    z.textColor = zone.textColor
-                    z.isBold = zone.isBold
-                    z.isItalic = zone.isItalic
-                    z.hasBullet = zone.hasBullet
-                }
-                // Select the new zone
-                selectedPath = newPath
-            }
-        } else {
-            // Root was split
-            if let children = currentContent.rootZone.children, children.count > 1 {
-                let newPath = ZonePath(indices: [1])
-                currentContent.updateZone(at: newPath) { z in
-                    z.text = secondPart
-                    z.contentType = .text
-                }
-            }
-        }
-        
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-    }
-    
+
     private func addPhoto(_ item: PhotosPickerItem?) {
         guard let item else { return }
+
+        // FIX: Capturăm zona selectată ACUM, înainte de async
+        let targetPath = selectedPath
+
         Task {
             if let data = try? await item.loadTransferable(type: Data.self) {
-                // Compress image for better performance
                 let compressedData = data.compressedImageData(maxDimension: 1200, compressionQuality: 0.7) ?? data
-                
+
                 await MainActor.run {
-                    if let path = selectedPath, currentContent.zone(at: path) != nil {
-                        // Add to selected zone
+                    // Folosim targetPath capturat
+                    if let path = targetPath, currentContent.zone(at: path) != nil {
                         currentContent.updateZone(at: path) { zone in
                             zone.contentType = .image
                             zone.imageData = compressedData
                         }
                     } else {
-                        // No selection - add at bottom
+                        // Fallback: adaugă jos
                         currentContent.addZone(relativeTo: .root, direction: .down)
                         if let children = currentContent.rootZone.children, !children.isEmpty {
                             let newPath = ZonePath(indices: [children.count - 1])
@@ -453,38 +406,172 @@ struct AddCardSheetView: View {
             selectedPhoto = nil
         }
     }
-    
+    // FIX addSketch
     private func addSketch(_ data: Data) {
-        // Compress sketch for better performance
-        let compressedData = data.compressedImageData(maxDimension: 1200, compressionQuality: 0.8) ?? data
-        
-        if let path = selectedPath, currentContent.zone(at: path) != nil {
-            currentContent.updateZone(at: path) { zone in
-                zone.contentType = .sketch
-                zone.imageData = compressedData
+
+        let targetPath = selectedPath // Capturăm și aici pentru siguranță
+
+        Task {
+
+            await MainActor.run {
+                if let path = targetPath, currentContent.zone(at: path) != nil {
+                    currentContent.updateZone(at: path) { zone in
+                        zone.contentType = .sketch
+                        zone.imageData = data
+                    }
+                } else {
+                    currentContent.addZone(relativeTo: .root, direction: .down)
+                    if let children = currentContent.rootZone.children, !children.isEmpty {
+                        let newPath = ZonePath(indices: [children.count - 1])
+                        currentContent.updateZone(at: newPath) { zone in
+                            zone.contentType = .sketch
+                            zone.imageData = data
+                        }
+                        selectedPath = newPath
+                    }
+                }
+            }
+
+
+
+        }
+    }
+
+    private func splitZone() {
+        guard let path = selectedPath,
+            let zone = currentContent.zone(at: path),
+            zone.contentType == .text && !zone.text.isEmpty else { return }
+
+        let text = zone.text
+        let lines = text.components(separatedBy: "\n")
+        guard lines.count >= 2 else {
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            return
+        }
+
+        let midPoint = lines.count / 2
+        let firstPart = lines[0..<midPoint].joined(separator: "\n")
+        let secondPart = lines[midPoint...].joined(separator: "\n")
+
+        currentContent.updateZone(at: path) { z in z.text = firstPart }
+        currentContent.addZone(relativeTo: path, direction: .down)
+
+        // Logică calcul path split
+        if let parent = path.parent {
+            if let children = currentContent.zone(at: parent)?.children,
+                let lastIndex = path.lastIndex,
+                lastIndex + 1 < children.count {
+                let newPath = parent.appending(lastIndex + 1)
+                updateSplitZoneContent(at: newPath, text: secondPart, original: zone)
+                selectedPath = newPath
             }
         } else {
-            // No selection - add at bottom
-            currentContent.addZone(relativeTo: .root, direction: .down)
-            if let children = currentContent.rootZone.children, !children.isEmpty {
-                let newPath = ZonePath(indices: [children.count - 1])
-                currentContent.updateZone(at: newPath) { zone in
-                    zone.contentType = .sketch
-                    zone.imageData = compressedData
-                }
+            if let children = currentContent.rootZone.children, children.count > 1 {
+                let newPath = ZonePath(indices: [1])
+                updateSplitZoneContent(at: newPath, text: secondPart, original: zone)
                 selectedPath = newPath
+            }
+        }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    private func updateSplitZoneContent(at path: ZonePath, text: String, original: ZoneModel) {
+        currentContent.updateZone(at: path) { z in
+            z.text = text
+            z.contentType = .text
+            z.textStyle = original.textStyle
+            z.textAlignment = original.textAlignment
+            z.textColor = original.textColor
+            z.isBold = original.isBold
+            z.isItalic = original.isItalic
+            z.hasBullet = original.hasBullet
+        }
+    }
+
+
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    // MARK: - Subviews & Overlays
+
+    private var fabOverlay: some View {
+        VStack(alignment: .trailing, spacing: 12) {
+            if showFABMenu {
+                VStack(spacing: 8) {
+                    FABMenuItem(icon: "photo", label: "Photo") {
+                        showFABMenu = false
+                        showPhotoPicker = true
+                    }
+                    FABMenuItem(icon: "scribble.variable", label: "Sketch") {
+                        showFABMenu = false
+                        showSketchModal = true
+                        hideKeyboard()
+                    }
+                }
+                    .transition(.scale(scale: 0.5, anchor: .bottomTrailing).combined(with: .opacity))
+            }
+
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { showFABMenu.toggle() }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.title3.bold())
+                    .foregroundStyle(accent)
+                    .padding(10)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .rotationEffect(.degrees(showFABMenu ? 135 : 0))
+            }
+        }
+            .padding(.trailing, 20)
+            .padding(.bottom, selectedPath != nil ? 65 : 30)
+    }
+
+    private var fabDismissOverlay: some View {
+        Group {
+            if showFABMenu {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                    withAnimation(.spring(response: 0.3)) { showFABMenu = false }
+                }
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            Button("Cancel") { dismiss() }
+        }
+        ToolbarItem(placement: .primaryAction) {
+            HStack(spacing: 16) {
+                Button {
+                    hideKeyboard()
+                    showPreview = true
+                } label: { Image(systemName: "eye") }
+                    .disabled(!canSave)
+
+                Button("Save") {
+                    frontZoneContent.cleanup()
+                    backZoneContent.cleanup()
+                    onSaveZones(frontZoneContent.rootZone, backZoneContent.rootZone)
+                    dismiss()
+                }
+                    .fontWeight(.semibold)
+                    .disabled(!canSave)
             }
         }
     }
 }
 
-// MARK: - FAB Menu Item
+// MARK: - Helper Views
 
 private struct FABMenuItem: View {
     let icon: String
     let label: String
     var action: () -> Void
-    
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
@@ -495,16 +582,12 @@ private struct FABMenuItem: View {
                     .background(Color(uiColor: .tertiarySystemBackground))
                     .clipShape(Circle())
             }
-            .padding(.leading, 14)
-            .padding(.trailing, 6)
-            .padding(.vertical, 6)
-            .background(.ultraThinMaterial, in: Capsule())
+                .padding(.leading, 14).padding(.trailing, 6).padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
         }
-        .foregroundStyle(.primary)
+            .foregroundStyle(.primary)
     }
 }
-
-// MARK: - Zone Format Bar
 
 private struct ZoneFormatBar: View {
     @Bindable var content: ZoneCardContent
@@ -512,302 +595,351 @@ private struct ZoneFormatBar: View {
     var onAddZone: (AddDirection) -> Void
     var onSplit: () -> Void
     var onClose: () -> Void
-    
+
     private var zone: ZoneModel? { content.zone(at: path) }
     private var accent: Color { ThemeManager.shared.accentColor.color }
-    
     private var canSplit: Bool {
         guard let zone = zone else { return false }
-        // Can only split text zones with at least 2 lines
-        guard zone.contentType == .text && !zone.text.isEmpty else { return false }
-        let lines = zone.text.components(separatedBy: "\n")
-        return lines.count >= 2
+        return zone.contentType == .text && !zone.text.isEmpty && zone.text.components(separatedBy: "\n").count >= 2
     }
-    
-    private var isTextZone: Bool {
-        zone?.contentType == .text || zone?.contentType == .empty
-    }
-    
-    private var isMediaZone: Bool {
-        zone?.contentType == .image || zone?.contentType == .sketch
-    }
-    
+
     var body: some View {
         HStack(spacing: 0) {
-            // LEFT: Add Zone button - FIXED
-            addZoneMenu
-                .padding(.leading, 12)
-                .padding(.trailing, 8)
-            
+            addZoneMenu.padding(.leading, 12).padding(.trailing, 8)
             Divider().frame(height: 28)
-            
-            // CENTER: Scrollable formatting tools
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    // Split (for text)
-                    if canSplit {
-                        ToolbarButton(icon: "rectangle.split.1x2") { onSplit() }
+                    if canSplit { ToolbarButton(icon: "rectangle.split.1x2") { onSplit() } }
+                    if zone?.contentType == .text || zone?.contentType == .empty { textTools }
+                    else if zone?.contentType == .image || zone?.contentType == .sketch { mediaTools }
+                    ToolbarButton(icon: "trash", tint: .red) {
+                        content.deleteZone(at: path)
+                        onClose()
                     }
-                    
-                    // Text/media specific tools
-                    if isTextZone {
-                        textTools
-                    } else if isMediaZone {
-                        mediaTools
-                    }
-                    
-                    // Delete
-                    ToolbarButton(icon: "trash", tint: .red) { deleteZone() }
                 }
-                .padding(.horizontal, 8)
+                    .padding(.horizontal, 8)
             }
-            
             Divider().frame(height: 28)
-            
-            // RIGHT: Done button - FIXED
-            Button {
-                onClose()
-            } label: {
-                Text("Done")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+            Button { onClose() } label: {
+                Text("Done").font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                    .padding(.horizontal, 16).padding(.vertical, 8)
                     .background(accent, in: Capsule())
             }
-            .padding(.leading, 8)
-            .padding(.trailing, 12)
+                .padding(.leading, 8).padding(.trailing, 12)
         }
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial)
     }
-    
-    // MARK: - Add Zone Menu (Visual direction picker)
-    
+
     private var addZoneMenu: some View {
         Menu {
             Section("Horizontal") {
-                Button { onAddZone(.left) } label: {
-                    Label("Left", systemImage: "arrow.left")
-                }
-                Button { onAddZone(.right) } label: {
-                    Label("Right", systemImage: "arrow.right")
-                }
+                Button { onAddZone(.left) } label: { Label("Left", systemImage: "arrow.left") }
+                Button { onAddZone(.right) } label: { Label("Right", systemImage: "arrow.right") }
             }
             Section("Vertical") {
-                Button { onAddZone(.up) } label: {
-                    Label("Above", systemImage: "arrow.up")
-                }
-                Button { onAddZone(.down) } label: {
-                    Label("Below", systemImage: "arrow.down")
-                }
+                Button { onAddZone(.up) } label: { Label("Above", systemImage: "arrow.up") }
+                Button { onAddZone(.down) } label: { Label("Below", systemImage: "arrow.down") }
             }
         } label: {
             Image(systemName: "plus.square.dashed")
-                .font(.body.weight(.medium))
-                .foregroundStyle(accent)
+                .font(.body.weight(.medium)).foregroundStyle(accent)
                 .frame(width: 34, height: 34)
                 .background(accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
         }
     }
-    
-    // MARK: - Text Tools
-    
+
     private var textTools: some View {
         HStack(spacing: 8) {
-            // Style menu
+            // Text style menu
             Menu {
                 ForEach([TextBlockStyle.title, .headline, .body, .caption], id: \.self) { style in
-                    Button { setStyle(style) } label: {
+                    Button { content.updateZone(at: path) { $0.textStyle = style } } label: {
+                        HStack { Text(style.rawValue.capitalized); if zone?.textStyle == style { Image(systemName: "checkmark") } }
+                    }
+                }
+            } label: { ToolbarButton(icon: "textformat.size") }
+
+            // Bold & Italic
+            ToolbarButton(icon: "bold", isActive: zone?.isBold == true) { content.updateZone(at: path) { $0.isBold.toggle() } }
+            ToolbarButton(icon: "italic", isActive: zone?.isItalic == true) { content.updateZone(at: path) { $0.isItalic.toggle() } }
+
+            // Font Family menu
+            Menu {
+                ForEach(FontFamily.allCases, id: \.self) { family in
+                    Button { content.updateZone(at: path) { $0.fontFamily = family } } label: {
                         HStack {
-                            Text(style.rawValue.capitalized)
-                            if zone?.textStyle == style { Image(systemName: "checkmark") }
+                            Image(systemName: family.icon)
+                            Text(family.name)
+                            if zone?.fontFamily == family { Image(systemName: "checkmark") }
                         }
                     }
                 }
-            } label: {
-                ToolbarButton(icon: "textformat.size")
-            }
-            
-            // Bold/Italic
-            ToolbarButton(icon: "bold", isActive: zone?.isBold == true) { toggleBold() }
-            ToolbarButton(icon: "italic", isActive: zone?.isItalic == true) { toggleItalic() }
-            
-            // Alignment
-            alignmentMenu
-            
-            // Color
+            } label: { ToolbarButton(icon: zone?.fontFamily.icon ?? "textformat") }
+
+            // Alignment menu
+            Menu {
+                Button { content.updateZone(at: path) { $0.textAlignment = .leading } } label: { Label("Left", systemImage: "text.alignleft") }
+                Button { content.updateZone(at: path) { $0.textAlignment = .center } } label: { Label("Center", systemImage: "text.aligncenter") }
+                Button { content.updateZone(at: path) { $0.textAlignment = .trailing } } label: { Label("Right", systemImage: "text.alignright") }
+            } label: { ToolbarButton(icon: "text.alignleft") }
+
+            // Text color menu
             Menu {
                 ForEach(TextBlockColor.allCases, id: \.self) { color in
-                    Button { setColor(color) } label: {
+                    Button { content.updateZone(at: path) { $0.textColor = color } } label: {
+                        HStack { Circle().fill(color.color).frame(width: 14, height: 14); Text(color.name) }
+                    }
+                }
+            } label: { ToolbarButton(icon: "paintpalette", tint: zone?.textColor.color ?? .primary) }
+
+            // Highlight/Marker menu
+            Menu {
+                ForEach(HighlightColor.allCases, id: \.self) { highlight in
+                    Button { content.updateZone(at: path) { $0.highlightColor = highlight } } label: {
                         HStack {
-                            Circle().fill(color.color).frame(width: 14, height: 14)
-                            Text(color.name)
+                            if highlight != .none {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(highlight.color ?? .clear)
+                                    .frame(width: 14, height: 14)
+                            } else {
+                                Image(systemName: "xmark")
+                                    .frame(width: 14, height: 14)
+                            }
+                            Text(highlight.name)
+                            if zone?.highlightColor == highlight { Image(systemName: "checkmark") }
                         }
                     }
                 }
             } label: {
-                ToolbarButton(icon: "paintpalette", tint: zone?.textColor.color ?? .primary)
+                ToolbarButton(
+                    icon: "highlighter",
+                    isActive: zone?.highlightColor != HighlightColor.none,
+                    tint: zone?.highlightColor.color != nil ? .primary : .primary
+                )
             }
-            
+
             // Bullet
-            ToolbarButton(icon: "list.bullet", isActive: zone?.hasBullet == true) { toggleBullet() }
+            ToolbarButton(icon: "list.bullet", isActive: zone?.hasBullet == true) { content.updateZone(at: path) { $0.hasBullet.toggle() } }
         }
     }
-    
-    // MARK: - Media Tools
-    
+
     private var mediaTools: some View {
         HStack(spacing: 8) {
-            // Alignment
-            alignmentMenu
-            
-            // Size
+            // Alignment menu for images/sketches
             Menu {
-                Section("Image Size") {
-                    Button { setImageScale(0.3) } label: { Label("Small (30%)", systemImage: "square.resize.down") }
-                    Button { setImageScale(0.5) } label: { Label("Medium (50%)", systemImage: "square.resize") }
-                    Button { setImageScale(0.7) } label: { Label("Large (70%)", systemImage: "square.resize.up") }
-                    Button { setImageScale(1.0) } label: { Label("Full Width", systemImage: "arrow.left.and.right") }
+                Button { content.updateZone(at: path) { $0.textAlignment = .leading } } label: {
+                    HStack { Text("Left"); if zone?.textAlignment == .leading { Image(systemName: "checkmark") } }
                 }
-            } label: {
-                ToolbarButton(icon: "aspectratio")
-            }
+                Button { content.updateZone(at: path) { $0.textAlignment = .center } } label: {
+                    HStack { Text("Center"); if zone?.textAlignment == .center { Image(systemName: "checkmark") } }
+                }
+                Button { content.updateZone(at: path) { $0.textAlignment = .trailing } } label: {
+                    HStack { Text("Right"); if zone?.textAlignment == .trailing { Image(systemName: "checkmark") } }
+                }
+            } label: { ToolbarButton(icon: alignmentIcon(for: zone?.textAlignment ?? .leading)) }
+
+            // Scale menu
+            Menu {
+                Button { content.updateZone(at: path) { $0.imageScale = 0.5 } } label: {
+                    HStack { Text("Medium"); if zone?.imageScale == 0.5 { Image(systemName: "checkmark") } }
+                }
+                Button { content.updateZone(at: path) { $0.imageScale = 1.0 } } label: {
+                    HStack { Text("Full Width"); if zone?.imageScale == 1.0 { Image(systemName: "checkmark") } }
+                }
+            } label: { ToolbarButton(icon: "aspectratio") }
         }
     }
-    
-    // MARK: - Alignment Menu
-    
-    private var alignmentMenu: some View {
-        Menu {
-            Button { setAlignment(.leading) } label: {
-                HStack {
-                    Label("Left", systemImage: "text.alignleft")
-                    if zone?.textAlignment == .leading { Image(systemName: "checkmark") }
-                }
-            }
-            Button { setAlignment(.center) } label: {
-                HStack {
-                    Label("Center", systemImage: "text.aligncenter")
-                    if zone?.textAlignment == .center { Image(systemName: "checkmark") }
-                }
-            }
-            Button { setAlignment(.trailing) } label: {
-                HStack {
-                    Label("Right", systemImage: "text.alignright")
-                    if zone?.textAlignment == .trailing { Image(systemName: "checkmark") }
-                }
-            }
-        } label: {
-            ToolbarButton(icon: alignmentIcon)
-        }
-    }
-    
-    private var alignmentIcon: String {
-        switch zone?.textAlignment ?? .leading {
+
+    private func alignmentIcon(for alignment: TextBlockAlignment) -> String {
+        switch alignment {
         case .leading: return "text.alignleft"
         case .center: return "text.aligncenter"
         case .trailing: return "text.alignright"
         }
     }
-    
-    // MARK: - Actions
-    
-    private func updateZone(_ update: (inout ZoneModel) -> Void) {
-        content.updateZone(at: path, with: update)
-    }
-    
-    private func setStyle(_ style: TextBlockStyle) { updateZone { $0.textStyle = style } }
-    private func toggleBold() { updateZone { $0.isBold.toggle() } }
-    private func toggleItalic() { updateZone { $0.isItalic.toggle() } }
-    private func setColor(_ color: TextBlockColor) { updateZone { $0.textColor = color } }
-    private func toggleBullet() { updateZone { $0.hasBullet.toggle() } }
-    private func setAlignment(_ alignment: TextBlockAlignment) { updateZone { $0.textAlignment = alignment } }
-    private func setImageScale(_ scale: CGFloat) { updateZone { $0.imageScale = scale } }
-    
-    private func deleteZone() {
-        content.deleteZone(at: path)
-        onClose()
-    }
 }
-
-// MARK: - Toolbar Button
 
 private struct ToolbarButton: View {
     let icon: String
-    var label: String? = nil
     var isActive: Bool = false
     var tint: Color = .primary
     var action: (() -> Void)? = nil
-    
-    private var accent: Color { ThemeManager.shared.accentColor.color }
-    
     var body: some View {
         Button { action?() } label: {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.body.weight(.medium))
-                if let label = label {
-                    Text(label)
-                        .font(.caption.weight(.medium))
-                }
-            }
-            .foregroundStyle(isActive ? accent : tint)
-            .frame(height: 34)
-            .padding(.horizontal, label != nil ? 10 : 0)
-            .frame(minWidth: 34)
-            .background(isActive ? accent.opacity(0.12) : Color(uiColor: .tertiarySystemFill))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            Image(systemName: icon).font(.body.weight(.medium))
+                .foregroundStyle(isActive ? ThemeManager.shared.accentColor.color : tint)
+                .frame(width: 34, height: 34)
+                .background(isActive ? ThemeManager.shared.accentColor.color.opacity(0.12) : Color(uiColor: .tertiarySystemFill))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
 }
 
-// MARK: - Zone Preview Sheet
+//MARK: Card Preview 
 
 private struct ZonePreviewSheet: View {
     let front: ZoneCardContent
     let back: ZoneCardContent
     @Environment(\.dismiss) private var dismiss
-    @State private var showBack = false
-    
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    @State private var isFlipped = false
+
+    private var isCompact: Bool { horizontalSizeClass == .compact }
+    private var cardCornerRadius: CGFloat { isCompact ? 24 : 32 }
+    private var accent: Color { ThemeManager.shared.accentColor.color }
+
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
-                
-                VStack(spacing: 20) {
-                    Text(showBack ? "ANSWER" : "QUESTION")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-                    
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(Color(uiColor: .systemBackground))
-                            .shadow(radius: 8)
-                        
-                        ScrollView {
-                            ZonePreviewView(zone: showBack ? back.rootZone : front.rootZone)
-                                .padding(20)
+            GeometryReader { geo in
+                ZStack {
+                    // Background gradient
+                    backgroundGradient
+                        .ignoresSafeArea()
+
+                    VStack(spacing: isCompact ? 16 : 24) {
+                        Spacer()
+
+                        // Card label
+                        HStack(spacing: 8) {
+                            Image(systemName: isFlipped ? "lightbulb.fill" : "questionmark.circle.fill")
+                                .foregroundStyle(accent)
+                            Text(isFlipped ? "ANSWER" : "QUESTION")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.secondary)
                         }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
+
+                        // Flip Card Container
+                        ZStack {
+                            // Back side (Answer)
+                            cardFace(zone: back.rootZone, title: "Answer")
+                                .rotation3DEffect(.degrees(isFlipped ? 0 : 180), axis: (x: 0, y: 1, z: 0))
+                                .opacity(isFlipped ? 1 : 0)
+
+                            // Front side (Question)
+                            cardFace(zone: front.rootZone, title: "Question")
+                                .rotation3DEffect(.degrees(isFlipped ? -180 : 0), axis: (x: 0, y: 1, z: 0))
+                                .opacity(isFlipped ? 0 : 1)
+                        }
+                            .frame(
+                            width: geo.size.width * (isCompact ? 0.75 : 0.85),
+                            height: geo.size.height * (isCompact ? 0.75 : 0.85)
+                        )
+                            .onTapGesture {
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                isFlipped.toggle()
+                            }
+                        }
+
+                        // Hint
+                        HStack(spacing: 6) {
+                            Image(systemName: "hand.tap.fill")
+                                .font(.caption)
+                            Text("Tap to flip")
+                                .font(.caption)
+                        }
+                            .foregroundStyle(.tertiary)
+
+                        // Navigation dots
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(isFlipped ? Color.secondary.opacity(0.3) : accent)
+                                .frame(width: 8, height: 8)
+                            Circle()
+                                .fill(isFlipped ? accent : Color.secondary.opacity(0.3))
+                                .frame(width: 8, height: 8)
+                        }
+                            .animation(.easeInOut, value: isFlipped)
+
+                        Spacer()
                     }
-                    .frame(height: 380)
-                    .padding(.horizontal, 24)
-                    .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.3)) { showBack.toggle() }
-                    }
-                    
-                    Text("Tap to flip").font(.caption).foregroundStyle(.tertiary)
                 }
-                .padding(.top, 20)
             }
-            .navigationTitle("Preview")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+                .navigationTitle("Preview")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                        .fontWeight(.semibold)
                 }
             }
         }
+    }
+
+    // MARK: - Card Face
+
+    @ViewBuilder
+    private func cardFace(zone: ZoneModel, title: String) -> some View {
+        ZStack {
+            // Background
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                .fill(cardBackground)
+                .shadow(color: shadowColor, radius: isCompact ? 16 : 24, y: 8)
+
+            // Border
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                .stroke(borderColor, lineWidth: 1)
+
+            // Content
+            VStack(alignment: .leading, spacing: 0) {
+                // Content area
+                if zone.hasContent {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        ZonePreviewView(zone: zone)
+                            .padding(.horizontal, isCompact ? 20 : 28)
+                            .padding(.vertical, isCompact ? 20 : 24)
+                    }
+                        .scrollBounceBehavior(.basedOnSize)
+                } else {
+                    emptyContent
+                }
+            }
+        }
+    }
+
+    // MARK: - Empty Content
+
+    private var emptyContent: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "text.quote")
+                .font(.system(size: isCompact ? 40 : 56))
+                .foregroundStyle(.tertiary)
+            Text("No content")
+                .font(isCompact ? .body : .title3)
+                .foregroundStyle(.secondary)
+        }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Styling
+
+    private var backgroundGradient: some View {
+        LinearGradient(
+            colors: colorScheme == .dark
+                ? [Color(uiColor: .systemBackground), Color(uiColor: .secondarySystemBackground)]
+            : [Color(uiColor: .systemGray6), Color(uiColor: .systemBackground)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var cardBackground: some ShapeStyle {
+        colorScheme == .dark
+            ? AnyShapeStyle(Color(uiColor: .secondarySystemBackground))
+        : AnyShapeStyle(Color.white)
+    }
+
+    private var shadowColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.5) : Color.black.opacity(0.15)
+    }
+
+    private var borderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.08)
     }
 }
 

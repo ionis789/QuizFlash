@@ -15,7 +15,6 @@ struct SwipeableCard<Content: View>: View {
     
     let onSwipe: (SwipeDirection) -> Void
     let onTap: (() -> Void)?
-    // Changed: Now accepts a Bool (isSwiping) to pass down to content
     @ViewBuilder let content: (Bool) -> Content
     
     @State private var offset: CGFloat = 0
@@ -23,7 +22,10 @@ struct SwipeableCard<Content: View>: View {
     @State private var didHaptic = false
     
     private let haptic = UIImpactFeedbackGenerator(style: .light)
-    private let threshold: CGFloat = 80
+    
+    private let swipeThreshold: CGFloat = 120
+    
+    private let velocityThreshold: CGFloat = 900
     
     init(
         onSwipe: @escaping (SwipeDirection) -> Void,
@@ -49,12 +51,11 @@ struct SwipeableCard<Content: View>: View {
     
     var body: some View {
         ZStack {
-            // Pass the swipe state to the content (to disable scrolling)
             content(isSwiping)
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(borderColor.opacity(min(abs(offset) / threshold, 1.0)), lineWidth: 3)
+                        .stroke(borderColor.opacity(min(abs(offset) / swipeThreshold, 1.0)), lineWidth: 3)
                         .opacity(abs(offset) > 10 ? 1 : 0)
                 )
         }
@@ -75,25 +76,20 @@ struct SwipeableCard<Content: View>: View {
                 let dx = value.translation.width
                 let dy = value.translation.height
                 
-                // Locking Logic:
-                // 1. Determine direction if not locked yet
                 if !isSwiping {
                     if abs(dx) > abs(dy) {
                         isSwiping = true
                     } else {
-                        // Vertical movement detected, ignore this drag for swipe
                         return
                     }
                 }
                 
-                // 2. Update position if locked to swipe
                 offset = dx
                 
-                // Haptic feedback
-                if abs(offset) >= threshold && !didHaptic {
+                if abs(offset) >= swipeThreshold && !didHaptic {
                     haptic.impactOccurred()
                     didHaptic = true
-                } else if abs(offset) < threshold * 0.5 {
+                } else if abs(offset) < swipeThreshold * 0.5 {
                     didHaptic = false
                 }
             }
@@ -104,9 +100,9 @@ struct SwipeableCard<Content: View>: View {
                 let dx = value.translation.width
                 let vx = value.velocity.width
                 
-                if dx > threshold || vx > 400 {
+                if dx > swipeThreshold || vx > velocityThreshold {
                     exitCard(.right)
-                } else if dx < -threshold || vx < -400 {
+                } else if dx < -swipeThreshold || vx < -velocityThreshold {
                     exitCard(.left)
                 } else {
                     resetPosition()

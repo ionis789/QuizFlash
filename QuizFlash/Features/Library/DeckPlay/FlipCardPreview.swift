@@ -45,6 +45,7 @@ struct FlipCardPreview: View {
                 .rotation3DEffect(.degrees(isFlipped ? -180 : 0), axis: (x: 0, y: 1, z: 0))
                 .opacity(isFlipped ? 0 : 1)
             }
+            // compositingGroup ensures proper rendering of overlapping views
             .compositingGroup()
             .animation(.easeInOut(duration: 0.35), value: isFlipped)
         }
@@ -58,11 +59,12 @@ struct FlipCardPreview: View {
             // Background
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
                 .fill(cardBackgroundGradient)
+                
                 .shadow(color: shadowColor, radius: isCompact ? 12 : 16, y: 6)
             
             // Border
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .stroke(borderColor, lineWidth: 1)
+                .stroke(borderColor, lineWidth: 3)
             
             // Content Container
             VStack(alignment: .leading, spacing: 0) {
@@ -181,10 +183,10 @@ struct FlipCardPreview: View {
     }
     
     private var shadowColor: Color {
-        colorScheme == .dark ? Color.black.opacity(0.4) : Color.black.opacity(0.12)
+        colorScheme == .dark ? Color.white.opacity(0.4) : Color.black.opacity(0.12)
     }
     
     private var borderColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.06)
+        colorScheme == .dark ? Color.white.opacity(0.2) : Color.black.opacity(0.06)
     }
 }

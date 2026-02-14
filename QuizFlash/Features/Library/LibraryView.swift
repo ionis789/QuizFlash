@@ -2,6 +2,8 @@
 
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
+
 
 struct LibraryView: View {
     @Environment(\.modelContext) var context
@@ -16,6 +18,21 @@ struct LibraryView: View {
     @State private var deckToDelete: DeckModel?
     @State private var deckToEditColor: DeckModel?
     @State private var viewMode: ViewMode = .list
+
+    // Import State
+    @State private var showFileImporter = false
+    @State private var isImporting = false
+    @State private var showImportError = false
+    @State private var importErrorMessage = ""
+    @State private var showImportSuccess = false
+    @State private var importedDeckName = ""
+
+    // Export State (for multi-deck export)
+    @State private var isExporting = false
+    @State private var exportedURLs: [URL] = []
+    @State private var showShareSheet = false
+    @State private var showExportError = false
+    @State private var exportErrorMessage = ""
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
 
@@ -183,6 +200,74 @@ struct LibraryView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
+        // File Importer for .qflash files (multiple selection enabled)
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: true
+        ) { result in
+            handleFileImport(result)
+        }
+        // Import error alert
+        .alert("Import Error", isPresented: $showImportError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(importErrorMessage)
+        }
+        // Import success alert
+        .alert("Import Successful", isPresented: $showImportSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("\(importedDeckName) imported successfully.")
+        }
+        // Export share sheet
+        .sheet(isPresented: $showShareSheet) {
+            if !exportedURLs.isEmpty {
+                ShareSheet(items: exportedURLs)
+            }
+        }
+        // Export error alert
+        .alert("Export Error", isPresented: $showExportError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(exportErrorMessage)
+        }
+        // Import loading overlay
+        .overlay {
+            if isImporting {
+                ZStack {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("Importing...")
+                            .font(.headline)
+                    }
+                        .padding(32)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                }
+            }
+        }
+        // Export loading overlay
+        .overlay {
+            if isExporting {
+                ZStack {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("Exporting \(selectedDecks.count) deck\(selectedDecks.count == 1 ? "" : "s")...")
+                            .font(.headline)
+                    }
+                        .padding(32)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                }
+            }
+        }
     }
 
     // MARK: - Top Toolbar
@@ -191,6 +276,13 @@ struct LibraryView: View {
     private var topToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
+                // Import Deck
+                Button {
+                    showFileImporter = true
+                } label: {
+                    Label("Import Deck", systemImage: "square.and.arrow.down")
+                }
+
                 // Select
                 Button {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -238,7 +330,7 @@ struct LibraryView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
-                    .font(.body.weight(.semibold))
+                    .font(.title3.bold())
                     .foregroundStyle(accent)
             }
         }
@@ -435,7 +527,7 @@ struct LibraryView: View {
                 exitSelectionMode()
             } label: {
                 Text("Done")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.bold())
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(.ultraThinMaterial, in: Capsule())
@@ -443,15 +535,33 @@ struct LibraryView: View {
 
             Spacer()
 
+            // Export button
+            Button {
+                exportSelectedDecks()
+            } label: {
+                HStack(spacing: 6) {
+                    if isExporting {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+                    .font(.title3.bold())
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: Capsule())
+            }
+                .disabled(selectedDecks.isEmpty || isExporting)
 
+            Spacer()
 
             Button(role: .destructive) {
                 showDeleteConfirmation = true
             } label: {
 
                 Text("Delete(\(selectedDecks.count))")
-                    .fontWeight(.semibold)
-                    .font(.subheadline)
+                    .font(.subheadline.bold())
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(.ultraThinMaterial, in: Capsule())
@@ -474,10 +584,11 @@ struct LibraryView: View {
                 }
             } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.title3.bold())
                     .foregroundStyle(accent)
-                    .padding(14)
-                    .glassEffect(cornerRadius: 60, style: .spotlight)
+                    .padding(.vertical, 14)
+                    .padding(.horizontal, 30)
+                    .glassEffect(shape: .capsule)
             }
                 .padding(.leading, 22)
 
@@ -503,7 +614,7 @@ struct LibraryView: View {
             .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isSelecting)
     }
 
-    // MARK: - Date Section Header
+
     @ViewBuilder
     private func deckCountSection() -> some View {
         switch decks.count {
@@ -521,7 +632,7 @@ struct LibraryView: View {
                 .foregroundStyle(.secondary)
         }
     }
-
+    // MARK: - Date Section Header
     private func dateSectionHeader(_ title: String) -> some View {
         HStack {
             Spacer()
@@ -583,6 +694,97 @@ struct LibraryView: View {
             }
             selectedDecks.removeAll()
             isSelecting = false
+        }
+    }
+
+    // MARK: - Import
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            // Filter only .qflash files
+            let qflashURLs = urls.filter { $0.pathExtension.lowercased() == "qflash" }
+
+            guard !qflashURLs.isEmpty else {
+                importErrorMessage = "Please select .qflash files"
+                showImportError = true
+                return
+            }
+
+            isImporting = true
+
+            Task {
+                var importedCount = 0
+                var lastImportedName = ""
+                var errors: [String] = []
+
+                for url in qflashURLs {
+                    do {
+                        let importedDeck = try await DeckSharingManager.shared.importDeck(from: url, into: context)
+                        importedCount += 1
+                        lastImportedName = importedDeck.title
+                    } catch {
+                        errors.append("\(url.lastPathComponent): \(error.localizedDescription)")
+                    }
+                }
+
+                await MainActor.run {
+                    isImporting = false
+
+                    if importedCount > 0 {
+                        if importedCount == 1 {
+                            importedDeckName = lastImportedName
+                        } else {
+                            importedDeckName = "\(importedCount) decks"
+                        }
+                        showImportSuccess = true
+                    }
+
+                    if !errors.isEmpty {
+                        importErrorMessage = errors.joined(separator: "\n")
+                        showImportError = true
+                    }
+                }
+            }
+
+        case .failure(let error):
+            importErrorMessage = error.localizedDescription
+            showImportError = true
+        }
+    }
+
+    // MARK: - Export
+    private func exportSelectedDecks() {
+        let selectedDecksList = decks.filter { selectedDecks.contains($0.id) }
+        guard !selectedDecksList.isEmpty else { return }
+
+        isExporting = true
+
+        Task {
+            var exportedFiles: [URL] = []
+            var errors: [String] = []
+
+            for deck in selectedDecksList {
+                do {
+                    let url = try await DeckSharingManager.shared.exportDeck(deck)
+                    exportedFiles.append(url)
+                } catch {
+                    errors.append("\(deck.title): \(error.localizedDescription)")
+                }
+            }
+
+            await MainActor.run {
+                isExporting = false
+
+                if !exportedFiles.isEmpty {
+                    exportedURLs = exportedFiles
+                    showShareSheet = true
+                }
+
+                if !errors.isEmpty {
+                    exportErrorMessage = errors.joined(separator: "\n")
+                    showExportError = true
+                }
+            }
         }
     }
 }

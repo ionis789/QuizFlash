@@ -60,15 +60,12 @@ struct DefaultModePlay: View {
     // MARK: - Portrait Layout
     
     private func portraitLayout(size: CGSize) -> some View {
-        // Calculate card dimensions based on available space
         let horizontalPadding: CGFloat = isIPad ? 80 : 24
         let headerFooterHeight: CGFloat = isIPad ? 180 : 160
         
-        // Card takes most of the available height
         let cardHeight = size.height - headerFooterHeight
         let cardWidth = size.width - (horizontalPadding * 2)
         
-        // Maintain reasonable aspect ratio (max 1.6:1 height to width)
         let maxHeight = cardWidth * 1.6
         let finalCardHeight = min(cardHeight, maxHeight)
         
@@ -79,12 +76,10 @@ struct DefaultModePlay: View {
             
             Spacer()
             
-            // Card - adaptive size
             cardArea(width: cardWidth, height: finalCardHeight)
             
             Spacer()
             
-            // Footer
             footerHint
                 .padding(.bottom, isCompact ? 40 : 60)
         }
@@ -100,7 +95,6 @@ struct DefaultModePlay: View {
         let cardWidth = min(cardAreaWidth, cardHeight * 1.3)
         
         return HStack(spacing: 0) {
-            // Left side - info
             VStack(spacing: 20) {
                 Text(deck.title)
                     .font(.title3.bold())
@@ -120,11 +114,9 @@ struct DefaultModePlay: View {
             .frame(width: sidebarWidth)
             .padding(.vertical, 20)
             
-            // Center - card
             cardArea(width: cardWidth, height: cardHeight)
                 .frame(maxWidth: .infinity)
             
-            // Right side - stats
             VStack(spacing: 16) {
                 StatItem(value: "\(correctCount)", label: "Correct", color: .green)
                 StatItem(value: "\(wrongCards.count)", label: "Wrong", color: .red)
@@ -135,10 +127,9 @@ struct DefaultModePlay: View {
         .padding(.horizontal, 20)
     }
     
-    // MARK: - Card Area
+    // MARK: - Card Area (UPDATED)
     
     private func cardArea(width: CGFloat, height: CGFloat) -> some View {
-        // Ensure valid dimensions (minimum 100x100)
         let safeWidth = max(width, 100)
         let safeHeight = max(height, 100)
         
@@ -149,13 +140,21 @@ struct DefaultModePlay: View {
                     onSwipe: handleSwipe
                 )
                 .frame(width: safeWidth, height: safeHeight)
-                .transition(.asymmetric(
-                    insertion: .scale(scale: 0.95).combined(with: .opacity),
-                    removal: .identity
-                ))
+                // Cheia pentru animația fluidă de apariție a Noului Card:
+                .transition(
+                    .asymmetric(
+                        // INTRARE: Vine cu o ușoară mărire (scale) și fade in
+                        insertion: .scale(scale: 0.9).combined(with: .opacity).animation(.easeOut(duration: 0.25)),
+                        // IEȘIRE: Nu facem nimic aici, swipe-ul manual se ocupă de ieșirea vizuală
+                        removal: .identity
+                    )
+                )
+                // ID-ul este CRITIC: Spune SwiftUI că e un view NOU când se schimbă indexul
                 .id(cards[currentIndex].createdAt)
             }
         }
+        // Asigură că animația de tranziție se întâmplă când se schimbă indexul
+        .animation(.default, value: currentIndex)
     }
     
     // MARK: - Header
@@ -230,7 +229,6 @@ struct DefaultModePlay: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 24) {
-                // Trophy
                 Image(systemName: "trophy.fill")
                     .font(.system(size: isCompact ? 60 : 80))
                     .foregroundStyle(.yellow)
@@ -239,14 +237,12 @@ struct DefaultModePlay: View {
                     .font(isCompact ? .title : .largeTitle)
                     .fontWeight(.bold)
                 
-                // Stats
                 HStack(spacing: isCompact ? 24 : 40) {
                     StatItem(value: "\(correctCount)", label: "Correct", color: .green)
                     StatItem(value: "\(wrongCards.count)", label: "Wrong", color: .red)
                     StatItem(value: "\(cards.count)", label: "Total", color: .blue)
                 }
                 
-                // Buttons
                 VStack(spacing: 12) {
                     if !wrongCards.isEmpty {
                         Button {

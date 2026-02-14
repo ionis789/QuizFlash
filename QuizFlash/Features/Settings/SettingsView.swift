@@ -6,10 +6,12 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct SettingsView: View {
     @EnvironmentObject var authManager: AuthManager
     @State private var themeManager = ThemeManager.shared
+    @Query private var decks: [DeckModel]
 
     var body: some View {
         List {
@@ -76,7 +78,7 @@ struct SettingsView: View {
                 }
 
                 NavigationLink {
-                    Text("Data and Storage")
+                    StorageInfoView(decks: decks)
                 } label: {
                     Label("Data & Storage", systemImage: "externaldrive.fill")
                 }

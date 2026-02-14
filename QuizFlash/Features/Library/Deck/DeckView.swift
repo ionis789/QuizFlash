@@ -26,6 +26,13 @@ struct DeckView: View {
 
     // Sorting
     @State private var sortOrder: SortOrder = .newest
+    
+    // Export State
+    @State private var isExporting = false
+    @State private var exportedURL: URL?
+    @State private var showShareSheet = false
+    @State private var showExportError = false
+    @State private var exportErrorMessage = ""
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -48,7 +55,8 @@ struct DeckView: View {
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                                 isSelecting = true
                             }
-                        }
+                        },
+                        onExport: { exportDeck() }
                     )
 
                     ScrollView {
@@ -125,6 +133,35 @@ struct DeckView: View {
                 DefaultModePlay(deck: deck)
             }
         }
+        // Export share sheet
+        .sheet(isPresented: $showShareSheet) {
+            if let url = exportedURL {
+                ShareSheet(items: [url])
+            }
+        }
+        .alert("Export Error", isPresented: $showExportError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(exportErrorMessage)
+        }
+        // Export loading overlay
+        .overlay {
+            if isExporting {
+                ZStack {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                    
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("Exporting...")
+                            .font(.headline)
+                    }
+                    .padding(32)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                }
+            }
+        }
     }
 }
 
@@ -178,6 +215,28 @@ extension DeckView {
             selectedCards.removeAll()
             isSelecting = false
             deck.editedAt = Date()
+        }
+    }
+    
+    // MARK: - Export
+    private func exportDeck() {
+        isExporting = true
+        
+        Task {
+            do {
+                let url = try await DeckSharingManager.shared.exportDeck(deck)
+                await MainActor.run {
+                    isExporting = false
+                    exportedURL = url
+                    showShareSheet = true
+                }
+            } catch {
+                await MainActor.run {
+                    isExporting = false
+                    exportErrorMessage = error.localizedDescription
+                    showExportError = true
+                }
+            }
         }
     }
 
