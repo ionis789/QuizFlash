@@ -140,20 +140,15 @@ struct DefaultModePlay: View {
                     onSwipe: handleSwipe
                 )
                 .frame(width: safeWidth, height: safeHeight)
-                // Cheia pentru animația fluidă de apariție a Noului Card:
                 .transition(
                     .asymmetric(
-                        // INTRARE: Vine cu o ușoară mărire (scale) și fade in
                         insertion: .scale(scale: 0.9).combined(with: .opacity).animation(.easeOut(duration: 0.25)),
-                        // IEȘIRE: Nu facem nimic aici, swipe-ul manual se ocupă de ieșirea vizuală
                         removal: .identity
                     )
                 )
-                // ID-ul este CRITIC: Spune SwiftUI că e un view NOU când se schimbă indexul
                 .id(cards[currentIndex].createdAt)
             }
         }
-        // Asigură că animația de tranziție se întâmplă când se schimbă indexul
         .animation(.default, value: currentIndex)
     }
     

@@ -15,9 +15,8 @@ extension Notification.Name {
     static let scrollToCursor = Notification.Name("scrollToCursor")
 }
 
-// MARK: - Focus Manager (prevents keyboard flicker)
-/// Singleton care gestionează focusul pentru zone noi.
-/// Previne flickerul tastaturii prin sincronizarea cu ciclul de randare SwiftUI.
+// MARK: - Zone Focus Manager
+/// Singleton that manages focus for new zones and prevents keyboard flicker by syncing with SwiftUI render cycle.
 @MainActor
 final class ZoneFocusManager: ObservableObject {
     static let shared = ZoneFocusManager()
@@ -25,7 +24,7 @@ final class ZoneFocusManager: ObservableObject {
     @Published var pendingFocusZoneID: UUID?
     @Published var shouldRetainKeyboard: Bool = false
 
-    // Păstrăm referința la task pentru a-l putea anula dacă apeși repede!
+    /// Task reference so we can cancel if user taps again quickly.
     private var releaseTask: Task<Void, Never>?
 
     func requestFocus(for zoneID: UUID) {
@@ -34,8 +33,6 @@ final class ZoneFocusManager: ObservableObject {
 
     func clearPendingFocus() {
         pendingFocusZoneID = nil
-
-        // Anulăm eliberarea tastaturii dacă s-a cerut alta nouă
         releaseTask?.cancel()
         releaseTask = Task {
             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
@@ -104,7 +101,7 @@ struct ZoneEditorView: View {
                     )
                 }
             }
-                .fixedSize(horizontal: false, vertical: true) // <-- MAGIA 1: Obligă coloanele să ia înălțimea celei mai mari
+                .fixedSize(horizontal: false, vertical: true) // Force columns to match tallest sibling height
         } else {
             VStack(spacing: 8) {
                 ForEach(Array(children.enumerated()), id: \.element.id) { index, _ in
@@ -115,7 +112,7 @@ struct ZoneEditorView: View {
                     )
                 }
             }
-                .frame(maxHeight: .infinity, alignment: .top) // <-- MAGIA 2: Lipește elementele de sus dacă fratele lor orizontal e mai mare
+                .frame(maxHeight: .infinity, alignment: .top) // Align to top when horizontal sibling is taller
         }
     }
 
@@ -140,15 +137,13 @@ private struct ZoneContentView: View {
     private var zone: ZoneModel? { content.zone(at: path) }
     private var accent: Color { ThemeManager.shared.accentColor.color }
 
-    /// ID-ul zonei curente pentru comparație cu pendingFocusZoneID
+    /// Current zone ID for comparison with pendingFocusZoneID.
     private var currentZoneID: UUID? { zone?.id }
-    // CALCULATOR PENTRU A PĂSTRA ÎNĂLȚIMEA LINIILOR GOALE:
+
+    // MARK: - Dynamic Min Height (empty lines)
     private var dynamicMinHeight: CGFloat {
         let text = zone?.text ?? ""
-        // Numărăm câte linii (inclusiv goale) există
         let lineCount = max(1, text.components(separatedBy: "\n").count)
-
-        // Estimăm înălțimea per linie în funcție de stil
         let style = zone?.textStyle ?? .body
         let lineHeight: CGFloat
         switch style {
@@ -166,7 +161,7 @@ private struct ZoneContentView: View {
             .frame(maxWidth: .infinity, alignment: alignmentFor(zone))
             .frame(maxHeight: .infinity, alignment: .top)
             .overlay(alignment: .leading) {
-            // Indicatorul mutat în afara view-ului folosind offset
+            // Selection indicator placed outside view via offset
             Capsule()
                 .fill(isSelected ? accent : Color.secondary.opacity(0.25))
                 .frame(width: isSelected ? 4 : 3)
@@ -181,7 +176,6 @@ private struct ZoneContentView: View {
                 isFocused = true
             }
         }
-        // Prindem cererile de focus și când componenta e nou re-creată
         .onAppear {
             checkPendingFocus()
         }
@@ -250,7 +244,7 @@ private struct ZoneContentView: View {
                     .padding(.top, 8)
             }
 
-            // Simplu, nativ. Datorită textBinding-ului de mai sus, nu se va mai strivi cursorul!
+            // Native TextField; textBinding above keeps cursor from squashing
             TextField("", text: textBinding, axis: .vertical)
                 .font(textFont)
                 .fontWeight(zone?.isBold == true ? .bold : .regular)
@@ -421,13 +415,11 @@ private struct ZoneContentView: View {
         Binding(
             get: {
                 var t = zone?.text ?? ""
-                // MAGIC FIX: Dacă textul se termină cu Enter, punem un spațiu invizibil
-                // pentru a forța SwiftUI să calculeze înălțimea corectă a cursorului
+                // If text ends with newline, append zero-width space so SwiftUI computes cursor height correctly
                 if t.hasSuffix("\n") { t += "\u{200B}" }
                 return t
             },
             set: { newValue in
-                // Când utilizatorul scrie, curățăm spațiul invizibil
                 let cleanValue = newValue.replacingOccurrences(of: "\u{200B}", with: "")
                 content.updateZone(at: path) { zone in
                     zone.text = cleanValue

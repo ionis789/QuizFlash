@@ -1,10 +1,13 @@
-// Fișier: QuizFlash/Features/Library/LibraryView.swift
+//
+//  LibraryView.swift
+//  QuizFlash
+//
 
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 
-
+// MARK: - Library View
 struct LibraryView: View {
     @Environment(\.modelContext) var context
     @Query(sort: \DeckModel.createdAt, order: .reverse) private var decks: [DeckModel]

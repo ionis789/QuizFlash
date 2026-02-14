@@ -66,7 +66,9 @@ struct AddCardSheetView: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                
                 backgroundGradient.ignoresSafeArea()
+                   
                 // Hidden TextField for keyboard retention during zone insertion
                 TextField("", text: $retainerText)
                     .focused($isRetainerFocused)
@@ -122,7 +124,6 @@ struct AddCardSheetView: View {
             // Keyboard retention observer
             .onChange(of: focusManager.shouldRetainKeyboard) { _, shouldRetain in
                 if shouldRetain {
-                    // Activăm TextField-ul ascuns pentru a menține tastatura
                     isRetainerFocused = true
                 }
             }
@@ -135,7 +136,6 @@ struct AddCardSheetView: View {
 
                 .onAppear {
                 if selectedPath == nil { selectedPath = .root }
-                // Focus initial - zona root deja există
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
                     if let rootZoneID = currentContent.rootZone.id as UUID? {
                         ZoneFocusManager.shared.requestFocus(for: rootZoneID)
@@ -151,18 +151,13 @@ struct AddCardSheetView: View {
                 }
             }
 
-            // FIX CRITIC 1: Prevenim pierderea selecției când deschidem Galeria
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
                 withAnimation(.spring(response: 0.3)) {
                     keyboardHeight = 0
                 }
-
-                // Dacă deschidem un picker sau meniu, NU ștergem selecția!
                 if showPhotoPicker || showSketchModal || showFABMenu {
                     return
                 }
-
-                // Altfel, dacă e doar ascundere de tastatură, deselectăm doar textul
                 if let path = selectedPath,
                     let zone = currentContent.zone(at: path),
                     (zone.contentType == .text || zone.contentType == .empty) {
@@ -183,14 +178,11 @@ struct AddCardSheetView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .onChange(of: activeSide) { oldSide, newSide in
-                // Salvăm unde eram înainte de switch
                 if oldSide == 0 { frontSavedPath = selectedPath }
                 else { backSavedPath = selectedPath }
 
                 executeWithKeyboardRetention {
                     (newSide == 0 ? backZoneContent : frontZoneContent).cleanup()
-
-                    // Restaurăm calea pentru noua secțiune
                     selectedPath = newSide == 0 ? frontSavedPath : backSavedPath
                 } afterLayout: {
                     let targetContent = newSide == 0 ? frontZoneContent : backZoneContent
@@ -210,8 +202,6 @@ struct AddCardSheetView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-
-                    // Eticheta QUESTION / ANSWER în interiorul cardului
                     HStack {
                         Text(activeSide == 0 ? "QUESTION" : "ANSWER")
                             .font(.caption.weight(.bold))
@@ -234,18 +224,18 @@ struct AddCardSheetView: View {
                     }
                         .id("bottom")
                 }
-                    .padding(.horizontal, 24) // Padding-ul interior al cardului
+                    .padding(.horizontal, 24)
                 .padding(.top, 24)
-                    .background(// Fundalul efectiv al Cardului
+                    .background(
                 RoundedRectangle(cornerRadius: 32, style: .continuous)
                     .fill(cardBackground)
                     .shadow(color: shadowColor, radius: 16, y: 8)
                 )
-                    .overlay(// Border-ul Cardului
+                    .overlay(
                 RoundedRectangle(cornerRadius: 32, style: .continuous)
                     .stroke(borderColor, lineWidth: 1)
                 )
-                    .padding(.horizontal, 32) // Padding exterior (lasă loc pentru indicatoare în stânga)
+                    .padding(.horizontal, 32)
                 .padding(.top, 24)
                     .padding(.bottom, max((selectedPath != nil ? 80 : 100), keyboardHeight + 20))
             }
@@ -291,7 +281,7 @@ struct AddCardSheetView: View {
 
     // MARK: - Logic & Actions
 
-    /// FIX CRITIC 2: Logică de adăugare robustă care calculează path-ul instantaneu
+    /// Robust add-zone logic that computes path immediately.
     private func addZoneWithFocus(in direction: AddDirection) {
             guard let path = selectedPath else { return }
 
@@ -361,18 +351,14 @@ struct AddCardSheetView: View {
         }
 
     private func triggerKeyboardForNewZone(zoneID: UUID) {
-        // Folosim ZoneFocusManager pentru sincronizare precisă cu ciclul de randare
-        // Aceasta evită flickerul cauzat de notificările timing-sensitive
         Task { @MainActor in
-            // Delay mic pentru a permite SwiftUI să randeze noul view
             try? await Task.sleep(for: .milliseconds(30))
             ZoneFocusManager.shared.requestFocus(for: zoneID)
         }
     }
 
-    /// Fallback pentru cazuri când nu avem zoneID
+    /// Fallback when zoneID is not available.
     private func triggerKeyboardForNewZoneLegacy() {
-        // Apel întârziat pentru siguranță (prinde cazurile de layout complex)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             NotificationCenter.default.post(name: .focusNewZone, object: nil)
         }
@@ -381,7 +367,6 @@ struct AddCardSheetView: View {
     private func addPhoto(_ item: PhotosPickerItem?) {
         guard let item else { return }
 
-        // FIX: Capturăm zona selectată ACUM, înainte de async
         let targetPath = selectedPath
 
         Task {
@@ -389,14 +374,12 @@ struct AddCardSheetView: View {
                 let compressedData = data.compressedImageData(maxDimension: 1200, compressionQuality: 0.7) ?? data
 
                 await MainActor.run {
-                    // Folosim targetPath capturat
                     if let path = targetPath, currentContent.zone(at: path) != nil {
                         currentContent.updateZone(at: path) { zone in
                             zone.contentType = .image
                             zone.imageData = compressedData
                         }
                     } else {
-                        // Fallback: adaugă jos
                         currentContent.addZone(relativeTo: .root, direction: .down)
                         if let children = currentContent.rootZone.children, !children.isEmpty {
                             let newPath = ZonePath(indices: [children.count - 1])
@@ -412,10 +395,8 @@ struct AddCardSheetView: View {
             selectedPhoto = nil
         }
     }
-    // FIX addSketch
     private func addSketch(_ data: Data) {
-
-        let targetPath = selectedPath // Capturăm și aici pentru siguranță
+        let targetPath = selectedPath
 
         Task {
 
@@ -468,8 +449,6 @@ struct AddCardSheetView: View {
                     }
 
                     self.updateSplitZoneContent(at: newPath, text: secondPart, original: zone)
-                    
-                    // CRITIC: Păstrăm calea pe zona veche (Cea de sus)
                     self.selectedPath = path
                 } afterLayout: {
                     if let topZoneID = self.currentContent.zone(at: path)?.id {
@@ -479,8 +458,6 @@ struct AddCardSheetView: View {
                 }
                 return
             }
-
-            // Dacă e un singur rând
             executeWithKeyboardRetention {
                 self.currentContent.addZone(relativeTo: path, direction: .down)
             } afterLayout: {
@@ -504,29 +481,19 @@ struct AddCardSheetView: View {
         }
     }
 
-    /// Execută o mutație de layout menținând tastatura deschisă, apoi aplică focusul
+    /// Runs a layout mutation while keeping keyboard open, then applies focus.
     private func executeWithKeyboardRetention(action: @escaping () -> Void, afterLayout: @escaping () -> Void) {
-            // 1. OPRIM orice animație/focus anterior care încă nu s-a terminat!
             layoutTask?.cancel()
-            
             ZoneFocusManager.shared.prepareForInsertion()
 
-            // 2. Creăm un nou Task pe care îl putem controla
             layoutTask = Task {
-                // Pauză scurtă de 50 milisecunde
                 try? await Task.sleep(nanoseconds: 50_000_000)
-                
-                // Dacă între timp ai apăsat pe altceva, ne oprim aici!
                 if Task.isCancelled { return }
-                
-                await MainActor.run { action() }
 
-                // Pauză pentru a lăsa SwiftUI să deseneze zonele noi (100 milisecunde)
+                await MainActor.run { action() }
                 try? await Task.sleep(nanoseconds: 100_000_000)
-                
-                // Verificăm din nou dacă nu ai dat spam la click-uri
                 if Task.isCancelled { return }
-                
+
                 await MainActor.run { afterLayout() }
             }
         }

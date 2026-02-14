@@ -13,7 +13,7 @@ enum GlassBorderStyle {
     case continuous
 }
 
-// MARK: - 1. Glass Modifier (Efectul tău de sticlă existent)
+// MARK: - Glass Modifier
 struct GlassModifier<S: Shape>: ViewModifier {
     var shape: S
     var style: GlassBorderStyle
@@ -69,7 +69,7 @@ struct GlassModifier<S: Shape>: ViewModifier {
     }
 }
 
-// MARK: - 2. True Glow Modifier (Noul efect de lumină brumată)
+// MARK: - True Glow Modifier
 struct TrueGlowModifier<S: Shape>: ViewModifier {
     var shape: S
     var color: Color
@@ -78,30 +78,25 @@ struct TrueGlowModifier<S: Shape>: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-        // STRATUL 1: Glow ambiental (difuz, larg)
         .background {
             shape
                 .fill(color)
-                .blur(radius: radius) // Blur puternic
-            .opacity(intensity * 0.4) // Transparență mai mare
-            .scaleEffect(1.1) // Ușor mai mare decât obiectul
+                .blur(radius: radius)
+            .opacity(intensity * 0.4)
+            .scaleEffect(1.1)
         }
-        // STRATUL 2: Glow "Hotspot" (intens, lângă margine)
         .background {
             shape
                 .stroke(color, lineWidth: 2)
-                .blur(radius: radius / 3) // Blur mic
-            .opacity(intensity * 0.8) // Opacitate mare
+                .blur(radius: radius / 3)
+            .opacity(intensity * 0.8)
         }
-        // Opțional: O umbră colorată standard pentru adâncime
         .shadow(color: color.opacity(intensity * 0.5), radius: radius, x: 0, y: 0)
     }
 }
 
-// MARK: - Extensions (Simplificarea apelării)
+// MARK: - View Extensions (Glass & Glow)
 extension View {
-
-    // Păstrăm funcția veche ca să nu stricăm codul existent
     func glassEffect(cornerRadius: CGFloat = 30, style: GlassBorderStyle = .spotlight) -> some View {
         modifier(GlassModifier(shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous), style: style))
     }
@@ -110,13 +105,11 @@ extension View {
         modifier(GlassModifier(shape: shape, style: style))
     }
 
-    // --- NOU: Funcția pentru Glow ---
-
-    /// Adaugă un efect de lumină difuză (neon/bloom).
+    /// Adds a diffuse glow (neon/bloom) effect.
     /// - Parameters:
-    ///   - color: Culoarea luminii.
-    ///   - radius: Cât de largă este dispersia luminii (default 15).
-    ///   - intensity: Puterea luminii (0.0 - 1.0).
+    ///   - color: Glow color.
+    ///   - radius: Glow spread (default 15).
+    ///   - intensity: Glow strength (0.0 - 1.0).
     func glowEffect(
         color: Color,
         radius: CGFloat = 15,
@@ -131,7 +124,7 @@ extension View {
         ))
     }
 
-    // Varianta pentru forme custom (ex: Cerc, Capsulă)
+    /// Glow effect for custom shapes (e.g. Circle, Capsule).
     func glowEffect<S: Shape>(
         shape: S,
         color: Color,

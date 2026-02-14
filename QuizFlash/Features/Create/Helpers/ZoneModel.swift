@@ -501,7 +501,7 @@ extension ZoneCardContent {
 
 // MARK: - Image Optimization Extension
 extension Data {
-    /// Comprimă imaginea la o dimensiune maximă pentru stocare eficientă
+    /// Compresses image to a max dimension for efficient storage.
     func compressedImageData(maxDimension: CGFloat = 1200, compressionQuality: CGFloat = 0.7) -> Data? {
         guard let uiImage = UIImage(data: self) else { return nil }
         
@@ -515,7 +515,6 @@ extension Data {
         }
         
         if scale >= 1.0 {
-            // Imagine deja mică, doar comprimăm JPEG
             return uiImage.jpegData(compressionQuality: compressionQuality)
         }
         
@@ -529,7 +528,7 @@ extension Data {
         return resizedImage?.jpegData(compressionQuality: compressionQuality)
     }
     
-    /// Creează thumbnail mic pentru preview rapid
+    /// Creates a small thumbnail for quick preview.
     func thumbnailData(maxDimension: CGFloat = 400) -> Data? {
         return compressedImageData(maxDimension: maxDimension, compressionQuality: 0.6)
     }
@@ -550,14 +549,10 @@ final class ImageCache {
         }
         
         guard let original = UIImage(data: data) else { return nil }
-        
-        // Dacă scale e 1.0, returnăm originalul
         if scale >= 0.99 {
             cache.setObject(original, forKey: key)
             return original
         }
-        
-        // Altfel, scalăm imaginea
         let newSize = CGSize(
             width: original.size.width * scale,
             height: original.size.height * scale

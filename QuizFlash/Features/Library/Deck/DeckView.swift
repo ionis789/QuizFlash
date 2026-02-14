@@ -123,7 +123,7 @@ struct DeckView: View {
                 deck.editedAt = Date()
             }
         }
-        .sheet(isPresented: $isPresentingEdit) {
+        .fullScreenCover(isPresented: $isPresentingEdit) {
             NavigationStack {
                 CreateView(deckToEdit: deck)
             }

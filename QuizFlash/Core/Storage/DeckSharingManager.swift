@@ -211,9 +211,6 @@ final class DeckSharingManager: ObservableObject {
 
     /// Extract a ZIP archive to a directory using Foundation's built-in support
     private func extractZipArchive(from zipURL: URL, to destinationDir: URL) throws {
-        // Pentru iOS, folosim o abordare directă cu FileManager
-        // Copiază fișierul .qflash ca .zip și lasă sistemul să-l decomprime
-
         let tempZipURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("zip")
@@ -221,30 +218,21 @@ final class DeckSharingManager: ObservableObject {
         defer {
             try? FileManager.default.removeItem(at: tempZipURL)
         }
-
-        // Copiază fișierul sursă
         try FileManager.default.copyItem(at: zipURL, to: tempZipURL)
-
-        // Folosim unzip prin NSItemProvider sau citim direct structura
-        // Alternativ: citim ZIP-ul manual
         try unzipFile(at: tempZipURL, to: destinationDir)
     }
 
     /// Simple ZIP extraction using miniz-style approach
     private func unzipFile(at sourceURL: URL, to destinationURL: URL) throws {
         let fileManager = FileManager.default
-
-        // Citește datele ZIP
         let zipData = try Data(contentsOf: sourceURL)
         print("DEBUG: ZIP file size: \(zipData.count) bytes")
 
-        // Găsește End of Central Directory
         guard let eocdIndex = findEndOfCentralDirectory(in: zipData) else {
             throw DeckSharingError.importFailed("Invalid ZIP format - no EOCD found")
         }
         print("DEBUG: EOCD found at index: \(eocdIndex)")
 
-        // Parse EOCD pentru a găsi Central Directory
         let eocd = zipData[eocdIndex...]
         guard eocd.count >= 22 else {
             throw DeckSharingError.importFailed("Invalid ZIP format - EOCD too short")
@@ -260,8 +248,6 @@ final class DeckSharingManager: ObservableObject {
         var offset = Int(cdOffset)
         for _ in 0..<cdCount {
             guard offset + 46 <= zipData.count else { break }
-
-            // Verifică signature-ul Central Directory
             let signature = readUInt32(from: zipData, at: offset)
             guard signature == 0x02014b50 else { break }
 
@@ -272,8 +258,6 @@ final class DeckSharingManager: ObservableObject {
             let extraLength = Int(readUInt16(from: zipData, at: offset + 30))
             let commentLength = Int(readUInt16(from: zipData, at: offset + 32))
             let localHeaderOffset = Int(readUInt32(from: zipData, at: offset + 42))
-
-            // Citește numele fișierului
             let fileNameStart = offset + 46
             let fileNameEnd = fileNameStart + fileNameLength
             guard fileNameEnd <= zipData.count else { break }
@@ -283,33 +267,23 @@ final class DeckSharingManager: ObservableObject {
                 offset += 46 + fileNameLength + extraLength + commentLength
                 continue
             }
-
-            // Calculează poziția datelor din Local File Header
             let localExtraLength = Int(readUInt16(from: zipData, at: localHeaderOffset + 28))
             let dataOffset = localHeaderOffset + 30 + fileNameLength + localExtraLength
 
             let destPath = destinationURL.appendingPathComponent(fileName)
-
-            // Dacă e director, creează-l
             if fileName.hasSuffix("/") {
                 try fileManager.createDirectory(at: destPath, withIntermediateDirectories: true)
                 extractedFiles.append("\(fileName) (dir)")
             } else {
-                // Creează directorul părinte dacă nu există
                 try fileManager.createDirectory(at: destPath.deletingLastPathComponent(), withIntermediateDirectories: true)
-
-                // Extrage datele
                 let dataEnd = dataOffset + Int(compressedSize)
                 guard dataEnd <= zipData.count else { break }
-
                 let compressedData = Data(zipData[dataOffset..<dataEnd])
 
                 if compressionMethod == 0 {
-                    // Stored (fără compresie)
                     try compressedData.write(to: destPath)
                     extractedFiles.append("\(fileName) (stored, \(compressedSize) bytes)")
                 } else if compressionMethod == 8 {
-                    // Deflate - folosim Compression framework
                     if let decompressed = decompressDeflate(compressedData, expectedSize: Int(uncompressedSize)) {
                         try decompressed.write(to: destPath)
                         extractedFiles.append("\(fileName) (deflate, \(uncompressedSize) bytes)")
@@ -334,8 +308,6 @@ final class DeckSharingManager: ObservableObject {
     private func findEndOfCentralDirectory(in data: Data) -> Int? {
         let signature: [UInt8] = [0x50, 0x4b, 0x05, 0x06]
         let minEOCDSize = 22
-
-        // Caută de la sfârșit (EOCD e la finalul fișierului)
         for i in stride(from: data.count - minEOCDSize, through: max(0, data.count - 65557), by: -1) {
             if data[i] == signature[0] &&
                 data[i + 1] == signature[1] &&
@@ -362,13 +334,10 @@ final class DeckSharingManager: ObservableObject {
 
     /// Decompress deflate data using Compression framework
     private func decompressDeflate(_ data: Data, expectedSize: Int) -> Data? {
-        // Încercăm mai întâi cu buffer mai mare pentru siguranță
-        let bufferSize = max(expectedSize * 2, 1024 * 1024) // Min 1MB buffer
+        let bufferSize = max(expectedSize * 2, 1024 * 1024)
         let destinationBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
         defer { destinationBuffer.deallocate() }
 
-        // Metodă 1: Raw deflate cu COMPRESSION_ZLIB
-        // ZIP folosește raw deflate, dar Apple's Compression poate să-l accepte uneori direct
         var decompressedSize = data.withUnsafeBytes { sourcePtr -> Int in
             guard let baseAddress = sourcePtr.baseAddress else { return 0 }
             return compression_decode_buffer(
@@ -385,8 +354,6 @@ final class DeckSharingManager: ObservableObject {
             print("DEBUG: Decompressed with raw ZLIB: \(decompressedSize) bytes")
             return Data(bytes: destinationBuffer, count: decompressedSize)
         }
-
-        // Metodă 2: Adaugă header zlib (78 9C pentru default compression)
         var zlibData = Data([0x78, 0x9C])
         zlibData.append(data)
 
@@ -406,8 +373,6 @@ final class DeckSharingManager: ObservableObject {
             print("DEBUG: Decompressed with zlib header: \(decompressedSize) bytes")
             return Data(bytes: destinationBuffer, count: decompressedSize)
         }
-
-        // Metodă 3: Adaugă header zlib pentru low compression (78 01)
         zlibData = Data([0x78, 0x01])
         zlibData.append(data)
 
@@ -427,8 +392,6 @@ final class DeckSharingManager: ObservableObject {
             print("DEBUG: Decompressed with zlib header (low): \(decompressedSize) bytes")
             return Data(bytes: destinationBuffer, count: decompressedSize)
         }
-
-        // Metodă 4: Încearcă LZFSE (uneori funcționează)
         decompressedSize = data.withUnsafeBytes { sourcePtr -> Int in
             guard let baseAddress = sourcePtr.baseAddress else { return 0 }
             return compression_decode_buffer(
@@ -445,8 +408,6 @@ final class DeckSharingManager: ObservableObject {
             print("DEBUG: Decompressed with LZFSE: \(decompressedSize) bytes")
             return Data(bytes: destinationBuffer, count: decompressedSize)
         }
-
-        // Fallback: poate datele sunt deja necomprimate
         if data.count == expectedSize {
             print("DEBUG: Data already uncompressed")
             return data
