@@ -92,11 +92,21 @@ struct DeckCardGridView: View {
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelected)
         .contextMenu {
             if !isSelecting {
+                Button {
+                    onLongPressCard(card) // Edit
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
                 Button(role: .destructive) {
-                    onLongPressCard(card)
+                    onToggleSelection(card) // Delete
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
+            }
+        }
+        .onLongPressGesture(minimumDuration: 0.5) {
+            if !isSelecting {
+                onLongPressCard(card)
             }
         }
     }

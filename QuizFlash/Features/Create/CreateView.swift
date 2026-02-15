@@ -179,8 +179,8 @@ private extension CreateView {
                 emptyStateView
             } else {
                 LazyVStack(spacing: 12) {
-                    ForEach(Array(draftCards.enumerated()), id: \.element.id) { index, card in
-                        CardRowView(card: card, index: index + 1)
+                    ForEach(draftCards) { card in
+                        CardRowView(card: card)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 isTitleFocused = false
@@ -233,32 +233,38 @@ private extension CreateView {
 
     var successOverlay: some View {
         ZStack {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .ignoresSafeArea()
-
-            VStack(spacing: 20) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 56))
-                    .foregroundStyle(.green)
-                    .symbolEffect(.bounce, value: showSuccessOverlay)
-
-                Text("Deck Saved!")
-                    .font(.title2.weight(.bold))
-
-                Text("\(draftCards.count) card\(draftCards.count == 1 ? "" : "s")")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            // Blur pe tot ecranul
+            Color.clear.background(.ultraThinMaterial).ignoresSafeArea()
+            VStack {
+                Spacer(minLength: 60)
+                VStack(spacing: 16) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 56))
+                        .foregroundStyle(.green)
+                        .symbolEffect(.bounce, value: showSuccessOverlay)
+                    Text("Deck Saved!")
+                        .font(.title2.weight(.bold))
+                    Text("\(draftCards.count) card\(draftCards.count == 1 ? "" : "s")")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 28)
+                .padding(.horizontal, 44)
+                .background(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(.regularMaterial)
+                        .shadow(color: .black.opacity(0.18), radius: 24, y: 12)
+                )
+                .scaleEffect(showSuccessOverlay ? 1 : 0.7, anchor: .top)
+                .opacity(showSuccessOverlay ? 1 : 0)
+                .offset(y: showSuccessOverlay ? 0 : -80)
+                .animation(.spring(response: 0.5, dampingFraction: 0.7, blendDuration: 0.15), value: showSuccessOverlay)
+                Spacer()
             }
-            .padding(40)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.regularMaterial)
-                    .shadow(color: .black.opacity(0.2), radius: 24, y: 12)
-            )
-            .padding(32)
-            .transition(.scale(scale: 0.9).combined(with: .opacity))
         }
+        .transition(.opacity)
+        .zIndex(100)
+        .allowsHitTesting(false)
     }
 }
 

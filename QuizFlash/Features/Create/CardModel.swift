@@ -68,6 +68,10 @@ class CardModel {
     // Relationship
     var deck: DeckModel?
     
+    // Statistici de învățare (relație 1:1)
+    @Relationship(deleteRule: .cascade)
+    var stats: CardStats?
+    
     // MARK: - Computed Properties
     
     var frontType: CardContentType {
@@ -261,6 +265,27 @@ class CardModel {
     }
 }
 
+// MARK: - Card Stats Model
+@Model
+class CardStats {
+    var totalAttempts: Int = 0
+    var correctCount: Int = 0
+    var wrongCount: Int = 0
+    var lastAttemptDate: Date?
+    var streak: Int = 0
+    // Relație inversă (opțională)
+    var card: CardModel?
+
+    init(totalAttempts: Int = 0, correctCount: Int = 0, wrongCount: Int = 0, lastAttemptDate: Date? = nil, streak: Int = 0, card: CardModel? = nil) {
+        self.totalAttempts = totalAttempts
+        self.correctCount = correctCount
+        self.wrongCount = wrongCount
+        self.lastAttemptDate = lastAttemptDate
+        self.streak = streak
+        self.card = card
+    }
+}
+
 // MARK: - Draft Card (For CreateView)
 struct DraftCard: Identifiable {
     let id = UUID()
@@ -301,6 +326,11 @@ struct DraftCard: Identifiable {
     
     var backContent: CardSideContent {
         ZoneCardContent(rootZone: backZone).toOldContent()
+    }
+    
+    var lastEditDate: Date? {
+        // Pentru preview, returnează data curentă (sau poți adăuga logic de edit tracking)
+        return Date()
     }
     
     // MARK: - Initializers

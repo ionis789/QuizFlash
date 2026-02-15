@@ -2,30 +2,27 @@
 //  GameplayCard.swift
 //  QuizFlash
 //
-//  Created by Ion Socol on 07.02.2026.
-//
 
 import SwiftUI
 
 struct GameplayCard: View {
     let card: CardModel
     let onSwipe: (SwipeDirection) -> Void
-    @State private var isFlipped = false
     
+    // Acum primește starea de la DefaultModePlay
+    @Binding var isFlipped: Bool
+
     var body: some View {
-        // Now receives 'isSwiping' boolean from the closure
-        SwipeableCard(onSwipe: onSwipe, onTap: handleTap) { isSwiping in
+        SwipeableCard(onSwipe: onSwipe, onTap: handleTap) {
             FlipCard(
                 card: card,
-                isPreviewMode: false,
-                isFlipped: $isFlipped,
-                scrollDisabled: isSwiping // Passes the lock state to the inner view
+                isFlipped: $isFlipped
             )
         }
     }
-    
+
     private func handleTap() {
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+        withAnimation(.interactiveSpring(response: 0.45, dampingFraction: 0.85)) {
             isFlipped.toggle()
         }
     }

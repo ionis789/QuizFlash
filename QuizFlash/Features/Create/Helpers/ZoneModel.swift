@@ -109,6 +109,21 @@ struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         return .adaptive
     }
     
+    /// Returnează thumbnail-uri pentru imagini/sketch (max 3)
+    var thumbnails: [UIImage] {
+        var result: [UIImage] = []
+        if isLeaf {
+            if let data = imageData, (contentType == .image || contentType == .sketch), let img = UIImage(data: data) {
+                result.append(img)
+            }
+        } else {
+            children?.forEach { child in
+                result.append(contentsOf: child.thumbnails)
+            }
+        }
+        return Array(result.prefix(3))
+    }
+    
     // MARK: - Factory Methods
     
     /// Create an empty zone
@@ -412,7 +427,7 @@ class ZoneCardContent {
             }
             
             // Remove empty children
-//            kids = kids.filter { $0.hasContent || !$0.isLeaf }    
+//            kids = kids.filter { $0.hasContent || !$0.isLeaf }
             
             if kids.count == 1 {
                 // Collapse single child
