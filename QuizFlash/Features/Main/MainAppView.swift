@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MainAppView: View {
-    @StateObject private var router = NavigationManager()
+    @State private var router = NavigationManager()
 
     var body: some View {
         NavigationStack(path: $router.path) {
@@ -18,6 +18,6 @@ struct MainAppView: View {
                     }
                 }
         }
-        .environmentObject(router)
+        .environment(router)
     }
 }

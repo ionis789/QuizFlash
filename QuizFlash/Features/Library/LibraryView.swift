@@ -12,7 +12,7 @@ struct LibraryView: View {
     @Environment(\.modelContext) var context
     @Query(sort: \DeckModel.createdAt, order: .reverse) private var decks: [DeckModel]
 
-    @EnvironmentObject var router: NavigationManager
+    @Environment(NavigationManager.self) var router
 
     @State private var sortOrder: SortOrder = .newest
     @State private var isSelecting = false

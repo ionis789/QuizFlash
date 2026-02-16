@@ -9,7 +9,7 @@ import SwiftUI
 import SwiftData
 
 struct SettingsView: View {
-    @EnvironmentObject var authManager: AuthManager
+    @Environment(AuthManager.self) var authManager
     @State private var themeManager = ThemeManager.shared
     @Query private var decks: [DeckModel]
 

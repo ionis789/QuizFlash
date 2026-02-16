@@ -13,7 +13,7 @@ import SwiftData
 struct CreateView: View {
     @Environment(\.modelContext) var context
     @Environment(\.dismiss) var dismiss
-    @EnvironmentObject private var router: NavigationManager
+    @Environment(NavigationManager.self) var router
 
     var deckToEdit: DeckModel?
 

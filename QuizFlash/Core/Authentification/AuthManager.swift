@@ -6,13 +6,13 @@
 //
 
 import SwiftUI
-import Combine
 
-class AuthManager: ObservableObject {
+@Observable
+class AuthManager {
 
- 
 
-    @Published var isAuthenticated: Bool {
+
+    var isAuthenticated: Bool {
         didSet {
             UserDefaults.standard.set(isAuthenticated, forKey: "is_authenticated")
         }
@@ -22,7 +22,6 @@ class AuthManager: ObservableObject {
         self.isAuthenticated = UserDefaults.standard.bool(forKey: "is_authenticated")
     }
 
-    // MARK: Login logic here 
     func loginWithGoogle() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             withAnimation {

@@ -11,13 +11,13 @@ import SwiftData
 @main
 struct QuizFlashApp: App {
     
-    @StateObject var authManager = AuthManager()
+    @State var authManager = AuthManager()
     @State private var themeManager = ThemeManager.shared
     
     var body: some Scene {
         WindowGroup {
             RootView()
-                .environmentObject(authManager)
+                .environment(authManager)
                 .tint(themeManager.accentColor.color)
                 .preferredColorScheme(.dark)
         }

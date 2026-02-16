@@ -7,7 +7,7 @@
 import SwiftUI
 
 struct LoginView: View {
-    @EnvironmentObject var authManager: AuthManager
+    @Environment(AuthManager.self) var authManager
     
     var body: some View {
         VStack(spacing: 20) {
