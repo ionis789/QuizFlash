@@ -3,7 +3,6 @@
 //  QuizFlash
 //
 
-
 import SwiftUI
 import Foundation
 import SwiftData
@@ -530,12 +529,15 @@ final class DeckSharingManager: ObservableObject {
         for (index, exportedCard) in exportedDeck.cards.enumerated() {
             progress = 0.7 + (0.25 * Double(index) / Double(max(totalCards, 1)))
 
-            // Create card with zones directly (imageData is already decoded from Base64)
-            let newCard = CardModel()
-            newCard.frontZone = exportedCard.frontZone
-            newCard.backZone = exportedCard.backZone
-            newCard.createdAt = Date()
-            newCard.editedAt = Date()
+            // NOU: Inițializatorul actualizat care previne eroarea de `backingData`
+            let newCard = CardModel(
+                frontZone: exportedCard.frontZone,
+                backZone: exportedCard.backZone
+            )
+            
+            // Păstrăm datele de creație originale din import!
+            newCard.createdAt = exportedCard.createdAt
+            newCard.editedAt = exportedCard.editedAt
             newCard.deck = newDeck
 
             context.insert(newCard)
@@ -698,29 +700,12 @@ final class GarbageCollector: ObservableObject {
 
         var freedBytes: Int64 = 0
 
-        // 1. Clear all card data
+        
         for card in deck.cards {
-            // Clear front zone image data
+            
             freedBytes += clearZoneImages(card.frontZone)
 
-            // Clear back zone image data
             freedBytes += clearZoneImages(card.backZone)
-
-            // Clear legacy data if any
-            if let frontData = card.frontData {
-                freedBytes += Int64(frontData.count)
-            }
-            if let backData = card.backData {
-                freedBytes += Int64(backData.count)
-            }
-
-            // Clear legacy images
-            for imgData in card.frontImages {
-                freedBytes += Int64(imgData.count)
-            }
-            for imgData in card.backImages {
-                freedBytes += Int64(imgData.count)
-            }
         }
 
         bytesFreed = freedBytes
@@ -804,7 +789,8 @@ final class GarbageCollector: ObservableObject {
         try context.save()
 
         // Clear image cache
-        ImageCache.shared.clearCache()
+        // Note: Make sure ImageCache exists in your project
+        // ImageCache.shared.clearCache() // Re-enable this if ImageCache is available
     }
 }
 

@@ -101,41 +101,4 @@ struct DeckGalleryView: View {
 }
 
 
-#Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: DeckModel.self, CardModel.self, configurations: config)
 
-  
-    let demoDeck = DeckModel(
-        title: "SwiftUI Learning",
-        icon: "swift",
-        colorHex: "#FF5733"
-    )
-    container.mainContext.insert(demoDeck)
-
- 
-    let demoCards = [
-        CardModel(
-            frontText: "Ce wrapper folosim pentru a observa obiecte în SwiftData?",
-            backText: "@Query"
-        ),
-        CardModel(
-            frontText: "Ce wrapper folosim pentru a observa obiecte în SwiftData?",
-            backText: "@Query"
-        ),
-        CardModel(
-            frontText: "Ce wrapper folosim pentru a observa obiecte în SwiftData?",
-            backText: "@Query"
-        )
-    ]
-
-    demoDeck.cards.append(contentsOf: demoCards)
-
-    return ZStack {
-        Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
-
-        DeckGalleryView(deck: demoDeck)
-            .frame(width: 250)
-    }
-        .modelContainer(container)
-}
