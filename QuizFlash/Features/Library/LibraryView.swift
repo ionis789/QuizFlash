@@ -7,41 +7,18 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 
-// MARK: - Library View
 struct LibraryView: View {
-    @Environment(\.modelContext) var context
+    @Environment(\.modelContext) private var context
     @Query(sort: \DeckModel.createdAt, order: .reverse) private var decks: [DeckModel]
+    @Environment(NavigationManager.self) private var router // Actualizat pentru @Observable
 
-    @Environment(NavigationManager.self) var router
-
-    @State private var sortOrder: SortOrder = .newest
-    @State private var isSelecting = false
-    @State private var selectedDecks: Set<PersistentIdentifier> = []
-    @State private var showDeleteConfirmation = false
-    @State private var deckToDelete: DeckModel?
-    @State private var deckToEditColor: DeckModel?
-    @State private var viewMode: ViewMode = .list
-
-    // Import State
-    @State private var showFileImporter = false
-    @State private var isImporting = false
-    @State private var showImportError = false
-    @State private var importErrorMessage = ""
-    @State private var showImportSuccess = false
-    @State private var importedDeckName = ""
-
-    // Export State (for multi-deck export)
-    @State private var isExporting = false
-    @State private var exportedURLs: [URL] = []
-    @State private var showShareSheet = false
-    @State private var showExportError = false
-    @State private var exportErrorMessage = ""
+    // 💡 Aici este magia: Am înlocuit 15 linii de @State cu una singură!
+    @State private var viewModel = LibraryViewModel()
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
 
-    /// Sections for list/gallery; computed via LibraryGrouping (logic lives in LibraryGrouping.swift).
     private var groupedDecks: [DeckSection] {
-        LibraryGrouping.sections(decks: decks, sortOrder: sortOrder)
+        LibraryGrouping.sections(decks: decks, sortOrder: viewModel.sortOrder)
     }
 
     var body: some View {
@@ -57,21 +34,21 @@ struct LibraryView: View {
                     .padding(.top, 8)
                     .safeAreaInset(edge: .bottom) {
                     Color.clear
-                        .frame(height: isSelecting ? 140 : 110)
-                        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isSelecting)
+                        .frame(height: viewModel.isSelecting ? 140 : 110)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
                 }
             }
                 .background(Color(uiColor: .systemGroupedBackground))
                 .contentShape(Rectangle())
                 .onTapGesture {
-                guard isSelecting else { return }
+                guard viewModel.isSelecting else { return }
                 exitSelectionMode()
             }
 
 
             bottomFloatingButtons
 
-            if isSelecting {
+            if viewModel.isSelecting {
                 selectionBottomBar
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -79,11 +56,11 @@ struct LibraryView: View {
             .navigationTitle("Library")
             .navigationBarTitleDisplayMode(.large)
             .toolbar { topToolbar }
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isSelecting)
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewMode)
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.viewMode)
             .confirmationDialog(
-            "Delete \(selectedDecks.count) deck\(selectedDecks.count == 1 ? "" : "s")?",
-            isPresented: $showDeleteConfirmation,
+            "Delete \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")?",
+            isPresented: $viewModel.showDeleteConfirmation,
             titleVisibility: .visible
         ) {
             Button("Delete", role: .destructive) {
@@ -94,67 +71,69 @@ struct LibraryView: View {
             Text("This action cannot be undone.")
         }
             .confirmationDialog(
-            "Delete \"\(deckToDelete?.title ?? "")\"?",
+            "Delete \"\(viewModel.deckToDelete?.title ?? "")\"?",
             isPresented: .init(
-                get: { deckToDelete != nil },
-                set: { if !$0 { deckToDelete = nil } }
+                get: { viewModel.deckToDelete != nil },
+                set: { if !$0 { viewModel.deckToDelete = nil } }
             ),
             titleVisibility: .visible
         ) {
             Button("Delete", role: .destructive) {
-                if let deck = deckToDelete {
+                if let deck = viewModel.deckToDelete {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                         context.delete(deck)
                     }
                 }
-                deckToDelete = nil
+                viewModel.deckToDelete = nil
             }
             Button("Cancel", role: .cancel) {
-                deckToDelete = nil
+                viewModel.deckToDelete = nil
             }
         } message: {
             Text("This deck and all its cards will be deleted.")
         }
-            .sheet(item: $deckToEditColor) { deck in
+            .sheet(item: $viewModel.deckToEditColor) { deck in
             DeckColorPickerSheet(deck: deck)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
         // File Importer for .qflash files (multiple selection enabled)
         .fileImporter(
-            isPresented: $showFileImporter,
+            isPresented: $viewModel.showFileImporter,
             allowedContentTypes: [.data],
             allowsMultipleSelection: true
         ) { result in
-            handleFileImport(result)
+            viewModel.handleFileImport(result, context: context)
         }
         // Import error alert
-        .alert("Import Error", isPresented: $showImportError) {
+        .alert("Import Error", isPresented: $viewModel.showImportError) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text(importErrorMessage)
+            Text(viewModel.importErrorMessage)
         }
         // Import success alert
-        .alert("Import Successful", isPresented: $showImportSuccess) {
-            Button("OK", role: .cancel) { }
+        .alert("Import Successful", isPresented: $viewModel.showImportSuccess) {
+            Button("OK", role: .cancel) {
+                //MARK: Action After Import Here
+            }
         } message: {
-            Text("\(importedDeckName) imported successfully.")
+            Text("\(viewModel.importedDeckName) imported successfully.")
         }
         // Export share sheet
-        .sheet(isPresented: $showShareSheet) {
-            if !exportedURLs.isEmpty {
-                ShareSheet(items: exportedURLs)
+        .sheet(isPresented: $viewModel.showShareSheet) {
+            if !viewModel.exportedURLs.isEmpty {
+                ShareSheet(items: viewModel.exportedURLs)
             }
         }
         // Export error alert
-        .alert("Export Error", isPresented: $showExportError) {
+        .alert("Export Error", isPresented: $viewModel.showExportError) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text(exportErrorMessage)
+            Text(viewModel.exportErrorMessage)
         }
         // Import loading overlay
         .overlay {
-            if isImporting {
+            if viewModel.isImporting {
                 ZStack {
                     Color.black.opacity(0.3)
                         .ignoresSafeArea()
@@ -172,7 +151,7 @@ struct LibraryView: View {
         }
         // Export loading overlay
         .overlay {
-            if isExporting {
+            if viewModel.isExporting {
                 ZStack {
                     Color.black.opacity(0.3)
                         .ignoresSafeArea()
@@ -180,7 +159,7 @@ struct LibraryView: View {
                     VStack(spacing: 16) {
                         ProgressView()
                             .scaleEffect(1.5)
-                        Text("Exporting \(selectedDecks.count) deck\(selectedDecks.count == 1 ? "" : "s")...")
+                        Text("Exporting \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")...")
                             .font(.headline)
                     }
                         .padding(32)
@@ -198,7 +177,7 @@ struct LibraryView: View {
             Menu {
                 // Import Deck
                 Button {
-                    showFileImporter = true
+                    viewModel.showFileImporter = true
                 } label: {
                     Label("Import Deck", systemImage: "square.and.arrow.down")
                 }
@@ -206,22 +185,22 @@ struct LibraryView: View {
                 // Select
                 Button {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        isSelecting = true
+                        viewModel.isSelecting = true
                     }
                 } label: {
                     Label("Select", systemImage: "checkmark.circle")
                 }
-                    .disabled(isSelecting)
+                    .disabled(viewModel.isSelecting)
 
                 // Sort
                 Menu {
                     ForEach(SortOrder.allCases, id: \.self) { order in
                         Button {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                                sortOrder = order
+                                viewModel.sortOrder = order
                             }
                         } label: {
-                            if sortOrder == order {
+                            if viewModel.sortOrder == order {
                                 Label(order.rawValue, systemImage: "checkmark")
                             } else {
                                 Label(order.rawValue, systemImage: order.icon)
@@ -235,18 +214,18 @@ struct LibraryView: View {
                 // View
                 Menu {
                     Button {
-                        viewMode = .list
+                        viewModel.viewMode = .list
                     } label: {
                         Label("List", systemImage: ViewMode.list.systemImage)
                     }
 
                     Button {
-                        viewMode = .gallery
+                        viewModel.viewMode = .gallery
                     } label: {
                         Label("Gallery", systemImage: ViewMode.gallery.systemImage)
                     }
                 } label: {
-                    Label("View", systemImage: viewMode.systemImage)
+                    Label("View", systemImage: viewModel.viewMode.systemImage)
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -260,7 +239,7 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch viewMode {
+        switch viewModel.viewMode {
         case .list:
             groupedDecksList
                 .transition(.opacity)
@@ -313,12 +292,12 @@ struct LibraryView: View {
     // MARK: - Cells
 
     private func deckGalleryCell(_ deck: DeckModel) -> some View {
-        let isSelected = selectedDecks.contains(deck.id)
+        let isSelected = viewModel.selectedDecks.contains(deck.id)
 
         return ZStack(alignment: .topLeading) {
             // UNIFIED BUTTON FOR GALLERY
             Button {
-                if isSelecting {
+                if viewModel.isSelecting {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                         toggleSelection(deck)
                     }
@@ -333,7 +312,7 @@ struct LibraryView: View {
             }
                 .buttonStyle(ScaleButtonStyle())
 
-            if isSelecting {
+            if viewModel.isSelecting {
                 selectionIndicator(isSelected: isSelected) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                         toggleSelection(deck)
@@ -344,7 +323,7 @@ struct LibraryView: View {
             }
         }
             .background {
-            if isSelecting && isSelected {
+            if viewModel.isSelecting && isSelected {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(accent, lineWidth: 2)
                     .shadow(color: accent.opacity(0.6), radius: 8, x: 0, y: 0)
@@ -352,16 +331,16 @@ struct LibraryView: View {
                     .transition(.opacity)
             }
         }
-            .scaleEffect(isSelecting && isSelected ? 0.96 : 1)
+            .scaleEffect(viewModel.isSelecting && isSelected ? 0.96 : 1)
             .animation(.spring(response: 0.32, dampingFraction: 0.85), value: isSelected)
     }
 
     @ViewBuilder
     private func deckRow(for deck: DeckModel) -> some View {
-        let isSelected = selectedDecks.contains(deck.id)
+        let isSelected = viewModel.selectedDecks.contains(deck.id)
 
         HStack(spacing: 12) {
-            if isSelecting {
+            if viewModel.isSelecting {
                 selectionIndicator(isSelected: isSelected) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                         toggleSelection(deck)
@@ -370,7 +349,7 @@ struct LibraryView: View {
                     .transition(.move(edge: .leading).combined(with: .opacity))
             }
             Button {
-                if isSelecting {
+                if viewModel.isSelecting {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                         toggleSelection(deck)
                     }
@@ -382,7 +361,7 @@ struct LibraryView: View {
             } label: {
                 DeckRowView(deck: deck)
                     .background {
-                    if isSelecting && isSelected {
+                    if viewModel.isSelecting && isSelected {
                         RoundedRectangle(cornerRadius: 30, style: .continuous)
                             .stroke(.gray.opacity(0.7), lineWidth: 2)
                             .transition(.opacity)
@@ -391,22 +370,22 @@ struct LibraryView: View {
             }
                 .buttonStyle(ScaleButtonStyle())
                 .contextMenu {
-                if !isSelecting {
+                if !viewModel.isSelecting {
                     Button {
-                        deckToEditColor = deck
+                        viewModel.deckToEditColor = deck
                     } label: {
                         Label("Change Color", systemImage: "paintpalette")
                     }
 
                     Button(role: .destructive) {
-                        deckToDelete = deck
+                        viewModel.deckToDelete = deck
                     } label: {
                         Text("Delete")
                             .font(.body)
                     }
                 }
             }
-                .scaleEffect(isSelecting && isSelected ? 0.9 : 1)
+                .scaleEffect(viewModel.isSelecting && isSelected ? 0.9 : 1)
                 .animation(.spring(response: 0.32, dampingFraction: 0.85), value: isSelected)
         }
     }
@@ -457,12 +436,19 @@ struct LibraryView: View {
 
             Spacer()
 
-            // Export button
+            //MARK: Export action here
             Button {
-                exportSelectedDecks()
+                viewModel.exportSelectedDecks(from: decks)
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    if viewModel.isSelecting {
+                        viewModel.isSelecting = false
+                    }
+                }
+                
             } label: {
                 HStack(spacing: 6) {
-                    if isExporting {
+                    if viewModel.isExporting {
                         ProgressView()
                             .scaleEffect(0.8)
                     } else {
@@ -474,21 +460,21 @@ struct LibraryView: View {
                     .padding(.vertical, 10)
                     .background(.ultraThinMaterial, in: Capsule())
             }
-                .disabled(selectedDecks.isEmpty || isExporting)
+                .disabled(viewModel.selectedDecks.isEmpty || viewModel.isExporting)
 
             Spacer()
 
             Button(role: .destructive) {
-                showDeleteConfirmation = true
+                viewModel.showDeleteConfirmation = true
             } label: {
 
-                Text("Delete(\(selectedDecks.count))")
+                Text("Delete(\(viewModel.selectedDecks.count))")
                     .font(.subheadline.bold())
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(.ultraThinMaterial, in: Capsule())
             }
-                .disabled(selectedDecks.isEmpty)
+                .disabled(viewModel.selectedDecks.isEmpty)
         }
             .padding(.horizontal, 20)
             .padding(.vertical, 10)
@@ -531,9 +517,9 @@ struct LibraryView: View {
                 .padding(.trailing, 22)
         }
             .padding(.bottom, 12)
-            .allowsHitTesting(!isSelecting)
-            .opacity(isSelecting ? 0.0 : 1.0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isSelecting)
+            .allowsHitTesting(!viewModel.isSelecting)
+            .opacity(viewModel.isSelecting ? 0.0 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.85), value: viewModel.isSelecting)
     }
 
 
@@ -595,118 +581,27 @@ struct LibraryView: View {
     // MARK: - Actions
 
     private func toggleSelection(_ deck: DeckModel) {
-        if selectedDecks.contains(deck.id) {
-            selectedDecks.remove(deck.id)
+        if viewModel.selectedDecks.contains(deck.id) {
+            viewModel.selectedDecks.remove(deck.id)
         } else {
-            selectedDecks.insert(deck.id)
+            viewModel.selectedDecks.insert(deck.id)
         }
     }
 
     private func exitSelectionMode() {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            isSelecting = false
-            selectedDecks.removeAll()
+            viewModel.isSelecting = false
+            viewModel.selectedDecks.removeAll()
         }
     }
 
     private func deleteSelectedDecks() {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            for deck in decks where selectedDecks.contains(deck.id) {
+            for deck in decks where viewModel.selectedDecks.contains(deck.id) {
                 context.delete(deck)
             }
-            selectedDecks.removeAll()
-            isSelecting = false
-        }
-    }
-
-    // MARK: - Import
-    private func handleFileImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            // Filter only .qflash files
-            let qflashURLs = urls.filter { $0.pathExtension.lowercased() == "qflash" }
-
-            guard !qflashURLs.isEmpty else {
-                importErrorMessage = "Please select .qflash files"
-                showImportError = true
-                return
-            }
-
-            isImporting = true
-
-            Task {
-                var importedCount = 0
-                var lastImportedName = ""
-                var errors: [String] = []
-
-                for url in qflashURLs {
-                    do {
-                        let importedDeck = try await DeckSharingManager.shared.importDeck(from: url, into: context)
-                        importedCount += 1
-                        lastImportedName = importedDeck.title
-                    } catch {
-                        errors.append("\(url.lastPathComponent): \(error.localizedDescription)")
-                    }
-                }
-
-                await MainActor.run {
-                    isImporting = false
-
-                    if importedCount > 0 {
-                        if importedCount == 1 {
-                            importedDeckName = lastImportedName
-                        } else {
-                            importedDeckName = "\(importedCount) decks"
-                        }
-                        showImportSuccess = true
-                    }
-
-                    if !errors.isEmpty {
-                        importErrorMessage = errors.joined(separator: "\n")
-                        showImportError = true
-                    }
-                }
-            }
-
-        case .failure(let error):
-            importErrorMessage = error.localizedDescription
-            showImportError = true
-        }
-    }
-
-    // MARK: - Export
-    private func exportSelectedDecks() {
-        let selectedDecksList = decks.filter { selectedDecks.contains($0.id) }
-        guard !selectedDecksList.isEmpty else { return }
-
-        isExporting = true
-
-        Task {
-            var exportedFiles: [URL] = []
-            var errors: [String] = []
-
-            for deck in selectedDecksList {
-                do {
-                    let url = try await DeckSharingManager.shared.exportDeck(deck)
-                    exportedFiles.append(url)
-                } catch {
-                    errors.append("\(deck.title): \(error.localizedDescription)")
-                }
-            }
-
-            await MainActor.run {
-                isExporting = false
-
-                if !exportedFiles.isEmpty {
-                    exportedURLs = exportedFiles
-                    showShareSheet = true
-                }
-
-                if !errors.isEmpty {
-                    exportErrorMessage = errors.joined(separator: "\n")
-                    showExportError = true
-                }
-            }
+            viewModel.selectedDecks.removeAll()
+            viewModel.isSelecting = false
         }
     }
 }

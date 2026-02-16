@@ -26,14 +26,14 @@ struct SwipeableCard<Content: View>: View {
                 .scaleEffect(cardScale)
                 .offset(x: offset.width, y: offset.height * 0.15)
                 .rotationEffect(.degrees(Double(offset.width / 15)), anchor: .bottom)
-                // Umbra cardului devine glow verde/roșu în funcție de swipe
-                .shadow(color: dragShadowColor, radius: abs(offset.width) > 10 ? 25 : 15, x: 0, y: 8)
+            // Umbra cardului devine glow verde/roșu în funcție de swipe
+            .shadow(color: dragShadowColor, radius: abs(offset.width) > 10 ? 25 : 15, x: 0, y: 8)
                 .gesture(dragGesture)
                 .onTapGesture {
-                    onTap?()
-                }
+                onTap?()
+            }
         }
-        .contentShape(Rectangle())
+            .contentShape(Rectangle())
     }
 
     // Efectul fin de micșorare la swipe
@@ -66,53 +66,54 @@ struct SwipeableCard<Content: View>: View {
 
     // Gestul fluid de swipe
     private var dragGesture: some Gesture {
-        // minimumDistance: 10 permite tap-ului (întoarcerii) să funcționeze
         DragGesture(minimumDistance: 10, coordinateSpace: .local)
             .onChanged { value in
-                // Permitem scroll-ul pe verticală din interior dacă utilizatorul trage mai mult în sus/jos
-                if abs(value.translation.height) > abs(value.translation.width) + 20 && abs(offset.width) < 10 {
-                    return
-                }
-
-                withAnimation(.interactiveSpring(response: 0.3, dampingFraction: 0.8)) {
-                    offset = value.translation
-                }
-
-                if abs(offset.width) >= swipeThreshold && !didHaptic {
-                    haptic.impactOccurred()
-                    didHaptic = true
-                } else if abs(offset.width) < swipeThreshold * 0.8 {
-                    didHaptic = false
-                }
+            if abs(value.translation.width) > 10 && abs(value.translation.width) < 30 {
+                haptic.prepare()
             }
-            .onEnded { value in
-                let dx = value.translation.width
-                let velocity = value.velocity.width
-                
-                let shouldExitRight = dx > swipeThreshold || velocity > 800
-                let shouldExitLeft = dx < -swipeThreshold || velocity < -800
+            if abs(value.translation.height) > abs(value.translation.width) + 20 && abs(offset.width) < 10 {
+                return
+            }
 
-                if shouldExitRight {
-                    haptic.impactOccurred(intensity: 1.0)
-                    exitCardAnimation(.right)
-                } else if shouldExitLeft {
-                    haptic.impactOccurred(intensity: 1.0)
-                    exitCardAnimation(.left)
-                } else {
-                    // S-a răzgândit: revine pe centru
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
-                        offset = .zero
-                    }
-                }
+            withAnimation(.interactiveSpring(response: 0.3, dampingFraction: 0.8)) {
+                offset = value.translation
+            }
+
+            if abs(offset.width) >= swipeThreshold && !didHaptic {
+                haptic.impactOccurred()
+                didHaptic = true
+            } else if abs(offset.width) < swipeThreshold * 0.8 {
                 didHaptic = false
             }
+        }
+            .onEnded { value in
+            let dx = value.translation.width
+            let velocity = value.velocity.width
+
+            let shouldExitRight = dx > swipeThreshold || velocity > 800
+            let shouldExitLeft = dx < -swipeThreshold || velocity < -800
+
+            if shouldExitRight {
+                haptic.impactOccurred(intensity: 1.0)
+                exitCardAnimation(.right)
+            } else if shouldExitLeft {
+                haptic.impactOccurred(intensity: 1.0)
+                exitCardAnimation(.left)
+            } else {
+                // S-a răzgândit: revine pe centru
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                    offset = .zero
+                }
+            }
+            didHaptic = false
+        }
     }
 
     // Animația finală când cardul zboară
     private func exitCardAnimation(_ direction: SwipeDirection) {
         let screenWidth = UIScreen.main.bounds.width
         let exitX = direction == .right ? screenWidth + 200 : -(screenWidth + 200)
-        
+
         withAnimation(.spring(response: 0.9, dampingFraction: 0.8)) {
             offset = CGSize(width: exitX, height: offset.height)
         }
