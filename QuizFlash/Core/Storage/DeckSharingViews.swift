@@ -2,11 +2,12 @@
 //  DeckSharingViews.swift
 //  QuizFlash
 //
-//  UI-only: share sheet, export button, import progress, storage info.
-//
 
 import SwiftUI
 import SwiftData
+
+
+/// UI-only: share sheet, export button, import progress, storage info.
 
 // MARK: - Share Sheet
 
@@ -17,7 +18,7 @@ struct ShareSheet: UIViewControllerRepresentable {
         UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
 
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) { }
 }
 
 // MARK: - Export Deck Button
@@ -42,14 +43,14 @@ struct ExportDeckButton: View {
                 Label("Export Deck", systemImage: "square.and.arrow.up")
             }
         }
-        .disabled(sharingManager.isExporting)
-        .sheet(isPresented: $showShareSheet) {
+            .disabled(sharingManager.isExporting)
+            .sheet(isPresented: $showShareSheet) {
             if let url = exportedURL {
                 ShareSheet(items: [url])
             }
         }
-        .alert("Export Error", isPresented: $showError) {
-            Button("OK", role: .cancel) {}
+            .alert("Export Error", isPresented: $showError) {
+            Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
         }
@@ -83,8 +84,8 @@ struct ImportProgressView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .padding()
-        .frame(width: 250)
+            .padding()
+            .frame(width: 250)
     }
 }
 
@@ -158,7 +159,7 @@ struct StorageInfoView: View {
                         }
                     }
                 }
-                .disabled(garbageCollector.isRunning)
+                    .disabled(garbageCollector.isRunning)
 
                 if garbageCollector.bytesFreed > 0 {
                     HStack {
@@ -172,8 +173,8 @@ struct StorageInfoView: View {
                 Text("Cleanup")
             }
         }
-        .navigationTitle("Storage")
-        .task {
+            .navigationTitle("Storage")
+            .task {
             await storageManager.calculateStorage(for: decks)
             if let lastCleanup = garbageCollector.lastCleanupDate {
                 let formater = RelativeDateTimeFormatter()

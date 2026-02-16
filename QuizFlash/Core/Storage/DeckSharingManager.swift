@@ -2,9 +2,7 @@
 //  DeckSharingManager.swift
 //  QuizFlash
 //
-//  Professional Export/Import system for sharing decks between users.
-//  Uses .qflash file format (ZIP archive with metadata.json and /assets folder)
-//
+
 
 import SwiftUI
 import Foundation
@@ -14,6 +12,8 @@ import Combine
 import Compression
 
 // MARK: - Exportable Models (Codable versions for JSON)
+///  Professional Export/Import system for sharing decks between users.
+///  Uses .qflash file format (ZIP archive with metadata.json and /assets folder)
 
 /// Exportable version of ZoneModel (already Codable)
 typealias ExportableZone = ZoneModel

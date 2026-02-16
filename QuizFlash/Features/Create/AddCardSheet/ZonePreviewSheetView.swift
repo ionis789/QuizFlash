@@ -2,12 +2,11 @@
 //  ZonePreviewSheetView.swift
 //  QuizFlash
 //
-//  UI-only: full-screen card preview (flip question/answer).
-//
 
 import SwiftUI
 
-// MARK: - Zone Preview Sheet
+// MARK: - Zone Preview Sheet UI-only: full-screen card preview (flip question/answer).
+//
 
 struct ZonePreviewSheet: View {
     let front: ZoneCardContent

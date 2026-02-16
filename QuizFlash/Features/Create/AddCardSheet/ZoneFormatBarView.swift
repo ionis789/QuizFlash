@@ -2,12 +2,10 @@
 //  ZoneFormatBarView.swift
 //  QuizFlash
 //
-//  UI-only: format bar for zone (add/split/delete, text or media tools).
-//
 
 import SwiftUI
 
-// MARK: - Zone Format Bar
+// MARK: -UI-only: format bar for zone (add/split/delete, text or media tools).
 
 struct ZoneFormatBar: View {
     @Bindable var content: ZoneCardContent

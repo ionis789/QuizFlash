@@ -4,12 +4,10 @@
 //
 //  Created by Ion Socol on 12.02.2026.
 //
-//  Full-screen drawing canvas modal for creating sketches.
-//
 
 import SwiftUI
 import PencilKit
-
+// MARK:  Full-screen drawing canvas modal for creating sketches.
 struct CanvasModalView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme

@@ -2,12 +2,12 @@
 //  FABMenuItemView.swift
 //  QuizFlash
 //
-//  UI-only: single FAB menu item (Photo / Sketch).
-//
+
+
 
 import SwiftUI
 
-// MARK: - FAB Menu Item
+// MARK: - FAB Menu Item (Photo / Sketch).
 
 struct FABMenuItem: View {
     let icon: String
