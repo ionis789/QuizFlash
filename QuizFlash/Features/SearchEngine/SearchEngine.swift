@@ -2,53 +2,50 @@
 //  SearchEngine.swift
 //  QuizFlash
 //
-//  Created by Ion Socol on 17.02.2026.
+//  Created by Senior iOS Architect.
 //
+
 import Foundation
 import SwiftData
-
-// MARK: - Search Engine (Background Actor)
-// A background ModelActor ensures that heavy string matching across thousands
-// of records does not block the Main Thread and avoids SwiftData concurrency crashes.
 
 @ModelActor
 actor SearchEngine {
     
-    /// Performs a case-insensitive search across all decks and cards.
+    /// Performs a tokenized, deep, case-insensitive, and diacritic-insensitive search.
     func performSearch(query: String) throws -> [DeckSearchResultItem] {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty else { return [] }
+        // 1. Spargem query-ul în cuvinte separate (tokens)
+        let tokens = query.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        guard !tokens.isEmpty else { return [] }
         
-        let lowerQuery = trimmedQuery.localizedLowercase
-        
-        // Fetch all decks. (Optimization: We fetch everything and filter in memory here
-        // because SwiftData Predicates currently have limitations with complex relationship substring matching).
         let descriptor = FetchDescriptor<DeckModel>()
         let allDecks = try modelContext.fetch(descriptor)
         
         var results: [DeckSearchResultItem] = []
+        let searchOptions: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
         
         for deck in allDecks {
             var matchedCards: [MatchedCardInfo] = []
-            let titleMatches = deck.title.localizedLowercase.contains(lowerQuery)
+            
+            // Verificăm dacă TOATE token-urile se află în titlul pachetului
+            let titleMatches = tokens.allSatisfy { token in
+                deck.title.range(of: token, options: searchOptions) != nil
+            }
             
             for card in deck.cards {
-                let frontMatches = card.frontText.localizedLowercase.contains(lowerQuery)
-                let backMatches = card.backText.localizedLowercase.contains(lowerQuery)
+                // Extragem absolut tot textul de pe față și spate într-un singur string sigur
+                let fullText = extractAllText(from: card.frontZone) + " \n " + extractAllText(from: card.backZone)
                 
-                if frontMatches || backMatches {
-                    // Extract a readable snippet framing the matched text
-                    let sourceText = frontMatches ? card.frontText : card.backText
-                    let snippet = extractSnippet(from: sourceText, query: trimmedQuery)
-                    
-                    matchedCards.append(MatchedCardInfo(
-                        id: card.id,
-                        snippet: snippet
-                    ))
+                // Logica AND: Cardul este valid DOAR dacă include toate cuvintele căutate
+                let cardMatches = tokens.allSatisfy { token in
+                    fullText.range(of: token, options: searchOptions) != nil
+                }
+                
+                if cardMatches {
+                    let snippet = extractMultiTokenSnippet(from: fullText, tokens: tokens, options: searchOptions)
+                    matchedCards.append(MatchedCardInfo(id: card.id, snippet: snippet))
                 }
             }
             
-            // Only add the deck to results if its title matches OR it has matching cards
             if titleMatches || !matchedCards.isEmpty {
                 results.append(DeckSearchResultItem(
                     id: deck.id,
@@ -61,7 +58,6 @@ actor SearchEngine {
             }
         }
         
-        // Return results sorted by the number of matches, or title matches first
         return results.sorted { a, b in
             if a.titleMatches && !b.titleMatches { return true }
             if !a.titleMatches && b.titleMatches { return false }
@@ -69,36 +65,46 @@ actor SearchEngine {
         }
     }
     
-    // MARK: - Snippet Extraction Logic
+    // MARK: - Deep Text Extraction
+    private func extractAllText(from zone: ZoneModel) -> String {
+        if zone.isLeaf { return zone.contentType == .text ? zone.text : "" }
+        guard let children = zone.children else { return "" }
+        return children.map { extractAllText(from: $0) }.filter { !$0.isEmpty }.joined(separator: " ")
+    }
     
-    /// Extracts a ~60 character window around the matched query to display in the UI.
-    private func extractSnippet(from text: String, query: String, windowSize: Int = 30) -> String {
+    // MARK: - Snippet Extraction Logic
+    /// Extrage un fragment (snippet) centrat în jurul PRIMULUI token găsit
+    private func extractMultiTokenSnippet(from text: String, tokens: [String], options: String.CompareOptions, windowSize: Int = 30) -> String {
         let cleanText = text.replacingOccurrences(of: "\n", with: " ")
-        let lowerText = cleanText.localizedLowercase
-        let lowerQuery = query.localizedLowercase
         
-        guard let range = lowerText.range(of: lowerQuery) else {
+        var earliestRange: Range<String.Index>? = nil
+        
+        // Găsim token-ul care apare cel mai devreme în text pentru a începe snippet-ul de acolo
+        for token in tokens {
+            if let range = cleanText.range(of: token, options: options) {
+                if earliestRange == nil || range.lowerBound < earliestRange!.lowerBound {
+                    earliestRange = range
+                }
+            }
+        }
+        
+        guard let range = earliestRange else {
             return String(cleanText.prefix(windowSize * 2))
         }
         
-        let startDistance = lowerText.distance(from: lowerText.startIndex, to: range.lowerBound)
+        let startDistance = cleanText.distance(from: cleanText.startIndex, to: range.lowerBound)
         let safeStartOffset = max(0, startDistance - windowSize)
-        
         let snippetStart = cleanText.index(cleanText.startIndex, offsetBy: safeStartOffset)
         
         let endDistance = cleanText.distance(from: range.upperBound, to: cleanText.endIndex)
-        let safeEndOffset = min(endDistance, windowSize)
-        
+        // Lăsăm fereastra de final mai largă pentru a crește șansele de a prinde și celelalte token-uri în preview
+        let safeEndOffset = min(endDistance, windowSize + 30)
         let snippetEnd = cleanText.index(range.upperBound, offsetBy: safeEndOffset)
         
         var snippet = String(cleanText[snippetStart..<snippetEnd])
         
-        if snippetStart > cleanText.startIndex {
-            snippet = "..." + snippet
-        }
-        if snippetEnd < cleanText.endIndex {
-            snippet += "..."
-        }
+        if snippetStart > cleanText.startIndex { snippet = "..." + snippet }
+        if snippetEnd < cleanText.endIndex { snippet += "..." }
         
         return snippet
     }
