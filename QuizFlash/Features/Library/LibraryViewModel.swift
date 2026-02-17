@@ -2,8 +2,7 @@
 //  LibraryViewModel.swift
 //  QuizFlash
 //
-//  Created by Senior iOS Architect.
-//
+
 import SwiftUI
 import SwiftData
 
@@ -23,14 +22,18 @@ final class LibraryViewModel {
     // MARK: - Action States
     var deckToDelete: DeckModel?
     var deckToEditColor: DeckModel?
+    var editingCardFromSearch: CardModel?
     
     // MARK: - Search State
     var searchText: String = ""
     var searchResults: [DeckSearchResultItem] = []
     var isSearching: Bool = false
-    private var searchTask: Task<Void, Never>?
+    var isSearchLoading: Bool = false
     
-    // MARK: - Import State
+    private var searchTask: Task<Void, Never>?
+    private let searchEngine = SearchEngine()
+    
+    // MARK: - Import/Export States
     var showFileImporter = false
     var isImporting = false
     var showImportError = false
@@ -38,58 +41,82 @@ final class LibraryViewModel {
     var showImportSuccess = false
     var importedDeckName = ""
     
-    // MARK: - Export State
     var isExporting = false
     var exportedURLs: [URL] = []
     var showShareSheet = false
     var showExportError = false
     var exportErrorMessage = ""
     
-    // MARK: - Search Logic
-    func updateSearch(query: String, modelContainer: ModelContainer) {
-        // Cancel previous pending task to debounce rapid typing
+    // MARK: - High Performance Search Logic
+    func updateSearch(query: String, decks: [DeckModel]) {
         searchTask?.cancel()
-        
         let trimmedQuery = query.trimmingCharacters(in: .whitespaces)
         
         if trimmedQuery.isEmpty {
             isSearching = false
+            isSearchLoading = false
             searchResults = []
             return
         }
         
         isSearching = true
+        isSearchLoading = true
+        
+        // MARK: Live Memory Extraction
+        // We map the MainActor's freshly updated models into Sendable payloads instantly.
+        // This guarantees search uses the newest data without database lag.
+        let payloads = decks.map { deck in
+            DeckSearchPayload(
+                id: deck.id,
+                title: deck.title,
+                icon: deck.icon,
+                colorHex: deck.colorHex,
+                cards: deck.cards.map { card in
+                    CardSearchPayload(
+                        id: card.id,
+                        frontText: extractAllText(from: card.frontZone),
+                        backText: extractAllText(from: card.backZone)
+                    )
+                }
+            )
+        }
         
         searchTask = Task {
-            // Debounce delay (250ms)
-            try? await Task.sleep(for: .milliseconds(250))
+            // Minimal debounce for smooth typing performance
+            try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
             
-            let engine = SearchEngine(modelContainer: modelContainer)
+            // Execute heavy string matching off the Main Thread
+            let results = await searchEngine.performSearch(query: trimmedQuery, in: payloads)
             
-            do {
-                let results = try await engine.performSearch(query: trimmedQuery)
-                guard !Task.isCancelled else { return }
-                
-                // Animate state update
+            guard !Task.isCancelled else { return }
+            
+            await MainActor.run {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     self.searchResults = results
+                    self.isSearchLoading = false
                 }
-            } catch {
-                print("Search Execution Failed: \(error.localizedDescription)")
             }
         }
     }
     
-    // MARK: - Selection Actions
-    func toggleSelection(for deck: DeckModel) {
-        if selectedDecks.contains(deck.id) {
-            selectedDecks.remove(deck.id)
-        } else {
-            selectedDecks.insert(deck.id)
+    // Recursive text extraction helper decoupled from SwiftData restrictions
+    private func extractAllText(from zone: ZoneModel) -> String {
+        let isLeafNode = (zone.children == nil || zone.children?.isEmpty == true)
+        
+        if isLeafNode {
+            return zone.contentType == .text ? zone.text : ""
         }
+        
+        guard let children = zone.children else { return "" }
+        return children.map { extractAllText(from: $0) }.filter { !$0.isEmpty }.joined(separator: " ")
     }
     
+    // MARK: - Selection Actions
+    func toggleSelection(for deck: DeckModel) {
+        if selectedDecks.contains(deck.id) { selectedDecks.remove(deck.id) }
+        else { selectedDecks.insert(deck.id) }
+    }
     func exitSelectionMode() {
         isSelecting = false
         selectedDecks.removeAll()
@@ -97,17 +124,12 @@ final class LibraryViewModel {
     
     // MARK: - Delete Actions
     func deleteSelectedDecks(from allDecks: [DeckModel], context: ModelContext) {
-        for deck in allDecks where selectedDecks.contains(deck.id) {
-            context.delete(deck)
-        }
+        for deck in allDecks where selectedDecks.contains(deck.id) { context.delete(deck) }
         selectedDecks.removeAll()
         isSelecting = false
     }
-    
     func confirmSingleDeletion(context: ModelContext) {
-        if let deck = deckToDelete {
-            context.delete(deck)
-        }
+        if let deck = deckToDelete { context.delete(deck) }
         deckToDelete = nil
     }
     
@@ -116,7 +138,6 @@ final class LibraryViewModel {
         switch result {
         case .success(let urls):
             let qflashURLs = urls.filter { $0.pathExtension.lowercased() == "qflash" }
-            
             guard !qflashURLs.isEmpty else {
                 importErrorMessage = "Please select .qflash files"
                 showImportError = true
@@ -124,7 +145,6 @@ final class LibraryViewModel {
             }
             
             isImporting = true
-            
             Task {
                 var importedCount = 0
                 var lastImportedName = ""
@@ -152,7 +172,6 @@ final class LibraryViewModel {
                     self.showImportError = true
                 }
             }
-            
         case .failure(let error):
             importErrorMessage = error.localizedDescription
             showImportError = true
@@ -165,7 +184,6 @@ final class LibraryViewModel {
         guard !selectedDecksList.isEmpty else { return }
         
         isExporting = true
-        
         Task {
             var exportedFiles: [URL] = []
             var errors: [String] = []
@@ -185,7 +203,6 @@ final class LibraryViewModel {
                 self.exportedURLs = exportedFiles
                 self.showShareSheet = true
             }
-            
             if !errors.isEmpty {
                 self.exportErrorMessage = errors.joined(separator: "\n")
                 self.showExportError = true

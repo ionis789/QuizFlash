@@ -2,8 +2,6 @@
 //  DeckViewModel.swift
 //  QuizFlash
 //
-//  Refactored by Senior iOS Architect
-//
 
 import SwiftUI
 import SwiftData
@@ -12,15 +10,8 @@ import SwiftData
 @MainActor
 final class DeckViewModel {
     
-    // MARK: - Core Data
-    var deck: DeckModel
-    
-    // MARK: - Presentation & Navigation State
-    var isAddingCard = false
-    var isPresentingEdit = false
-    var isPlayingQuiz = false
-    var previewedCard: CardModel? = nil
-    var editingCard: CardModel? = nil
+    // MARK: - Search State
+    var searchQuery: String? = nil
     
     // MARK: - Selection State
     var isSelecting = false
@@ -38,28 +29,8 @@ final class DeckViewModel {
     var exportErrorMessage = ""
 
     // MARK: - Initialization
-    init(deck: DeckModel) {
-        self.deck = deck
-    }
-
-    // MARK: - Card Operations
-    func addNewCard(frontZone: ZoneModel, backZone: ZoneModel) {
-        let newCard = CardModel(
-            frontZone: frontZone,
-            backZone: backZone
-        )
-        deck.cards.append(newCard)
-        deck.editedAt = Date()
-    }
-    
-    func saveEditedCard(original: CardModel, newFront: ZoneModel, newBack: ZoneModel) {
-        // Business logic strictly contained in the ViewModel
-        if original.frontZone != newFront || original.backZone != newBack {
-            original.frontZone = newFront
-            original.backZone = newBack
-            original.editedAt = Date()
-            deck.editedAt = Date()
-        }
+    init(searchQuery: String? = nil) {
+        self.searchQuery = searchQuery
     }
 
     // MARK: - Selection Actions
@@ -77,14 +48,14 @@ final class DeckViewModel {
     }
 
     // MARK: - Deletion Logic
-    func deleteSingleCard(_ card: CardModel, context: ModelContext) {
+    func deleteSingleCard(_ card: CardModel, from deck: DeckModel, context: ModelContext) {
         context.delete(card)
         deck.cards.removeAll { $0.id == card.id }
         deck.editedAt = Date()
         selectedCards.remove(card.id)
     }
 
-    func deleteSelectedCards(context: ModelContext) {
+    func deleteSelectedCards(from deck: DeckModel, context: ModelContext) {
         for card in deck.cards where selectedCards.contains(card.id) {
             context.delete(card)
             deck.cards.removeAll { $0.id == card.id }
@@ -95,7 +66,7 @@ final class DeckViewModel {
     }
 
     // MARK: - Export Logic
-    func exportDeck() {
+    func exportDeck(_ deck: DeckModel) {
         isExporting = true
         
         Task {
@@ -112,9 +83,33 @@ final class DeckViewModel {
         }
     }
     
-    // MARK: - Grouping Logic
-    func groupedCards() -> [DeckCardGridView.CardSection] {
-        let sortedAll = deck.cards.sorted { c1, c2 in
+    // MARK: - Deep Text Extraction Helper
+    private func extractAllText(from zone: ZoneModel) -> String {
+        if zone.isLeaf { return zone.contentType == .text ? zone.text : "" }
+        return (zone.children ?? []).map { extractAllText(from: $0) }.joined(separator: " ")
+    }
+    
+    // MARK: - Grouping & Filtering Logic
+    func groupedCards(for deck: DeckModel) -> [DeckCardGridView.CardSection] {
+        var filteredCards = deck.cards
+        
+        // 1. In-memory Tokenized Filtering
+        if let query = searchQuery, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let tokens = query.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+            if !tokens.isEmpty {
+                let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
+                
+                filteredCards = filteredCards.filter { card in
+                    let fullText = extractAllText(from: card.frontZone) + " \n " + extractAllText(from: card.backZone)
+                    return tokens.allSatisfy { token in
+                        fullText.range(of: token, options: options) != nil
+                    }
+                }
+            }
+        }
+        
+        // 2. Sorting
+        let sortedAll = filteredCards.sorted { c1, c2 in
             switch sortOrder {
             case .newest: return c1.createdAt > c2.createdAt
             case .oldest: return c1.createdAt < c2.createdAt
@@ -149,7 +144,7 @@ final class DeckViewModel {
 
         return sections.sorted { s1, s2 in
             guard let d1 = s1.dateForSorting, let d2 = s2.dateForSorting else { return false }
-            return sortOrder == .oldest ? d1 < d2 : d1 > d2
+            return sortOrder == .oldest ? d1 < d2: d1 > d2
         }
     }
 

@@ -1,3 +1,8 @@
+//
+//  MainAppView.swift
+//  QuizFlash
+//
+
 import SwiftUI
 
 struct MainAppView: View {
@@ -8,6 +13,10 @@ struct MainAppView: View {
             LibraryView()
                 .navigationDestination(for: DeckModel.self) { deck in
                     DeckView(deck: deck)
+                }
+                // MARK: - Filtered Deck Destination
+                .navigationDestination(for: DeckSearchRoute.self) { route in
+                    DeckView(deck: route.deck, searchQuery: route.query)
                 }
                 .navigationDestination(for: AppRoute.self) { route in
                     switch route {

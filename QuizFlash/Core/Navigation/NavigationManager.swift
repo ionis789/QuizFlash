@@ -21,3 +21,10 @@ enum AppRoute: Hashable {
     case createDeck
     case settings
 }
+
+// MARK: - Search Route Integration
+// Explicit route used to pass the search context forward without polluting DeckModel.
+struct DeckSearchRoute: Hashable {
+    let deck: DeckModel
+    let query: String
+}

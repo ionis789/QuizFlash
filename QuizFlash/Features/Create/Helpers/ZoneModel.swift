@@ -2,49 +2,78 @@
 //  ZoneModel.swift
 //  QuizFlash
 //
-//  Recursive zone model for flexible card layouts.
-//  Zones can be split horizontally or vertically, creating a tree structure.
-//
 
 import SwiftUI
 import Foundation
 
-// MARK: - Card Orientation
+// MARK: - Global Highlight Context
+/// Single source of truth for the entire card (Front & Back) during an active search session.
+@Observable
+final class HighlightContext {
+    let query: String
+    private(set) var isDismissed: Bool = false
+    
+    init(query: String) {
+        self.query = query
+    }
+    
+    /// Irreversibly dismisses highlights for the entire session.
+    func dismiss() {
+        isDismissed = true
+    }
+    
+    /// Determines if a specific zone should show a highlight based on its text
+    func shouldHighlight(text: String) -> Bool {
+        guard !isDismissed, !query.isEmpty, !text.isEmpty else { return false }
+        let tokens = query.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        return tokens.contains { token in
+            text.range(of: token, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
+    }
+    
+    /// MVVM: Generates the completely transparent overlay with highlighted tokens internally.
+    func generateOverlay(for text: String, font: Font, highlightColor: Color) -> AttributedString {
+        var attrString = AttributedString(text)
+        attrString.font = font
+        
+        // CRITICAL: Text must be completely invisible so it perfectly overlays the TextField.
+        attrString.foregroundColor = .clear
+        
+        guard !isDismissed, !query.isEmpty else { return attrString }
+        
+        let tokens = query.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        for token in tokens {
+            var searchRange = attrString.startIndex..<attrString.endIndex
+            while let matchRange = attrString[searchRange].range(of: token, options: [.caseInsensitive, .diacriticInsensitive]) {
+                attrString[matchRange].backgroundColor = highlightColor.opacity(0.3)
+                searchRange = matchRange.upperBound..<attrString.endIndex
+            }
+        }
+        return attrString
+    }
+}
 
+// MARK: - Card Orientation
 enum CardOrientation: String, Codable {
-    case portrait // Optimized for tall screens
-    case landscape // Optimized for wide screens
-    case adaptive // Works well in both
+    case portrait, landscape, adaptive
 }
 
 // MARK: - Zone Direction
-
 enum ZoneDirection: String, Codable {
-    case horizontal // Children side by side (left to right)
-    case vertical // Children stacked (top to bottom)
+    case horizontal, vertical
 }
 
 // MARK: - Zone Content Type
-
 enum ZoneContentType: String, Codable {
-    case empty // No content yet
-    case text // Text content
-    case image // Image content
-    case sketch // Sketch content
+    case empty, text, image, sketch
 }
 
 // MARK: - Zone Model
-
-/// Recursive zone model - can contain content OR child zones
 struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     var id: UUID = UUID()
-
-    // Content (if this is a leaf zone)
     var contentType: ZoneContentType = .empty
     var text: String = ""
     var imageData: Data? = nil
-
-    // Text formatting
     var textStyle: TextBlockStyle = .body
     var textAlignment: TextBlockAlignment = .leading
     var textColor: TextBlockColor = .primary
@@ -53,22 +82,12 @@ struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     var hasBullet: Bool = false
     var fontFamily: FontFamily = .system
     var highlightColor: HighlightColor = .none
-
-    // Image/Sketch scale (0.3 to 1.0)
     var imageScale: CGFloat = 1.0
-
-    // Children (if this is a container zone)
     var children: [ZoneModel]? = nil
     var direction: ZoneDirection = .horizontal
 
-    // MARK: - Computed Properties
+    var isLeaf: Bool { children == nil || children?.isEmpty == true }
 
-    /// Check if this zone is a leaf (has content, no children)
-    var isLeaf: Bool {
-        children == nil || children?.isEmpty == true
-    }
-
-    /// Check if this zone has actual content
     var hasContent: Bool {
         if !isLeaf { return children?.contains { $0.hasContent } ?? false }
         switch contentType {
@@ -78,75 +97,34 @@ struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         }
     }
 
-    /// Number of direct children
-    var childCount: Int {
-        children?.count ?? 0
-    }
+    var childCount: Int { children?.count ?? 0 }
 
-    /// Determines if this layout is optimized for landscape (wide) or portrait (tall)
-    /// Based on the structure: horizontal splits suggest landscape, vertical suggest portrait
     var preferredOrientation: CardOrientation {
-        if isLeaf {
-            // Single content - works in both
-            return .adaptive
-        }
-
+        if isLeaf { return .adaptive }
         guard let kids = children, !kids.isEmpty else { return .adaptive }
-
-        // Check root direction
-        if direction == .horizontal && kids.count >= 2 {
-            // Multiple horizontal children = landscape preferred
-            return .landscape
-        } else if direction == .vertical {
-            // Vertical layout = portrait preferred
-            // But check if any child is horizontal with multiple items
-            let hasWideChild = kids.contains { child in
-                !child.isLeaf && child.direction == .horizontal && (child.children?.count ?? 0) >= 2
-            }
+        if direction == .horizontal && kids.count >= 2 { return .landscape }
+        else if direction == .vertical {
+            let hasWideChild = kids.contains { child in !child.isLeaf && child.direction == .horizontal && (child.children?.count ?? 0) >= 2 }
             return hasWideChild ? .landscape : .portrait
         }
-
         return .adaptive
     }
 
-    /// Returnează thumbnail-uri pentru imagini/sketch (max 3)
     var thumbnails: [UIImage] {
         var result: [UIImage] = []
         if isLeaf {
-            if let data = imageData, (contentType == .image || contentType == .sketch), let img = UIImage(data: data) {
-                result.append(img)
-            }
+            if let data = imageData, (contentType == .image || contentType == .sketch), let img = UIImage(data: data) { result.append(img) }
         } else {
-            children?.forEach { child in
-                result.append(contentsOf: child.thumbnails)
-            }
+            children?.forEach { child in result.append(contentsOf: child.thumbnails) }
         }
         return Array(result.prefix(3))
     }
 
-    // MARK: - Factory Methods
-
-    /// Create an empty zone
-    static func empty() -> ZoneModel {
-        ZoneModel(contentType: .empty)
-    }
-
-    /// Create a text zone
-    static func text(_ content: String = "") -> ZoneModel {
-        ZoneModel(contentType: .text, text: content)
-    }
-
-    /// Create an image zone
-    static func image(data: Data) -> ZoneModel {
-        ZoneModel(contentType: .image, imageData: data)
-    }
-
-    /// Create a sketch zone
-    static func sketch(data: Data) -> ZoneModel {
-        ZoneModel(contentType: .sketch, imageData: data)
-    }
-
-    /// Create a container zone with children
+    static func empty() -> ZoneModel { ZoneModel(contentType: .empty) }
+    static func text(_ content: String = "") -> ZoneModel { ZoneModel(contentType: .text, text: content) }
+    static func image(data: Data) -> ZoneModel { ZoneModel(contentType: .image, imageData: data) }
+    static func sketch(data: Data) -> ZoneModel { ZoneModel(contentType: .sketch, imageData: data) }
+    
     static func container(direction: ZoneDirection, children: [ZoneModel]) -> ZoneModel {
         var zone = ZoneModel()
         zone.children = children
@@ -154,38 +132,19 @@ struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         return zone
     }
 
-    // MARK: - Encoding/Decoding Helpers (nonisolated for Swift 6)
+    func encode() -> Data? { try? JSONEncoder().encode(self) }
+    static func decode(from data: Data) -> ZoneModel? { try? JSONDecoder().decode(ZoneModel.self, from: data) }
 
-    /// Encode zone to Data
-    func encode() -> Data? {
-        try? JSONEncoder().encode(self)
-    }
-
-    /// Decode zone from Data
-    static func decode(from data: Data) -> ZoneModel? {
-        try? JSONDecoder().decode(ZoneModel.self, from: data)
-    }
-
-    // MARK: - Mutations
-
-    /// Add a zone in the specified direction relative to this zone
-    /// Returns the modified parent that contains both zones
     mutating func addZone(in addDirection: AddDirection) -> ZoneModel {
         let newZone = ZoneModel.empty()
-
         switch addDirection {
-        case .left:
-            return ZoneModel.container(direction: .horizontal, children: [newZone, self])
-        case .right:
-            return ZoneModel.container(direction: .horizontal, children: [self, newZone])
-        case .up:
-            return ZoneModel.container(direction: .vertical, children: [newZone, self])
-        case .down:
-            return ZoneModel.container(direction: .vertical, children: [self, newZone])
+        case .left: return ZoneModel.container(direction: .horizontal, children: [newZone, self])
+        case .right: return ZoneModel.container(direction: .horizontal, children: [self, newZone])
+        case .up: return ZoneModel.container(direction: .vertical, children: [newZone, self])
+        case .down: return ZoneModel.container(direction: .vertical, children: [self, newZone])
         }
     }
 
-    /// Short preview text for lists (first line or first N chars from leaves)
     func previewText(maxLength: Int = 60) -> String {
         if isLeaf {
             switch contentType {
@@ -205,30 +164,10 @@ struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         }
         return "Empty"
     }
-
-    /// Add a sibling zone when we're already in a container
-    mutating func addSibling(at index: Int, direction: AddDirection) {
-        guard var kids = children else { return }
-
-        let newZone = ZoneModel.empty()
-
-        // Determine where to insert based on direction
-        switch direction {
-        case .left, .up:
-            kids.insert(newZone, at: index)
-        case .right, .down:
-            kids.insert(newZone, at: min(index + 1, kids.count))
-        }
-
-        children = kids
-    }
 }
-
-// MARK: - Add Direction
 
 enum AddDirection: String, CaseIterable {
     case left, right, up, down
-
     var icon: String {
         switch self {
         case .left: return "arrow.left.square"
@@ -237,7 +176,6 @@ enum AddDirection: String, CaseIterable {
         case .down: return "arrow.down.square"
         }
     }
-
     var zoneDirection: ZoneDirection {
         switch self {
         case .left, .right: return .horizontal
@@ -246,50 +184,21 @@ enum AddDirection: String, CaseIterable {
     }
 }
 
-// MARK: - Zone Path
-
-/// Identifies a zone in the tree structure
 struct ZonePath: Equatable, Hashable {
     let indices: [Int]
-
     static let root = ZonePath(indices: [])
-
-    /// Unique ID for ScrollViewReader
-    var id: String {
-        "zone_" + indices.map { String($0) }.joined(separator: "_")
-    }
-
-    func appending(_ index: Int) -> ZonePath {
-        ZonePath(indices: indices + [index])
-    }
-
-    var parent: ZonePath? {
-        guard !indices.isEmpty else { return nil }
-        return ZonePath(indices: Array(indices.dropLast()))
-    }
-
-    var lastIndex: Int? {
-        indices.last
-    }
+    var id: String { "zone_" + indices.map { String($0) }.joined(separator: "_") }
+    func appending(_ index: Int) -> ZonePath { ZonePath(indices: indices + [index]) }
+    var parent: ZonePath? { indices.isEmpty ? nil : ZonePath(indices: Array(indices.dropLast())) }
+    var lastIndex: Int? { indices.last }
 }
 
-// MARK: - Card Side Content (Updated)
-
-/// Observable wrapper for zone-based card content
 @Observable
 class ZoneCardContent {
     var rootZone: ZoneModel
+    init(rootZone: ZoneModel = .text()) { self.rootZone = rootZone }
+    var hasContent: Bool { rootZone.hasContent }
 
-    init(rootZone: ZoneModel = .text()) {
-        self.rootZone = rootZone
-    }
-
-    /// Check if content exists
-    var hasContent: Bool {
-        rootZone.hasContent
-    }
-
-    /// Get zone at path
     func zone(at path: ZonePath) -> ZoneModel? {
         var current = rootZone
         for index in path.indices {
@@ -299,13 +208,11 @@ class ZoneCardContent {
         return current
     }
 
-    /// Update zone at path
     func updateZone(at path: ZonePath, with update: (inout ZoneModel) -> Void) {
         if path.indices.isEmpty {
             update(&rootZone)
             return
         }
-
         updateZoneRecursive(zone: &rootZone, path: path, pathIndex: 0, update: update)
     }
 
@@ -314,131 +221,81 @@ class ZoneCardContent {
             update(&zone)
             return
         }
-
         let childIndex = path.indices[pathIndex]
         guard zone.children != nil, childIndex < zone.children!.count else { return }
 
-        if pathIndex == path.indices.count - 1 {
-            update(&zone.children![childIndex])
-        } else {
-            updateZoneRecursive(zone: &zone.children![childIndex], path: path, pathIndex: pathIndex + 1, update: update)
-        }
+        if pathIndex == path.indices.count - 1 { update(&zone.children![childIndex]) }
+        else { updateZoneRecursive(zone: &zone.children![childIndex], path: path, pathIndex: pathIndex + 1, update: update) }
     }
 
-    /// Add zone in direction relative to zone at path
-    /// Returns the UUID of the newly created zone for focus targeting
     @discardableResult
     func addZone(relativeTo path: ZonePath, direction: AddDirection) -> UUID {
         let newZone = ZoneModel.empty()
         let newZoneID = newZone.id
 
         if path.indices.isEmpty {
-            // Adding relative to root - wrap root in container
             let oldRoot = rootZone
-
             switch direction {
-            case .left:
-                rootZone = .container(direction: .horizontal, children: [newZone, oldRoot])
-            case .right:
-                rootZone = .container(direction: .horizontal, children: [oldRoot, newZone])
-            case .up:
-                rootZone = .container(direction: .vertical, children: [newZone, oldRoot])
-            case .down:
-                rootZone = .container(direction: .vertical, children: [oldRoot, newZone])
+            case .left: rootZone = .container(direction: .horizontal, children: [newZone, oldRoot])
+            case .right: rootZone = .container(direction: .horizontal, children: [oldRoot, newZone])
+            case .up: rootZone = .container(direction: .vertical, children: [newZone, oldRoot])
+            case .down: rootZone = .container(direction: .vertical, children: [oldRoot, newZone])
             }
             return newZoneID
         }
 
-        // Get parent path and child index
         guard let parentPath = path.parent, let childIndex = path.lastIndex else { return newZoneID }
-
-        // Check if parent direction matches add direction
         let parentZone = parentPath.indices.isEmpty ? rootZone : zone(at: parentPath)
         guard let parent = parentZone else { return newZoneID }
 
         if !parent.isLeaf && parent.direction == direction.zoneDirection {
-            // Same direction - just add sibling
             updateZone(at: parentPath) { parentZone in
                 var kids = parentZone.children ?? []
                 switch direction {
-                case .left, .up:
-                    kids.insert(newZone, at: childIndex)
-                case .right, .down:
-                    kids.insert(newZone, at: childIndex + 1)
+                case .left, .up: kids.insert(newZone, at: childIndex)
+                case .right, .down: kids.insert(newZone, at: childIndex + 1)
                 }
                 parentZone.children = kids
             }
         } else {
-            // Different direction - wrap current zone in new container
             updateZone(at: path) { currentZone in
                 let oldZone = currentZone
-
                 switch direction {
-                case .left:
-                    currentZone = .container(direction: .horizontal, children: [newZone, oldZone])
-                case .right:
-                    currentZone = .container(direction: .horizontal, children: [oldZone, newZone])
-                case .up:
-                    currentZone = .container(direction: .vertical, children: [newZone, oldZone])
-                case .down:
-                    currentZone = .container(direction: .vertical, children: [oldZone, newZone])
+                case .left: currentZone = .container(direction: .horizontal, children: [newZone, oldZone])
+                case .right: currentZone = .container(direction: .horizontal, children: [oldZone, newZone])
+                case .up: currentZone = .container(direction: .vertical, children: [newZone, oldZone])
+                case .down: currentZone = .container(direction: .vertical, children: [oldZone, newZone])
                 }
             }
         }
         return newZoneID
     }
 
-    /// Delete zone at path
     func deleteZone(at path: ZonePath) {
         guard !path.indices.isEmpty else {
-            // Can't delete root, just reset it
             rootZone = .text()
             return
         }
-
         guard let parentPath = path.parent, let childIndex = path.lastIndex else { return }
-
         updateZone(at: parentPath) { parent in
             guard var kids = parent.children, childIndex < kids.count else { return }
             kids.remove(at: childIndex)
-
-            if kids.count == 1 {
-                // Only one child left - replace parent with child
-                parent = kids[0]
-            } else if kids.isEmpty {
-                // No children - convert to empty leaf
-                parent = .empty()
-            } else {
-                parent.children = kids
-            }
+            if kids.count == 1 { parent = kids[0] }
+            else if kids.isEmpty { parent = .empty() }
+            else { parent.children = kids }
         }
     }
 
-    /// Clean up empty zones
-    func cleanup() {
-        cleanupRecursive(zone: &rootZone)
-    }
+    func cleanup() { cleanupRecursive(zone: &rootZone) }
 
     private func cleanupRecursive(zone: inout ZoneModel) {
-        // First, recurse into children
         if var kids = zone.children {
-            for i in 0..<kids.count {
-                cleanupRecursive(zone: &kids[i])
-            }
-
-            // Remove empty children
-//            kids = kids.filter { $0.hasContent || !$0.isLeaf }
-
-            if kids.count == 1 {
-                // Collapse single child
-                zone = kids[0]
-            } else if kids.isEmpty {
-                // Convert to empty leaf
+            for i in 0..<kids.count { cleanupRecursive(zone: &kids[i]) }
+            if kids.count == 1 { zone = kids[0] }
+            else if kids.isEmpty {
                 zone.children = nil
                 zone.contentType = .empty
-            } else {
-                zone.children = kids
-            }
+            } else { zone.children = kids }
         }
     }
 }
@@ -446,7 +303,6 @@ class ZoneCardContent {
 
 // MARK: - Image Optimization Extension
 extension Data {
-    /// Compresses image to a max dimension for efficient storage.
     func compressedImageData(maxDimension: CGFloat = 1200, compressionQuality: CGFloat = 0.7) -> Data? {
         guard let uiImage = UIImage(data: self) else { return nil }
 
@@ -473,7 +329,6 @@ extension Data {
         return resizedImage?.jpegData(compressionQuality: compressionQuality)
     }
 
-    /// Creates a small thumbnail for quick preview.
     func thumbnailData(maxDimension: CGFloat = 400) -> Data? {
         return compressedImageData(maxDimension: maxDimension, compressionQuality: 0.6)
     }
@@ -482,42 +337,30 @@ extension Data {
 // MARK: - Image Cache for Performance
 final class ImageCache {
     static let shared = ImageCache()
-    
-    // Folosim NSCache pentru a lăsa iOS-ul să golească automat memoria la nevoie
     private var cache = NSCache<NSString, UIImage>()
     
     private init() {
-        // Limităm cache-ul de imagini la aproximativ 50 MB în RAM
         cache.totalCostLimit = 50 * 1024 * 1024
-        
-        // Ascultăm alertele de la sistem pentru a goli memoria instant dacă telefonul se sufocă
         NotificationCenter.default.addObserver(
             forName: UIApplication.didReceiveMemoryWarningNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             self?.clearCache()
-            print("⚠️ Memory Warning: ImageCache a fost golit.")
         }
     }
     
-    /// Returnează o imagine optimizată (Downsampled) pentru a nu bloca memoria RAM
     func image(for data: Data, id: String, targetSize: CGSize, scale: CGFloat = UIScreen.main.scale) -> UIImage? {
         let cacheKey = "\(id)_\(targetSize.width)x\(targetSize.height)" as NSString
         
-        // 1. Verificăm dacă avem deja varianta mică în cache
         if let cachedImage = cache.object(forKey: cacheKey) {
             return cachedImage
         }
         
-        // 2. Dacă nu o avem, facem Downsampling (Magia care salvează RAM-ul)
         guard let downsampledImage = downsample(imageData: data, to: targetSize, scale: scale) else {
-            // Fallback în caz că dă greș ImageIO
             return UIImage(data: data)
         }
         
-        // 3. Salvăm în cache calculând un "cost" aproximativ în bytes
-        // Cost = lățime * înălțime * 4 bytes per pixel
         let cost = Int(downsampledImage.size.width * downsampledImage.size.height * 4)
         cache.setObject(downsampledImage, forKey: cacheKey, cost: cost)
         
@@ -528,20 +371,13 @@ final class ImageCache {
         cache.removeAllObjects()
     }
     
-    // MARK: - Core Graphics Downsampling
     private func downsample(imageData: Data, to pointSize: CGSize, scale: CGFloat) -> UIImage? {
-        // Opțiuni pentru a nu reține datele în memorie la citirea sursei
         let imageSourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
-        
-        // Creăm o referință către datele imaginii brute
         guard let imageSource = CGImageSourceCreateWithData(imageData as CFData, imageSourceOptions) else {
             return nil
         }
         
-        // Calculăm dimensiunea maximă în pixeli (punctele de pe ecran * scala de Retina Display)
         let maxDimensionInPixels = max(pointSize.width, pointSize.height) * scale
-        
-        // Opțiuni pentru a genera miniatura direct din stream-ul de date
         let downsampleOptions = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceShouldCacheImmediately: true,
@@ -549,12 +385,10 @@ final class ImageCache {
             kCGImageSourceThumbnailMaxPixelSize: maxDimensionInPixels
         ] as CFDictionary
         
-        // Generăm miniatura
         guard let downsampledImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, downsampleOptions) else {
             return nil
         }
         
-        // O transformăm într-un obiect folosibil de SwiftUI / UIKit
         return UIImage(cgImage: downsampledImage)
     }
 }
