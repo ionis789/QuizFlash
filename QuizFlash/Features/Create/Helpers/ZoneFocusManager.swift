@@ -18,12 +18,13 @@ extension Notification.Name {
 // MARK: - Zone Focus Manager
 
 /// Singleton that manages focus for new zones and prevents keyboard flicker by syncing with SwiftUI render cycle.
+@Observable
 @MainActor
-final class ZoneFocusManager: ObservableObject {
+final class ZoneFocusManager {
     static let shared = ZoneFocusManager()
 
-    @Published var pendingFocusZoneID: UUID?
-    @Published var shouldRetainKeyboard: Bool = false
+    var pendingFocusZoneID: UUID?
+    var shouldRetainKeyboard: Bool = false
 
     private var releaseTask: Task<Void, Never>?
 
@@ -47,3 +48,4 @@ final class ZoneFocusManager: ObservableObject {
         shouldRetainKeyboard = true
     }
 }
+

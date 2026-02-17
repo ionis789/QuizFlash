@@ -2,153 +2,141 @@
 //  CardRowView.swift
 //  QuizFlash
 //
-//  Informative card row for CreateView: index, question/answer preview from zones.
+//  Informative premium card row for CreateView: index, question/answer preview, and thumbnails.
 //
 
 import SwiftUI
 
 struct CardRowView: View {
     let card: DraftCard
-    var index: Int = 0
+    var index: Int
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 14) {
-                indexBadge
-                VStack(alignment: .leading, spacing: 10) {
-                    previewRow(label: "Q", zone: card.frontZone, color: .blue)
-                    Divider().opacity(0.25)
-                    previewRow(label: "A", zone: card.backZone, color: .green)
+        VStack(alignment: .leading, spacing: 14) {
+
+            // MARK: - Header (Index, Media Icons, Last Edit)
+            HStack(alignment: .center) {
+                // Index Badge
+                Text("CARD \(index)")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(accent.opacity(0.15), in: Capsule())
+                    .foregroundStyle(accent)
+
+                Spacer()
+
+                // Media Indicators (Count + Icon)
+                let totalImages = imageCount(in: card.frontZone) + imageCount(in: card.backZone)
+                let totalSketches = sketchCount(in: card.frontZone) + sketchCount(in: card.backZone)
+
+                HStack(spacing: 12) {
+                    if totalImages > 0 {
+                        HStack(spacing: 3) {
+                            Text("\(totalImages)")
+                            Image(systemName: "photo")
+                        }
+                    }
+                    if totalSketches > 0 {
+                        HStack(spacing: 3) {
+                            Text("\(totalSketches)")
+                            Image(systemName: "scribble.variable")
+                        }
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
+                    .font(.caption2.weight(.bold))
                     .foregroundStyle(.tertiary)
             }
-            .padding(18)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .strokeBorder(accent.opacity(0.18), lineWidth: 1.2)
-            )
-            infoRow
+
+            // MARK: - Q & A Previews
+            VStack(alignment: .leading, spacing: 10) {
+                previewTextRow(label: "Q", text: card.frontZone.previewText(maxLength: 80), color: .gray)
+
+                Divider().opacity(0.4)
+
+                previewTextRow(label: "A", text: card.backZone.previewText(maxLength: 80), color: .gray)
+            }
+
+            // MARK: - Thumbnails Gallery
+            let allThumbnails = (card.frontZone.thumbnails + card.backZone.thumbnails).prefix(4)
+            if !allThumbnails.isEmpty {
+                HStack(spacing: 10) {
+                    ForEach(Array(allThumbnails.enumerated()), id: \.offset) { _, img in
+                        Image(uiImage: img)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 46, height: 46)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                    }
+                }
+                    .padding(.top, 4)
+            }
+
+            // MARK: - Footer (Info)
+            HStack {
+                Text("\(zoneCount(card.frontZone) + zoneCount(card.backZone)) Zones")
+                Spacer()
+                if let date = card.lastEditDate {
+                    Text("Edited: \(date.formatted(date: .omitted, time: .shortened))")
+                }
+            }
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.top, 2)
+
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 4)
+            .padding(16)
+            .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                .shadow(color: Color.black.opacity(0.04), radius: 10, x: 0, y: 4)
+        )
+            .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.04), lineWidth: 1)
+        )
     }
 
-    private var indexBadge: some View {
-        Text("\(index)")
-            .font(.subheadline.weight(.bold))
-            .foregroundStyle(.white)
-            .frame(width: 32, height: 32)
-            .background(accent.gradient.opacity(0.8), in: Circle())
-            .shadow(color: accent.opacity(0.18), radius: 4, x: 0, y: 2)
-    }
+    // MARK: - Helper Views
 
     @ViewBuilder
-    private func previewRow(label: String, zone: ZoneModel, color: Color) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+    private func previewTextRow(label: String, text: String, color: Color) -> some View {
+        HStack(alignment: .top, spacing: 12) {
             Text(label)
                 .font(.caption.weight(.bold))
-                .foregroundStyle(color)
-                .frame(width: 18, alignment: .center)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(zone.previewText(maxLength: 50))
-                    .font(.subheadline)
-                    .foregroundStyle(zone.hasContent ? Color.primary : Color.secondary)
-                    .lineLimit(2)
-                if zone.hasContent && (zone.contentType == .image || zone.contentType == .sketch || zoneHasImageOrSketch(zone)) {
-                    HStack(spacing: 6) {
-                        if zoneHasImage(zone) {
-                            Label("Image", systemImage: "photo")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        if zoneHasSketch(zone) {
-                            Label("Sketch", systemImage: "scribble.variable")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                // Thumbnail preview pentru imagini/sketch
-                let thumbnails = zone.thumbnails
-                if !thumbnails.isEmpty {
-                    HStack(spacing: 4) {
-                        ForEach(thumbnails.prefix(3), id: \ .self) { img in
-                            Image(uiImage: img)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 28, height: 28)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .shadow(radius: 2)
-                        }
-                    }
-                }
-            }
-            Spacer(minLength: 0)
+                .foregroundStyle(.tertiary)
+                .frame(width: 16, alignment: .leading)
+
+            Text(text == "Empty" ? "No text added" : text)
+                .font(.subheadline)
+                .foregroundStyle(text == "Empty" ? Color.gray.opacity(0.5) : color)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
         }
     }
 
-    private var infoRow: some View {
-        HStack(spacing: 16) {
-            Label(card.frontType.rawValue.capitalized, systemImage: iconForType(card.frontType))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text("Zone Count: \(zoneCount(card.frontZone) + zoneCount(card.backZone))")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            if let date = card.lastEditDate {
-                Label("Last Edit: \(dateString(date))", systemImage: "clock")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.8))
-        )
-        .padding(.top, 4)
-    }
-
-    private func iconForType(_ type: CardContentType) -> String {
-        switch type {
-        case .text: return "character.cursor.ibeam"
-        case .canvas: return "scribble"
-        }
-    }
+    // MARK: - Logic Helpers
 
     private func zoneCount(_ zone: ZoneModel) -> Int {
         1 + (zone.children?.reduce(0) { $0 + zoneCount($1) } ?? 0)
     }
 
-    private func dateString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+    /// Recursively numără câte imagini valide există în zone
+    private func imageCount(in zone: ZoneModel) -> Int {
+        if zone.isLeaf {
+            return (zone.contentType == .image && zone.hasContent) ? 1 : 0
+        }
+        return zone.children?.reduce(0) { $0 + imageCount(in: $1) } ?? 0
     }
 
-    private func zoneHasImage(_ zone: ZoneModel) -> Bool {
-        if zone.isLeaf { return zone.contentType == .image }
-        return zone.children?.contains(where: zoneHasImage) ?? false
-    }
-
-    private func zoneHasSketch(_ zone: ZoneModel) -> Bool {
-        if zone.isLeaf { return zone.contentType == .sketch }
-        return zone.children?.contains(where: zoneHasSketch) ?? false
-    }
-
-    private func zoneHasImageOrSketch(_ zone: ZoneModel) -> Bool {
-        zoneHasImage(zone) || zoneHasSketch(zone)
+    /// Recursively numără câte schițe valide există în zone
+    private func sketchCount(in zone: ZoneModel) -> Int {
+        if zone.isLeaf {
+            return (zone.contentType == .sketch && zone.hasContent) ? 1 : 0
+        }
+        return zone.children?.reduce(0) { $0 + sketchCount(in: $1) } ?? 0
     }
 }

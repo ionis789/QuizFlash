@@ -2,7 +2,7 @@
 //  LibraryViewModel.swift
 //  QuizFlash
 //
-//  Created by Ion Socol on 16.02.2026.
+//  Created by Senior iOS Architect.
 //
 import SwiftUI
 import SwiftData
@@ -24,6 +24,12 @@ final class LibraryViewModel {
     var deckToDelete: DeckModel?
     var deckToEditColor: DeckModel?
     
+    // MARK: - Search State
+    var searchText: String = ""
+    var searchResults: [DeckSearchResultItem] = []
+    var isSearching: Bool = false
+    private var searchTask: Task<Void, Never>?
+    
     // MARK: - Import State
     var showFileImporter = false
     var isImporting = false
@@ -38,6 +44,42 @@ final class LibraryViewModel {
     var showShareSheet = false
     var showExportError = false
     var exportErrorMessage = ""
+    
+    // MARK: - Search Logic
+    func updateSearch(query: String, modelContainer: ModelContainer) {
+        // Cancel previous pending task to debounce rapid typing
+        searchTask?.cancel()
+        
+        let trimmedQuery = query.trimmingCharacters(in: .whitespaces)
+        
+        if trimmedQuery.isEmpty {
+            isSearching = false
+            searchResults = []
+            return
+        }
+        
+        isSearching = true
+        
+        searchTask = Task {
+            // Debounce delay (250ms)
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            
+            let engine = SearchEngine(modelContainer: modelContainer)
+            
+            do {
+                let results = try await engine.performSearch(query: trimmedQuery)
+                guard !Task.isCancelled else { return }
+                
+                // Animate state update
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    self.searchResults = results
+                }
+            } catch {
+                print("Search Execution Failed: \(error.localizedDescription)")
+            }
+        }
+    }
     
     // MARK: - Selection Actions
     func toggleSelection(for deck: DeckModel) {

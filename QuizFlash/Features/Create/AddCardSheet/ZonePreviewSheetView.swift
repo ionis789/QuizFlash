@@ -29,18 +29,6 @@ struct ZonePreviewSheet: View {
                         .ignoresSafeArea()
 
                     VStack(spacing: isCompact ? 16 : 24) {
-                        Spacer()
-
-                        HStack(spacing: 8) {
-                            Image(systemName: isFlipped ? "lightbulb.fill" : "questionmark.circle.fill")
-                                .foregroundStyle(accent)
-                            Text(isFlipped ? "ANSWER" : "QUESTION")
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: Capsule())
 
                         ZStack {
                             cardFace(zone: back.rootZone, title: "Answer")
@@ -51,41 +39,21 @@ struct ZonePreviewSheet: View {
                                 .rotation3DEffect(.degrees(isFlipped ? -180 : 0), axis: (x: 0, y: 1, z: 0))
                                 .opacity(isFlipped ? 0 : 1)
                         }
-                        .frame(
+                            .frame(
                             width: geo.size.width * 0.85,
                             height: geo.size.height * 0.85
                         )
-                        .onTapGesture {
+                            .onTapGesture {
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                                 isFlipped.toggle()
                             }
                         }
-
-                        HStack(spacing: 6) {
-                            Image(systemName: "hand.tap.fill")
-                                .font(.caption)
-                            Text("Tap to flip")
-                                .font(.caption)
-                        }
-                        .foregroundStyle(.tertiary)
-
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(isFlipped ? Color.secondary.opacity(0.3) : accent)
-                                .frame(width: 8, height: 8)
-                            Circle()
-                                .fill(isFlipped ? accent : Color.secondary.opacity(0.3))
-                                .frame(width: 8, height: 8)
-                        }
-                        .animation(.easeInOut, value: isFlipped)
-
-                        Spacer()
                     }
                 }
             }
-            .navigationTitle("Preview")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+                .navigationTitle("Preview")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                         .fontWeight(.semibold)
@@ -111,7 +79,7 @@ struct ZonePreviewSheet: View {
                             .padding(.horizontal, isCompact ? 20 : 28)
                             .padding(.vertical, isCompact ? 20 : 24)
                     }
-                    .scrollBounceBehavior(.basedOnSize)
+                        .scrollBounceBehavior(.basedOnSize)
                 } else {
                     emptyContent
                 }
@@ -128,14 +96,14 @@ struct ZonePreviewSheet: View {
                 .font(isCompact ? .body : .title3)
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var backgroundGradient: some View {
         LinearGradient(
             colors: colorScheme == .dark
                 ? [Color(uiColor: .systemBackground), Color(uiColor: .secondarySystemBackground)]
-                : [Color(uiColor: .systemGray6), Color(uiColor: .systemBackground)],
+            : [Color(uiColor: .systemGray6), Color(uiColor: .systemBackground)],
             startPoint: .top,
             endPoint: .bottom
         )
@@ -144,7 +112,7 @@ struct ZonePreviewSheet: View {
     private var cardBackground: some ShapeStyle {
         colorScheme == .dark
             ? AnyShapeStyle(Color(uiColor: .secondarySystemBackground))
-            : AnyShapeStyle(Color.white)
+        : AnyShapeStyle(Color.white)
     }
 
     private var shadowColor: Color {

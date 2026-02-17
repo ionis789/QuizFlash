@@ -7,19 +7,11 @@ import SwiftUI
 import SwiftData
 
 struct DefaultModePlay: View {
-    let deck: DeckModel
-
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-    @State private var cards: [CardModel]
-    @State private var currentIndex: Int = 0
-    @State private var correctCount: Int = 0
-    @State private var isComplete: Bool = false
-    @State private var wrongCards: [CardModel] = []
-    @State private var isFlipped: Bool = false
+    @State private var viewModel: DefaultModePlayViewModel
 
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
     private var isCompact: Bool { horizontalSizeClass == .compact }
@@ -34,22 +26,8 @@ struct DefaultModePlay: View {
         )
     }
 
-    private static func studyOrderedCards(_ deckCards: [CardModel]) -> [CardModel] {
-        deckCards.sorted { a, b in
-            let aSeen = a.lastSeenAt != nil
-            let bSeen = b.lastSeenAt != nil
-            if !aSeen, bSeen { return true }
-            if aSeen, !bSeen { return false }
-            if !aSeen, !bSeen { return a.createdAt < b.createdAt }
-            guard let aDate = a.lastSeenAt, let bDate = b.lastSeenAt else { return false }
-            if aDate != bDate { return aDate < bDate }
-            return a.timesWrong > b.timesWrong
-        }
-    }
-
     init(deck: DeckModel) {
-        self.deck = deck
-        _cards = State(initialValue: Self.studyOrderedCards(deck.cards))
+        _viewModel = State(initialValue: DefaultModePlayViewModel(deck: deck))
     }
 
     var body: some View {
@@ -60,7 +38,7 @@ struct DefaultModePlay: View {
                 screenBackground
                     .ignoresSafeArea()
 
-                if !isComplete {
+                if !viewModel.isComplete {
                     VStack(spacing: 0) {
                         header
                             .padding(.top, 16)
@@ -74,48 +52,50 @@ struct DefaultModePlay: View {
                     .transition(.opacity)
                 }
 
-
-                if isComplete {
+                if viewModel.isComplete {
                     completionOverlay
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
             }
         }
-            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isComplete)
-            .navigationBarHidden(true)
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isComplete)
+        .navigationBarHidden(true)
     }
 
     // MARK: - Card Area
     private var cardArea: some View {
         ZStack {
-            if currentIndex < cards.count {
+            if viewModel.currentIndex < viewModel.cards.count {
+                // Notice the use of Bindable to pass the binding down safely
+                @Bindable var bindableViewModel = viewModel
+                
                 GameplayCard(
-                    card: cards[currentIndex],
-                    onSwipe: handleSwipe,
-                    isFlipped: $isFlipped // Pasăm referința (Binding) mai jos
+                    card: viewModel.cards[viewModel.currentIndex],
+                    onSwipe: { direction in
+                        viewModel.handleSwipe(direction)
+                    },
+                    isFlipped: $bindableViewModel.isFlipped
                 )
-                    .transition(
-                        .asymmetric(
+                .transition(
+                    .asymmetric(
                         insertion: .scale(scale: 0.92).combined(with: .opacity).animation(.spring(response: 0.4, dampingFraction: 0.82)),
                         removal: .opacity
                     )
                 )
-                    .id(cards[currentIndex].createdAt)
+                .id(viewModel.cards[viewModel.currentIndex].createdAt)
             }
         }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.spring(response: 0.4, dampingFraction: 0.82), value: currentIndex)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.spring(response: 0.4, dampingFraction: 0.82), value: viewModel.currentIndex)
     }
 
-    // MARK: - NOU: Header Compus Minimalist
+    // MARK: - Header
     private var header: some View {
         VStack(spacing: 16) {
-            // Rândul 1: Titlu și X
-
             ZStack {
                 HStack {
                     Spacer()
-                    Text(deck.title)
+                    Text(viewModel.deck.title)
                         .font(.headline.bold())
                     Spacer()
                 }
@@ -130,47 +110,41 @@ struct DefaultModePlay: View {
                 }
             }
 
-
-            // Rândul 2: Progress Bar Segmentat
+            // Progress Bar
             HStack(spacing: 4) {
-                ForEach(0..<cards.count, id: \.self) { index in
+                ForEach(0..<viewModel.cards.count, id: \.self) { index in
                     Capsule()
-                        .fill(
-                        index < currentIndex ? accentColor : Color.gray.opacity(0.5)
-                    )
+                        .fill(index < viewModel.currentIndex ? accentColor : Color.gray.opacity(0.5))
                         .frame(height: 4)
                 }
             }
-                .animation(.spring(response: 0.3), value: currentIndex)
+            .animation(.spring(response: 0.3), value: viewModel.currentIndex)
 
-            // Rândul 3: Q/A Indicator (Stânga) și Stats (Dreapta)
+            // Q/A Indicator & Stats
             HStack {
-                // Indicator Q/A legat de starea `isFlipped`
-
-                Text(isFlipped ? "ANSWER" : "QUESTION")
+                Text(viewModel.isFlipped ? "ANSWER" : "QUESTION")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(.ultraThinMaterial, in: Capsule())
-                    .animation(.spring(response: 0.3), value: isFlipped)
+                    .animation(.spring(response: 0.3), value: viewModel.isFlipped)
 
                 Spacer()
 
-                // Stats
                 HStack(spacing: 12) {
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                        Text("\(correctCount)").font(.subheadline.weight(.semibold))
+                        Text("\(viewModel.correctCount)").font(.subheadline.weight(.semibold))
                     }
                     HStack(spacing: 4) {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
-                        Text("\(wrongCards.count)").font(.subheadline.weight(.semibold))
+                        Text("\(viewModel.wrongCards.count)").font(.subheadline.weight(.semibold))
                     }
                 }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, in: Capsule())
             }
         }
     }
@@ -190,14 +164,16 @@ struct DefaultModePlay: View {
                     .fontWeight(.bold)
 
                 HStack(spacing: isCompact ? 24 : 40) {
-                    StatItem(value: "\(correctCount)", label: "Correct", color: .green)
-                    StatItem(value: "\(wrongCards.count)", label: "Wrong", color: .red)
-                    StatItem(value: "\(cards.count)", label: "Total", color: .blue)
+                    StatItem(value: "\(viewModel.correctCount)", label: "Correct", color: .green)
+                    StatItem(value: "\(viewModel.wrongCards.count)", label: "Wrong", color: .red)
+                    StatItem(value: "\(viewModel.cards.count)", label: "Total", color: .blue)
                 }
 
                 VStack(spacing: 12) {
-                    if !wrongCards.isEmpty {
-                        Button { retryWrongCards() } label: {
+                    if !viewModel.wrongCards.isEmpty {
+                        Button {
+                            viewModel.retryWrongCards()
+                        } label: {
                             Label("Retry Wrong Cards", systemImage: "arrow.counterclockwise")
                                 .font(.subheadline.weight(.semibold))
                                 .frame(maxWidth: isCompact ? .infinity : 280)
@@ -216,61 +192,16 @@ struct DefaultModePlay: View {
                             .foregroundStyle(.white)
                     }
                 }
-                    .padding(.top, 8)
+                .padding(.top, 8)
             }
-                .padding(isCompact ? 28 : 40)
-                .background(
+            .padding(isCompact ? 28 : 40)
+            .background(
                 RoundedRectangle(cornerRadius: isCompact ? 24 : 32)
                     .fill(.ultraThinMaterial)
                     .shadow(color: .black.opacity(0.1), radius: 20, y: 10)
             )
-                .padding(.horizontal, isCompact ? 32 : 60)
+            .padding(.horizontal, isCompact ? 32 : 60)
         }
-    }
-
-    private func handleSwipe(_ direction: SwipeDirection) {
-        guard currentIndex < cards.count else { return }
-        let card = cards[currentIndex]
-        let now = Date()
-
-        if card.stats == nil { card.stats = CardStats(card: card) }
-        if let stats = card.stats {
-            stats.totalAttempts += 1
-            stats.lastAttemptDate = now
-            if direction == .right {
-                stats.correctCount += 1
-                stats.streak += 1
-            } else {
-                stats.wrongCount += 1
-                stats.streak = 0
-            }
-        }
-
-        if direction == .right {
-            correctCount += 1
-            card.lastSeenAt = now
-            card.timesCorrect += 1
-        } else {
-            wrongCards.append(card)
-            card.lastSeenAt = now
-            card.timesWrong += 1
-        }
-
-        // Resetăm starea cardului la QUESTION pentru următorul card
-        isFlipped = false
-
-        currentIndex += 1
-        if currentIndex >= cards.count { isComplete = true }
-    }
-
-    private func retryWrongCards() {
-        let retry = wrongCards
-        wrongCards = []
-        cards = DefaultModePlay.studyOrderedCards(retry)
-        currentIndex = 0
-        correctCount = 0
-        isComplete = false
-        isFlipped = false // Asigurăm resetarea la Retry
     }
 }
 

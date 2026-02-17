@@ -91,8 +91,17 @@ private struct ZoneContentView: View {
     var onSelect: () -> Void
     @FocusState private var isFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
-    @ObservedObject private var focusManager = ZoneFocusManager.shared
+    private var focusManager = ZoneFocusManager.shared
     @State private var cursorIndex: Int? = nil
+
+
+    init(content: ZoneCardContent, path: ZonePath, isSelected: Bool, onSelect: @escaping () -> Void) {
+        self.content = content
+        self.path = path
+        self.isSelected = isSelected
+        self.onSelect = onSelect
+    }
+
 
     private var zone: ZoneModel? { content.zone(at: path) }
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -136,7 +145,7 @@ private struct ZoneContentView: View {
                 isFocused = true
             }
         }
-        .onAppear {
+            .onAppear {
             checkPendingFocus()
         }
             .onChange(of: focusManager.pendingFocusZoneID) { _, _ in
@@ -655,16 +664,24 @@ struct CachedImageView: View {
     }
 
     private func loadImage() {
-        // Use cache for better performance
-        if let cached = ImageCache.shared.image(for: data, scale: 1.0) {
-            uiImage = cached
-        } else {
+            let imageId = String(data.hashValue)
+            
+            let targetResolution = CGSize(width: 800, height: 800)
+            
             Task.detached {
-                let image = UIImage(data: data)
+                let optimizedImage = await ImageCache.shared.image(
+                    for: data,
+                    id: imageId,
+                    targetSize: targetResolution,
+                    scale: 1.0
+                )
+                
+                // 4. Afișăm imaginea
                 await MainActor.run {
-                    uiImage = image
+                    // Dacă cumva ImageIO dă greș, facem fallback la metoda clasică
+                    self.uiImage = optimizedImage ?? UIImage(data: data)
                 }
             }
         }
-    }
 }
+

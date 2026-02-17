@@ -10,9 +10,8 @@ import UniformTypeIdentifiers
 struct LibraryView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \DeckModel.createdAt, order: .reverse) private var decks: [DeckModel]
-    @Environment(NavigationManager.self) private var router // Actualizat pentru @Observable
+    @Environment(NavigationManager.self) private var router
 
-    // 💡 Aici este magia: Am înlocuit 15 linii de @State cu una singură!
     @State private var viewModel = LibraryViewModel()
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -25,40 +24,54 @@ struct LibraryView: View {
         ZStack(alignment: .bottom) {
             ScrollView {
                 VStack(spacing: 0) {
-                    if decks.isEmpty {
+                    if viewModel.isSearching {
+                        // Renders Search Results
+                        SearchResultsView(results: viewModel.searchResults, query: viewModel.searchText)
+                    } else if decks.isEmpty {
                         emptyStateView
                     } else {
                         content
                     }
                 }
-                    .padding(.top, 8)
-                    .safeAreaInset(edge: .bottom) {
+                .padding(.top, 8)
+                .safeAreaInset(edge: .bottom) {
                     Color.clear
                         .frame(height: viewModel.isSelecting ? 140 : 110)
                         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
                 }
             }
-                .background(Color(uiColor: .systemGroupedBackground))
-                .contentShape(Rectangle())
-                .onTapGesture {
+            .background(Color(uiColor: .systemGroupedBackground))
+            .contentShape(Rectangle())
+            .onTapGesture {
                 guard viewModel.isSelecting else { return }
                 exitSelectionMode()
             }
 
+            if !viewModel.isSearching {
+                bottomFloatingButtons
+            }
 
-            bottomFloatingButtons
-
-            if viewModel.isSelecting {
+            if viewModel.isSelecting && !viewModel.isSearching {
                 selectionBottomBar
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-            .navigationTitle("Library")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar { topToolbar }
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.viewMode)
-            .confirmationDialog(
+        .navigationTitle("Library")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar { topToolbar }
+        
+        // MARK: - Search Integration
+        .searchable(text: $viewModel.searchText, prompt: "Search")
+        .onChange(of: viewModel.searchText) { _, newValue in
+            // Securely passing modelContainer for the background actor
+            viewModel.updateSearch(query: newValue, modelContainer: context.container)
+        }
+        
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.viewMode)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.isSearching)
+        
+        .confirmationDialog(
             "Delete \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")?",
             isPresented: $viewModel.showDeleteConfirmation,
             titleVisibility: .visible
@@ -70,7 +83,7 @@ struct LibraryView: View {
         } message: {
             Text("This action cannot be undone.")
         }
-            .confirmationDialog(
+        .confirmationDialog(
             "Delete \"\(viewModel.deckToDelete?.title ?? "")\"?",
             isPresented: .init(
                 get: { viewModel.deckToDelete != nil },
@@ -92,7 +105,7 @@ struct LibraryView: View {
         } message: {
             Text("This deck and all its cards will be deleted.")
         }
-            .sheet(item: $viewModel.deckToEditColor) { deck in
+        .sheet(item: $viewModel.deckToEditColor) { deck in
             DeckColorPickerSheet(deck: deck)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
@@ -113,9 +126,7 @@ struct LibraryView: View {
         }
         // Import success alert
         .alert("Import Successful", isPresented: $viewModel.showImportSuccess) {
-            Button("OK", role: .cancel) {
-                //MARK: Action After Import Here
-            }
+            Button("OK", role: .cancel) { }
         } message: {
             Text("\(viewModel.importedDeckName) imported successfully.")
         }
@@ -144,8 +155,8 @@ struct LibraryView: View {
                         Text("Importing...")
                             .font(.headline)
                     }
-                        .padding(32)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                    .padding(32)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
                 }
             }
         }
@@ -162,8 +173,8 @@ struct LibraryView: View {
                         Text("Exporting \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")...")
                             .font(.headline)
                     }
-                        .padding(32)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                    .padding(32)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
                 }
             }
         }
@@ -190,7 +201,7 @@ struct LibraryView: View {
                 } label: {
                     Label("Select", systemImage: "checkmark.circle")
                 }
-                    .disabled(viewModel.isSelecting)
+                .disabled(viewModel.isSelecting || viewModel.isSearching)
 
                 // Sort
                 Menu {
@@ -258,8 +269,8 @@ struct LibraryView: View {
                             deckRow(for: deck)
                         }
                     }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 16)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
                 } header: {
                     dateSectionHeader(section.title)
                 }
@@ -279,14 +290,14 @@ struct LibraryView: View {
                             deckGalleryCell(deck)
                         }
                     }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 16)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
                 } header: {
                     dateSectionHeader(section.title)
                 }
             }
         }
-            .padding(.top, 8)
+        .padding(.top, 8)
     }
 
     // MARK: - Cells
@@ -295,7 +306,6 @@ struct LibraryView: View {
         let isSelected = viewModel.selectedDecks.contains(deck.id)
 
         return ZStack(alignment: .topLeading) {
-            // UNIFIED BUTTON FOR GALLERY
             Button {
                 if viewModel.isSelecting {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
@@ -310,7 +320,7 @@ struct LibraryView: View {
                 DeckRowView(deck: deck)
                     .frame(maxWidth: .infinity)
             }
-                .buttonStyle(ScaleButtonStyle())
+            .buttonStyle(ScaleButtonStyle())
 
             if viewModel.isSelecting {
                 selectionIndicator(isSelected: isSelected) {
@@ -318,11 +328,11 @@ struct LibraryView: View {
                         toggleSelection(deck)
                     }
                 }
-                    .padding(10)
-                    .transition(.scale.combined(with: .opacity))
+                .padding(10)
+                .transition(.scale.combined(with: .opacity))
             }
         }
-            .background {
+        .background {
             if viewModel.isSelecting && isSelected {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(accent, lineWidth: 2)
@@ -331,8 +341,8 @@ struct LibraryView: View {
                     .transition(.opacity)
             }
         }
-            .scaleEffect(viewModel.isSelecting && isSelected ? 0.96 : 1)
-            .animation(.spring(response: 0.32, dampingFraction: 0.85), value: isSelected)
+        .scaleEffect(viewModel.isSelecting && isSelected ? 0.96 : 1)
+        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: isSelected)
     }
 
     @ViewBuilder
@@ -346,7 +356,7 @@ struct LibraryView: View {
                         toggleSelection(deck)
                     }
                 }
-                    .transition(.move(edge: .leading).combined(with: .opacity))
+                .transition(.move(edge: .leading).combined(with: .opacity))
             }
             Button {
                 if viewModel.isSelecting {
@@ -361,15 +371,15 @@ struct LibraryView: View {
             } label: {
                 DeckRowView(deck: deck)
                     .background {
-                    if viewModel.isSelecting && isSelected {
-                        RoundedRectangle(cornerRadius: 30, style: .continuous)
-                            .stroke(.gray.opacity(0.7), lineWidth: 2)
-                            .transition(.opacity)
+                        if viewModel.isSelecting && isSelected {
+                            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                                .stroke(.gray.opacity(0.7), lineWidth: 2)
+                                .transition(.opacity)
+                        }
                     }
-                }
             }
-                .buttonStyle(ScaleButtonStyle())
-                .contextMenu {
+            .buttonStyle(ScaleButtonStyle())
+            .contextMenu {
                 if !viewModel.isSelecting {
                     Button {
                         viewModel.deckToEditColor = deck
@@ -385,8 +395,8 @@ struct LibraryView: View {
                     }
                 }
             }
-                .scaleEffect(viewModel.isSelecting && isSelected ? 0.9 : 1)
-                .animation(.spring(response: 0.32, dampingFraction: 0.85), value: isSelected)
+            .scaleEffect(viewModel.isSelecting && isSelected ? 0.9 : 1)
+            .animation(.spring(response: 0.32, dampingFraction: 0.85), value: isSelected)
         }
     }
 
@@ -398,9 +408,9 @@ struct LibraryView: View {
             ZStack {
                 Circle()
                     .strokeBorder(
-                    isSelected ? accent : Color.secondary.opacity(0.25),
-                    lineWidth: 2
-                )
+                        isSelected ? accent : Color.secondary.opacity(0.25),
+                        lineWidth: 2
+                    )
 
                 if isSelected {
                     Circle()
@@ -412,12 +422,12 @@ struct LibraryView: View {
                         .transition(.scale.combined(with: .opacity))
                 }
             }
-                .frame(width: 24, height: 24)
-                .padding(5)
-                .background(.ultraThinMaterial, in: Circle())
+            .frame(width: 24, height: 24)
+            .padding(5)
+            .background(.ultraThinMaterial, in: Circle())
         }
-            .buttonStyle(ScaleButtonStyle())
-            .frame(width: 34, height: 34)
+        .buttonStyle(ScaleButtonStyle())
+        .frame(width: 34, height: 34)
     }
 
     // MARK: - Bottom bars
@@ -436,16 +446,13 @@ struct LibraryView: View {
 
             Spacer()
 
-            //MARK: Export action here
             Button {
                 viewModel.exportSelectedDecks(from: decks)
-                
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     if viewModel.isSelecting {
                         viewModel.isSelecting = false
                     }
                 }
-                
             } label: {
                 HStack(spacing: 6) {
                     if viewModel.isExporting {
@@ -455,33 +462,32 @@ struct LibraryView: View {
                         Image(systemName: "square.and.arrow.up")
                     }
                 }
-                    .font(.title3.bold())
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial, in: Capsule())
+                .font(.title3.bold())
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial, in: Capsule())
             }
-                .disabled(viewModel.selectedDecks.isEmpty || viewModel.isExporting)
+            .disabled(viewModel.selectedDecks.isEmpty || viewModel.isExporting)
 
             Spacer()
 
             Button(role: .destructive) {
                 viewModel.showDeleteConfirmation = true
             } label: {
-
                 Text("Delete(\(viewModel.selectedDecks.count))")
                     .font(.subheadline.bold())
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(.ultraThinMaterial, in: Capsule())
             }
-                .disabled(viewModel.selectedDecks.isEmpty)
+            .disabled(viewModel.selectedDecks.isEmpty)
         }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-            .padding(.horizontal, 20)
-            .padding(.bottom, 14)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .padding(.horizontal, 20)
+        .padding(.bottom, 14)
     }
 
     private var bottomFloatingButtons: some View {
@@ -498,11 +504,12 @@ struct LibraryView: View {
                     .padding(.horizontal, 30)
                     .glassEffect(shape: .capsule)
             }
-                .padding(.leading, 22)
+            .padding(.leading, 22)
 
             Spacer()
             deckCountSection()
             Spacer()
+            
             Button {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                     router.path.append(AppRoute.createDeck)
@@ -514,14 +521,13 @@ struct LibraryView: View {
                     .padding(14)
                     .glassEffect(cornerRadius: 60, style: .spotlight)
             }
-                .padding(.trailing, 22)
+            .padding(.trailing, 22)
         }
-            .padding(.bottom, 12)
-            .allowsHitTesting(!viewModel.isSelecting)
-            .opacity(viewModel.isSelecting ? 0.0 : 1.0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.85), value: viewModel.isSelecting)
+        .padding(.bottom, 12)
+        .allowsHitTesting(!viewModel.isSelecting)
+        .opacity(viewModel.isSelecting ? 0.0 : 1.0)
+        .animation(.spring(response: 0.25, dampingFraction: 0.85), value: viewModel.isSelecting)
     }
-
 
     @ViewBuilder
     private func deckCountSection() -> some View {
@@ -540,6 +546,7 @@ struct LibraryView: View {
                 .foregroundStyle(.secondary)
         }
     }
+    
     // MARK: - Date Section Header
     private func dateSectionHeader(_ title: String) -> some View {
         HStack {
@@ -554,7 +561,7 @@ struct LibraryView: View {
 
             Spacer()
         }
-            .padding(.vertical, 12)
+        .padding(.vertical, 12)
     }
 
     // MARK: - Empty State
@@ -573,9 +580,9 @@ struct LibraryView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 80)
-            .padding(.horizontal, 40)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 80)
+        .padding(.horizontal, 40)
     }
 
     // MARK: - Actions

@@ -31,7 +31,7 @@ struct AddCardSheetView: View {
     // Keyboard retention for smooth transitions
     @FocusState private var isRetainerFocused: Bool
     @State private var retainerText: String = ""
-    @StateObject private var focusManager = ZoneFocusManager.shared
+
 
     // Modals
     @State private var showPhotoPicker = false
@@ -46,6 +46,7 @@ struct AddCardSheetView: View {
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var currentContent: ZoneCardContent { activeSide == 0 ? frontZoneContent : backZoneContent }
     private var canSave: Bool { frontZoneContent.hasContent || backZoneContent.hasContent }
+    private var focusManager = ZoneFocusManager.shared
 
     // MARK: - Init
 
@@ -66,9 +67,9 @@ struct AddCardSheetView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                
+
                 backgroundGradient.ignoresSafeArea()
-                   
+
                 // Hidden TextField for keyboard retention during zone insertion
                 TextField("", text: $retainerText)
                     .focused($isRetainerFocused)
@@ -151,7 +152,7 @@ struct AddCardSheetView: View {
                 }
             }
 
-            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
                 withAnimation(.spring(response: 0.3)) {
                     keyboardHeight = 0
                 }
@@ -170,31 +171,31 @@ struct AddCardSheetView: View {
     // MARK: - Side Picker
 
     private var sidePicker: some View {
-            Picker("Side", selection: $activeSide) {
-                Text("Question").tag(0)
-                Text("Answer").tag(1)
-            }
+        Picker("Side", selection: $activeSide) {
+            Text("Question").tag(0)
+            Text("Answer").tag(1)
+        }
             .pickerStyle(.segmented)
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .onChange(of: activeSide) { oldSide, newSide in
-                if oldSide == 0 { frontSavedPath = selectedPath }
-                else { backSavedPath = selectedPath }
+            if oldSide == 0 { frontSavedPath = selectedPath }
+            else { backSavedPath = selectedPath }
 
-                executeWithKeyboardRetention {
-                    (newSide == 0 ? backZoneContent : frontZoneContent).cleanup()
-                    selectedPath = newSide == 0 ? frontSavedPath : backSavedPath
-                } afterLayout: {
-                    let targetContent = newSide == 0 ? frontZoneContent : backZoneContent
-                    if let path = selectedPath, let zoneID = targetContent.zone(at: path)?.id {
-                        ZoneFocusManager.shared.requestFocus(for: zoneID)
-                    } else {
-                        selectedPath = .root
-                        ZoneFocusManager.shared.requestFocus(for: targetContent.rootZone.id)
-                    }
+            executeWithKeyboardRetention {
+                (newSide == 0 ? backZoneContent : frontZoneContent).cleanup()
+                selectedPath = newSide == 0 ? frontSavedPath : backSavedPath
+            } afterLayout: {
+                let targetContent = newSide == 0 ? frontZoneContent : backZoneContent
+                if let path = selectedPath, let zoneID = targetContent.zone(at: path)?.id {
+                    ZoneFocusManager.shared.requestFocus(for: zoneID)
+                } else {
+                    selectedPath = .root
+                    ZoneFocusManager.shared.requestFocus(for: targetContent.rootZone.id)
                 }
             }
         }
+    }
 
     // MARK: - Editor Area
 
@@ -225,18 +226,18 @@ struct AddCardSheetView: View {
                         .id("bottom")
                 }
                     .padding(.horizontal, 24)
-                .padding(.top, 24)
+                    .padding(.top, 24)
                     .background(
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .fill(cardBackground)
-                    .shadow(color: shadowColor, radius: 16, y: 8)
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .fill(cardBackground)
+                        .shadow(color: shadowColor, radius: 16, y: 8)
                 )
                     .overlay(
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .stroke(borderColor, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .stroke(borderColor, lineWidth: 1)
                 )
                     .padding(.horizontal, 32)
-                .padding(.top, 24)
+                    .padding(.top, 24)
                     .padding(.bottom, max((selectedPath != nil ? 80 : 100), keyboardHeight + 20))
             }
                 .scrollDismissesKeyboard(.interactively)
@@ -283,72 +284,72 @@ struct AddCardSheetView: View {
 
     /// Robust add-zone logic that computes path immediately.
     private func addZoneWithFocus(in direction: AddDirection) {
-            guard let path = selectedPath else { return }
+        guard let path = selectedPath else { return }
 
-            let parentPath = path.parent
-            let childIndex = path.lastIndex ?? 0
-            let parentZone = parentPath != nil ? currentContent.zone(at: parentPath!) : nil
-            let parentDirection = parentZone?.direction
-            let isRoot = path.indices.isEmpty
+        let parentPath = path.parent
+        let childIndex = path.lastIndex ?? 0
+        let parentZone = parentPath != nil ? currentContent.zone(at: parentPath!) : nil
+        let parentDirection = parentZone?.direction
+        let isRoot = path.indices.isEmpty
 
-            var newZoneID: UUID?
-            var newPath: ZonePath = .root
+        var newZoneID: UUID?
+        var newPath: ZonePath = .root
 
-            executeWithKeyboardRetention {
-                newZoneID = self.currentContent.addZone(relativeTo: path, direction: direction)
+        executeWithKeyboardRetention {
+            newZoneID = self.currentContent.addZone(relativeTo: path, direction: direction)
 
-                if isRoot {
-                    switch direction {
-                    case .left, .up: newPath = ZonePath(indices: [0])
-                    case .right, .down: newPath = ZonePath(indices: [1])
-                    }
-                } else if let pPath = parentPath, parentDirection == direction.zoneDirection {
-                    switch direction {
-                    case .left, .up: newPath = pPath.appending(childIndex)
-                    case .right, .down: newPath = pPath.appending(childIndex + 1)
-                    }
-                } else {
-                    switch direction {
-                    case .left, .up: newPath = path.appending(0)
-                    case .right, .down: newPath = path.appending(1)
-                    }
+            if isRoot {
+                switch direction {
+                case .left, .up: newPath = ZonePath(indices: [0])
+                case .right, .down: newPath = ZonePath(indices: [1])
                 }
-                self.selectedPath = newPath
-            } afterLayout: {
-                if let zoneID = newZoneID {
-                    ZoneFocusManager.shared.requestFocus(for: zoneID)
+            } else if let pPath = parentPath, parentDirection == direction.zoneDirection {
+                switch direction {
+                case .left, .up: newPath = pPath.appending(childIndex)
+                case .right, .down: newPath = pPath.appending(childIndex + 1)
                 }
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            } else {
+                switch direction {
+                case .left, .up: newPath = path.appending(0)
+                case .right, .down: newPath = path.appending(1)
+                }
             }
+            self.selectedPath = newPath
+        } afterLayout: {
+            if let zoneID = newZoneID {
+                ZoneFocusManager.shared.requestFocus(for: zoneID)
+            }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
+    }
 
     private func addZoneAtBottom() {
-            let root = currentContent.rootZone
-            var newZoneID: UUID?
+        let root = currentContent.rootZone
+        var newZoneID: UUID?
 
-            executeWithKeyboardRetention {
-                if !root.isLeaf && root.direction == .vertical {
-                    let newIndex = root.children?.count ?? 0
-                    let newZone = ZoneModel.empty()
-                    newZoneID = newZone.id
+        executeWithKeyboardRetention {
+            if !root.isLeaf && root.direction == .vertical {
+                let newIndex = root.children?.count ?? 0
+                let newZone = ZoneModel.empty()
+                newZoneID = newZone.id
 
-                    self.currentContent.updateZone(at: .root) { rootZone in
-                        var kids = rootZone.children ?? []
-                        kids.append(newZone)
-                        rootZone.children = kids
-                    }
-                    self.selectedPath = ZonePath(indices: [newIndex])
-                } else {
-                    newZoneID = self.currentContent.addZone(relativeTo: .root, direction: .down)
-                    self.selectedPath = ZonePath(indices: [1])
+                self.currentContent.updateZone(at: .root) { rootZone in
+                    var kids = rootZone.children ?? []
+                    kids.append(newZone)
+                    rootZone.children = kids
                 }
-            } afterLayout: {
-                if let zoneID = newZoneID {
-                    ZoneFocusManager.shared.requestFocus(for: zoneID)
-                }
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                self.selectedPath = ZonePath(indices: [newIndex])
+            } else {
+                newZoneID = self.currentContent.addZone(relativeTo: .root, direction: .down)
+                self.selectedPath = ZonePath(indices: [1])
             }
+        } afterLayout: {
+            if let zoneID = newZoneID {
+                ZoneFocusManager.shared.requestFocus(for: zoneID)
+            }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
+    }
 
     private func triggerKeyboardForNewZone(zoneID: UUID) {
         Task { @MainActor in
@@ -425,48 +426,48 @@ struct AddCardSheetView: View {
     }
 
     private func splitZone() {
-            guard let path = selectedPath,
-                  let zone = currentContent.zone(at: path),
-                  zone.contentType == .text else { return }
+        guard let path = selectedPath,
+            let zone = currentContent.zone(at: path),
+            zone.contentType == .text else { return }
 
-            let text = zone.text
-            let lines = text.components(separatedBy: "\n")
+        let text = zone.text
+        let lines = text.components(separatedBy: "\n")
 
-            if lines.count >= 2 {
-                executeWithKeyboardRetention {
-                    let midPoint = lines.count / 2
-                    let firstPart = lines[0..<midPoint].joined(separator: "\n")
-                    let secondPart = lines[midPoint...].joined(separator: "\n")
-
-                    self.currentContent.updateZone(at: path) { z in z.text = firstPart }
-                    self.currentContent.addZone(relativeTo: path, direction: .down)
-
-                    let newPath: ZonePath
-                    if let parent = path.parent {
-                        newPath = parent.appending((path.lastIndex ?? 0) + 1)
-                    } else {
-                        newPath = ZonePath(indices: [1])
-                    }
-
-                    self.updateSplitZoneContent(at: newPath, text: secondPart, original: zone)
-                    self.selectedPath = path
-                } afterLayout: {
-                    if let topZoneID = self.currentContent.zone(at: path)?.id {
-                        ZoneFocusManager.shared.requestFocus(for: topZoneID)
-                    }
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                }
-                return
-            }
+        if lines.count >= 2 {
             executeWithKeyboardRetention {
+                let midPoint = lines.count / 2
+                let firstPart = lines[0..<midPoint].joined(separator: "\n")
+                let secondPart = lines[midPoint...].joined(separator: "\n")
+
+                self.currentContent.updateZone(at: path) { z in z.text = firstPart }
                 self.currentContent.addZone(relativeTo: path, direction: .down)
+
+                let newPath: ZonePath
+                if let parent = path.parent {
+                    newPath = parent.appending((path.lastIndex ?? 0) + 1)
+                } else {
+                    newPath = ZonePath(indices: [1])
+                }
+
+                self.updateSplitZoneContent(at: newPath, text: secondPart, original: zone)
+                self.selectedPath = path
             } afterLayout: {
                 if let topZoneID = self.currentContent.zone(at: path)?.id {
                     ZoneFocusManager.shared.requestFocus(for: topZoneID)
                 }
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }
+            return
         }
+        executeWithKeyboardRetention {
+            self.currentContent.addZone(relativeTo: path, direction: .down)
+        } afterLayout: {
+            if let topZoneID = self.currentContent.zone(at: path)?.id {
+                ZoneFocusManager.shared.requestFocus(for: topZoneID)
+            }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        }
+    }
 
     private func updateSplitZoneContent(at path: ZonePath, text: String, original: ZoneModel) {
         currentContent.updateZone(at: path) { z in
@@ -483,20 +484,20 @@ struct AddCardSheetView: View {
 
     /// Runs a layout mutation while keeping keyboard open, then applies focus.
     private func executeWithKeyboardRetention(action: @escaping () -> Void, afterLayout: @escaping () -> Void) {
-            layoutTask?.cancel()
-            ZoneFocusManager.shared.prepareForInsertion()
+        layoutTask?.cancel()
+        ZoneFocusManager.shared.prepareForInsertion()
 
-            layoutTask = Task {
-                try? await Task.sleep(nanoseconds: 50_000_000)
-                if Task.isCancelled { return }
+        layoutTask = Task {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            if Task.isCancelled { return }
 
-                await MainActor.run { action() }
-                try? await Task.sleep(nanoseconds: 100_000_000)
-                if Task.isCancelled { return }
+            await MainActor.run { action() }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            if Task.isCancelled { return }
 
-                await MainActor.run { afterLayout() }
-            }
+            await MainActor.run { afterLayout() }
         }
+    }
 
     private func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)

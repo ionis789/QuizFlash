@@ -18,35 +18,28 @@ class CardModel {
     var frontTypeRaw: String = CardContentType.text.rawValue
     var backTypeRaw: String = CardContentType.text.rawValue
 
-    // Structura ierarhică principală
     @Attribute(.externalStorage)
     var frontZoneData: Data?
 
     @Attribute(.externalStorage)
     var backZoneData: Data?
 
-    // Plain text cached pentru căutare rapidă și preview în liste
     var frontText: String = ""
     var backText: String = ""
 
-    // Timestamps
     var createdAt: Date = Date()
     var editedAt: Date = Date()
 
-    // Learning stats
     var lastSeenAt: Date?
     var timesCorrect: Int = 0
     var timesWrong: Int = 0
 
-    // Relatii
     var deck: DeckModel?
 
     @Relationship(deleteRule: .cascade)
     var stats: CardStats?
 
-    // MARK: - Computed Properties
-
-    // MARK: - Caching (Performanță)
+    // MARK: - Caching
     @Transient private var cachedFrontZone: ZoneModel?
     @Transient private var cachedBackZone: ZoneModel?
 
@@ -64,30 +57,24 @@ class CardModel {
 
     var frontZone: ZoneModel {
         get {
-            // 1. Verificăm dacă avem deja modelul decodat în memorie (Cache hit)
             if let cached = cachedFrontZone {
                 return cached
             }
-            // 2. Dacă nu e în cache, decodăm JSON-ul o singură dată (Cache miss)
             if let data = frontZoneData, let zone = ZoneModel.decode(from: data) {
-                cachedFrontZone = zone // Salvăm în cache pentru viitor
+                cachedFrontZone = zone
                 return zone
             }
             return .text()
         }
         set {
-            // Când se modifică zona, actualizăm și cache-ul, și baza de date
             cachedFrontZone = newValue
             frontZoneData = newValue.encode()
-
-            // Extragem primele caractere pentru preview rapid automat
             frontText = newValue.previewText(maxLength: 200)
         }
     }
 
     var backZone: ZoneModel {
         get {
-            // Fix aceeași logică de caching și pentru spatele cardului
             if let cached = cachedBackZone {
                 return cached
             }
@@ -148,32 +135,49 @@ class CardStats {
 // MARK: - Draft Card (For CreateView)
 struct DraftCard: Identifiable {
     let id = UUID()
+    
+    // NOU: Legătura cu SwiftData model
+    var originalCardID: PersistentIdentifier?
 
     var frontZone: ZoneModel
     var backZone: ZoneModel
     var frontType: CardContentType
     var backType: CardContentType
 
-    var lastEditDate: Date? { Date() }
+    // NOU: Păstrăm datele originale
+    var createdAt: Date?
+    var editedAt: Date?
+
+    // FIX: Afișăm data de editare reală, nu Date() generat dinamic
+    var lastEditDate: Date? { editedAt }
 
     init(
+        originalCardID: PersistentIdentifier? = nil,
         frontZone: ZoneModel = .text(),
         backZone: ZoneModel = .text(),
         frontType: CardContentType = .text,
-        backType: CardContentType = .text
+        backType: CardContentType = .text,
+        createdAt: Date? = nil,
+        editedAt: Date? = nil
     ) {
+        self.originalCardID = originalCardID
         self.frontZone = frontZone
         self.backZone = backZone
         self.frontType = frontType
         self.backType = backType
+        self.createdAt = createdAt
+        self.editedAt = editedAt
     }
 
     static func from(_ card: CardModel) -> DraftCard {
         DraftCard(
+            originalCardID: card.id,
             frontZone: card.frontZone,
             backZone: card.backZone,
             frontType: card.frontType,
-            backType: card.backType
+            backType: card.backType,
+            createdAt: card.createdAt,
+            editedAt: card.editedAt
         )
     }
 }

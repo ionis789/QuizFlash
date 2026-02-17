@@ -25,7 +25,8 @@ struct DeckCardGridView: View {
     var onToggleSelection: (CardModel) -> Void
     var onTapCard: (CardModel) -> Void
     var onLongPressCard: (CardModel) -> Void
-
+    var onDeleteCard: (CardModel) -> Void
+    
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     private var accent: Color { ThemeManager.shared.accentColor.color }
     
@@ -88,7 +89,7 @@ struct DeckCardGridView: View {
                     .padding(10)
             }
         }
-        .scaleEffect(isSelecting && isSelected ? 0.96 : 1)
+        .scaleEffect(isSelecting && isSelected ? 0.9 : 1)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelected)
         .contextMenu {
             if !isSelecting {
@@ -98,7 +99,7 @@ struct DeckCardGridView: View {
                     Label("Edit", systemImage: "pencil")
                 }
                 Button(role: .destructive) {
-                    onToggleSelection(card) // Delete
+                    onDeleteCard(card) // Delete
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
@@ -155,6 +156,9 @@ private struct MiniCardPreview: View {
             
             // Bottom info
             HStack(spacing: 6) {
+                if hasText {
+                    Image(systemName: "")
+                }
                 if hasImages {
                     Image(systemName: "photo")
                         .font(.caption2)
@@ -164,8 +168,6 @@ private struct MiniCardPreview: View {
                         .font(.caption2)
                 }
                 Spacer()
-                Text("Q&A")
-                    .font(.caption2.weight(.medium))
             }
             .foregroundStyle(.tertiary)
         }
@@ -176,7 +178,7 @@ private struct MiniCardPreview: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(isSelected ? accent : borderColor, lineWidth: isSelected ? 2 : 0.5)
+                .stroke(isSelected ? .gray : borderColor, lineWidth: isSelected ? 1 : 0.5)
         )
     }
     
@@ -214,12 +216,15 @@ private struct MiniCardPreview: View {
         }
     }
     
+    private var hasText: Bool {
+        getFirstText(from: card.frontZone) != nil || getFirstText(from: card.backZone) != nil
+    }
     private var hasImages: Bool {
         getFirstImage(from: card.frontZone) != nil || getFirstImage(from: card.backZone) != nil
     }
     
     private var hasSketch: Bool {
-        hasSketchContent(in: card.frontZone) || hasSketchContent(in: card.backZone)
+        getFirstSketch(in: card.frontZone) || getFirstSketch(in: card.backZone)
     }
     
     private var cardBackground: some ShapeStyle {
@@ -264,11 +269,11 @@ private struct MiniCardPreview: View {
         return nil
     }
     
-    private func hasSketchContent(in zone: ZoneModel) -> Bool {
+    private func getFirstSketch(in zone: ZoneModel) -> Bool {
         if zone.isLeaf {
             return zone.contentType == .sketch && zone.imageData != nil
         } else if let children = zone.children {
-            return children.contains { hasSketchContent(in: $0) }
+            return children.contains { getFirstSketch(in: $0) }
         }
         return false
     }
@@ -297,5 +302,6 @@ private struct SelectionBubble: View {
         .frame(width: 24, height: 24)
         .background(.ultraThinMaterial, in: Circle())
         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)
+      
     }
 }

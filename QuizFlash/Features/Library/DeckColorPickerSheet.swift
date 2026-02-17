@@ -15,8 +15,8 @@ struct DeckColorPickerSheet: View {
     @Environment(\.dismiss) var dismiss
 
     private let colors: [Color] = [
-        .blue, .purple, .pink, .red, .orange,
-        .yellow, .green, .mint, .teal, .cyan
+            .blue, .purple, .pink, .red, .orange,
+            .yellow, .green, .mint, .teal, .cyan
     ]
 
     private let columns = [
@@ -29,19 +29,19 @@ struct DeckColorPickerSheet: View {
                 ZStack {
                     Circle()
                         .fill(
-                            LinearGradient(
-                                colors: [deckColor.opacity(0.7), deckColor.opacity(0.3)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+                        LinearGradient(
+                            colors: [deckColor.opacity(0.7), deckColor.opacity(0.3)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         )
+                    )
                         .frame(width: 80, height: 80)
 
                     Image(systemName: deck.icon.isEmpty ? "sparkles.rectangle.stack.fill" : deck.icon)
                         .font(.system(size: 32, weight: .bold))
                         .foregroundStyle(.white)
                 }
-                .padding(.top, 20)
+                    .padding(.top, 20)
 
                 Text(deck.title)
                     .font(.title3.weight(.semibold))
@@ -50,7 +50,9 @@ struct DeckColorPickerSheet: View {
                     ForEach(colors, id: \.self) { color in
                         Button {
                             withAnimation(.spring(response: 0.3)) {
-                                deck.colorHex = color.toHex()!
+                                if let hex = color.toHex() {
+                                    deck.colorHex = hex
+                                }
                             }
                         } label: {
                             ZStack {
@@ -68,18 +70,18 @@ struct DeckColorPickerSheet: View {
                         }
                     }
                 }
-                .padding(.horizontal, 40)
+                    .padding(.horizontal, 40)
 
                 Spacer()
             }
-            .navigationTitle("Deck Color")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+                .navigationTitle("Deck Color")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         dismiss()
                     }
-                    .fontWeight(.semibold)
+                        .fontWeight(.semibold)
                 }
             }
         }

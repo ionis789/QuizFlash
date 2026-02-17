@@ -2,48 +2,29 @@
 //  DeckView.swift
 //  QuizFlash
 //
-//  Created by Ion Socol on 08.01.2026.
-//
-//  Deck view with card grid and play modes.
+//  Refactored by Senior iOS Architect
 //
 
 import SwiftUI
 import SwiftData
 
 struct DeckView: View {
-    @Environment(\.modelContext) var context
+    @Environment(\.modelContext) private var context
     @Bindable var deck: DeckModel
 
-    // MARK: - State
-    @State private var isAddingCard = false
-    @State private var isPresentingEdit = false
-    @State private var isPlayingQuiz = false
+    @State private var viewModel: DeckViewModel
 
-    // Selection State
-    @State private var isSelecting = false
-    @State private var selectedCards: Set<PersistentIdentifier> = []
-    @State private var showDeleteConfirmation = false
-
-    // Card Preview/Edit State
-    @State private var previewedCard: CardModel? = nil
-    @State private var editingCard: CardModel? = nil
-
-    // Sorting
-    @State private var sortOrder: SortOrder = .newest
-
-    // Export State
-    @State private var isExporting = false
-    @State private var exportedURL: URL?
-    @State private var showShareSheet = false
-    @State private var showExportError = false
-    @State private var exportErrorMessage = ""
+    init(deck: DeckModel) {
+        self.deck = deck
+        _viewModel = State(initialValue: DeckViewModel(deck: deck))
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
             // Main
             VStack(spacing: 0) {
                 // Header Info
-                DeckHeaderView(deck: deck, onEdit: { isPresentingEdit = true })
+                DeckHeaderView(deck: deck, onEdit: { viewModel.isPresentingEdit = true })
 
                 VStack(spacing: 16) {
                     // Deck Stats Section
@@ -51,122 +32,130 @@ struct DeckView: View {
                         DeckStatsView(stats: deckStats)
                     }
                     // Play Modes
-                    DeckPlayModesView(deck: deck, onPlay: { isPlayingQuiz = true })
+                    DeckPlayModesView(deck: deck, onPlay: { viewModel.isPlayingQuiz = true })
 
                     // Toolbar
                     DeckSectionToolbar(
                         deck: deck,
-                        isSelecting: isSelecting,
-                        sortOrder: $sortOrder,
-                        onAdd: { isAddingCard = true },
+                        isSelecting: viewModel.isSelecting,
+                        sortOrder: $viewModel.sortOrder,
+                        onAdd: { viewModel.isAddingCard = true },
                         onStartSelection: {
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                isSelecting = true
+                                viewModel.isSelecting = true
                             }
                         },
-                        onExport: { exportDeck() }
+                        onExport: { viewModel.exportDeck() }
                     )
 
                     ScrollView {
                         DeckCardGridView(
-                            cards: groupedCards,
-                            isSelecting: isSelecting,
-                            selectedCards: selectedCards,
-                            onToggleSelection: toggleSelection,
+                            cards: viewModel.groupedCards(),
+                            isSelecting: viewModel.isSelecting,
+                            selectedCards: viewModel.selectedCards,
+                            onToggleSelection: viewModel.toggleSelection,
                             onTapCard: { card in
-                                if isSelecting {
-                                    toggleSelection(card)
+                                if viewModel.isSelecting {
+                                    viewModel.toggleSelection(for: card)
                                 } else {
-                                    previewedCard = card
+                                    viewModel.previewedCard = card
                                 }
                             },
                             onLongPressCard: { card in
-                                if isSelecting {
-                                    toggleSelection(card)
+                                if viewModel.isSelecting {
+                                    viewModel.toggleSelection(for: card)
                                 } else {
-                                    editingCard = card
+                                    viewModel.editingCard = card
+                                }
+                            },
+                            onDeleteCard: { card in
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                    viewModel.deleteSingleCard(card, context: context)
                                 }
                             }
                         )
-                            .scrollIndicators(.hidden)
-                            .padding(.top, 4)
-                            .padding(.bottom, 100)
-
+                        .scrollIndicators(.hidden)
+                        .padding(.top, 4)
+                        .padding(.bottom, 100)
                     }
                 }
             }
-                .background(Color(uiColor: .systemGroupedBackground))
-                .contentShape(Rectangle())
-                .onTapGesture {
-                if isSelecting {
-                    exitSelectionMode()
+            .background(Color(uiColor: .systemGroupedBackground))
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if viewModel.isSelecting {
+                    viewModel.exitSelectionMode()
                 }
             }
 
             // Bottom Selection Bar
-            if isSelecting {
+            if viewModel.isSelecting {
                 DeckSelectionBottomBar(
-                    selectedCount: selectedCards.count,
-                    onDone: exitSelectionMode,
-                    onDelete: { showDeleteConfirmation = true }
+                    selectedCount: viewModel.selectedCards.count,
+                    onDone: viewModel.exitSelectionMode,
+                    onDelete: { viewModel.showDeleteConfirmation = true }
                 )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .padding(.bottom, 20)
-                    .zIndex(10)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.bottom, 20)
+                .zIndex(10)
             }
         }
-            .navigationTitle(deck.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isSelecting)
+        .navigationTitle(deck.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
 
         // MARK: - Dialogs & Sheets
-        .confirmationDialog(
-            "Delete \(selectedCards.count) card\(selectedCards.count == 1 ? "" : "s")?",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
+        .alert(
+            "Delete \(viewModel.selectedCards.count) card\(viewModel.selectedCards.count == 1 ? "" : "s")?",
+            isPresented: $viewModel.showDeleteConfirmation
         ) {
-            Button("Delete", role: .destructive) {
-                deleteSelectedCards()
-            }
             Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    viewModel.deleteSelectedCards(context: context)
+                }
+            }
         } message: {
             Text("This action cannot be undone.")
         }
+        
         // Add new card
-        .fullScreenCover(isPresented: $isAddingCard) {
+        .fullScreenCover(isPresented: $viewModel.isAddingCard) {
             AddCardSheetView { frontZone, backZone in
-                let newCard = CardModel(
-                    frontZone: frontZone,
-                    backZone: backZone
-                )
-                deck.cards.append(newCard)
-                deck.editedAt = Date()
+                viewModel.addNewCard(frontZone: frontZone, backZone: backZone)
             }
         }
-            .fullScreenCover(isPresented: $isPresentingEdit) {
+        
+        // Edit Deck Info
+        .fullScreenCover(isPresented: $viewModel.isPresentingEdit) {
             NavigationStack {
                 CreateView(deckToEdit: deck)
             }
         }
-            .fullScreenCover(isPresented: $isPlayingQuiz) {
+        
+        // Play Quiz Mode
+        .fullScreenCover(isPresented: $viewModel.isPlayingQuiz) {
             NavigationStack {
                 DefaultModePlay(deck: deck)
             }
         }
+        
         // Export share sheet
-        .sheet(isPresented: $showShareSheet) {
-            if let url = exportedURL {
+        .sheet(isPresented: $viewModel.showShareSheet) {
+            if let url = viewModel.exportedURL {
                 ShareSheet(items: [url])
             }
         }
-            .alert("Export Error", isPresented: $showExportError) {
+        
+        .alert("Export Error", isPresented: $viewModel.showExportError) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text(exportErrorMessage)
+            Text(viewModel.exportErrorMessage)
         }
+        
         // Export loading overlay
         .overlay {
-            if isExporting {
+            if viewModel.isExporting {
                 ZStack {
                     Color.black.opacity(0.3)
                         .ignoresSafeArea()
@@ -177,185 +166,64 @@ struct DeckView: View {
                         Text("Exporting...")
                             .font(.headline)
                     }
-                        .padding(32)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                    .padding(32)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
                 }
             }
         }
+        
         // Card Preview Full Screen
-        .fullScreenCover(item: $previewedCard) { card in
+        .fullScreenCover(item: $viewModel.previewedCard) { card in
             CardPreviewScreen(card: card)
         }
+        
         // Card Edit Full Screen
-        .fullScreenCover(item: $editingCard) { card in
+        .fullScreenCover(item: $viewModel.editingCard) { card in
             NavigationStack {
                 AddCardSheetView(
                     frontZone: card.frontZone,
                     backZone: card.backZone
                 ) { frontZone, backZone in
-                    // Update card
-                    card.frontZone = frontZone
-                    card.backZone = backZone
-                    card.editedAt = Date()
-                    editingCard = nil
+                    viewModel.saveEditedCard(original: card, newFront: frontZone, newBack: backZone)
+                    viewModel.editingCard = nil
                 }
             }
         }
     }
 }
 
-// MARK: - Logic & Extensions
-extension DeckView {
-
-    private func handleCardTap(_ card: CardModel) {
-        if isSelecting {
-            toggleSelection(card)
-        }
-    }
-
-    private func toggleSelection(_ card: CardModel) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-            if selectedCards.contains(card.id) {
-                selectedCards.remove(card.id)
-            } else {
-                selectedCards.insert(card.id)
-            }
-        }
-    }
-
-    private func exitSelectionMode() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            isSelecting = false
-            selectedCards.removeAll()
-        }
-    }
-
-    private func requestSingleDelete(_ card: CardModel) {
-        // Context menu action. Ignore in multi-select mode.
-        guard !isSelecting else { return }
-        deleteSingleCard(card)
-    }
-
-    private func deleteSingleCard(_ card: CardModel) {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            context.delete(card)
-            deck.cards.removeAll { $0.id == card.id }
-            deck.editedAt = Date()
-            selectedCards.remove(card.id)
-        }
-    }
-
-    private func deleteSelectedCards() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            for card in deck.cards where selectedCards.contains(card.id) {
-                context.delete(card)
-                deck.cards.removeAll { $0.id == card.id }
-            }
-            selectedCards.removeAll()
-            isSelecting = false
-            deck.editedAt = Date()
-        }
-    }
-
-    // MARK: - Export
-    private func exportDeck() {
-        isExporting = true
-
-        Task {
-            do {
-                let url = try await DeckSharingManager.shared.exportDeck(deck)
-                await MainActor.run {
-                    isExporting = false
-                    exportedURL = url
-                    showShareSheet = true
-                }
-            } catch {
-                await MainActor.run {
-                    isExporting = false
-                    exportErrorMessage = error.localizedDescription
-                    showExportError = true
-                }
-            }
-        }
-    }
-
-    // Grouping Logic
-    var groupedCards: [DeckCardGridView.CardSection] {
-        let sortedAll = deck.cards.sorted { c1, c2 in
-            switch sortOrder {
-            case .newest: return c1.createdAt > c2.createdAt
-            case .oldest: return c1.createdAt < c2.createdAt
-            case .lastEdited: return c1.editedAt > c2.editedAt
-            case .alphabetical:
-                return c1.frontText.localizedCaseInsensitiveCompare(c2.frontText) == .orderedAscending
-            }
-        }
-
-        if sortOrder == .alphabetical {
-            if sortedAll.isEmpty { return [] }
-            return [
-                DeckCardGridView.CardSection(
-                    id: "all",
-                    title: "All Cards",
-                    cards: sortedAll,
-                    dateForSorting: nil
-                )
-            ]
-        }
-
-        let calendar = Calendar.current
-        let groups = Dictionary(grouping: sortedAll) { card -> Date in
-            let dateToCheck = sortOrder == .lastEdited ? card.editedAt : card.createdAt
-            return calendar.startOfDay(for: dateToCheck)
-        }
-
-        let sections = groups.map { (startOfDay, cardsInGroup) -> DeckCardGridView.CardSection in
-            let title = getSectionTitle(for: startOfDay, calendar: calendar)
-            return DeckCardGridView.CardSection(id: title, title: title, cards: cardsInGroup, dateForSorting: startOfDay)
-        }
-
-        return sections.sorted { s1, s2 in
-            guard let d1 = s1.dateForSorting, let d2 = s2.dateForSorting else { return false }
-            return sortOrder == .oldest ? d1 < d2: d1 > d2
-        }
-    }
-
-    private func getSectionTitle(for date: Date, calendar: Calendar) -> String {
-        if calendar.isDateInToday(date) { return "Today" }
-        if calendar.isDateInYesterday(date) { return "Yesterday" }
-        let now = Date()
-        if calendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) {
-            let weekdayFormatter = DateFormatter(); weekdayFormatter.dateFormat = "EEEE"
-            return "This Week - " + weekdayFormatter.string(from: date)
-        }
-        if calendar.isDate(date, equalTo: now, toGranularity: .month) {
-            let dayFormatter = DateFormatter(); dayFormatter.dateFormat = "MMMM d"
-            return dayFormatter.string(from: date)
-        }
-        let fullFormatter = DateFormatter(); fullFormatter.dateFormat = "MMMM yyyy"
-        return fullFormatter.string(from: date)
-    }
-}
-
-// MARK: - Card Preview Screen pentru binding corect la isFlipped
+// MARK: - Card Preview Screen
 private struct CardPreviewScreen: View {
     let card: CardModel
+    @State private var showStats: Bool = false
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
         let front = ZoneCardContent(rootZone: card.frontZone)
         let back = ZoneCardContent(rootZone: card.backZone)
-        VStack(spacing: 0) {
-            ZStack {
-                ZonePreviewSheet(front: front, back: back)
+        ZStack {
+            ZonePreviewSheet(front: front, back: back)
+        }
+        .overlay(alignment: .bottom) {
+            if let stats = card.stats, showStats {
+                CardStatsView(stats: stats)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-                .overlay(alignment: .bottom) {
-                if let stats = card.stats {
-                    CardStatsView(stats: stats)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    showStats.toggle()
                 }
+            } label: {
+                Image(systemName: "info.circle")
+                    .font(.title3.bold())
+                    .padding()
+                    .foregroundStyle(.primary)
             }
         }
     }
+    
     static func dateString(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -364,7 +232,7 @@ private struct CardPreviewScreen: View {
     }
 }
 
-// MARK: - Card Stats View (UI modern)
+// MARK: - Card Stats View
 private struct CardStatsView: View {
     let stats: CardStats
     var body: some View {
@@ -372,32 +240,38 @@ private struct CardStatsView: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay(
-                VStack(spacing: 12) {
-                    HStack(spacing: 24) {
-                        StatIconItem(icon: "checkmark.circle.fill", value: "\(stats.correctCount)", label: "Correct", color: .green)
-                        StatIconItem(icon: "xmark.circle.fill", value: "\(stats.wrongCount)", label: "Wrong", color: .red)
-                        StatIconItem(icon: "sum", value: "\(stats.totalAttempts)", label: "Total", color: .blue)
-                        StatIconItem(icon: "percent", value: stats.totalAttempts > 0 ? String(format: "%d%%", Int(Double(stats.correctCount) / Double(stats.totalAttempts) * 100)) : "-", label: "Accuracy", color: .accentColor)
-                    }
-                        .padding(.top, 18)
-                    HStack(spacing: 24) {
-                        StatIconItem(icon: "flame.fill", value: "\(stats.streak)", label: "Streak", color: .orange)
-                        if let last = stats.lastAttemptDate {
-                            VStack(spacing: 2) {
-                                Label("Last Attempt", systemImage: "clock")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Text(CardPreviewScreen.dateString(last))
-                                    .font(.caption2.monospacedDigit())
-                                    .foregroundStyle(.primary)
-                            }
-                                .frame(maxWidth: .infinity)
+                    VStack(spacing: 12) {
+                        HStack(spacing: 24) {
+                            StatIconItem(icon: "checkmark.circle.fill", value: "\(stats.correctCount)", label: "Correct", color: .green)
+                            StatIconItem(icon: "xmark.circle.fill", value: "\(stats.wrongCount)", label: "Wrong", color: .red)
+                            StatIconItem(icon: "sum", value: "\(stats.totalAttempts)", label: "Total", color: .blue)
+                            StatIconItem(
+                                icon: "percent",
+                                value: stats.totalAttempts > 0 ? String(format: "%d%%", Int(Double(stats.correctCount) / Double(stats.totalAttempts) * 100)) : "-",
+                                label: "Accuracy",
+                                color: .accentColor
+                            )
                         }
-                    }
+                        .padding(.top, 18)
+                        
+                        HStack(spacing: 24) {
+                            StatIconItem(icon: "flame.fill", value: "\(stats.streak)", label: "Streak", color: .orange)
+                            if let last = stats.lastAttemptDate {
+                                VStack(spacing: 2) {
+                                    Label("Last Attempt", systemImage: "clock")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Text(CardPreviewScreen.dateString(last))
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(.primary)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                        }
                         .padding(.bottom, 12)
-                }
+                    }
                     .padding(.horizontal, 18)
-            )
+                )
                 .frame(maxWidth: 480)
                 .frame(height: 120)
                 .padding(.top, 12)
@@ -412,6 +286,7 @@ private struct StatIconItem: View {
     let value: String
     let label: String
     var color: Color = .primary
+    
     var body: some View {
         VStack(spacing: 2) {
             HStack(spacing: 4) {
@@ -426,7 +301,7 @@ private struct StatIconItem: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
-            .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -459,32 +334,33 @@ private struct DeckStatsView: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay(
-                VStack(spacing: 12) {
-                    HStack(spacing: 24) {
-                        StatIconItem(icon: "checkmark.circle.fill", value: "\(stats.correct)", label: "Correct", color: .green)
-                        StatIconItem(icon: "xmark.circle.fill", value: "\(stats.wrong)", label: "Wrong", color: .red)
-                        StatIconItem(icon: "sum", value: "\(stats.total)", label: "Total", color: .blue)
-                        StatIconItem(icon: "percent", value: "\(stats.accuracy)%", label: "Accuracy", color: .accentColor)
-                    }
-                        .padding(.top, 18)
-                    HStack(spacing: 24) {
-                        StatIconItem(icon: "flame.fill", value: "\(stats.maxStreak)", label: "Max Streak", color: .orange)
-                        if let last = stats.lastActivity {
-                            VStack(spacing: 2) {
-                                Label("Last Activity", systemImage: "clock")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Text(CardPreviewScreen.dateString(last))
-                                    .font(.caption2.monospacedDigit())
-                                    .foregroundStyle(.primary)
-                            }
-                                .frame(maxWidth: .infinity)
+                    VStack(spacing: 12) {
+                        HStack(spacing: 24) {
+                            StatIconItem(icon: "checkmark.circle.fill", value: "\(stats.correct)", label: "Correct", color: .green)
+                            StatIconItem(icon: "xmark.circle.fill", value: "\(stats.wrong)", label: "Wrong", color: .red)
+                            StatIconItem(icon: "sum", value: "\(stats.total)", label: "Total", color: .blue)
+                            StatIconItem(icon: "percent", value: "\(stats.accuracy)%", label: "Accuracy", color: .accentColor)
                         }
-                    }
+                        .padding(.top, 18)
+                        
+                        HStack(spacing: 24) {
+                            StatIconItem(icon: "flame.fill", value: "\(stats.maxStreak)", label: "Max Streak", color: .orange)
+                            if let last = stats.lastActivity {
+                                VStack(spacing: 2) {
+                                    Label("Last Activity", systemImage: "clock")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Text(CardPreviewScreen.dateString(last))
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(.primary)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                        }
                         .padding(.bottom, 12)
-                }
+                    }
                     .padding(.horizontal, 18)
-            )
+                )
                 .frame(maxWidth: 600)
                 .frame(height: 120)
                 .padding(.top, 12)
