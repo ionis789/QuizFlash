@@ -12,16 +12,16 @@ import Foundation
 final class HighlightContext {
     let query: String
     private(set) var isDismissed: Bool = false
-    
+
     init(query: String) {
         self.query = query
     }
-    
+
     /// Irreversibly dismisses highlights for the entire session.
     func dismiss() {
         isDismissed = true
     }
-    
+
     /// Determines if a specific zone should show a highlight based on its text
     func shouldHighlight(text: String) -> Bool {
         guard !isDismissed, !query.isEmpty, !text.isEmpty else { return false }
@@ -30,17 +30,17 @@ final class HighlightContext {
             text.range(of: token, options: [.caseInsensitive, .diacriticInsensitive]) != nil
         }
     }
-    
+
     /// MVVM: Generates the completely transparent overlay with highlighted tokens internally.
     func generateOverlay(for text: String, font: Font, highlightColor: Color) -> AttributedString {
         var attrString = AttributedString(text)
         attrString.font = font
-        
+
         // CRITICAL: Text must be completely invisible so it perfectly overlays the TextField.
         attrString.foregroundColor = .clear
-        
+
         guard !isDismissed, !query.isEmpty else { return attrString }
-        
+
         let tokens = query.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
         for token in tokens {
             var searchRange = attrString.startIndex..<attrString.endIndex
@@ -124,7 +124,7 @@ struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     static func text(_ content: String = "") -> ZoneModel { ZoneModel(contentType: .text, text: content) }
     static func image(data: Data) -> ZoneModel { ZoneModel(contentType: .image, imageData: data) }
     static func sketch(data: Data) -> ZoneModel { ZoneModel(contentType: .sketch, imageData: data) }
-    
+
     static func container(direction: ZoneDirection, children: [ZoneModel]) -> ZoneModel {
         var zone = ZoneModel()
         zone.children = children
@@ -338,7 +338,7 @@ extension Data {
 final class ImageCache {
     static let shared = ImageCache()
     private var cache = NSCache<NSString, UIImage>()
-    
+
     private init() {
         cache.totalCostLimit = 50 * 1024 * 1024
         NotificationCenter.default.addObserver(
@@ -349,34 +349,34 @@ final class ImageCache {
             self?.clearCache()
         }
     }
-    
+
     func image(for data: Data, id: String, targetSize: CGSize, scale: CGFloat = UIScreen.main.scale) -> UIImage? {
         let cacheKey = "\(id)_\(targetSize.width)x\(targetSize.height)" as NSString
-        
+
         if let cachedImage = cache.object(forKey: cacheKey) {
             return cachedImage
         }
-        
+
         guard let downsampledImage = downsample(imageData: data, to: targetSize, scale: scale) else {
             return UIImage(data: data)
         }
-        
+
         let cost = Int(downsampledImage.size.width * downsampledImage.size.height * 4)
         cache.setObject(downsampledImage, forKey: cacheKey, cost: cost)
-        
+
         return downsampledImage
     }
-    
+
     func clearCache() {
         cache.removeAllObjects()
     }
-    
+
     private func downsample(imageData: Data, to pointSize: CGSize, scale: CGFloat) -> UIImage? {
         let imageSourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let imageSource = CGImageSourceCreateWithData(imageData as CFData, imageSourceOptions) else {
             return nil
         }
-        
+
         let maxDimensionInPixels = max(pointSize.width, pointSize.height) * scale
         let downsampleOptions = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -384,11 +384,11 @@ final class ImageCache {
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceThumbnailMaxPixelSize: maxDimensionInPixels
         ] as CFDictionary
-        
+
         guard let downsampledImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, downsampleOptions) else {
             return nil
         }
-        
+
         return UIImage(cgImage: downsampledImage)
     }
 }

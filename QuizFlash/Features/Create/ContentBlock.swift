@@ -11,7 +11,7 @@ import Foundation
 // MARK: - Text Alignment
 enum TextBlockAlignment: String, Codable, Equatable {
     case leading, center, trailing
-    
+
     var alignment: TextAlignment {
         switch self {
         case .leading: return .leading
@@ -19,12 +19,20 @@ enum TextBlockAlignment: String, Codable, Equatable {
         case .trailing: return .trailing
         }
     }
-    
+
     var horizontalAlignment: HorizontalAlignment {
         switch self {
         case .leading: return .leading
         case .center: return .center
         case .trailing: return .trailing
+        }
+    }
+
+    var nsTextAlignment: NSTextAlignment {
+        switch self {
+        case .leading: return .left
+        case .center: return .center
+        case .trailing: return .right
         }
     }
 }
@@ -73,11 +81,20 @@ enum FontFamily: String, Codable, Equatable, CaseIterable {
         case .rounded: return .system(size: size, weight: weight, design: .rounded)
         }
     }
+
+    func uiFont(size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
+        switch self {
+        case .system: return .systemFont(ofSize: size, weight: weight)
+        case .serif: return UIFont(name: "Georgia", size: size) ?? .systemFont(ofSize: size, weight: weight)
+        case .mono: return UIFont(name: "Menlo", size: size) ?? .systemFont(ofSize: size, weight: weight)
+        case .rounded: return UIFont(name: "SF Pro Rounded", size: size) ?? .systemFont(ofSize: size, weight: weight)
+        }
+    }
 }
 
 // MARK: - Highlight Color (Marker)
 enum HighlightColor: String, Codable, Equatable, CaseIterable {
-    case none, yellow, green, pink, cyan
+    case none, yellow, green, pink, cyan, accent
     
     var color: Color? {
         switch self {
@@ -86,6 +103,7 @@ enum HighlightColor: String, Codable, Equatable, CaseIterable {
         case .green: return Color.green.opacity(0.35)
         case .pink: return Color.pink.opacity(0.35)
         case .cyan: return Color.cyan.opacity(0.35)
+        case .accent: return ThemeManager.shared.accentColor.color
         }
     }
     
@@ -96,6 +114,7 @@ enum HighlightColor: String, Codable, Equatable, CaseIterable {
         case .green: return "Green"
         case .pink: return "Pink"
         case .cyan: return "Cyan"
+        case .accent: return "Accent"
         }
     }
 }
@@ -128,3 +147,4 @@ enum TextBlockColor: String, Codable, Equatable, CaseIterable {
         }
     }
 }
+
