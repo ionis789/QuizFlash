@@ -14,6 +14,7 @@ extension Notification.Name {
     static let focusNewZone = Notification.Name("focusNewZone")
     static let scrollToCursor = Notification.Name("scrollToCursor")
     static let zoneFocusRequest = Notification.Name("zoneFocusRequest")
+    static let focusZoneTextView = Notification.Name("focusZoneTextView")
 }
 
 // MARK: - Zone Focus Manager
@@ -52,6 +53,14 @@ final class ZoneFocusManager {
             name: .zoneFocusRequest,
             object: zoneID
         )
+        
+        // Also post focus notification
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            NotificationCenter.default.post(
+                name: .focusZoneTextView,
+                object: zoneID
+            )
+        }
     }
     
     /// Clears pending focus after successful focus

@@ -2,37 +2,70 @@
 //  ZoneTextView.swift
 //  QuizFlash
 //
-//  UITextView wrapper with line-based focus tracking for split operations.
-//
 
 import SwiftUI
 import UIKit
 
+// MARK: - Full Hit Text View
+/// Custom UITextView that captures touches across its ENTIRE surface, even in empty space created by stretching.
+final class FullHitTextView: UITextView {
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if self.bounds.contains(point) {
+            return self
+        }
+        return super.hitTest(point, with: event)
+    }
+}
+
 // MARK: - Zone Text View Coordinator
 
-/// Coordinator for UITextView that tracks line-based focus
-final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate {
+final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
     var zoneID: UUID?
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
-    var onFocusLineChange: ((Int, Int) -> Void)?  // Reports (focusedLineIndex, totalLines)
+    var onFocusLineChange: ((Int, Int) -> Void)?
     var onCommit: (() -> Void)?
+    var onFocusChange: ((Bool) -> Void)?
     
     private var lastText: String = ""
     var isUpdating: Bool = false
+    weak var textView: UITextView?
+    private var focusObserver: NSObjectProtocol?
     
-    // MARK: - UITextViewDelegate
+    override init() {
+        super.init()
+        focusObserver = NotificationCenter.default.addObserver(
+            forName: .focusZoneTextView,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            if let zoneID = notification.object as? UUID,
+               let self = self,
+               self.zoneID == zoneID {
+                // Prevent glitch: only bring focus if not already here
+                if !(self.textView?.isFirstResponder ?? false) {
+                    self.textView?.becomeFirstResponder()
+                }
+            }
+        }
+    }
+    
+    deinit {
+        if let observer = focusObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+    
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        return true
+    }
     
     func textViewDidChange(_ textView: UITextView) {
         guard let text = textView.text else { return }
-        
-        // Prevent infinite loop
         guard !isUpdating else { return }
         
         lastText = text
         onTextChange?(text)
-        
-        // Report cursor position and focused line
         reportCursorPosition(from: textView)
     }
     
@@ -42,53 +75,79 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate {
     }
     
     func textViewDidBeginEditing(_ textView: UITextView) {
+        onFocusChange?(true)
         reportCursorPosition(from: textView)
     }
     
     func textViewDidEndEditing(_ textView: UITextView) {
-        // Clear focus state
+        onFocusChange?(false)
     }
     
-    // MARK: - Helper Methods
+    // MARK: - Smart Empty Space Tap (Now works perfectly on stretched zones too)
+    
+    @objc func handleEmptySpaceTap(_ gesture: UITapGestureRecognizer) {
+        guard gesture.state == .ended,
+              let textView = gesture.view as? UITextView else { return }
+        
+        if !textView.isFirstResponder {
+            textView.becomeFirstResponder()
+        }
+        
+        let tapPoint = gesture.location(in: textView)
+        
+        // Calculate exact bounding box where text ends
+        let textRect = textView.layoutManager.boundingRect(
+            forGlyphRange: NSRange(location: 0, length: textView.textStorage.length),
+            in: textView.textContainer
+        )
+        
+        // If user tapped BELOW the last line of text
+        if tapPoint.y > textRect.maxY {
+            let lineHeight = textView.font?.lineHeight ?? 22
+            let emptySpaceY = tapPoint.y - textRect.maxY
+            let newLinesCount = Int(emptySpaceY / lineHeight) + 1
+            
+            if newLinesCount > 0 {
+                let padding = String(repeating: "\n", count: newLinesCount)
+                let newText = (textView.text ?? "") + padding
+                
+                self.isUpdating = true
+                textView.text = newText
+                self.isUpdating = false
+                
+                let endPosition = textView.endOfDocument
+                textView.selectedTextRange = textView.textRange(from: endPosition, to: endPosition)
+                
+                self.textViewDidChange(textView)
+            }
+        }
+    }
     
     private func reportCursorPosition(from textView: UITextView) {
         guard let text = textView.text else { return }
-        
         let nsRange = textView.selectedRange
         onCursorChange?(nsRange, text)
-        
-        // Calculate focused line index and total lines
         let (focusedLineIndex, totalLines) = calculateLineInfo(from: text, location: nsRange.location)
         onFocusLineChange?(focusedLineIndex, totalLines)
     }
     
-    /// Calculates which line the cursor is on and total line count
     private func calculateLineInfo(from text: String, location: Int) -> (lineIndex: Int, totalLines: Int) {
         let lines = text.components(separatedBy: "\n")
         let totalLines = lines.count
-        
-        guard location >= 0 else {
-            return (0, totalLines)
-        }
+        guard location >= 0 else { return (0, totalLines) }
         
         var currentIndex = 0
-        
         for (index, line) in lines.enumerated() {
-            let lineLength = line.count + 1  // +1 for newline
-            if location < currentIndex + lineLength {
-                return (index, totalLines)
-            }
+            let lineLength = line.count + 1
+            if location < currentIndex + lineLength { return (index, totalLines) }
             currentIndex += lineLength
         }
-        
-        // Cursor is at the end, return last line index
         return (max(0, totalLines - 1), totalLines)
     }
 }
 
 // MARK: - Zone Text View Representable
 
-/// UITextView wrapper with line-based focus tracking
 struct ZoneTextViewRepresentable: UIViewRepresentable {
     @Binding var text: String
     let font: UIFont
@@ -97,14 +156,20 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     let isBold: Bool
     let isItalic: Bool
     let zoneID: UUID
+    let isFirstResponder: Bool
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
     var onCommit: (() -> Void)?
+    var onFocusChange: ((Bool) -> Void)?
     
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
+        // Use custom class that detects tap everywhere
+        let textView = FullHitTextView()
         textView.delegate = context.coordinator
+        context.coordinator.textView = textView
+        context.coordinator.zoneID = zoneID
+        
         textView.font = font
         textView.textColor = textColor
         textView.textAlignment = textAlignment
@@ -120,71 +185,104 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         textView.textContainerInset = .zero
         textView.allowsEditingTextAttributes = false
         
-        // Set initial text
+        textView.textContainer.lineBreakMode = .byWordWrapping
+        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        
         textView.text = text
+        
+        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(context.coordinator.handleEmptySpaceTap(_:)))
+        tapGesture.cancelsTouchesInView = false
+        tapGesture.delegate = context.coordinator
+        textView.addGestureRecognizer(tapGesture)
         
         return textView
     }
     
     func updateUIView(_ textView: UITextView, context: Context) {
-        // Only update if text actually changed
+        context.coordinator.zoneID = zoneID
+        context.coordinator.onTextChange = onTextChange
+        context.coordinator.onCursorChange = onCursorChange
+        context.coordinator.onFocusLineChange = onFocusLineChange
+        context.coordinator.onCommit = onCommit
+        context.coordinator.onFocusChange = onFocusChange
+        
         guard textView.text != text else {
             updateStyling(of: textView)
+            syncFocus(textView: textView, isFirstResponder: isFirstResponder, context: context)
             return
         }
         
-        // Save cursor position
         let selectedRange = textView.selectedRange
-        let hasSelection = selectedRange.length > 0
         
-        // Update text with flag to prevent infinite loop
         context.coordinator.isUpdating = true
         textView.text = text
         context.coordinator.isUpdating = false
         
-        // Restore cursor position
         if selectedRange.location != NSNotFound && 
            selectedRange.location <= (text as NSString).length {
             textView.selectedRange = selectedRange
         }
         
-        // Update styling
         updateStyling(of: textView)
+        syncFocus(textView: textView, isFirstResponder: isFirstResponder, context: context)
+    }
+    
+    private func syncFocus(textView: UITextView, isFirstResponder: Bool, context: Context) {
+        // Removed glitch: Don't force "becomeFirstResponder" from SwiftUI to UIKit here.
+        // This is done asynchronously via Notification (see Coordinator init).
+        // We ONLY execute resignFirstResponder if no other zone intentionally took focus.
+        if !isFirstResponder && textView.isFirstResponder {
+            DispatchQueue.main.async {
+                if ZoneFocusManager.shared.focusedZoneID != self.zoneID {
+                    textView.resignFirstResponder()
+                }
+            }
+        }
     }
     
     func makeCoordinator() -> ZoneTextViewCoordinator {
         let coordinator = ZoneTextViewCoordinator()
         coordinator.zoneID = zoneID
-        coordinator.onTextChange = onTextChange
-        coordinator.onCursorChange = onCursorChange
-        coordinator.onFocusLineChange = onFocusLineChange
-        coordinator.onCommit = onCommit
         return coordinator
+    }
+    
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize {
+        let width = proposal.width ?? UIView.layoutFittingExpandedSize.width
+        let targetSize = CGSize(width: width, height: UIView.layoutFittingCompressedSize.height)
+        let calculatedSize = uiView.sizeThatFits(targetSize)
+        
+        // Inherit stretched height from neighbors
+        let proposedHeight = proposal.height ?? 0
+        return CGSize(width: width, height: max(proposedHeight, calculatedSize.height))
     }
     
     private func updateStyling(of textView: UITextView) {
         textView.font = font
         textView.textColor = textColor
-        textView.textAlignment = textAlignment
+        
+        if textView.text.isEmpty && textView.textAlignment != textAlignment {
+            textView.text = " "
+            textView.textAlignment = textAlignment
+            textView.text = ""
+        } else {
+            textView.textAlignment = textAlignment
+        }
     }
 }
 
-// MARK: - String Line Extensions
+// MARK: - String Extensions
 
 extension String {
-    /// Returns the line at the given index
     func line(at index: Int) -> String? {
         let lines = components(separatedBy: "\n")
         guard index >= 0 && index < lines.count else { return nil }
         return lines[index]
     }
     
-    /// Returns all lines as array
     var lines: [String] {
         components(separatedBy: "\n")
     }
     
-    /// Returns the line index containing the character at offset
     func lineIndex(for characterOffset: Int) -> Int {
         guard characterOffset >= 0 else { return 0 }
         
@@ -202,8 +300,6 @@ extension String {
         return max(0, linesArray.count - 1)
     }
     
-    /// Splits text at the given line index
-    /// - Returns: (linesBeforeAndIncluding, linesAfter) tuple
     func splitAtLine(_ lineIndex: Int) -> (before: String, after: String) {
         let linesArray = lines
         guard lineIndex >= 0 && lineIndex < linesArray.count else {
