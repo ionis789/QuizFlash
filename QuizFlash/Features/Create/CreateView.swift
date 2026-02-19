@@ -160,6 +160,16 @@ private extension CreateView {
                         .padding(.vertical, 8)
                         .background(.ultraThinMaterial, in: Capsule())
                 }
+                
+                Button {
+                    
+                } label: {
+                    Label("AI", systemImage: "sparkles")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
             }
                 .padding(.horizontal, 24)
 

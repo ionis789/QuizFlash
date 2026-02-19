@@ -4,6 +4,7 @@
 //
 //  Format bar with isolated drag gesture handling.
 //  Synchronized preview clearing and zone addition for flawless UX.
+//  Features: Invisible tracking with fluid Bubble Fill interaction.
 //
 
 import SwiftUI
@@ -19,18 +20,14 @@ struct ZoneFormatBar: View {
     var onSplit: () -> Void
     var onClose: () -> Void
     
-    // UI State - Local to this view, doesn't trigger parent redraws
+    // UI State - Local to this view
     @State private var isDraggingMenu = false
     @State private var activeDirection: AddDirection? = nil
     
-    // Virtual Cursor Tracking - Internal state only
-    @State private var cursorPosition: CGPoint = CGPoint(x: 50, y: -80)
-    
     // Geometry Constraints
-    private let menuCenter = CGPoint(x: 50, y: -80)
-    private let arrowRadius: CGFloat = 55
-    private let captureRadius: CGFloat = 25
-    private let cursorMaxRadius: CGFloat = 75
+    private let menuCenter = CGPoint(x: 50, y: -90)
+    private let arrowRadius: CGFloat = 44           // Mai strâns pentru un look compact
+    private let captureRadius: CGFloat = 20         // Raza minimă de la centru pentru a selecta o direcție
     
     init(
         content: ZoneCardContent,
@@ -66,40 +63,27 @@ struct ZoneFormatBar: View {
     
     var body: some View {
         HStack(spacing: 0) {
-            // Radial Drag Menu Button
             dragMenuButton
                 .padding(.leading, 12)
                 .padding(.trailing, 8)
             
             Divider().frame(height: 28)
             
-            // Horizontal scrollable tools
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    if canSplit {
-                        ToolbarButton(icon: "rectangle.split.1x2") { onSplit() }
-                    }
+                    if canSplit { ToolbarButton(icon: "rectangle.split.1x2") { onSplit() } }
                     
-                    if zone?.contentType == .text || zone?.contentType == .empty {
-                        textTools
-                    } else if zone?.contentType == .image || zone?.contentType == .sketch {
-                        mediaTools
-                    }
+                    if zone?.contentType == .text || zone?.contentType == .empty { textTools }
+                    else if zone?.contentType == .image || zone?.contentType == .sketch { mediaTools }
                     
-                    ToolbarButton(icon: "trash", tint: .red) {
-                        content.deleteZone(at: path)
-                        onClose()
-                    }
+                    ToolbarButton(icon: "trash", tint: .red) { content.deleteZone(at: path); onClose() }
                 }
                 .padding(.horizontal, 8)
             }
             
             Divider().frame(height: 28)
             
-            // Done button
-            Button {
-                onClose()
-            } label: {
+            Button { onClose() } label: {
                 Text("Done")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
@@ -121,158 +105,102 @@ struct ZoneFormatBar: View {
     // MARK: - Drag Menu Button
     
     private var dragMenuButton: some View {
-        Image(systemName: isDraggingMenu ? "plus.square.fill" : "plus.square.dashed")
+        Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
             .font(.body.weight(.medium))
             .foregroundStyle(isDraggingMenu ? .white : accent)
             .frame(width: 34, height: 34)
-            .background(
-                isDraggingMenu ? accent : accent.opacity(0.12),
-                in: RoundedRectangle(cornerRadius: 8)
-            )
+            .background(isDraggingMenu ? accent : accent.opacity(0.12), in: Capsule())
             .overlay {
                 if isDraggingMenu {
-                    ZStack {
-                        // Radial popover menu
-                        DirectionPopoverMenu(
-                            activeDirection: activeDirection,
-                            accent: accent,
-                            arrowRadius: arrowRadius
+                    // Hub-ul cu bule (Fără cursor)
+                    DirectionPopoverMenu(
+                        activeDirection: activeDirection,
+                        accent: accent,
+                        arrowRadius: arrowRadius
+                    )
+                    .offset(x: menuCenter.x, y: menuCenter.y)
+                    .zIndex(1)
+                    .transition(
+                        .asymmetric(
+                            insertion: .scale(scale: 0.1, anchor: .bottomLeading).combined(with: .opacity).animation(.spring(response: 0.35, dampingFraction: 0.7)),
+                            removal: .scale(scale: 0.1, anchor: .bottomLeading).combined(with: .opacity).animation(.easeOut(duration: 0.2))
                         )
-                        .offset(x: menuCenter.x, y: menuCenter.y)
-                        .zIndex(1)
-                        
-                        // Free-moving virtual cursor
-                        Circle()
-                            .fill(.ultraThinMaterial)
-                            .overlay(Circle().fill(Color.white.opacity(0.95)))
-                            .overlay(Circle().stroke(Color.black.opacity(0.1), lineWidth: 1))
-                            .frame(width: 34, height: 34)
-                            .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
-                            .offset(x: cursorPosition.x, y: cursorPosition.y)
-                            .zIndex(2)
-                    }
-                    .transition(.scale(scale: 0.1, anchor: .bottomLeading).combined(with: .opacity))
+                    )
                 }
             }
             .highPriorityGesture(
                 DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        handleDragChange(value)
-                    }
-                    .onEnded { value in
-                        handleDragEnd(value)
-                    }
+                    .onChanged { value in handleDragChange(value) }
+                    .onEnded { value in handleDragEnd(value) }
             )
     }
     
-    // MARK: - Drag Handling (Isolated & Synchronized)
+    // MARK: - Drag Handling (Invisible Gesture Tracking)
     
     private func handleDragChange(_ value: DragGesture.Value) {
         if !isDraggingMenu {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            cursorPosition = menuCenter
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 isDraggingMenu = true
             }
         }
         
+        // Multiplicator pentru a nu fi nevoit să tragi degetul prea mult
         let dx = value.translation.width * 1.3
         let dy = value.translation.height * 1.3
-        
-        let rawCursor = CGPoint(x: menuCenter.x + dx, y: menuCenter.y + dy)
         let distToCenter = hypot(dx, dy)
-        var finalCursor = rawCursor
         
-        if distToCenter > cursorMaxRadius {
-            finalCursor.x = menuCenter.x + (dx / distToCenter) * cursorMaxRadius
-            finalCursor.y = menuCenter.y + (dy / distToCenter) * cursorMaxRadius
-        }
-        
-        withAnimation(.interactiveSpring(response: 0.1, dampingFraction: 0.8)) {
-            cursorPosition = finalCursor
-        }
-        
-        let prevDir = activeDirection
+        // Determinăm pe ce direcție se află degetul
         var newDir: AddDirection? = nil
-        
         if distToCenter > captureRadius {
             let angle = atan2(dy, dx)
             let pi = CGFloat.pi
-            
             if angle > -pi/4 && angle <= pi/4 { newDir = .right }
             else if angle > pi/4 && angle <= 3*pi/4 { newDir = .down }
             else if angle > -3*pi/4 && angle <= -pi/4 { newDir = .up }
             else { newDir = .left }
         }
         
-        // Notify ONLY on direction change
+        // Declanșăm starea DOAR dacă traversăm dintr-o zonă în alta
+        let prevDir = activeDirection
         if newDir != prevDir {
-            activeDirection = newDir
+            if newDir != nil { UISelectionFeedbackGenerator().selectionChanged() }
+            else { UIImpactFeedbackGenerator(style: .rigid).impactOccurred() }
             
-            if newDir != nil {
-                UISelectionFeedbackGenerator().selectionChanged()
-            } else {
-                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                activeDirection = newDir
             }
-            onPreviewDirection(activeDirection)
+            onPreviewDirection(newDir)
         }
     }
     
     private func handleDragEnd(_ value: DragGesture.Value) {
         let finalDir = activeDirection
         
-        // Use identical spring values as AddCardSheetView to morph layout seamlessly
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             isDraggingMenu = false
             activeDirection = nil
-            cursorPosition = menuCenter
-            
-            // Clear preview inside the same transaction
             onPreviewDirection(nil)
         }
         
-        // Trigger actual addition immediately so the ghost swaps with the real zone flawlessly
-        if let dir = finalDir {
-            onAddZoneAction(dir)
-        }
+        if let dir = finalDir { onAddZoneAction(dir) }
     }
     
     // MARK: - Text Tools
-    
     private var textTools: some View {
         HStack(spacing: 8) {
             Menu {
                 ForEach([TextBlockStyle.title, .headline, .body, .caption], id: \.self) { style in
-                    Button {
-                        content.updateZone(at: path) { $0.textStyle = style }
-                    } label: {
-                        HStack {
-                            Text(style.rawValue.capitalized)
-                            if zone?.textStyle == style { Image(systemName: "checkmark") }
-                        }
-                    }
+                    Button { content.updateZone(at: path) { $0.textStyle = style } } label: { HStack { Text(style.rawValue.capitalized); if zone?.textStyle == style { Image(systemName: "checkmark") } } }
                 }
             } label: { ToolbarButton(icon: "textformat.size") }
             
-            ToolbarButton(icon: "bold", isActive: zone?.isBold == true) {
-                content.updateZone(at: path) { $0.isBold.toggle() }
-            }
-            
-            ToolbarButton(icon: "italic", isActive: zone?.isItalic == true) {
-                content.updateZone(at: path) { $0.isItalic.toggle() }
-            }
+            ToolbarButton(icon: "bold", isActive: zone?.isBold == true) { content.updateZone(at: path) { $0.isBold.toggle() } }
+            ToolbarButton(icon: "italic", isActive: zone?.isItalic == true) { content.updateZone(at: path) { $0.isItalic.toggle() } }
             
             Menu {
                 ForEach(FontFamily.allCases, id: \.self) { family in
-                    Button {
-                        content.updateZone(at: path) { $0.fontFamily = family }
-                    } label: {
-                        HStack {
-                            Image(systemName: family.icon)
-                            Text(family.name)
-                            if zone?.fontFamily == family { Image(systemName: "checkmark") }
-                        }
-                    }
+                    Button { content.updateZone(at: path) { $0.fontFamily = family } } label: { HStack { Image(systemName: family.icon); Text(family.name); if zone?.fontFamily == family { Image(systemName: "checkmark") } } }
                 }
             } label: { ToolbarButton(icon: zone?.fontFamily.icon ?? "textformat") }
             
@@ -284,28 +212,15 @@ struct ZoneFormatBar: View {
             
             Menu {
                 ForEach(TextBlockColor.allCases, id: \.self) { color in
-                    Button {
-                        content.updateZone(at: path) { $0.textColor = color }
-                    } label: {
-                        HStack {
-                            Circle().fill(color.color).frame(width: 14, height: 14)
-                            Text(color.name)
-                        }
-                    }
+                    Button { content.updateZone(at: path) { $0.textColor = color } } label: { HStack { Circle().fill(color.color).frame(width: 14, height: 14); Text(color.name) } }
                 }
             } label: { ToolbarButton(icon: "paintpalette", tint: zone?.textColor.color ?? .primary) }
             
             Menu {
                 ForEach(HighlightColor.allCases, id: \.self) { highlight in
-                    Button {
-                        content.updateZone(at: path) { $0.highlightColor = highlight }
-                    } label: {
+                    Button { content.updateZone(at: path) { $0.highlightColor = highlight } } label: {
                         HStack {
-                            if highlight != .none {
-                                RoundedRectangle(cornerRadius: 2).fill(highlight.color ?? .clear).frame(width: 14, height: 14)
-                            } else {
-                                Image(systemName: "xmark").frame(width: 14, height: 14)
-                            }
+                            if highlight != .none { RoundedRectangle(cornerRadius: 2).fill(highlight.color ?? .clear).frame(width: 14, height: 14) } else { Image(systemName: "xmark").frame(width: 14, height: 14) }
                             Text(highlight.name)
                             if zone?.highlightColor == highlight { Image(systemName: "checkmark") }
                         }
@@ -313,48 +228,29 @@ struct ZoneFormatBar: View {
                 }
             } label: { ToolbarButton(icon: "highlighter", isActive: zone?.highlightColor != HighlightColor.none, tint: .primary) }
             
-            ToolbarButton(icon: "list.bullet", isActive: zone?.hasBullet == true) {
-                content.updateZone(at: path) { $0.hasBullet.toggle() }
-            }
+            ToolbarButton(icon: "list.bullet", isActive: zone?.hasBullet == true) { content.updateZone(at: path) { $0.hasBullet.toggle() } }
         }
     }
     
     // MARK: - Media Tools
-    
     private var mediaTools: some View {
         HStack(spacing: 8) {
             Menu {
-                Button { content.updateZone(at: path) { $0.textAlignment = .leading } } label: {
-                    HStack { Text("Left"); if zone?.textAlignment == .leading { Image(systemName: "checkmark") } }
-                }
-                Button { content.updateZone(at: path) { $0.textAlignment = .center } } label: {
-                    HStack { Text("Center"); if zone?.textAlignment == .center { Image(systemName: "checkmark") } }
-                }
-                Button { content.updateZone(at: path) { $0.textAlignment = .trailing } } label: {
-                    HStack { Text("Right"); if zone?.textAlignment == .trailing { Image(systemName: "checkmark") } }
-                }
+                Button { content.updateZone(at: path) { $0.textAlignment = .leading } } label: { HStack { Text("Left"); if zone?.textAlignment == .leading { Image(systemName: "checkmark") } } }
+                Button { content.updateZone(at: path) { $0.textAlignment = .center } } label: { HStack { Text("Center"); if zone?.textAlignment == .center { Image(systemName: "checkmark") } } }
+                Button { content.updateZone(at: path) { $0.textAlignment = .trailing } } label: { HStack { Text("Right"); if zone?.textAlignment == .trailing { Image(systemName: "checkmark") } } }
             } label: { ToolbarButton(icon: alignmentIcon(for: zone?.textAlignment ?? .leading)) }
             
             Menu {
-                Button { content.updateZone(at: path) { $0.imageScale = 0.3 } } label: {
-                    HStack { Text("Small"); if zone?.imageScale == 0.3 { Image(systemName: "checkmark") } }
-                }
-                Button { content.updateZone(at: path) { $0.imageScale = 0.7 } } label: {
-                    HStack { Text("Medium"); if zone?.imageScale == 0.7 { Image(systemName: "checkmark") } }
-                }
-                Button { content.updateZone(at: path) { $0.imageScale = 1.0 } } label: {
-                    HStack { Text("Full Width"); if zone?.imageScale == 1.0 { Image(systemName: "checkmark") } }
-                }
+                Button { content.updateZone(at: path) { $0.imageScale = 0.3 } } label: { HStack { Text("Small"); if zone?.imageScale == 0.3 { Image(systemName: "checkmark") } } }
+                Button { content.updateZone(at: path) { $0.imageScale = 0.7 } } label: { HStack { Text("Medium"); if zone?.imageScale == 0.7 { Image(systemName: "checkmark") } } }
+                Button { content.updateZone(at: path) { $0.imageScale = 1.0 } } label: { HStack { Text("Full Width"); if zone?.imageScale == 1.0 { Image(systemName: "checkmark") } } }
             } label: { ToolbarButton(icon: "aspectratio") }
         }
     }
     
     private func alignmentIcon(for alignment: TextBlockAlignment) -> String {
-        switch alignment {
-        case .leading: return "text.alignleft"
-        case .center: return "text.aligncenter"
-        case .trailing: return "text.alignright"
-        }
+        switch alignment { case .leading: return "text.alignleft"; case .center: return "text.aligncenter"; case .trailing: return "text.alignright" }
     }
 }
 
@@ -367,11 +263,20 @@ struct DirectionPopoverMenu: View {
     
     var body: some View {
         ZStack {
-            Circle().fill(Color.gray.opacity(0.15)).frame(width: 28, height: 28)
-            PopoverBubble(icon: "arrow.up", isActive: activeDirection == .up, accent: accent).offset(y: -arrowRadius)
-            PopoverBubble(icon: "arrow.down", isActive: activeDirection == .down, accent: accent).offset(y: arrowRadius)
-            PopoverBubble(icon: "arrow.left", isActive: activeDirection == .left, accent: accent).offset(x: -arrowRadius)
-            PopoverBubble(icon: "arrow.right", isActive: activeDirection == .right, accent: accent).offset(x: arrowRadius)
+            // Central Hub
+            Circle()
+                .fill(Color.gray.opacity(0.15))
+                .frame(width: 32, height: 32)
+                .overlay(Image(systemName: "plus").font(.caption.weight(.bold)).foregroundStyle(.secondary))
+                .scaleEffect(activeDirection != nil ? 0.6 : 1.0)
+                .opacity(activeDirection != nil ? 0.3 : 1.0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: activeDirection)
+            
+            // Nodes (Chevrons)
+            PopoverBubble(icon: "chevron.up", isActive: activeDirection == .up, accent: accent).offset(y: -arrowRadius)
+            PopoverBubble(icon: "chevron.down", isActive: activeDirection == .down, accent: accent).offset(y: arrowRadius)
+            PopoverBubble(icon: "chevron.left", isActive: activeDirection == .left, accent: accent).offset(x: -arrowRadius)
+            PopoverBubble(icon: "chevron.right", isActive: activeDirection == .right, accent: accent).offset(x: arrowRadius)
         }
         .allowsHitTesting(false)
     }
@@ -386,12 +291,25 @@ struct PopoverBubble: View {
         Image(systemName: icon)
             .font(.title3.weight(.bold))
             .foregroundStyle(isActive ? .white : .primary)
-            .frame(width: 44, height: 44)
-            .background(isActive ? AnyShapeStyle(accent) : AnyShapeStyle(.ultraThinMaterial), in: Circle())
+            .frame(width: isActive ? 52 : 36, height: isActive ? 52 : 36)
+            .background(
+                ZStack {
+                    Circle().fill(.ultraThinMaterial)
+                    // EFECTUL DE UMPLERE: Apare din centru
+                    if isActive {
+                        Circle()
+                            .fill(accent)
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.2).combined(with: .opacity),
+                                removal: .scale(scale: 0.2).combined(with: .opacity)
+                            ))
+                    }
+                }
+            )
             .overlay(Circle().stroke(Color.white.opacity(isActive ? 0 : 0.2), lineWidth: 1))
-            .shadow(color: .black.opacity(isActive ? 0.3 : 0.15), radius: isActive ? 12 : 8, y: 4)
-            .scaleEffect(isActive ? 1.15 : 1.0)
-            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isActive)
+            .shadow(color: isActive ? accent.opacity(0.5) : .black.opacity(0.1), radius: isActive ? 12 : 5, y: isActive ? 6 : 2)
+            .opacity(isActive ? 1.0 : 0.7)
+            .animation(.spring(response: 0.28, dampingFraction: 0.6), value: isActive)
     }
 }
 
@@ -404,18 +322,12 @@ struct ToolbarButton: View {
     var action: (() -> Void)? = nil
     
     var body: some View {
-        Button {
-            action?()
-        } label: {
+        Button { action?() } label: {
             Image(systemName: icon)
                 .font(.body.weight(.medium))
                 .foregroundStyle(isActive ? ThemeManager.shared.accentColor.color : tint)
                 .frame(width: 34, height: 34)
-                .background(
-                    isActive
-                        ? ThemeManager.shared.accentColor.color.opacity(0.12)
-                        : Color(uiColor: .tertiarySystemFill)
-                )
+                .background(isActive ? ThemeManager.shared.accentColor.color.opacity(0.12) : Color(uiColor: .tertiarySystemFill))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
