@@ -9,7 +9,7 @@
 import SwiftUI
 import PhotosUI
 
-// MARK: - Fake Ghost Block View (Visual Only - No Data Mutation)
+// MARK: - Fake Ghost Block View (Visual Only - Seamless Dimension Match)
 
 struct FakeGhostBlockView: View {
     let isHorizontal: Bool
@@ -21,9 +21,8 @@ struct FakeGhostBlockView: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(Color.yellow.opacity(0.8), style: StrokeStyle(lineWidth: 2, dash: [6]))
         }
-            .frame(minWidth: 0, maxWidth: .infinity)
-        // If vertical, force height to 38 so it looks like a real block!
-        // If horizontal, stretch to match sibling text.
+        // Match standard UITextView line height + padding seamlessly
+        .frame(minWidth: isHorizontal ? 40 : 0, maxWidth: .infinity)
         .frame(minHeight: isHorizontal ? 0 : 38, maxHeight: isHorizontal ? .infinity : 38)
     }
 }
@@ -74,7 +73,7 @@ struct ZoneEditorView: View {
             onSelect: { selectZone() },
             previewDirection: previewDirection
         )
-            .id(path.id)
+        .id(path.id)
     }
 
     // MARK: - Container Zone View (GLOBAL GHOST INJECTION AS TRUE SIBLING)
@@ -85,19 +84,16 @@ struct ZoneEditorView: View {
         let isHorizontal = zone.direction == .horizontal
 
         if isHorizontal {
-            // ISSUE 2 FIX: Use .center alignment (default) to allow vertical stretching
             HStack(alignment: .center, spacing: 8) {
                 ForEach(Array(children.enumerated()), id: \.element.id) { index, _ in
                     let childPath = path.appending(index)
                     let isChildSelected = (selectedPath == childPath)
 
-                    // INJECT GHOST AS TRUE SIBLING - Left side
                     if isChildSelected, previewDirection.wrappedValue == .left {
                         FakeGhostBlockView(isHorizontal: true)
-                            .transition(.scale.combined(with: .opacity))
+                            .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
                     }
 
-                    // Actual child zone editor with MASKED preview direction
                     ZoneEditorView(
                         content: content,
                         path: childPath,
@@ -105,29 +101,26 @@ struct ZoneEditorView: View {
                         highlightContext: highlightContext,
                         previewDirection: maskedPreviewDirection(for: isChildSelected, isHorizontal: true)
                     )
-                        .frame(maxHeight: .infinity)
+                    .frame(maxHeight: .infinity)
 
-                    // INJECT GHOST AS TRUE SIBLING - Right side
                     if isChildSelected, previewDirection.wrappedValue == .right {
                         FakeGhostBlockView(isHorizontal: true)
-                            .transition(.scale.combined(with: .opacity))
+                            .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
                     }
                 }
             }
-                .fixedSize(horizontal: false, vertical: true)
+            .fixedSize(horizontal: false, vertical: true)
         } else {
             VStack(spacing: 8) {
                 ForEach(Array(children.enumerated()), id: \.element.id) { index, _ in
                     let childPath = path.appending(index)
                     let isChildSelected = (selectedPath == childPath)
 
-                    // INJECT GHOST AS TRUE SIBLING - Up side
                     if isChildSelected, previewDirection.wrappedValue == .up {
                         FakeGhostBlockView(isHorizontal: false)
-                            .transition(.scale.combined(with: .opacity))
+                            .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
                     }
 
-                    // Actual child zone editor with MASKED preview direction
                     ZoneEditorView(
                         content: content,
                         path: childPath,
@@ -136,14 +129,13 @@ struct ZoneEditorView: View {
                         previewDirection: maskedPreviewDirection(for: isChildSelected, isHorizontal: false)
                     )
 
-                    // INJECT GHOST AS TRUE SIBLING - Down side
                     if isChildSelected, previewDirection.wrappedValue == .down {
                         FakeGhostBlockView(isHorizontal: false)
-                            .transition(.scale.combined(with: .opacity))
+                            .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
                     }
                 }
             }
-                .frame(maxHeight: .infinity, alignment: .top)
+            .frame(maxHeight: .infinity, alignment: .top)
         }
     }
 
@@ -155,11 +147,11 @@ struct ZoneEditorView: View {
                 guard isChildSelected, let direction = previewDirection.wrappedValue else {
                     return previewDirection.wrappedValue
                 }
-                // If the parent handles this direction, hide it from the child to prevent double-rendering!
+                // Hide duplicate directions handled by parent containers
                 if isHorizontal && (direction == .left || direction == .right) { return nil }
                 if !isHorizontal && (direction == .up || direction == .down) { return nil }
 
-                return direction // Let the child handle perpendicular splits (e.g. dragging UP on a horizontal row)
+                return direction
             },
             set: { previewDirection.wrappedValue = $0 }
         )
@@ -209,8 +201,7 @@ struct ZoneContentView: View {
     }
 
     private var shouldShowHighlight: Bool {
-        guard let highlightContext = highlightContext,
-            let zone = zone else { return false }
+        guard let highlightContext = highlightContext, let zone = zone else { return false }
         return highlightContext.shouldHighlight(text: zone.text)
     }
 
@@ -221,11 +212,8 @@ struct ZoneContentView: View {
             .simultaneousGesture(
                 TapGesture().onEnded {
                     onSelect()
-                    // Perfect synchronization: if we tapped zone but don't have focus, request it
                     if !isFocused {
-                        if let id = currentZoneID {
-                            focusManager.requestFocus(for: id)
-                        }
+                        if let id = currentZoneID { focusManager.requestFocus(for: id) }
                     }
                 }
             )
@@ -266,13 +254,13 @@ struct ZoneContentView: View {
             VStack(spacing: 8) {
                 if isSelected, previewDirection == .up {
                     FakeGhostBlockView(isHorizontal: false)
-                        .transition(.scale.combined(with: .opacity))
+                        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
                 }
 
                 HStack(spacing: 8) {
                     if isSelected, previewDirection == .left {
                         FakeGhostBlockView(isHorizontal: true)
-                            .transition(.scale.combined(with: .opacity))
+                            .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
                     }
 
                     textEditorCore
@@ -280,28 +268,26 @@ struct ZoneContentView: View {
 
                     if isSelected, previewDirection == .right {
                         FakeGhostBlockView(isHorizontal: true)
-                            .transition(.scale.combined(with: .opacity))
+                            .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
                     }
                 }
-                    .frame(maxHeight: .infinity)
+                .frame(maxHeight: .infinity)
 
                 if isSelected, previewDirection == .down {
                     FakeGhostBlockView(isHorizontal: false)
-                        .transition(.scale.combined(with: .opacity))
+                        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
                 }
             }
-                .frame(maxHeight: .infinity)
-        }
             .frame(maxHeight: .infinity)
+        }
+        .frame(maxHeight: .infinity)
     }
 
     // MARK: - Highlight Overlay
 
     private var highlightedBackground: some View {
         let rawText = zone?.text ?? ""
-        let displayText = rawText.hasSuffix("\n")
-            ? rawText + "\u{200B}"
-        : (rawText.isEmpty ? "\u{200B}" : rawText)
+        let displayText = rawText.hasSuffix("\n") ? rawText + "\u{200B}" : (rawText.isEmpty ? "\u{200B}" : rawText)
 
         let attrString = highlightContext?.generateOverlay(
             for: displayText,
@@ -329,7 +315,6 @@ struct ZoneContentView: View {
         let currentContentType = zone?.contentType ?? .empty
 
         ZStack(alignment: .topLeading) {
-            // 1. Textul Invizibil pentru dimensionare
             Text(dummyText)
                 .font(textFont)
                 .lineLimit(nil)
@@ -339,7 +324,6 @@ struct ZoneContentView: View {
                 .frame(maxWidth: .infinity, alignment: alignmentFor(zone))
                 .layoutPriority(1)
 
-            // 2. UITextView-ul real
             ZoneTextViewRepresentable(
                 text: pureTextBinding,
                 font: textUIFont,
@@ -354,60 +338,41 @@ struct ZoneContentView: View {
                         highlightContext?.dismiss()
                         content.updateZone(at: currentPath) { z in
                             z.text = newText
-                            if z.contentType == .empty {
-                                z.contentType = .text
-                            }
+                            if z.contentType == .empty { z.contentType = .text }
                         }
                     }
                 },
                 onCursorChange: { _, _ in },
                 onFocusLineChange: { lineIndex, totalLines in
-                    lineTracker.updateFocusedLine(
-                        for: zoneID,
-                        lineIndex: lineIndex,
-                        totalLines: totalLines
-                    )
-                    zoneController.updateZoneHeightInfo(
-                        for: zoneID,
-                        lineCount: totalLines,
-                        focusedLineIndex: lineIndex
-                    )
+                    lineTracker.updateFocusedLine(for: zoneID, lineIndex: lineIndex, totalLines: totalLines)
+                    zoneController.updateZoneHeightInfo(for: zoneID, lineCount: totalLines, focusedLineIndex: lineIndex)
                 },
                 onCommit: { },
                 onFocusChange: { focused in
-                    if isFocused != focused {
-                        isFocused = focused
-                    }
+                    if isFocused != focused { isFocused = focused }
                 }
             )
-                .padding(.vertical, 4)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-            if shouldShowHighlight {
-                highlightedBackground
-            }
+            if shouldShowHighlight { highlightedBackground }
         }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.leading, zone?.highlightColor != HighlightColor.none ? 6 : 8)
-            .padding(.trailing, 0)
-            .background(
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.leading, zone?.highlightColor != HighlightColor.none ? 6 : 8)
+        .padding(.trailing, 0)
+        .background(
             ZStack {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color.gray.opacity(0.05))
                     .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(
-                        isSelected ? accent : Color.gray.opacity(0.3),
-                        style: StrokeStyle(lineWidth: isSelected ? 2 : 1, dash: [4])
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(isSelected ? accent : Color.gray.opacity(0.3), style: StrokeStyle(lineWidth: isSelected ? 2 : 1, dash: [4]))
                     )
-                )
-
                 if let highlight = zone?.highlightColor.color {
                     RoundedRectangle(cornerRadius: 4).fill(highlight)
                 }
             }
         )
-        // FIX: Am eliminat onTapGesture-ul care conflictiona cu selecția nativă a cursorului.
         .contentShape(Rectangle())
     }
 
@@ -421,19 +386,13 @@ struct ZoneContentView: View {
                 focusManager.updateFocusedZone(zoneID)
                 zoneController.updateFocusedZone(zoneID)
             }
-            // FIX: Am eliminat apelul recursiv către focusManager.requestFocus()
-            // Dacă am ajuns aici din cauza tap-ului utilizatorului, UIKit a preluat deja nativ focusul!
         }
     }
-
-    // (Păstrează în continuare celelalte funcții și extensii `pureTextBinding`, `textFont`, `imageView`, etc din acest fișier. Doar metodele și structurile prezentate trebuiau înlocuite).
 
     // MARK: - Direct Focus Trigger
 
     private func triggerFocus() {
-        if let zoneID = currentZoneID {
-            focusManager.requestFocus(for: zoneID)
-        }
+        if let zoneID = currentZoneID { focusManager.requestFocus(for: zoneID) }
         isFocused = true
         onSelect()
     }
@@ -448,9 +407,7 @@ struct ZoneContentView: View {
                     highlightContext?.dismiss()
                     content.updateZone(at: path) { zone in
                         zone.text = newValue
-                        if zone.contentType == .empty {
-                            zone.contentType = .text
-                        }
+                        if zone.contentType == .empty { zone.contentType = .text }
                     }
                 }
             }
@@ -462,15 +419,10 @@ struct ZoneContentView: View {
     private var textFont: Font {
         let style = zone?.textStyle ?? .body
         let family = zone?.fontFamily ?? .system
-        let weight: Font.Weight = zone?.isBold == true
-            ? .bold
-        : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
+        let weight: Font.Weight = zone?.isBold == true ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
         let size: CGFloat
         switch style {
-        case .body: size = 18
-        case .title: size = 28
-        case .headline: size = 22
-        case .caption: size = 14
+        case .body: size = 18; case .title: size = 28; case .headline: size = 22; case .caption: size = 14
         }
         return family.font(size: size, weight: weight)
     }
@@ -478,15 +430,10 @@ struct ZoneContentView: View {
     private var textUIFont: UIFont {
         let style = zone?.textStyle ?? .body
         let family = zone?.fontFamily ?? .system
-        let weight: UIFont.Weight = zone?.isBold == true
-            ? .bold
-        : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
+        let weight: UIFont.Weight = zone?.isBold == true ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
         let size: CGFloat
         switch style {
-        case .body: size = 18
-        case .title: size = 28
-        case .headline: size = 22
-        case .caption: size = 14
+        case .body: size = 18; case .title: size = 28; case .headline: size = 22; case .caption: size = 14
         }
         return family.uiFont(size: size, weight: weight)
     }
@@ -501,27 +448,18 @@ struct ZoneContentView: View {
             HStack(spacing: 0) {
                 if align == .trailing || align == .center { Spacer(minLength: 0) }
                 ZStack(alignment: .topTrailing) {
-                    Image(uiImage: img)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+                    Image(uiImage: img).resizable().aspectRatio(contentMode: .fit)
                         .frame(maxWidth: UIScreen.main.bounds.width * scale * 0.8)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
                 if align == .leading || align == .center { Spacer(minLength: 0) }
             }
-                .padding(.vertical, 8)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .background(
+            .padding(.vertical, 8)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(
                 ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.gray.opacity(0.05))
-                        .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(
-                            isSelected ? accent : Color.gray.opacity(0.3),
-                            style: StrokeStyle(lineWidth: isSelected ? 2 : 1, dash: [4])
-                        )
-                    )
+                    RoundedRectangle(cornerRadius: 6).fill(Color.gray.opacity(0.05))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(isSelected ? accent : Color.gray.opacity(0.3), style: StrokeStyle(lineWidth: isSelected ? 2 : 1, dash: [4])))
                 }
             )
         }
@@ -537,28 +475,19 @@ struct ZoneContentView: View {
             HStack(spacing: 0) {
                 if align == .trailing || align == .center { Spacer(minLength: 0) }
                 ZStack(alignment: .topTrailing) {
-                    Image(uiImage: img)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+                    Image(uiImage: img).resizable().aspectRatio(contentMode: .fit)
                         .frame(maxWidth: UIScreen.main.bounds.width * scale * 0.8)
                         .background(colorScheme == .dark ? Color.black : Color.white)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
                 if align == .leading || align == .center { Spacer(minLength: 0) }
             }
-                .padding(.vertical, 8)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .background(
+            .padding(.vertical, 8)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(
                 ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.gray.opacity(0.05))
-                        .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(
-                            isSelected ? accent : Color.gray.opacity(0.3),
-                            style: StrokeStyle(lineWidth: isSelected ? 2 : 1, dash: [4])
-                        )
-                    )
+                    RoundedRectangle(cornerRadius: 6).fill(Color.gray.opacity(0.05))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(isSelected ? accent : Color.gray.opacity(0.3), style: StrokeStyle(lineWidth: isSelected ? 2 : 1, dash: [4])))
                 }
             )
         }
@@ -567,24 +496,14 @@ struct ZoneContentView: View {
     // MARK: - Delete Button
 
     private var deleteButton: some View {
-        Button {
-            content.deleteZone(at: path)
-        } label: {
-            Image(systemName: "xmark.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.white, .red.opacity(0.8))
-        }
+        Button { content.deleteZone(at: path) } label: { Image(systemName: "xmark.circle.fill").font(.title2).foregroundStyle(.white, .red.opacity(0.8)) }
             .padding(8)
     }
 
     // MARK: - Alignment Helper
 
     private func alignmentFor(_ zone: ZoneModel?) -> Alignment {
-        switch zone?.textAlignment ?? .leading {
-        case .leading: return .leading
-        case .center: return .center
-        case .trailing: return .trailing
-        }
+        switch zone?.textAlignment ?? .leading { case .leading: return .leading; case .center: return .center; case .trailing: return .trailing }
     }
 }
 
@@ -595,11 +514,7 @@ struct ZonePreviewView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        if zone.isLeaf {
-            leafPreview
-        } else {
-            containerPreview
-        }
+        if zone.isLeaf { leafPreview } else { containerPreview }
     }
 
     @ViewBuilder
@@ -610,13 +525,7 @@ struct ZonePreviewView: View {
         case .text:
             if !zone.text.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
-                    if zone.hasBullet {
-                        Circle()
-                            .fill(zone.textColor.color)
-                            .frame(width: 6, height: 6)
-                            .padding(.top, 8)
-                    }
-
+                    if zone.hasBullet { Circle().fill(zone.textColor.color).frame(width: 6, height: 6).padding(.top, 8) }
                     Text(zone.text)
                         .font(previewFont(for: zone))
                         .fontWeight(zone.isBold ? .bold : .regular)
@@ -625,22 +534,14 @@ struct ZonePreviewView: View {
                         .multilineTextAlignment(zone.textAlignment.alignment)
                         .padding(.vertical, 4)
                         .padding(.horizontal, zone.highlightColor != HighlightColor.none ? 6 : 0)
-                        .background(
-                        zone.highlightColor.color.map { color in
-                            RoundedRectangle(cornerRadius: 4).fill(color)
-                        }
-                    )
+                        .background(zone.highlightColor.color.map { color in RoundedRectangle(cornerRadius: 4).fill(color) })
                 }
-                    .frame(maxWidth: .infinity, alignment: alignmentFor(zone))
+                .frame(maxWidth: .infinity, alignment: alignmentFor(zone))
             }
         case .image:
-            if let data = zone.imageData {
-                CachedImageView(data: data, scale: zone.imageScale, alignment: zone.textAlignment, cornerRadius: 10)
-            }
+            if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: zone.textAlignment, cornerRadius: 10) }
         case .sketch:
-            if let data = zone.imageData {
-                CachedImageView(data: data, scale: zone.imageScale, alignment: zone.textAlignment, cornerRadius: 10, isSketch: true)
-            }
+            if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: zone.textAlignment, cornerRadius: 10, isSketch: true) }
         }
     }
 
@@ -648,41 +549,21 @@ struct ZonePreviewView: View {
     private var containerPreview: some View {
         let children = zone.children ?? []
         if zone.direction == .horizontal {
-            HStack(alignment: .top, spacing: 12) {
-                ForEach(children) { child in
-                    ZonePreviewView(zone: child)
-                }
-            }
+            HStack(alignment: .top, spacing: 12) { ForEach(children) { child in ZonePreviewView(zone: child) } }
         } else {
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(children) { child in
-                    ZonePreviewView(zone: child)
-                }
-            }
+            VStack(alignment: .leading, spacing: 12) { ForEach(children) { child in ZonePreviewView(zone: child) } }
         }
     }
 
     private func alignmentFor(_ zone: ZoneModel) -> Alignment {
-        switch zone.textAlignment {
-        case .leading: return .leading
-        case .center: return .center
-        case .trailing: return .trailing
-        }
+        switch zone.textAlignment { case .leading: return .leading; case .center: return .center; case .trailing: return .trailing }
     }
 
     private func previewFont(for zone: ZoneModel) -> Font {
-        let style = zone.textStyle
-        let family = zone.fontFamily
-        let weight: Font.Weight = zone.isBold
-            ? .bold
-        : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
+        let style = zone.textStyle; let family = zone.fontFamily
+        let weight: Font.Weight = zone.isBold ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
         let size: CGFloat
-        switch style {
-        case .body: size = 18
-        case .title: size = 28
-        case .headline: size = 22
-        case .caption: size = 14
-        }
+        switch style { case .body: size = 18; case .title: size = 28; case .headline: size = 22; case .caption: size = 14 }
         return family.font(size: size, weight: weight)
     }
 }
@@ -703,43 +584,22 @@ struct CachedImageView: View {
         Group {
             if let image = uiImage {
                 HStack(spacing: 0) {
-                    if alignment == .trailing || alignment == .center {
-                        Spacer(minLength: 0)
-                    }
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: UIScreen.main.bounds.width * scale * 0.85)
-                        .background {
-                        if isSketch {
-                            RoundedRectangle(cornerRadius: cornerRadius)
-                                .fill(colorScheme == .dark ? Color.black : Color.white)
-                        }
-                    }
+                    if alignment == .trailing || alignment == .center { Spacer(minLength: 0) }
+                    Image(uiImage: image).resizable().aspectRatio(contentMode: .fit).frame(maxWidth: UIScreen.main.bounds.width * scale * 0.85)
+                        .background { if isSketch { RoundedRectangle(cornerRadius: cornerRadius).fill(colorScheme == .dark ? Color.black : Color.white) } }
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                         .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
-                    if alignment == .leading || alignment == .center {
-                        Spacer(minLength: 0)
-                    }
+                    if alignment == .leading || alignment == .center { Spacer(minLength: 0) }
                 }
-            } else {
-                ProgressView().frame(height: 100)
-            }
+            } else { ProgressView().frame(height: 100) }
         }
-            .task { loadImage() }
+        .task { loadImage() }
     }
 
     private func loadImage() {
         Task.detached {
-            let optimizedImage = await ImageCache.shared.image(
-                for: data,
-                id: String(data.hashValue),
-                targetSize: CGSize(width: 800, height: 800),
-                scale: 1.0
-            )
-            await MainActor.run {
-                self.uiImage = optimizedImage ?? UIImage(data: data)
-            }
+            let optimizedImage = await ImageCache.shared.image(for: data, id: String(data.hashValue), targetSize: CGSize(width: 800, height: 800), scale: 1.0)
+            await MainActor.run { self.uiImage = optimizedImage ?? UIImage(data: data) }
         }
     }
 }

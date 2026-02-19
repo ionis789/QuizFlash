@@ -3,7 +3,7 @@
 //  QuizFlash
 //
 //  Format bar with isolated drag gesture handling.
-//  Only triggers preview callback when direction changes (not every frame).
+//  Synchronized preview clearing and zone addition for flawless UX.
 //
 
 import SwiftUI
@@ -165,7 +165,7 @@ struct ZoneFormatBar: View {
             )
     }
     
-    // MARK: - Drag Handling (Isolated - Only notifies parent on direction change)
+    // MARK: - Drag Handling (Isolated & Synchronized)
     
     private func handleDragChange(_ value: DragGesture.Value) {
         if !isDraggingMenu {
@@ -176,7 +176,6 @@ struct ZoneFormatBar: View {
             }
         }
         
-        // Calculate cursor position
         let dx = value.translation.width * 1.3
         let dy = value.translation.height * 1.3
         
@@ -193,7 +192,6 @@ struct ZoneFormatBar: View {
             cursorPosition = finalCursor
         }
         
-        // Evaluate direction based on angle
         let prevDir = activeDirection
         var newDir: AddDirection? = nil
         
@@ -207,7 +205,7 @@ struct ZoneFormatBar: View {
             else { newDir = .left }
         }
         
-        // ONLY notify parent when direction changes (not every frame!)
+        // Notify ONLY on direction change
         if newDir != prevDir {
             activeDirection = newDir
             
@@ -216,9 +214,6 @@ struct ZoneFormatBar: View {
             } else {
                 UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
             }
-            
-            // CRITICAL: Only call onPreviewDirection when direction changes
-            // This prevents continuous parent view redraws
             onPreviewDirection(activeDirection)
         }
     }
@@ -226,21 +221,19 @@ struct ZoneFormatBar: View {
     private func handleDragEnd(_ value: DragGesture.Value) {
         let finalDir = activeDirection
         
-        // Clear preview first
-        onPreviewDirection(nil)
-        
-        // Create zone after slight delay
-        if let dir = finalDir {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                onAddZoneAction(dir)
-            }
-        }
-        
-        // Reset UI state
-        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+        // Use identical spring values as AddCardSheetView to morph layout seamlessly
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             isDraggingMenu = false
             activeDirection = nil
             cursorPosition = menuCenter
+            
+            // Clear preview inside the same transaction
+            onPreviewDirection(nil)
+        }
+        
+        // Trigger actual addition immediately so the ghost swaps with the real zone flawlessly
+        if let dir = finalDir {
+            onAddZoneAction(dir)
         }
     }
     
@@ -255,15 +248,11 @@ struct ZoneFormatBar: View {
                     } label: {
                         HStack {
                             Text(style.rawValue.capitalized)
-                            if zone?.textStyle == style {
-                                Image(systemName: "checkmark")
-                            }
+                            if zone?.textStyle == style { Image(systemName: "checkmark") }
                         }
                     }
                 }
-            } label: {
-                ToolbarButton(icon: "textformat.size")
-            }
+            } label: { ToolbarButton(icon: "textformat.size") }
             
             ToolbarButton(icon: "bold", isActive: zone?.isBold == true) {
                 content.updateZone(at: path) { $0.isBold.toggle() }
@@ -281,35 +270,17 @@ struct ZoneFormatBar: View {
                         HStack {
                             Image(systemName: family.icon)
                             Text(family.name)
-                            if zone?.fontFamily == family {
-                                Image(systemName: "checkmark")
-                            }
+                            if zone?.fontFamily == family { Image(systemName: "checkmark") }
                         }
                     }
                 }
-            } label: {
-                ToolbarButton(icon: zone?.fontFamily.icon ?? "textformat")
-            }
+            } label: { ToolbarButton(icon: zone?.fontFamily.icon ?? "textformat") }
             
             Menu {
-                Button {
-                    content.updateZone(at: path) { $0.textAlignment = .leading }
-                } label: {
-                    Label("Left", systemImage: "text.alignleft")
-                }
-                Button {
-                    content.updateZone(at: path) { $0.textAlignment = .center }
-                } label: {
-                    Label("Center", systemImage: "text.aligncenter")
-                }
-                Button {
-                    content.updateZone(at: path) { $0.textAlignment = .trailing }
-                } label: {
-                    Label("Right", systemImage: "text.alignright")
-                }
-            } label: {
-                ToolbarButton(icon: "text.alignleft")
-            }
+                Button { content.updateZone(at: path) { $0.textAlignment = .leading } } label: { Label("Left", systemImage: "text.alignleft") }
+                Button { content.updateZone(at: path) { $0.textAlignment = .center } } label: { Label("Center", systemImage: "text.aligncenter") }
+                Button { content.updateZone(at: path) { $0.textAlignment = .trailing } } label: { Label("Right", systemImage: "text.alignright") }
+            } label: { ToolbarButton(icon: "text.alignleft") }
             
             Menu {
                 ForEach(TextBlockColor.allCases, id: \.self) { color in
@@ -322,9 +293,7 @@ struct ZoneFormatBar: View {
                         }
                     }
                 }
-            } label: {
-                ToolbarButton(icon: "paintpalette", tint: zone?.textColor.color ?? .primary)
-            }
+            } label: { ToolbarButton(icon: "paintpalette", tint: zone?.textColor.color ?? .primary) }
             
             Menu {
                 ForEach(HighlightColor.allCases, id: \.self) { highlight in
@@ -333,26 +302,16 @@ struct ZoneFormatBar: View {
                     } label: {
                         HStack {
                             if highlight != .none {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(highlight.color ?? .clear)
-                                    .frame(width: 14, height: 14)
+                                RoundedRectangle(cornerRadius: 2).fill(highlight.color ?? .clear).frame(width: 14, height: 14)
                             } else {
                                 Image(systemName: "xmark").frame(width: 14, height: 14)
                             }
                             Text(highlight.name)
-                            if zone?.highlightColor == highlight {
-                                Image(systemName: "checkmark")
-                            }
+                            if zone?.highlightColor == highlight { Image(systemName: "checkmark") }
                         }
                     }
                 }
-            } label: {
-                ToolbarButton(
-                    icon: "highlighter",
-                    isActive: zone?.highlightColor != HighlightColor.none,
-                    tint: .primary
-                )
-            }
+            } label: { ToolbarButton(icon: "highlighter", isActive: zone?.highlightColor != HighlightColor.none, tint: .primary) }
             
             ToolbarButton(icon: "list.bullet", isActive: zone?.hasBullet == true) {
                 content.updateZone(at: path) { $0.hasBullet.toggle() }
@@ -365,74 +324,28 @@ struct ZoneFormatBar: View {
     private var mediaTools: some View {
         HStack(spacing: 8) {
             Menu {
-                Button {
-                    content.updateZone(at: path) { $0.textAlignment = .leading }
-                } label: {
-                    HStack {
-                        Text("Left")
-                        if zone?.textAlignment == .leading {
-                            Image(systemName: "checkmark")
-                        }
-                    }
+                Button { content.updateZone(at: path) { $0.textAlignment = .leading } } label: {
+                    HStack { Text("Left"); if zone?.textAlignment == .leading { Image(systemName: "checkmark") } }
                 }
-                Button {
-                    content.updateZone(at: path) { $0.textAlignment = .center }
-                } label: {
-                    HStack {
-                        Text("Center")
-                        if zone?.textAlignment == .center {
-                            Image(systemName: "checkmark")
-                        }
-                    }
+                Button { content.updateZone(at: path) { $0.textAlignment = .center } } label: {
+                    HStack { Text("Center"); if zone?.textAlignment == .center { Image(systemName: "checkmark") } }
                 }
-                Button {
-                    content.updateZone(at: path) { $0.textAlignment = .trailing }
-                } label: {
-                    HStack {
-                        Text("Right")
-                        if zone?.textAlignment == .trailing {
-                            Image(systemName: "checkmark")
-                        }
-                    }
+                Button { content.updateZone(at: path) { $0.textAlignment = .trailing } } label: {
+                    HStack { Text("Right"); if zone?.textAlignment == .trailing { Image(systemName: "checkmark") } }
                 }
-            } label: {
-                ToolbarButton(icon: alignmentIcon(for: zone?.textAlignment ?? .leading))
-            }
+            } label: { ToolbarButton(icon: alignmentIcon(for: zone?.textAlignment ?? .leading)) }
             
             Menu {
-                Button {
-                    content.updateZone(at: path) { $0.imageScale = 0.3 }
-                } label: {
-                    HStack {
-                        Text("Small")
-                        if zone?.imageScale == 0.3 {
-                            Image(systemName: "checkmark")
-                        }
-                    }
+                Button { content.updateZone(at: path) { $0.imageScale = 0.3 } } label: {
+                    HStack { Text("Small"); if zone?.imageScale == 0.3 { Image(systemName: "checkmark") } }
                 }
-                Button {
-                    content.updateZone(at: path) { $0.imageScale = 0.7 }
-                } label: {
-                    HStack {
-                        Text("Medium")
-                        if zone?.imageScale == 0.7 {
-                            Image(systemName: "checkmark")
-                        }
-                    }
+                Button { content.updateZone(at: path) { $0.imageScale = 0.7 } } label: {
+                    HStack { Text("Medium"); if zone?.imageScale == 0.7 { Image(systemName: "checkmark") } }
                 }
-                Button {
-                    content.updateZone(at: path) { $0.imageScale = 1.0 }
-                } label: {
-                    HStack {
-                        Text("Full Width")
-                        if zone?.imageScale == 1.0 {
-                            Image(systemName: "checkmark")
-                        }
-                    }
+                Button { content.updateZone(at: path) { $0.imageScale = 1.0 } } label: {
+                    HStack { Text("Full Width"); if zone?.imageScale == 1.0 { Image(systemName: "checkmark") } }
                 }
-            } label: {
-                ToolbarButton(icon: "aspectratio")
-            }
+            } label: { ToolbarButton(icon: "aspectratio") }
         }
     }
     
@@ -454,20 +367,11 @@ struct DirectionPopoverMenu: View {
     
     var body: some View {
         ZStack {
-            // Neutral center hub
-            Circle()
-                .fill(Color.gray.opacity(0.15))
-                .frame(width: 28, height: 28)
-            
-            // Direction bubbles
-            PopoverBubble(icon: "arrow.up", isActive: activeDirection == .up, accent: accent)
-                .offset(y: -arrowRadius)
-            PopoverBubble(icon: "arrow.down", isActive: activeDirection == .down, accent: accent)
-                .offset(y: arrowRadius)
-            PopoverBubble(icon: "arrow.left", isActive: activeDirection == .left, accent: accent)
-                .offset(x: -arrowRadius)
-            PopoverBubble(icon: "arrow.right", isActive: activeDirection == .right, accent: accent)
-                .offset(x: arrowRadius)
+            Circle().fill(Color.gray.opacity(0.15)).frame(width: 28, height: 28)
+            PopoverBubble(icon: "arrow.up", isActive: activeDirection == .up, accent: accent).offset(y: -arrowRadius)
+            PopoverBubble(icon: "arrow.down", isActive: activeDirection == .down, accent: accent).offset(y: arrowRadius)
+            PopoverBubble(icon: "arrow.left", isActive: activeDirection == .left, accent: accent).offset(x: -arrowRadius)
+            PopoverBubble(icon: "arrow.right", isActive: activeDirection == .right, accent: accent).offset(x: arrowRadius)
         }
         .allowsHitTesting(false)
     }
@@ -483,13 +387,8 @@ struct PopoverBubble: View {
             .font(.title3.weight(.bold))
             .foregroundStyle(isActive ? .white : .primary)
             .frame(width: 44, height: 44)
-            .background(
-                isActive ? AnyShapeStyle(accent) : AnyShapeStyle(.ultraThinMaterial),
-                in: Circle()
-            )
-            .overlay(
-                Circle().stroke(Color.white.opacity(isActive ? 0 : 0.2), lineWidth: 1)
-            )
+            .background(isActive ? AnyShapeStyle(accent) : AnyShapeStyle(.ultraThinMaterial), in: Circle())
+            .overlay(Circle().stroke(Color.white.opacity(isActive ? 0 : 0.2), lineWidth: 1))
             .shadow(color: .black.opacity(isActive ? 0.3 : 0.15), radius: isActive ? 12 : 8, y: 4)
             .scaleEffect(isActive ? 1.15 : 1.0)
             .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isActive)
@@ -513,7 +412,7 @@ struct ToolbarButton: View {
                 .foregroundStyle(isActive ? ThemeManager.shared.accentColor.color : tint)
                 .frame(width: 34, height: 34)
                 .background(
-                    isActive 
+                    isActive
                         ? ThemeManager.shared.accentColor.color.opacity(0.12)
                         : Color(uiColor: .tertiarySystemFill)
                 )
