@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import LaTeXSwiftUI
 import PhotosUI
 
 // MARK: - Fake Ghost Block View (Visual Only - Seamless Dimension Match)
@@ -220,7 +221,7 @@ struct ZoneContentView: View {
             TapGesture().onEnded {
                 onSelect()
 
-                // Check is its a image or sketch so i will remove focus from old zone 
+                // Check is its a image or sketch so i will remove focus from old zone
                 let type = zone?.contentType ?? .empty
 
                 if type == .text || type == .empty {
@@ -459,7 +460,6 @@ struct ZoneContentView: View {
 
 
 
-// MARK: - Zone Preview View (Read-only for Play Mode)
 struct ZonePreviewView: View {
     let zone: ZoneModel
     @Environment(\.colorScheme) private var colorScheme
@@ -476,13 +476,19 @@ struct ZonePreviewView: View {
         case .text:
             if !zone.text.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
-                    if zone.hasBullet { Circle().fill(zone.textColor.color).frame(width: 6, height: 6).padding(.top, 8) }
-                    Text(zone.text)
-                        .font(previewFont(for: zone))
+                    if zone.hasBullet {
+                        Circle().fill(zone.textColor.color).frame(width: 6, height: 6).padding(.top, 8)
+                    }
+
+                    // AICI INTERVENIM:
+                    MixedMathTextView(
+                        text: zone.text,
+                        font: previewFont(for: zone),
+                        textColor: zone.textColor.color,
+                        alignment: zone.textAlignment.horizontalAlignment
+                    )
                         .fontWeight(zone.isBold ? .bold : .regular)
                         .italic(zone.isItalic)
-                        .foregroundStyle(zone.textColor.color)
-                        .multilineTextAlignment(zone.textAlignment.alignment)
                         .padding(.vertical, 4)
                         .padding(.horizontal, zone.highlightColor != HighlightColor.none ? 6 : 0)
                         .background(zone.highlightColor.color.map { color in RoundedRectangle(cornerRadius: 4).fill(color) })

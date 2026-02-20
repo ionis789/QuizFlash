@@ -4,36 +4,30 @@
 //
 
 import Foundation
+import UIKit
 
-// MARK: - AI Service Errors
 public enum AIServiceError: LocalizedError {
     case invalidAPIKey
     case networkError
     case invalidResponse
     case parsingFailed
     case rateLimitExceeded
+    case timeout
     case unknown(String)
 
     public var errorDescription: String? {
         switch self {
-        case .invalidAPIKey:
-            return "AI API key is not configured or invalid."
-        case .networkError:
-            return "Network error. Please check your internet connection."
-        case .invalidResponse:
-            return "Received an invalid response from the AI service."
-        case .parsingFailed:
-            return "Failed to parse AI response. Please try again."
-        case .rateLimitExceeded:
-            return "Too many requests. Please wait a moment and try again."
-        case .unknown(let message):
-            return "OpenAI Error: \(message)"
+        case .invalidAPIKey: return "AI API key is not configured or invalid."
+        case .networkError: return "Network error. Please check your internet connection."
+        case .invalidResponse: return "Received an invalid response from the AI service."
+        case .parsingFailed: return "Failed to parse AI response. Please try again."
+        case .rateLimitExceeded: return "Too many requests. Please wait a moment and try again."
+        case .timeout: return "The request timed out because the document is too large. Try fewer pages."
+        case .unknown(let message): return "OpenAI Error: \(message)"
         }
     }
 }
 
-// MARK: - Private DTOs for Safe Decoding
-// Folosim acest DTO ca să decodăm doar ce ne dă AI-ul, evitând crăparea aplicației din cauza lipsei UUID-ului
 private struct AIGenerationResponseDTO: Codable {
     struct CardDTO: Codable {
         let question: String
@@ -42,133 +36,151 @@ private struct AIGenerationResponseDTO: Codable {
     let flashcards: [CardDTO]
 }
 
-// MARK: - AI Flashcard Service
 @MainActor
 public final class AIFlashcardService {
-
-    // MARK: - Configuration
-    // ⚠️ Asigură-te că ascunzi această cheie înainte de a lansa aplicația în App Store
-    private let apiKey: String = "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"
+    // ⚠️ Atenție: Cheia ar trebui ascunsă în producție (ex. .env / Keychain)
+    private let apiKey = "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"
+    
+    
     private let apiEndpoint = "https://api.openai.com/v1/chat/completions"
-
-    public init() {}
-
-    // MARK: - Generate Flashcards
-    func generateFlashcards(from text: String) async throws -> [AIFlashcard] {
-        guard !apiKey.isEmpty else {
-            return generateMockFlashcards(from: text)
+    
+    private let session: URLSession
+    
+    public init() {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 180
+        config.timeoutIntervalForResource = 300
+        self.session = URLSession(configuration: config)
+    }
+    
+    func generateFlashcards(from images: [UIImage], targetCards: Int, onProgress: @escaping (Double, Int) -> Void) async throws -> [AIFlashcard] {
+        let batchSize = 8
+        let batches = images.chunked(into: batchSize)
+        var allFlashcards: [AIFlashcard] = []
+        
+        for (index, batch) in batches.enumerated() {
+            let cardsForThisBatch = calculateCardsForBatch(totalRequested: targetCards, totalBatches: batches.count, currentBatchIndex: index)
+            
+            if cardsForThisBatch > 0 {
+                let messageContent = buildMultimodalContent(from: batch, requestedCards: cardsForThisBatch)
+                let flashcardsFromBatch = try await sendVisionRequest(content: messageContent)
+                allFlashcards.append(contentsOf: flashcardsFromBatch)
+            }
+            
+            let progress = Double(index + 1) / Double(batches.count)
+            onProgress(progress, allFlashcards.count)
         }
+        
+        return allFlashcards
+    }
+    
+    private func buildMultimodalContent(from images: [UIImage], requestedCards: Int) -> [[String: Any]] {
+        // PROMPT UNIVERSAL, LIMBAJ AGNOSTIC, AXAT PE CALITATE MAXIMĂ
+        let promptText = """
+        You are an expert educational tutor creating study materials for "Active Recall" across various subjects (History, Literature, Mathematics, Computer Science, Biology, etc.).
+        
+        CRITICAL RULES:
+        1. Read the provided document pages carefully. Identify the core concepts, events, formulas, code snippets, or definitions.
+        2. Generate EXACTLY \(requestedCards) flashcards.
+        3. LANGUAGE MATCHING: You MUST use the EXACT SAME LANGUAGE as the main text in the images (e.g., if the text is in Spanish, output in Spanish; if English, output in English; if Romanian, output in Romanian).
+        4. CONTEXT COMPLETION: If the text is fragmented, lacks context, or contains partial formulas/sentences, you MUST use your expert knowledge to fill in the gaps. Every flashcard must make complete sense on its own and be factually correct, regardless of how limited the source image is.
+        5. ELABORATE & EXPLAIN: Do not give overly brief answers. The "answer" must be detailed, well-explained, and clearly structured so the student truly understands the concept. For math/code, define the variables and explain their purpose.
+        6. QUESTION FORMAT: The "question" MUST be a direct, clear interrogative sentence ending with a question mark (?), or a clear "Define/Explain: X" prompt. Do NOT just split a sentence in half.
+        7. MATH/LATEX: For ANY math formulas, equations, or scientific symbols, you MUST use LaTeX formatting wrapped in single `$` for inline math, and double `$$` for block math.
+        8. OUTPUT FORMAT: Output MUST be a strict JSON object with a single root key "flashcards", containing an array of {"question": "...", "answer": "..."}.
 
-        guard let url = URL(string: apiEndpoint) else {
-            throw AIServiceError.networkError
+        BAD EXAMPLE (Too brief, lacks context, poor question):
+        {"question": "What is L*?", "answer": "It is the union of L^n."}
+        
+        GOOD EXAMPLE 1 (Math / Computer Science):
+        {"question": "How is the Kleene star (iteration) $L^*$ defined in formal language theory, and what does it represent?", "answer": "The Kleene star $L^*$ of a language $L$ is defined as the union of all its powers: $$L^* = \\bigcup_{n\\ge 0} L^n$$. It represents the set of all strings that can be formed by concatenating zero or more strings from the base language $L$. Note: $L^0 = \\{\\varepsilon\\}$ contains only the empty string."}
+        
+        GOOD EXAMPLE 2 (History / Humanities):
+        {"question": "What were the primary causes and outcomes of the Daco-Roman wars (101-106 AD)?", "answer": "The Daco-Roman wars, fought between the Roman Empire (led by Emperor Trajan) and the Dacian Kingdom (led by King Decebalus), were primarily caused by the Roman need to secure their borders and gain control over Dacia's rich gold mines. The outcome was the decisive defeat of Dacia, the suicide of Decebalus, and the transformation of Dacia into a Roman province, which significantly influenced the formation of the Romanian people."}
+        """
+        
+        var contentArray: [[String: Any]] = [
+            ["type": "text", "text": promptText]
+        ]
+        
+        for image in images {
+            if let jpegData = image.jpegData(compressionQuality: 0.6) {
+                let base64String = jpegData.base64EncodedString()
+                let imagePayload: [String: Any] = [
+                    "type": "image_url",
+                    "image_url": [
+                        "url": "data:image/jpeg;base64,\(base64String)",
+                        "detail": "high"
+                    ]
+                ]
+                contentArray.append(imagePayload)
+            }
         }
-
-        var request = URLRequest(url: url)
+        return contentArray
+    }
+    
+    private func sendVisionRequest(content: [[String: Any]]) async throws -> [AIFlashcard] {
+        var request = URLRequest(url: URL(string: apiEndpoint)!)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        // System Prompt - Forțăm păstrarea limbii și formatul JSON
-        let systemPrompt = """
-        You are an expert educational content creator.
-        
-        CRITICAL RULES:
-        1. You MUST generate the flashcards in the EXACT SAME LANGUAGE as the provided text (e.g., if the text is in Romanian, respond in Romanian).
-        2. Output MUST be a valid JSON object.
-        3. The JSON object must have a single root key named "flashcards".
-        4. The value of "flashcards" must be an array of objects.
-        5. Each object in the array must have exactly two keys: "question" and "answer".
-        """
-        
-        // User Prompt - Adăugăm cuvântul "JSON" și aici pentru a satisface cerințele stricte ale API-ului
-        let userPrompt = """
-        Generate 5 to 15 high-quality flashcards based on the following text.
-        Return the result in JSON format.
-        
-        Text:
-        \(text)
-        """
-        
         let body: [String: Any] = [
             "model": "gpt-5-mini",
             "response_format": ["type": "json_object"],
-            "max_completion_tokens": 2500,
             "messages": [
-                ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": userPrompt]
+                ["role": "user", "content": content]
             ]
         ]
-
+        
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        // Make the request
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AIServiceError.invalidResponse
-        }
-
-        // Error Handling
-        guard (200...299).contains(httpResponse.statusCode) else {
-            let errorString = String(data: data, encoding: .utf8) ?? "Unknown Error"
-            print("OpenAI Error (\(httpResponse.statusCode)): \(errorString)")
-
-            if httpResponse.statusCode == 401 { throw AIServiceError.invalidAPIKey }
-            if httpResponse.statusCode == 429 { throw AIServiceError.rateLimitExceeded }
-
-            throw AIServiceError.unknown(errorString)
-        }
-
-        // Parse response
+        
         do {
+            let (data, response) = try await session.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw AIServiceError.invalidResponse
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorString = String(data: data, encoding: .utf8) ?? "Unknown Error"
+                if httpResponse.statusCode == 401 { throw AIServiceError.invalidAPIKey }
+                if httpResponse.statusCode == 429 { throw AIServiceError.rateLimitExceeded }
+                throw AIServiceError.unknown(errorString)
+            }
+
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let choices = json["choices"] as? [[String: Any]],
                   let firstChoice = choices.first,
                   let message = firstChoice["message"] as? [String: Any],
-                  let content = message["content"] as? String,
-                  let contentData = content.data(using: .utf8) else {
+                  let contentString = message["content"] as? String,
+                  let contentData = contentString.data(using: .utf8) else {
                 throw AIServiceError.parsingFailed
             }
 
-            // Decodăm folosind DTO-ul sigur
             let aiResponse = try JSONDecoder().decode(AIGenerationResponseDTO.self, from: contentData)
+            return aiResponse.flashcards.map { AIFlashcard(id: UUID(), question: $0.question, answer: $0.answer) }
             
-            // Mapăm DTO-urile către modelul real al aplicației tale și generăm UUID-ul lipsă
-            let finalFlashcards = aiResponse.flashcards.map { dto in
-                AIFlashcard(id: UUID(), question: dto.question, answer: dto.answer)
-            }
-            
-            return finalFlashcards
-
+        } catch let urlError as URLError where urlError.code == .timedOut {
+            throw AIServiceError.timeout
         } catch {
-            print("Parsing Error: \(error.localizedDescription)")
-            if let rawString = String(data: data, encoding: .utf8) {
-                print("Raw payload was: \(rawString)")
-            }
+            print("Eroare la parsare: \(error)")
             throw AIServiceError.parsingFailed
         }
     }
+    
+    private func calculateCardsForBatch(totalRequested: Int, totalBatches: Int, currentBatchIndex: Int) -> Int {
+        if totalBatches == 0 { return totalRequested }
+        let base = totalRequested / totalBatches
+        let remainder = totalRequested % totalBatches
+        return currentBatchIndex < remainder ? base + 1 : base
+    }
+}
 
-    // MARK: - Mock Generation (Fallback)
-    private func generateMockFlashcards(from text: String) -> [AIFlashcard] {
-        let paragraphs = text.components(separatedBy: "\n\n")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { $0.count > 20 }
-
-        var flashcards: [AIFlashcard] = []
-
-        for (_, paragraph) in paragraphs.prefix(3).enumerated() {
-            let words = paragraph.components(separatedBy: .whitespaces)
-            if words.count > 5 {
-                let questionWords = words.prefix(min(5, words.count)).joined(separator: " ")
-                flashcards.append(AIFlashcard(question: "Explain: \(questionWords)...?", answer: paragraph))
-            }
+extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        stride(from: 0, to: count, by: size).map {
+            Array(self[$0 ..< Swift.min($0 + size, count)])
         }
-
-        if flashcards.isEmpty && !text.isEmpty {
-            flashcards.append(AIFlashcard(question: "What is the main topic?", answer: text.prefix(200) + (text.count > 200 ? "..." : "")))
-        }
-
-        return flashcards
     }
 }

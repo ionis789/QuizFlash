@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		CB0D23842F4887B900C5B483 /* LaTeXSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = CB0D23832F4887B900C5B483 /* LaTeXSwiftUI */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		CB5C2D742EF8A48400FB1D07 /* QuizFlash.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QuizFlash.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CB0D23842F4887B900C5B483 /* LaTeXSwiftUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +70,7 @@
 			);
 			name = QuizFlash;
 			packageProductDependencies = (
+				CB0D23832F4887B900C5B483 /* LaTeXSwiftUI */,
 			);
 			productName = QuizFlash;
 			productReference = CB5C2D742EF8A48400FB1D07 /* QuizFlash.app */;
@@ -94,6 +100,9 @@
 			);
 			mainGroup = CB5C2D6B2EF8A48400FB1D07;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				CB0D23822F4887B900C5B483 /* XCRemoteSwiftPackageReference "LaTeXSwiftUI" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CB5C2D752EF8A48400FB1D07 /* Products */;
 			projectDirPath = "";
@@ -344,6 +353,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CB0D23822F4887B900C5B483 /* XCRemoteSwiftPackageReference "LaTeXSwiftUI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/colinc86/LaTeXSwiftUI";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CB0D23832F4887B900C5B483 /* LaTeXSwiftUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CB0D23822F4887B900C5B483 /* XCRemoteSwiftPackageReference "LaTeXSwiftUI" */;
+			productName = LaTeXSwiftUI;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = CB5C2D6C2EF8A48400FB1D07 /* Project object */;
 }

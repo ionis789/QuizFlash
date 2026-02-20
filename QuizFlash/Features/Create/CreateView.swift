@@ -2,10 +2,6 @@
 //  CreateView.swift
 //  QuizFlash
 //
-//  Created by Ion Socol on 23.12.2025.
-//
-//  Deck creation and editing view with Apple Notes-style card editor.
-//
 
 import SwiftUI
 import SwiftData
@@ -18,7 +14,6 @@ struct CreateView: View {
     @Environment(NavigationManager.self) private var router
 
     @State private var viewModel: CreateViewModel
-    @State private var showTestAPIScreen: Bool = false
     @FocusState private var isTitleFocused: Bool
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -29,15 +24,11 @@ struct CreateView: View {
 
     var body: some View {
         ZStack {
-            // Background
             Color(uiColor: .systemGroupedBackground)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
-                .onTapGesture {
-                isTitleFocused = false
-            }
+                .onTapGesture { isTitleFocused = false }
 
-            // Content
             VStack(spacing: 24) {
                 deckInfoSection
 
@@ -45,48 +36,59 @@ struct CreateView: View {
                     cardsListSection
                     Color.clear.frame(height: 80)
                 }
-                    .scrollDismissesKeyboard(.interactively)
-
+                .scrollDismissesKeyboard(.interactively)
             }
 
-            // Success overlay
             if viewModel.showSuccessOverlay {
-                successOverlay
-                    .zIndex(100)
+                successOverlay.zIndex(100)
+            }
+            
+            // REPARAT: Meniul AI e acum un popup curat, nu mai creează erori din cauza "Sheet"-ului
+            if viewModel.showAIOptionsOverlay {
+                AIOptionsOverlay(
+                    requestedCardCount: $viewModel.requestedCardCount,
+                    onGenerate: {
+                        viewModel.showAIOptionsOverlay = false
+                        viewModel.startAIGeneration()
+                    },
+                    onCancel: {
+                        viewModel.showAIOptionsOverlay = false
+                        viewModel.selectedAIPhotos = []
+                        viewModel.pendingPDFURL = nil
+                    }
+                )
+                .zIndex(50)
             }
         }
-            .onAppear {
+        .onAppear {
             if viewModel.deckToEdit == nil && viewModel.deckTitle.isEmpty {
                 isTitleFocused = true
             }
         }
-            .navigationTitle(viewModel.deckToEdit == nil ? "Create Deck" : "Edit Deck")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+        .navigationTitle(viewModel.deckToEdit == nil ? "Create Deck" : "Edit Deck")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Save") {
                     isTitleFocused = false
                     viewModel.saveDeck(context: context, router: router, dismiss: dismiss)
                 }
-                    .fontWeight(.semibold)
-                    .disabled(viewModel.deckTitle.trimmingCharacters(in: .whitespaces).isEmpty || viewModel.draftCards.isEmpty)
+                .fontWeight(.semibold)
+                .disabled(viewModel.deckTitle.trimmingCharacters(in: .whitespaces).isEmpty || viewModel.draftCards.isEmpty)
             }
 
             if viewModel.deckToEdit != nil {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
+                    Button("Close") { dismiss() }
                 }
             }
         }
-          
-            .fullScreenCover(isPresented: $viewModel.isCreatingNewCard) {
+        .fullScreenCover(isPresented: $viewModel.isCreatingNewCard) {
             AddCardSheetView { frontZone, backZone in
                 viewModel.addCard(frontZone: frontZone, backZone: backZone)
             }
         }
-            .fullScreenCover(item: $viewModel.cardToEdit) { card in
+        .fullScreenCover(item: $viewModel.cardToEdit) { card in
             AddCardSheetView(
                 frontZone: card.frontZone,
                 backZone: card.backZone
@@ -94,14 +96,15 @@ struct CreateView: View {
                 viewModel.updateCard(card, frontZone: frontZone, backZone: backZone)
             }
         }
-            .photosPicker(isPresented: $viewModel.showAIPhotoPicker, selection: $viewModel.selectedAIPhoto, matching: .images)
-            .fileImporter(isPresented: $viewModel.showAIPDFPicker, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
+        .photosPicker(isPresented: $viewModel.showAIPhotoPicker, selection: $viewModel.selectedAIPhotos, matching: .images)
+        .fileImporter(isPresented: $viewModel.showAIPDFPicker, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
             if case .success(let urls) = result, let url = urls.first {
-                viewModel.processPDFForAI(url: url)
+                viewModel.pendingPDFURL = url
+                withAnimation(.spring()) {
+                    viewModel.showAIOptionsOverlay = true
+                }
             }
         }
-
-        // MARK: - AI Generation Overlay
         .overlay {
             if viewModel.aiState != .idle {
                 AILoadingOverlay(state: viewModel.aiState, onDismiss: viewModel.resetAIState)
@@ -125,48 +128,33 @@ private extension CreateView {
                     .font(.body)
                     .focused($isTitleFocused)
                     .submitLabel(.done)
-                    .onSubmit {
-                    isTitleFocused = false
-                }
+                    .onSubmit { isTitleFocused = false }
 
                 if !viewModel.deckTitle.isEmpty && isTitleFocused {
-                    Button {
-                        viewModel.deckTitle = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.tertiary)
+                    Button { viewModel.deckTitle = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
                     }
-                        .transition(.scale.combined(with: .opacity))
+                    .transition(.scale.combined(with: .opacity))
                 }
             }
-                .padding(14)
-                .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-            )
-                .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(accent.opacity(isTitleFocused ? 0.15 : 0))
-                    .padding(-2)
-            )
-                .scaleEffect(isTitleFocused ? 1.01 : 1.0)
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isTitleFocused)
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(uiColor: .secondarySystemGroupedBackground)))
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(accent.opacity(isTitleFocused ? 0.15 : 0)).padding(-2))
+            .scaleEffect(isTitleFocused ? 1.01 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isTitleFocused)
         }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
     }
 
     var cardsListSection: some View {
         VStack(spacing: 14) {
-            // Header
             HStack {
                 Text("CARDS (\(viewModel.draftCards.count))")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
                 Spacer()
-
-
 
                 Button {
                     isTitleFocused = false
@@ -181,64 +169,52 @@ private extension CreateView {
 
                 Button {
                     isTitleFocused = false
-                    viewModel.showAIPickerOptions = true // Trigger the Action Sheet
+                    viewModel.showAIPickerOptions = true
                 } label: {
                     Label("AI", systemImage: "sparkles")
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(
-                        LinearGradient(colors: [.purple.opacity(0.8), .blue.opacity(0.8)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
+                        .background(LinearGradient(colors: [.purple.opacity(0.8), .blue.opacity(0.8)], startPoint: .topLeading, endPoint: .bottomTrailing))
                         .foregroundStyle(.white)
                         .clipShape(Capsule())
                 }
-                    .confirmationDialog("Generate Cards with AI", isPresented: $viewModel.showAIPickerOptions, titleVisibility: .visible) {
-                    Button("Choose Photo") { viewModel.showAIPhotoPicker = true }
+                .confirmationDialog("Generate Cards with AI", isPresented: $viewModel.showAIPickerOptions, titleVisibility: .visible) {
+                    Button("Choose Photos") { viewModel.showAIPhotoPicker = true }
                     Button("Choose PDF") { viewModel.showAIPDFPicker = true }
                     Button("Cancel", role: .cancel) { }
                 } message: {
-                    Text("Extract text from an image or document to instantly create flashcards.")
+                    Text("Extract text from images or documents to instantly create flashcards.")
                 }
             }
-                .padding(.horizontal, 24)
+            .padding(.horizontal, 24)
 
             if viewModel.draftCards.isEmpty {
                 emptyStateView
             } else {
                 LazyVStack(spacing: 16) {
-                    // Folosim Array(enumerated()) pentru a pasa indexul la UI (1, 2, 3...)
                     ForEach(Array(viewModel.draftCards.enumerated()), id: \.element.id) { index, card in
                         CardRowView(card: card, index: index + 1)
                             .contentShape(Rectangle())
                             .onTapGesture {
-                            isTitleFocused = false
-                            viewModel.cardToEdit = card
-                        }
-                            .contextMenu {
-                            Button {
+                                isTitleFocused = false
                                 viewModel.cardToEdit = card
-                            } label: {
-                                Label("Edit", systemImage: "pencil")
                             }
-                            Button(role: .destructive) {
-                                // Adăugăm animația direct de aici pentru ștergere perfectă
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    viewModel.deleteCard(card)
-                                }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                            .contextMenu {
+                                Button { viewModel.cardToEdit = card } label: { Label("Edit", systemImage: "pencil") }
+                                Button(role: .destructive) {
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                        viewModel.deleteCard(card)
+                                    }
+                                } label: { Label("Delete", systemImage: "trash") }
                             }
-                        }
-                        // Tranzitie asimetrică: apare și dispare cu un efect fin de zoom
-                        .transition(.asymmetric(
-                            insertion: .scale(scale: 0.9).combined(with: .opacity).combined(with: .move(edge: .bottom)),
-                            removal: .scale(scale: 0.8).combined(with: .opacity)
-                        ))
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.9).combined(with: .opacity).combined(with: .move(edge: .bottom)),
+                                removal: .scale(scale: 0.8).combined(with: .opacity)
+                            ))
                     }
                 }
-                    .padding(.horizontal, 20)
-                // Esențial: Aceasta declanșează glisarea fluidă a cardurilor de dedesubt când unul este șters
+                .padding(.horizontal, 20)
                 .animation(.spring(response: 0.45, dampingFraction: 0.82), value: viewModel.draftCards.count)
             }
         }
@@ -249,21 +225,19 @@ private extension CreateView {
             Image(systemName: "rectangle.stack.badge.plus")
                 .font(.system(size: 36))
                 .foregroundStyle(.tertiary)
-
             Text("No cards yet")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
-
             Text("Tap + to add your first card")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 40)
-            .background(Color(uiColor: .secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .padding(.horizontal, 20)
-            .onTapGesture {
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.horizontal, 20)
+        .onTapGesture {
             isTitleFocused = false
             viewModel.isCreatingNewCard = true
         }
@@ -279,29 +253,82 @@ private extension CreateView {
                         .font(.system(size: 56))
                         .foregroundStyle(.green)
                         .symbolEffect(.bounce, value: viewModel.showSuccessOverlay)
-
                     Text("Deck Saved!")
                         .font(.title2.weight(.bold))
-
                     Text("\(viewModel.draftCards.count) card\(viewModel.draftCards.count == 1 ? "" : "s")")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                    .padding(.vertical, 28)
-                    .padding(.horizontal, 44)
-                    .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(.regularMaterial)
-                        .shadow(color: .black.opacity(0.18), radius: 24, y: 12)
-                )
-                    .scaleEffect(viewModel.showSuccessOverlay ? 1 : 0.7, anchor: .top)
-                    .opacity(viewModel.showSuccessOverlay ? 1 : 0)
-                    .offset(y: viewModel.showSuccessOverlay ? 0 : -80)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.7, blendDuration: 0.15), value: viewModel.showSuccessOverlay)
+                .padding(.vertical, 28)
+                .padding(.horizontal, 44)
+                .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(.regularMaterial).shadow(color: .black.opacity(0.18), radius: 24, y: 12))
+                .scaleEffect(viewModel.showSuccessOverlay ? 1 : 0.7, anchor: .top)
+                .opacity(viewModel.showSuccessOverlay ? 1 : 0)
+                .offset(y: viewModel.showSuccessOverlay ? 0 : -80)
+                .animation(.spring(response: 0.5, dampingFraction: 0.7, blendDuration: 0.15), value: viewModel.showSuccessOverlay)
                 Spacer()
             }
         }
-            .transition(.opacity)
-            .allowsHitTesting(false)
+        .transition(.opacity)
+        .allowsHitTesting(false)
+    }
+}
+
+// MARK: - Popup Stabil pentru setările AI
+struct AIOptionsOverlay: View {
+    @Binding var requestedCardCount: Int
+    var onGenerate: () -> Void
+    var onCancel: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .background(.ultraThinMaterial)
+            
+            VStack(spacing: 24) {
+                Image(systemName: "sparkles.rectangle.stack")
+                    .font(.system(size: 40))
+                    .foregroundStyle(LinearGradient(colors: [.purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                
+                Text("Câte carduri dorești?")
+                    .font(.title3.weight(.bold))
+                
+                Stepper(value: $requestedCardCount, in: 5...50, step: 5) {
+                    Text("**\(requestedCardCount)** carduri")
+                        .font(.headline)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(Color.secondary.opacity(0.15))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                
+                HStack(spacing: 16) {
+                    Button("Anulează", action: onCancel)
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.secondary.opacity(0.2))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    
+                    Button("Generează", action: onGenerate)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.accentColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+            .padding(32)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color(uiColor: .systemBackground))
+                    .shadow(color: .black.opacity(0.2), radius: 24, y: 12)
+            )
+            .padding(.horizontal, 40)
+        }
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
     }
 }
