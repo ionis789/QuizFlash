@@ -4,31 +4,41 @@
 //
 //  Created by Ion Socol on 17.02.2026.
 //
-//
-//  CreateViewModel.swift
-//  QuizFlash
-//
 
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 @Observable
 @MainActor
 final class CreateViewModel {
+
+    // MARK: - AI State
+    var aiState: AIGenerationState = .idle
+    var showAIPickerOptions = false
+    var showAIPhotoPicker = false
+    var showAIPDFPicker = false
+    var selectedAIPhoto: PhotosPickerItem? = nil {
+        didSet { if let item = selectedAIPhoto { processPhotoForAI(item) } }
+    }
     
+    // Private services
+    private let textExtractor = TextExtractionService()
+    private let aiService = AIFlashcardService()
+
     // MARK: - State
     var deckTitle: String = ""
     var draftCards: [DraftCard] = []
-    
+
     // MARK: - Sheet Control
     var cardToEdit: DraftCard?
     var isCreatingNewCard = false
-    
+
     // MARK: - UI Feedback
     var showSuccessOverlay = false
-    
+
     let deckToEdit: DeckModel?
-    
+
     init(deckToEdit: DeckModel? = nil) {
         self.deckToEdit = deckToEdit
         if let deck = deckToEdit {
@@ -36,7 +46,99 @@ final class CreateViewModel {
             self.draftCards = deck.cards.map { DraftCard.from($0) }
         }
     }
+
+    // MARK: - AI Processing Pipeline
     
+    func processPhotoForAI(_ item: PhotosPickerItem) {
+        aiState = .extractingText
+        
+        Task {
+            do {
+                // 1. Load image data
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else {
+                    throw TextExtractionError.invalidImage 
+                }
+                
+                // 2. Extract Text (Actor handles off-main-thread)
+                let text = try await textExtractor.extractText(from: image)
+                
+                // 3. Pass to AI
+                await generateCardsFromText(text)
+                
+            } catch {
+                await MainActor.run { aiState = .error(error.localizedDescription) }
+            }
+            // Clear selection
+            selectedAIPhoto = nil
+        }
+    }
+    
+    func processPDFForAI(url: URL) {
+        guard url.startAccessingSecurityScopedResource() else {
+            aiState = .error("Cannot access the selected PDF.")
+            return
+        }
+        
+        aiState = .extractingText
+        
+        Task {
+            do {
+                // 1. Extract Text (Actor handles off-main-thread)
+                let text = try await textExtractor.extractText(fromPDFAt: url)
+                url.stopAccessingSecurityScopedResource()
+                
+                // 2. Pass to AI
+                await generateCardsFromText(text)
+                
+            } catch {
+                url.stopAccessingSecurityScopedResource()
+                await MainActor.run { aiState = .error(error.localizedDescription) }
+            }
+        }
+    }
+    
+    private func generateCardsFromText(_ text: String) async {
+        guard !text.isEmpty else {
+            await MainActor.run { aiState = .error("No readable text found. Please try a clearer document.") }
+            return
+        }
+        
+        await MainActor.run { aiState = .generatingCards(progress: 0, foundCount: 0) }
+        
+        do {
+            // Call AI Service
+            let generatedCards = try await aiService.generateFlashcards(from: text)
+            
+            await MainActor.run {
+                // Map AI models to your App models and inject them with animation
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    for aiCard in generatedCards {
+                        let newDraft = DraftCard(
+                            frontZone: .text(aiCard.question),
+                            backZone: .text(aiCard.answer),
+                            frontType: .text,
+                            backType: .text,
+                            createdAt: Date(),
+                            editedAt: Date()
+                        )
+                        self.draftCards.append(newDraft)
+                    }
+                    self.aiState = .idle
+                }
+                
+                // Trigger success haptic
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
+        } catch {
+            await MainActor.run { aiState = .error(error.localizedDescription) }
+        }
+    }
+    
+    func resetAIState() {
+        withAnimation { aiState = .idle }
+    }
+
     // MARK: - Card Actions
     func addCard(frontZone: ZoneModel, backZone: ZoneModel) {
         let newCard = DraftCard(

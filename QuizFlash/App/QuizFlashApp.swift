@@ -10,10 +10,10 @@ import SwiftData
 
 @main
 struct QuizFlashApp: App {
-    
+
     @State var authManager = AuthManager()
     @State private var themeManager = ThemeManager.shared
-    
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -21,6 +21,7 @@ struct QuizFlashApp: App {
                 .tint(themeManager.accentColor.color)
                 .preferredColorScheme(.dark)
         }
-        .modelContainer(for: [DeckModel.self, CardModel.self])
+            .modelContainer(for: [DeckModel.self, CardModel.self])
     }
 }
+

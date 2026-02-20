@@ -9,6 +9,8 @@
 
 import SwiftUI
 import SwiftData
+import PhotosUI
+import UniformTypeIdentifiers
 
 struct CreateView: View {
     @Environment(\.modelContext) private var context
@@ -16,6 +18,7 @@ struct CreateView: View {
     @Environment(NavigationManager.self) private var router
 
     @State private var viewModel: CreateViewModel
+    @State private var showTestAPIScreen: Bool = false
     @FocusState private var isTitleFocused: Bool
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -35,7 +38,6 @@ struct CreateView: View {
             }
 
             // Content
-
             VStack(spacing: 24) {
                 deckInfoSection
 
@@ -78,6 +80,7 @@ struct CreateView: View {
                 }
             }
         }
+          
             .fullScreenCover(isPresented: $viewModel.isCreatingNewCard) {
             AddCardSheetView { frontZone, backZone in
                 viewModel.addCard(frontZone: frontZone, backZone: backZone)
@@ -89,6 +92,19 @@ struct CreateView: View {
                 backZone: card.backZone
             ) { frontZone, backZone in
                 viewModel.updateCard(card, frontZone: frontZone, backZone: backZone)
+            }
+        }
+            .photosPicker(isPresented: $viewModel.showAIPhotoPicker, selection: $viewModel.selectedAIPhoto, matching: .images)
+            .fileImporter(isPresented: $viewModel.showAIPDFPicker, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                viewModel.processPDFForAI(url: url)
+            }
+        }
+
+        // MARK: - AI Generation Overlay
+        .overlay {
+            if viewModel.aiState != .idle {
+                AILoadingOverlay(state: viewModel.aiState, onDismiss: viewModel.resetAIState)
             }
         }
     }
@@ -150,6 +166,8 @@ private extension CreateView {
 
                 Spacer()
 
+
+
                 Button {
                     isTitleFocused = false
                     viewModel.isCreatingNewCard = true
@@ -160,15 +178,27 @@ private extension CreateView {
                         .padding(.vertical, 8)
                         .background(.ultraThinMaterial, in: Capsule())
                 }
-                
+
                 Button {
-                    
+                    isTitleFocused = false
+                    viewModel.showAIPickerOptions = true // Trigger the Action Sheet
                 } label: {
                     Label("AI", systemImage: "sparkles")
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: Capsule())
+                        .background(
+                        LinearGradient(colors: [.purple.opacity(0.8), .blue.opacity(0.8)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+                        .foregroundStyle(.white)
+                        .clipShape(Capsule())
+                }
+                    .confirmationDialog("Generate Cards with AI", isPresented: $viewModel.showAIPickerOptions, titleVisibility: .visible) {
+                    Button("Choose Photo") { viewModel.showAIPhotoPicker = true }
+                    Button("Choose PDF") { viewModel.showAIPDFPicker = true }
+                    Button("Cancel", role: .cancel) { }
+                } message: {
+                    Text("Extract text from an image or document to instantly create flashcards.")
                 }
             }
                 .padding(.horizontal, 24)

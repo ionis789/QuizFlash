@@ -228,4 +228,6 @@ struct AccentColorPickerView: View {
 
 #Preview {
     SettingsView()
+        .environment(AuthManager())
+        .modelContainer(for: [DeckModel.self, CardModel.self], inMemory: true)
 }
