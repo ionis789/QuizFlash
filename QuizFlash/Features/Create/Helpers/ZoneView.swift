@@ -311,26 +311,43 @@ struct ZoneContentView: View {
 
     // NOU: Preview-ul vizual impecabil când zona nu e selectată
     private var renderedTextPreview: some View {
-        MixedMathTextView(
-            text: zone?.text ?? "",
-            fontSize: fontSizeFor(zone), // ← CGFloat, corect
-            textColor: zone?.textColor.color ?? .primary,
-            alignment: alignmentFor(zone).horizontalAlignment,
-            isBold: zone?.isBold ?? false,
-            isItalic: zone?.isItalic ?? false
-        )
-        // Adăugăm padding similar cu `textEditorCore` ca să nu sară textul sus-jos la focus
-        .padding(.vertical, 4)
-            .padding(.leading, zone?.highlightColor != HighlightColor.none ? 6 : 8)
-            .padding(.trailing, 0)
-            .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: 6).fill(Color.gray.opacity(0.05))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(isSelected ? accent : Color.gray.opacity(0.3), style: StrokeStyle(lineWidth: isSelected ? 2 : 1, dash: [4])))
-                if let highlight = zone?.highlightColor.color { RoundedRectangle(cornerRadius: 4).fill(highlight) }
+        Group {
+            // ── CODE BLOCK ────────────────────────────────────────────────────
+            if let z = zone, CodeZoneHelper.isCodeZone(z) {
+                CodeBlockPreviewView(zoneText: z.text, showCopyButton: true)
             }
-        )
-            .contentShape(Rectangle())
+            // ── TEXT / MATH ───────────────────────────────────────────────────
+                else {
+                MixedMathTextView(
+                    text: zone?.text ?? "",
+                    fontSize: fontSizeFor(zone),
+                    textColor: zone?.textColor.color ?? .primary,
+                    alignment: alignmentFor(zone).horizontalAlignment,
+                    isBold: zone?.isBold ?? false,
+                    isItalic: zone?.isItalic ?? false
+                )
+                    .padding(.vertical, 4)
+                    .padding(.leading, zone?.highlightColor != HighlightColor.none ? 6 : 8)
+                    .padding(.trailing, 0)
+                    .background(
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.gray.opacity(0.05))
+                            .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(
+                                isSelected ? accent : Color.gray.opacity(0.3),
+                                style: StrokeStyle(lineWidth: isSelected ? 2 : 1, dash: [4])
+                            )
+                        )
+                        if let highlight = zone?.highlightColor.color {
+                            RoundedRectangle(cornerRadius: 4).fill(highlight)
+                        }
+                    }
+                )
+                    .contentShape(Rectangle())
+            }
+        }
     }
 
     // MARK: - Highlight Overlay
@@ -539,25 +556,38 @@ struct ZonePreviewView: View {
             Color.clear.frame(height: 28).padding(.vertical, 4)
         case .text:
             if !zone.text.isEmpty {
-                HStack(alignment: .top, spacing: 8) {
-                    if zone.hasBullet {
-                        Circle().fill(zone.textColor.color).frame(width: 6, height: 6).padding(.top, 8)
-                    }
-
-                    // AICI INTERVENIM:
-                    MixedMathTextView(
-                        text: zone.text,
-                        fontSize: fontSizeFor(zone), // ← CGFloat, corect
-                        textColor: zone.textColor.color,
-                        alignment: zone.textAlignment.horizontalAlignment,
-                        isBold: zone.isBold,
-                        isItalic: zone.isItalic
-                    )
+                // ── CODE BLOCK ──────────────────────────────────────────────────
+                if CodeZoneHelper.isCodeZone(zone) {
+                    CodeBlockPreviewView(zoneText: zone.text, showCopyButton: true)
                         .padding(.vertical, 4)
-                        .padding(.horizontal, zone.highlightColor != HighlightColor.none ? 6 : 0)
-                        .background(zone.highlightColor.color.map { color in RoundedRectangle(cornerRadius: 4).fill(color) })
                 }
-                    .frame(maxWidth: .infinity, alignment: alignmentFor(zone))
+                // ── TEXT / MATH ─────────────────────────────────────────────────
+                    else {
+                    HStack(alignment: .top, spacing: 8) {
+                        if zone.hasBullet {
+                            Circle()
+                                .fill(zone.textColor.color)
+                                .frame(width: 6, height: 6)
+                                .padding(.top, 8)
+                        }
+                        MixedMathTextView(
+                            text: zone.text,
+                            fontSize: fontSizeFor(zone),
+                            textColor: zone.textColor.color,
+                            alignment: zone.textAlignment.horizontalAlignment,
+                            isBold: zone.isBold,
+                            isItalic: zone.isItalic
+                        )
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, zone.highlightColor != HighlightColor.none ? 6 : 0)
+                            .background(
+                            zone.highlightColor.color.map { color in
+                                RoundedRectangle(cornerRadius: 4).fill(color)
+                            }
+                        )
+                    }
+                        .frame(maxWidth: .infinity, alignment: alignmentFor(zone))
+                }
             }
         case .image:
             if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: zone.textAlignment, cornerRadius: 10) }

@@ -9,92 +9,136 @@ import SwiftUI
 struct AILoadingOverlay: View {
     let state: AIGenerationState
     let onDismiss: () -> Void
-    
+
     @State private var isPulsing = false
-    
+    @State private var dotCount = 1
+    private let loadingPhrases = [
+        "Bea o cafea, până iscusitul intelect gândește.",
+        "Neuronii digitali se încălzesc...",
+        "Transformând haosul în cunoaștere...",
+        "Algoritmi la lucru, relaxează-te.",
+        "Procesând înțelepciunea documentului...",
+    ]
+    @State private var currentPhrase = 0
+
     var body: some View {
         ZStack {
             Color.black.opacity(0.4)
                 .ignoresSafeArea()
                 .background(.ultraThinMaterial)
-            
+
             VStack(spacing: 24) {
                 // Animated Icon
                 ZStack {
                     Circle()
-                        .fill(LinearGradient(colors: [.purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .fill(LinearGradient(
+                        colors: iconGradient,
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
                         .frame(width: 80, height: 80)
                         .scaleEffect(isPulsing ? 1.1 : 0.95)
-                        .shadow(color: .purple.opacity(0.6), radius: isPulsing ? 20 : 10)
-                    
+                        .shadow(color: iconGradient[0].opacity(0.6), radius: isPulsing ? 20 : 10)
+
                     Image(systemName: iconForState)
                         .font(.system(size: 32, weight: .bold))
                         .foregroundStyle(.white)
-                        .symbolEffect(.bounce, options: .repeating, isActive: true)
+                        .symbolEffect(.bounce, options: .repeating, isActive: state != .error(""))
                 }
-                
+
                 // Text & Progress
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     Text(titleForState)
                         .font(.title2.weight(.bold))
-                    
-                    if case .generatingCards(let progress, let foundCount) = state {
-                        // TO DO Cuvinte random
-                        
-                    } else if case .error(let msg) = state {
+                        .multilineTextAlignment(.center)
+
+                    if case .error(let msg) = state {
                         Text(msg)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
+                    } else if case .generatingCards = state {
+                        Text(loadingPhrases[currentPhrase])
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                            .id(currentPhrase)
                     } else {
-                        Text("Astepta oliaca.")
+                        Text(subtitleForState)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                 }
-                
+
                 // Error Dismiss Button
                 if case .error = state {
-                    Button("Close", action: onDismiss)
+                    Button("Închide", action: onDismiss)
                         .font(.headline)
                         .padding(.horizontal, 30)
                         .padding(.vertical, 12)
                         .background(Color.secondary.opacity(0.2), in: Capsule())
-                        .padding(.top, 10)
                 }
             }
-            .padding(32)
-            .background(
+                .padding(32)
+                .background(
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
                     .fill(Color(uiColor: .systemBackground))
                     .shadow(color: .black.opacity(0.15), radius: 30, y: 15)
             )
-            .padding(.horizontal, 40)
+                .padding(.horizontal, 40)
         }
-        .transition(.opacity.combined(with: .scale(scale: 0.95)))
-        .onAppear {
+            .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            .onAppear {
             withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
                 isPulsing = true
             }
+            // Schimbă fraza la fiecare 3 secunde
+            Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    currentPhrase = (currentPhrase + 1) % loadingPhrases.count
+                }
+            }
         }
     }
-    
+
+    private var iconGradient: [Color] {
+        switch state {
+        case .error: return [.red, .orange]
+        case .analyzingDocument: return [.orange, .yellow]
+        case .extractingText: return [.blue, .cyan]
+        case .generatingCards: return [.purple, .blue]
+        case .idle: return [.gray, .gray]
+        }
+    }
+
     private var iconForState: String {
         switch state {
-        case .extractingText: return "doc.viewfinder"
+        case .analyzingDocument: return "doc.viewfinder"
+        case .extractingText: return "text.viewfinder"
         case .generatingCards: return "sparkles"
         case .error: return "exclamationmark.triangle.fill"
+        case .idle: return "sparkles"
+        }
+    }
+
+    private var titleForState: String {
+        switch state {
+        case .analyzingDocument: return "Analizez documentul..."
+        case .extractingText: return "Extrag textul..."
+        case .generatingCards: return "Generez carduri..."
+        case .error: return "Oops!"
         case .idle: return ""
         }
     }
-    
-    private var titleForState: String {
+
+    private var subtitleForState: String {
         switch state {
-        case .extractingText: return "OCR..."
-        case .generatingCards: return "Bea o cafea, pana iscustvenii intilect gandeste."
-        case .error: return "Oops!"
-        case .idle: return ""
+        case .analyzingDocument: return "Detectez tipul PDF-ului"
+        case .extractingText: return "OCR pe device, gratuit"
+        default: return "Așteaptă oleacă..."
         }
     }
 }

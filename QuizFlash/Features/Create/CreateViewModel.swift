@@ -6,50 +6,105 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
+import PDFKit
 
 @Observable
 @MainActor
 final class CreateViewModel {
 
+    // MARK: - AI State
     var aiState: AIGenerationState = .idle
-    var showAIPickerOptions = false
-    var showAIPhotoPicker = false
-    var showAIPDFPicker = false
-    var showAIOptionsOverlay = false
 
+    // MARK: - AI Picker UI
+    var showAIPickerOptions    = false
+    var showAIPhotoPicker      = false
+    var showAIPDFPicker        = false
+    var showAIOptionsOverlay   = false
+
+    // MARK: - PDF Analysis
+    // Populat automat când utilizatorul alege un PDF, înainte să apese Generează
+    var pdfAnalysis: PDFAnalysisInfo? = nil
+
+    // MARK: - Generation Settings
+    var requestedCardCount: Int = 15
+    var extractionMode: ExtractionMode = .fast
+
+    // MARK: - Photos
     var selectedAIPhotos: [PhotosPickerItem] = [] {
         didSet {
-            if !selectedAIPhotos.isEmpty {
-                showAIPickerOptions = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                    withAnimation(.spring()) { self.showAIOptionsOverlay = true }
-                }
+            guard !selectedAIPhotos.isEmpty else { return }
+            showAIPickerOptions = false
+            // Pentru poze nu facem analiză — arătăm direct overlay-ul
+            pdfAnalysis = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                withAnimation(.spring()) { self.showAIOptionsOverlay = true }
             }
         }
     }
 
     var pendingPDFURL: URL? = nil
-    var requestedCardCount: Int = 15
-    var useFastOCR: Bool = true // Bifat by default pentru viteză!
 
-    private let aiService = AIFlashcardService()
-    private let documentRenderer = DocumentRenderingService()
-    private let localOCR = LocalOCRService()
+    // MARK: - Services
+    // Un singur service pentru tot — DocumentTextExtractor + AIFlashcardService
+    // LocalOCRService, DocumentRenderingService, TextExtractionService sunt ELIMINATE
+    private let aiService = AIFlashcardService(apiKey: "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")
 
+    // MARK: - Deck / Cards State
     var deckTitle: String = ""
     var draftCards: [DraftCard] = []
     var cardToEdit: DraftCard?
-    var isCreatingNewCard = false
+    var isCreatingNewCard  = false
     var showSuccessOverlay = false
     let deckToEdit: DeckModel?
 
     init(deckToEdit: DeckModel? = nil) {
         self.deckToEdit = deckToEdit
         if let deck = deckToEdit {
-            self.deckTitle = deck.title
-            self.draftCards = deck.cards.map { DraftCard.from($0) }
+            deckTitle  = deck.title
+            draftCards = deck.cards.map { DraftCard.from($0) }
         }
     }
+
+    // =========================================================================
+    // MARK: - PDF Selection + Auto-Analysis
+    // Apelat din CreateView imediat ce utilizatorul a ales un PDF.
+    // Rulează PDFKit quality check în background și populează pdfAnalysis
+    // înainte ca overlay-ul să fie vizibil — fără delay perceptibil.
+    // =========================================================================
+
+    func pdfWasSelected(_ url: URL) {
+        pendingPDFURL = url
+        pdfAnalysis   = nil
+
+        // Rulăm analiza în background imediat
+        Task {
+            guard url.startAccessingSecurityScopedResource() else { return }
+            defer { url.stopAccessingSecurityScopedResource() }
+
+            let quality  = DocumentTextExtractor.pdfKitQuality(for: url)
+            let pageCount = await DocumentTextExtractor.pdfPageCount(url: url)
+            let chars    = DocumentTextExtractor.extractWithPDFKit(from: url)?.count ?? 0
+
+            let info = PDFAnalysisInfo(
+                quality: quality,
+                pageCount: pageCount,
+                extractedChars: chars
+            )
+
+            // Setăm automat modul recomandat
+            self.pdfAnalysis    = info
+            self.extractionMode = info.recommendation
+
+            // Deschidem overlay-ul abia după ce avem analiza
+            withAnimation(.spring()) {
+                self.showAIOptionsOverlay = true
+            }
+        }
+    }
+
+    // =========================================================================
+    // MARK: - Start Generation
+    // =========================================================================
 
     func startAIGeneration() {
         if !selectedAIPhotos.isEmpty {
@@ -59,122 +114,199 @@ final class CreateViewModel {
         }
     }
 
+    // =========================================================================
+    // MARK: - Process Photos
+    // Fast  → Vision OCR pe device (gratuit)
+    // Quality → GPT Vision, toate imaginile într-un singur request
+    // =========================================================================
+
     private func processPhotosForAI() {
-        // Am simplificat starea. Nu mai e nevoie de progres fals.
-        aiState = .generatingCards(progress: 0, foundCount: 0)
+        aiState = .extractingText
         let items = selectedAIPhotos
         selectedAIPhotos = []
 
         Task {
             do {
+                // Încărcăm imaginile din PhotosPicker
                 var images: [UIImage] = []
                 for item in items {
                     if let data = try await item.loadTransferable(type: Data.self),
-                        let image = UIImage(data: data) {
-                        images.append(image)
+                       let image = UIImage(data: data) {
+                        images.append(image.resizedForAI(toMaxDimension: 1024))
                     }
                 }
                 guard !images.isEmpty else { throw AIServiceError.parsingFailed }
 
-                let generatedCards: [AIFlashcard]
+                let cards: [AIFlashcard]
 
-                if useFastOCR {
-                    // Calea rapidă: extragem textul local
-                    let text = try await localOCR.extractText(from: images)
-                    generatedCards = try await aiService.generateFlashcards(fromText: text, targetCards: requestedCardCount)
-                } else {
-                    // Calea complexă: trimitem pozele redimensionate la Vision AI
-                    let resizedImages = images.map { $0.resizedForAI(toMaxDimension: 1024) }
-                    generatedCards = try await aiService.generateFlashcards(from: resizedImages, targetCards: requestedCardCount)
+                switch extractionMode {
+                case .fast:
+                    // Vision OCR pe device → text → GPT text mode (ieftin)
+                    let extraction = await DocumentTextExtractor.extract(from: images)
+                    guard let text = extraction.text, !text.isEmpty else {
+                        throw AIServiceError.parsingFailed
+                    }
+                    aiState = .generatingCards(progress: 0, foundCount: 0)
+                    cards = try await aiService.generateFlashcards(
+                        fromText: text,
+                        targetCards: requestedCardCount
+                    )
+
+                case .quality:
+                    // GPT Vision cu toate imaginile (mai scump, mai lent, înțelege diagrame)
+                    aiState = .generatingCards(progress: 0, foundCount: 0)
+                    cards = try await aiService.generateFlashcards(
+                        from: images,
+                        targetCards: requestedCardCount
+                    )
                 }
 
-                saveGeneratedCards(generatedCards)
+                saveGeneratedCards(cards)
 
             } catch {
-                await MainActor.run { aiState = .error(error.localizedDescription) }
+                aiState = .error(error.localizedDescription)
             }
         }
     }
 
-    func processPDFForAI(url: URL) {
-        guard url.startAccessingSecurityScopedResource() else { return }
-        aiState = .generatingCards(progress: 0, foundCount: 0)
+    // =========================================================================
+    // MARK: - Process PDF
+    // Fast    → DocumentTextExtractor pipeline: PDFKit → Vision OCR
+    // Quality → Render pagini → GPT Vision, toate într-un singur request
+    // =========================================================================
+
+    private func processPDFForAI(url: URL) {
+        guard url.startAccessingSecurityScopedResource() else {
+            aiState = .error("Nu am putut accesa fișierul PDF.")
+            return
+        }
+
         pendingPDFURL = nil
 
         Task {
-            do {
-                let generatedCards: [AIFlashcard]
+            defer { url.stopAccessingSecurityScopedResource() }
 
-                if useFastOCR {
-                    // Citim direct textul din PDF instantaneu
-                    let text = await localOCR.extractText(fromPDF: url)
-                    url.stopAccessingSecurityScopedResource()
-                    generatedCards = try await aiService.generateFlashcards(fromText: text, targetCards: requestedCardCount)
-                } else {
-                    let images = try await documentRenderer.renderPagesAsImages(fromPDFAt: url)
-                    url.stopAccessingSecurityScopedResource()
-                    generatedCards = try await aiService.generateFlashcards(from: images, targetCards: requestedCardCount)
+            do {
+                let cards: [AIFlashcard]
+
+                switch extractionMode {
+                case .fast:
+                    // Pipeline automat: PDFKit → Vision OCR pe device (gratuit)
+                    aiState = .extractingText
+                    let extraction = await DocumentTextExtractor.extract(from: url)
+
+                    guard let text = extraction.text, !text.isEmpty else {
+                        // Textul e prea slab — fallback automat la Quality
+                        aiState = .generatingCards(progress: 0, foundCount: 0)
+                        let images = await DocumentTextExtractor.renderPDFPages(from: url)
+                        cards = try await aiService.generateFlashcards(
+                            from: images,
+                            targetCards: requestedCardCount
+                        )
+                        saveGeneratedCards(cards)
+                        return
+                    }
+
+                    aiState = .generatingCards(progress: 0, foundCount: 0)
+                    cards = try await aiService.generateFlashcards(
+                        fromText: text,
+                        targetCards: requestedCardCount
+                    )
+
+                case .quality:
+                    // Render toate paginile → un singur request GPT Vision
+                    aiState = .extractingText
+                    let images = await DocumentTextExtractor.renderPDFPages(from: url, dpi: 150)
+                    guard !images.isEmpty else { throw AIServiceError.parsingFailed }
+
+                    aiState = .generatingCards(progress: 0, foundCount: 0)
+                    cards = try await aiService.generateFlashcards(
+                        from: images,
+                        targetCards: requestedCardCount
+                    )
                 }
 
-                saveGeneratedCards(generatedCards)
+                saveGeneratedCards(cards)
 
             } catch {
-                url.stopAccessingSecurityScopedResource()
-                await MainActor.run { aiState = .error(error.localizedDescription) }
+                aiState = .error(error.localizedDescription)
             }
         }
     }
 
+    // =========================================================================
+    // MARK: - Save Cards
+    // =========================================================================
+
     private func saveGeneratedCards(_ generatedCards: [AIFlashcard]) {
-            withAnimation(.spring()) {
-                for aiCard in generatedCards {
-                    // FOLOSIM PARSERUL AICI:
-                    let frontZone = AIZoneParser.parse(text: aiCard.question)
-                    let backZone = AIZoneParser.parse(text: aiCard.answer)
-                    
-                    let newDraft = DraftCard(frontZone: frontZone, backZone: backZone, frontType: .text, backType: .text, createdAt: Date(), editedAt: Date())
-                    self.draftCards.append(newDraft)
-                }
-                self.aiState = .idle
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
+        withAnimation(.spring()) {
+            for aiCard in generatedCards {
+                let frontZone = AIZoneParser.parse(text: aiCard.question)
+                let backZone  = AIZoneParser.parse(text: aiCard.answer)
+                let newDraft  = DraftCard(
+                    frontZone: frontZone,
+                    backZone: backZone,
+                    frontType: .text,
+                    backType: .text,
+                    createdAt: Date(),
+                    editedAt: Date()
+                )
+                draftCards.append(newDraft)
             }
+            aiState = .idle
+            pdfAnalysis = nil
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
         }
+    }
 
-    func resetAIState() { withAnimation { aiState = .idle } }
+    func resetAIState() {
+        withAnimation { aiState = .idle }
+    }
 
+    // =========================================================================
     // MARK: - Card Actions
+    // =========================================================================
+
     func addCard(frontZone: ZoneModel, backZone: ZoneModel) {
-        let newCard = DraftCard(frontZone: frontZone, backZone: backZone, frontType: .text, backType: .text, createdAt: Date(), editedAt: Date())
+        let newCard = DraftCard(
+            frontZone: frontZone,
+            backZone: backZone,
+            frontType: .text,
+            backType: .text,
+            createdAt: Date(),
+            editedAt: Date()
+        )
         withAnimation { draftCards.append(newCard) }
     }
 
     func updateCard(_ card: DraftCard, frontZone: ZoneModel, backZone: ZoneModel) {
-        if let index = draftCards.firstIndex(where: { $0.id == card.id }) {
-            var updatedCard = draftCards[index]
-            let changed = updatedCard.frontZone != frontZone || updatedCard.backZone != backZone
-            updatedCard.frontZone = frontZone
-            updatedCard.backZone = backZone
-            if changed { updatedCard.editedAt = Date() }
-            withAnimation { draftCards[index] = updatedCard }
-        }
+        guard let index = draftCards.firstIndex(where: { $0.id == card.id }) else { return }
+        var updated = draftCards[index]
+        let changed = updated.frontZone != frontZone || updated.backZone != backZone
+        updated.frontZone = frontZone
+        updated.backZone  = backZone
+        if changed { updated.editedAt = Date() }
+        withAnimation { draftCards[index] = updated }
     }
 
     func deleteCard(_ card: DraftCard) {
         withAnimation { draftCards.removeAll { $0.id == card.id } }
     }
 
-    // MARK: - Save Logic
+    // =========================================================================
+    // MARK: - Save Deck
+    // =========================================================================
+
     func saveDeck(context: ModelContext, router: NavigationManager, dismiss: DismissAction) {
         let trimmedTitle = deckTitle.trimmingCharacters(in: .whitespaces)
 
         if let deck = deckToEdit {
             let titleChanged = deck.title != trimmedTitle
             deck.title = trimmedTitle
-
             var cardsChanged = false
-            let draftOriginalIDs = Set(draftCards.compactMap { $0.originalCardID })
 
-            let cardsToDelete = deck.cards.filter { !draftOriginalIDs.contains($0.id) }
+            let draftOriginalIDs = Set(draftCards.compactMap { $0.originalCardID })
+            let cardsToDelete    = deck.cards.filter { !draftOriginalIDs.contains($0.id) }
             for card in cardsToDelete {
                 context.delete(card)
                 deck.cards.removeAll { $0.id == card.id }
@@ -183,15 +315,13 @@ final class CreateViewModel {
 
             for draft in draftCards {
                 if let originalID = draft.originalCardID,
-                    let existingCard = deck.cards.first(where: { $0.id == originalID }) {
-
-                    let frontChanged = existingCard.frontZone != draft.frontZone
-                    let backChanged = existingCard.backZone != draft.backZone
-
+                   let existing = deck.cards.first(where: { $0.id == originalID }) {
+                    let frontChanged = existing.frontZone != draft.frontZone
+                    let backChanged  = existing.backZone  != draft.backZone
                     if frontChanged || backChanged {
-                        existingCard.frontZone = draft.frontZone
-                        existingCard.backZone = draft.backZone
-                        existingCard.editedAt = Date()
+                        existing.frontZone = draft.frontZone
+                        existing.backZone  = draft.backZone
+                        existing.editedAt  = Date()
                         cardsChanged = true
                     }
                 } else {
@@ -200,20 +330,20 @@ final class CreateViewModel {
                     cardsChanged = true
                 }
             }
-
             if titleChanged || cardsChanged { deck.editedAt = Date() }
 
         } else {
             let newDeck = DeckModel(title: trimmedTitle, icon: "book.closed.fill", colorHex: "#FFFFFF")
             context.insert(newDeck)
-
             for draft in draftCards {
                 let newCard = CardModel(frontZone: draft.frontZone, backZone: draft.backZone)
                 newCard.deck = newDeck
             }
         }
 
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { showSuccessOverlay = true }
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            showSuccessOverlay = true
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) {
             withAnimation(.easeOut(duration: 0.25)) { self.showSuccessOverlay = false }
@@ -227,26 +357,30 @@ final class CreateViewModel {
     }
 
     private func resetForm() {
-        deckTitle = ""
-        draftCards = []
-        cardToEdit = nil
+        deckTitle         = ""
+        draftCards        = []
+        cardToEdit        = nil
         isCreatingNewCard = false
+        pdfAnalysis       = nil
     }
 }
 
-// Extensie pentru redimensionarea pozelor uriașe din Galerie
+// MARK: - UIImage resize helper
 extension UIImage {
     func resizedForAI(toMaxDimension maxDimension: CGFloat) -> UIImage {
         let size = self.size
-        if size.width <= maxDimension && size.height <= maxDimension { return self }
+        guard size.width > maxDimension || size.height > maxDimension else { return self }
+        let scale    = min(maxDimension / size.width, maxDimension / size.height)
+        let newSize  = CGSize(width: size.width * scale, height: size.height * scale)
+        let format   = UIGraphicsImageRendererFormat(); format.scale = 1.0
+        return UIGraphicsImageRenderer(size: newSize, format: format)
+            .image { _ in self.draw(in: CGRect(origin: .zero, size: newSize)) }
+    }
+}
 
-        let scale = min(maxDimension / size.width, maxDimension / size.height)
-        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1.0
-        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
-
-        return renderer.image { _ in self.draw(in: CGRect(origin: .zero, size: newSize)) }
+// MARK: - DocumentTextExtractor helper pentru pdfPageCount (non-isolated)
+extension DocumentTextExtractor {
+    static func pdfPageCount(url: URL) async -> Int {
+        PDFDocument(url: url)?.pageCount ?? 0
     }
 }

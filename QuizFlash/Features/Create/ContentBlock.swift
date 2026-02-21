@@ -86,8 +86,9 @@ enum FontFamily: String, Codable, Equatable, CaseIterable {
         switch self {
         case .system: return .systemFont(ofSize: size, weight: weight)
         case .serif: return UIFont(name: "Georgia", size: size) ?? .systemFont(ofSize: size, weight: weight)
-        case .mono: return UIFont(name: "Menlo", size: size) ?? .systemFont(ofSize: size, weight: weight)
+//        case .mono: return UIFont(name: "Menlo", size: size) ?? .systemFont(ofSize: size, weight: weight)
         case .rounded: return UIFont(name: "SF Pro Rounded", size: size) ?? .systemFont(ofSize: size, weight: weight)
+        case .mono: return UIFont.monospacedSystemFont(ofSize: size, weight: weight)
         }
     }
 }

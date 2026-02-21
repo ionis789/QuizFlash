@@ -48,7 +48,7 @@ struct MathTextSanitizer {
         let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
         for match in matches.reversed() {
             guard
-                let fullRange  = Range(match.range,        in: result),
+                let fullRange  = Range(match.range, in: result),
                 let innerRange = Range(match.range(at: 1), in: result)
             else { continue }
             let inner = String(result[innerRange])
@@ -60,15 +60,26 @@ struct MathTextSanitizer {
     }
 
     static func containsMath(_ text: String) -> Bool {
-        text.contains("$")    ||
-        text.contains("\\[")  ||
-        text.contains("\\(")  ||
+        text.contains("$")     ||
+        text.contains("\\[")   ||
+        text.contains("\\(")   ||
         text.contains("\\begin")
+    }
+
+    /// True dacă textul conține cod inline cu backtick-uri singure
+    static func containsInlineCode(_ text: String) -> Bool {
+        let pattern = "`[^`\n]+`"
+        return (try? NSRegularExpression(pattern: pattern))
+            .map { $0.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil }
+            ?? false
     }
 }
 
 // =============================================================================
 // MARK: - MixedMathTextView
+//
+// View principal pentru redarea textului mixt: text + math (KaTeX) + inline code.
+// Codul în blocuri (```) este gestionat de CodeBlockPreviewView, NU de acest view.
 // =============================================================================
 
 struct MixedMathTextView: View {
@@ -84,7 +95,8 @@ struct MixedMathTextView: View {
     var body: some View {
         let clean = MathTextSanitizer.heal(text)
 
-        if MathTextSanitizer.containsMath(clean) {
+        if MathTextSanitizer.containsMath(clean) || MathTextSanitizer.containsInlineCode(clean) {
+            // WebView — redă KaTeX + inline code styling
             MathWebView(
                 text: clean,
                 fontSize: fontSize,
@@ -180,6 +192,7 @@ struct MathWebView: UIViewRepresentable {
     }
 
     // MARK: - HTML Builder
+
     private func buildHTML() -> String {
         let cssAlign: String
         switch alignment {
@@ -190,6 +203,9 @@ struct MathWebView: UIViewRepresentable {
 
         let weight = isBold   ? "bold"   : "normal"
         let style  = isItalic ? "italic" : "normal"
+
+        // HTML escape: DOAR & → &amp;
+        // Păstrăm $, \, ^, _ pentru KaTeX; păstrăm ` pentru code styling
         let safeText = text.replacingOccurrences(of: "&", with: "&amp;")
 
         let katexTags: String
@@ -231,33 +247,44 @@ struct MathWebView: UIViewRepresentable {
             }
             #content { width: 100%; }
             .katex { font-size: 1em !important; }
-            /* Ascunde erorile KaTeX din UI — textul raw rămâne lizibil */
-            .katex-error { 
+            .katex-error {
                 color: inherit !important;
                 font-style: normal !important;
                 font-family: -apple-system, sans-serif !important;
             }
+
+            /* ─── Inline code styling ─────────────────────────────────────── */
+            /* Backtick-urile singure `code` → chip monospatat                */
+            code {
+                font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+                font-size: 0.88em;
+                background: rgba(255, 255, 255, 0.12);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                border-radius: 4px;
+                padding: 1px 5px;
+                white-space: pre-wrap;
+            }
+
+            /* bold inline */
+            strong, b { font-weight: bold; }
+            em, i      { font-style: italic; }
         </style>
         </head>
         <body>
-        <div id="content">\(safeText)</div>
+        <div id="content">\(processInlineCode(safeText))</div>
         <script>
-            // Macros pentru comenzi LaTeX comune pe care KaTeX nu le suportă nativ
-            // sau pe care GPT le generează incorect
             const extraMacros = {
-                "\\thinspace":    "\\,",
-                "\\negthinspace": "\\!",
-                "\\medspace":     "\\:",
-                "\\thickspace":   "\\;",
-                "\\llbracket":    "[\\![",
-                "\\rrbracket":    "]\\!]",
-                "\\R":            "\\mathbb{R}",
-                "\\N":            "\\mathbb{N}",
-                "\\Z":            "\\mathbb{Z}",
-                "\\Q":            "\\mathbb{Q}",
-                "\\C":            "\\mathbb{C}",
-                "\\eps":          "\\varepsilon",
-                "\\epsilon":      "\\varepsilon"
+                "\\\\thinspace":    "\\\\,",
+                "\\\\negthinspace": "\\\\!",
+                "\\\\medspace":     "\\\\:",
+                "\\\\thickspace":   "\\\\;",
+                "\\\\R":            "\\\\mathbb{R}",
+                "\\\\N":            "\\\\mathbb{N}",
+                "\\\\Z":            "\\\\mathbb{Z}",
+                "\\\\Q":            "\\\\mathbb{Q}",
+                "\\\\C":            "\\\\mathbb{C}",
+                "\\\\eps":          "\\\\varepsilon",
+                "\\\\epsilon":      "\\\\varepsilon"
             };
 
             renderMathInElement(document.getElementById('content'), {
@@ -270,8 +297,6 @@ struct MathWebView: UIViewRepresentable {
                 macros: extraMacros
             });
 
-            // FIX INALTIME: folosim ResizeObserver pentru a prinde
-            // orice schimbare de layout după render (inclusiv display math)
             function reportHeight() {
                 const h = document.getElementById('content').getBoundingClientRect().height;
                 if (h > 0) {
@@ -279,10 +304,8 @@ struct MathWebView: UIViewRepresentable {
                 }
             }
 
-            // Raportăm imediat după render
             reportHeight();
 
-            // Și urmărim orice resize ulterior (ex: display math care schimbă layout-ul)
             if (window.ResizeObserver) {
                 new ResizeObserver(() => reportHeight()).observe(document.getElementById('content'));
             }
@@ -290,6 +313,27 @@ struct MathWebView: UIViewRepresentable {
         </body>
         </html>
         """
+    }
+
+    /// Convertește backtick-urile inline `code` în tag-uri HTML <code>
+    /// ATENȚIE: nu procesăm blocuri ``` ``` — acelea sunt în CodeBlockPreviewView
+    private func processInlineCode(_ text: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: "`([^`\\n]+)`") else { return text }
+
+        var result = text
+        let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
+
+        for match in matches.reversed() {
+            guard
+                let fullRange  = Range(match.range,        in: result),
+                let innerRange = Range(match.range(at: 1), in: result)
+            else { continue }
+
+            let inner = String(result[innerRange])
+            result.replaceSubrange(fullRange, with: "<code>\(inner)</code>")
+        }
+
+        return result
     }
 
     private static func katexBundleURLs() -> (js: String, css: String, autoRender: String)? {
@@ -302,6 +346,7 @@ struct MathWebView: UIViewRepresentable {
     }
 
     // MARK: - Coordinator
+
     class Coordinator: NSObject, WKScriptMessageHandler {
         @Binding var contentHeight: CGFloat
         var webView: WKWebView?
