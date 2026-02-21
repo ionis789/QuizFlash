@@ -29,31 +29,31 @@ struct ZonePreviewSheet: View {
                         .ignoresSafeArea()
 
                     VStack(spacing: isCompact ? 16 : 24) {
-
                         ZStack {
-                            cardFace(zone: back.rootZone, title: "Answer")
+                            cardFace(zone: back.rootZone, title: "Answer", availableHeight: geo.size.height * 0.85)
                                 .rotation3DEffect(.degrees(isFlipped ? 0 : 180), axis: (x: 0, y: 1, z: 0))
                                 .opacity(isFlipped ? 1 : 0)
 
-                            cardFace(zone: front.rootZone, title: "Question")
+                            cardFace(zone: front.rootZone, title: "Question", availableHeight: geo.size.height * 0.85)
                                 .rotation3DEffect(.degrees(isFlipped ? -180 : 0), axis: (x: 0, y: 1, z: 0))
                                 .opacity(isFlipped ? 0 : 1)
                         }
-                            .frame(
+                        .frame(
                             width: geo.size.width * 0.85,
                             height: geo.size.height * 0.85
                         )
-                            .onTapGesture {
+                        .onTapGesture {
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                                 isFlipped.toggle()
                             }
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-                .navigationTitle("Preview")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
+            .navigationTitle("Preview")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                         .fontWeight(.semibold)
@@ -63,7 +63,7 @@ struct ZonePreviewSheet: View {
     }
 
     @ViewBuilder
-    private func cardFace(zone: ZoneModel, title: String) -> some View {
+    private func cardFace(zone: ZoneModel, title: String, availableHeight: CGFloat) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
                 .fill(cardBackground)
@@ -72,17 +72,22 @@ struct ZonePreviewSheet: View {
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
                 .stroke(borderColor, lineWidth: 1)
 
-            VStack(alignment: .leading, spacing: 0) {
-                if zone.hasContent {
+            if zone.hasContent {
+                GeometryReader { scrollProxy in
                     ScrollView(.vertical, showsIndicators: false) {
-                        ZonePreviewView(zone: zone)
-                            .padding(.horizontal, isCompact ? 20 : 28)
-                            .padding(.vertical, isCompact ? 20 : 24)
+                        VStack(alignment: .leading, spacing: 0) {
+                            ZonePreviewView(zone: zone)
+                        }
+                        .padding(.horizontal, isCompact ? 20 : 28)
+                        .padding(.vertical, isCompact ? 20 : 24)
+                        // AICI SE ÎNTÂMPLĂ MAGIA CENTRĂRII VERTICALE
+                        .frame(minHeight: scrollProxy.size.height, alignment: .center)
                     }
-                        .scrollBounceBehavior(.basedOnSize)
-                } else {
-                    emptyContent
+                    .scrollBounceBehavior(.basedOnSize)
                 }
+                .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+            } else {
+                emptyContent
             }
         }
     }
@@ -96,7 +101,7 @@ struct ZonePreviewSheet: View {
                 .font(isCompact ? .body : .title3)
                 .foregroundStyle(.secondary)
         }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var backgroundGradient: some View {

@@ -2,279 +2,139 @@ import Foundation
 
 // =============================================================================
 // MARK: - AIZoneParser
+// =============================================================================
 //
-// Parsează textul generat de AI în ZoneModel-uri structurate.
-//
-// Suportă:
-//   - Text simplu și paragrafe
-//   - Liste cu bullet (- item sau * item)
-//   - Blocuri matematice ($$...$$)
-//   - CODE BLOCKS (```lang\ncode\n```) → zone cu fontFamily = .monospaced
-//
-// Convenție pentru blocuri de cod:
-//   zone.fontFamily = .monospaced
-//   zone.text      = "[LANG:java]\ncodul aici..." (dacă limba e specificată)
-//               SAU = "codul aici..." (dacă nu e specificată)
-//   zone.textStyle = .caption (font mai mic — standard pentru cod)
+// Converts GPT text (|||ZONE|||-delimited) into a ZoneModel tree.
+// NO recursion — each zone string maps directly to one leaf ZoneModel.
+// Heavy LaTeX repair is deferred to MathTextSanitizer.heal() at render time.
 //
 // =============================================================================
 
 struct AIZoneParser {
 
-    // =========================================================================
-    // MARK: - Public Entry Point
-    // =========================================================================
+    static let zoneDelimiter = "|||ZONE|||"
+
+    // -------------------------------------------------------------------------
+    // MARK: - Public API
+    // -------------------------------------------------------------------------
 
     static func parse(text: String) -> ZoneModel {
-        var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // Scoate wrapper-ul de $ care înconjoară întreg textul (eroare GPT)
-        cleaned = stripOuterDollarWrapper(cleaned)
-
-        // Extrage blocurile în ordine (text + code fences amestecate)
-        let segments = extractSegments(from: cleaned)
-
-        if segments.isEmpty { return .empty() }
-
-        // Un singur segment → returnat direct fără container
-        if segments.count == 1 {
-            return parseSegment(segments[0])
-        }
-
-        // Segmente multiple → container vertical
-        let children = segments.map { parseSegment($0) }.filter { $0.hasContent || !$0.isLeaf }
-        if children.isEmpty { return .empty() }
-        if children.count == 1 { return children[0] }
-        return ZoneModel.container(direction: .vertical, children: children)
+        let zones = extractZoneStrings(from: text)
+        return buildTree(from: zones)
     }
 
-    // =========================================================================
-    // MARK: - Segment Extraction
-    //
-    // Împarte textul în segmente alternante de:
-    //   • CodeSegment  — tot ce e între ``` ``` (inclusiv tag-ul de limbă)
-    //   • TextSegment  — tot restul textului
-    // =========================================================================
-
-    private enum Segment {
-        case text(String)
-        case code(language: String, body: String)
+    static func parse(zones: [String]) -> ZoneModel {
+        let cleaned = zones
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return buildTree(from: cleaned)
     }
 
-    private static func extractSegments(from input: String) -> [Segment] {
-        var segments: [Segment] = []
-        var remaining = input
+    // -------------------------------------------------------------------------
+    // MARK: - Extraction
+    // -------------------------------------------------------------------------
 
-        // Pattern: ```optionalLang\n...code...\n```
-        // Suportă backtick-uri normale și variante cu spații
-        let fencePattern = #"```([a-zA-Z0-9+#\-]*)\n([\s\S]*?)```"#
-        guard let regex = try? NSRegularExpression(pattern: fencePattern) else {
-            return [.text(input)]
-        }
+    private static func extractZoneStrings(from text: String) -> [String] {
+        var raw = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        raw = fixLiteralNewlines(raw)
 
-        var lastEnd = input.startIndex
+        raw = raw.replacingOccurrences(of: "\n```", with: "\n\(zoneDelimiter)```")
+        raw = raw.replacingOccurrences(of: "```\n", with: "```\(zoneDelimiter)\n")
 
-        let matches = regex.matches(in: input, range: NSRange(input.startIndex..., in: input))
+        let parts = raw.contains(zoneDelimiter)
+            ? raw.components(separatedBy: zoneDelimiter)
+        : [raw]
 
-        for match in matches {
-            guard let fullRange = Range(match.range, in: input) else { continue }
-
-            // Text ÎNAINTE de code block
-            let textBefore = String(input[lastEnd..<fullRange.lowerBound])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if !textBefore.isEmpty {
-                segments.append(.text(textBefore))
-            }
-
-            // Langue tag (group 1)
-            let lang: String
-            if let langRange = Range(match.range(at: 1), in: input) {
-                lang = String(input[langRange]).trimmingCharacters(in: .whitespaces)
-            } else {
-                lang = ""
-            }
-
-            // Codul (group 2)
-            let code: String
-            if let codeRange = Range(match.range(at: 2), in: input) {
-                code = String(input[codeRange]).trimmingCharacters(in: .newlines)
-            } else {
-                code = ""
-            }
-
-            if !code.isEmpty {
-                segments.append(.code(language: lang, body: code))
-            }
-
-            lastEnd = fullRange.upperBound
-        }
-
-        // Text DUPĂ ultimul code block
-        let textAfter = String(input[lastEnd...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        if !textAfter.isEmpty {
-            segments.append(.text(textAfter))
-        }
-
-        // Dacă nu s-a găsit niciun code block → tratăm totul ca text
-        if segments.isEmpty {
-            segments.append(.text(input))
-        }
-
-        return segments
+        return parts
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
+    // -------------------------------------------------------------------------
+    // MARK: - Tree Builder  (NO recursion)
+    // -------------------------------------------------------------------------
 
-    // =========================================================================
-    // MARK: - Segment → ZoneModel
-    // =========================================================================
-
-    private static func parseSegment(_ segment: Segment) -> ZoneModel {
-        switch segment {
-        case .text(let content):
-            return parseTextBlock(content)
-        case .code(let language, let body):
-            return makeCodeZone(language: language, body: body)
+    private static func buildTree(from zones: [String]) -> ZoneModel {
+        switch zones.count {
+        case 0: return .empty()
+        case 1: return makeLeaf(zones[0])
+        default: return .container(direction: .vertical, children: zones.map { makeLeaf($0) })
         }
     }
 
-    // =========================================================================
-    // MARK: - Code Zone
-    // =========================================================================
+    private static func makeLeaf(_ content: String) -> ZoneModel {
+        let processed = fixLiteralNewlines(content)
+        let trimmed = processed.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .empty() }
 
-    private static func makeCodeZone(language: String, body: String) -> ZoneModel {
-        var zone = ZoneModel(contentType: .text)
-        zone.fontFamily = .mono
-        zone.textStyle = .caption // 14pt — dimensiune standard pentru cod
+        // Verificăm dacă zona este un bloc de cod markdown
+        if trimmed.hasPrefix("```") && trimmed.hasSuffix("```") {
+            let lines = trimmed.components(separatedBy: .newlines)
+            if lines.count > 1 {
+                // Extragem limbajul (ex: java din ```java)
+                let firstLine = lines[0].trimmingCharacters(in: CharacterSet(charactersIn: "`").union(.whitespaces))
+                let language = firstLine.isEmpty ? nil : firstLine
 
-        // Prefixăm cu tag-ul de limbă dacă există, pentru a-l putea afișa în header
-        if !language.isEmpty {
-            zone.text = "[LANG:\(language.lowercased())]\n\(body)"
-        } else {
-            zone.text = body
-        }
+                // Extragem codul efectiv (fără prima și ultima linie)
+                let codeContent = lines.dropFirst().dropLast().joined(separator: "\n")
 
-        return zone
-    }
-
-    // =========================================================================
-    // MARK: - Text Block Parser
-    //
-    // Parsează un bloc de text pur (fără code fences) în zone structurate.
-    // Suportă: bullet lists, paragrafe, blocuri matematice centrate.
-    // =========================================================================
-
-    private static func parseTextBlock(_ content: String) -> ZoneModel {
-        let lines = content.components(separatedBy: "\n")
-        var blocks: [String] = []
-        var current = ""
-
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-
-            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
-                if !current.isEmpty {
-                    blocks.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
-                    current = ""
-                }
-                blocks.append(trimmed)
-            } else if trimmed.isEmpty {
-                if !current.isEmpty {
-                    blocks.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
-                    current = ""
-                }
-            } else {
-                current += (current.isEmpty ? "" : "\n") + line
+                return .code(codeContent, language: language)
             }
         }
-        if !current.isEmpty {
-            blocks.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
 
-        blocks = blocks.filter { !$0.isEmpty }
-
-        if blocks.isEmpty { return .empty() }
-        if blocks.count == 1 { return parseSingleTextBlock(blocks[0]) }
-
-        let children = blocks.map { parseSingleTextBlock($0) }
-        return ZoneModel.container(direction: .vertical, children: children)
+        return .text(processed)
     }
 
-    private static func parseSingleTextBlock(_ text: String) -> ZoneModel {
-        var zone = ZoneModel.text("")
-        var content = text.trimmingCharacters(in: .whitespaces)
+    // -------------------------------------------------------------------------
+    // MARK: - Literal \n Fix
+    // -------------------------------------------------------------------------
 
-        // Bullet list item
-        if content.hasPrefix("- ") || content.hasPrefix("* ") {
-            zone.hasBullet = true
-            content = String(content.dropFirst(2)).trimmingCharacters(in: .whitespaces)
-        }
-
-        // Display math block — centrat
-        if content.hasPrefix("$$") && content.hasSuffix("$$") {
-            zone.textAlignment = .center
-        }
-
-        zone.text = content
-        return zone
+    /// Replaces backslash-n sequences with real newlines, but only when they
+    /// are clearly escaped newlines (followed by whitespace/digit), NOT when
+    /// they are the start of a LaTeX command like \nabla or \nu.
+    static func fixLiteralNewlines(_ input: String) -> String {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"\\n(?=[ \t\r\d\$\-\*\•]|$)"#
+        ) else { return input }
+        let range = NSRange(input.startIndex..., in: input)
+        return regex.stringByReplacingMatches(in: input, range: range, withTemplate: "\n")
     }
 
-    // =========================================================================
-    // MARK: - Helpers
-    // =========================================================================
+    // -------------------------------------------------------------------------
+    // MARK: - Storage Sanitize (called by AIFlashcardService at import time)
+    // -------------------------------------------------------------------------
 
-    private static func stripOuterDollarWrapper(_ input: String) -> String {
-        var t = input
-        while t.hasPrefix("$") && t.hasSuffix("$") && !t.hasPrefix("$$") {
-            let inner = String(t.dropFirst().dropLast())
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard inner.contains(" ") || inner.contains("\n") else { break }
-            t = inner
-        }
+    /// Light sanitization at import time.
+    /// Heavy repair (bare LaTeX, orphan $) happens in MathTextSanitizer.heal().
+    static func sanitizeForStorage(_ input: String) -> String {
+        var t = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        t = fixLiteralNewlines(t)
+        t = fixUnbalancedDoubleDollars(t)
         return t
+    }
+
+    /// Backwards-compatible alias.
+    static func sanitizeLatex(_ input: String) -> String { sanitizeForStorage(input) }
+
+    // -------------------------------------------------------------------------
+    // MARK: - Helpers
+    // -------------------------------------------------------------------------
+
+    private static func fixUnbalancedDoubleDollars(_ input: String) -> String {
+        var count = 0
+        var searchRange = input.startIndex..<input.endIndex
+        while let range = input.range(of: "$$", range: searchRange) {
+            count += 1
+            searchRange = range.upperBound..<input.endIndex
+        }
+        return count % 2 != 0 ? input + "$$" : input
     }
 }
 
 // =============================================================================
-// MARK: - CodeZoneHelper
-//
-// Utilitar pentru a extrage limba și codul dintr-un zone.text cu prefix [LANG:...]
-// Folosit în CodeBlockPreviewView.
+// MARK: - ZoneModel Convenience
 // =============================================================================
 
-struct CodeZoneHelper {
-    let language: String
-    let code: String
-
-    /// Parsează zone.text și separă tag-ul de limbă de codul efectiv.
-    init(zoneText: String) {
-        if zoneText.hasPrefix("[LANG:") {
-            // Format: "[LANG:java]\ncodul..."
-            let afterPrefix = zoneText.dropFirst(6) // drop "[LANG:"
-            if let bracketEnd = afterPrefix.firstIndex(of: "]") {
-                language = String(afterPrefix[..<bracketEnd])
-                let afterBracket = afterPrefix[bracketEnd...].dropFirst() // drop "]"
-                // Sare peste newline-ul imediat următor
-                if afterBracket.hasPrefix("\n") {
-                    code = String(afterBracket.dropFirst())
-                } else {
-                    code = String(afterBracket)
-                }
-            } else {
-                language = ""
-                code = zoneText
-            }
-        } else {
-            language = ""
-            code = zoneText
-        }
-    }
-
-    /// True dacă textul este un code zone valid
-    static func isCodeZone(_ zone: ZoneModel) -> Bool {
-        zone.fontFamily == .mono && zone.contentType == .text
-    }
-
-    /// Label afișat în header-ul code block-ului
-    var displayLanguage: String {
-        language.isEmpty ? "CODE" : language.uppercased()
-    }
+extension ZoneModel {
+    static func fromAIZones(_ zones: [String]) -> ZoneModel { AIZoneParser.parse(zones: zones) }
+    static func fromAIText(_ text: String) -> ZoneModel { AIZoneParser.parse(text: text) }
 }

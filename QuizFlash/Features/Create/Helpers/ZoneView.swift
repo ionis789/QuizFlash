@@ -2,14 +2,11 @@
 //  ZoneView.swift
 //  QuizFlash
 //
-//  Zone editor views with PURE VISUAL ghost previews using permanent structural wrappers.
-//  UITextView identity is preserved - no data model mutation during drag.
-//
 
 import SwiftUI
 import PhotosUI
 
-// MARK: - Fake Ghost Block View (Visual Only - Seamless Dimension Match)
+// MARK: - Fake Ghost Block View
 
 struct FakeGhostBlockView: View {
     let isHorizontal: Bool
@@ -21,8 +18,7 @@ struct FakeGhostBlockView: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(Color.yellow.opacity(0.8), style: StrokeStyle(lineWidth: 2, dash: [6]))
         }
-        // Match standard UITextView line height + padding seamlessly
-        .frame(minWidth: isHorizontal ? 40 : 0, maxWidth: .infinity)
+            .frame(minWidth: isHorizontal ? 40 : 0, maxWidth: .infinity)
             .frame(minHeight: isHorizontal ? 0 : 38, maxHeight: isHorizontal ? .infinity : 38)
     }
 }
@@ -76,7 +72,7 @@ struct ZoneEditorView: View {
             .id(path.id)
     }
 
-    // MARK: - Container Zone View (GLOBAL GHOST INJECTION AS TRUE SIBLING)
+    // MARK: - Container Zone View
 
     @ViewBuilder
     private func containerZoneView(zone: ZoneModel) -> some View {
@@ -139,15 +135,12 @@ struct ZoneEditorView: View {
         }
     }
 
-    // MARK: - Masked Preview Direction (Prevents Double Ghosts)
-
     private func maskedPreviewDirection(for isChildSelected: Bool, isHorizontal: Bool) -> Binding<AddDirection?> {
         Binding<AddDirection?>(
             get: {
                 guard isChildSelected, let direction = previewDirection.wrappedValue else {
                     return previewDirection.wrappedValue
                 }
-                // Hide duplicate directions handled by parent containers
                 if isHorizontal && (direction == .left || direction == .right) { return nil }
                 if !isHorizontal && (direction == .up || direction == .down) { return nil }
 
@@ -165,11 +158,6 @@ struct ZoneEditorView: View {
 
 // MARK: - Zone Content View (Leaf)
 
-
-
-
-// MARK: - Zone Content View (Leaf)
-
 struct ZoneContentView: View {
     @Bindable var content: ZoneCardContent
     let path: ZonePath
@@ -180,7 +168,7 @@ struct ZoneContentView: View {
 
     @State private var isFocused: Bool = false
     @State private var isCroppingImage: Bool = false
-    @State private var isPressingImage: Bool = false // NEW: Tracks the active touch down state
+    @State private var isPressingImage: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
     private var focusManager = ZoneFocusManager.shared
@@ -215,12 +203,11 @@ struct ZoneContentView: View {
     var body: some View {
         contentView
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignmentFor(zone))
-            .contentShape(Rectangle()) // Capture tap on entire zone area
-        .simultaneousGesture(
+            .contentShape(Rectangle())
+            .simultaneousGesture(
             TapGesture().onEnded {
                 onSelect()
 
-                // Check is its a image or sketch so i will remove focus from old zone
                 let type = zone?.contentType ?? .empty
 
                 if type == .text || type == .empty {
@@ -247,11 +234,9 @@ struct ZoneContentView: View {
                 focusManager.clearPendingFocus()
             }
         }
-        // NEW: Attach the Crop Editor
-        .fullScreenCover(isPresented: $isCroppingImage) {
+            .fullScreenCover(isPresented: $isCroppingImage) {
             if let data = zone?.imageData, let img = UIImage(data: data) {
                 ImageCropEditorView(image: img) { croppedImage in
-                    // Convert back to Data and save to Model
                     if let newImageData = croppedImage.jpegData(compressionQuality: 0.85) {
                         content.updateZone(at: path) { $0.imageData = newImageData }
                     }
@@ -266,17 +251,17 @@ struct ZoneContentView: View {
     @ViewBuilder
     private var contentView: some View {
         switch zone?.contentType ?? .empty {
-        case .empty, .text: textViewWithGhostOverlay
+        case .empty, .text, .code: textViewWithGhostOverlay
         case .image: imageView
         case .sketch: sketchView
         }
     }
 
     // MARK: - Text View cu Ghost Overlay
-    // ... (Keep existing textViewWithGhostOverlay implementation exactly as it was) ...
+
     @ViewBuilder
     private var textViewWithGhostOverlay: some View {
-        HStack(alignment: .top, spacing: 8) { // Am schimbat în .top ca să se alinieze bine la texte lungi
+        HStack(alignment: .top, spacing: 8) {
             if zone?.hasBullet == true {
                 Circle().fill(zone?.textColor.color ?? .primary).frame(width: 6, height: 6).padding(.top, 10)
             }
@@ -287,18 +272,13 @@ struct ZoneContentView: View {
                 HStack(spacing: 8) {
                     if isSelected, previewDirection == .left { FakeGhostBlockView(isHorizontal: true).transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity)) }
 
-                    // SWAP-UL INTELIGENT:
                     if isFocused || (zone?.text.isEmpty ?? true) {
-                        // Modul EDITARE (Apare cursorul, vezi textul brut)
                         textEditorCore
                             .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                        // Modul CITIRE (Arată LaTeX frumos, perfect formatat)
                         renderedTextPreview
                             .frame(minWidth: 0, maxWidth: .infinity, alignment: alignmentFor(zone))
-                            .onTapGesture {
-                            triggerFocus() // Treci în modul editare la tap
-                        }
+                            .onTapGesture { triggerFocus() }
                     }
 
                     if isSelected, previewDirection == .right { FakeGhostBlockView(isHorizontal: true).transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity)) }
@@ -309,15 +289,12 @@ struct ZoneContentView: View {
         }.frame(maxHeight: .infinity)
     }
 
-    // NOU: Preview-ul vizual impecabil când zona nu e selectată
     private var renderedTextPreview: some View {
         Group {
-            // ── CODE BLOCK ────────────────────────────────────────────────────
-            if let z = zone, CodeZoneHelper.isCodeZone(z) {
-                CodeBlockPreviewView(zoneText: z.text, showCopyButton: true)
-            }
-            // ── TEXT / MATH ───────────────────────────────────────────────────
-                else {
+            if zone?.contentType == .code || zone?.text.hasPrefix("```") == true {
+                CodeSnippetView(rawText: zone?.text ?? "")
+                    .padding(.vertical, 4)
+            } else {
                 MixedMathTextView(
                     text: zone?.text ?? "",
                     fontSize: fontSizeFor(zone),
@@ -350,8 +327,6 @@ struct ZoneContentView: View {
         }
     }
 
-    // MARK: - Highlight Overlay
-    // ... (Keep existing highlightedBackground exactly as it was) ...
     private var highlightedBackground: some View {
         let rawText = zone?.text ?? ""
         let displayText = rawText.hasSuffix("\n") ? rawText + "\u{200B}" : (rawText.isEmpty ? "\u{200B}" : rawText)
@@ -361,15 +336,15 @@ struct ZoneContentView: View {
 
     private func fontSizeFor(_ zone: ZoneModel?) -> CGFloat {
         switch zone?.textStyle ?? .body {
-        case .caption: return 14
-        case .body: return 18
-        case .headline: return 22
-        case .title: return 28
+        case .caption: return 16
+        case .body: return 22
+        case .headline: return 26
+        case .title: return 32
         }
     }
 
     // MARK: - Text Editor Core
-    // ... (Keep existing textEditorCore exactly as it was) ...
+
     @ViewBuilder
     private var textEditorCore: some View {
         let rawText = zone?.text ?? ""
@@ -416,7 +391,7 @@ struct ZoneContentView: View {
     }
 
     // MARK: - Focus Handling
-    // ... (Keep existing Focus logic exactly as it was) ...
+
     private func handleFocusChange(_ focused: Bool) {
         if focused {
             highlightContext?.dismiss()
@@ -428,19 +403,11 @@ struct ZoneContentView: View {
         if let zoneID = currentZoneID { focusManager.requestFocus(for: zoneID) }
         isFocused = true; onSelect()
     }
+
+    // 🔥 FIX IMPORTANT: Am scos logica distructivă care ștergea forțat '$$' de pe zonele matematice
     private var pureTextBinding: Binding<String> {
         Binding(get: {
-            let rawText = zone?.text ?? ""
-            let t = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Auto-curățăm textul când intră în modul de editare
-            if t.hasPrefix("$") && t.hasSuffix("$") && !t.hasPrefix("$$") {
-                let inner = String(t.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
-                if inner.contains("$") || inner.contains(" ") {
-                    return inner // Întoarce textul curat
-                }
-            }
-            return rawText
+            return zone?.text ?? ""
         }, set: { newValue in
             if self.zone?.text != newValue {
                 highlightContext?.dismiss()
@@ -451,20 +418,21 @@ struct ZoneContentView: View {
             }
         })
     }
+
     private var textFont: Font {
         let style = zone?.textStyle ?? .body; let family = zone?.fontFamily ?? .system
         let weight: Font.Weight = zone?.isBold == true ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
-        let size: CGFloat; switch style { case .body: size = 18; case .title: size = 28; case .headline: size = 22; case .caption: size = 14 }
+        let size: CGFloat; switch style { case .body: size = 22; case .title: size = 32; case .headline: size = 26; case .caption: size = 16 }
         return family.font(size: size, weight: weight)
     }
     private var textUIFont: UIFont {
         let style = zone?.textStyle ?? .body; let family = zone?.fontFamily ?? .system
         let weight: UIFont.Weight = zone?.isBold == true ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
-        let size: CGFloat; switch style { case .body: size = 18; case .title: size = 28; case .headline: size = 22; case .caption: size = 14 }
+        let size: CGFloat; switch style { case .body: size = 22; case .title: size = 32; case .headline: size = 26; case .caption: size = 16 }
         return family.uiFont(size: size, weight: weight)
     }
 
-    // MARK: - Image View (UPDATED)
+    // MARK: - Image View
     @ViewBuilder
     private var imageView: some View {
         if let data = zone?.imageData, let img = UIImage(data: data) {
@@ -480,21 +448,17 @@ struct ZoneContentView: View {
                         .aspectRatio(contentMode: .fit)
                         .frame(maxWidth: UIScreen.main.bounds.width * scale * 0.8)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
-                    // 1. Visual Feedback Modifiers
-                    .scaleEffect(isPressingImage ? 0.95 : 1.0)
+                        .scaleEffect(isPressingImage ? 0.95 : 1.0)
                         .opacity(isPressingImage ? 0.85 : 1.0)
                         .shadow(color: .black.opacity(isPressingImage ? 0.0 : 0.08), radius: 4, y: 2)
                         .contentShape(Rectangle())
-                    // 2. Modern iOS 17 Long Press Gesture tracking
-                    .onLongPressGesture(
+                        .onLongPressGesture(
                         minimumDuration: 0.5,
                         perform: {
-                            // 3. Triggers when the 0.5s duration is met
                             UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
                             isCroppingImage = true
                         },
                         onPressingChanged: { isPressing in
-                            // 4. Triggers immediately on touch down and touch up/cancel
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 self.isPressingImage = isPressing
                             }
@@ -519,7 +483,6 @@ struct ZoneContentView: View {
     }
 
     // MARK: - Sketch View
-    // ... (Keep existing sketchView exactly as it was) ...
     @ViewBuilder
     private var sketchView: some View {
         if let data = zone?.imageData, let img = UIImage(data: data) {
@@ -534,8 +497,7 @@ struct ZoneContentView: View {
         }
     }
 
-    // MARK: - Delete Button & Alignment Helper
-    private var deleteButton: some View { Button { content.deleteZone(at: path) } label: { Image(systemName: "xmark.circle.fill").font(.title2).foregroundStyle(.white, .red.opacity(0.8)) }.padding(8) }
+    // MARK: - Alignment Helper
     private func alignmentFor(_ zone: ZoneModel?) -> Alignment { switch zone?.textAlignment ?? .leading { case .leading: return .leading; case .center: return .center; case .trailing: return .trailing } }
 }
 
@@ -554,15 +516,14 @@ struct ZonePreviewView: View {
         switch zone.contentType {
         case .empty:
             Color.clear.frame(height: 28).padding(.vertical, 4)
-        case .text:
+        case .text, .code:
             if !zone.text.isEmpty {
-                // ── CODE BLOCK ──────────────────────────────────────────────────
-                if CodeZoneHelper.isCodeZone(zone) {
-                    CodeBlockPreviewView(zoneText: zone.text, showCopyButton: true)
+                // Verificare blindată și aici
+                if zone.contentType == .code || zone.text.hasPrefix("```") {
+                    CodeSnippetView(rawText: zone.text)
                         .padding(.vertical, 4)
                 }
-                // ── TEXT / MATH ─────────────────────────────────────────────────
-                    else {
+                else {
                     HStack(alignment: .top, spacing: 8) {
                         if zone.hasBullet {
                             Circle()
@@ -595,12 +556,13 @@ struct ZonePreviewView: View {
             if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: zone.textAlignment, cornerRadius: 10, isSketch: true) }
         }
     }
+
     private func fontSizeFor(_ zone: ZoneModel) -> CGFloat {
         switch zone.textStyle {
-        case .caption: return 14
-        case .body: return 18
-        case .headline: return 22
-        case .title: return 28
+        case .caption: return 16
+        case .body: return 22
+        case .headline: return 26
+        case .title: return 32
         }
     }
 
@@ -622,7 +584,7 @@ struct ZonePreviewView: View {
         let style = zone.textStyle; let family = zone.fontFamily
         let weight: Font.Weight = zone.isBold ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
         let size: CGFloat
-        switch style { case .body: size = 18; case .title: size = 28; case .headline: size = 22; case .caption: size = 14 }
+        switch style { case .body: size = 22; case .title: size = 32; case .headline: size = 26; case .caption: size = 16 }
         return family.font(size: size, weight: weight)
     }
 }

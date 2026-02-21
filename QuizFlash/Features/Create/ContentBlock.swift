@@ -2,8 +2,6 @@
 //  ContentBlock.swift
 //  QuizFlash
 //
-//  Created by Ion Socol on 12.02.2026.
-
 
 import SwiftUI
 import Foundation
@@ -43,10 +41,10 @@ enum TextBlockStyle: String, Codable, Equatable {
 
     var font: Font {
         switch self {
-        case .body: return .system(size: 18)
-        case .title: return .system(size: 28, weight: .bold)
-        case .headline: return .system(size: 22, weight: .semibold)
-        case .caption: return .system(size: 14)
+        case .body: return .system(size: 22) // Scalat pentru flashcards
+        case .title: return .system(size: 32, weight: .bold)
+        case .headline: return .system(size: 26, weight: .semibold)
+        case .caption: return .system(size: 16)
         }
     }
 }
@@ -86,7 +84,6 @@ enum FontFamily: String, Codable, Equatable, CaseIterable {
         switch self {
         case .system: return .systemFont(ofSize: size, weight: weight)
         case .serif: return UIFont(name: "Georgia", size: size) ?? .systemFont(ofSize: size, weight: weight)
-//        case .mono: return UIFont(name: "Menlo", size: size) ?? .systemFont(ofSize: size, weight: weight)
         case .rounded: return UIFont(name: "SF Pro Rounded", size: size) ?? .systemFont(ofSize: size, weight: weight)
         case .mono: return UIFont.monospacedSystemFont(ofSize: size, weight: weight)
         }

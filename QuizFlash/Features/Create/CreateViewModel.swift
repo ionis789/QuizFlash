@@ -16,10 +16,10 @@ final class CreateViewModel {
     var aiState: AIGenerationState = .idle
 
     // MARK: - AI Picker UI
-    var showAIPickerOptions    = false
-    var showAIPhotoPicker      = false
-    var showAIPDFPicker        = false
-    var showAIOptionsOverlay   = false
+    var showAIPickerOptions = false
+    var showAIPhotoPicker = false
+    var showAIPDFPicker = false
+    var showAIOptionsOverlay = false
 
     // MARK: - PDF Analysis
     // Populat automat când utilizatorul alege un PDF, înainte să apese Generează
@@ -45,22 +45,21 @@ final class CreateViewModel {
     var pendingPDFURL: URL? = nil
 
     // MARK: - Services
-    // Un singur service pentru tot — DocumentTextExtractor + AIFlashcardService
-    // LocalOCRService, DocumentRenderingService, TextExtractionService sunt ELIMINATE
-    private let aiService = AIFlashcardService(apiKey: "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")
+//    private let aiService = AIFlashcardService(apiKey: "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")
+    private let aiService = AIFlashcardService(apiKey: "sk-a40ab294a6ea4efa91c003e8c1fccba2")
 
     // MARK: - Deck / Cards State
     var deckTitle: String = ""
     var draftCards: [DraftCard] = []
     var cardToEdit: DraftCard?
-    var isCreatingNewCard  = false
+    var isCreatingNewCard = false
     var showSuccessOverlay = false
     let deckToEdit: DeckModel?
 
     init(deckToEdit: DeckModel? = nil) {
         self.deckToEdit = deckToEdit
         if let deck = deckToEdit {
-            deckTitle  = deck.title
+            deckTitle = deck.title
             draftCards = deck.cards.map { DraftCard.from($0) }
         }
     }
@@ -74,16 +73,16 @@ final class CreateViewModel {
 
     func pdfWasSelected(_ url: URL) {
         pendingPDFURL = url
-        pdfAnalysis   = nil
+        pdfAnalysis = nil
 
         // Rulăm analiza în background imediat
         Task {
             guard url.startAccessingSecurityScopedResource() else { return }
             defer { url.stopAccessingSecurityScopedResource() }
 
-            let quality  = DocumentTextExtractor.pdfKitQuality(for: url)
+            let quality = DocumentTextExtractor.pdfKitQuality(for: url)
             let pageCount = await DocumentTextExtractor.pdfPageCount(url: url)
-            let chars    = DocumentTextExtractor.extractWithPDFKit(from: url)?.count ?? 0
+            let chars = DocumentTextExtractor.extractWithPDFKit(from: url)?.count ?? 0
 
             let info = PDFAnalysisInfo(
                 quality: quality,
@@ -92,7 +91,7 @@ final class CreateViewModel {
             )
 
             // Setăm automat modul recomandat
-            self.pdfAnalysis    = info
+            self.pdfAnalysis = info
             self.extractionMode = info.recommendation
 
             // Deschidem overlay-ul abia după ce avem analiza
@@ -131,7 +130,7 @@ final class CreateViewModel {
                 var images: [UIImage] = []
                 for item in items {
                     if let data = try await item.loadTransferable(type: Data.self),
-                       let image = UIImage(data: data) {
+                        let image = UIImage(data: data) {
                         images.append(image.resizedForAI(toMaxDimension: 1024))
                     }
                 }
@@ -242,8 +241,8 @@ final class CreateViewModel {
         withAnimation(.spring()) {
             for aiCard in generatedCards {
                 let frontZone = AIZoneParser.parse(text: aiCard.question)
-                let backZone  = AIZoneParser.parse(text: aiCard.answer)
-                let newDraft  = DraftCard(
+                let backZone = AIZoneParser.parse(text: aiCard.answer)
+                let newDraft = DraftCard(
                     frontZone: frontZone,
                     backZone: backZone,
                     frontType: .text,
@@ -284,7 +283,7 @@ final class CreateViewModel {
         var updated = draftCards[index]
         let changed = updated.frontZone != frontZone || updated.backZone != backZone
         updated.frontZone = frontZone
-        updated.backZone  = backZone
+        updated.backZone = backZone
         if changed { updated.editedAt = Date() }
         withAnimation { draftCards[index] = updated }
     }
@@ -306,7 +305,7 @@ final class CreateViewModel {
             var cardsChanged = false
 
             let draftOriginalIDs = Set(draftCards.compactMap { $0.originalCardID })
-            let cardsToDelete    = deck.cards.filter { !draftOriginalIDs.contains($0.id) }
+            let cardsToDelete = deck.cards.filter { !draftOriginalIDs.contains($0.id) }
             for card in cardsToDelete {
                 context.delete(card)
                 deck.cards.removeAll { $0.id == card.id }
@@ -315,13 +314,13 @@ final class CreateViewModel {
 
             for draft in draftCards {
                 if let originalID = draft.originalCardID,
-                   let existing = deck.cards.first(where: { $0.id == originalID }) {
+                    let existing = deck.cards.first(where: { $0.id == originalID }) {
                     let frontChanged = existing.frontZone != draft.frontZone
-                    let backChanged  = existing.backZone  != draft.backZone
+                    let backChanged = existing.backZone != draft.backZone
                     if frontChanged || backChanged {
                         existing.frontZone = draft.frontZone
-                        existing.backZone  = draft.backZone
-                        existing.editedAt  = Date()
+                        existing.backZone = draft.backZone
+                        existing.editedAt = Date()
                         cardsChanged = true
                     }
                 } else {
@@ -357,11 +356,11 @@ final class CreateViewModel {
     }
 
     private func resetForm() {
-        deckTitle         = ""
-        draftCards        = []
-        cardToEdit        = nil
+        deckTitle = ""
+        draftCards = []
+        cardToEdit = nil
         isCreatingNewCard = false
-        pdfAnalysis       = nil
+        pdfAnalysis = nil
     }
 }
 
@@ -370,9 +369,9 @@ extension UIImage {
     func resizedForAI(toMaxDimension maxDimension: CGFloat) -> UIImage {
         let size = self.size
         guard size.width > maxDimension || size.height > maxDimension else { return self }
-        let scale    = min(maxDimension / size.width, maxDimension / size.height)
-        let newSize  = CGSize(width: size.width * scale, height: size.height * scale)
-        let format   = UIGraphicsImageRendererFormat(); format.scale = 1.0
+        let scale = min(maxDimension / size.width, maxDimension / size.height)
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let format = UIGraphicsImageRendererFormat(); format.scale = 1.0
         return UIGraphicsImageRenderer(size: newSize, format: format)
             .image { _ in self.draw(in: CGRect(origin: .zero, size: newSize)) }
     }

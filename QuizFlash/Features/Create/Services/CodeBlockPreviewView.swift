@@ -63,12 +63,12 @@ struct CodeBlockPreviewView: View {
     private var headerBg: Color {
         colorScheme == .dark
             ? Color(white: 0.18)
-            : Color(white: 0.88)
+        : Color(white: 0.88)
     }
     private var codeBg: Color {
         colorScheme == .dark
             ? Color(white: 0.12)
-            : Color(white: 0.94)
+        : Color(white: 0.94)
     }
     private var langColor: Color {
         colorScheme == .dark ? .white.opacity(0.6) : .black.opacity(0.5)
@@ -85,12 +85,12 @@ struct CodeBlockPreviewView: View {
             // Code body — scrollabil orizontal pentru linii lungi
             codeBody
         }
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.0), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+            .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
     }
 
     // MARK: - Header Bar
@@ -118,9 +118,9 @@ struct CodeBlockPreviewView: View {
                 copyButton
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(headerBg)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(headerBg)
     }
 
     private var copyButton: some View {
@@ -141,16 +141,16 @@ struct CodeBlockPreviewView: View {
                         .font(.system(size: 11, weight: .medium))
                 }
             }
-            .foregroundStyle(copied ? Color.green : langColor)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
+                .foregroundStyle(copied ? Color.green : langColor)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
                 RoundedRectangle(cornerRadius: 5)
                     .fill(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.12))
             )
         }
-        .buttonStyle(.plain)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: copied)
+            .buttonStyle(.plain)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: copied)
     }
 
     // MARK: - Code Body
@@ -162,14 +162,14 @@ struct CodeBlockPreviewView: View {
                 .foregroundStyle(codeColor)
                 .lineSpacing(4)
                 .textSelection(.enabled)
-                // fixedSize: permite textului să ocupe toată lățimea necesară
-                // fără word-wrap care ar rupe indentarea codului
-                .fixedSize(horizontal: true, vertical: false)
+            // fixedSize: permite textului să ocupe toată lățimea necesară
+            // fără word-wrap care ar rupe indentarea codului
+            .fixedSize(horizontal: true, vertical: false)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(codeBg)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(codeBg)
     }
 }
 
@@ -188,15 +188,15 @@ struct InlineCodeChip: View {
         Text(code)
             .font(.system(size: 13, weight: .regular, design: .monospaced))
             .foregroundStyle(colorScheme == .dark
-                ? Color(red: 0.85, green: 0.95, blue: 0.85)
-                : Color(red: 0.1, green: 0.3, blue: 0.1)
-            )
+            ? Color(red: 0.85, green: 0.95, blue: 0.85)
+        : Color(red: 0.1, green: 0.3, blue: 0.1)
+        )
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
             .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(colorScheme == .dark ? Color(white: 0.2) : Color(white: 0.88))
-            )
+            RoundedRectangle(cornerRadius: 4)
+                .fill(colorScheme == .dark ? Color(white: 0.2) : Color(white: 0.88))
+        )
     }
 }
 
@@ -205,17 +205,72 @@ struct InlineCodeChip: View {
 // =============================================================================
 
 #if DEBUG
-struct CodeBlockPreviewView_Previews: PreviewProvider {
-    static var previews: some View {
-        VStack(spacing: 20) {
-            CodeBlockPreviewView(zoneText: "[LANG:java]\npublic class Animal {\n    private String name;\n\n    public Animal(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return this.name;\n    }\n}")
+    struct CodeBlockPreviewView_Previews: PreviewProvider {
+        static var previews: some View {
+            VStack(spacing: 20) {
+                CodeBlockPreviewView(zoneText: "[LANG:java]\npublic class Animal {\n    private String name;\n\n    public Animal(String name) {\n        this.name = name;\n    }\n\n    public String getName() {\n        return this.name;\n    }\n}")
 
-            CodeBlockPreviewView(zoneText: "def fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)")
+                CodeBlockPreviewView(zoneText: "def fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)")
 
-            CodeBlockPreviewView(zoneText: "[LANG:swift]\nlet numbers = [1, 2, 3, 4, 5]\nlet doubled = numbers.map { $0 * 2 }\nprint(doubled) // [2, 4, 6, 8, 10]")
+                CodeBlockPreviewView(zoneText: "[LANG:swift]\nlet numbers = [1, 2, 3, 4, 5]\nlet doubled = numbers.map { $0 * 2 }\nprint(doubled) // [2, 4, 6, 8, 10]")
+            }
+                .padding()
+                .previewLayout(.sizeThatFits)
         }
-        .padding()
-        .previewLayout(.sizeThatFits)
+    }
+#endif
+
+// =============================================================================
+// MARK: - CodeZoneHelper
+// =============================================================================
+
+struct CodeZoneHelper {
+    let displayLanguage: String
+    let code: String
+
+    init(zoneText: String) {
+        let text = zoneText.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Verificăm dacă textul începe cu un tag de limbaj, ex: "[LANG:swift]"
+        if text.hasPrefix("[LANG:") {
+            if let endBracketIndex = text.firstIndex(of: "]") {
+                // Extragem limbajul dintre "[LANG:" și "]"
+                let langStartIndex = text.index(text.startIndex, offsetBy: 6)
+                let lang = String(text[langStartIndex..<endBracketIndex])
+                
+                self.displayLanguage = lang.uppercased()
+                
+                // Extragem restul textului (codul propriu-zis)
+                var codeStartIndex = text.index(after: endBracketIndex)
+                
+                // Sărim peste linia nouă care urmează după tag (dacă există)
+                if codeStartIndex < text.endIndex && text[codeStartIndex] == "\n" {
+                    codeStartIndex = text.index(after: codeStartIndex)
+                }
+                
+                self.code = String(text[codeStartIndex...])
+                return
+            }
+        }
+        
+        // Fallback dacă nu există tag-ul [LANG:...]
+        self.displayLanguage = "CODE"
+        self.code = text
+    }
+
+    // Funcția care lipsea: Verifică dacă un ZoneModel este de tip cod
+    static func isCodeZone(_ zone: ZoneModel) -> Bool {
+        // Dacă zona are fontul monospaced setat manual din UI
+        if zone.fontFamily == .mono {
+            return true
+        }
+        
+        // Fallback automat: Dacă textul brut începe cu tag-ul de cod
+        let text = zone.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.hasPrefix("[LANG:") {
+            return true
+        }
+        
+        return false
     }
 }
-#endif

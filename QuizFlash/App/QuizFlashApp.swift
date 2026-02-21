@@ -7,7 +7,6 @@
 
 import SwiftUI
 import SwiftData
-import LaTeXSwiftUI
 
 @main
 struct QuizFlashApp: App {

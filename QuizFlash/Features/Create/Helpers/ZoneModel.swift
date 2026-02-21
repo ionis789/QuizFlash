@@ -65,13 +65,14 @@ enum ZoneDirection: String, Codable {
 
 // MARK: - Zone Content Type
 enum ZoneContentType: String, Codable {
-    case empty, text, image, sketch
+    case empty, text, image, sketch, code
 }
 
 // MARK: - Zone Model
 struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     var id: UUID = UUID()
     var contentType: ZoneContentType = .empty
+    var codeLanguage: String? = nil
     var text: String = ""
     var imageData: Data? = nil
     var textStyle: TextBlockStyle = .body
@@ -92,7 +93,8 @@ struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         if !isLeaf { return children?.contains { $0.hasContent } ?? false }
         switch contentType {
         case .empty: return false
-        case .text: return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .text, .code: // <-- Am adăugat .code aici
+            return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .image, .sketch: return imageData != nil
         }
     }
@@ -124,6 +126,11 @@ struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     static func text(_ content: String = "") -> ZoneModel { ZoneModel(contentType: .text, text: content) }
     static func image(data: Data) -> ZoneModel { ZoneModel(contentType: .image, imageData: data) }
     static func sketch(data: Data) -> ZoneModel { ZoneModel(contentType: .sketch, imageData: data) }
+    static func code(_ content: String, language: String? = nil) -> ZoneModel {
+        var zone = ZoneModel(contentType: .code, text: content)
+        zone.codeLanguage = language
+        return zone
+    }
 
     static func container(direction: ZoneDirection, children: [ZoneModel]) -> ZoneModel {
         var zone = ZoneModel()
@@ -148,7 +155,7 @@ struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     func previewText(maxLength: Int = 60) -> String {
         if isLeaf {
             switch contentType {
-            case .text:
+            case .text, .code:
                 let line = text.split(separator: "\n").first.map(String.init) ?? text
                 if line.count <= maxLength { return line }
                 return String(line.prefix(maxLength)).trimmingCharacters(in: .whitespaces) + "…"
