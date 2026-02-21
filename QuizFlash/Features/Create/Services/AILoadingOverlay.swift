@@ -39,18 +39,8 @@ struct AILoadingOverlay: View {
                         .font(.title2.weight(.bold))
                     
                     if case .generatingCards(let progress, let foundCount) = state {
-                        // Afișăm progresul și cardurile găsite
-                        ProgressView(value: progress)
-                            .progressViewStyle(.linear)
-                            .tint(.purple)
-                            .frame(height: 8)
-                            .clipShape(Capsule())
-                            .padding(.horizontal, 20)
-                            .animation(.spring(), value: progress)
+                        // TO DO Cuvinte random
                         
-                        Text("Carduri generate: **\(foundCount)**")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
                     } else if case .error(let msg) = state {
                         Text(msg)
                             .font(.subheadline)
@@ -58,7 +48,7 @@ struct AILoadingOverlay: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
                     } else {
-                        Text("Acest proces poate dura câteva momente.")
+                        Text("Astepta oliaca.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -66,7 +56,7 @@ struct AILoadingOverlay: View {
                 
                 // Error Dismiss Button
                 if case .error = state {
-                    Button("Închide", action: onDismiss)
+                    Button("Close", action: onDismiss)
                         .font(.headline)
                         .padding(.horizontal, 30)
                         .padding(.vertical, 12)
@@ -101,8 +91,8 @@ struct AILoadingOverlay: View {
     
     private var titleForState: String {
         switch state {
-        case .extractingText: return "Se extrage textul..."
-        case .generatingCards: return "AI-ul citește..."
+        case .extractingText: return "OCR..."
+        case .generatingCards: return "Bea o cafea, pana iscustvenii intilect gandeste."
         case .error: return "Oops!"
         case .idle: return ""
         }

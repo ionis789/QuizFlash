@@ -40,7 +40,7 @@ enum TextBlockAlignment: String, Codable, Equatable {
 // MARK: - Text Style
 enum TextBlockStyle: String, Codable, Equatable {
     case body, title, headline, caption
-    
+
     var font: Font {
         switch self {
         case .body: return .system(size: 18)
@@ -54,7 +54,7 @@ enum TextBlockStyle: String, Codable, Equatable {
 // MARK: - Font Family
 enum FontFamily: String, Codable, Equatable, CaseIterable {
     case system, serif, mono, rounded
-    
+
     var name: String {
         switch self {
         case .system: return "Sans-Serif"
@@ -63,7 +63,7 @@ enum FontFamily: String, Codable, Equatable, CaseIterable {
         case .rounded: return "Rounded"
         }
     }
-    
+
     var icon: String {
         switch self {
         case .system: return "textformat"
@@ -72,7 +72,7 @@ enum FontFamily: String, Codable, Equatable, CaseIterable {
         case .rounded: return "a.circle"
         }
     }
-    
+
     func font(size: CGFloat, weight: Font.Weight = .regular) -> Font {
         switch self {
         case .system: return .system(size: size, weight: weight)
@@ -95,7 +95,7 @@ enum FontFamily: String, Codable, Equatable, CaseIterable {
 // MARK: - Highlight Color (Marker)
 enum HighlightColor: String, Codable, Equatable, CaseIterable {
     case none, yellow, green, pink, cyan, accent
-    
+
     var color: Color? {
         switch self {
         case .none: return nil
@@ -106,7 +106,7 @@ enum HighlightColor: String, Codable, Equatable, CaseIterable {
         case .accent: return ThemeManager.shared.accentColor.color
         }
     }
-    
+
     var name: String {
         switch self {
         case .none: return "None"
@@ -122,7 +122,7 @@ enum HighlightColor: String, Codable, Equatable, CaseIterable {
 // MARK: - Text Color
 enum TextBlockColor: String, Codable, Equatable, CaseIterable {
     case primary, red, orange, yellow, green, blue, purple
-    
+
     var color: Color {
         switch self {
         case .primary: return .primary
@@ -134,7 +134,7 @@ enum TextBlockColor: String, Codable, Equatable, CaseIterable {
         case .purple: return .purple
         }
     }
-    
+
     var name: String {
         switch self {
         case .primary: return "Default"
@@ -148,3 +148,13 @@ enum TextBlockColor: String, Codable, Equatable, CaseIterable {
     }
 }
 
+extension Alignment {
+    var horizontalAlignment: HorizontalAlignment {
+        switch self {
+        case .leading, .topLeading, .bottomLeading: return .leading
+        case .center, .top, .bottom: return .center
+        case .trailing, .topTrailing, .bottomTrailing: return .trailing
+        default: return .leading
+        }
+    }
+}

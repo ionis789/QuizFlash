@@ -11,36 +11,31 @@ import PhotosUI
 @MainActor
 final class CreateViewModel {
 
-    // MARK: - AI State
     var aiState: AIGenerationState = .idle
     var showAIPickerOptions = false
     var showAIPhotoPicker = false
     var showAIPDFPicker = false
-    
-    // Înlocuim Sheet-ul cu un Overlay stabil
     var showAIOptionsOverlay = false
-    
+
     var selectedAIPhotos: [PhotosPickerItem] = [] {
         didSet {
             if !selectedAIPhotos.isEmpty {
                 showAIPickerOptions = false
-                // Așteptăm puțin ca PhotosPicker să se închidă înainte să arătăm overlay-ul
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                    withAnimation(.spring()) {
-                        self.showAIOptionsOverlay = true
-                    }
+                    withAnimation(.spring()) { self.showAIOptionsOverlay = true }
                 }
             }
         }
     }
-    
+
     var pendingPDFURL: URL? = nil
     var requestedCardCount: Int = 15
+    var useFastOCR: Bool = true // Bifat by default pentru viteză!
 
     private let aiService = AIFlashcardService()
     private let documentRenderer = DocumentRenderingService()
-    
-    // MARK: - State
+    private let localOCR = LocalOCRService()
+
     var deckTitle: String = ""
     var draftCards: [DraftCard] = []
     var cardToEdit: DraftCard?
@@ -55,7 +50,7 @@ final class CreateViewModel {
             self.draftCards = deck.cards.map { DraftCard.from($0) }
         }
     }
-    
+
     func startAIGeneration() {
         if !selectedAIPhotos.isEmpty {
             processPhotosForAI()
@@ -64,9 +59,9 @@ final class CreateViewModel {
         }
     }
 
-    // MARK: - AI Processing Pipeline
     private func processPhotosForAI() {
-        aiState = .extractingText
+        // Am simplificat starea. Nu mai e nevoie de progres fals.
+        aiState = .generatingCards(progress: 0, foundCount: 0)
         let items = selectedAIPhotos
         selectedAIPhotos = []
 
@@ -75,27 +70,23 @@ final class CreateViewModel {
                 var images: [UIImage] = []
                 for item in items {
                     if let data = try await item.loadTransferable(type: Data.self),
-                       let originalImage = UIImage(data: data) {
-                        // REPARAT: Compresăm și redimensionăm imaginea pentru a evita Timeout-ul la upload
-                        let resizedImage = originalImage.resizedForAI(toMaxDimension: 1024)
-                        images.append(resizedImage)
+                        let image = UIImage(data: data) {
+                        images.append(image)
                     }
                 }
+                guard !images.isEmpty else { throw AIServiceError.parsingFailed }
 
-                guard !images.isEmpty else {
-                    await MainActor.run { aiState = .error("Nu am putut citi imaginile.") }
-                    return
+                let generatedCards: [AIFlashcard]
+
+                if useFastOCR {
+                    // Calea rapidă: extragem textul local
+                    let text = try await localOCR.extractText(from: images)
+                    generatedCards = try await aiService.generateFlashcards(fromText: text, targetCards: requestedCardCount)
+                } else {
+                    // Calea complexă: trimitem pozele redimensionate la Vision AI
+                    let resizedImages = images.map { $0.resizedForAI(toMaxDimension: 1024) }
+                    generatedCards = try await aiService.generateFlashcards(from: resizedImages, targetCards: requestedCardCount)
                 }
-
-                await MainActor.run { aiState = .generatingCards(progress: 0.0, foundCount: 0) }
-
-                let generatedCards = try await aiService.generateFlashcards(
-                    from: images,
-                    targetCards: requestedCardCount,
-                    onProgress: { progress, currentCount in
-                        self.aiState = .generatingCards(progress: progress, foundCount: currentCount)
-                    }
-                )
 
                 saveGeneratedCards(generatedCards)
 
@@ -106,28 +97,24 @@ final class CreateViewModel {
     }
 
     func processPDFForAI(url: URL) {
-        guard url.startAccessingSecurityScopedResource() else {
-            aiState = .error("Cannot access the selected PDF.")
-            return
-        }
-
-        aiState = .extractingText
+        guard url.startAccessingSecurityScopedResource() else { return }
+        aiState = .generatingCards(progress: 0, foundCount: 0)
         pendingPDFURL = nil
 
         Task {
             do {
-                let images = try await documentRenderer.renderPagesAsImages(fromPDFAt: url)
-                url.stopAccessingSecurityScopedResource()
+                let generatedCards: [AIFlashcard]
 
-                await MainActor.run { aiState = .generatingCards(progress: 0.0, foundCount: 0) }
-
-                let generatedCards = try await aiService.generateFlashcards(
-                    from: images,
-                    targetCards: requestedCardCount,
-                    onProgress: { progress, currentCount in
-                        self.aiState = .generatingCards(progress: progress, foundCount: currentCount)
-                    }
-                )
+                if useFastOCR {
+                    // Citim direct textul din PDF instantaneu
+                    let text = await localOCR.extractText(fromPDF: url)
+                    url.stopAccessingSecurityScopedResource()
+                    generatedCards = try await aiService.generateFlashcards(fromText: text, targetCards: requestedCardCount)
+                } else {
+                    let images = try await documentRenderer.renderPagesAsImages(fromPDFAt: url)
+                    url.stopAccessingSecurityScopedResource()
+                    generatedCards = try await aiService.generateFlashcards(from: images, targetCards: requestedCardCount)
+                }
 
                 saveGeneratedCards(generatedCards)
 
@@ -137,28 +124,23 @@ final class CreateViewModel {
             }
         }
     }
-    
-    private func saveGeneratedCards(_ generatedCards: [AIFlashcard]) {
-        withAnimation(.spring()) {
-            for aiCard in generatedCards {
-                let newDraft = DraftCard(
-                    frontZone: .text(aiCard.question),
-                    backZone: .text(aiCard.answer),
-                    frontType: .text,
-                    backType: .text,
-                    createdAt: Date(),
-                    editedAt: Date()
-                )
-                self.draftCards.append(newDraft)
-            }
-            self.aiState = .idle
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-        }
-    }
 
-    func resetAIState() {
-        withAnimation { aiState = .idle }
-    }
+    private func saveGeneratedCards(_ generatedCards: [AIFlashcard]) {
+            withAnimation(.spring()) {
+                for aiCard in generatedCards {
+                    // FOLOSIM PARSERUL AICI:
+                    let frontZone = AIZoneParser.parse(text: aiCard.question)
+                    let backZone = AIZoneParser.parse(text: aiCard.answer)
+                    
+                    let newDraft = DraftCard(frontZone: frontZone, backZone: backZone, frontType: .text, backType: .text, createdAt: Date(), editedAt: Date())
+                    self.draftCards.append(newDraft)
+                }
+                self.aiState = .idle
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
+        }
+
+    func resetAIState() { withAnimation { aiState = .idle } }
 
     // MARK: - Card Actions
     func addCard(frontZone: ZoneModel, backZone: ZoneModel) {
@@ -201,7 +183,7 @@ final class CreateViewModel {
 
             for draft in draftCards {
                 if let originalID = draft.originalCardID,
-                   let existingCard = deck.cards.first(where: { $0.id == originalID }) {
+                    let existingCard = deck.cards.first(where: { $0.id == originalID }) {
 
                     let frontChanged = existingCard.frontZone != draft.frontZone
                     let backChanged = existingCard.backZone != draft.backZone
@@ -257,14 +239,14 @@ extension UIImage {
     func resizedForAI(toMaxDimension maxDimension: CGFloat) -> UIImage {
         let size = self.size
         if size.width <= maxDimension && size.height <= maxDimension { return self }
-        
+
         let scale = min(maxDimension / size.width, maxDimension / size.height)
         let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-        
+
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1.0
         let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
-        
+
         return renderer.image { _ in self.draw(in: CGRect(origin: .zero, size: newSize)) }
     }
 }

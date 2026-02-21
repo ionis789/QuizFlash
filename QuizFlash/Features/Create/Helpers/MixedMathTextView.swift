@@ -1,211 +1,325 @@
-//
-//  MixedMathTextView.swift
-//  QuizFlash
-//
-//  Created by Ion Socol on 20.02.2026.
-
-
 import SwiftUI
-import LaTeXSwiftUI
+import WebKit
 
-// MARK: - Componentele Textului
-enum MathComponent: Identifiable {
-    case text(String)
-    case space
-    case inlineMath(String)
-    case blockMath(String)
-    var id: UUID { UUID() }
-}
+// =============================================================================
+// MARK: - MathTextSanitizer
+// =============================================================================
 
-// MARK: - Parser Inteligent (Separă textul normal de formule)
-func parseMixedText(_ text: String) -> [MathComponent] {
-    var result: [MathComponent] = []
-    let scanner = Scanner(string: text)
-    scanner.charactersToBeSkipped = nil
+struct MathTextSanitizer {
 
-    while !scanner.isAtEnd {
-        // Căutăm text normal până la primul '$'
-        if let normalText = scanner.scanUpToString("$") {
-            let words = normalText.components(separatedBy: .whitespaces)
-            for (i, word) in words.enumerated() {
-                if !word.isEmpty {
-                    result.append(.text(word))
-                }
-                if i < words.count - 1 {
-                    result.append(.space)
-                }
-            }
-        }
-
-        if scanner.isAtEnd { break }
-
-        // Verificăm dacă e Block Math ($$) sau Inline Math ($)
-        if scanner.scanString("$$") != nil {
-            if let math = scanner.scanUpToString("$$") {
-                result.append(.blockMath(math))
-                _ = scanner.scanString("$$")
-            } else {
-                let rest = scanner.string[scanner.currentIndex...]
-                result.append(.text("$$" + String(rest)))
-                break
-            }
-        } else if scanner.scanString("$") != nil {
-            if let math = scanner.scanUpToString("$") {
-                result.append(.inlineMath(math))
-                _ = scanner.scanString("$")
-            } else {
-                let rest = scanner.string[scanner.currentIndex...]
-                result.append(.text("$" + String(rest)))
-                break
-            }
-        }
+    static func heal(_ input: String) -> String {
+        var t = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        t = stripOuterDollarWrapper(t)
+        t = fixOrphanDollar(t)
+        t = stripInvalidMathTokens(t)
+        return t
     }
-    return result
+
+    private static func stripOuterDollarWrapper(_ input: String) -> String {
+        var t = input
+        while t.hasPrefix("$") && t.hasSuffix("$") && !t.hasPrefix("$$") {
+            let inner = String(t.dropFirst().dropLast())
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard inner.contains(" ") || inner.contains("\n") else { break }
+            t = inner
+        }
+        return t
+    }
+
+    private static func fixOrphanDollar(_ input: String) -> String {
+        var t = input
+        let count = t.filter { $0 == "$" }.count
+        guard count % 2 != 0 else { return t }
+        if t.hasSuffix("$") && !t.hasSuffix("$$") {
+            t = String(t.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if t.hasPrefix("$") && !t.hasPrefix("$$") {
+            t = String(t.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return t
+    }
+
+    private static func stripInvalidMathTokens(_ input: String) -> String {
+        let invalidChars = CharacterSet(charactersIn: "€£¥₹₩₿¢฿₪₨₦")
+        guard let regex = try? NSRegularExpression(
+            pattern: "(?<!\\$)\\$(?!\\$)(.+?)(?<!\\$)\\$(?!\\$)"
+        ) else { return input }
+
+        var result = input
+        let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
+        for match in matches.reversed() {
+            guard
+                let fullRange  = Range(match.range,        in: result),
+                let innerRange = Range(match.range(at: 1), in: result)
+            else { continue }
+            let inner = String(result[innerRange])
+            if inner.unicodeScalars.contains(where: { invalidChars.contains($0) }) {
+                result.replaceSubrange(fullRange, with: inner)
+            }
+        }
+        return result
+    }
+
+    static func containsMath(_ text: String) -> Bool {
+        text.contains("$")    ||
+        text.contains("\\[")  ||
+        text.contains("\\(")  ||
+        text.contains("\\begin")
+    }
 }
 
-// MARK: - View Principal
+// =============================================================================
+// MARK: - MixedMathTextView
+// =============================================================================
+
 struct MixedMathTextView: View {
     let text: String
-    let font: Font
+    let fontSize: CGFloat
     let textColor: Color
     let alignment: HorizontalAlignment
+    var isBold: Bool = false
+    var isItalic: Bool = false
+
+    @State private var webHeight: CGFloat = 50
 
     var body: some View {
-        VStack(alignment: alignment, spacing: 6) {
-            // Împărțim mai întâi textul în paragrafe pe baza noilor rânduri
-            let paragraphs = text.components(separatedBy: "\n")
-            
-            ForEach(paragraphs, id: \.self) { paragraph in
-                if !paragraph.isEmpty {
-                    ParagraphView(text: paragraph, font: font, textColor: textColor, alignment: alignment)
-                }
-            }
-        }
-    }
-}
+        let clean = MathTextSanitizer.heal(text)
 
-// MARK: - Paragraph View (Aplică FlowLayout pentru wrapping)
-private struct ParagraphView: View {
-    let text: String
-    let font: Font
-    let textColor: Color
-    let alignment: HorizontalAlignment
-
-    var body: some View {
-        let components = parseMixedText(text)
-        
-        // Dacă este o singură formulă mare, o randăm pe centru
-        if components.count == 1, case .blockMath(let math) = components.first! {
-            LaTeX("$$\(math)$$")
-                .parsingMode(.all)
-                .foregroundColor(textColor)
-                .frame(maxWidth: .infinity, alignment: alignment == .leading ? .leading : (alignment == .trailing ? .trailing : .center))
+        if MathTextSanitizer.containsMath(clean) {
+            MathWebView(
+                text: clean,
+                fontSize: fontSize,
+                isBold: isBold,
+                isItalic: isItalic,
+                alignment: alignment,
+                contentHeight: $webHeight
+            )
+            .frame(height: webHeight)
+            .frame(maxWidth: .infinity)
         } else {
-            MathFlowLayout(alignment: alignment, spacing: 4, lineSpacing: 4) {
-                ForEach(components) { component in
-                    switch component {
-                    case .text(let str):
-                        Text(str)
-                            .font(font)
-                            .foregroundColor(textColor)
-                    case .space:
-                        Text(" ")
-                            .font(font)
-                    case .inlineMath(let math):
-                        LaTeX("$\(math)$")
-                            .parsingMode(.all)
-                            .foregroundColor(textColor)
-                    case .blockMath(let math):
-                        LaTeX("$$\(math)$$")
-                            .parsingMode(.all)
-                            .foregroundColor(textColor)
-                    }
-                }
-            }
+            Text(clean)
+                .font(swiftUIFont)
+                .foregroundColor(textColor)
+                .multilineTextAlignment(nsTextAlignment)
+                .frame(maxWidth: .infinity, alignment: frameAlignment)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var swiftUIFont: Font {
+        let base = Font.system(size: fontSize)
+        switch (isBold, isItalic) {
+        case (true,  true):  return base.bold().italic()
+        case (true,  false): return base.bold()
+        case (false, true):  return base.italic()
+        case (false, false): return base
+        }
+    }
+
+    private var nsTextAlignment: TextAlignment {
+        switch alignment {
+        case .center:   return .center
+        case .trailing: return .trailing
+        default:        return .leading
+        }
+    }
+
+    private var frameAlignment: Alignment {
+        switch alignment {
+        case .center:   return .center
+        case .trailing: return .trailing
+        default:        return .leading
         }
     }
 }
 
-// MARK: - Flow Layout (Aranjează cuvintele și formulele exact ca Apple Notes)
-struct MathFlowLayout: Layout {
-    var alignment: HorizontalAlignment = .leading
-    var spacing: CGFloat = 4
-    var lineSpacing: CGFloat = 4
+// =============================================================================
+// MARK: - MathWebView
+// =============================================================================
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = FlowResult(in: proposal.width ?? UIScreen.main.bounds.width, subviews: subviews, spacing: spacing, lineSpacing: lineSpacing)
-        return result.size
+struct MathWebView: UIViewRepresentable {
+    let text: String
+    let fontSize: CGFloat
+    let isBold: Bool
+    let isItalic: Bool
+    let alignment: HorizontalAlignment
+    @Binding var contentHeight: CGFloat
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(contentHeight: $contentHeight)
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing, lineSpacing: lineSpacing)
-        for row in result.rows {
-            let rowXOffset: CGFloat
-            switch alignment {
-            case .leading: rowXOffset = 0
-            case .center: rowXOffset = (bounds.width - row.width) / 2
-            case .trailing: rowXOffset = bounds.width - row.width
-            default: rowXOffset = 0
-            }
+    func makeUIView(context: Context) -> WKWebView {
+        let controller = WKUserContentController()
+        controller.add(context.coordinator, name: "heightUpdate")
 
-            for element in row.elements {
-                let x = bounds.minX + rowXOffset + element.xOffset
-                let y = bounds.minY + row.yOffset
-                // Centrează elementele vertical pe același rând
-                let yOffset = (row.height - element.view.sizeThatFits(.unspecified).height) / 2
-                element.view.place(at: CGPoint(x: x, y: y + yOffset), proposal: .unspecified)
-            }
-        }
+        let config = WKWebViewConfiguration()
+        config.userContentController = controller
+
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.isScrollEnabled = false
+        webView.scrollView.bounces = false
+        webView.scrollView.backgroundColor = .clear
+        webView.scrollView.showsVerticalScrollIndicator = false
+        webView.scrollView.showsHorizontalScrollIndicator = false
+
+        context.coordinator.webView = webView
+        loadContent(in: webView)
+        return webView
     }
 
-    struct FlowResult {
-        var rows: [Row] = []
-        var size: CGSize = .zero
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        guard context.coordinator.lastRenderedText != text else { return }
+        context.coordinator.lastRenderedText = text
+        loadContent(in: webView)
+    }
 
-        struct Row {
-            var elements: [(view: LayoutSubview, xOffset: CGFloat)] = []
-            var width: CGFloat = 0
-            var height: CGFloat = 0
-            var yOffset: CGFloat = 0
+    private func loadContent(in webView: WKWebView) {
+        webView.loadHTMLString(buildHTML(), baseURL: Bundle.main.bundleURL)
+    }
+
+    // MARK: - HTML Builder
+    private func buildHTML() -> String {
+        let cssAlign: String
+        switch alignment {
+        case .center:   cssAlign = "center"
+        case .trailing: cssAlign = "right"
+        default:        cssAlign = "left"
         }
 
-        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat, lineSpacing: CGFloat) {
-            var currentRow = Row()
-            var y: CGFloat = 0
+        let weight = isBold   ? "bold"   : "normal"
+        let style  = isItalic ? "italic" : "normal"
+        let safeText = text.replacingOccurrences(of: "&", with: "&amp;")
 
-            for view in subviews {
-                let viewSize = view.sizeThatFits(.unspecified)
-                let isBlock = viewSize.width > maxWidth * 0.8 // Forțează blockMath să sară pe rând nou
-                
-                if currentRow.width + viewSize.width > maxWidth || isBlock {
-                    if !currentRow.elements.isEmpty {
-                        currentRow.yOffset = y
-                        rows.append(currentRow)
-                        y += currentRow.height + lineSpacing
-                        currentRow = Row()
-                    }
-                }
+        let katexTags: String
+        if let urls = Self.katexBundleURLs() {
+            katexTags = """
+            <link rel="stylesheet" href="\(urls.css)">
+            <script src="\(urls.js)"></script>
+            <script src="\(urls.autoRender)"></script>
+            """
+        } else {
+            katexTags = """
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+            <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+            """
+        }
 
-                let xOffset = currentRow.width == 0 ? 0 : currentRow.width + spacing
-                currentRow.elements.append((view, xOffset))
-                currentRow.width += viewSize.width + (currentRow.width == 0 ? 0 : spacing)
-                currentRow.height = max(currentRow.height, viewSize.height)
-                
-                if isBlock {
-                    currentRow.yOffset = y
-                    rows.append(currentRow)
-                    y += currentRow.height + lineSpacing
-                    currentRow = Row()
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        \(katexTags)
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            html, body {
+                background: transparent;
+                font-family: -apple-system, sans-serif;
+                font-size: \(fontSize)px;
+                font-weight: \(weight);
+                font-style: \(style);
+                color: white;
+                text-align: \(cssAlign);
+                line-height: 1.6;
+                padding: 4px 2px;
+                overflow: hidden;
+                word-break: break-word;
+            }
+            #content { width: 100%; }
+            .katex { font-size: 1em !important; }
+            /* Ascunde erorile KaTeX din UI — textul raw rămâne lizibil */
+            .katex-error { 
+                color: inherit !important;
+                font-style: normal !important;
+                font-family: -apple-system, sans-serif !important;
+            }
+        </style>
+        </head>
+        <body>
+        <div id="content">\(safeText)</div>
+        <script>
+            // Macros pentru comenzi LaTeX comune pe care KaTeX nu le suportă nativ
+            // sau pe care GPT le generează incorect
+            const extraMacros = {
+                "\\thinspace":    "\\,",
+                "\\negthinspace": "\\!",
+                "\\medspace":     "\\:",
+                "\\thickspace":   "\\;",
+                "\\llbracket":    "[\\![",
+                "\\rrbracket":    "]\\!]",
+                "\\R":            "\\mathbb{R}",
+                "\\N":            "\\mathbb{N}",
+                "\\Z":            "\\mathbb{Z}",
+                "\\Q":            "\\mathbb{Q}",
+                "\\C":            "\\mathbb{C}",
+                "\\eps":          "\\varepsilon",
+                "\\epsilon":      "\\varepsilon"
+            };
+
+            renderMathInElement(document.getElementById('content'), {
+                delimiters: [
+                    { left: '$$', right: '$$', display: true  },
+                    { left: '$',  right: '$',  display: false }
+                ],
+                throwOnError: false,
+                errorColor: 'inherit',
+                macros: extraMacros
+            });
+
+            // FIX INALTIME: folosim ResizeObserver pentru a prinde
+            // orice schimbare de layout după render (inclusiv display math)
+            function reportHeight() {
+                const h = document.getElementById('content').getBoundingClientRect().height;
+                if (h > 0) {
+                    window.webkit.messageHandlers.heightUpdate.postMessage(Math.ceil(h) + 16);
                 }
             }
 
-            if !currentRow.elements.isEmpty {
-                currentRow.yOffset = y
-                rows.append(currentRow)
-                y += currentRow.height
-            }
+            // Raportăm imediat după render
+            reportHeight();
 
-            size = CGSize(width: maxWidth, height: y)
+            // Și urmărim orice resize ulterior (ex: display math care schimbă layout-ul)
+            if (window.ResizeObserver) {
+                new ResizeObserver(() => reportHeight()).observe(document.getElementById('content'));
+            }
+        </script>
+        </body>
+        </html>
+        """
+    }
+
+    private static func katexBundleURLs() -> (js: String, css: String, autoRender: String)? {
+        guard
+            let js  = Bundle.main.url(forResource: "katex.min",       withExtension: "js"),
+            let css = Bundle.main.url(forResource: "katex.min",       withExtension: "css"),
+            let ar  = Bundle.main.url(forResource: "auto-render.min", withExtension: "js")
+        else { return nil }
+        return (js.absoluteString, css.absoluteString, ar.absoluteString)
+    }
+
+    // MARK: - Coordinator
+    class Coordinator: NSObject, WKScriptMessageHandler {
+        @Binding var contentHeight: CGFloat
+        var webView: WKWebView?
+        var lastRenderedText: String = ""
+
+        init(contentHeight: Binding<CGFloat>) {
+            _contentHeight = contentHeight
+        }
+
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            guard message.name == "heightUpdate",
+                  let h = message.body as? Double, h > 0 else { return }
+            DispatchQueue.main.async {
+                self.contentHeight = CGFloat(h)
+            }
         }
     }
 }

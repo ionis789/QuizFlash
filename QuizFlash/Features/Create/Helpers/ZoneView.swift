@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import LaTeXSwiftUI
 import PhotosUI
 
 // MARK: - Fake Ghost Block View (Visual Only - Seamless Dimension Match)
@@ -277,9 +276,9 @@ struct ZoneContentView: View {
     // ... (Keep existing textViewWithGhostOverlay implementation exactly as it was) ...
     @ViewBuilder
     private var textViewWithGhostOverlay: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .top, spacing: 8) { // Am schimbat în .top ca să se alinieze bine la texte lungi
             if zone?.hasBullet == true {
-                Circle().fill(zone?.textColor.color ?? .primary).frame(width: 6, height: 6).padding(.top, 8)
+                Circle().fill(zone?.textColor.color ?? .primary).frame(width: 6, height: 6).padding(.top, 10)
             }
 
             VStack(spacing: 8) {
@@ -288,7 +287,19 @@ struct ZoneContentView: View {
                 HStack(spacing: 8) {
                     if isSelected, previewDirection == .left { FakeGhostBlockView(isHorizontal: true).transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity)) }
 
-                    textEditorCore.frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+                    // SWAP-UL INTELIGENT:
+                    if isFocused || (zone?.text.isEmpty ?? true) {
+                        // Modul EDITARE (Apare cursorul, vezi textul brut)
+                        textEditorCore
+                            .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        // Modul CITIRE (Arată LaTeX frumos, perfect formatat)
+                        renderedTextPreview
+                            .frame(minWidth: 0, maxWidth: .infinity, alignment: alignmentFor(zone))
+                            .onTapGesture {
+                            triggerFocus() // Treci în modul editare la tap
+                        }
+                    }
 
                     if isSelected, previewDirection == .right { FakeGhostBlockView(isHorizontal: true).transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity)) }
                 }.frame(maxHeight: .infinity)
@@ -298,6 +309,30 @@ struct ZoneContentView: View {
         }.frame(maxHeight: .infinity)
     }
 
+    // NOU: Preview-ul vizual impecabil când zona nu e selectată
+    private var renderedTextPreview: some View {
+        MixedMathTextView(
+            text: zone?.text ?? "",
+            fontSize: fontSizeFor(zone), // ← CGFloat, corect
+            textColor: zone?.textColor.color ?? .primary,
+            alignment: alignmentFor(zone).horizontalAlignment,
+            isBold: zone?.isBold ?? false,
+            isItalic: zone?.isItalic ?? false
+        )
+        // Adăugăm padding similar cu `textEditorCore` ca să nu sară textul sus-jos la focus
+        .padding(.vertical, 4)
+            .padding(.leading, zone?.highlightColor != HighlightColor.none ? 6 : 8)
+            .padding(.trailing, 0)
+            .background(
+            ZStack {
+                RoundedRectangle(cornerRadius: 6).fill(Color.gray.opacity(0.05))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(isSelected ? accent : Color.gray.opacity(0.3), style: StrokeStyle(lineWidth: isSelected ? 2 : 1, dash: [4])))
+                if let highlight = zone?.highlightColor.color { RoundedRectangle(cornerRadius: 4).fill(highlight) }
+            }
+        )
+            .contentShape(Rectangle())
+    }
+
     // MARK: - Highlight Overlay
     // ... (Keep existing highlightedBackground exactly as it was) ...
     private var highlightedBackground: some View {
@@ -305,6 +340,15 @@ struct ZoneContentView: View {
         let displayText = rawText.hasSuffix("\n") ? rawText + "\u{200B}" : (rawText.isEmpty ? "\u{200B}" : rawText)
         let attrString = highlightContext?.generateOverlay(for: displayText, font: textFont, highlightColor: ThemeManager.shared.accentColor.color) ?? AttributedString(displayText)
         return Text(attrString).multilineTextAlignment(zone?.textAlignment.alignment ?? .leading).allowsHitTesting(false)
+    }
+
+    private func fontSizeFor(_ zone: ZoneModel?) -> CGFloat {
+        switch zone?.textStyle ?? .body {
+        case .caption: return 14
+        case .body: return 18
+        case .headline: return 22
+        case .title: return 28
+        }
     }
 
     // MARK: - Text Editor Core
@@ -368,7 +412,27 @@ struct ZoneContentView: View {
         isFocused = true; onSelect()
     }
     private var pureTextBinding: Binding<String> {
-        Binding(get: { zone?.text ?? "" }, set: { newValue in if self.zone?.text != newValue { highlightContext?.dismiss(); content.updateZone(at: path) { zone in zone.text = newValue; if zone.contentType == .empty { zone.contentType = .text } } } })
+        Binding(get: {
+            let rawText = zone?.text ?? ""
+            let t = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Auto-curățăm textul când intră în modul de editare
+            if t.hasPrefix("$") && t.hasSuffix("$") && !t.hasPrefix("$$") {
+                let inner = String(t.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+                if inner.contains("$") || inner.contains(" ") {
+                    return inner // Întoarce textul curat
+                }
+            }
+            return rawText
+        }, set: { newValue in
+            if self.zone?.text != newValue {
+                highlightContext?.dismiss()
+                content.updateZone(at: path) { zone in
+                    zone.text = newValue
+                    if zone.contentType == .empty { zone.contentType = .text }
+                }
+            }
+        })
     }
     private var textFont: Font {
         let style = zone?.textStyle ?? .body; let family = zone?.fontFamily ?? .system
@@ -483,12 +547,12 @@ struct ZonePreviewView: View {
                     // AICI INTERVENIM:
                     MixedMathTextView(
                         text: zone.text,
-                        font: previewFont(for: zone),
+                        fontSize: fontSizeFor(zone), // ← CGFloat, corect
                         textColor: zone.textColor.color,
-                        alignment: zone.textAlignment.horizontalAlignment
+                        alignment: zone.textAlignment.horizontalAlignment,
+                        isBold: zone.isBold,
+                        isItalic: zone.isItalic
                     )
-                        .fontWeight(zone.isBold ? .bold : .regular)
-                        .italic(zone.isItalic)
                         .padding(.vertical, 4)
                         .padding(.horizontal, zone.highlightColor != HighlightColor.none ? 6 : 0)
                         .background(zone.highlightColor.color.map { color in RoundedRectangle(cornerRadius: 4).fill(color) })
@@ -499,6 +563,14 @@ struct ZonePreviewView: View {
             if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: zone.textAlignment, cornerRadius: 10) }
         case .sketch:
             if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: zone.textAlignment, cornerRadius: 10, isSketch: true) }
+        }
+    }
+    private func fontSizeFor(_ zone: ZoneModel) -> CGFloat {
+        switch zone.textStyle {
+        case .caption: return 14
+        case .body: return 18
+        case .headline: return 22
+        case .title: return 28
         }
     }
 
