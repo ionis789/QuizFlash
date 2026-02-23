@@ -147,7 +147,7 @@ struct DeckView: View {
         }
         
         .fullScreenCover(isPresented: $isAddingCard) {
-            AddCardSheetView(searchQuery: nil) { frontZone, backZone in
+            CreateCardView(searchQuery: nil) { frontZone, backZone in
                 let newCard = CardModel(frontZone: frontZone, backZone: backZone)
                 deck.cards.append(newCard)
                 deck.editedAt = Date()
@@ -155,7 +155,7 @@ struct DeckView: View {
         }
         .fullScreenCover(isPresented: $isPresentingEdit) {
             NavigationStack {
-                CreateView(deckToEdit: deck)
+                CreateDeckView(deckToEdit: deck)
             }
         }
         .fullScreenCover(isPresented: $isPlayingQuiz) {
@@ -192,7 +192,7 @@ struct DeckView: View {
         .fullScreenCover(item: $editingCard) { card in
             NavigationStack {
                 // Pass Search Query downwards to render Highlight overlays
-                AddCardSheetView(
+                CreateCardView(
                     frontZone: card.frontZone,
                     backZone: card.backZone,
                     searchQuery: viewModel.searchQuery
@@ -219,7 +219,7 @@ private struct CardPreviewScreen: View {
     var body: some View {
         let front = ZoneCardContent(rootZone: card.frontZone)
         let back = ZoneCardContent(rootZone: card.backZone)
-        ZStack { ZonePreviewSheet(front: front, back: back) }
+        ZStack { CardPreviewModeView(front: front, back: back) }
         .overlay(alignment: .bottom) {
             if let stats = card.stats, showStats {
                 CardStatsView(stats: stats).transition(.move(edge: .bottom).combined(with: .opacity))

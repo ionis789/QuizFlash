@@ -13,11 +13,26 @@ struct AILoadingOverlay: View {
     @State private var isPulsing = false
     @State private var dotCount = 1
     private let loadingPhrases = [
-        "Bea o cafea, până iscusitul intelect gândește.",
-        "Neuronii digitali se încălzesc...",
-        "Transformând haosul în cunoaștere...",
-        "Algoritmi la lucru, relaxează-te.",
-        "Procesând înțelepciunea documentului...",
+        "Digital neurons warming up...",
+        "Turning chaos into knowledge...",
+        "Algorithms at work, sit back and relax.",
+        "Processing document wisdom...",
+        "Teaching circuits new tricks...",
+        "Distilling ideas into clarity...",
+        "Translating complexity into simplicity...",
+        "Spinning up the thinking engine...",
+        "Crunching concepts at light speed...",
+        "Calibrating intelligence modules...",
+        "Brewing fresh insights...",
+        "Rewiring thoughts into understanding...",
+        "Synthesizing smart summaries...",
+        "Charging cognitive processors...",
+        "Engineering better understanding...",
+        "Mapping ideas into memory...",
+        "Assembling knowledge blocks...",
+        "Activating deep learning mode...",
+        "Compiling brilliance...",
+        "Finalizing mental blueprints..."
     ]
     @State private var currentPhrase = 0
 
@@ -75,7 +90,7 @@ struct AILoadingOverlay: View {
 
                 // Error Dismiss Button
                 if case .error = state {
-                    Button("Închide", action: onDismiss)
+                    Button("Close", action: onDismiss)
                         .font(.headline)
                         .padding(.horizontal, 30)
                         .padding(.vertical, 12)
@@ -95,8 +110,8 @@ struct AILoadingOverlay: View {
             withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
                 isPulsing = true
             }
-            // Schimbă fraza la fiecare 3 secunde
-            Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+            // Change phrase every 2 seconds
+            Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
                 withAnimation(.easeInOut(duration: 0.4)) {
                     currentPhrase = (currentPhrase + 1) % loadingPhrases.count
                 }
@@ -126,9 +141,9 @@ struct AILoadingOverlay: View {
 
     private var titleForState: String {
         switch state {
-        case .analyzingDocument: return "Analizez documentul..."
-        case .extractingText: return "Extrag textul..."
-        case .generatingCards: return "Generez carduri..."
+        case .analyzingDocument: return "Analyzing document..."
+        case .extractingText: return "Extracting text..."
+        case .generatingCards: return "Generating flashcards..."
         case .error: return "Oops!"
         case .idle: return ""
         }
@@ -136,9 +151,9 @@ struct AILoadingOverlay: View {
 
     private var subtitleForState: String {
         switch state {
-        case .analyzingDocument: return "Detectez tipul PDF-ului"
-        case .extractingText: return "OCR pe device, gratuit"
-        default: return "Așteaptă oleacă..."
+        case .analyzingDocument: return "Detecting PDF type..."
+        case .extractingText: return "Running on-device OCR..."
+        default: return "Please wait..."
         }
     }
 }

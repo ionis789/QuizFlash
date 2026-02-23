@@ -8,18 +8,18 @@ import SwiftData
 import PhotosUI
 import UniformTypeIdentifiers
 
-struct CreateView: View {
+struct CreateDeckView: View {
     @Environment(\.modelContext) private var context
-    @Environment(\.dismiss)      private var dismiss
+    @Environment(\.dismiss) private var dismiss
     @Environment(NavigationManager.self) private var router
 
-    @State private var viewModel: CreateViewModel
+    @State private var viewModel: CreateDeckViewModel
     @FocusState private var isTitleFocused: Bool
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
 
     init(deckToEdit: DeckModel? = nil) {
-        _viewModel = State(initialValue: CreateViewModel(deckToEdit: deckToEdit))
+        _viewModel = State(initialValue: CreateDeckViewModel(deckToEdit: deckToEdit))
     }
 
     var body: some View {
@@ -36,7 +36,7 @@ struct CreateView: View {
                     cardsListSection
                     Color.clear.frame(height: 80)
                 }
-                .scrollDismissesKeyboard(.interactively)
+                    .scrollDismissesKeyboard(.interactively)
             }
 
             if viewModel.showSuccessOverlay {
@@ -46,40 +46,40 @@ struct CreateView: View {
             if viewModel.showAIOptionsOverlay {
                 AIOptionsOverlay(
                     requestedCardCount: $viewModel.requestedCardCount,
-                    extractionMode:     $viewModel.extractionMode,
-                    pdfAnalysis:        viewModel.pdfAnalysis,
-                    isForPDF:           viewModel.pendingPDFURL != nil,
+                    extractionMode: $viewModel.extractionMode,
+                    pdfAnalysis: viewModel.pdfAnalysis,
+                    isForPDF: viewModel.pendingPDFURL != nil,
                     onGenerate: {
                         viewModel.showAIOptionsOverlay = false
                         viewModel.startAIGeneration()
                     },
                     onCancel: {
                         viewModel.showAIOptionsOverlay = false
-                        viewModel.selectedAIPhotos     = []
-                        viewModel.pendingPDFURL        = nil
-                        viewModel.pdfAnalysis          = nil
+                        viewModel.selectedAIPhotos = []
+                        viewModel.pendingPDFURL = nil
+                        viewModel.pdfAnalysis = nil
                     }
                 )
-                .zIndex(50)
+                    .zIndex(50)
             }
         }
-        .onAppear {
+            .onAppear {
             if viewModel.deckToEdit == nil && viewModel.deckTitle.isEmpty {
                 isTitleFocused = true
             }
         }
-        .navigationTitle(viewModel.deckToEdit == nil ? "Create Deck" : "Edit Deck")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
+            .navigationTitle(viewModel.deckToEdit == nil ? "Create Deck" : "Edit Deck")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Save") {
                     isTitleFocused = false
                     viewModel.saveDeck(context: context, router: router, dismiss: dismiss)
                 }
-                .fontWeight(.semibold)
-                .disabled(
+                    .fontWeight(.semibold)
+                    .disabled(
                     viewModel.deckTitle.trimmingCharacters(in: .whitespaces).isEmpty ||
-                    viewModel.draftCards.isEmpty
+                        viewModel.draftCards.isEmpty
                 )
             }
 
@@ -89,33 +89,31 @@ struct CreateView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $viewModel.isCreatingNewCard) {
-            AddCardSheetView { frontZone, backZone in
+            .fullScreenCover(isPresented: $viewModel.isCreatingNewCard) {
+            CreateCardView { frontZone, backZone in
                 viewModel.addCard(frontZone: frontZone, backZone: backZone)
             }
         }
-        .fullScreenCover(item: $viewModel.cardToEdit) { card in
-            AddCardSheetView(frontZone: card.frontZone, backZone: card.backZone) { f, b in
+            .fullScreenCover(item: $viewModel.cardToEdit) { card in
+            CreateCardView(frontZone: card.frontZone, backZone: card.backZone) { f, b in
                 viewModel.updateCard(card, frontZone: f, backZone: b)
             }
         }
-        .photosPicker(
+            .photosPicker(
             isPresented: $viewModel.showAIPhotoPicker,
-            selection:   $viewModel.selectedAIPhotos,
-            matching:    .images
+            selection: $viewModel.selectedAIPhotos,
+            matching: .images
         )
-        .fileImporter(
-            isPresented:          $viewModel.showAIPDFPicker,
-            allowedContentTypes:  [.pdf],
+            .fileImporter(
+            isPresented: $viewModel.showAIPDFPicker,
+            allowedContentTypes: [.pdf],
             allowsMultipleSelection: false
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
-                // pdfWasSelected face analiza în background și deschide overlay-ul
-                // abia după ce are rezultatul — fără spinner suplimentar
                 viewModel.pdfWasSelected(url)
             }
         }
-        .overlay {
+            .overlay {
             if viewModel.aiState != .idle {
                 AILoadingOverlay(state: viewModel.aiState, onDismiss: viewModel.resetAIState)
             }
@@ -124,7 +122,7 @@ struct CreateView: View {
 }
 
 // MARK: - Subviews
-private extension CreateView {
+private extension CreateDeckView {
 
     var deckInfoSection: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -144,24 +142,24 @@ private extension CreateView {
                     Button { viewModel.deckTitle = "" } label: {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
                     }
-                    .transition(.scale.combined(with: .opacity))
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
-            .padding(14)
-            .background(
+                .padding(14)
+                .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color(uiColor: .secondarySystemGroupedBackground))
             )
-            .background(
+                .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(accent.opacity(isTitleFocused ? 0.15 : 0))
                     .padding(-2)
             )
-            .scaleEffect(isTitleFocused ? 1.01 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isTitleFocused)
+                .scaleEffect(isTitleFocused ? 1.01 : 1.0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isTitleFocused)
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 20)
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
     }
 
     var cardsListSection: some View {
@@ -175,6 +173,37 @@ private extension CreateView {
 
                 Button {
                     isTitleFocused = false
+                    viewModel.showAIPickerOptions = true
+                } label: {
+                    Label("AI", systemImage: "sparkles")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                        LinearGradient(
+                            colors: [.purple.opacity(0.8), .blue.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                        .foregroundStyle(.white)
+                        .clipShape(Capsule())
+                }
+                    .confirmationDialog(
+                    "Generate Cards with AI",
+                    isPresented: $viewModel.showAIPickerOptions,
+                    titleVisibility: .visible
+                ) {
+                    Button("Choose Photos") { viewModel.showAIPhotoPicker = true }
+                    Button("Choose PDF") { viewModel.showAIPDFPicker = true }
+                    Button("Cancel", role: .cancel) { }
+                } message: {
+                    Text("Extract text from images or documents to instantly create flashcards.")
+                }
+
+
+                Button {
+                    isTitleFocused = false
                     viewModel.isCreatingNewCard = true
                 } label: {
                     Label("Add", systemImage: "plus")
@@ -183,38 +212,8 @@ private extension CreateView {
                         .padding(.vertical, 8)
                         .background(.ultraThinMaterial, in: Capsule())
                 }
-
-                Button {
-                    isTitleFocused = false
-                    viewModel.showAIPickerOptions = true
-                } label: {
-                    Label("AI", systemImage: "sparkles")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            LinearGradient(
-                                colors: [.purple.opacity(0.8), .blue.opacity(0.8)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .foregroundStyle(.white)
-                        .clipShape(Capsule())
-                }
-                .confirmationDialog(
-                    "Generate Cards with AI",
-                    isPresented: $viewModel.showAIPickerOptions,
-                    titleVisibility: .visible
-                ) {
-                    Button("Choose Photos") { viewModel.showAIPhotoPicker = true }
-                    Button("Choose PDF")    { viewModel.showAIPDFPicker = true }
-                    Button("Cancel", role: .cancel) { }
-                } message: {
-                    Text("Extract text from images or documents to instantly create flashcards.")
-                }
             }
-            .padding(.horizontal, 24)
+                .padding(.horizontal, 24)
 
             if viewModel.draftCards.isEmpty {
                 emptyStateView
@@ -224,29 +223,29 @@ private extension CreateView {
                         CardRowView(card: card, index: index + 1)
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                isTitleFocused = false
-                                viewModel.cardToEdit = card
-                            }
+                            isTitleFocused = false
+                            viewModel.cardToEdit = card
+                        }
                             .contextMenu {
-                                Button { viewModel.cardToEdit = card } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                Button(role: .destructive) {
-                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                        viewModel.deleteCard(card)
-                                    }
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
+                            Button { viewModel.cardToEdit = card } label: {
+                                Label("Edit", systemImage: "pencil")
                             }
+                            Button(role: .destructive) {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    viewModel.deleteCard(card)
+                                }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                             .transition(.asymmetric(
-                                insertion: .scale(scale: 0.9).combined(with: .opacity).combined(with: .move(edge: .bottom)),
-                                removal:   .scale(scale: 0.8).combined(with: .opacity)
-                            ))
+                            insertion: .scale(scale: 0.9).combined(with: .opacity).combined(with: .move(edge: .bottom)),
+                            removal: .scale(scale: 0.8).combined(with: .opacity)
+                        ))
                     }
                 }
-                .padding(.horizontal, 20)
-                .animation(.spring(response: 0.45, dampingFraction: 0.82), value: viewModel.draftCards.count)
+                    .padding(.horizontal, 20)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.82), value: viewModel.draftCards.count)
             }
         }
     }
@@ -263,12 +262,12 @@ private extension CreateView {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .padding(.horizontal, 20)
-        .onTapGesture {
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 40)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.horizontal, 20)
+            .onTapGesture {
             isTitleFocused = false
             viewModel.isCreatingNewCard = true
         }
@@ -290,22 +289,22 @@ private extension CreateView {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 28)
-                .padding(.horizontal, 44)
-                .background(
+                    .padding(.vertical, 28)
+                    .padding(.horizontal, 44)
+                    .background(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .fill(.regularMaterial)
                         .shadow(color: .black.opacity(0.18), radius: 24, y: 12)
                 )
-                .scaleEffect(viewModel.showSuccessOverlay ? 1 : 0.7, anchor: .top)
-                .opacity(viewModel.showSuccessOverlay ? 1 : 0)
-                .offset(y: viewModel.showSuccessOverlay ? 0 : -80)
-                .animation(.spring(response: 0.5, dampingFraction: 0.7), value: viewModel.showSuccessOverlay)
+                    .scaleEffect(viewModel.showSuccessOverlay ? 1 : 0.7, anchor: .top)
+                    .opacity(viewModel.showSuccessOverlay ? 1 : 0)
+                    .offset(y: viewModel.showSuccessOverlay ? 0 : -80)
+                    .animation(.spring(response: 0.8, dampingFraction: 0.9), value: viewModel.showSuccessOverlay)
                 Spacer()
             }
         }
-        .transition(.opacity)
-        .allowsHitTesting(false)
+            .transition(.opacity)
+            .allowsHitTesting(false)
     }
 }
 
@@ -313,10 +312,10 @@ private extension CreateView {
 struct AIOptionsOverlay: View {
     @Binding var requestedCardCount: Int
     @Binding var extractionMode: ExtractionMode
-    let pdfAnalysis: PDFAnalysisInfo?   // nil pentru poze
+    let pdfAnalysis: PDFAnalysisInfo? // nil pentru poze
     let isForPDF: Bool
     var onGenerate: () -> Void
-    var onCancel:   () -> Void
+    var onCancel: () -> Void
 
     var body: some View {
         ZStack {
@@ -330,10 +329,10 @@ struct AIOptionsOverlay: View {
                 Image(systemName: "sparkles.rectangle.stack")
                     .font(.system(size: 40))
                     .foregroundStyle(LinearGradient(
-                        colors: [.purple, .blue],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
+                    colors: [.purple, .blue],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
 
                 Text("Setări Generare AI")
                     .font(.title3.weight(.bold))
@@ -349,10 +348,10 @@ struct AIOptionsOverlay: View {
                     Text("**\(requestedCardCount)** carduri")
                         .font(.headline)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(Color.secondary.opacity(0.15))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Color.secondary.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
 
                 // Mode selector
                 modePicker
@@ -376,16 +375,16 @@ struct AIOptionsOverlay: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
             }
-            .padding(28)
-            .background(
+                .padding(28)
+                .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(Color(uiColor: .systemBackground))
                     .shadow(color: .black.opacity(0.2), radius: 24, y: 12)
             )
-            .padding(.horizontal, 36)
+                .padding(.horizontal, 36)
         }
-        .transition(.opacity.combined(with: .scale(scale: 0.95)))
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: pdfAnalysis?.quality)
+            .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: pdfAnalysis?.quality)
     }
 
     // -------------------------------------------------------------------------
@@ -417,9 +416,9 @@ struct AIOptionsOverlay: View {
                 .foregroundStyle(info.isGoodForFast ? .green : .orange)
                 .clipShape(Capsule())
         }
-        .padding(14)
-        .background(Color.secondary.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+            .padding(14)
+            .background(Color.secondary.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     // -------------------------------------------------------------------------
@@ -430,24 +429,24 @@ struct AIOptionsOverlay: View {
             // Fast mode
             ModeButton(
                 isSelected: extractionMode == .fast,
-                icon:        "bolt.fill",
-                iconColor:   .yellow,
-                title:       "Rapid (Gratuit)",
+                icon: "bolt.fill",
+                iconColor: .yellow,
+                title: "Rapid (Gratuit)",
                 description: isForPDF
                     ? "PDFKit + OCR pe device. Gratuit, fără internet."
-                    : "OCR pe device. Gratuit, câteva secunde.",
+                : "OCR pe device. Gratuit, câteva secunde.",
                 onTap: { extractionMode = .fast }
             )
 
             // Quality mode
             ModeButton(
                 isSelected: extractionMode == .quality,
-                icon:        "eye.fill",
-                iconColor:   .purple,
-                title:       "Calitate (GPT Vision)",
+                icon: "eye.fill",
+                iconColor: .purple,
+                title: "Calitate (GPT Vision)",
                 description: isForPDF
                     ? "Trimite paginile la GPT-4o. Înțelege diagrame, tabele, math dens."
-                    : "Trimite imaginile la GPT-4o. Ideal pentru fotografii cu formule.",
+                : "Trimite imaginile la GPT-4o. Ideal pentru fotografii cu formule.",
                 onTap: { extractionMode = .quality }
             )
         }
@@ -456,12 +455,12 @@ struct AIOptionsOverlay: View {
 
 // MARK: - Mode Button
 private struct ModeButton: View {
-    let isSelected:  Bool
-    let icon:        String
-    let iconColor:   Color
-    let title:       String
+    let isSelected: Bool
+    let icon: String
+    let iconColor: Color
+    let title: String
     let description: String
-    let onTap:       () -> Void
+    let onTap: () -> Void
 
     var body: some View {
         Button(action: onTap) {
@@ -487,17 +486,17 @@ private struct ModeButton: View {
                     .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                     .font(.title3)
             }
-            .padding(14)
-            .background(
+                .padding(14)
+                .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.08))
             )
-            .overlay(
+                .overlay(
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(isSelected ? Color.accentColor.opacity(0.5) : Color.clear, lineWidth: 1.5)
             )
         }
-        .buttonStyle(.plain)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelected)
+            .buttonStyle(.plain)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelected)
     }
 }

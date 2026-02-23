@@ -149,8 +149,8 @@ struct DeckSectionToolbar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text("CARDS(\(deck.cards.count)")
-                .font(.caption.weight(.semibold))
+            Text("CARDS(\(deck.cards.count))")
+                .font(.caption.weight(.bold))
                 .foregroundStyle(.secondary)
 
             Spacer()
@@ -160,7 +160,7 @@ struct DeckSectionToolbar: View {
       
             Button(action: onAdd) {
                 Image(systemName: "plus")
-                    .font(.title3.weight(.semibold))
+                    .font(.title3.weight(.bold))
                     .padding(10)
                     .background(.ultraThinMaterial, in: Circle())
             }

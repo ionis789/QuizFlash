@@ -2,29 +2,25 @@
 //  AppTab.swift
 //  QuizFlash
 //
-//  Created by Ion Socol on 22.12.2025.
-//
 
 import SwiftUI
 
 enum AppTab: String, CaseIterable, Identifiable {
-    case library, create, settings
+    case library = "Library"
+    case create = "Create"
+    case settings = "Settings"
     
     var id: String { rawValue }
     
-    var title: String {
-        switch self {
-        case .library: return "Library"
-        case .create: return "Create"
-        case .settings: return "Settings"
-        }
-    }
-    
-    var icon: String {
+    var symbol: String {
         switch self {
         case .library: return "rectangle.stack"
         case .create: return "plus.circle"
         case .settings: return "gearshape"
         }
+    }
+    
+    var index: Int {
+        Self.allCases.firstIndex(of: self) ?? 0
     }
 }

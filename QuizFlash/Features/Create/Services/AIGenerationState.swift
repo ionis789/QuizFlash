@@ -8,9 +8,9 @@ import Foundation
 // MARK: - AI Generation State
 public enum AIGenerationState: Equatable {
     case idle
-    case analyzingDocument          // Rulează PDFKit quality check în background
-    case extractingText             // Vision OCR pe device
-    case generatingCards(progress: Double, foundCount: Int)  // Request la OpenAI
+    case analyzingDocument
+    case extractingText
+    case generatingCards(progress: Double, foundCount: Int)
     case error(String)
 
     public static func == (lhs: AIGenerationState, rhs: AIGenerationState) -> Bool {
@@ -30,38 +30,37 @@ public enum AIGenerationState: Equatable {
 }
 
 // MARK: - PDF Quality Info
-// Rezultatul analizei rapide a PDF-ului — afișat în AIOptionsOverlay
 struct PDFAnalysisInfo {
-    let quality: Double         // 0.0 → 1.0
+    let quality: Double
     let pageCount: Int
     let extractedChars: Int
 
     var recommendation: ExtractionMode {
-        quality >= 0.5 ? .fast : .quality
+        quality >= 0.8 ? .fast : .quality
     }
 
     var qualityLabel: String {
         switch quality {
-        case 0.8...: return "Text detectat perfect"
-        case 0.5...: return "Text detectat parțial"
-        case 0.1...: return "PDF scanat — text slab"
-        default:     return "PDF scanat — fără text"
+        case 0.8...: return "Text detected perfectly"
+        case 0.5...: return "Text detectat partial"
+        case 0.1...: return "This PDF cannnot be used, try another one"
+        default: return "This PDF cannnot be used, try another one"
         }
     }
 
     var qualityIcon: String {
         switch quality {
         case 0.5...: return "checkmark.circle.fill"
-        default:     return "exclamationmark.triangle.fill"
+        default: return "exclamationmark.triangle.fill"
         }
     }
 
-    var isGoodForFast: Bool { quality >= 0.5 }
+    var isGoodForFast: Bool { quality >= 0.8 }
 }
 
 enum ExtractionMode: String {
-    case fast    = "fast"
-    case quality = "quality"
+    case fast = "fast"
+    case quality = "quality(Premium)"
 }
 
 // MARK: - AI Flashcard Model

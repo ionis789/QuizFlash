@@ -49,7 +49,7 @@ struct DefaultModePlay: View {
                             .padding(.horizontal, isCompact ? 16 : (isScreenLandscape ? geo.size.width * 0.15 : 40))
                             .padding(.bottom, isCompact ? 20 : 40)
                     }
-                    .transition(.opacity)
+                        .transition(.opacity)
                 }
 
                 if viewModel.isComplete {
@@ -58,8 +58,8 @@ struct DefaultModePlay: View {
                 }
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isComplete)
-        .navigationBarHidden(true)
+            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isComplete)
+            .navigationBarHidden(true)
     }
 
     // MARK: - Card Area
@@ -68,7 +68,7 @@ struct DefaultModePlay: View {
             if viewModel.currentIndex < viewModel.cards.count {
                 // Notice the use of Bindable to pass the binding down safely
                 @Bindable var bindableViewModel = viewModel
-                
+
                 GameplayCard(
                     card: viewModel.cards[viewModel.currentIndex],
                     onSwipe: { direction in
@@ -76,17 +76,17 @@ struct DefaultModePlay: View {
                     },
                     isFlipped: $bindableViewModel.isFlipped
                 )
-                .transition(
-                    .asymmetric(
+                    .transition(
+                        .asymmetric(
                         insertion: .scale(scale: 0.92).combined(with: .opacity).animation(.spring(response: 0.4, dampingFraction: 0.82)),
                         removal: .opacity
                     )
                 )
-                .id(viewModel.cards[viewModel.currentIndex].createdAt)
+                    .id(viewModel.cards[viewModel.currentIndex].createdAt)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.spring(response: 0.4, dampingFraction: 0.82), value: viewModel.currentIndex)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.spring(response: 0.4, dampingFraction: 0.82), value: viewModel.currentIndex)
     }
 
     // MARK: - Header
@@ -118,7 +118,7 @@ struct DefaultModePlay: View {
                         .frame(height: 4)
                 }
             }
-            .animation(.spring(response: 0.3), value: viewModel.currentIndex)
+                .animation(.spring(response: 0.3), value: viewModel.currentIndex)
 
             // Q/A Indicator & Stats
             HStack {
@@ -142,9 +142,9 @@ struct DefaultModePlay: View {
                         Text("\(viewModel.wrongCards.count)").font(.subheadline.weight(.semibold))
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial, in: Capsule())
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
             }
         }
     }
@@ -192,15 +192,15 @@ struct DefaultModePlay: View {
                             .foregroundStyle(.white)
                     }
                 }
-                .padding(.top, 8)
+                    .padding(.top, 8)
             }
-            .padding(isCompact ? 28 : 40)
-            .background(
+                .padding(isCompact ? 28 : 40)
+                .background(
                 RoundedRectangle(cornerRadius: isCompact ? 24 : 32)
                     .fill(.ultraThinMaterial)
                     .shadow(color: .black.opacity(0.1), radius: 20, y: 10)
             )
-            .padding(.horizontal, isCompact ? 32 : 60)
+                .padding(.horizontal, isCompact ? 32 : 60)
         }
     }
 }

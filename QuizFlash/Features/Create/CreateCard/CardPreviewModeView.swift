@@ -8,7 +8,7 @@ import SwiftUI
 // MARK: - Zone Preview Sheet UI-only: full-screen card preview (flip question/answer).
 //
 
-struct ZonePreviewSheet: View {
+struct CardPreviewModeView: View {
     let front: ZoneCardContent
     let back: ZoneCardContent
     @Environment(\.dismiss) private var dismiss
@@ -38,22 +38,22 @@ struct ZonePreviewSheet: View {
                                 .rotation3DEffect(.degrees(isFlipped ? -180 : 0), axis: (x: 0, y: 1, z: 0))
                                 .opacity(isFlipped ? 0 : 1)
                         }
-                        .frame(
+                            .frame(
                             width: geo.size.width * 0.85,
                             height: geo.size.height * 0.85
                         )
-                        .onTapGesture {
+                            .onTapGesture {
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                                 isFlipped.toggle()
                             }
                         }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .navigationTitle("Preview")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+                .navigationTitle("Preview Mode")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                         .fontWeight(.semibold)
@@ -66,7 +66,7 @@ struct ZonePreviewSheet: View {
     private func cardFace(zone: ZoneModel, title: String, availableHeight: CGFloat) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .fill(cardBackground)
+                .fill(.ultraThinMaterial)
                 .shadow(color: shadowColor, radius: isCompact ? 16 : 24, y: 8)
 
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
@@ -76,16 +76,16 @@ struct ZonePreviewSheet: View {
                 GeometryReader { scrollProxy in
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 0) {
-                            ZonePreviewView(zone: zone)
+                            CardFaceView(zone: zone)
                         }
-                        .padding(.horizontal, isCompact ? 20 : 28)
-                        .padding(.vertical, isCompact ? 20 : 24)
+                            .padding(.horizontal, isCompact ? 20 : 28)
+                            .padding(.vertical, isCompact ? 20 : 24)
                         // AICI SE ÎNTÂMPLĂ MAGIA CENTRĂRII VERTICALE
                         .frame(minHeight: scrollProxy.size.height, alignment: .center)
                     }
-                    .scrollBounceBehavior(.basedOnSize)
+                        .scrollBounceBehavior(.basedOnSize)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
             } else {
                 emptyContent
             }
@@ -101,15 +101,15 @@ struct ZonePreviewSheet: View {
                 .font(isCompact ? .body : .title3)
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var backgroundGradient: some View {
         LinearGradient(
             colors: colorScheme == .dark
-                ? [Color(uiColor: .systemBackground), Color(uiColor: .secondarySystemBackground)]
+                ? [Color(uiColor: .secondarySystemBackground), Color(uiColor: .systemBackground), Color(uiColor: .secondarySystemBackground)]
             : [Color(uiColor: .systemGray6), Color(uiColor: .systemBackground)],
-            startPoint: .top,
+            startPoint: .topLeading,
             endPoint: .bottom
         )
     }

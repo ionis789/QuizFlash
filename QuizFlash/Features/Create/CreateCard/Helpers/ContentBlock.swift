@@ -41,8 +41,8 @@ enum TextBlockStyle: String, Codable, Equatable {
 
     var font: Font {
         switch self {
-        case .body: return .system(size: 22) // Scalat pentru flashcards
-        case .title: return .system(size: 32, weight: .bold)
+        case .body: return .system(size: 24)
+        case .title: return .system(size: 36, weight: .bold)
         case .headline: return .system(size: 26, weight: .semibold)
         case .caption: return .system(size: 16)
         }

@@ -26,7 +26,7 @@ struct SwipeableCard<Content: View>: View {
                 .scaleEffect(cardScale)
                 .offset(x: offset.width, y: offset.height * 0.15)
                 .rotationEffect(.degrees(Double(offset.width / 15)), anchor: .bottom)
-            // Umbra cardului devine glow verde/roșu în funcție de swipe
+            // Red/Green Glow Effect
             .shadow(color: dragShadowColor, radius: abs(offset.width) > 10 ? 25 : 15, x: 0, y: 8)
                 .gesture(dragGesture)
                 .onTapGesture {
@@ -36,26 +36,25 @@ struct SwipeableCard<Content: View>: View {
             .contentShape(Rectangle())
     }
 
-    // Efectul fin de micșorare la swipe
+    // Scale effect on swipe
     private var cardScale: CGFloat {
         let progress = abs(offset.width) / UIScreen.main.bounds.width
         return max(0.8, 1.0 - (progress * 0.35))
     }
 
-    // Calculăm culoarea umbrei/glow-ului pe card
     private var dragShadowColor: Color {
         if offset.width > 10 {
             return Color.green.opacity(rightGlowIntensity)
         } else if offset.width < -10 {
             return Color.red.opacity(leftGlowIntensity)
         }
-        return Color.black.opacity(0.12) // Shadow-ul default când stă pe loc
+        return Color.black.opacity(0.12)
     }
 
     private var leftGlowIntensity: Double {
         guard offset.width < 0 else { return 0 }
         let progress = abs(offset.width) / swipeThreshold
-        return min(Double(progress) * 0.8, 0.8) // Opacitate maximă de 80%
+        return min(Double(progress) * 0.8, 0.8)
     }
 
     private var rightGlowIntensity: Double {
@@ -64,7 +63,7 @@ struct SwipeableCard<Content: View>: View {
         return min(Double(progress) * 0.8, 0.8)
     }
 
-    // Gestul fluid de swipe
+    
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: 10, coordinateSpace: .local)
             .onChanged { value in
@@ -100,7 +99,6 @@ struct SwipeableCard<Content: View>: View {
                 haptic.impactOccurred(intensity: 1.0)
                 exitCardAnimation(.left)
             } else {
-                // S-a răzgândit: revine pe centru
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
                     offset = .zero
                 }
@@ -109,7 +107,6 @@ struct SwipeableCard<Content: View>: View {
         }
     }
 
-    // Animația finală când cardul zboară
     private func exitCardAnimation(_ direction: SwipeDirection) {
         let screenWidth = UIScreen.main.bounds.width
         let exitX = direction == .right ? screenWidth + 200 : -(screenWidth + 200)

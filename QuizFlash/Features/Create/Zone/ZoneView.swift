@@ -257,7 +257,7 @@ struct ZoneContentView: View {
         }
     }
 
-    // MARK: - Text View cu Ghost Overlay
+    // MARK: - textViewWithGhostOverlay
 
     @ViewBuilder
     private var textViewWithGhostOverlay: some View {
@@ -503,7 +503,7 @@ struct ZoneContentView: View {
 
 
 
-struct ZonePreviewView: View {
+struct CardFaceView: View {
     let zone: ZoneModel
     @Environment(\.colorScheme) private var colorScheme
 
@@ -545,6 +545,7 @@ struct ZonePreviewView: View {
                             zone.highlightColor.color.map { color in
                                 RoundedRectangle(cornerRadius: 4).fill(color)
                             }
+                               
                         )
                     }
                         .frame(maxWidth: .infinity, alignment: alignmentFor(zone))
@@ -570,9 +571,9 @@ struct ZonePreviewView: View {
     private var containerPreview: some View {
         let children = zone.children ?? []
         if zone.direction == .horizontal {
-            HStack(alignment: .top, spacing: 12) { ForEach(children) { child in ZonePreviewView(zone: child) } }
+            HStack(alignment: .top, spacing: 12) { ForEach(children) { child in CardFaceView(zone: child) } }
         } else {
-            VStack(alignment: .leading, spacing: 12) { ForEach(children) { child in ZonePreviewView(zone: child) } }
+            VStack(alignment: .leading, spacing: 12) { ForEach(children) { child in CardFaceView(zone: child) } }
         }
     }
 

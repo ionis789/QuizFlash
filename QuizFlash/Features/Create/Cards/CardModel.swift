@@ -136,7 +136,6 @@ class CardStats {
 struct DraftCard: Identifiable {
     let id = UUID()
     
-    // NOU: Legătura cu SwiftData model
     var originalCardID: PersistentIdentifier?
 
     var frontZone: ZoneModel
@@ -144,11 +143,9 @@ struct DraftCard: Identifiable {
     var frontType: CardContentType
     var backType: CardContentType
 
-    // NOU: Păstrăm datele originale
     var createdAt: Date?
     var editedAt: Date?
 
-    // FIX: Afișăm data de editare reală, nu Date() generat dinamic
     var lastEditDate: Date? { editedAt }
 
     init(

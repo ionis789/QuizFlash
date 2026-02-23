@@ -42,7 +42,7 @@ struct FlipCard: View {
             VStack(alignment: .leading, spacing: 0) {
                 if zone.hasContent {
                     ScrollView(.vertical, showsIndicators: false) {
-                        ZonePreviewView(zone: zone)
+                        CardFaceView(zone: zone)
                             .padding(.horizontal, isCompact ? 20 : 28)
                             .padding(.vertical, isCompact ? 20 : 24)
                     }

@@ -12,7 +12,7 @@ import SwiftData
 
 // MARK: - Add Card Sheet View
 
-struct AddCardSheetView: View {
+struct CreateCardView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var context
@@ -93,7 +93,7 @@ struct AddCardSheetView: View {
             .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhoto, matching: .images)
             .onChange(of: selectedPhoto) { _, item in addPhoto(item) }
             .fullScreenCover(isPresented: $showSketchModal) { CanvasModalView { data in addSketch(data) } }
-            .fullScreenCover(isPresented: $showPreview) { ZonePreviewSheet(front: frontZoneContent, back: backZoneContent) }
+            .fullScreenCover(isPresented: $showPreview) { CardPreviewModeView(front: frontZoneContent, back: backZoneContent) }
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedPath)
             .animation(.spring(response: 0.2, dampingFraction: 0.7), value: previewDirection)
             .onAppear {
@@ -115,7 +115,7 @@ struct AddCardSheetView: View {
     
     @ViewBuilder
     private func formatBar(for path: ZonePath) -> some View {
-        ZoneFormatBar(
+        EditorFormatMenuBar(
             content: currentContent,
             path: path,
             onAddZoneAction: { direction in

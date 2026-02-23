@@ -10,7 +10,7 @@ import PDFKit
 
 @Observable
 @MainActor
-final class CreateViewModel {
+final class CreateDeckViewModel {
 
     // MARK: - AI State
     var aiState: AIGenerationState = .idle

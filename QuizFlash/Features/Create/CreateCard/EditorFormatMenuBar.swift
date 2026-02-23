@@ -11,7 +11,7 @@ import SwiftUI
 
 // MARK: - Zone Format Bar
 
-struct ZoneFormatBar: View {
+struct EditorFormatMenuBar: View {
     let content: ZoneCardContent
     let path: ZonePath
     
