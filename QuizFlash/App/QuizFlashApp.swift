@@ -14,6 +14,11 @@ struct QuizFlashApp: App {
     @State var authManager = AuthManager()
     @State private var themeManager = ThemeManager.shared
 
+    init() {
+        // 
+        MathWebViewPool.shared.prewarm()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -21,7 +26,7 @@ struct QuizFlashApp: App {
                 .tint(themeManager.accentColor.color)
                 .preferredColorScheme(.dark)
         }
-            .modelContainer(for: [DeckModel.self, CardModel.self])
+            .modelContainer(for: [DeckModel.self, CardModel.self, ReviewEvent.self, UserProfile.self, DailyActivityLog.self])
     }
 }
 

@@ -1,0 +1,299 @@
+//
+//  DeckComponents.swift
+//  QuizFlash
+//
+//  Created by Ion Socol on 08.02.2026.
+//
+
+import SwiftUI
+
+// MARK: - 1. Deck Header View
+struct DeckHeaderView: View {
+    let deck: DeckModel
+    var onEdit: () -> Void
+
+    private var deckColor: Color {
+        Color(hex: deck.colorHex) ?? .blue
+    }
+
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter.string(from: deck.createdAt)
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 16) {
+
+                ZStack {
+                    Circle()
+                        .fill(
+                        LinearGradient(
+                            colors: [deckColor.opacity(0.7), deckColor.opacity(0.3)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                        .frame(width: 56, height: 56)
+
+                    Image(systemName: deck.icon.isEmpty ? "sparkles.rectangle.stack.fill" : deck.icon)
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+
+                // Title & Info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(deck.title)
+                        .font(.title3.weight(.bold))
+                        .lineLimit(1)
+
+                    HStack(spacing: 8) {
+                        Label("\(deck.cards.count)", systemImage: "rectangle.stack")
+                        Text("•")
+                        Text(formattedDate)
+                    }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                // Edit Button (Deck details)
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(10)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+            }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+        }
+            .background(Color(uiColor: .systemGroupedBackground))
+    }
+}
+
+// MARK: - 2. Play Modes View (Premium 2×2 Grid)
+struct DeckPlayModesView: View {
+    let deck: DeckModel
+    var onPlay: () -> Void
+
+    private var accentColor: Color { ThemeManager.shared.accentColor.color }
+    private var isEmpty: Bool { deck.cards.isEmpty }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("PLAY MODES")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 20)
+
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                spacing: 12
+            ) {
+                PlayModeCard(
+                    title: "Default",
+                    subtitle: "Swipe to review",
+                    systemImage: "play.fill",
+                    color: accentColor,
+                    isAvailable: !isEmpty,
+                    action: onPlay
+                )
+                PlayModeCard(
+                    title: "Quiz",
+                    subtitle: "Multiple choice",
+                    systemImage: "questionmark.square.dashed",
+                    color: .purple,
+                    isAvailable: !isEmpty,
+                    action: onPlay
+                )
+                PlayModeCard(
+                    title: "Learn",
+                    subtitle: "Spaced repetition",
+                    systemImage: "book.and.wrench",
+                    color: .teal,
+                    isAvailable: !isEmpty,
+                    action: onPlay
+                )
+                PlayModeCard(
+                    title: "Match",
+                    subtitle: "Coming soon",
+                    systemImage: "square.grid.2x2",
+                    color: .gray,
+                    isAvailable: false,
+                    action: { }
+                )
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+}
+
+private struct PlayModeCard: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let color: Color
+    let isAvailable: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(color.opacity(isAvailable ? 0.20 : 0.08))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: systemImage)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(isAvailable ? color : color.opacity(0.35))
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(isAvailable ? .primary : .tertiary)
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(isAvailable ? color.opacity(0.22) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isAvailable)
+        .opacity(isAvailable ? 1.0 : 0.52)
+    }
+}
+
+struct DeckSectionToolbar: View {
+    let deck: DeckModel
+    let isSelecting: Bool
+    @Binding var sortOrder: SortOrder
+
+    var onAdd: () -> Void
+    var onStartSelection: () -> Void
+    var onExport: (() -> Void)? = nil
+
+    private var accentColor: Color { ThemeManager.shared.accentColor.color }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("CARDS(\(deck.cards.count))")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+
+
+
+            Button(action: onAdd) {
+                Image(systemName: "plus")
+                    .font(.title3.weight(.bold))
+                    .padding(10)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+                .disabled(isSelecting)
+
+
+            if !deck.cards.isEmpty {
+
+                Menu {
+
+                    Button(action: onStartSelection) {
+                        Label("Select Cards", systemImage: "checkmark.circle")
+                    }
+                        .disabled(isSelecting)
+
+                    // Export deck option
+                    if let onExport = onExport {
+                        Button(action: onExport) {
+                            Label("Export Deck", systemImage: "square.and.arrow.up")
+                        }
+                    }
+
+
+                    Menu {
+                        ForEach(SortOrder.allCases, id: \.self) { order in
+                            Button {
+                                withAnimation(.spring(response: 0.3)) {
+                                    sortOrder = order
+                                }
+                            } label: {
+                                if sortOrder == order {
+                                    Label(order.rawValue, systemImage: "checkmark")
+                                } else {
+                                    Label(order.rawValue, systemImage: order.icon)
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("Sort By", systemImage: "arrow.up.arrow.down")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title3.weight(.semibold))
+                        .padding(10)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .foregroundStyle(accentColor)
+                }
+                    .disabled(isSelecting)
+                    .opacity(isSelecting ? 0.5 : 1)
+            }
+
+
+        }
+            .padding(.horizontal, 20)
+    }
+}
+
+// MARK: - 4. Selection Bottom Bar (Floating)
+struct DeckSelectionBottomBar: View {
+    let selectedCount: Int
+    var onDone: () -> Void
+    var onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: onDone) {
+                Text("Done")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: Capsule())
+            }
+
+            Spacer()
+
+            Button(role: .destructive, action: onDelete) {
+                HStack(spacing: 8) {
+                    Text("Delete(\(selectedCount))")
+                        .fontWeight(.semibold)
+                }
+                    .font(.subheadline)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: Capsule())
+            }
+                .disabled(selectedCount == 0)
+                .opacity(selectedCount == 0 ? 0.5 : 1)
+        }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .padding(.horizontal, 20)
+    }
+}

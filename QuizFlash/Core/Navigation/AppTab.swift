@@ -15,7 +15,7 @@ enum AppTab: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .library: return "rectangle.stack"
-        case .create: return "plus.circle"
+        case .create: return "book.and.wrench"
         case .settings: return "gearshape"
         }
     }
