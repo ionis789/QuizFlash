@@ -9,18 +9,25 @@ import SwiftData
 @Observable
 @MainActor
 final class DeckViewModel {
-    
+
     // MARK: - Search State
     var searchQuery: String? = nil
-    
+
+    // MARK: - Scroll State (Isolated for Performance)
+    var collapseProgress: CGFloat = 0
+
     // MARK: - Selection State
     var isSelecting = false
     var selectedCards: Set<PersistentIdentifier> = []
     var showDeleteConfirmation = false
-    
+
     // MARK: - Sorting
     var sortOrder: SortOrder = .newest
-    
+
+    // MARK: - Cached Data
+    // Caching this prevents aggressive UI diffing during scroll events
+    private(set) var cachedGroupedCards: [DeckCardGridView.CardSection] = []
+
     // MARK: - Export State
     var isExporting = false
     var exportedURL: URL?
@@ -53,6 +60,7 @@ final class DeckViewModel {
         deck.cards.removeAll { $0.id == card.id }
         deck.editedAt = Date()
         selectedCards.remove(card.id)
+        updateGroupedCards(for: deck) // Update cache
     }
 
     func deleteSelectedCards(from deck: DeckModel, context: ModelContext) {
@@ -63,12 +71,13 @@ final class DeckViewModel {
         selectedCards.removeAll()
         isSelecting = false
         deck.editedAt = Date()
+        updateGroupedCards(for: deck) // Update cache
     }
 
     // MARK: - Export Logic
     func exportDeck(_ deck: DeckModel) {
         isExporting = true
-        
+
         Task {
             do {
                 let url = try await DeckSharingManager.shared.exportDeck(deck)
@@ -82,23 +91,23 @@ final class DeckViewModel {
             }
         }
     }
-    
+
     // MARK: - Deep Text Extraction Helper
     private func extractAllText(from zone: ZoneModel) -> String {
         if zone.isLeaf { return zone.contentType == .text ? zone.text : "" }
         return (zone.children ?? []).map { extractAllText(from: $0) }.joined(separator: " ")
     }
-    
-    // MARK: - Grouping & Filtering Logic
-    func groupedCards(for deck: DeckModel) -> [DeckCardGridView.CardSection] {
+
+    // MARK: - Grouping & Filtering Logic (Acum populează cache-ul)
+    func updateGroupedCards(for deck: DeckModel) {
         var filteredCards = deck.cards
-        
+
         // 1. In-memory Tokenized Filtering
         if let query = searchQuery, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let tokens = query.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
             if !tokens.isEmpty {
                 let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
-                
+
                 filteredCards = filteredCards.filter { card in
                     let fullText = extractAllText(from: card.frontZone) + " \n " + extractAllText(from: card.backZone)
                     return tokens.allSatisfy { token in
@@ -107,7 +116,7 @@ final class DeckViewModel {
                 }
             }
         }
-        
+
         // 2. Sorting
         let sortedAll = filteredCards.sorted { c1, c2 in
             switch sortOrder {
@@ -120,15 +129,14 @@ final class DeckViewModel {
         }
 
         if sortOrder == .alphabetical {
-            if sortedAll.isEmpty { return [] }
-            return [
-                DeckCardGridView.CardSection(
-                    id: "all",
-                    title: "All Cards",
-                    cards: sortedAll,
-                    dateForSorting: nil
-                )
+            if sortedAll.isEmpty {
+                self.cachedGroupedCards = []
+                return
+            }
+            self.cachedGroupedCards = [
+                DeckCardGridView.CardSection(id: "all", title: "All Cards", cards: sortedAll, dateForSorting: nil)
             ]
+            return
         }
 
         let calendar = Calendar.current
@@ -142,7 +150,7 @@ final class DeckViewModel {
             return DeckCardGridView.CardSection(id: title, title: title, cards: cardsInGroup, dateForSorting: startOfDay)
         }
 
-        return sections.sorted { s1, s2 in
+        self.cachedGroupedCards = sections.sorted { s1, s2 in
             guard let d1 = s1.dateForSorting, let d2 = s2.dateForSorting else { return false }
             return sortOrder == .oldest ? d1 < d2: d1 > d2
         }

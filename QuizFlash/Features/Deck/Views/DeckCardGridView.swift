@@ -139,18 +139,44 @@ struct DeckCardGridView: View {
 
 // MARK: - Mini Card Preview (Simple thumbnail)
 
+// MARK: - Mini Card Preview (With Mastery Badges)
+
 private struct MiniCardPreview: View {
     let card: CardModel
     var isSelected: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
-
     private var accent: Color { ThemeManager.shared.accentColor.color }
+
+    @State private var cachedImage: UIImage?
+    @State private var cachedText: String?
+    @State private var flags: ContentFlags = .init()
+
+    private struct ContentFlags {
+        var hasImages = false
+        var hasSketch = false
+        var didLoad = false
+    }
+
+    // 🧠 LOGICA DE MASTERY: Calculăm vizual starea cardului
+    private var cardStatus: (color: Color, icon: String, label: String) {
+        if card.reviewHistory.isEmpty {
+            return (.blue, "sparkles", "Nou")
+        }
+        // Dacă intervalul e 0, înseamnă că utilizatorul a greșit sau l-a uitat
+        if card.interval == 0 {
+            return (.red, "arrow.triangle.2.circlepath", "De repetat")
+        }
+        // Dacă intervalul este mare, înseamnă că e reținut pe termen lung
+        if card.interval >= 14 {
+            return (.teal, "checkmark.seal.fill", "Stăpânit")
+        }
+        return (.orange, "flame.fill", "În învățare")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-
-            // 🟢 NOU: Header-ul cardului (Număr + Indicator Unseen)
+            // Header (Status Badge)
             HStack {
                 Text("#\(card.cardNumber)")
                     .font(.caption2.weight(.bold))
@@ -159,12 +185,18 @@ private struct MiniCardPreview: View {
                     .padding(.vertical, 2)
                     .background(Color.secondary.opacity(0.15), in: Capsule())
 
-                if card.reviewHistory.isEmpty {
-                    Circle()
-                        .fill(Color.blue) // Culoarea indicatorului pentru "Unseen"
-                    .frame(width: 8, height: 8)
-                }
                 Spacer()
+
+                // NOU: Badge de Status Mastery
+                HStack(spacing: 3) {
+                    Image(systemName: cardStatus.icon)
+                    Text(cardStatus.label)
+                }
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(cardStatus.color)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(cardStatus.color.opacity(0.15), in: Capsule())
             }
 
             // Question preview
@@ -174,13 +206,10 @@ private struct MiniCardPreview: View {
 
             // Bottom info
             HStack(spacing: 6) {
-                if hasText {
-                    // Nu afisam o iconita pt text, lasam curat
-                }
-                if hasImages {
+                if flags.hasImages {
                     Image(systemName: "photo").font(.caption2)
                 }
-                if hasSketch {
+                if flags.hasSketch {
                     Image(systemName: "scribble.variable").font(.caption2)
                 }
                 Spacer()
@@ -189,23 +218,40 @@ private struct MiniCardPreview: View {
         }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: 140) // Putem mări un pic înălțimea pentru a acomoda noul header (de la 120 la 140)
-        .background(cardBackground)
+            .frame(height: 140)
+            .background(cardBackground)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(isSelected ? .gray : borderColor, lineWidth: isSelected ? 1 : 0.5)
         )
+        // NOU: O linie fină colorată în partea de sus a cardului pentru contrast rapid
+//        .overlay(alignment: .top) {
+//            Rectangle()
+//                .fill(cardStatus.color)
+//                .frame(height: 3)
+//                .opacity(0.8)
+//        }
+//            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .task(id: card.id) {
+            let zone = card.frontZone
+            cachedText = getFirstText(from: zone)
+            if let data = getFirstImage(from: zone) {
+                cachedImage = downsampledImage(data: data, maxDimension: 88)
+            }
+            flags = ContentFlags(
+                hasImages: getFirstImage(from: card.frontZone) != nil || getFirstImage(from: card.backZone) != nil,
+                hasSketch: getFirstSketch(in: card.frontZone) || getFirstSketch(in: card.backZone),
+                didLoad: true
+            )
+        }
     }
+
+    // ... restul codului din MiniCardPreview rămâne identic (questionPreview, cardBackground etc.)
 
     @ViewBuilder
     private var questionPreview: some View {
-        let zone = card.frontZone
-        let text = getFirstText(from: zone) ?? ""
-        let imageData = getFirstImage(from: zone)
-
-        if let data = imageData, let img = UIImage(data: data) {
-            // Show image thumbnail
+        if let img = cachedImage {
             HStack(spacing: 10) {
                 Image(uiImage: img)
                     .resizable()
@@ -213,34 +259,23 @@ private struct MiniCardPreview: View {
                     .frame(width: 44, height: 44)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
 
-                if !text.isEmpty {
+                if let text = cachedText, !text.isEmpty {
                     Text(text)
                         .font(.subheadline)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                 }
             }
-        } else if !text.isEmpty {
+        } else if let text = cachedText, !text.isEmpty {
             Text(text)
                 .font(.subheadline)
                 .lineLimit(3)
                 .multilineTextAlignment(.leading)
-        } else {
+        } else if flags.didLoad {
             Text("Empty card")
                 .font(.subheadline)
                 .foregroundStyle(.tertiary)
         }
-    }
-
-    private var hasText: Bool {
-        getFirstText(from: card.frontZone) != nil || getFirstText(from: card.backZone) != nil
-    }
-    private var hasImages: Bool {
-        getFirstImage(from: card.frontZone) != nil || getFirstImage(from: card.backZone) != nil
-    }
-
-    private var hasSketch: Bool {
-        getFirstSketch(in: card.frontZone) || getFirstSketch(in: card.backZone)
     }
 
     private var cardBackground: some ShapeStyle {
@@ -253,18 +288,29 @@ private struct MiniCardPreview: View {
         colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
     }
 
-    // MARK: - Helpers
+    // MARK: - Downsampled Image (memory efficient)
+
+    private func downsampledImage(data: Data, maxDimension: CGFloat) -> UIImage? {
+        let options: [CFString: Any] = [
+            kCGImageSourceShouldCache: false,
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxDimension * UIScreen.main.scale,
+            kCGImageSourceCreateThumbnailWithTransform: true
+        ]
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+            let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+            else { return UIImage(data: data) }
+        return UIImage(cgImage: cgImage)
+    }
+
+    // MARK: - Zone Helpers
 
     private func getFirstText(from zone: ZoneModel) -> String? {
         if zone.isLeaf {
-            if zone.contentType == .text && !zone.text.isEmpty {
-                return zone.text
-            }
+            if zone.contentType == .text && !zone.text.isEmpty { return zone.text }
         } else if let children = zone.children {
             for child in children {
-                if let text = getFirstText(from: child) {
-                    return text
-                }
+                if let text = getFirstText(from: child) { return text }
             }
         }
         return nil
@@ -277,9 +323,7 @@ private struct MiniCardPreview: View {
             }
         } else if let children = zone.children {
             for child in children {
-                if let data = getFirstImage(from: child) {
-                    return data
-                }
+                if let data = getFirstImage(from: child) { return data }
             }
         }
         return nil

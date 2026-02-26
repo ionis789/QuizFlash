@@ -28,6 +28,9 @@ actor SearchEngine {
                 let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
                 var matchedDeckCount = 0
 
+                let cap = await MainActor.run { SearchEngineConfig.previewCardCap }
+                let yieldDecks = await MainActor.run { SearchEngineConfig.yieldEveryNDecks }
+
                 for deck in payloads {
                     if Task.isCancelled { break }
 
@@ -56,7 +59,7 @@ actor SearchEngine {
 
                         // Store full card info up to the cap.
                         // Beyond the cap we only count — no string allocation.
-                        if previewCards.count < SearchEngineConfig.previewCardCap {
+                        if previewCards.count < cap {
                             let side: CardSideMatch
                             if matchesFront && matchesBack { side = .both }
                             else if matchesFront           { side = .front }
@@ -87,7 +90,7 @@ actor SearchEngine {
                     matchedDeckCount += 1
 
                     if matchedDeckCount == 1 ||
-                       matchedDeckCount % SearchEngineConfig.yieldEveryNDecks == 0 {
+                       matchedDeckCount % yieldDecks == 0 {
                         continuation.yield(Self.sorted(results))
                         await Task.yield()
                     }

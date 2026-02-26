@@ -63,9 +63,11 @@ struct MainAppView: View {
             }
                 .navigationDestination(for: DeckModel.self) { deck in
                 DeckView(deck: deck)
+                    .toolbar(.hidden, for: .navigationBar)
             }
                 .navigationDestination(for: DeckSearchRoute.self) { route in
                 DeckView(deck: route.deck, searchQuery: route.query)
+                    .toolbar(.hidden, for: .navigationBar)
             }
                 .navigationDestination(for: AppRoute.self) { route in
                 switch route {

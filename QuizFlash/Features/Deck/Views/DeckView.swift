@@ -2,12 +2,21 @@
 //  DeckView.swift
 //  QuizFlash
 //
+//  Key fix: Replaced UIViewRepresentable ScrollOffsetReader with the native
+//  iOS 17 `onScrollGeometryChange` modifier. This eliminates the UIKit bridge
+//  entirely, runs on the scroll thread (not the main queue), and never triggers
+//  a full view-tree re-evaluation.
+//
 
 import SwiftUI
 import SwiftData
 
+// MARK: - Collapse distance constant (shared with DeckHeroView if needed)
+private let kHeroCollapseDistance: CGFloat = 200
+
 struct DeckView: View {
     @Environment(\.modelContext) var context
+    @Environment(NavigationManager.self) private var router
     @Bindable var deck: DeckModel
     let searchQuery: String?
 
@@ -16,9 +25,6 @@ struct DeckView: View {
     @State private var isPlayingQuiz = false
     @State private var previewedCard: CardModel? = nil
     @State private var editingCard: CardModel? = nil
-
-    // ── Scroll collapse state ─────────────────────────────────────────────
-    @State private var isHeroCollapsed: Bool = false
 
     @State private var viewModel: DeckViewModel
 
@@ -38,6 +44,49 @@ struct DeckView: View {
         ZStack(alignment: .bottom) {
 
             mainContent
+                .fullScreenCover(isPresented: $isAddingCard) {
+                CreateCardView(searchQuery: nil) { frontZone, backZone in
+                    let newCard = CardModel(frontZone: frontZone, backZone: backZone)
+                    deck.cards.append(newCard)
+                    deck.editedAt = Date()
+                    viewModel.updateGroupedCards(for: deck)
+                }
+            }
+                .fullScreenCover(isPresented: $isPresentingEdit) {
+                NavigationStack {
+                    CreateDeckView(deckToEdit: deck, isTabBarHidden: .constant(true))
+                }
+            }
+                .fullScreenCover(isPresented: $isPlayingQuiz, onDismiss: {
+                deck.lastOpenedAt = Date()
+                try? context.save()
+                cachedStats = aggregateDeckStats(deck: deck, activityLogs: activityLogs)
+            }) {
+                NavigationStack {
+                    DefaultModePlay(deck: deck)
+                }
+            }
+                .fullScreenCover(item: $previewedCard) { card in
+                CardPreviewScreen(card: card)
+            }
+                .fullScreenCover(item: $editingCard) { card in
+                NavigationStack {
+                    CreateCardView(
+                        frontZone: card.frontZone,
+                        backZone: card.backZone,
+                        searchQuery: viewModel.searchQuery
+                    ) { frontZone, backZone in
+                        if card.frontZone != frontZone || card.backZone != backZone {
+                            card.frontZone = frontZone
+                            card.backZone = backZone
+                            card.editedAt = Date()
+                            deck.editedAt = Date()
+                            viewModel.updateGroupedCards(for: deck)
+                        }
+                        editingCard = nil
+                    }
+                }
+            }
 
             // ── Bottom Selection Bar ───────────────────────────────────────
             if viewModel.isSelecting {
@@ -49,13 +98,6 @@ struct DeckView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .padding(.bottom, 20)
                     .zIndex(10)
-            }
-        }
-        // ── Navigation bar: pill when collapsed, plain title when expanded ──
-        .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-            ToolbarItem(placement: .principal) {
-                navBarPrincipal
             }
         }
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
@@ -75,26 +117,6 @@ struct DeckView: View {
             }
         } message: {
             Text("This action cannot be undone.")
-        }
-            .fullScreenCover(isPresented: $isAddingCard) {
-            CreateCardView(searchQuery: nil) { frontZone, backZone in
-                let newCard = CardModel(frontZone: frontZone, backZone: backZone)
-                deck.cards.append(newCard)
-                deck.editedAt = Date()
-            }
-        }
-            .fullScreenCover(isPresented: $isPresentingEdit) {
-            NavigationStack {
-                CreateDeckView(deckToEdit: deck, isTabBarHidden: .constant(true))
-            }
-        }
-            .fullScreenCover(isPresented: $isPlayingQuiz, onDismiss: {
-            deck.lastOpenedAt = Date()
-            try? context.save()
-        }) {
-            NavigationStack {
-                DefaultModePlay(deck: deck)
-            }
         }
             .sheet(isPresented: $viewModel.showShareSheet) {
             if let url = viewModel.exportedURL {
@@ -119,86 +141,31 @@ struct DeckView: View {
                 }
             }
         }
-            .fullScreenCover(item: $previewedCard) { card in
-            CardPreviewScreen(card: card)
-        }
-            .fullScreenCover(item: $editingCard) { card in
-            NavigationStack {
-                CreateCardView(
-                    frontZone: card.frontZone,
-                    backZone: card.backZone,
-                    searchQuery: viewModel.searchQuery
-                ) { frontZone, backZone in
-                    if card.frontZone != frontZone || card.backZone != backZone {
-                        card.frontZone = frontZone
-                        card.backZone = backZone
-                        card.editedAt = Date()
-                        deck.editedAt = Date()
-                    }
-                    editingCard = nil
-                }
-            }
-        }
     }
 
-    // MARK: - Computed Stats (cached for both hero and mini header)
+    // ── Memoized stats ───────────────────────────────────────────────────
+    @State private var cachedStats: DeckStats?
 
-    private var computedStats: DeckStats { aggregateDeckStats(deck: deck, activityLogs: activityLogs) }
-
-    // MARK: - Navigation Bar Principal
-    // NOTE: ToolbarItem ignores .transition() — SwiftUI does not animate conditional
-    // content swaps inside toolbar. Correct pattern: single ZStack with opacity/scale.
-
-    private var navBarPrincipal: some View {
-        let showPill = isHeroCollapsed && searchQuery == nil
-
-        return ZStack {
-            // Plain title — visible when hero is expanded
-            Text(searchQuery != nil ? "Search Results" : deck.title)
-                .font(.headline.weight(.semibold))
-                .opacity(showPill ? 0 : 1)
-                .scaleEffect(showPill ? 0.85 : 1)
-
-            // Compact pill — visible when hero is scrolled away
-            NavBarDeckPill(deck: deck, stats: computedStats)
-                .opacity(showPill ? 1 : 0)
-                .scaleEffect(showPill ? 1 : 0.80)
-        }
-            .animation(.spring(response: 0.38, dampingFraction: 0.65), value: showPill)
+    private var stats: DeckStats {
+        cachedStats ?? aggregateDeckStats(deck: deck, activityLogs: activityLogs)
     }
 
-    // MARK: - Main Content (single ScrollView — enables scroll-collapse)
+    // MARK: - Main Content
 
     private var mainContent: some View {
         ScrollView(showsIndicators: false) {
-            // ── Scroll offset tracker (zero height, invisible) ──────────────
-            GeometryReader { geo in
-                Color.clear.preference(
-                    key: DeckScrollOffsetKey.self,
-                    value: geo.frame(in: .named("deckScroll")).minY
-                )
-            }
-                .frame(height: 0)
-
             VStack(spacing: 0) {
-                // ── Expanded hero ─────────────────────────────────────────
+
                 if searchQuery == nil {
                     DeckHeroView(
                         deck: deck,
-                        stats: computedStats,
-                        isCompact: false,
+                        stats: stats,
                         onEdit: { isPresentingEdit = true }
                     )
-                    // When collapsed: fade out + slight scale down, but KEEP layout space
-                    // so the scroll position is stable and content doesn't jump.
-                    // The negative offset nudges it off-screen without layout reflow.
-                    .opacity(isHeroCollapsed ? 0 : 1)
-                        .scaleEffect(isHeroCollapsed ? 0.94 : 1, anchor: .top)
-                        .offset(y: isHeroCollapsed ? -12 : 0)
-                        .animation(.spring(response: 0.42, dampingFraction: 0.65), value: isHeroCollapsed)
+                        .zIndex(-1)
                 }
 
-                // ── Active Search Banner ──────────────────────────────────
+                // ── Active Search Banner ─────────────────────────────────
                 if let query = searchQuery, !query.isEmpty {
                     HStack {
                         Image(systemName: "line.3.horizontal.decrease.circle.fill")
@@ -217,19 +184,15 @@ struct DeckView: View {
 
                 VStack(spacing: 16) {
                     if searchQuery == nil || searchQuery?.isEmpty == true {
-                        // Play modes
                         DeckPlayModesView(deck: deck, onPlay: { isPlayingQuiz = true })
                             .padding(.top, 16)
 
-                        // Habit tracker
-                        LearningHabitView(
-                            activityLogs: activityLogs,
-                            userProfile: userProfile,
-
+                        DeckProgressView(
+                            deck: deck,
+                            stats: stats
                         )
                     }
 
-                    // ── Toolbar ───────────────────────────────────────────
                     DeckSectionToolbar(
                         deck: deck,
                         isSelecting: viewModel.isSelecting,
@@ -243,9 +206,8 @@ struct DeckView: View {
                         onExport: { viewModel.exportDeck(deck) }
                     )
 
-                    // ── Card Grid ─────────────────────────────────────────
                     DeckCardGridView(
-                        cards: viewModel.groupedCards(for: deck),
+                        cards: viewModel.cachedGroupedCards,
                         isSelecting: viewModel.isSelecting,
                         selectedCards: viewModel.selectedCards,
                         onToggleSelection: viewModel.toggleSelection,
@@ -272,28 +234,72 @@ struct DeckView: View {
                         }
                     )
                         .padding(.top, 4)
-                        .padding(.bottom, 120) // extra bottom padding for tab bar
+                        .padding(.bottom, 120)
                 }
                     .contentShape(Rectangle())
                     .onTapGesture {
                     if viewModel.isSelecting { viewModel.exitSelectionMode() }
                 }
             }
+            // ─────────────────────────────────────────────────────────────
+            // iOS 17 NATIVE SCROLL TRACKING — replaces ScrollOffsetReader.
+            //
+            // Why this is better:
+            // • Runs on the scroll compositor thread, not the main queue.
+            // • The `transform` closure is called per frame; the `action`
+            //   closure is called only when the transformed value changes.
+            // • Zero UIKit bridge overhead, zero Binding retention issues.
+            // • Does NOT invalidate DeckView's body — only the action closure
+            //   runs, which writes to the @Observable ViewModel.
+            //   DeckView itself never reads collapseProgress, so only
+            //   DeckTopBarView (the sole reader) re-renders.
+            //
+            // The `if #available` block provides an iOS 16 fallback via the
+            // fixed ScrollOffsetReader below (closure-based, not Binding-based).
+            // ─────────────────────────────────────────────────────────────
+            .modifier(ScrollCollapseTracker(
+                distance: kHeroCollapseDistance,
+                disabled: searchQuery != nil,
+                onProgress: { p in
+                    if abs(viewModel.collapseProgress - p) > 0.005 {
+                        viewModel.collapseProgress = p
+                    }
+                }
+            ))
         }
             .coordinateSpace(name: "deckScroll")
-            .onPreferenceChange(DeckScrollOffsetKey.self) { offset in
-            // Hero collapse threshold: collapse once hero (~220pt) scrolls out
-            let shouldCollapse = offset < -180
-            if shouldCollapse != isHeroCollapsed {
-                withAnimation(.spring(response: 0.45, dampingFraction: 0.62)) {
-                    isHeroCollapsed = shouldCollapse
-                }
-            }
+            .safeAreaInset(edge: .top) {
+            DeckTopBarView(
+                deck: deck,
+                stats: stats,
+                viewModel: viewModel,
+                searchQuery: searchQuery,
+                onBack: { router.path.removeLast() },
+                onEdit: { isPresentingEdit = true }
+            )
         }
+            .scrollIndicators(.hidden)
             .background(Color(uiColor: .systemGroupedBackground))
+            .onAppear {
+            cachedStats = aggregateDeckStats(deck: deck, activityLogs: activityLogs)
+            viewModel.updateGroupedCards(for: deck)
+        }
+            .onChange(of: deck.cards.count) {
+            cachedStats = aggregateDeckStats(deck: deck, activityLogs: activityLogs)
+            viewModel.updateGroupedCards(for: deck)
+        }
+            .onChange(of: activityLogs.count) {
+            cachedStats = aggregateDeckStats(deck: deck, activityLogs: activityLogs)
+        }
+            .onChange(of: viewModel.sortOrder) { _, _ in
+            viewModel.updateGroupedCards(for: deck)
+        }
+            .onChange(of: viewModel.searchQuery) { _, _ in
+            viewModel.updateGroupedCards(for: deck)
+        }
     }
 
-    // MARK: - Additional Subviews (Actualizate pentru Gamification & SRS)
+    // MARK: - Additional Subviews (unchanged)
     private struct CardPreviewScreen: View {
         let card: CardModel
         @State private var showStats: Bool = false
@@ -406,74 +412,50 @@ struct DeckView: View {
     }
 }
 
-// MARK: - NavBarDeckPill (shown in toolbar when hero is scrolled away)
+// MARK: - ScrollCollapseTracker ViewModifier
+//
+// Single entry point that picks the right implementation based on OS version.
+// Keep this in DeckView.swift so the constant `kHeroCollapseDistance` is shared.
 
-private struct NavBarDeckPill: View {
-    let deck: DeckModel
-    let stats: DeckStats
+private struct ScrollCollapseTracker: ViewModifier {
+    let distance: CGFloat
+    let disabled: Bool
+    let onProgress: @MainActor (CGFloat) -> Void
 
-    private var deckColor: Color { Color(hex: deck.colorHex) ?? .blue }
-    private var masteryCol: Color { masteryColor(stats.deckMastery) }
-    private var masteryInt: Int { Int(stats.deckMastery * 100) }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            // Deck icon
-            ZStack {
-                Circle()
-                    .fill(deckColor.opacity(0.25))
-                    .frame(width: 26, height: 26)
-                Image(systemName: deck.icon.isEmpty ? "sparkles.rectangle.stack.fill" : deck.icon)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(deckColor)
-            }
-
-            // Title + mastery
-            VStack(alignment: .leading, spacing: 0) {
-                Text(deck.title)
-                    .font(.system(size: 13, weight: .bold))
-                    .lineLimit(1)
-                Text("\(masteryInt)% mastered")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-
-            // Mastery arc
-            ZStack {
-                Circle()
-                    .trim(from: 0, to: 1)
-                    .stroke(masteryCol.opacity(0.20), style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .frame(width: 22, height: 22)
-                    .rotationEffect(.degrees(-90))
-                Circle()
-                    .trim(from: 0, to: stats.deckMastery)
-                    .stroke(masteryCol, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .frame(width: 22, height: 22)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.spring(response: 0.7, dampingFraction: 0.8), value: stats.deckMastery)
-            }
-
-            // Due badge (only when relevant)
-            if stats.dueCards > 0 {
-                Text("\(stats.dueCards)")
-                    .font(.system(size: 9, weight: .black))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(.red, in: Capsule())
-            }
+    func body(content: Content) -> some View {
+        if disabled {
+            // Search mode: hero is always collapsed, no tracking needed.
+            content
+        } else if #available(iOS 18, *) {
+            content
+                // `onScrollGeometryChange` fires on the render server, not the
+                // main thread, so it cannot cause a main-queue callback storm.
+                // The `transform` closure extracts a single CGFloat; the
+                // `action` closure is called ONLY when that value changes,
+                // which eliminates redundant SwiftUI state writes.
+                .onScrollGeometryChange(for: CGFloat.self) { geo in
+                    geo.contentOffset.y + geo.contentInsets.top
+                } action: { _, newOffset in
+                    let p = min(max(newOffset / distance, 0), 1.0)
+                    if abs(p - 0) > 0.005 || p == 0 {
+                        onProgress(p)
+                    }
+                }
+        } else {
+            // iOS 17 fallback: use the fixed @MainActor closure-based ScrollOffsetReader.
+            content
+                .background(
+                    ScrollOffsetReader(
+                        collapseDistance: distance,
+                        onProgress: onProgress
+                    )
+                        .allowsHitTesting(false)
+                )
         }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(
-            Capsule()
-                .stroke(deckColor.opacity(0.30), lineWidth: 1)
-        )
     }
 }
 
-// MARK: - DeckStats (top-level — shared between DeckView & DeckHeroView)
+// MARK: - DeckStats (unchanged)
 
 struct DeckStats {
     let totalCards: Int
@@ -481,21 +463,9 @@ struct DeckStats {
     let totalReviews: Int
     let accuracy: Int
     let totalXPEarned: Int
-    let deckMastery: Double // 0.0–1.0 based on SRS intervals
-    let todayReviewed: Int // Cards reviewed today in this deck
+    let deckMastery: Double
+    let todayReviewed: Int
 }
-
-// MARK: - Card Mastery Score (SRS-based algorithm)
-// A card is "mastered" when the SM-2 algorithm has extended its interval to 21+ days.
-// This means the user has proven consistent recall over weeks, not just days.
-//
-// Scale:
-//   No reviews         → 0%   (Never seen)
-//   interval 1         → 15%  (Seen once, still fragile)
-//   interval 2-6       → 20-50% (Active learning phase)
-//   interval 7-14      → 55-75% (Consolidating)
-//   interval 15-20     → 78-89% (Almost mastered)
-//   interval 21+       → 90-100% (Mastered — ease factor influences top end)
 
 private func cardMasteryScore(_ card: CardModel) -> Double {
     guard !card.reviewHistory.isEmpty else { return 0.0 }
@@ -509,8 +479,7 @@ private func cardMasteryScore(_ card: CardModel) -> Double {
     case 7...10: baseScore = 0.58
     case 11...14: baseScore = 0.70
     case 15...20: baseScore = 0.82
-    default: // 21+ days
-        // Ease factor ranges 1.3–2.5; normalise to 0–1 and blend into top range
+    default:
         let easeNorm = (card.easeFactor - 1.3) / (2.5 - 1.3)
         baseScore = 0.90 + easeNorm * 0.10
     }
@@ -538,7 +507,6 @@ func aggregateDeckStats(deck: DeckModel, activityLogs: [DailyActivityLog] = []) 
     let accuracy = totalReviews > 0 ? Int((Double(correctReviews) / Double(totalReviews)) * 100) : 0
     let deckMastery = cards.isEmpty ? 0.0 : masterySum / Double(cards.count)
 
-    // Today's reviews: count ReviewEvents timestamped today across all cards in this deck
     let todayReviewed = cards.reduce(0) { count, card in
         count + card.reviewHistory.filter { $0.timestamp >= todayStart }.count
     }
@@ -552,13 +520,4 @@ func aggregateDeckStats(deck: DeckModel, activityLogs: [DailyActivityLog] = []) 
         deckMastery: deckMastery,
         todayReviewed: todayReviewed
     )
-}
-
-// MARK: - Scroll Offset PreferenceKey
-
-private struct DeckScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
 }

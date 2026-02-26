@@ -54,7 +54,7 @@ struct LearningHabitView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 10) {
             sectionHeader
             mainCard
         }
@@ -72,11 +72,11 @@ struct LearningHabitView: View {
 
             if streak > 0 {
                 Label("\(streak) day streak", systemImage: "flame.fill")
-                    .font(.caption.weight(.semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(streakColor)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(streakColor.opacity(0.15), in: Capsule())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(streakColor.opacity(0.12), in: Capsule())
             }
         }
         .padding(.horizontal, 20)
@@ -94,20 +94,23 @@ struct LearningHabitView: View {
     // MARK: - Main Card
 
     private var mainCard: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
 
             // ── XP / Level row ──────────────────────────────────────────────
             xpLevelSection
 
-            Divider()
+            // ── Subtle divider ──────────────────────────────────────────────
+            Rectangle()
+                .fill(Color.secondary.opacity(0.10))
+                .frame(height: 0.5)
 
             // ── 28-day heatmap ──────────────────────────────────────────────
             heatmapSection
 
         }
-        .padding(18)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
         )
         .padding(.horizontal, 20)
@@ -116,109 +119,88 @@ struct LearningHabitView: View {
     // MARK: - XP Level Section
 
     private var xpLevelSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             HStack(alignment: .center) {
                 // Level badge
                 HStack(spacing: 6) {
                     ZStack {
                         Circle()
-                            .fill(accentColor.opacity(0.20))
-                            .frame(width: 36, height: 36)
+                            .fill(accentColor.opacity(0.15))
+                            .frame(width: 32, height: 32)
                         Text("\(level)")
-                            .font(.system(size: 14, weight: .black))
+                            .font(.system(size: 13, weight: .black))
                             .foregroundStyle(accentColor)
                     }
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Level \(level)")
-                            .font(.subheadline.weight(.bold))
-                        Text("\(xpToNextLevel) XP to next level")
+                            .font(.subheadline.weight(.semibold))
+                        Text("\(xpToNextLevel) XP to next")
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.tertiary)
                     }
                 }
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 1) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "star.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.yellow)
-                        Text("\(totalXP) XP")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(accentColor)
-                    }
-                    Text("total earned")
+                HStack(spacing: 3) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.yellow.opacity(0.8))
+                    Text("\(totalXP)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(accentColor.opacity(0.85))
+                    Text("XP")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                 }
             }
 
-            // Progress bar
+            // Progress bar — thinner, subtler
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(Color.secondary.opacity(0.13))
-                        .frame(height: 9)
+                        .fill(Color.secondary.opacity(0.10))
+                        .frame(height: 5)
 
                     Capsule()
                         .fill(
                             LinearGradient(
-                                colors: [accentColor.opacity(0.75), accentColor, accentColor.opacity(0.85)],
+                                colors: [accentColor.opacity(0.65), accentColor.opacity(0.85)],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
                         )
                         .frame(
-                            width: max(9, geo.size.width * xpProgress),
-                            height: 9
+                            width: max(5, geo.size.width * xpProgress),
+                            height: 5
                         )
-                        .animation(.spring(response: 0.7, dampingFraction: 0.75), value: xpProgress)
-
-                    // Glint on the progress bar
-                    Capsule()
-                        .fill(.white.opacity(0.25))
-                        .frame(width: max(9, geo.size.width * xpProgress) * 0.5, height: 3)
-                        .offset(y: -1)
                         .animation(.spring(response: 0.7, dampingFraction: 0.75), value: xpProgress)
                 }
             }
-            .frame(height: 9)
+            .frame(height: 5)
         }
     }
 
     // MARK: - Heatmap Section
 
     private var heatmapSection: some View {
-        VStack(spacing: 10) {
-            // Heatmap title row
+        VStack(spacing: 8) {
+            // Title row
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("28-Day Activity")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text("\(totalRecentCards) cards reviewed")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
+                Text("28-Day Activity")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
                 Spacer()
-                // Day-of-week labels aligned to right
-                HStack(spacing: 5) {
-                    ForEach(["M", "W", "F", "S"], id: \.self) { d in
-                        Text(d)
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(.tertiary)
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .frame(width: 120) // approximate heatmap width
+                Text("\(totalRecentCards) reviewed")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
 
-            // 4 rows × 7 columns
+            // 4 rows × 7 columns — smaller, more airy
             let weeks = last28Days.chunks(of: 7)
-            VStack(spacing: 5) {
+            VStack(spacing: 4) {
                 ForEach(Array(weeks.enumerated()), id: \.offset) { _, week in
-                    HStack(spacing: 5) {
+                    HStack(spacing: 4) {
                         ForEach(Array(week.enumerated()), id: \.offset) { _, cell in
                             HeatmapSquare(cell: cell, maxCards: maxCards, accentColor: accentColor)
                         }
@@ -227,23 +209,23 @@ struct LearningHabitView: View {
             }
             .frame(maxWidth: .infinity)
 
-            // Legend
-            HStack(spacing: 5) {
+            // Legend — minimal
+            HStack(spacing: 4) {
                 Text("Less")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 8))
+                    .foregroundStyle(.quaternary)
                 ForEach([0.0, 0.25, 0.5, 0.75, 1.0], id: \.self) { i in
-                    RoundedRectangle(cornerRadius: 3)
+                    RoundedRectangle(cornerRadius: 2)
                         .fill(
                             i == 0
-                            ? AnyShapeStyle(Color.secondary.opacity(0.15))
-                            : AnyShapeStyle(accentColor.opacity(0.18 + i * 0.82))
+                            ? AnyShapeStyle(Color.secondary.opacity(0.10))
+                            : AnyShapeStyle(accentColor.opacity(0.15 + i * 0.70))
                         )
-                        .frame(width: 11, height: 11)
+                        .frame(width: 9, height: 9)
                 }
                 Text("More")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 8))
+                    .foregroundStyle(.quaternary)
                 Spacer()
             }
         }
@@ -264,24 +246,24 @@ private struct HeatmapSquare: View {
 
     private var fillColor: AnyShapeStyle {
         if cell.cardsReviewed == 0 {
-            return AnyShapeStyle(Color.secondary.opacity(0.14))
+            return AnyShapeStyle(Color.secondary.opacity(0.08))
         }
-        return AnyShapeStyle(accentColor.opacity(0.18 + intensity * 0.82))
+        return AnyShapeStyle(accentColor.opacity(0.15 + intensity * 0.70))
     }
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 4, style: .continuous)
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
             .fill(fillColor)
             .aspectRatio(1, contentMode: .fit)
             .overlay {
                 if cell.isToday {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .stroke(accentColor, lineWidth: 1.5)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .stroke(accentColor.opacity(0.6), lineWidth: 1)
                 }
                 if cell.isPerfectDay {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 5, weight: .black))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .font(.system(size: 5, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.5))
                 }
             }
     }

@@ -84,15 +84,15 @@ struct DeckPlayModesView: View {
     private var isEmpty: Bool { deck.cards.isEmpty }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("PLAY MODES")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 20)
 
             LazyVGrid(
-                columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
-                spacing: 12
+                columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                spacing: 10
             ) {
                 PlayModeCard(
                     title: "Default",
@@ -142,14 +142,14 @@ private struct PlayModeCard: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(color.opacity(isAvailable ? 0.20 : 0.08))
-                        .frame(width: 38, height: 38)
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(color.opacity(isAvailable ? 0.15 : 0.06))
+                        .frame(width: 34, height: 34)
                     Image(systemName: systemImage)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(isAvailable ? color : color.opacity(0.35))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(isAvailable ? color : color.opacity(0.30))
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
@@ -157,23 +157,23 @@ private struct PlayModeCard: View {
                         .foregroundStyle(isAvailable ? .primary : .tertiary)
                     Text(subtitle)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                 }
                 Spacer(minLength: 0)
             }
-            .padding(12)
+            .padding(10)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(Color(uiColor: .secondarySystemGroupedBackground))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isAvailable ? color.opacity(0.22) : Color.clear, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isAvailable ? color.opacity(0.12) : Color.clear, lineWidth: 0.5)
             )
         }
         .buttonStyle(.plain)
         .disabled(!isAvailable)
-        .opacity(isAvailable ? 1.0 : 0.52)
+        .opacity(isAvailable ? 1.0 : 0.45)
     }
 }
 

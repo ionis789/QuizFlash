@@ -34,7 +34,7 @@ private enum RangeFinder {
 
     /// Finds all occurrence ranges of every token in `text`.
     /// Returns an array of offsets that can be safely sent across actor boundaries.
-    static func findMatches(in text: String, tokens: [String]) -> [TokenMatch] {
+    nonisolated static func findMatches(in text: String, tokens: [String]) -> [TokenMatch] {
         let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
         var matches: [TokenMatch] = []
 

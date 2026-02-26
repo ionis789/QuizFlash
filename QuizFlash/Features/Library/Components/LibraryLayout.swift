@@ -231,9 +231,9 @@ struct LibraryLayout: View {
         let sortOrder = viewModel.sortOrder
 
         groupingTask = Task {
-            let sections = await Task.detached(priority: .userInitiated) {
+            let sections = await MainActor.run {
                 LibraryGrouping.sections(decks: snapshot, sortOrder: sortOrder)
-            }.value
+            }
 
             guard !Task.isCancelled else { return }
 

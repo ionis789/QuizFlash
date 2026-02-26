@@ -58,7 +58,7 @@ struct AILoadingOverlay: View {
                     Image(systemName: iconForState)
                         .font(.system(size: 32, weight: .bold))
                         .foregroundStyle(.white)
-                        .symbolEffect(.bounce, options: .repeating, isActive: state != .error(""))
+                        .symbolEffect(.bounce, value: isPulsing)
                 }
 
                 // Text & Progress

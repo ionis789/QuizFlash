@@ -210,7 +210,7 @@ public final class AIFlashcardService {
     // MARK: - Message Builders
     // -------------------------------------------------------------------------
 
-    private func buildTextMessages(
+    nonisolated private func buildTextMessages(
         text: String,
         targetCards: Int,
         needsOCRCorrection: Bool
@@ -221,7 +221,7 @@ public final class AIFlashcardService {
         ]
     }
 
-    private func buildVisionMessages(images: [UIImage], targetCards: Int) -> [[String: Any]] {
+    nonisolated private func buildVisionMessages(images: [UIImage], targetCards: Int) -> [[String: Any]] {
         var userContent: [[String: Any]] = [
             ["type": "text", "text": "Analyze all pages carefully and generate flashcards based on their content."]
         ]
@@ -253,7 +253,7 @@ public final class AIFlashcardService {
     //
     // =========================================================================
 
-    private func systemPrompt(targetCards: Int, isOCR: Bool) -> String {
+    nonisolated private func systemPrompt(targetCards: Int, isOCR: Bool) -> String {
         var prompt = #"""
         You are a rigorous University Professor AI specialized in generating elite, in-depth "Active Recall" flashcards.
         Your absolute priority is TECHNICAL DEPTH, ACCURACY, and HIGH READABILITY.

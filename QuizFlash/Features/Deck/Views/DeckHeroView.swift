@@ -1,185 +1,118 @@
-//
-//  DeckHeroView.swift
-//  QuizFlash
-//
-//  Premium glassmorphic hero — expanded + compact sticky mode
-//
-
 import SwiftUI
 
-// MARK: - DeckHeroView
+// MARK: - DeckHeroView (Minimal Fitness Rings)
+
+
 
 struct DeckHeroView: View {
     let deck: DeckModel
     let stats: DeckStats
-    let isCompact: Bool
     var onEdit: () -> Void
 
-    private var deckColor: Color {
-        Color(hex: deck.colorHex) ?? .blue
+    private var deckColor: Color { Color(hex: deck.colorHex) ?? .blue }
+
+    // MARK: - Stări pentru Animații
+    @State private var animatedMastery: Double = 0
+    @State private var isGlowing: Bool = false
+
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: deck.createdAt)
     }
 
     var body: some View {
-        if isCompact {
-            compactHeader
-        } else {
-            expandedHero
-        }
-    }
-
-    // MARK: - Expanded Hero
-
-    private var expandedHero: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [deckColor.opacity(0.55), deckColor.opacity(0.25), Color.black.opacity(0.55)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-
-            CustomBlurView(effect: .systemUltraThinMaterialDark) { _ in }
-                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                .opacity(0.65)
-
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [deckColor.opacity(0.30), deckColor.opacity(0.08), .clear],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [.white.opacity(0.45), .white.opacity(0.10), deckColor.opacity(0.25), deckColor.opacity(0.50)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 14) {
-                    DeckIconBadge(icon: deck.icon, color: deckColor, size: 54)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(deck.title)
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                        Text(formattedDate)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.55))
-                    }
-
-                    Spacer()
-
-                    Button(action: onEdit) {
-                        Image(systemName: "pencil")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .padding(10)
-                            .background(.white.opacity(0.14), in: Circle())
-                            .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 1))
-                    }
-                }
-
-                Rectangle()
-                    .fill(.white.opacity(0.12))
-                    .frame(height: 1)
-
-                HStack(spacing: 0) {
-                    HeroStatCell(icon: "rectangle.stack.fill", value: "\(stats.totalCards)", label: "Cards", tint: .white.opacity(0.9))
-                    HeroStatCell(
-                        icon: "exclamationmark.circle.fill",
-                        value: "\(stats.dueCards)",
-                        label: "Due Now",
-                        tint: stats.dueCards > 0 ? .red : .white.opacity(0.35)
-                    )
-                    HeroMasteryCell(mastery: stats.deckMastery)
-                    HeroStatCell(
-                        icon: "flame.fill",
-                        value: "\(stats.todayReviewed)",
-                        label: "Today",
-                        tint: stats.todayReviewed > 0 ? .orange : .white.opacity(0.35)
-                    )
-                }
+        HStack(alignment: .center, spacing: 16) {
+            
+            // ── STÂNGA: Titlu și Detalii ──────────────────────────────
+            VStack(alignment: .leading, spacing: 8) {
+                Text(deck.title)
+                    .font(.system(size: 38, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                
+                Text("\(formattedDate)  •  \(stats.totalCards) carduri")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
             }
-            .padding(22)
+            
+            Spacer(minLength: 0)
+            
+            // ── DREAPTA: Ring-ul de Mastery Animat ────────────────────
+            ZStack {
+                // 1. Fundalul inelului
+                Circle()
+                    .stroke(deckColor.opacity(0.15), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .frame(width: 68, height: 68)
+                
+                // 2. Progresul colorat (folosind starea animată)
+                Circle()
+                    .trim(from: 0, to: animatedMastery)
+                    .stroke(masteryColor(stats.deckMastery), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .frame(width: 68, height: 68)
+                    .rotationEffect(.degrees(-90))
+                    // EFECTUL DE GLOW: Se activează doar când isGlowing e True
+                    .shadow(color: isGlowing ? masteryColor(stats.deckMastery).opacity(0.8) : .clear, radius: isGlowing ? 15 : 0)
+                
+                // 3. Procentajul în centru (se actualizează live odată cu linia)
+                Text("\(Int(animatedMastery * 100))%")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+            }
         }
-        .shadow(color: deckColor.opacity(0.45), radius: 22, x: 0, y: 10)
-        .shadow(color: .black.opacity(0.30), radius: 8, x: 0, y: 4)
+        // ── Efectul de Scroll Liber ───────────────────────────────────
+        .visualEffect { content, proxy in
+            let minY = proxy.frame(in: .named("deckScroll")).minY
+            let scrollDistance = max(-minY, 0)
+            
+            // Tot blocul se dilată și se blurează în sus
+            let p = min(scrollDistance / 150.0, 1.0)
+            
+            return content
+                .scaleEffect(1.0 + (p * 0.15), anchor: .bottomLeading)
+                .blur(radius: p * 8)
+                .opacity(1.0 - p)
+        }
         .padding(.horizontal, 20)
         .padding(.top, 16)
-    }
-
-    // MARK: - Compact Sticky Header
-
-    private var compactHeader: some View {
-        HStack(spacing: 12) {
-            DeckIconBadge(icon: deck.icon, color: deckColor, size: 34)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(deck.title)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                Text("\(Int(stats.deckMastery * 100))% mastered")
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.55))
+        .padding(.bottom, 24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        
+        // ── 1. ANIMAȚIA LA DESCHIDEREA DECK-ULUI ──────────────────────
+        .onAppear {
+            // Un delay scurt (0.15s) ca animația să înceapă după tranziția ecranului
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.8).delay(0.15)) {
+                animatedMastery = stats.deckMastery
             }
-
-            Spacer()
-
-            if stats.dueCards > 0 {
-                HStack(spacing: 4) {
-                    Circle().fill(.red).frame(width: 6, height: 6)
-                    Text("\(stats.dueCards) due")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.red)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.red.opacity(0.15), in: Capsule())
-            }
-
-            CompactMasteryArc(mastery: stats.deckMastery, color: masteryColor(stats.deckMastery))
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(
-            ZStack {
-                CustomBlurView(effect: .systemUltraThinMaterialDark) { _ in }
-                deckColor.opacity(0.20)
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(
-                        LinearGradient(
-                            colors: [.white.opacity(0.25), deckColor.opacity(0.30)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
+        
+        // ── 2. ANIMAȚIA ȘI GLOW-UL LA SCHIMBAREA DATELOR (După Quiz) ──
+        .onChange(of: stats.deckMastery) { oldValue, newValue in
+            // Verificăm dacă valoarea chiar s-a schimbat
+            if abs(newValue - oldValue) > 0.001 {
+                
+                // Animăm noua umplere a ringului
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
+                    animatedMastery = newValue
+                }
+                
+                // Aprindem Glow-ul imediat
+                withAnimation(.easeIn(duration: 0.2)) {
+                    isGlowing = true
+                }
+                
+                // Stingem Glow-ul lent, după 1.2 secunde
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    withAnimation(.easeInOut(duration: 0.8)) {
+                        isGlowing = false
+                    }
+                }
             }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: deckColor.opacity(0.35), radius: 12, x: 0, y: 4)
-        .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 2)
-        .padding(.horizontal, 16)
-    }
-
-    private var formattedDate: String {
-        let f = DateFormatter(); f.dateStyle = .medium
-        return "Created \(f.string(from: deck.createdAt))"
+        }
     }
 }
 
-// MARK: - Mastery colour (shared across components)
+// MARK: - Mastery Color Helper
 
 func masteryColor(_ mastery: Double) -> Color {
     switch mastery {
@@ -191,7 +124,76 @@ func masteryColor(_ mastery: Double) -> Color {
     }
 }
 
-// MARK: - Deck Icon Badge (shared)
+
+// MARK: - Fitness Rings (Concentric — Apple style)
+
+private struct FitnessRingsView: View {
+    let mastery: Double
+    let accuracy: Double
+    let todayProgress: Double
+
+    @State private var animateRings = false
+
+    var body: some View {
+        ZStack {
+            // Outer — Mastery
+            ringPair(progress: mastery, color: masteryColor(mastery), padding: 0)
+            // Middle — Accuracy
+            ringPair(progress: accuracy, color: .cyan, padding: 14)
+            // Inner — Today
+            ringPair(progress: todayProgress, color: .orange, padding: 28)
+        }
+            .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                withAnimation(.interactiveSpring(response: 1, dampingFraction: 1, blendDuration: 1)) {
+                    animateRings = true
+                }
+            }
+        }
+    }
+
+    private func ringPair(progress: Double, color: Color, padding: CGFloat) -> some View {
+        ZStack {
+            Circle()
+                .stroke(color.opacity(0.12), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .padding(padding)
+            Circle()
+                .trim(from: 0, to: animateRings ? progress : 0)
+                .stroke(color, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .padding(padding)
+                .rotationEffect(.degrees(-90))
+        }
+    }
+}
+
+// MARK: - Ring Label
+
+private struct RingLabel: View {
+    let icon: String
+    let color: Color
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(value)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                Text(title)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+        }
+    }
+}
+
+
+// MARK: - Deck Icon Badge
 
 struct DeckIconBadge: View {
     let icon: String
@@ -200,102 +202,32 @@ struct DeckIconBadge: View {
 
     var body: some View {
         ZStack {
-            Circle().fill(color.opacity(0.28)).frame(width: size, height: size)
-            Circle().stroke(color.opacity(0.50), lineWidth: 1).frame(width: size, height: size)
+            Circle().fill(color.opacity(0.20)).frame(width: size, height: size)
+            Circle().stroke(color.opacity(0.30), lineWidth: 0.5).frame(width: size, height: size)
             Image(systemName: icon.isEmpty ? "sparkles.rectangle.stack.fill" : icon)
-                .font(.system(size: size * 0.40, weight: .bold))
+                .font(.system(size: size * 0.38, weight: .bold))
                 .foregroundStyle(.white)
         }
     }
 }
 
-// MARK: - Hero Stat Cell
+// MARK: - Compact Mastery Arc
 
-private struct HeroStatCell: View {
-    let icon: String
-    let value: String
-    let label: String
-    let tint: Color
-
-    var body: some View {
-        VStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(tint)
-            Text(value)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(.white)
-            Text(label)
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(.white.opacity(0.50))
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - Hero Mastery Cell (arc ring inside stat row)
-
-private struct HeroMasteryCell: View {
-    let mastery: Double
-
-    private var masteryInt: Int { Int(mastery * 100) }
-    private var color: Color { masteryColor(mastery) }
-
-    var body: some View {
-        VStack(spacing: 5) {
-            ZStack {
-                Circle()
-                    .trim(from: 0, to: 1)
-                    .stroke(.white.opacity(0.12), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .frame(width: 32, height: 32)
-                    .rotationEffect(.degrees(-90))
-
-                Circle()
-                    .trim(from: 0, to: mastery)
-                    .stroke(
-                        LinearGradient(colors: [color.opacity(0.7), color], startPoint: .leading, endPoint: .trailing),
-                        style: StrokeStyle(lineWidth: 3, lineCap: .round)
-                    )
-                    .frame(width: 32, height: 32)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.spring(response: 0.8, dampingFraction: 0.75), value: mastery)
-
-                Text("\(masteryInt)")
-                    .font(.system(size: 9, weight: .black))
-                    .foregroundStyle(color)
-            }
-
-            Text("\(masteryInt)%")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(.white)
-            Text("Mastery")
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(.white.opacity(0.50))
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - Compact Mastery Arc (mini header)
-
-private struct CompactMasteryArc: View {
+struct CompactMasteryArc: View {
     let mastery: Double
     let color: Color
 
     var body: some View {
         ZStack {
             Circle()
-                .trim(from: 0, to: 1)
                 .stroke(.white.opacity(0.15), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 .frame(width: 28, height: 28)
                 .rotationEffect(.degrees(-90))
-
             Circle()
                 .trim(from: 0, to: mastery)
                 .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 .frame(width: 28, height: 28)
                 .rotationEffect(.degrees(-90))
-
             Text("\(Int(mastery * 100))")
                 .font(.system(size: 8, weight: .black))
                 .foregroundStyle(color)

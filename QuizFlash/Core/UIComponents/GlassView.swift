@@ -34,10 +34,10 @@ struct GlassView: View {
             Toggle("Activate Glass Morphism", isOn: $activateGlassMorphism)
                 .font(.title3)
                 .fontWeight(.semibold)
-                .onChange(of: activateGlassMorphism) { newValue in
+                .onChange(of: activateGlassMorphism) { _, newValue in
                     // Changing Blur Radius And Saturation
-                    blurView.gaussianBlurRadius = (activateGlassMorphism ? 10 : defaultBlurRadius)
-                    blurView.saturationAmount = (activateGlassMorphism ? 1.8 : defaultSaturationAmount)
+                    blurView.gaussianBlurRadius = (newValue ? 10 : defaultBlurRadius)
+                    blurView.saturationAmount = (newValue ? 1.8 : defaultSaturationAmount)
                 }
                 .frame(maxHeight: .infinity,alignment: .bottom)
                 .padding(15)
