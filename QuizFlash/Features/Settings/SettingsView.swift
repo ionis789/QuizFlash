@@ -8,30 +8,35 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - Settings View
 struct SettingsView: View {
+    // MARK: - Environment & State
     @Environment(AuthManager.self) var authManager
+    /// Enables view dismissal triggered purely by the custom edge swipe gesture.
+    @Environment(\.dismiss) private var dismiss
+    
     @State private var themeManager = ThemeManager.shared
     @Query private var decks: [DeckModel]
 
     var body: some View {
+        // We render the List directly as the root view for a completely clean layout.
         List {
-
             Section {
                 HStack(spacing: 14) {
                     Circle()
                         .fill(
-                        LinearGradient(
-                            colors: [themeManager.accentColor.color.opacity(0.7), themeManager.accentColor.color.opacity(0.3)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                            LinearGradient(
+                                colors: [themeManager.accentColor.color.opacity(0.7), themeManager.accentColor.color.opacity(0.3)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
                         .frame(width: 56, height: 56)
                         .overlay(
-                        Text("IS")
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(.white)
-                    )
+                            Text("IS")
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(.white)
+                        )
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Ion Socol")
@@ -43,7 +48,7 @@ struct SettingsView: View {
 
                     Spacer()
                 }
-                    .padding(.vertical, 4)
+                .padding(.vertical, 4)
             }
 
             Section {
@@ -73,6 +78,8 @@ struct SettingsView: View {
             Section {
                 NavigationLink {
                     Text("Notifications")
+                    // If these child views also need to be entirely clean,
+                    // they will need the same .toolbar(.hidden) and .swipeBack setup.
                 } label: {
                     Label("Notifications", systemImage: "bell.fill")
                 }
@@ -115,17 +122,23 @@ struct SettingsView: View {
                 }
             }
         }
-            .navigationTitle("Settings")
         .listStyle(.insetGrouped)
-            .safeAreaInset(edge: .bottom) {
+        .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: 90)
+        }
+        // Force hide the native navigation bar to keep the screen entirely clean
+        .toolbar(.hidden, for: .navigationBar)
+        // Bind the custom fluid gesture directly to the view's dismiss action
+        .swipeBack {
+            dismiss()
         }
     }
 }
 
-
 // MARK: - Accent Color Picker View
 struct AccentColorPickerView: View {
+    // MARK: - Environment & State
+    @Environment(\.dismiss) private var dismiss
     @State private var themeManager = ThemeManager.shared
 
     private let columns = [
@@ -147,12 +160,12 @@ struct AccentColorPickerView: View {
                         ZStack {
                             Circle()
                                 .fill(
-                                LinearGradient(
-                                    colors: [themeManager.accentColor.color.opacity(0.7), themeManager.accentColor.color.opacity(0.3)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                                    LinearGradient(
+                                        colors: [themeManager.accentColor.color.opacity(0.7), themeManager.accentColor.color.opacity(0.3)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 )
-                            )
                                 .frame(width: 48, height: 48)
 
                             Image(systemName: "book.closed.fill")
@@ -174,11 +187,11 @@ struct AccentColorPickerView: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.tertiary)
                     }
-                        .padding(14)
-                        .background(Color(uiColor: .secondarySystemGroupedBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .padding(14)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                    .padding(.horizontal, 20)
+                .padding(.horizontal, 20)
 
                 // Color grid
                 VStack(alignment: .leading, spacing: 12) {
@@ -215,14 +228,18 @@ struct AccentColorPickerView: View {
                             }
                         }
                     }
-                        .padding(.horizontal, 20)
+                    .padding(.horizontal, 20)
                 }
             }
-                .padding(.top, 20)
+            .padding(.top, 20)
         }
-            .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle("Accent Color")
-            .navigationBarTitleDisplayMode(.inline)
+        .background(Color(uiColor: .systemGroupedBackground))
+        // Keep the UI fully immersive by hiding the navigation bar
+        .toolbar(.hidden, for: .navigationBar)
+        // Only allow dismissing via the custom swipe back modifier
+        .swipeBack {
+            dismiss()
+        }
     }
 }
 

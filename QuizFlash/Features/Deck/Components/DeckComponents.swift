@@ -16,6 +16,11 @@ struct DeckHeaderView: View {
         Color(hex: deck.colorHex) ?? .blue
     }
 
+    private var accent: Color {
+        ThemeManager.shared.accentColor.color
+    }
+
+
     private var formattedDate: String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -49,7 +54,7 @@ struct DeckHeaderView: View {
                         .lineLimit(1)
 
                     HStack(spacing: 8) {
-                        Label("\(deck.cards.count)", systemImage: "rectangle.stack")
+                        Label("\(deck.cardCount)", systemImage: "rectangle.stack")
                         Text("•")
                         Text(formattedDate)
                     }
@@ -81,7 +86,7 @@ struct DeckPlayModesView: View {
     var onPlay: () -> Void
 
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
-    private var isEmpty: Bool { deck.cards.isEmpty }
+    private var isEmpty: Bool { deck.cardCount == 0 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -127,7 +132,7 @@ struct DeckPlayModesView: View {
                     action: { }
                 )
             }
-            .padding(.horizontal, 20)
+                .padding(.horizontal, 20)
         }
     }
 }
@@ -161,19 +166,19 @@ private struct PlayModeCard: View {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(10)
-            .background(
+                .padding(10)
+                .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(Color(uiColor: .secondarySystemGroupedBackground))
             )
-            .overlay(
+                .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(isAvailable ? color.opacity(0.12) : Color.clear, lineWidth: 0.5)
             )
         }
-        .buttonStyle(.plain)
-        .disabled(!isAvailable)
-        .opacity(isAvailable ? 1.0 : 0.45)
+            .buttonStyle(.plain)
+            .disabled(!isAvailable)
+            .opacity(isAvailable ? 1.0 : 0.45)
     }
 }
 
@@ -181,76 +186,59 @@ struct DeckSectionToolbar: View {
     let deck: DeckModel
     let isSelecting: Bool
     @Binding var sortOrder: SortOrder
+    @Binding var isMenuExpanded: Bool
+    @Binding var menuPosition: CGRect // The final @State to actually render
+    let menuTracker: MenuPositionTracker // The silent tracker
 
     var onAdd: () -> Void
     var onStartSelection: () -> Void
     var onExport: (() -> Void)? = nil
 
-    private var accentColor: Color { ThemeManager.shared.accentColor.color }
+    private var accent: Color {
+        ThemeManager.shared.accentColor.color
+    }
 
     var body: some View {
         HStack(spacing: 12) {
-            Text("CARDS(\(deck.cards.count))")
+            Text("CARDS(\(deck.cardCount))")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.secondary)
 
             Spacer()
 
-
-
-
             Button(action: onAdd) {
-                Image(systemName: "plus")
-                    .font(.title3.weight(.bold))
-                    .padding(10)
-                    .background(.ultraThinMaterial, in: Circle())
-            }
-                .disabled(isSelecting)
-
-
-            if !deck.cards.isEmpty {
-
-                Menu {
-
-                    Button(action: onStartSelection) {
-                        Label("Select Cards", systemImage: "checkmark.circle")
-                    }
-                        .disabled(isSelecting)
-
-                    // Export deck option
-                    if let onExport = onExport {
-                        Button(action: onExport) {
-                            Label("Export Deck", systemImage: "square.and.arrow.up")
-                        }
-                    }
-
-
-                    Menu {
-                        ForEach(SortOrder.allCases, id: \.self) { order in
-                            Button {
-                                withAnimation(.spring(response: 0.3)) {
-                                    sortOrder = order
-                                }
-                            } label: {
-                                if sortOrder == order {
-                                    Label(order.rawValue, systemImage: "checkmark")
-                                } else {
-                                    Label(order.rawValue, systemImage: order.icon)
-                                }
-                            }
-                        }
-                    } label: {
-                        Label("Sort By", systemImage: "arrow.up.arrow.down")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.title3.weight(.semibold))
-                        .padding(10)
-                        .background(.ultraThinMaterial, in: Circle())
-                        .foregroundStyle(accentColor)
+                ZStack {
+                    Circle()
+                        .fill(accent.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "plus")
+                        .font(.headline.bold())
+                        .foregroundStyle(accent)
                 }
-                    .disabled(isSelecting)
-                    .opacity(isSelecting ? 0.5 : 1)
+            }
+
+
+            if deck.cardCount > 0 {
+                Button {
+                    // Update state ONLY ONCE when clicked, triggering the UI redraw
+                    menuPosition = menuTracker.rect
+                    withAnimation(.smooth) { isMenuExpanded.toggle() }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(accent.opacity(isSelecting || isMenuExpanded ? 1.0 : 0.15))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "ellipsis")
+                            .font(.headline.bold())
+                            .foregroundStyle(isSelecting || isMenuExpanded ? .white : accent)
+                    }
+                }
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .global)
+                } action: { newValue in
+                    // Silently track without triggering 120Hz @State redraws
+                    menuTracker.rect = newValue
+                }
             }
 
 

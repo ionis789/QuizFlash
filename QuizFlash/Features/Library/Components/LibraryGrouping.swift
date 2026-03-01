@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - Deck Section (for list/gallery grouping)
 
-struct DeckSection: Identifiable {
+struct DeckSection: Identifiable, Equatable {
     let id: String
     let title: String
     let decks: [DeckModel]
@@ -60,23 +60,38 @@ enum LibraryGrouping {
         return sections
     }
 
+    // MARK: - Reusable Formatters
+    // Reusing DateFormatter instances avoids massive memory allocations
+    // and main thread blocking when grouping many decks.
+    private static let weekFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE"
+        return f
+    }()
+
+    private static let monthDayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMMM d"
+        return f
+    }()
+
+    private static let monthYearFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMMM yyyy"
+        return f
+    }()
+
     /// Human-readable section title for a date (Today, Yesterday, This Week, etc.).
     static func sectionTitle(for date: Date, calendar: Calendar) -> String {
         if calendar.isDateInToday(date) { return "Today" }
         if calendar.isDateInYesterday(date) { return "Yesterday" }
         let now = Date()
         if calendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) {
-            let f = DateFormatter()
-            f.dateFormat = "EEEE"
-            return "This Week - " + f.string(from: date)
+            return "This Week - " + weekFormatter.string(from: date)
         }
         if calendar.isDate(date, equalTo: now, toGranularity: .month) {
-            let f = DateFormatter()
-            f.dateFormat = "MMMM d"
-            return f.string(from: date)
+            return monthDayFormatter.string(from: date)
         }
-        let f = DateFormatter()
-        f.dateFormat = "MMMM yyyy"
-        return f.string(from: date)
+        return monthYearFormatter.string(from: date)
     }
 }

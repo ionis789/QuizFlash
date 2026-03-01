@@ -21,6 +21,7 @@ final class CreateDeckViewModel {
     var showAIPDFPicker = false
     var showAIOptionsOverlay = false
     var isGenerating: Bool { aiState != .idle }
+    var selectedFolder: FolderModel? = nil
 
     // MARK: - PDF Analysis
     // Populat automat când utilizatorul alege un PDF, înainte să apese Generează
@@ -61,6 +62,7 @@ final class CreateDeckViewModel {
         self.deckToEdit = deckToEdit
         if let deck = deckToEdit {
             deckTitle = deck.title
+            selectedFolder = deck.folder
             draftCards = deck.cards.map { DraftCard.from($0) }
         }
     }
@@ -297,12 +299,32 @@ final class CreateDeckViewModel {
     // MARK: - Save Deck
     // =========================================================================
 
+    // =========================================================================
+    // MARK: - Save Deck
+    // =========================================================================
+
     func saveDeck(context: ModelContext, router: NavigationManager, dismiss: DismissAction) {
         let trimmedTitle = deckTitle.trimmingCharacters(in: .whitespaces)
 
         if let deck = deckToEdit {
+            // ── UPDATE EXISTING DECK ──────────────────────────────────────────
             let titleChanged = deck.title != trimmedTitle
             deck.title = trimmedTitle
+
+            // Update folder relationship and keep deckCount in sync on both
+            // the old and new folder. Reading deck.folder (to-one) is safe —
+            // it never triggers the iOS 17 array retain-cycle bug.
+            let previousFolder = deck.folder
+            if previousFolder !== selectedFolder {
+                // Decrement count on the folder the deck is leaving.
+                if let prev = previousFolder {
+                    prev.deckCount = max(0, prev.deckCount - 1)
+                }
+                // Increment count on the folder the deck is joining.
+                selectedFolder?.deckCount += 1
+            }
+            deck.folder = selectedFolder
+
             var cardsChanged = false
 
             let draftOriginalIDs = Set(draftCards.compactMap { $0.originalCardID })
@@ -325,7 +347,6 @@ final class CreateDeckViewModel {
                         cardsChanged = true
                     }
                 } else {
-                    // 🟢 CARD NOU ÎN DECK EXISTENT: Incrementăm contorul
                     deck.lastAssignedCardNumber += 1
                     let newCard = CardModel(
                         frontZone: draft.frontZone,
@@ -333,19 +354,20 @@ final class CreateDeckViewModel {
                         cardNumber: deck.lastAssignedCardNumber
                     )
                     deck.cards.append(newCard)
-                    // newCard.deck = deck este setat automat de relația append în SwiftData
                     context.insert(newCard)
                     cardsChanged = true
                 }
             }
             if titleChanged || cardsChanged { deck.editedAt = Date() }
+            deck.cardCount = deck.cards.count
 
         } else {
+            // ── CREATE NEW DECK ───────────────────────────────────────────────
             let newDeck = DeckModel(title: trimmedTitle, icon: "book.closed.fill", colorHex: "#FFFFFF")
             context.insert(newDeck)
+            newDeck.folder = selectedFolder
 
             for draft in draftCards {
-                // 🟢 CARD NOU ÎN DECK NOU: Incrementăm contorul
                 newDeck.lastAssignedCardNumber += 1
                 let newCard = CardModel(
                     frontZone: draft.frontZone,
@@ -353,18 +375,23 @@ final class CreateDeckViewModel {
                     cardNumber: newDeck.lastAssignedCardNumber
                 )
                 context.insert(newCard)
-                newDeck.cards.append(newCard) // SwiftData va face link-ul bidirecțional automat
+                newDeck.cards.append(newCard)
             }
+            newDeck.cardCount = newDeck.cards.count
+
+            // Keep the folder's denormalized count in sync.
+            // selectedFolder is a to-one read — safe on MainActor, no array fault.
+            selectedFolder?.deckCount += 1
+
             try? context.save()
         }
 
-        // ... restul codului pentru overlays ...
-
+        // ── UI Triggers & Navigation ──────────────────────────────────────────
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             showSuccessOverlay = true
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             withAnimation(.easeOut(duration: 0.25)) { self.showSuccessOverlay = false }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 if self.deckToEdit == nil {

@@ -50,6 +50,16 @@ class CardModel {
     @Transient private var cachedFrontZone: ZoneModel?
     @Transient private var cachedBackZone: ZoneModel?
 
+    /// Releases the decoded ZoneModel caches, reclaiming memory.
+    /// ZoneModel can contain imageData (megabytes). Without clearing,
+    /// every card that's ever been displayed keeps its decoded zones
+    /// alive for the entire app session via the ModelContext.
+    /// The zones will be re-decoded from frontZoneData/backZoneData on next access.
+    func clearZoneCache() {
+        cachedFrontZone = nil
+        cachedBackZone = nil
+    }
+
     // MARK: - Computed Properties
 
     var frontType: CardContentType {

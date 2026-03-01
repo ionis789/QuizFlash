@@ -6,6 +6,17 @@
 //            LibrarySectionHeader, LibraryEmptyStateView,
 //            LibrarySelectionIndicator, LibraryLoadingOverlay
 //
+//  Performance architecture:
+//  ─────────────────────────────────────────────────────────────────────────────
+//  • LibraryDeckListRow accepts only PRIMITIVES and CLOSURES — zero @Observable
+//    property reads. This eliminates per-row observation registrations that leak
+//    on iOS 17 during tab switches.
+//  • The LazyVStack is FLAT — every row is an independent lazy item. The previous
+//    nested VStack inside Section forced all rows in a section to materialize
+//    simultaneously, blocking the main thread.
+//  • No per-row @State animation. The jelly bounce is applied at the list level
+//    in LibraryLayout for a single, lightweight animation.
+//
 
 import SwiftUI
 import SwiftData
@@ -14,26 +25,35 @@ import SwiftData
 
 struct LibraryListView: View {
     let groupedDecks: [DeckSection]
-    @Bindable var viewModel: LibraryViewModel
+    let isSelecting: Bool
+    let selectedDeckIDs: Set<PersistentIdentifier>
     let onNavigate: (DeckModel) -> Void
+    let onToggleSelection: (DeckModel) -> Void
+    let onEditColor: (DeckModel) -> Void
+    let onDelete: (DeckModel) -> Void
 
     var body: some View {
-        LazyVStack(spacing: 0, pinnedViews: []) {
+        Group {
             ForEach(groupedDecks) { section in
-                Section {
-                    VStack(spacing: 10) {
-                        ForEach(section.decks) { deck in
-                            LibraryDeckListRow(
-                                deck: deck,
-                                viewModel: viewModel,
-                                onNavigate: onNavigate
-                            )
-                        }
-                    }
+                LibrarySectionHeader(title: section.title)
+                // ✅ FIX: Ancoră pentru restaurarea corectă a scroll-ului pe iOS 17
+                .id("header-\(section.id)")
+
+                ForEach(section.decks) { deck in
+                    LibraryDeckListRow(
+                        deck: deck,
+                        isSelecting: isSelecting,
+                        isSelected: selectedDeckIDs.contains(deck.id),
+                        onNavigate: { onNavigate(deck) },
+                        onToggleSelection: { onToggleSelection(deck) },
+                        onEditColor: { onEditColor(deck) },
+                        onDelete: { onDelete(deck) }
+                    )
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
-                } header: {
-                    LibrarySectionHeader(title: section.title)
+                        .padding(.vertical, 5)
+                    // ✅ FIX CRITIC: ID explicit. Oferă SwiftUI-ului o țintă fixă
+                    // de care să agațe scroll-ul când se întoarce dintr-un NavigationLink.
+                    .id(deck.id)
                 }
             }
         }
@@ -41,34 +61,39 @@ struct LibraryListView: View {
 }
 
 // MARK: - Deck List Row
+//
+// ZERO @Observable reads — accepts only primitives and closures.
+// SwiftUI re-evaluates this view ONLY when the parent passes new values.
+// No observation registrations → no iOS 17 observation leak.
 
 struct LibraryDeckListRow: View {
     let deck: DeckModel
-    @Bindable var viewModel: LibraryViewModel
-    let onNavigate: (DeckModel) -> Void
-
-    private var accent: Color { ThemeManager.shared.accentColor.color }
-    private var isSelected: Bool { viewModel.selectedDecks.contains(deck.id) }
+    let isSelecting: Bool
+    let isSelected: Bool
+    let onNavigate: () -> Void
+    let onToggleSelection: () -> Void
+    let onEditColor: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            if viewModel.isSelecting {
+            if isSelecting {
                 LibrarySelectionIndicator(isSelected: isSelected) {
                     withAnimation(.spring(response: 0.28, dampingFraction: 0.75)) {
-                        viewModel.toggleSelection(for: deck)
+                        onToggleSelection()
                     }
                 }
                     .transition(.move(edge: .leading).combined(with: .opacity))
             }
 
             Button {
-                if viewModel.isSelecting {
+                if isSelecting {
                     withAnimation(.spring(response: 0.28, dampingFraction: 0.75)) {
-                        viewModel.toggleSelection(for: deck)
+                        onToggleSelection()
                     }
                 } else {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        onNavigate(deck)
+                        onNavigate()
                     }
                 }
             } label: {
@@ -77,22 +102,21 @@ struct LibraryDeckListRow: View {
             }
                 .buttonStyle(ScaleButtonStyle())
                 .contextMenu {
-                if !viewModel.isSelecting {
-                    Button { viewModel.deckToEditColor = deck } label: {
+                if !isSelecting {
+                    Button(action: onEditColor) {
                         Label("Change Color", systemImage: "paintpalette")
                     }
                     Divider()
-                    Button(role: .destructive) { viewModel.deckToDelete = deck } label: {
+                    Button(role: .destructive, action: onDelete) {
                         Label("Delete", systemImage: "trash")
                     }
                 }
             }
                 .padding(.vertical, 6)
         }
-
-            .scaleEffect(viewModel.isSelecting && isSelected ? 0.97 : 1.0)
+            .scaleEffect(isSelecting && isSelected ? 0.97 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelected)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: viewModel.isSelecting)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelecting)
     }
 }
 

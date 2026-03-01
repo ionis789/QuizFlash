@@ -8,7 +8,7 @@ struct CustomTabBar: View {
     @State private var isInitialOffsetSet: Bool = false
     @State private var dragOffset: CGFloat = 0
     @State private var lastDragOffset: CGFloat?
-    @State private var tabTriggers: [AppTab: Int] = [.library: 0, .create: 0, .settings: 0]
+    @State private var tabTriggers: [AppTab: Int] = [.library: 0, .create: 0, .home: 0]
 
     private var isIPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
 

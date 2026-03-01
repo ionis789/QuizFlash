@@ -23,7 +23,14 @@ import SwiftData
 final class LibraryViewModel {
 
     // MARK: - View Preferences
+    var sharedSearchActor: LibrarySearchActor?
     var sortOrder: SortOrder = .newest
+    var lastGroupedDecksHash: Int = 0
+    // Scroll-driven collapse progress [0, 1].
+    // Written by CollapsingScrollView's onProgress callback (write-only, no re-render).
+    // Read exclusively by LibraryHeroSection and LibraryTopBarView (isolated leaf views).
+    // LibraryLayout.body never reads this — zero re-render cost during scroll.
+    var collapseProgress: CGFloat = 0
 
     // MARK: - Selection State
     var isSelecting = false
@@ -42,10 +49,24 @@ final class LibraryViewModel {
     var isSearchLoading: Bool = false
 
     private var searchTask: Task<Void, Never>?
-    private var cacheTask: Task<Void, Never>?          // tracks in-flight cache builds
+    private var cacheTask: Task<Void, Never>? // tracks in-flight cache builds
     private let searchEngine = SearchEngine()
 
     var cachedSearchPayloads: [DeckSearchPayload] = []
+
+    // Grouped deck sections for LibraryListView.
+    // Stored here rather than as @State in LibraryLayout so the sorted list
+    // survives tab switches without a 50ms debounce flash on re-appear.
+    // For the root tab, sharedViewModel persists indefinitely. For folder views,
+    // localViewModel is recreated on path restoration — handled by synchronous
+    // first-load computation in LibraryLayout.updateGroupedDecks().
+    var cachedGroupedDecks: [DeckSection] = []
+
+    // Tracks which deck IDs were used to build the current cache.
+    // Stored here (not in the View) so the deduplication check survives
+    // across view re-renders, tab switches, and new LibraryView instances
+    // that share this viewModel via environment injection.
+    var cachedDeckIDs: Set<PersistentIdentifier> = []
 
     // MARK: - Import/Export States
     var showFileImporter = false
@@ -61,79 +82,80 @@ final class LibraryViewModel {
     var showExportError = false
     var exportErrorMessage = ""
 
+    // MARK: - Lifecycle
+
+    /// Releases all cached SwiftData model references and cancels in-flight
+    /// async work. Called when the Library tab is suspended during a tab switch.
+    /// The cache will be lazily rebuilt on the next `onAppear` via
+    /// `rebuildCacheIfNeeded`.
+    func tearDown() {
+        cacheTask?.cancel()
+        cacheTask = nil
+        searchTask?.cancel()
+        searchTask = nil
+        cachedSearchPayloads = []
+        cachedGroupedDecks = []
+        searchResults = []
+        // NOTE: We intentionally keep `cachedDeckIDs` populated.
+        // This preserves the dedup check in `rebuildCacheIfNeeded`,
+        // so re-appearing the Library tab doesn't re-fault every
+        // card's text through SwiftData's row cache. The cache
+        // only rebuilds when the actual deck set changes.
+    }
+
     // MARK: - Search Cache (Async)
+
+    /// Rebuilds the search payload cache only if the deck dataset has materially
+    /// changed since the last build.
+    ///
+    /// This is the primary entry point for cache management. Views should call
+    /// this method rather than `buildSearchCache(decks:)` directly, so that
+    /// repeated `onAppear` calls (caused by tab switches or navigation) are
+    /// free when the underlying data has not changed.
+    ///
+    /// By storing `cachedDeckIDs` on the ViewModel rather than as `@State` on
+    /// the View, the deduplication check survives across all view instances that
+    /// share this ViewModel (e.g. the root Library tab reusing the environment
+    /// injected instance across tab switches).
+    func rebuildCacheIfNeeded(decks: [DeckModel], container: ModelContainer) {
+        let newIDs = Set(decks.map { $0.id })
+        guard newIDs != cachedDeckIDs else { return }
+        cachedDeckIDs = newIDs
+        buildSearchCache(decks: decks, container: container)
+    }
 
     /// Builds the search payload cache on a background thread.
     /// Safe to call as often as needed — any in-flight build is cancelled
     /// first, so rapid calls (e.g. deck add/delete) don't stack up.
-    func buildSearchCache(decks: [DeckModel]) {
+    func buildSearchCache(decks: [DeckModel], container: ModelContainer) {
         // Cancel any previous in-flight build.
         cacheTask?.cancel()
 
-        // Snapshot the data we need from the MainActor before leaving.
-        // DeckSearchPayload and CardSearchPayload are Sendable value types,
-        // so they're safe to construct and send across the actor boundary.
-        struct DeckSnapshot: Sendable {
+        // Snapshot ONLY lightweight deck metadata from the MainActor.
+        // We intentionally do NOT access deck.cards here — that would
+        // fault ALL CardModel objects into the main context permanently
+        // (iOS 17 has no ModelContext.reset()).
+        struct DeckInfo: Sendable {
             let id: PersistentIdentifier
             let title: String
             let icon: String
             let colorHex: String
-            let cards: [CardSnapshot]
         }
-        struct CardSnapshot: Sendable {
-            let id: PersistentIdentifier
-            let frontText: String
-            let backText: String
-        }
+        cacheTask?.cancel()
 
-        // Extract all text on the MainActor (where SwiftData objects live),
-        // then hand off only Sendable value types to the background task.
-        let snapshots: [DeckSnapshot] = decks.map { deck in
-            DeckSnapshot(
-                id: deck.id,
-                title: deck.title,
-                icon: deck.icon,
-                colorHex: deck.colorHex,
-                cards: deck.cards.map { card in
-                    CardSnapshot(
-                        id: card.id,
-                        frontText: extractAllText(from: card.frontZone),
-                        backText: extractAllText(from: card.backZone)
-                    )
-                }
-            )
-        }
+        // Capture simple structs from the main context
+        let deckInfos = decks.map { (id: $0.persistentModelID, title: $0.title, icon: $0.icon, colorHex: $0.colorHex) }
 
-        // The snapshot construction above is O(decks × cards) in string ops
-        // and is still on the MainActor. For 76 decks it's fast (~1-2ms).
-        // The heavy lifting is in the search engine itself, which is already
-        // off-thread. However, if extractAllText proves expensive, you can
-        // move even that into the detached task by making ZoneModel Sendable.
-
-        cacheTask = Task { [weak self] in
+        cacheTask = Task { @MainActor [weak self] in
             guard let self else { return }
 
-            // Build DeckSearchPayload objects on background thread.
-            let payloads = await Task.detached(priority: .utility) {
-                snapshots.map { snap in
-                    DeckSearchPayload(
-                        id: snap.id,
-                        title: snap.title,
-                        icon: snap.icon,
-                        colorHex: snap.colorHex,
-                        cards: snap.cards.map { c in
-                            CardSearchPayload(id: c.id, frontText: c.frontText, backText: c.backText)
-                        }
-                    )
-                }
-            }.value
+            if self.sharedSearchActor == nil {
+                self.sharedSearchActor = LibrarySearchActor(modelContainer: container)
+            }
+            let payloads = await self.sharedSearchActor!.buildPayloads(for: deckInfos)
 
             guard !Task.isCancelled else { return }
-
-            // Publish result back on MainActor.
-            await MainActor.run {
-                self.cachedSearchPayloads = payloads
-            }
+            self.cachedSearchPayloads = payloads
         }
     }
 
@@ -178,20 +200,6 @@ final class LibraryViewModel {
                 }
             }
         }
-    }
-
-    // MARK: - Zone Text Extraction
-
-    private func extractAllText(from zone: ZoneModel) -> String {
-        let isLeaf = zone.children == nil || zone.children?.isEmpty == true
-        if isLeaf {
-            return zone.contentType == .text ? zone.text : ""
-        }
-        guard let children = zone.children else { return "" }
-        return children
-            .map { extractAllText(from: $0) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
     }
 
     // MARK: - Selection
@@ -292,5 +300,37 @@ final class LibraryViewModel {
                 self.showExportError = true
             }
         }
+    }
+}
+
+// =============================================================================
+// MARK: - Safe Background Actor
+// =============================================================================
+
+@ModelActor
+final actor LibrarySearchActor {
+    func buildPayloads(for deckInfos: [(id: PersistentIdentifier, title: String, icon: String, colorHex: String)]) -> [DeckSearchPayload] {
+        var results: [DeckSearchPayload] = []
+
+        for info in deckInfos {
+            autoreleasepool {
+                // Fetch cards for this specific deck using the isolated actor context.
+                let id = info.id
+                var desc = FetchDescriptor<CardModel>(predicate: #Predicate { $0.deck?.persistentModelID == id })
+                guard let cards = try? modelContext.fetch(desc) else { return }
+
+                let searchCards = cards.map { CardSearchPayload(id: $0.id, frontText: $0.frontText, backText: $0.backText) }
+
+                results.append(DeckSearchPayload(
+                    id: info.id,
+                    title: info.title,
+                    icon: info.icon,
+                    colorHex: info.colorHex,
+                    cards: searchCards
+                ))
+            }
+        }
+
+        return results
     }
 }

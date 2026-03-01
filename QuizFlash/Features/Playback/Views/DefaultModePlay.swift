@@ -6,13 +6,14 @@
 import SwiftUI
 import SwiftData
 
-struct DefaultModePlay: View {
+struct DefaultModePlayContent: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var modelContext
 
-    @State var viewModel: DefaultModePlayViewModel
+    let deck: DeckModel
+    @Bindable var viewModel: DefaultModePlayViewModel
 
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
     private var isCompact: Bool { horizontalSizeClass == .compact }
@@ -27,12 +28,7 @@ struct DefaultModePlay: View {
         )
     }
 
-    // 🟢 Inițializăm ViewModel-ul DOAR cu Deck-ul
-    init(deck: DeckModel) {
-        _viewModel = State(
-            initialValue: DefaultModePlayViewModel(deck: deck)
-        )
-    }
+    // Inițializarea curată fără `@State` retain cycle
 
     var body: some View {
         GeometryReader { geo in
@@ -63,13 +59,21 @@ struct DefaultModePlay: View {
             }
         }
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isComplete)
+            .task {
+                if !viewModel.isSessionStarted {
+                    await viewModel.startSession(container: modelContext.container)
+                }
+            }
+            .onDisappear {
+                viewModel.tearDown()
+            }
             .navigationBarHidden(true)
     }
 
     // MARK: - Card Area
-    // MARK: - Card Area
-        private var cardArea: some View {
-            ZStack {
+    private var cardArea: some View {
+        ZStack {
+            if viewModel.isSessionStarted {
                 if !viewModel.cards.isEmpty && viewModel.currentIndex < viewModel.cards.count {
                     // Randăm STRICT un singur card - cel curent. Fără pre-load.
                     let index = viewModel.currentIndex
@@ -77,6 +81,7 @@ struct DefaultModePlay: View {
 
                     @Bindable var bindableViewModel = viewModel
 
+                    // 🟢 NOU: Acum pasăm mainContext către ViewModel, care modifică log-ul prin ID-ul original
                     GameplayCard(
                         card: card,
                         onSwipe: { direction in
@@ -85,14 +90,15 @@ struct DefaultModePlay: View {
                         isFlipped: $bindableViewModel.isFlipped
                     )
                     // Folosim ID-ul unic pentru a forța SwiftUI să înlocuiască vizualul
-                    .id(card.persistentModelID)
+                    .id(card.id)
                     // Opțional: o tranziție simplă ca să nu apară brusc
                     .transition(.asymmetric(insertion: .opacity, removal: .opacity))
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.spring(response: 0.4, dampingFraction: 0.82), value: viewModel.currentIndex)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.spring(response: 0.4, dampingFraction: 0.82), value: viewModel.currentIndex)
+    }
 
     // MARK: - Header
     private var header: some View {
@@ -308,6 +314,30 @@ private struct StatItem: View {
         VStack(spacing: 4) {
             Text(value).font(.title2.weight(.bold)).foregroundStyle(color)
             Text(label).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - iOS 17 Retain Cycle Wrapper
+// `.fullScreenCover` permanently retains `@State` initialized with `State(initialValue:)`.
+// This wrapper creates the ViewModel OUTSIDE `init()` dynamically with `.onAppear`.
+struct DefaultModePlay: View {
+    let deck: DeckModel
+
+    @State private var viewModel: DefaultModePlayViewModel? = nil
+
+    var body: some View {
+        Group {
+            if let vm = viewModel {
+                DefaultModePlayContent(deck: deck, viewModel: vm)
+            } else {
+                Color(uiColor: .systemBackground)
+                    .onAppear {
+                        if self.viewModel == nil {
+                            self.viewModel = DefaultModePlayViewModel(deck: deck)
+                        }
+                    }
+            }
         }
     }
 }

@@ -1,38 +1,49 @@
 //
-//  LibraryMenuControls.swift
+//  DeckMenuControls.swift
 //  QuizFlash
-//
-//  Created by Ion Socol on 24.02.2026.
 //
 
 import SwiftUI
 
-struct LibraryMenuControls: View {
-    @Bindable var viewModel: LibraryViewModel
+struct DeckMenuControls: View {
+    @Bindable var deck: DeckModel
+    let isSelecting: Bool
+    @Binding var sortOrder: SortOrder
     @Binding var isExpanded: Bool
+
+    var onStartSelection: () -> Void
+    var onExport: (() -> Void)?
+
     private var accent: Color { ThemeManager.shared.accentColor.color }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
 
-            // Secțiunea de Acțiuni Principale
-            CustomMenuButton(title: "Import Deck", icon: "square.and.arrow.down") {
-                viewModel.showFileImporter = true
+            // Main Actions Section
+            CustomMenuButton(
+                title: "Select Cards",
+                icon: "checkmark.circle",
+                disabled: isSelecting
+            ) {
+                onStartSelection()
                 closeMenu()
             }
 
-            CustomMenuButton(title: "Select", icon: "checkmark.circle", disabled: viewModel.isSelecting || viewModel.isSearching) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    viewModel.isSelecting = true
+            if let onExport = onExport {
+                CustomMenuButton(
+                    title: "Export Deck",
+                    icon: "square.and.arrow.up"
+                ) {
+                    onExport()
+                    closeMenu()
                 }
-                closeMenu()
             }
 
             Divider()
                 .background(Color.primary.opacity(0.1))
                 .padding(.vertical, 4)
 
-            // Secțiunea de Sortare (Aplatizată pentru UX mai bun)
+            // Sorting Section
             Text("SORT BY")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
@@ -43,18 +54,18 @@ struct LibraryMenuControls: View {
             ForEach(SortOrder.allCases, id: \.self) { order in
                 CustomMenuButton(
                     title: order.rawValue,
-                    icon: viewModel.sortOrder == order ? "checkmark" : order.icon,
-                    isSelected: viewModel.sortOrder == order ? true : false
+                    icon: sortOrder == order ? "checkmark" : order.icon,
+                    isSelected: sortOrder == order
                 ) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                        viewModel.sortOrder = order
+                        sortOrder = order
                     }
                     closeMenu()
                 }
             }
         }
-            .padding(12)
-            .foregroundStyle(.primary)
+        .padding(12)
+        .foregroundStyle(.primary)
     }
 
     private func closeMenu() {
@@ -63,5 +74,3 @@ struct LibraryMenuControls: View {
         }
     }
 }
-
-

@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct FlipCard: View {
-    let card: CardModel
+    let card: PlayableCard
     @Binding var isFlipped: Bool
     
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass

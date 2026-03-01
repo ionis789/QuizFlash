@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct GameplayCard: View {
-    let card: CardModel
+    let card: PlayableCard
     let onSwipe: (SwipeDirection) -> Void
     
     // Acum primește starea de la DefaultModePlay

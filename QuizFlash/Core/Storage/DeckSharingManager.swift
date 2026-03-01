@@ -123,7 +123,7 @@ final class DeckSharingManager: ObservableObject {
         // Process cards - keep images as Base64 in zones
         var exportableCards: [ExportableCard] = []
 
-        let totalCards = deck.cards.count
+        let totalCards = deck.cardCount
         for (index, card) in deck.cards.enumerated() {
             progress = 0.1 + (0.5 * Double(index) / Double(max(totalCards, 1)))
 
@@ -277,7 +277,10 @@ final class DeckSharingManager: ObservableObject {
         progress = 0.95
         currentOperation = "Saving..."
 
-        // 8. Save context
+        // 8. Update denormalized card count
+        newDeck.cardCount = newDeck.cards.count
+
+        // 9. Save context
         try context.save()
 
         progress = 1.0
@@ -370,7 +373,7 @@ final class StorageManager: ObservableObject {
             id: UUID(), // Use deck's persistent ID if available
             deckTitle: deck.title,
             totalBytes: totalBytes,
-            cardCount: deck.cards.count,
+            cardCount: deck.cardCount,
             imageCount: imageCount
         )
     }

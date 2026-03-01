@@ -1,6 +1,11 @@
 //
-//  CreateView.swift
+//  CreateDeckView.swift
 //  QuizFlash
+//
+//  Abstract:
+//  The primary entry point for creating or editing a deck.
+//  Uses FocusState-driven tab bar visibility management to ensure
+//  a clean UI during text input and AI generation.
 //
 
 import SwiftUI
@@ -8,7 +13,7 @@ import SwiftData
 import PhotosUI
 import UniformTypeIdentifiers
 
-// MARK: - Preference Key pentru a citi pozitia scroll-ului
+// MARK: - Preference Key for Scroll Tracking
 struct ScrollOffsetKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
@@ -17,12 +22,19 @@ struct ScrollOffsetKey: PreferenceKey {
 }
 
 struct CreateDeckView: View {
+    // MARK: - Environment
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(NavigationManager.self) private var router
 
+    /// Fetches all available folders to populate the destination picker.
+    @Query(sort: \FolderModel.createdAt, order: .reverse) private var folders: [FolderModel]
+
+    // MARK: - State
     @State private var viewModel: CreateDeckViewModel
-    @Binding private var isTabBarHidden: Bool
+
+    /// Tracks the focus state of the deck title text field.
+    /// Drives the tab bar visibility rule reactively.
     @FocusState private var isTitleFocused: Bool
 
     // ── Materialization state ─────────────────────────────────────────────────
@@ -32,37 +44,44 @@ struct CreateDeckView: View {
     // ── Scroll & Animation state ──────────────────────────────────────────────
     @State private var scrollOffset: CGFloat = 0
 
+    // MARK: - Computed Properties
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var isGenerating: Bool { viewModel.aiState != .idle }
 
-    init(deckToEdit: DeckModel? = nil, isTabBarHidden: Binding<Bool>) {
+    /// Contextual rule for tab bar visibility.
+    /// Forces the tab bar to hide whenever the keyboard is active or AI is working.
+    private var tabRule: TabBarVisibilityRule {
+        if isTitleFocused || isGenerating || isMaterializing {
+            return .hidden
+        }
+        return .implicit
+    }
+
+    // MARK: - Initialization
+    // The binding is removed to favor a decoupled, preference-based architecture.
+    init(deckToEdit: DeckModel? = nil) {
         _viewModel = State(initialValue: CreateDeckViewModel(deckToEdit: deckToEdit))
-        self._isTabBarHidden = isTabBarHidden
     }
 
     var body: some View {
         ZStack {
-            // Fundal general pentru aplicație
             Color(uiColor: .systemGroupedBackground)
                 .ignoresSafeArea()
 
-            // ── SCROLL VIEW PRINCIPAL ─────────────────────────────────────────
+            // ── Main Content Area ─────────────────────────────────────────────
             ScrollView {
                 VStack(spacing: 0) {
-
-                    // Senzor invizibil pentru a citi offset-ul
+                    // Invisible sensor for scroll offset tracking
                     GeometryReader { proxy in
                         Color.clear
                             .preference(key: ScrollOffsetKey.self, value: proxy.frame(in: .named("scrollSpace")).minY)
                     }
                         .frame(height: 0)
 
-                    // Hero Header
                     heroTitleArea
                         .padding(.top, 20)
                         .padding(.bottom, 24)
 
-                    // Bara cu Unelte (Aici va funcționa corect pinnedViews)
                     LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
                         Section {
                             cardsListContent
@@ -78,16 +97,15 @@ struct CreateDeckView: View {
                 .onPreferenceChange(ScrollOffsetKey.self) { offset in
                 scrollOffset = offset
             }
-            // ── BARA DE NAVIGAȚIE CUSTOM (Setată ca Inset!) ──────────────────
-            // .safeAreaInset împinge automat conținutul din ScrollView în jos
-            // și permite Sticky Bar-ului să se prindă perfect sub ea.
-            .safeAreaInset(edge: .top) {
+                .safeAreaInset(edge: .top) {
                 customNavBar
             }
                 .scrollDismissesKeyboard(.interactively)
-                .onTapGesture { isTitleFocused = false }
+                .onTapGesture {
+                isTitleFocused = false
+            }
 
-            // ── OVERLAYS ──────────────────────────────────────────────────────
+            // ── Overlays ──────────────────────────────────────────────────────
             if viewModel.showSuccessOverlay {
                 successOverlay.zIndex(100)
             }
@@ -114,27 +132,24 @@ struct CreateDeckView: View {
                     .zIndex(50)
             }
         }
-            .toolbar(.hidden, for: .navigationBar) // Ascundem bara nativă
-        // ── PULL-TO-DISMISS (Tragi în jos de ecran ca să ieși) ─────────────
+            .toolbar(.hidden, for: .navigationBar)
+        // ── Gestures ──
         .onChange(of: scrollOffset) { _, newOffset in
-            // Dacă utilizatorul trage tare în jos (over-scroll mai mare de 120px)
             if newOffset > 120 {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 dismiss()
             }
         }
-        // ── EDGE-SWIPE GESTURE (Swipe dinspre stânga ca să te întorci) ──────
-        .simultaneousGesture(
+            .simultaneousGesture(
             DragGesture(minimumDistance: 30, coordinateSpace: .global)
                 .onEnded { value in
-                // Dacă swipe-ul începe din marginea stângă (<40px) și tragi spre dreapta
                 if value.startLocation.x < 40 && value.translation.width > 60 {
                     dismiss()
                 }
             }
         )
-            .onChange(of: isTitleFocused) { isTabBarHidden = isTitleFocused }
-            .onChange(of: viewModel.aiState) { _, newState in
+        // ── AI Lifecycle ──
+        .onChange(of: viewModel.aiState) { _, newState in
             if case .idle = newState, !viewModel.draftCards.isEmpty, !isMaterializing {
                 startMaterializationSequence()
             }
@@ -153,9 +168,12 @@ struct CreateDeckView: View {
             .fileImporter(isPresented: $viewModel.showAIPDFPicker, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
             if case .success(let urls) = result, let url = urls.first { viewModel.pdfWasSelected(url) }
         }
+        // Apply the reactive visibility rule to the global tab bar.
+        .customTabBarVisibility(tabRule)
     }
 
-    // Titlul din Header-ul de sticlă apare doar când depășim cu scroll-ul zona de Hero
+    // MARK: - Helper Methods & Animations
+
     private var showInlineTitle: Bool {
         scrollOffset < -40
     }
@@ -181,6 +199,7 @@ struct CreateDeckView: View {
     }
 }
 
+// ... Rest of the extensions (Subviews, Navigation Bar, etc.) remain functionally same but cleaned
 // MARK: - Subviews
 private extension CreateDeckView {
 
@@ -226,12 +245,52 @@ private extension CreateDeckView {
 
     // ── 2. Hero Title Area ───────────────────────────────────────────────────
     var heroTitleArea: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 12) {
             TextField("Untitled Deck", text: $viewModel.deckTitle)
                 .font(.system(size: 38, weight: .heavy, design: .rounded))
                 .foregroundStyle(.primary)
                 .focused($isTitleFocused)
                 .submitLabel(.done)
+
+            // ── Folder Selection Picker ───────────────────────────────────────
+            // A sleek, production-ready menu allowing users to route the deck to a specific folder.
+            Menu {
+                Button {
+                    isTitleFocused = false
+                    viewModel.selectedFolder = nil
+                } label: {
+                    Label("Library (All Decks)", systemImage: "tray.full")
+                }
+
+                if !folders.isEmpty {
+                    Divider()
+
+                    ForEach(folders) { folder in
+                        Button {
+                            isTitleFocused = false
+                            viewModel.selectedFolder = folder
+                        } label: {
+                            Label(folder.title, systemImage: "folder")
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: viewModel.selectedFolder == nil ? "tray.full.fill" : "folder.fill")
+                    Text(viewModel.selectedFolder?.title ?? "Library")
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2.weight(.bold))
+                }
+                    .font(.subheadline.weight(.semibold))
+                // Daca ai o extensie de Color(hex:), o poti folosi in loc de .accentColor
+                .foregroundStyle(viewModel.selectedFolder == nil ? .secondary : Color.accentColor)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                    Capsule()
+                        .fill(Color.secondary.opacity(0.12))
+                )
+            }
         }
             .padding(.horizontal, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -297,7 +356,7 @@ private extension CreateDeckView {
                 Image(systemName: "plus")
                     .font(.body.weight(.bold))
                     .padding(12)
-                    .background(.accent.opacity(0.15), in: .circle) }
+                    .background(accent.opacity(0.15), in: .circle) }
         }
             .disabled(isGenerating)
             .padding(.horizontal, 20)

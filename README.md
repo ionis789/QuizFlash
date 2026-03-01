@@ -1,2 +1,0 @@
-# QuizFlash
-Flashcard application

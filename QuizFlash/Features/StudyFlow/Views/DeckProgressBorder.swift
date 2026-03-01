@@ -15,7 +15,7 @@ struct DeckProgressBorder: ViewModifier {
     private let masteredLineWidth: CGFloat = 3
 
     private var progress: Double {
-        let totalCards = deck.cards.count
+        let totalCards = deck.cardCount
         guard totalCards > 0 else { return 0 }
 
         let seenCards = deck.cards.filter { !$0.reviewHistory.isEmpty }.count
@@ -27,7 +27,7 @@ struct DeckProgressBorder: ViewModifier {
     }
 
     private var isMastered: Bool {
-        progress >= 1.0 && deck.cards.count > 0
+        progress >= 1.0 && deck.cardCount > 0
     }
 
     private var activeLineWidth: CGFloat {

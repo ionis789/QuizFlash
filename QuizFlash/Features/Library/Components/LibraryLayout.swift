@@ -2,32 +2,21 @@
 //  LibraryLayout.swift
 //  QuizFlash
 //
-//  PERFORMANCE FIX — async updateGroupedDecks
-//  ─────────────────────────────────────────────────────────────────────────────
-//  updateGroupedDecks() called LibraryGrouping.sections() synchronously on the
-//  MainActor. With 76 decks, this involves:
-//    • Sorting the full array (O(n log n))
-//    • Grouping by Calendar.startOfDay (O(n) with date math per deck)
-//    • Building DeckSection structs
-//  All blocking the main thread in onChange(of: decks).
-//
-//  Fix: the sort/group work runs on a background thread via Task.detached.
-//  The MainActor only receives the finished [DeckSection] array.
 
 import SwiftUI
 import SwiftData
 
-// MARK: - Scroll Offset Preference Key
-
-struct LibraryScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value += nextValue()
-    }
+// Configurații Scroll
+private var isPad: Bool {
+    UIDevice.current.userInterfaceIdiom == .pad
 }
+private var kLibraryCollapseDistance: CGFloat {
+    isPad ? 140.0 : 110.0
+}
+private let kLibraryHeroFadeEnd: CGFloat = 0.85
+private let kLibraryInlineTitleThreshold: CGFloat = 0.85
 
 // MARK: - LibraryLayout
-
 struct LibraryLayout: View {
 
     let decks: [DeckModel]
@@ -41,36 +30,23 @@ struct LibraryLayout: View {
     @Binding var isSearching: Bool
     @Binding var searchText: String
 
-    @State private var scrollOffset: CGFloat = 0
+    var folderContext: FolderModel?
+
+    // ── State managed here ──
     @State private var scrollProxy: ScrollViewProxy? = nil
     @State private var isMenuExpanded: Bool = false
     @State private var menuPosition: CGRect = .zero
-    @State private var cachedGroupedDecks: [DeckSection] = []
-
-    // Tracks in-flight grouping task so rapid changes cancel stale work.
     @State private var groupingTask: Task<Void, Never>? = nil
-
-    // Input-side search debounce.
     @State private var inputDebounceTask: Task<Void, Never>? = nil
+    
+    // Natively tracks the top-most visible element on iOS 17+ to restore scroll position
+    // or manually tracks the last interacted component for forced jumping.
+    @State private var lastTappedDeckID: PersistentIdentifier?
 
     private let topAnchorID = "LIBRARY_TOP_ANCHOR"
     private var accent: Color { ThemeManager.shared.accentColor.color }
-    // 1. Mutăm punctul de apariție în header mai sus, abia după ce titlul mare e acoperit
-    private var showInlineTitle: Bool { scrollOffset < -100 || isSearching }
-
-    // 2. Modificăm fade-out-ul ca să fie mai lung și să nu mai dispară atât de brusc
-    private var heroOpacity: Double {
-        if isSearching { return 0.0 }
-
-        // Începe să dispară la -30 (când atinge marginea de sus) și dispare complet la -90
-        let maxOff: CGFloat = -30, minOff: CGFloat = -110
-        guard scrollOffset <= maxOff else { return 1.0 }
-        guard scrollOffset >= minOff else { return 0.0 }
-        return 1.0 - Double((maxOff - scrollOffset) / (maxOff - minOff))
-    }
 
     // MARK: - Body
-
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             mainScrollArea
@@ -98,154 +74,187 @@ struct LibraryLayout: View {
             .overlay(alignment: .topLeading) { menuOverlay }
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isSearching)
-            .background {
-            // MARK: Library Background
-            Color.black
-                .ignoresSafeArea() // Foarte important pentru a acoperi tot ecranul
-        }
+            .background { Color.black.ignoresSafeArea() }
     }
 
     // MARK: - Main Scroll Area
-
     private var mainScrollArea: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 0) {
-
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: LibraryScrollOffsetKey.self,
-                            value: geo.frame(in: .named("libraryScroll")).minY
-                        )
-                    }
-                        .frame(height: 0)
-                        .id(topAnchorID)
-
-                    if !isSearching {
-                        heroTitleArea
-                            .padding(.top, 20)
-                            .padding(.bottom, 4)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-
-                    // Am șters Section-ul și header-ul stickyToolBar care dădeau eroare
-                    LazyVStack(spacing: 0) {
-                        VStack(spacing: 0) {
-                            if viewModel.isSearching {
-                                searchResultsLayer.transition(.opacity)
-                            } else if decks.isEmpty {
-                                LibraryEmptyStateView().transition(.opacity)
-                            } else {
-                                LibraryListView(
-                                    groupedDecks: cachedGroupedDecks,
-                                    viewModel: viewModel,
-                                    onNavigate: onDeckNavigate
-                                )
-                                    .transition(.opacity)
-                            }
-                        }
-                    }
-                }
-                    .safeAreaInset(edge: .bottom) {
-                    Color.clear
-                        .frame(height: viewModel.isSelecting ? 150 : 60)
-                        .animation(.spring(response: 0.35, dampingFraction: 0.85),
-                                   value: viewModel.isSelecting)
-                }
-            }
-                .coordinateSpace(name: "libraryScroll")
-                .onPreferenceChange(LibraryScrollOffsetKey.self) { value in
-                scrollOffset = value
-            }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                guard viewModel.isSelecting else { return }
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    viewModel.exitSelectionMode()
-                }
-            }
-                .safeAreaInset(edge: .top) {
-                LibraryTopBarView(
-                    viewModel: viewModel,
-                    isMenuExpanded: $isMenuExpanded,
-                    menuPosition: $menuPosition,
-                    showInlineTitle: showInlineTitle,
-                    isSearching: $isSearching,
-                    searchText: $searchText,
-                    decksCount: decks.count,
-                    onHeaderTap: {
-                        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                            scrollProxy?.scrollTo(topAnchorID, anchor: .top)
-                        }
-                    }
-                )
-            }
-                .onAppear {
-                scrollProxy = proxy
-                updateGroupedDecks()
-            }
-                .onChange(of: decks) { _, _ in updateGroupedDecks() }
-                .onChange(of: viewModel.sortOrder) { _, _ in updateGroupedDecks() }
-
-                .onChange(of: searchText) { _, newValue in
-                inputDebounceTask?.cancel()
-
-                if newValue.isEmpty {
-                    viewModel.searchText = ""
+        CollapsingScrollView { p in
+            viewModel.collapseProgress = p
+        } onScrollProxy: { proxy in
+            scrollProxy = proxy
+        } header: {
+            LibraryTopBarView(
+                viewModel: viewModel,
+                isMenuExpanded: $isMenuExpanded,
+                menuPosition: $menuPosition,
+                isSearching: $isSearching,
+                searchText: $searchText,
+                title: folderContext?.title ?? "Library",
+                decksCount: decks.count,
+                onHeaderTap: {
                     withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                         scrollProxy?.scrollTo(topAnchorID, anchor: .top)
                     }
-                    return
+                }
+            )
+        } content: {
+            VStack(spacing: 0) {
+                Color.clear.frame(height: 0).id(topAnchorID)
+
+                if !isSearching {
+                    LibraryHeroSection(viewModel: viewModel, decks: decks, folderContext: folderContext)
+                        .padding(.top, 20)
+                        .padding(.bottom, -10)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
-                inputDebounceTask = Task { @MainActor in
-                    do {
-                        try await Task.sleep(nanoseconds: 150_000_000)
-                        guard !Task.isCancelled else { return }
-                        viewModel.searchText = newValue
-                    } catch { }
+                LazyVStack(spacing: 0) {
+                    if viewModel.isSearching {
+                        searchResultsLayer.transition(.opacity)
+                    } else if viewModel.cachedGroupedDecks.isEmpty {
+                        // ✅ FIX CRITIC: Folosim viewModel.cachedGroupedDecks.isEmpty în loc de decks.isEmpty
+                        // Această listă este protejată de pâlpâirile SwiftData din timpul Navigation Pop-ului.
+                        LibraryEmptyStateView().transition(.opacity)
+                    } else {
+                        LibraryListView(
+                            groupedDecks: viewModel.cachedGroupedDecks,
+                            isSelecting: viewModel.isSelecting,
+                            selectedDeckIDs: viewModel.selectedDecks,
+                            onNavigate: { deck in
+                                if #available(iOS 18, *) {} else {
+                                    lastTappedDeckID = deck.id
+                                }
+                                onDeckNavigate(deck)
+                            },
+                            onToggleSelection: { deck in
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.75)) {
+                                    viewModel.toggleSelection(for: deck)
+                                }
+                            },
+                            onEditColor: { deck in viewModel.deckToEditColor = deck },
+                            onDelete: { deck in viewModel.deckToDelete = deck }
+                        )
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard viewModel.isSelecting else { return }
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        viewModel.exitSelectionMode()
+                    }
                 }
             }
-
-                .onChange(of: isSearching) { _, active in
-                if !active {
-                    inputDebounceTask?.cancel()
-                    viewModel.searchText = ""
-                }
+                .safeAreaInset(edge: .bottom) {
+                Color.clear
+                    .frame(height: viewModel.isSelecting ? 150 : 60)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+            }
+        }
+            .scrollDisabled(isMenuExpanded)
+        // Revenim la logica ta robustă de lifecycle
+        .onAppear {
+            updateGroupedDecks()
+        }
+            .onChange(of: decks) { _, _ in updateGroupedDecks() }
+            .onChange(of: viewModel.sortOrder) { _, _ in updateGroupedDecks() }
+            .onChange(of: searchText) { _, newValue in
+            inputDebounceTask?.cancel()
+            if newValue.isEmpty {
+                viewModel.searchText = ""
                 withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                     scrollProxy?.scrollTo(topAnchorID, anchor: .top)
                 }
+                return
             }
+            inputDebounceTask = Task { @MainActor in
+                do {
+                    try await Task.sleep(nanoseconds: 150_000_000)
+                    guard !Task.isCancelled else { return }
+                    viewModel.searchText = newValue
+                } catch { }
+            }
+        }
+            .onChange(of: isSearching) { _, active in
+            if !active {
+                inputDebounceTask?.cancel()
+                viewModel.searchText = ""
+            }
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                scrollProxy?.scrollTo(topAnchorID, anchor: .top)
+            }
+        }
+            .onDisappear {
+            groupingTask?.cancel()
+            groupingTask = nil
+            inputDebounceTask?.cancel()
+            inputDebounceTask = nil
         }
     }
 
-    // MARK: - Async Grouping
-
-    /// Cancels any in-flight grouping task and starts a fresh one.
-    /// The sort + Calendar grouping runs on a background thread.
+    /// Rebuilds the grouped deck sections with strict structural equality checking.
     private func updateGroupedDecks() {
         groupingTask?.cancel()
 
-        // Capture the two value types needed before leaving the MainActor.
-        let snapshot = decks // [DeckModel] — value-type array copy
+        // 🟢 FIX CRITIC ABSOLUT: Protecție agresivă împotriva golirii accidentale.
+        // În iOS 17, pe parcursul animației de back (pop) din NavigationStack, 
+        // interogările @Query din LibraryView pot returna temporar un array gol []
+        // timp de 1 frame. Dacă lăsăm asta să ajungă în UI, ScrollView-ul își distruge complet
+        // structura (LazyVStack-ul taie înălțimea la 0) și pierzi scrolul nativ.
+        guard !decks.isEmpty else {
+            // Dacă SwiftData ne zice brusc că avem 0 pachete dar noi deja desenasem
+            // ceva, ignorăm complet acest frame!
+            return
+        }
+
+        let snapshot = decks
         let sortOrder = viewModel.sortOrder
 
+        // Fast path pe prima încărcare
+        if viewModel.cachedGroupedDecks.isEmpty {
+            viewModel.cachedGroupedDecks = LibraryGrouping.sections(decks: snapshot, sortOrder: sortOrder)
+            return
+        }
+
         groupingTask = Task {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard !Task.isCancelled else { return }
+
             let sections = await MainActor.run {
                 LibraryGrouping.sections(decks: snapshot, sortOrder: sortOrder)
             }
 
             guard !Task.isCancelled else { return }
 
-            // Publish result. No animation — structural grouping changes
-            // (date sections appearing/disappearing) should be instant.
             await MainActor.run {
-                self.cachedGroupedDecks = sections
+                // Înlocuim datele doar dacă structura s-a schimbat!
+                if !areSectionsStructurallyIdentical(old: self.viewModel.cachedGroupedDecks, new: sections) {
+                    self.viewModel.cachedGroupedDecks = sections
+                }
             }
         }
     }
 
-    // MARK: - Menu Overlay
+    /// Compară conținutul secțiunilor ignorând UUID-urile instanțelor de DeckSection.
+    private func areSectionsStructurallyIdentical(old: [DeckSection], new: [DeckSection]) -> Bool {
+        guard old.count == new.count else { return false }
+
+        for i in 0..<old.count {
+            if old[i].title != new[i].title { return false }
+
+            let oldDecks = old[i].decks
+            let newDecks = new[i].decks
+
+            guard oldDecks.count == newDecks.count else { return false }
+
+            for j in 0..<oldDecks.count {
+                // Verificăm identitatea deck-urilor (titlurile se updatează oricum prin @Model)
+                if oldDecks[j].id != newDecks[j].id { return false }
+            }
+        }
+
+        return true
+    }
 
     @ViewBuilder
     private var menuOverlay: some View {
@@ -273,8 +282,6 @@ struct LibraryLayout: View {
             .ignoresSafeArea()
     }
 
-    // MARK: - Search Results Layer
-
     @ViewBuilder
     private var searchResultsLayer: some View {
         if viewModel.searchText.isEmpty {
@@ -292,8 +299,6 @@ struct LibraryLayout: View {
             )
         }
     }
-
-    // MARK: - Prompt Views
 
     private var readyToSearchPrompt: some View {
         VStack(spacing: 18) {
@@ -336,39 +341,40 @@ struct LibraryLayout: View {
     }
 }
 
-// MARK: - Private Extensions
+// MARK: - LibraryHeroSection
+private struct LibraryHeroSection: View {
+    let viewModel: LibraryViewModel
+    let decks: [DeckModel]
+    var folderContext: FolderModel?
 
+    private var accent: Color { ThemeManager.shared.accentColor.color }
 
-private extension LibraryLayout {
+    private var t: CGFloat {
+        CollapsingHeaderConfig.heroTransitionProgress(currentProgress: viewModel.collapseProgress)
+    }
 
-    var heroTitleArea: some View {
+    var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Library")
+            // Aplicăm titlul dinamic pe Hero Section
+            Text(folderContext?.title ?? "Library")
                 .font(.system(size: 38, weight: .heavy, design: .rounded))
                 .foregroundStyle(.primary)
 
-            // Badge-ul curat, lângă titlu
-            Text(decks.isEmpty
-                ? "No Decks"
-            : "\(decks.count) Deck\(decks.count == 1 ? "" : "s")")
+            Text(decks.isEmpty ? "No Decks" : "\(decks.count) Deck\(decks.count == 1 ? "" : "s")")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(accent.opacity(0.15), in: .capsule)
-
-//            Spacer()
         }
             .padding(.horizontal, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .opacity(heroOpacity)
-            .scaleEffect(
-            scrollOffset < 0
-            // 1. Am schimbat limita la 0.70 (poate ajunge la 70% din mărime)
-            // 2. Am schimbat 400 cu 250 ca să se micșoreze un pic mai repede când faci scroll în sus
-            ? max(0.70, 1 + (scrollOffset / 250))
-            : 1 + (scrollOffset / 300), // Aici rămâne la fel pentru pull-down
-            anchor: .bottomLeading
+            .opacity(1.0 - t)
+            .scaleEffect(1.0 - (t * 0.4), anchor: .topLeading)
+            .offset(y: -(t * 20))
+            .animation(
+                .interactiveSpring(response: 0.22, dampingFraction: 0.85),
+            value: viewModel.collapseProgress
         )
     }
 }

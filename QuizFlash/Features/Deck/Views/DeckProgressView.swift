@@ -10,24 +10,25 @@ import SwiftUI
 struct DeckProgressView: View {
     let deck: DeckModel
     let stats: DeckStats
+    let cards: [GridCardInfo]
     
     // MARK: - Deck-Specific Metrics Logic
     
-    private var totalCards: Int { max(deck.cards.count, 1) } // Evităm împărțirea la zero
+    private var totalCards: Int { max(deck.cardCount, 1) } // Evităm împărțirea la zero
     
     // Carduri neatinse
     private var newCards: Int {
-        deck.cards.filter { $0.reviewHistory.isEmpty }.count
+        cards.filter { $0.reviewHistoryIsEmpty }.count
     }
     
     // Carduri în proces de învățare (interval sub 14 zile)
     private var learningCards: Int {
-        deck.cards.filter { !$0.reviewHistory.isEmpty && $0.interval < 14 }.count
+        cards.filter { !$0.reviewHistoryIsEmpty && $0.interval < 14 }.count
     }
     
     // Carduri bine reținute (interval >= 14 zile)
     private var masteredCards: Int {
-        deck.cards.filter { !$0.reviewHistory.isEmpty && $0.interval >= 14 }.count
+        cards.filter { !$0.reviewHistoryIsEmpty && $0.interval >= 14 }.count
     }
     
     private var newRatio: Double { Double(newCards) / Double(totalCards) }
@@ -67,7 +68,7 @@ struct DeckProgressView: View {
                     }
                 }
                 .frame(height: 12)
-                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: deck.cards.count)
+                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: deck.cardCount)
                 
                 // ── Legendă ───────────────────────────────────────────────
                 HStack(spacing: 0) {

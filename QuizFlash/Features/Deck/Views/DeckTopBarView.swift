@@ -11,14 +11,17 @@ struct DeckTopBarView: View {
     var onBack: () -> Void
     var onEdit: () -> Void
 
-    private var deckColor: Color { Color(hex: deck.colorHex) ?? .blue }
+    private var accent: Color {
+        ThemeManager.shared.accentColor.color
+    }
 
 
 
     var body: some View {
         // 1. Citim progresul DIRECT în body pentru a garanta că SwiftUI observă schimbarea la 120Hz
         let currentProgress = viewModel.collapseProgress
-        let isHeroCollapsed = searchQuery != nil || currentProgress > 0.85
+        // Sincronizezi apariția header-ului
+        let isHeroCollapsed = searchQuery != nil || currentProgress > CollapsingHeaderConfig.heroFadeThreshold
 
         // ZStack-ul principal: Aici creăm straturile.
         ZStack(alignment: .top) {
@@ -51,13 +54,13 @@ struct DeckTopBarView: View {
                     ZStack {
                         Circle()
                             .stroke(.white.opacity(0.15), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                            .frame(width: 32, height: 32)
+                            .frame(width: 40, height: 40)
                             .rotationEffect(.degrees(-90))
 
                         Image(systemName: "chevron.left")
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(.primary)
-                            .frame(width: 32, height: 32)
+                            .frame(width: 40, height: 40)
                     }
                 }
 
@@ -68,12 +71,12 @@ struct DeckTopBarView: View {
                         ZStack {
                             Circle()
                                 .stroke(.white.opacity(0.15), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                                .frame(width: 32, height: 32)
+                                .frame(width: 40, height: 40)
                                 .rotationEffect(.degrees(-90))
                             Image(systemName: "pencil")
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(.primary)
-                                .frame(width: 32, height: 32)
+                                .frame(width: 40, height: 40)
                         }
                     }
                 }
@@ -91,13 +94,6 @@ struct DeckTopBarView: View {
         let masteryInt = Int(stats.deckMastery * 100)
 
         return HStack(spacing: 8) {
-            ZStack {
-                Circle().fill(deckColor.opacity(0.25)).frame(width: 24, height: 24)
-                Image(systemName: deck.icon.isEmpty ? "sparkles.rectangle.stack.fill" : deck.icon)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(deckColor)
-            }
-
             Text(deck.title)
                 .font(.system(size: 13, weight: .bold))
                 .lineLimit(1)
@@ -113,22 +109,26 @@ struct DeckTopBarView: View {
                     .frame(width: 20, height: 20)
                     .rotationEffect(.degrees(-90))
                 Text("\(masteryInt)")
-                    .font(.system(size: 7, weight: .black))
+                    .font(.system(size: 9, weight: .black))
                     .foregroundStyle(masteryCol)
             }
 
             if stats.dueCards > 0 {
-                Text("\(stats.dueCards)")
-                    .font(.system(size: 9, weight: .black))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(.red, in: Capsule())
+                ZStack {
+                    Circle()
+                        .stroke(accent.opacity(0.20), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                        .frame(width: 20, height: 20)
+                        .rotationEffect(.degrees(-90))
+                    Text("\(stats.dueCards)")
+                        .font(.system(size: 9, weight: .black))
+                        .foregroundStyle(.white)
+                }
+
             }
         }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(.ultraThinMaterial, in: Capsule())
-            .overlay(Capsule().stroke(deckColor.opacity(0.20), lineWidth: 0.5))
+            .overlay(Capsule().stroke(.white.opacity(0.20), lineWidth: 0.5))
     }
 }

@@ -25,6 +25,9 @@ struct QuizFlashApp: App {
                 .environment(authManager)
                 .tint(themeManager.accentColor.color)
                 .preferredColorScheme(.dark)
+                .onAppear {
+                    print(URL.documentsDirectory.path())
+                }
         }
             .modelContainer(for: [DeckModel.self, CardModel.self, ReviewEvent.self, UserProfile.self, DailyActivityLog.self])
     }

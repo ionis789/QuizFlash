@@ -44,7 +44,7 @@ struct VisionOSStyleView<Content: View>: View {
             let innerShadowColor: Color = .black
             
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.white.opacity(0.1))
+                .fill(.black.opacity(0.1))
             
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(.ultraThinMaterial.shadow(.inner(color: innerShadowColor.opacity(0.15), radius: 10)))

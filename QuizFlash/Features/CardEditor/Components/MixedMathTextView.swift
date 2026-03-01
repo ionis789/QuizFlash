@@ -575,29 +575,133 @@ struct MixedMathTextView: View {
 }
 
 // =============================================================================
-// MARK: - MathWebView Pool System Prewaring 
+// MARK: - MathWebView Pool
 // =============================================================================
+//
+// Design constraints:
+//
+// 1. SHARED WKProcessPool
+//    By default every WKWebView spawns its own WebKit subprocess. On a device
+//    with 6 pooled views that is 6 separate OS-level processes, each consuming
+//    ~15-25 MB of RAM independently of any content they render.
+//    A single shared WKProcessPool collapses all WebViews into ONE subprocess,
+//    cutting baseline WebKit memory from O(n) to O(1).
+//
+// 2. BOUNDED POOL SIZE (maxPoolSize)
+//    Without a cap, enqueue() grows the pool indefinitely. Opening a deck with
+//    40 math cards and closing it would leave 40 WKWebViews in memory forever.
+//    When the pool is at capacity, excess WebViews are explicitly destroyed
+//    instead of being retained.
+//
+// 3. SINGLE PREWARM
+//    prewarm() must be called once at app launch (QuizFlashApp.init).
+//    The isPrewarmed guard makes subsequent calls no-ops, but call sites
+//    outside the app entry point should be removed to keep intent clear.
+//
 
 class MathWebViewPool {
-    static let shared = MathWebViewPool()
-    private var pool: [WKWebView] = []
-    private var isPrewarmed = false
 
-    /// Creează WebView-urile treptat în background, fără să blocheze aplicația
-    func prewarm(count: Int = 6) {
-        guard !isPrewarmed else { return }
-        isPrewarmed = true
-        
-        // Le creăm cu o întârziere mică între ele ca Main Thread-ul să respire
-        for i in 0..<count {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.15) {
-                self.pool.append(self.create())
+    static let shared = MathWebViewPool()
+
+    /// Notification token to flush the pool if the OS runs extremely low on RAM.
+    private var memoryWarningTask: Task<Void, Never>?
+
+    init() {
+        memoryWarningTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: UIApplication.didReceiveMemoryWarningNotification) {
+                guard let self = self else { return }
+                await MainActor.run {
+                    self.flush()
+                }
             }
         }
     }
 
+    deinit {
+        memoryWarningTask?.cancel()
+    }
+
+    // Maximum number of idle WebViews kept alive between uses.
+    // Reduced from 8 to 2 to minimize resting memory footprint.
+    // 2 is enough for instant flip animation (front + back) while
+    // subsequent cards can spawn on demand without accumulating.
+    private static let maxPoolSize = 2
+
+    // One process pool shared across every WKWebView instance.
+    // This is the single most impactful memory optimization available for
+    // multi-WebView scenarios on iOS.
+    private let sharedProcessPool = WKProcessPool()
+
+    private var pool: [WKWebView] = []
+    private var isPrewarmed = false
+
+    // MARK: - Prewarm
+
+    /// Populates the pool with ready-to-use WebViews at app launch.
+    ///
+    /// Call this **once** from `QuizFlashApp.init()`.
+    /// The `isPrewarmed` guard makes subsequent calls safe but they should
+    /// not appear elsewhere — the intent of this method is app-launch only.
+    func prewarm(count: Int = 6) {
+        guard !isPrewarmed else { return }
+        isPrewarmed = true
+
+        // Stagger creation across the first second to avoid a spike on the
+        // main thread immediately after launch while the UI is still settling.
+        let clamped = min(count, Self.maxPoolSize)
+        for i in 0..<clamped {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.15) {
+                // Ensure we don't exceed max size during async initialization
+                if self.pool.count < Self.maxPoolSize {
+                    self.pool.append(self.create())
+                }
+            }
+        }
+    }
+
+    // MARK: - Dequeue / Enqueue
+
+    /// Returns a pre-warmed WebView from the pool (zero allocation cost),
+    /// or creates a new one on demand if the pool is exhausted.
+    func dequeue() -> WKWebView {
+        pool.popLast() ?? create()
+    }
+
+    /// Returns a WebView to the pool after clearing its state.
+    ///
+    /// If the pool is already at `maxPoolSize`, the WebView is discarded
+    /// instead of being retained, preventing unbounded memory growth when
+    /// large decks (many math cards) are opened and closed repeatedly.
+    func enqueue(_ webView: WKWebView) {
+        guard pool.count < Self.maxPoolSize else {
+            // Pool is full — explicitly kill the WKProcess for this view
+            // before letting ARC release the wrapper.
+            // about:blank is the ONLY reliable way to flush WebKit memory on iOS.
+            webView.evaluateJavaScript("document.body.innerHTML = ''; window.webkit.messageHandlers = null;")
+            webView.load(URLRequest(url: URL(string: "about:blank")!))
+            return
+        }
+
+        // Reset content so the previous deck's HTML does not linger in memory.
+        webView.evaluateJavaScript("document.body.innerHTML = '';")
+        webView.load(URLRequest(url: URL(string: "about:blank")!))
+        pool.append(webView)
+    }
+
+    /// Empties the entire pool and releases the WKWebViews.
+    /// Called automatically on `didReceiveMemoryWarningNotification`.
+    func flush() {
+        pool.removeAll()
+    }
+
+    // MARK: - Factory
+
     private func create() -> WKWebView {
         let config = WKWebViewConfiguration()
+        // Assign the shared process pool so all WebViews in the app share a
+        // single WebKit subprocess rather than each spawning their own.
+        config.processPool = sharedProcessPool
+
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.isOpaque = false
         webView.backgroundColor = .clear
@@ -607,23 +711,6 @@ class MathWebViewPool {
         webView.scrollView.showsVerticalScrollIndicator = false
         webView.scrollView.showsHorizontalScrollIndicator = false
         return webView
-    }
-
-    /// Extrage un WebView gata de folosit (Zero Lag)
-    func dequeue() -> WKWebView {
-        if let view = pool.popLast() {
-            return view
-        }
-        return create() // Fallback dacă utilizatorul scrollează la o viteză inumană
-    }
-
-    /// Curăță și pune la loc WebView-ul când cardul dispare
-    func enqueue(_ webView: WKWebView) {
-        // Dezlegăm comunicatorul vechi ca să evităm memory leaks
-        webView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
-        // Încărcăm un string gol pentru a elibera memoria folosită de HTML-ul anterior
-        webView.loadHTMLString("", baseURL: nil)
-        pool.append(webView)
     }
 }
 
@@ -645,16 +732,25 @@ struct MathWebView: UIViewRepresentable {
 
     // 🟢 NOU: Funcția SwiftUI automată care prinde momentul când cardul dispare
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
-        MathWebViewPool.shared.enqueue(uiView) // Reciclăm componenta grea!
+        // 1. Unlink coordinator to break any lingering weak/unowned chains
+        coordinator.webView = nil
+
+        // 2. Remove script handler to break the JS context retain cycle
+        uiView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
+
+        // 3. Return to pool (or discard if full)
+        MathWebViewPool.shared.enqueue(uiView)
     }
 
     func makeUIView(context: Context) -> WKWebView {
         // 🟢 NOU: Împrumutăm WebView-ul (0 milisecunde în loc de 300 milisecunde)
         let webView = MathWebViewPool.shared.dequeue()
 
-        // Re-atașăm mesajul de înălțime la controller
+        // Re-atașăm mesajul de înălțime la controller folosind delegatul specializat
+        // care reține webView-ul *WEAK*, nu *STRONG*.
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
-        webView.configuration.userContentController.add(context.coordinator, name: "heightUpdate")
+        let scriptHandlerWrapper = WeakScriptMessageHandler(delegate: context.coordinator)
+        webView.configuration.userContentController.add(scriptHandlerWrapper, name: "heightUpdate")
 
         context.coordinator.webView = webView
         context.coordinator.lastRenderedText = text
@@ -860,7 +956,7 @@ struct MathWebView: UIViewRepresentable {
 
     class Coordinator: NSObject, WKScriptMessageHandler {
         @Binding var contentHeight: CGFloat
-        var webView: WKWebView?
+        weak var webView: WKWebView? // WEAK reference to break the retain cycle
         var lastRenderedText: String = ""
 
         init(contentHeight: Binding<CGFloat>) {
@@ -876,5 +972,26 @@ struct MathWebView: UIViewRepresentable {
             else { return }
             DispatchQueue.main.async { self.contentHeight = CGFloat(h) }
         }
+    }
+}
+
+// =============================================================================
+// MARK: - WeakScriptMessageHandler
+// =============================================================================
+
+/// Acts as a purely weak intermediary between WKUserContentController and our Coordinator.
+/// WKUserContentController retains its script message handlers strongly. If we passed
+/// the Coordinator directly, WKWebView -> String -> Handler -> Coordinator -> WKWebView,
+/// resulting in a permanent cyclic memory leak.
+private class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    weak var delegate: WKScriptMessageHandler?
+
+    init(delegate: WKScriptMessageHandler) {
+        self.delegate = delegate
+        super.init()
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        delegate?.userContentController(userContentController, didReceive: message)
     }
 }

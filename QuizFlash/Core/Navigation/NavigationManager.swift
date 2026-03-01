@@ -20,6 +20,7 @@ final class NavigationManager {
 enum AppRoute: Hashable {
     case createDeck
     case settings
+    case folder(FolderModel)
 }
 
 // MARK: - Search Route Integration

@@ -616,6 +616,10 @@ struct CachedImageView: View {
             } else { ProgressView().frame(height: 100) }
         }
             .task { loadImage() }
+            .onDisappear {
+                // Force release the rendered bitmap memory immediately when the card disappears
+                self.uiImage = nil
+            }
     }
 
     private func loadImage() {
