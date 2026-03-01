@@ -30,119 +30,138 @@ struct DeckContentView: View {
     // MARK: - Body
 
     var body: some View {
-        Group {
-            ZStack(alignment: .bottom) {
-                mainContent
-                    .fullScreenCover(isPresented: $isAddingCard) {
-                        CreateCardView(searchQuery: nil) { frontZone, backZone in
-                            let newCard = CardModel(frontZone: frontZone, backZone: backZone)
-                            newCard.deck = deck
-                            context.insert(newCard)
-                            try? context.save()
-                            deck.cardCount += 1
-                            deck.editedAt = Date()
-                        }
-                    }
-                    .fullScreenCover(isPresented: $isPresentingEdit) {
-                        NavigationStack { CreateDeckView(deckToEdit: deck) }
-                    }
-                    .fullScreenCover(isPresented: $isPlayingQuiz, onDismiss: {
-                        deck.lastOpenedAt = Date()
-                        try? context.save()
-                        // 🔥 FIX: Folosim noua metodă async
-                        Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
-                    }) {
-                        NavigationStack { DefaultModePlay(deck: deck) }
-                    }
-                    .fullScreenCover(item: $previewedCard) { CardPreviewScreen(card: $0) }
-                    .fullScreenCover(item: $editingCard) { card in
-                        NavigationStack {
-                            CreateCardView(
-                                frontZone: card.frontZone,
-                                backZone: card.backZone,
-                                searchQuery: viewModel.searchQuery
-                            ) { frontZone, backZone in
-                                if card.frontZone != frontZone || card.backZone != backZone {
-                                    card.frontZone = frontZone
-                                    card.backZone = backZone
-                                    card.editedAt = Date()
-                                    deck.editedAt = Date()
-                                    try? context.save()
-                                    // 🔥 FIX: Folosim noua metodă async
-                                    Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
-                                }
-                                editingCard = nil
-                            }
-                        }
-                    }
-
-                if viewModel.isSelecting {
-                    DeckSelectionBottomBar(
-                        selectedCount: viewModel.selectedCards.count,
-                        onDone: viewModel.exitSelectionMode,
-                        onDelete: { viewModel.showDeleteConfirmation = true }
+        deckContent
+            .onAppear {
+                Task {
+                    await viewModel.loadSnapshot(
+                        deckID: deck.persistentModelID,
+                        container: context.container
                     )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .padding(.bottom, 20)
-                    .zIndex(10)
                 }
             }
-            .overlay(alignment: .topLeading) { menuOverlay }
-            .swipeBack { router.path.removeLast() }
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
-            .customTabBarVisibility(.hidden)
-        }
-        .onAppear {
-            Task {
-                await viewModel.loadSnapshot(
-                    deckID: deck.persistentModelID,
-                    container: context.container
-                )
+            .onDisappear {
+                viewModel.tearDown()
+                ImageCache.shared.clearCache()
+                MathWebViewPool.shared.flush()
             }
-        }
-        .onDisappear {
-            // 🔥 FIX: Am curățat duplicatele. viewModel.tearDown() face acum totul corect!
-            viewModel.tearDown()
-            ImageCache.shared.clearCache()
-            MathWebViewPool.shared.flush()
-        }
-        .onChange(of: deck.cardCount) {
-            Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
-        }
-        .onChange(of: viewModel.sortOrder) {
-            Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
-        }
-        .onChange(of: viewModel.searchQuery) {
-            Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
-        }
-        .alert(
-            "Delete \(viewModel.selectedCards.count) card\(viewModel.selectedCards.count == 1 ? "" : "s")?",
-            isPresented: $viewModel.showDeleteConfirmation
-        ) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    viewModel.deleteSelectedCards(from: deck, context: context)
+            .onChange(of: isPlayingQuiz) { old, new in
+                if old == true && new == false { viewModel.savedScrollOffset = 1 }
+            }
+            .onChange(of: isPresentingEdit) { old, new in
+                if old == true && new == false { viewModel.savedScrollOffset = 1 }
+            }
+            .onChange(of: deck.cardCount) {
+                Task {
+                    await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container)
+                    viewModel.savedScrollOffset = 1
                 }
             }
-        } message: { Text("This action cannot be undone.") }
-        .sheet(isPresented: $viewModel.showShareSheet) {
-            if let url = viewModel.exportedURL { ShareSheet(items: [url]) }
-        }
-        .alert("Export Error", isPresented: $viewModel.showExportError) {
-            Button("OK", role: .cancel) { }
-        } message: { Text(viewModel.exportErrorMessage) }
-        .overlay {
-            if viewModel.isExporting {
-                ZStack {
-                    Color.black.opacity(0.3).ignoresSafeArea()
-                    VStack(spacing: 16) {
-                        ProgressView().scaleEffect(1.5)
-                        Text("Exporting...").font(.headline)
+            .onChange(of: viewModel.sortOrder) {
+                Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
+            }
+            .onChange(of: viewModel.searchQuery) {
+                Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
+            }
+            .alert(
+                "Delete \(viewModel.selectedCards.count) card\(viewModel.selectedCards.count == 1 ? "" : "s")?",
+                isPresented: $viewModel.showDeleteConfirmation
+            ) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        viewModel.deleteSelectedCards(from: deck, context: context)
                     }
-                    .padding(32)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
                 }
+            } message: { Text("This action cannot be undone.") }
+            .sheet(isPresented: $viewModel.showShareSheet) {
+                if let url = viewModel.exportedURL { ShareSheet(items: [url]) }
+            }
+            .alert("Export Error", isPresented: $viewModel.showExportError) {
+                Button("OK", role: .cancel) { }
+            } message: { Text(viewModel.exportErrorMessage) }
+            .overlay { exportingOverlay }
+    }
+
+    // MARK: - Body Fragments
+
+    /// Top-level ZStack with selection bar, menu overlay, and navigation chrome.
+    /// Separated from `body` so the type-checker handles each expression independently.
+    private var deckContent: some View {
+        ZStack(alignment: .bottom) {
+            mainContentWithCovers
+            if viewModel.isSelecting {
+                DeckSelectionBottomBar(
+                    selectedCount: viewModel.selectedCards.count,
+                    onDone: viewModel.exitSelectionMode,
+                    onDelete: { viewModel.showDeleteConfirmation = true }
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.bottom, 20)
+                .zIndex(10)
+            }
+        }
+        .overlay(alignment: .topLeading) { menuOverlay }
+        .swipeBack { router.path.removeLast() }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+        .customTabBarVisibility(.hidden)
+    }
+
+    /// `mainContent` plus all fullScreenCover presentations.
+    /// Extracted so the type-checker does not have to process all five covers inside `body`.
+    private var mainContentWithCovers: some View {
+        mainContent
+            .fullScreenCover(isPresented: $isAddingCard) {
+                CreateCardView(searchQuery: nil) { frontZone, backZone in
+                    let newCard = CardModel(frontZone: frontZone, backZone: backZone)
+                    newCard.deck = deck
+                    context.insert(newCard)
+                    try? context.save()
+                    deck.editedAt = Date()
+                }
+            }
+            .fullScreenCover(isPresented: $isPresentingEdit) {
+                NavigationStack { CreateDeckView(deckToEdit: deck) }
+            }
+            .fullScreenCover(isPresented: $isPlayingQuiz, onDismiss: {
+                deck.lastOpenedAt = Date()
+                try? context.save()
+                Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
+            }) {
+                NavigationStack { DefaultModePlay(deck: deck) }
+            }
+            .fullScreenCover(item: $previewedCard) { CardPreviewScreen(card: $0) }
+            .fullScreenCover(item: $editingCard) { card in
+                NavigationStack {
+                    CreateCardView(
+                        frontZone: card.frontZone,
+                        backZone: card.backZone,
+                        searchQuery: viewModel.searchQuery
+                    ) { frontZone, backZone in
+                        if card.frontZone != frontZone || card.backZone != backZone {
+                            card.frontZone = frontZone
+                            card.backZone = backZone
+                            card.editedAt = Date()
+                            deck.editedAt = Date()
+                            try? context.save()
+                            Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
+                        }
+                        editingCard = nil
+                    }
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var exportingOverlay: some View {
+        if viewModel.isExporting {
+            ZStack {
+                Color.black.opacity(0.3).ignoresSafeArea()
+                VStack(spacing: 16) {
+                    ProgressView().scaleEffect(1.5)
+                    Text("Exporting...").font(.headline)
+                }
+                .padding(32)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
             }
         }
     }
@@ -150,111 +169,111 @@ struct DeckContentView: View {
     // MARK: - Main Content
 
     private var mainContent: some View {
-        CollapsingScrollView { p in
-            viewModel.collapseProgress = p
-        } header: {
-            DeckTopBarView(
-                deck: deck,
-                stats: viewModel.currentStats, // 🔥 FIX: Folosim stats-urile directe din ViewModel
-                viewModel: viewModel,
-                searchQuery: searchQuery,
-                onBack: { router.path.removeLast() },
-                onEdit: { isPresentingEdit = true }
-            )
-        } content: {
-            VStack(spacing: 0) {
-                if searchQuery == nil {
-                    HeroSection(
-                        deck: deck,
-                        stats: viewModel.currentStats, // 🔥 FIX
-                        viewModel: viewModel,
-                        onEdit: { isPresentingEdit = true }
-                    )
-                    .zIndex(-1)
-                }
-
-                if let query = searchQuery, !query.isEmpty {
-                    HStack {
-                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
-                            .foregroundStyle(Color.accentColor)
-                        Text("Filtered by \"**\(query)**\"")
-                            .font(.subheadline)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Color.accentColor.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                }
-
-                VStack(spacing: 16) {
-                    if searchQuery == nil || searchQuery?.isEmpty == true {
-                        DeckPlayModesView(deck: deck, onPlay: { isPlayingQuiz = true })
-                            .padding(.top, 16)
-                        DeckProgressView(deck: deck, stats: viewModel.currentStats, cards: viewModel.allCardInfos) // 🔥 FIX
+        ScrollView {
+                VStack(spacing: 0) {
+                    if searchQuery == nil {
+                        DeckHeroView(
+                            deck: deck,
+                            stats: viewModel.currentStats,
+                            onEdit: { isPresentingEdit = true }
+                        )
+                        .padding(.top, 16)
+                        .zIndex(-1)
                     }
 
-                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                        Section {
-                            Color.clear.frame(height: 4)
+                    if let query = searchQuery, !query.isEmpty {
+                        HStack {
+                            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                                .foregroundStyle(Color.accentColor)
+                            Text("Filtered by \"**\(query)**\"")
+                                .font(.subheadline)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color.accentColor.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                    }
 
-                            DeckCardGridView(
-                                cards: viewModel.cachedGroupedCards,
-                                isSelecting: viewModel.isSelecting,
-                                selectedCards: viewModel.selectedCards,
-                                onToggleSelection: { gridCard in viewModel.toggleSelection(for: gridCard.id) },
-                                onTapCard: { gridCard in
-                                    if viewModel.isSelecting {
-                                        viewModel.toggleSelection(for: gridCard.id)
-                                    } else if searchQuery != nil {
-                                        if let model = context.model(for: gridCard.id) as? CardModel { editingCard = model }
-                                    } else {
-                                        if let model = context.model(for: gridCard.id) as? CardModel { previewedCard = model }
-                                    }
-                                },
-                                onLongPressCard: { gridCard in
-                                    if viewModel.isSelecting {
-                                        viewModel.toggleSelection(for: gridCard.id)
-                                    } else {
-                                        if let model = context.model(for: gridCard.id) as? CardModel {
-                                            editingCard = model
+                    VStack(spacing: 16) {
+                        if searchQuery == nil || searchQuery?.isEmpty == true {
+                            DeckPlayModesView(deck: deck, onPlay: { isPlayingQuiz = true })
+                                .padding(.top, 16)
+                            DeckProgressView(deck: deck, stats: viewModel.currentStats, cards: viewModel.allCardInfos)
+                        }
+
+                        LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                            Section {
+                                Color.clear.frame(height: 4)
+
+                                DeckCardGridView(
+                                    cards: viewModel.cachedGroupedCards,
+                                    isSelecting: viewModel.isSelecting,
+                                    selectedCards: viewModel.selectedCards,
+                                    onToggleSelection: { gridCard in viewModel.toggleSelection(for: gridCard.id) },
+                                    onTapCard: { gridCard in
+                                        if viewModel.isSelecting {
+                                            viewModel.toggleSelection(for: gridCard.id)
+                                        } else if searchQuery != nil {
+                                            if let model = context.model(for: gridCard.id) as? CardModel { editingCard = model }
+                                        } else {
+                                            if let model = context.model(for: gridCard.id) as? CardModel { previewedCard = model }
+                                        }
+                                    },
+                                    onLongPressCard: { gridCard in
+                                        if viewModel.isSelecting {
+                                            viewModel.toggleSelection(for: gridCard.id)
+                                        } else {
+                                            if let model = context.model(for: gridCard.id) as? CardModel {
+                                                editingCard = model
+                                            }
+                                        }
+                                    },
+                                    onDeleteCard: { gridCard in
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                            viewModel.deleteSingleCard(id: gridCard.id, from: deck, context: context)
                                         }
                                     }
-                                },
-                                onDeleteCard: { gridCard in
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                        viewModel.deleteSingleCard(id: gridCard.id, from: deck, context: context)
-                                    }
-                                }
-                            )
+                                )
 
-                            Color.clear.frame(height: 120)
-                        } header: {
-                            DeckSectionToolbar(
-                                deck: deck,
-                                isSelecting: viewModel.isSelecting,
-                                sortOrder: $viewModel.sortOrder,
-                                isMenuExpanded: $isMenuExpanded,
-                                menuPosition: $menuPosition,
-                                menuTracker: menuTracker,
-                                onAdd: { isAddingCard = true },
-                                onStartSelection: {
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                        viewModel.isSelecting = true
-                                    }
-                                },
-                                onExport: { viewModel.exportDeck(deck) }
-                            )
-                            .padding(.vertical, 8)
-                            .background(Color(uiColor: .systemGroupedBackground))
+                                Color.clear.frame(height: 120)
+                            } header: {
+                                DeckSectionToolbar(
+                                    deck: deck,
+                                    isSelecting: viewModel.isSelecting,
+                                    sortOrder: $viewModel.sortOrder,
+                                    isMenuExpanded: $isMenuExpanded,
+                                    menuPosition: $menuPosition,
+                                    menuTracker: menuTracker,
+                                    onAdd: { isAddingCard = true },
+                                    onStartSelection: {
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                            viewModel.isSelecting = true
+                                        }
+                                    },
+                                    onExport: { viewModel.exportDeck(deck) }
+                                )
+                                .padding(.vertical, 8)
+                                .background(Color(uiColor: .systemGroupedBackground))
+                            }
                         }
                     }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if viewModel.isSelecting { viewModel.exitSelectionMode() }
+                    }
                 }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if viewModel.isSelecting { viewModel.exitSelectionMode() }
+            }
+            .navigationTitle(deck.title)
+            .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    isPresentingEdit = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
                 }
             }
         }
@@ -392,27 +411,7 @@ struct DeckContentView: View {
     }
 }
 
-private struct HeroSection: View {
-    let deck: DeckModel
-    let stats: DeckStats
-    let viewModel: DeckViewModel
-    let onEdit: () -> Void
-
-    private var t: CGFloat {
-        CollapsingHeaderConfig.heroTransitionProgress(currentProgress: viewModel.collapseProgress)
-    }
-
-    var body: some View {
-        DeckHeroView(deck: deck, stats: stats, onEdit: onEdit)
-            .opacity(1.0 - t)
-            .scaleEffect(1.0 - (t * 0.4), anchor: .top)
-            .offset(y: -(t * 20))
-            .animation(
-                .interactiveSpring(response: 0.22, dampingFraction: 0.85),
-                value: viewModel.collapseProgress
-            )
-    }
-}
+// HeroSection removed completely.
 
 // MARK: - iOS 17 Retain Cycle Wrapper
 

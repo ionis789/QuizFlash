@@ -26,11 +26,12 @@ final class LibraryViewModel {
     var sharedSearchActor: LibrarySearchActor?
     var sortOrder: SortOrder = .newest
     var lastGroupedDecksHash: Int = 0
-    // Scroll-driven collapse progress [0, 1].
-    // Written by CollapsingScrollView's onProgress callback (write-only, no re-render).
-    // Read exclusively by LibraryHeroSection and LibraryTopBarView (isolated leaf views).
-    // LibraryLayout.body never reads this — zero re-render cost during scroll.
-    var collapseProgress: CGFloat = 0
+
+    /// Raw UIScrollView contentOffset.y saved by ScrollPositionRestorer.
+    /// Persists across NavigationStack push/pop cycles and tab switches.
+    /// Intentionally NOT cleared in tearDown() — the restorer needs the last
+    /// known offset to restore position when the Library tab reappears.
+    var savedScrollOffset: CGFloat = 0
 
     // MARK: - Selection State
     var isSelecting = false
@@ -96,11 +97,12 @@ final class LibraryViewModel {
         cachedSearchPayloads = []
         cachedGroupedDecks = []
         searchResults = []
-        // NOTE: We intentionally keep `cachedDeckIDs` populated.
-        // This preserves the dedup check in `rebuildCacheIfNeeded`,
-        // so re-appearing the Library tab doesn't re-fault every
-        // card's text through SwiftData's row cache. The cache
-        // only rebuilds when the actual deck set changes.
+        // NOTE: We intentionally keep `cachedDeckIDs` and `savedScrollOffset` populated.
+        // cachedDeckIDs preserves the dedup check so re-appearing the Library tab
+        // doesn't re-fault every card's text through SwiftData's row cache.
+        // savedScrollOffset preserves the UIScrollView contentOffset.y so
+        // ScrollPositionRestorer can restore the exact pixel position on the
+        // next navigation return — without it the list would always reset to top.
     }
 
     // MARK: - Search Cache (Async)

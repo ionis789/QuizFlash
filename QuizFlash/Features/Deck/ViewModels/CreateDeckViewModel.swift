@@ -311,18 +311,6 @@ final class CreateDeckViewModel {
             let titleChanged = deck.title != trimmedTitle
             deck.title = trimmedTitle
 
-            // Update folder relationship and keep deckCount in sync on both
-            // the old and new folder. Reading deck.folder (to-one) is safe —
-            // it never triggers the iOS 17 array retain-cycle bug.
-            let previousFolder = deck.folder
-            if previousFolder !== selectedFolder {
-                // Decrement count on the folder the deck is leaving.
-                if let prev = previousFolder {
-                    prev.deckCount = max(0, prev.deckCount - 1)
-                }
-                // Increment count on the folder the deck is joining.
-                selectedFolder?.deckCount += 1
-            }
             deck.folder = selectedFolder
 
             var cardsChanged = false
@@ -379,9 +367,7 @@ final class CreateDeckViewModel {
             }
             newDeck.cardCount = newDeck.cards.count
 
-            // Keep the folder's denormalized count in sync.
-            // selectedFolder is a to-one read — safe on MainActor, no array fault.
-            selectedFolder?.deckCount += 1
+
 
             try? context.save()
         }

@@ -235,23 +235,11 @@ struct MainAppView: View {
         .environment(router)
         .environment(libraryViewModel)
         .task {
-            // One-time migration: backfill denormalized `cardCount` for
-            // decks created before this property was added.
+            // One-time migration removed logic based on cardCount and deckCount
             let key = "didMigrateCardCount_v1"
             guard !UserDefaults.standard.bool(forKey: key) else { return }
-            let decks = (try? modelContext.fetch(FetchDescriptor<DeckModel>())) ?? []
-            for deck in decks where deck.cardCount == 0 && !deck.cards.isEmpty {
-                deck.cardCount = deck.cards.count
-            }
 
-            // One-time migration: backfill denormalized `deckCount` for
-            // folders created before this property was added.
-            // Reading folder.decks here is acceptable because this block runs
-            // only once per app install — not on every launch.
-            let folders = (try? modelContext.fetch(FetchDescriptor<FolderModel>())) ?? []
-            for folder in folders where folder.deckCount == 0 && !folder.decks.isEmpty {
-                folder.deckCount = folder.decks.count
-            }
+
 
             try? modelContext.save()
             UserDefaults.standard.set(true, forKey: key)

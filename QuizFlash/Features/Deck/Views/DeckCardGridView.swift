@@ -200,6 +200,7 @@ struct DeckCardGridView: View {
                     HStack(spacing: 16) {
                         ForEach(chunks[rowIndex]) { card in
                             cardCell(for: card)
+                                .id(card.id) // ✅ FIX CRITIC: Restore scroll position
                         }
                         let remaining = columnsCount - chunks[rowIndex].count
                         if remaining > 0 {

@@ -207,12 +207,7 @@ struct FolderCardView: View {
                     .lineLimit(1)
                     .padding(.bottom, 4)
 
-                // Safe: deckCount is a denormalized plain Int on FolderModel,
-                // not a relationship array. Reading it here never faults
-                // folder.decks into the main ModelContext row cache (iOS 17 fix).
-                // SwiftUI's @Observable machinery tracks this scalar directly,
-                // so the card re-renders instantly whenever deckCount changes.
-                Text("\(folder.deckCount) decks")
+                Text("\(folder.decks.count) decks")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
             }

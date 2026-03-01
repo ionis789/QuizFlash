@@ -44,11 +44,8 @@ struct GridCardInfo: Identifiable, Equatable, Hashable, Sendable {
 @MainActor
 final class DeckViewModel {
 
-    // MARK: - Search State
-    var searchQuery: String? = nil
 
-    // MARK: - Scroll State
-    var collapseProgress: CGFloat = 0
+
 
     // MARK: - Selection State
     var isSelecting = false
@@ -62,6 +59,13 @@ final class DeckViewModel {
     /// Replaces the DeckStats return value of the old updateGroupedCards.
     /// Updated after every loadSnapshot call (initial load and post-deletion refresh).
     private(set) var currentStats: DeckStats = .empty
+
+    // MARK: - Scroll Restoration
+    /// Non-zero value signals DeckView to restore scroll position after a sheet dismissal.
+    var savedScrollOffset: CGFloat = 0
+
+    // MARK: - Search
+    var searchQuery: String?
 
     // MARK: - Sorting
     var sortOrder: SortOrder = .newest
@@ -87,10 +91,10 @@ final class DeckViewModel {
     /// This is the final step of the iOS 17 fix: it ensures the background ModelContext
     /// is properly dismantled before the view cycle ends.
     func tearDown() {
-        allCardInfos.removeAll()
-        cachedGroupedCards.removeAll()
-        currentStats = .empty
-        selectedCards.removeAll()
+        // We INTENTIONALLY leave `allCardInfos` and `cachedGroupedCards` intact.
+        // If we remove them, DeckView loses its content immediately upon .onDisappear
+        // (which fires when sheets/FullCovers open), instantly destroying native scroll position.
+        
         // This triggers CardFetchActor.tearDown() → modelContext.reset() → iOS 17 zombie fix.
         CardPreviewCache.shared.flush()
     }

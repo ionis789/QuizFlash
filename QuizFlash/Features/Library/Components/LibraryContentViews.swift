@@ -49,8 +49,8 @@ struct LibraryListView: View {
                         onEditColor: { onEditColor(deck) },
                         onDelete: { onDelete(deck) }
                     )
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 5)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 5)
                     // ✅ FIX CRITIC: ID explicit. Oferă SwiftUI-ului o țintă fixă
                     // de care să agațe scroll-ul când se întoarce dintr-un NavigationLink.
                     .id(deck.id)
