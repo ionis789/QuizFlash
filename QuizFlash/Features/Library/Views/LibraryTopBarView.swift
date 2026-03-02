@@ -128,6 +128,7 @@ struct LibraryTopBarView: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
+            .frame(height: 50)
             .background(darkPillBackground(cornerRadius: 20))
     }
 
@@ -148,17 +149,12 @@ struct LibraryTopBarView: View {
                     .frame(width: 44, height: 36)
             }
 
-            // Hairline separator inside the pill between the two icons
-            Rectangle()
-                .fill(.white.opacity(0.1))
-                .frame(width: 0.5, height: 18)
-
             // Menu icon
             Menu { menuContent } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(accent)
-                    .frame(width: 44, height: 36)
+                    .frame(width: 44, height: 50)
             }
         }
         .background(darkPillBackground(cornerRadius: 18))
@@ -172,15 +168,12 @@ struct LibraryTopBarView: View {
     ///   2. Black tint overlay  — darkens to near-black, matching iOS 26 tone.
     ///   3. Hairline stroke     — top-edge highlight that gives glass depth.
     private func darkPillBackground(cornerRadius: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        Capsule()
             .fill(.ultraThinMaterial)
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.black.opacity(0.45))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(.white.opacity(0.08), lineWidth: 0.5)
+                Capsule()
+                    .fill(accent.opacity(0.15))
+                    .padding(5)
             )
     }
 

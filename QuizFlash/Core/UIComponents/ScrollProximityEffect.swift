@@ -61,7 +61,7 @@ public extension View {
     func scrollProximityEffect(
         triggerDistanceFromTop: CGFloat = 20.0,
         dissolveDistance: CGFloat = 200.0,
-        minScale: CGFloat = 0.9,
+        minScale: CGFloat = 1.1,
         maxBlur: CGFloat = 7.0,
         minOpacity: CGFloat = 0.0,
         maxRotationX: Double = 45.0,

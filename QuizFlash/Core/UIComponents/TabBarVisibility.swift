@@ -31,3 +31,21 @@ extension View {
         self.preference(key: TabBarVisibilityKey.self, value: rule)
     }
 }
+
+// MARK: - Smart Visibility Modifier
+struct HideTabBarOnPushModifier: ViewModifier {
+    @Environment(\.isPresented) private var isPresented
+    
+    func body(content: Content) -> some View {
+        content
+            // Când isPresented devine false (la swipe back), trimite instant .implicit
+            .customTabBarVisibility(isPresented ? .hidden : .implicit)
+    }
+}
+
+extension View {
+    /// Folosește asta în loc de `.customTabBarVisibility(.hidden)` pentru ecranele rutiere
+    func hideTabBarOnPush() -> some View {
+        self.modifier(HideTabBarOnPushModifier())
+    }
+}

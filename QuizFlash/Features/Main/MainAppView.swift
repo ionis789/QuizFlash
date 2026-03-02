@@ -43,6 +43,8 @@ struct MainAppView: View {
     /// Defaults to `.implicit` (tab bar visible) until a preference arrives.
     @State private var tabBarRule: TabBarVisibilityRule = .implicit
 
+
+
     // MARK: - Init
 
     init() {
@@ -74,8 +76,8 @@ struct MainAppView: View {
     ///   `.implicit` → show by default
     private var isTabBarVisible: Bool {
         switch tabBarRule {
-        case .visible:  return true
-        case .hidden:   return false
+        case .visible: return true
+        case .hidden: return false
         case .implicit: return true
         }
     }
@@ -123,70 +125,57 @@ struct MainAppView: View {
                     HomeView()
                         .toolbar(.hidden, for: .tabBar)
                         .navigationDestination(for: PersistentIdentifier.self) { deckID in
-                            if let deck = modelContext.model(for: deckID) as? DeckModel {
-                                DeckView(deck: deck)
-                                    .toolbar(.hidden, for: .navigationBar)
-                            }
+                        if let deck = modelContext.model(for: deckID) as? DeckModel {
+                            DeckView(deck: deck)
+                                .toolbar(.hidden, for: .navigationBar)
                         }
+                    }
                         .navigationDestination(for: AppRoute.self) { route in
-                            appRouteDestination(for: route)
-                        }
+                        appRouteDestination(for: route)
+                    }
                 }
-                .tag(AppTab.home)
+                    .tag(AppTab.home)
 
                 // LIBRARY TAB
                 NavigationStack(path: $router.libraryPath) {
                     LibraryView()
                         .toolbar(.hidden, for: .tabBar)
                         .navigationDestination(for: PersistentIdentifier.self) { deckID in
-                            if let deck = modelContext.model(for: deckID) as? DeckModel {
-                                DeckView(deck: deck)
-                                    .toolbar(.hidden, for: .navigationBar)
-                            }
+                        if let deck = modelContext.model(for: deckID) as? DeckModel {
+                            DeckView(deck: deck)
+                                .toolbar(.hidden, for: .navigationBar)
                         }
+                    }
                         .navigationDestination(for: AppRoute.self) { route in
-                            appRouteDestination(for: route)
-                        }
+                        appRouteDestination(for: route)
+                    }
                 }
-                .tag(AppTab.library)
+                    .tag(AppTab.library)
 
                 // CREATE TAB
                 NavigationStack(path: $router.createPath) {
                     CreateDeckView()
                         .toolbar(.hidden, for: .tabBar)
                         .navigationDestination(for: PersistentIdentifier.self) { deckID in
-                            if let deck = modelContext.model(for: deckID) as? DeckModel {
-                                DeckView(deck: deck)
-                                    .toolbar(.hidden, for: .navigationBar)
-                            }
+                        if let deck = modelContext.model(for: deckID) as? DeckModel {
+                            DeckView(deck: deck)
+                                .toolbar(.hidden, for: .navigationBar)
                         }
+                    }
                         .navigationDestination(for: AppRoute.self) { route in
-                            appRouteDestination(for: route)
-                        }
+                        appRouteDestination(for: route)
+                    }
                 }
-                .tag(AppTab.create)
+                    .tag(AppTab.create)
             }
-            .ignoresSafeArea(.keyboard, edges: .bottom)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
             // ── Path Observers for TabBar Visibility ──────────────────────────
             // Instant tab bar restoration on pop — the critical fix for the
             // perceived delay after swipe-back on iOS 17.
             // When the path count decreases, we know a view was popped. If the bar
             // was hidden, we immediately restore it.
-            .onChange(of: router.homePath) { oldPath, newPath in
-                if newPath.count < oldPath.count && tabBarRule == .hidden {
-                    tabBarRule = .implicit
-                }
-            }
-            .onChange(of: router.libraryPath) { oldPath, newPath in
-                if newPath.count < oldPath.count && tabBarRule == .hidden {
-                    tabBarRule = .implicit
-                }
-            }
-            .onChange(of: router.createPath) { oldPath, newPath in
-                if newPath.count < oldPath.count && tabBarRule == .hidden {
-                    tabBarRule = .implicit
-                }
-            }
+            // ── Path Observers for TabBar Visibility ──────────────────────────
+
             // ── Tab Bar Layer ────────────────────────────────────────────────
             // Asymmetric animation:
             //   • Hiding  → spring, synced with the NavigationStack push curve.
@@ -194,28 +183,34 @@ struct MainAppView: View {
             //               via the path observer. This branch only runs for
             //               non-pop show events (e.g. LibraryView sending .visible
             //               for a folder that should keep the bar visible).
+            // ── Tab Bar Layer ────────────────────────────────────────────────
+            // ── Tab Bar Layer ────────────────────────────────────────────────
+            // ── Tab Bar Layer ────────────────────────────────────────────────
             .onPreferenceChange(TabBarVisibilityKey.self) { rule in
-                let isAppearing = !isTabBarVisible && (rule == .visible || rule == .implicit)
-                if isAppearing {
-                    tabBarRule = rule
-                } else {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        tabBarRule = rule
-                    }
+                // Fără animație aici, pentru că animația e pusă direct pe TabBar!
+                DispatchQueue.main.async {
+                    self.tabBarRule = rule
                 }
             }
+            // ── Tab Bar Layer ────────────────────────────────────────────────
+            // ── Tab Bar Layer ────────────────────────────────────────────────
+            // Am eliminat `if isTabBarVisible` pentru a păstra view-ul în memorie.
+            // Animația de ascundere/afișare este controlată pur prin offset (mutație pe axa Y).
 
             // ── Tab Bar Layer ────────────────────────────────────────────────
-            if isTabBarVisible {
-                CustomTabBar(activeTab: tabSelectionBinding)
-                    .padding(.bottom, 10)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(1)
-            }
+            // FĂRĂ `if isTabBarVisible {` aici!
+            CustomTabBar(activeTab: tabSelectionBinding)
+                .padding(.bottom, 10)
+            // Mută bara în jos 130 de puncte când e ascunsă, sau la 0 când e vizibilă
+            .offset(y: isTabBarVisible ? 0 : 130)
+                .opacity(isTabBarVisible ? 1 : 0)
+                .zIndex(1)
+            // Acest singur rând preia modificarea de stare și creează o tranziție perfectă
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isTabBarVisible)
         }
-        .environment(router)
-        .environment(libraryViewModel)
-        .task {
+            .environment(router)
+            .environment(libraryViewModel)
+            .task {
             // One-time migration removed logic based on cardCount and deckCount
             let key = "didMigrateCardCount_v1"
             guard !UserDefaults.standard.bool(forKey: key) else { return }
@@ -224,7 +219,9 @@ struct MainAppView: View {
             UserDefaults.standard.set(true, forKey: key)
         }
     }
-    
+
+
+
     // MARK: - Global Dynamic Router Helper
     @ViewBuilder
     private func appRouteDestination(for route: AppRoute) -> some View {

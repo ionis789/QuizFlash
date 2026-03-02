@@ -105,7 +105,14 @@ struct DeckContentView: View {
             .overlay(alignment: .topLeading) { menuOverlay }
             .swipeBack { dismiss() }
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
-            .customTabBarVisibility(.hidden)
+            .navigationDestination(for: PersistentIdentifier.self) { deckID in
+            if let deck = context.model(for: deckID) as? DeckModel {
+                DeckView(deck: deck)
+                    .toolbar(.hidden, for: .navigationBar)
+                // APLICĂ NOUA METODĂ AICI:
+                .hideTabBarOnPush()
+            }
+        }
     }
 
     /// `mainContent` plus all fullScreenCover presentations.

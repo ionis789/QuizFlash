@@ -136,7 +136,7 @@ struct LibraryDeckListRow: View {
             }
                 .padding(.vertical, 6)
         }
-            .scaleEffect(isSelecting && isSelected ? 0.97 : 1.0)
+            .scaleEffect(isSelecting && isSelected ? 0.9 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelected)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelecting)
     }

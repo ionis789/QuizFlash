@@ -74,7 +74,7 @@ struct LibraryLayout: View {
             // Tune kShadowRadius in EdgeShadowOverlay.swift to adjust both edges.
             EdgeShadowOverlay(
 //                topHeight: headerHeight + safeTop,
-                topHeight: safeTop + 20,
+                topHeight: safeTop + 40,
                 bottomHeight: 60
             )
                 .zIndex(5)

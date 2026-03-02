@@ -105,6 +105,7 @@ struct HomeView: View {
                     )
                         .zIndex(1)
                 }
+                
             }
             
                 .scrollIndicators(.hidden)

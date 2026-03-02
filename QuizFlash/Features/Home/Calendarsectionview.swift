@@ -89,24 +89,10 @@ struct CalendarSectionView: View {
 
                     Spacer(minLength: 0)
                 }
+
                     .padding(.horizontal, 20)
                     .padding(.top, calendarVM.topPaddingExpanded - (calendarVM.topPaddingExpanded - calendarVM.topPaddingCollapsed) * progress)
                     .padding(.bottom, calendarVM.bottomPadding)
-
-                // 1. Constrain and clip the content BEFORE applying the background.
-                // This ensures the days grid disappears cleanly under the month title.
-                .frame(height: extendedHeight - scrollDistance * progress, alignment: .top)
-                    .clipped()
-
-                // 2. Apply the ultraThinMaterial AFTER clipping.
-                // This allows the -1000 top padding to stretch infinitely upwards to cover
-                // the pull-down overscroll void, solving the "black hole" issue.
-                .background(
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .padding(.top, -1000)
-                )
-
                 // 3. Dynamic drop shadow based strictly on scroll distance
                 .shadow(color: .black.opacity(0.08 * progress), radius: 10, y: 4)
 
@@ -172,8 +158,15 @@ struct CalendarSectionView: View {
             )
                 .clipped()
         }
+        .padding(7 * progress)
+        .padding(.horizontal, 12 * progress)
+            .background {
+            RoundedRectangle(cornerRadius: 30)
+                .fill(.ultraThinMaterial.opacity(progress))
+        }
             .padding(.trailing, requiredPush * progress)
             .scaleEffect(1 - 0.10 * progress, anchor: .topLeading)
+
             .clipped()
     }
 
