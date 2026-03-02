@@ -207,7 +207,7 @@ struct FolderCardView: View {
                     .lineLimit(1)
                     .padding(.bottom, 4)
 
-                Text("\(folder.decks.count) decks")
+                Text("\(folder.deckCount) decks")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
             }

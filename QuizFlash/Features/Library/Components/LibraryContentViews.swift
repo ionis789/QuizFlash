@@ -17,9 +17,32 @@
 //  • No per-row @State animation. The jelly bounce is applied at the list level
 //    in LibraryLayout for a single, lightweight animation.
 //
+//  Scroll-proximity effect:
+//  ─────────────────────────────────────────────────────────────────────────────
+//  Each row reads its own minY from the "libraryScroll" coordinate space
+//  via .visualEffect. The effect fires ONLY when minY < kAbsoluteTopZone —
+//  i.e. only in the final pixels before the row exits at the absolute screen top.
+//  The row travels completely invisibly behind the floating header until that point.
 
 import SwiftUI
 import SwiftData
+
+// MARK: - Scroll-Proximity Effect Constants
+
+/// Height of the dissolve zone measured from absolute y = 0 (top of screen).
+/// The effect is completely INACTIVE for any row with minY ≥ this value.
+/// Rows behind the floating header (pills/title) have large positive minY —
+/// they are never affected during that journey. Only the final pixels before
+/// the row exits at the top of the screen trigger the dissolve.
+/// Tune range: 20–80 pt.
+
+
+// MARK: - Coordinate Space Name
+
+/// Named by LibraryLayout on its ScrollView; read here by .visualEffect.
+/// Origin y = 0 is the absolute top of the screen (ScrollView uses
+/// .ignoresSafeArea(.container, edges: .top) so it starts behind the status bar).
+let kLibraryScrollSpace = "libraryScroll"
 
 // MARK: - List View
 
@@ -36,8 +59,8 @@ struct LibraryListView: View {
         Group {
             ForEach(groupedDecks) { section in
                 LibrarySectionHeader(title: section.title)
-                // ✅ FIX: Ancoră pentru restaurarea corectă a scroll-ului pe iOS 17
-                .id("header-\(section.id)")
+                    .scrollProximityEffect()
+                    .id("header-\(section.id)")
 
                 ForEach(section.decks) { deck in
                     LibraryDeckListRow(
@@ -49,11 +72,10 @@ struct LibraryListView: View {
                         onEditColor: { onEditColor(deck) },
                         onDelete: { onDelete(deck) }
                     )
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 5)
-                    // ✅ FIX CRITIC: ID explicit. Oferă SwiftUI-ului o țintă fixă
-                    // de care să agațe scroll-ul când se întoarce dintr-un NavigationLink.
-                    .id(deck.id)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 5)
+                        .scrollProximityEffect()
+                        .id(deck.id)
                 }
             }
         }

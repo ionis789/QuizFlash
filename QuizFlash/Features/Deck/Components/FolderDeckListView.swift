@@ -2,9 +2,19 @@ import SwiftUI
 import SwiftData
 
 /// A stateless, dumb view for displaying decks.
-/// Guaranteed to never glitch because it holds no asynchronous state.
+/// Now uses SwiftData @Query to safely fetch the decks for the folder without mapping the `decks` array on MainActor.
 struct FolderDeckListView: View {
-    let decks: [DeckModel]
+    let folder: FolderModel
+    
+    @Query private var decks: [DeckModel]
+
+    init(folder: FolderModel) {
+        self.folder = folder
+        
+        let folderID = folder.persistentModelID
+        let filter = #Predicate<DeckModel> { $0.folder?.persistentModelID == folderID }
+        _decks = Query(filter: filter, sort: \DeckModel.createdAt, order: .reverse)
+    }
 
     var body: some View {
         LazyVStack(spacing: 16) {

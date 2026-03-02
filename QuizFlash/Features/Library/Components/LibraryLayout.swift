@@ -54,6 +54,14 @@ struct LibraryLayout: View {
     @State private var groupingTask: Task<Void, Never>? = nil
     @State private var inputDebounceTask: Task<Void, Never>? = nil
 
+    /// Height of LibraryTopBarView measured live.
+    @State private var headerHeight: CGFloat = 0
+
+    /// safeAreaInsets.top captured from the root body context (non-zero here).
+    @State private var safeTop: CGFloat = 0
+
+
+
     private var accent: Color { ThemeManager.shared.accentColor.color }
 
     // MARK: - Body
@@ -62,29 +70,70 @@ struct LibraryLayout: View {
         ZStack(alignment: .bottomTrailing) {
             mainScrollArea
 
+            // ── Edge shadows — top + bottom vignette ─────────────────────────
+            // Tune kShadowRadius in EdgeShadowOverlay.swift to adjust both edges.
+            EdgeShadowOverlay(
+//                topHeight: headerHeight + safeTop,
+                topHeight: safeTop + 20,
+                bottomHeight: 60
+            )
+                .zIndex(5)
+
+            // ── Header — above gradient, below selection bar ──────────────────
+            VStack(spacing: 0) {
+                LibraryTopBarView(
+                    title: folderContext?.title ?? "Library",
+                    deckCount: decks.count,
+                    viewModel: viewModel,
+                    searchText: $searchText,
+                    isSearching: $isSearching,
+                    isScrolled: viewModel.savedScrollOffset > 10
+                )
+                // Capture rendered height so the ScrollView spacer and blur
+                // frame stay in sync. Guard prevents redundant state writes.
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { newHeight in
+                    if headerHeight != newHeight { headerHeight = newHeight }
+                }
+                Spacer()
+            }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .allowsHitTesting(true)
+                .zIndex(6)
+
+
+
             if viewModel.isSelecting && !isSearching {
                 LibrarySelectionBarView(
                     viewModel: viewModel,
                     decks: decks,
                     onDeleteTap: { viewModel.showDeleteConfirmation = true }
                 )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(10)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(10)
             }
 
             if viewModel.isImporting || viewModel.isExporting {
                 LibraryLoadingOverlay(
                     message: viewModel.isImporting
                         ? "Importing…"
-                        : "Exporting \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")…"
+                    : "Exporting \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")…"
                 )
-                .zIndex(20)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .zIndex(20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isSearching)
-        .background { Color.black.ignoresSafeArea() }
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isSearching)
+            .background { Color.black.ignoresSafeArea() }
+            .background {
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { safeTop = geo.safeAreaInsets.top }
+                    .onChange(of: geo.safeAreaInsets.top) { _, v in safeTop = v }
+            }
+        }
     }
 
     // MARK: - Main Scroll Area
@@ -92,94 +141,85 @@ struct LibraryLayout: View {
     private var mainScrollArea: some View {
         ScrollView {
             VStack(spacing: 0) {
-                    // ── Scroll Position Restoration ──────────────────────────────
-                    // Must be the first child so its superview-chain walk reliably
-                    // finds the UIScrollView ancestor before any other content is
-                    // laid out. The zero frame ensures no visual contribution.
-                    //
-                    // Offset is only saved while NOT searching: search result
-                    // scrolling is ephemeral and must not corrupt the list's
-                    // persisted position, which belongs to the deck grid itself.
-                    ScrollPositionRestorer(
-                        getOffset: { viewModel.savedScrollOffset },
-                        onOffsetChange: { offset in
-                            guard !isSearching else { return }
-                            viewModel.savedScrollOffset = offset
-                        }
-                    )
+                // ── Scroll Position Restoration ───────────────────────────────
+                // Must be first so its superview-chain walk reliably finds the
+                // UIScrollView ancestor before any other content is laid out.
+                ScrollPositionRestorer(
+                    getOffset: { viewModel.savedScrollOffset },
+                    onOffsetChange: { offset in
+                        guard !isSearching else { return }
+                        viewModel.savedScrollOffset = offset
+                    }
+                )
                     .frame(width: 0, height: 0)
 
-                    if !isSearching && decks.isEmpty && viewModel.cachedGroupedDecks.isEmpty {
-                        // Spacer for empty state
-                        Spacer().frame(height: 40)
-                    }
-
-                    stackContent
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            guard viewModel.isSelecting else { return }
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                viewModel.exitSelectionMode()
-                            }
-                        }
+                if !isSearching && decks.isEmpty && viewModel.cachedGroupedDecks.isEmpty {
+                    Spacer().frame(height: 40)
                 }
-                .safeAreaInset(edge: .bottom) {
-                    Color.clear
-                        .frame(height: 150)
-                        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+
+                stackContent
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                    guard viewModel.isSelecting else { return }
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        viewModel.exitSelectionMode()
+                    }
                 }
             }
-        .navigationTitle(folderContext?.title ?? "Library")
-        .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search decks & cards...")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button {
-                        viewModel.showFileImporter = true
-                    } label: {
-                        Label("Import Deck", systemImage: "square.and.arrow.down")
-                    }
-
-                    Button {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            viewModel.isSelecting = true
-                        }
-                    } label: {
-                        Label("Select", systemImage: "checkmark.circle")
-                    }
-                    .disabled(viewModel.isSelecting || viewModel.isSearching)
-
-                    Divider()
-
-                    Text("SORT BY")
-
-                    ForEach(SortOrder.allCases, id: \.self) { order in
-                        Button {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                                viewModel.sortOrder = order
-                            }
-                        } label: {
-                            if viewModel.sortOrder == order {
-                                Label(order.rawValue, systemImage: "checkmark")
-                            } else {
-                                Text(order.rawValue)
-                            }
-                        }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.headline)
-                        .foregroundStyle(accent)
-                }
+                .safeAreaInset(edge: .bottom) {
+                Color.clear
+                    .frame(height: 100)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+            }
+                .safeAreaInset(edge: .top) {
+                Color.clear
+                    .frame(height: 100)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
             }
         }
-        .onAppear {
+        // Extends the ScrollView frame edge-to-edge under the status bar so
+        // deck rows physically pass behind the blur layer as the user scrolls.
+        // .safeAreaInset below still reserves the correct top inset for content.
+        .ignoresSafeArea(.container, edges: .top)
+        // ── Scroll Coordinate Space ───────────────────────────────────────────
+        // Named space consumed by ScrollProximityModifier in LibraryContentViews.
+        // Each row reads its own minY from this space via .visualEffect to apply
+        // the scale + blur + opacity dissolve as it approaches the header zone.
+        // This is the ONLY change required in LibraryLayout for the effect.
+        .coordinateSpace(name: kLibraryScrollSpace)
+        // ── Frosted-Glass Blur Overlay ────────────────────────────────────────
+        // Placed as a .overlay on the ScrollView — the only compositing position
+        // where UIKit's blur renderer samples live, scrolling pixel data.
+        //
+        // A blur inside the content VStack (even with .visualEffect offset tricks)
+        // renders in a child CALayer that gets composited AFTER the scroll content
+        // layer, so it samples the static app background instead of deck rows.
+        //
+        // A .overlay on the ScrollView is rendered by UIKit as a sibling layer
+        // ABOVE the UIScrollView's content layer but WITHIN the same parent
+        // CALayer — exactly the compositing relationship the blur needs to see
+        // the pixels that are moving underneath it in real time.
+        //
+        // .ignoresSafeArea(edges: .top) bleeds the blur into the status bar area,
+        // so the header looks seamlessly fused to the top of the screen.
+        // .allowsHitTesting(false) lets all touches fall through to the
+        // LibraryTopBarView buttons rendered above it.
+
+        // ── Content Inset Spacer ───────────────────────────────────────────────
+        // Color.clear reserves the exact same top space that LibraryTopBarView
+        // occupies, so deck rows start just below the header without the header
+        // being a child of the ScrollView (which would place it under the blur).
+        // LibraryTopBarView itself lives in the ZStack at zIndex(6) — above blur.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Color.clear
+                .frame(height: headerHeight)
+        }
+            .onAppear {
             updateGroupedDecks()
         }
-        .onChange(of: decks) { _, _ in updateGroupedDecks() }
-        .onChange(of: viewModel.sortOrder) { _, _ in updateGroupedDecks() }
-        .onChange(of: searchText) { _, newValue in
+            .onChange(of: decks) { _, _ in updateGroupedDecks() }
+            .onChange(of: viewModel.sortOrder) { _, _ in updateGroupedDecks() }
+            .onChange(of: searchText) { _, newValue in
             inputDebounceTask?.cancel()
             if newValue.isEmpty {
                 viewModel.searchText = ""
@@ -190,16 +230,16 @@ struct LibraryLayout: View {
                     try await Task.sleep(nanoseconds: 150_000_000)
                     guard !Task.isCancelled else { return }
                     viewModel.searchText = newValue
-                } catch {}
+                } catch { }
             }
         }
-        .onChange(of: isSearching) { _, active in
+            .onChange(of: isSearching) { _, active in
             if !active {
                 inputDebounceTask?.cancel()
                 viewModel.searchText = ""
             }
         }
-        .onDisappear {
+            .onDisappear {
             groupingTask?.cancel()
             groupingTask = nil
             inputDebounceTask?.cancel()
@@ -323,8 +363,8 @@ struct LibraryLayout: View {
                 .multilineTextAlignment(.center)
             Spacer()
         }
-        .frame(maxWidth: .infinity)
-        .transition(.opacity)
+            .frame(maxWidth: .infinity)
+            .transition(.opacity)
     }
 
     private var noResultsPrompt: some View {
@@ -340,7 +380,7 @@ struct LibraryLayout: View {
                 .foregroundStyle(.secondary)
             Spacer()
         }
-        .frame(maxWidth: .infinity)
-        .transition(.opacity)
+            .frame(maxWidth: .infinity)
+            .transition(.opacity)
     }
 }

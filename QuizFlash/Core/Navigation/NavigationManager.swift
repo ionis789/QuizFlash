@@ -10,10 +10,28 @@ import Combine
 
 @Observable
 final class NavigationManager {
-    var path = NavigationPath()
+    // Isolated Navigation Paths per Tab
+    var homePath = NavigationPath()
+    var libraryPath = NavigationPath()
+    var createPath = NavigationPath()
+    
+    // Tracks the current tab so cross-app navigations push to the right stack
+    var activeTab: AppTab = .home
 
     func popToRoot() {
-        path = NavigationPath()
+        switch activeTab {
+        case .home: homePath = NavigationPath()
+        case .library: libraryPath = NavigationPath()
+        case .create: createPath = NavigationPath()
+        }
+    }
+    
+    func append<V: Hashable>(_ route: V) {
+        switch activeTab {
+        case .home: homePath.append(route)
+        case .library: libraryPath.append(route)
+        case .create: createPath.append(route)
+        }
     }
 }
 

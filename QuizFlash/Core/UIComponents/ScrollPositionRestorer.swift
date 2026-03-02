@@ -277,7 +277,12 @@ struct ScrollPositionRestorer: UIViewRepresentable {
                     // from within a KVO observation of contentOffset is undefined.
                     let restore = self.lastKnownOffset
                     DispatchQueue.main.async { [weak scrollView] in
-                        scrollView?.setContentOffset(CGPoint(x: 0, y: restore), animated: false)
+                        CATransaction.begin()
+                        CATransaction.setDisableActions(true)
+                        UIView.performWithoutAnimation {
+                            scrollView?.setContentOffset(CGPoint(x: 0, y: restore), animated: false)
+                        }
+                        CATransaction.commit()
                     }
                     // lastKnownOffset intentionally NOT updated — the true user
                     // position is `restore`, not the 0 SwiftUI wrote.
@@ -325,9 +330,20 @@ struct ScrollPositionRestorer: UIViewRepresentable {
                 + sv.adjustedContentInset.bottom
             guard maxScrollable >= targetOffset else { return }
 
-            // Synchronous, non-animated: must be invisible, before first render frame.
-            // KVO fires here but hasRestored is still false → MODE A suppresses it.
-            sv.setContentOffset(CGPoint(x: 0, y: targetOffset), animated: false)
+            // Synchronous, non-animated. Double-wrapped to survive any active
+            // UIKit animation transaction (e.g. tab switch animation context):
+            //   • CATransaction.setDisableActions — stops Core Animation from
+            //     interpolating the layer position change.
+            //   • UIView.performWithoutAnimation — stops UIKit's implicit
+            //     UIView animation block from picking up the offset change.
+            // Without both wrappers, setContentOffset called during a tab switch
+            // is interpolated by the tab animation and the list visibly slides.
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            UIView.performWithoutAnimation {
+                sv.setContentOffset(CGPoint(x: 0, y: targetOffset), animated: false)
+            }
+            CATransaction.commit()
 
             lastKnownOffset = targetOffset
             hasRestored = true

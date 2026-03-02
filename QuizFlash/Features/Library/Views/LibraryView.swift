@@ -22,7 +22,7 @@ struct LibraryView: View {
 
     // MARK: - SwiftData Queries
 
-    @Query(sort: \DeckModel.createdAt, order: .reverse) private var decks: [DeckModel]
+    @Query private var decks: [DeckModel]
 
     // MARK: - View Model
     //
@@ -46,11 +46,27 @@ struct LibraryView: View {
     // Note: cachedDeckIDs has been moved into LibraryViewModel so it persists
     // alongside the cache itself, rather than resetting when the View is recreated.
 
-    // MARK: - Context
-
     /// The contextual folder, if any.
     /// When non-nil, this view behaves as a pushed child view rather than a root tab.
-    var folderContext: FolderModel?
+    let folderContext: FolderModel?
+
+    // MARK: - Init
+    
+    init(folderContext: FolderModel? = nil) {
+        self.folderContext = folderContext
+        
+        // 🔥 Fix for Lag & Memory Leak:
+        // By initializing the @Query here with a predicate, we delegate the fetch
+        // entirely to SwiftData's background handling instead of performing manual
+        // blocking `context.fetch()` calls on the Main Actor during View evaluation.
+        if let folder = folderContext {
+            let folderID = folder.persistentModelID
+            let filter = #Predicate<DeckModel> { $0.folder?.persistentModelID == folderID }
+            _decks = Query(filter: filter, sort: \DeckModel.createdAt, order: .reverse)
+        } else {
+            _decks = Query(sort: \DeckModel.createdAt, order: .reverse)
+        }
+    }
 
     // MARK: - Resolved View Model
 
@@ -62,16 +78,7 @@ struct LibraryView: View {
         folderContext == nil ? sharedViewModel : localViewModel
     }
 
-    // MARK: - Computed Properties
 
-    /// The dataset to display, scoped to the current context.
-    private var displayedDecks: [DeckModel] {
-        if let folder = folderContext {
-            return folder.decks.sorted(by: { $0.createdAt > $1.createdAt })
-        } else {
-            return decks
-        }
-    }
 
     private var tabRule: TabBarVisibilityRule {
         if isSearching || viewModel.isSelecting { return .hidden }
@@ -96,7 +103,10 @@ struct LibraryView: View {
                 }
             } else {
                 // Root View Configuration (Base Tab)
+                // The native navigation bar is suppressed here too — LibraryTopBarView
+                // (integrated via .safeAreaInset in LibraryLayout) is the sole header.
                 contentWithModifiers
+                    .toolbar(.hidden, for: .navigationBar)
             }
         }
         // Propagate the visibility preference up the view tree to MainAppView.
@@ -108,7 +118,7 @@ struct LibraryView: View {
     /// Wraps the main layout with necessary operational overlays (Sheets, Alerts).
     private var contentWithModifiers: some View {
         mainContent
-            .modifier(LibraryModalsAndDialogs(viewModel: viewModel, context: context, decks: displayedDecks))
+            .modifier(LibraryModalsAndDialogs(viewModel: viewModel, context: context, decks: decks))
             .modifier(LibraryAlerts(viewModel: viewModel))
     }
 
@@ -116,7 +126,7 @@ struct LibraryView: View {
 
     private var mainContent: some View {
         LibraryLayout(
-            decks: displayedDecks,
+            decks: decks,
             viewModel: viewModel,
             router: router,
             onCardTap: { cardID in
@@ -126,11 +136,11 @@ struct LibraryView: View {
             },
             onDeckNavigate: { deck in
                 // 🟢 iOS 17 fix: push the identifier instead of the model
-                router.path.append(deck.persistentModelID)
+                router.append(deck.persistentModelID)
             },
             onDeleteSelected: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                    viewModel.deleteSelectedDecks(from: displayedDecks, context: context)
+                    viewModel.deleteSelectedDecks(from: decks, context: context)
                 }
             },
             isSearching: $isSearching,
@@ -141,7 +151,7 @@ struct LibraryView: View {
         .onAppear {
             rebuildCacheIfNeeded()
         }
-            .onChange(of: displayedDecks) { _, newDecks in
+            .onChange(of: decks) { _, newDecks in
             rebuildCacheIfNeeded(newDecks)
         }
         // ── Search State Management ──
@@ -176,7 +186,7 @@ struct LibraryView: View {
     /// The ID check now lives in LibraryViewModel so it correctly persists
     /// across view re-creations for the shared root instance.
     private func rebuildCacheIfNeeded(_ newDecks: [DeckModel]? = nil) {
-        let source = newDecks ?? displayedDecks
+        let source = newDecks ?? decks
         viewModel.rebuildCacheIfNeeded(decks: source, container: context.container)
     }
 }

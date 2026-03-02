@@ -106,6 +106,7 @@ struct HomeView: View {
                         .zIndex(1)
                 }
             }
+            
                 .scrollIndicators(.hidden)
                 .scrollTargetBehavior(HomeScrollBehavior(maxHeight: scrollDistance))
                 .ignoresSafeArea(.container, edges: .top)

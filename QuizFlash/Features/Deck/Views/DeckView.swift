@@ -10,7 +10,9 @@ private let kHeroCollapseDistance: CGFloat = 200
 
 struct DeckContentView: View {
     @Environment(\.modelContext) var context
+
     @Environment(NavigationManager.self) private var router
+    @Environment(\.dismiss) private var dismiss
     @Bindable var deck: DeckModel
     let searchQuery: String?
 
@@ -32,53 +34,53 @@ struct DeckContentView: View {
     var body: some View {
         deckContent
             .onAppear {
-                Task {
-                    await viewModel.loadSnapshot(
-                        deckID: deck.persistentModelID,
-                        container: context.container
-                    )
-                }
+            Task {
+                await viewModel.loadSnapshot(
+                    deckID: deck.persistentModelID,
+                    container: context.container
+                )
             }
+        }
             .onDisappear {
-                viewModel.tearDown()
-                ImageCache.shared.clearCache()
-                MathWebViewPool.shared.flush()
-            }
+            viewModel.tearDown()
+            ImageCache.shared.clearCache()
+            MathWebViewPool.shared.flush()
+        }
             .onChange(of: isPlayingQuiz) { old, new in
-                if old == true && new == false { viewModel.savedScrollOffset = 1 }
-            }
+            if old == true && new == false { viewModel.savedScrollOffset = 1 }
+        }
             .onChange(of: isPresentingEdit) { old, new in
-                if old == true && new == false { viewModel.savedScrollOffset = 1 }
-            }
+            if old == true && new == false { viewModel.savedScrollOffset = 1 }
+        }
             .onChange(of: deck.cardCount) {
-                Task {
-                    await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container)
-                    viewModel.savedScrollOffset = 1
-                }
+            Task {
+                await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container)
+                viewModel.savedScrollOffset = 1
             }
+        }
             .onChange(of: viewModel.sortOrder) {
-                Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
-            }
+            Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
+        }
             .onChange(of: viewModel.searchQuery) {
-                Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
-            }
+            Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
+        }
             .alert(
-                "Delete \(viewModel.selectedCards.count) card\(viewModel.selectedCards.count == 1 ? "" : "s")?",
-                isPresented: $viewModel.showDeleteConfirmation
-            ) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        viewModel.deleteSelectedCards(from: deck, context: context)
-                    }
+            "Delete \(viewModel.selectedCards.count) card\(viewModel.selectedCards.count == 1 ? "" : "s")?",
+            isPresented: $viewModel.showDeleteConfirmation
+        ) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    viewModel.deleteSelectedCards(from: deck, context: context)
                 }
-            } message: { Text("This action cannot be undone.") }
-            .sheet(isPresented: $viewModel.showShareSheet) {
-                if let url = viewModel.exportedURL { ShareSheet(items: [url]) }
             }
+        } message: { Text("This action cannot be undone.") }
+            .sheet(isPresented: $viewModel.showShareSheet) {
+            if let url = viewModel.exportedURL { ShareSheet(items: [url]) }
+        }
             .alert("Export Error", isPresented: $viewModel.showExportError) {
-                Button("OK", role: .cancel) { }
-            } message: { Text(viewModel.exportErrorMessage) }
+            Button("OK", role: .cancel) { }
+        } message: { Text(viewModel.exportErrorMessage) }
             .overlay { exportingOverlay }
     }
 
@@ -95,15 +97,15 @@ struct DeckContentView: View {
                     onDone: viewModel.exitSelectionMode,
                     onDelete: { viewModel.showDeleteConfirmation = true }
                 )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .padding(.bottom, 20)
-                .zIndex(10)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, 20)
+                    .zIndex(10)
             }
         }
-        .overlay(alignment: .topLeading) { menuOverlay }
-        .swipeBack { router.path.removeLast() }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
-        .customTabBarVisibility(.hidden)
+            .overlay(alignment: .topLeading) { menuOverlay }
+            .swipeBack { dismiss() }
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+            .customTabBarVisibility(.hidden)
     }
 
     /// `mainContent` plus all fullScreenCover presentations.
@@ -111,44 +113,44 @@ struct DeckContentView: View {
     private var mainContentWithCovers: some View {
         mainContent
             .fullScreenCover(isPresented: $isAddingCard) {
-                CreateCardView(searchQuery: nil) { frontZone, backZone in
-                    let newCard = CardModel(frontZone: frontZone, backZone: backZone)
-                    newCard.deck = deck
-                    context.insert(newCard)
-                    try? context.save()
-                    deck.editedAt = Date()
-                }
-            }
-            .fullScreenCover(isPresented: $isPresentingEdit) {
-                NavigationStack { CreateDeckView(deckToEdit: deck) }
-            }
-            .fullScreenCover(isPresented: $isPlayingQuiz, onDismiss: {
-                deck.lastOpenedAt = Date()
+            CreateCardView(searchQuery: nil) { frontZone, backZone in
+                let newCard = CardModel(frontZone: frontZone, backZone: backZone)
+                newCard.deck = deck
+                context.insert(newCard)
                 try? context.save()
-                Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
-            }) {
-                NavigationStack { DefaultModePlay(deck: deck) }
+                deck.editedAt = Date()
             }
+        }
+            .fullScreenCover(isPresented: $isPresentingEdit) {
+            NavigationStack { CreateDeckView(deckToEdit: deck) }
+        }
+            .fullScreenCover(isPresented: $isPlayingQuiz, onDismiss: {
+            deck.lastOpenedAt = Date()
+            try? context.save()
+            Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
+        }) {
+            NavigationStack { DefaultModePlay(deck: deck) }
+        }
             .fullScreenCover(item: $previewedCard) { CardPreviewScreen(card: $0) }
             .fullScreenCover(item: $editingCard) { card in
-                NavigationStack {
-                    CreateCardView(
-                        frontZone: card.frontZone,
-                        backZone: card.backZone,
-                        searchQuery: viewModel.searchQuery
-                    ) { frontZone, backZone in
-                        if card.frontZone != frontZone || card.backZone != backZone {
-                            card.frontZone = frontZone
-                            card.backZone = backZone
-                            card.editedAt = Date()
-                            deck.editedAt = Date()
-                            try? context.save()
-                            Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
-                        }
-                        editingCard = nil
+            NavigationStack {
+                CreateCardView(
+                    frontZone: card.frontZone,
+                    backZone: card.backZone,
+                    searchQuery: viewModel.searchQuery
+                ) { frontZone, backZone in
+                    if card.frontZone != frontZone || card.backZone != backZone {
+                        card.frontZone = frontZone
+                        card.backZone = backZone
+                        card.editedAt = Date()
+                        deck.editedAt = Date()
+                        try? context.save()
+                        Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
                     }
+                    editingCard = nil
                 }
             }
+        }
     }
 
     @ViewBuilder
@@ -160,8 +162,8 @@ struct DeckContentView: View {
                     ProgressView().scaleEffect(1.5)
                     Text("Exporting...").font(.headline)
                 }
-                .padding(32)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                    .padding(32)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
             }
         }
     }
@@ -170,105 +172,105 @@ struct DeckContentView: View {
 
     private var mainContent: some View {
         ScrollView {
-                VStack(spacing: 0) {
-                    if searchQuery == nil {
-                        DeckHeroView(
-                            deck: deck,
-                            stats: viewModel.currentStats,
-                            onEdit: { isPresentingEdit = true }
-                        )
+            VStack(spacing: 0) {
+                if searchQuery == nil {
+                    DeckHeroView(
+                        deck: deck,
+                        stats: viewModel.currentStats,
+                        onEdit: { isPresentingEdit = true }
+                    )
                         .padding(.top, 16)
                         .zIndex(-1)
-                    }
+                }
 
-                    if let query = searchQuery, !query.isEmpty {
-                        HStack {
-                            Image(systemName: "line.3.horizontal.decrease.circle.fill")
-                                .foregroundStyle(Color.accentColor)
-                            Text("Filtered by \"**\(query)**\"")
-                                .font(.subheadline)
-                            Spacer()
-                        }
+                if let query = searchQuery, !query.isEmpty {
+                    HStack {
+                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                            .foregroundStyle(Color.accentColor)
+                        Text("Filtered by \"**\(query)**\"")
+                            .font(.subheadline)
+                        Spacer()
+                    }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                         .background(Color.accentColor.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .padding(.horizontal, 20)
                         .padding(.top, 12)
+                }
+
+                VStack(spacing: 16) {
+                    if searchQuery == nil || searchQuery?.isEmpty == true {
+                        DeckPlayModesView(deck: deck, onPlay: { isPlayingQuiz = true })
+                            .padding(.top, 16)
+                        DeckProgressView(deck: deck, stats: viewModel.currentStats, cards: viewModel.allCardInfos)
                     }
 
-                    VStack(spacing: 16) {
-                        if searchQuery == nil || searchQuery?.isEmpty == true {
-                            DeckPlayModesView(deck: deck, onPlay: { isPlayingQuiz = true })
-                                .padding(.top, 16)
-                            DeckProgressView(deck: deck, stats: viewModel.currentStats, cards: viewModel.allCardInfos)
-                        }
+                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        Section {
+                            Color.clear.frame(height: 4)
 
-                        LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                            Section {
-                                Color.clear.frame(height: 4)
-
-                                DeckCardGridView(
-                                    cards: viewModel.cachedGroupedCards,
-                                    isSelecting: viewModel.isSelecting,
-                                    selectedCards: viewModel.selectedCards,
-                                    onToggleSelection: { gridCard in viewModel.toggleSelection(for: gridCard.id) },
-                                    onTapCard: { gridCard in
-                                        if viewModel.isSelecting {
-                                            viewModel.toggleSelection(for: gridCard.id)
-                                        } else if searchQuery != nil {
-                                            if let model = context.model(for: gridCard.id) as? CardModel { editingCard = model }
-                                        } else {
-                                            if let model = context.model(for: gridCard.id) as? CardModel { previewedCard = model }
-                                        }
-                                    },
-                                    onLongPressCard: { gridCard in
-                                        if viewModel.isSelecting {
-                                            viewModel.toggleSelection(for: gridCard.id)
-                                        } else {
-                                            if let model = context.model(for: gridCard.id) as? CardModel {
-                                                editingCard = model
-                                            }
-                                        }
-                                    },
-                                    onDeleteCard: { gridCard in
-                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                            viewModel.deleteSingleCard(id: gridCard.id, from: deck, context: context)
+                            DeckCardGridView(
+                                cards: viewModel.cachedGroupedCards,
+                                isSelecting: viewModel.isSelecting,
+                                selectedCards: viewModel.selectedCards,
+                                onToggleSelection: { gridCard in viewModel.toggleSelection(for: gridCard.id) },
+                                onTapCard: { gridCard in
+                                    if viewModel.isSelecting {
+                                        viewModel.toggleSelection(for: gridCard.id)
+                                    } else if searchQuery != nil {
+                                        if let model = context.model(for: gridCard.id) as? CardModel { editingCard = model }
+                                    } else {
+                                        if let model = context.model(for: gridCard.id) as? CardModel { previewedCard = model }
+                                    }
+                                },
+                                onLongPressCard: { gridCard in
+                                    if viewModel.isSelecting {
+                                        viewModel.toggleSelection(for: gridCard.id)
+                                    } else {
+                                        if let model = context.model(for: gridCard.id) as? CardModel {
+                                            editingCard = model
                                         }
                                     }
-                                )
+                                },
+                                onDeleteCard: { gridCard in
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                        viewModel.deleteSingleCard(id: gridCard.id, from: deck, context: context)
+                                    }
+                                }
+                            )
 
-                                Color.clear.frame(height: 120)
-                            } header: {
-                                DeckSectionToolbar(
-                                    deck: deck,
-                                    isSelecting: viewModel.isSelecting,
-                                    sortOrder: $viewModel.sortOrder,
-                                    isMenuExpanded: $isMenuExpanded,
-                                    menuPosition: $menuPosition,
-                                    menuTracker: menuTracker,
-                                    onAdd: { isAddingCard = true },
-                                    onStartSelection: {
-                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                            viewModel.isSelecting = true
-                                        }
-                                    },
-                                    onExport: { viewModel.exportDeck(deck) }
-                                )
+                            Color.clear.frame(height: 120)
+                        } header: {
+                            DeckSectionToolbar(
+                                deck: deck,
+                                isSelecting: viewModel.isSelecting,
+                                sortOrder: $viewModel.sortOrder,
+                                isMenuExpanded: $isMenuExpanded,
+                                menuPosition: $menuPosition,
+                                menuTracker: menuTracker,
+                                onAdd: { isAddingCard = true },
+                                onStartSelection: {
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                        viewModel.isSelecting = true
+                                    }
+                                },
+                                onExport: { viewModel.exportDeck(deck) }
+                            )
                                 .padding(.vertical, 8)
                                 .background(Color(uiColor: .systemGroupedBackground))
-                            }
                         }
                     }
+                }
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        if viewModel.isSelecting { viewModel.exitSelectionMode() }
-                    }
+                    if viewModel.isSelecting { viewModel.exitSelectionMode() }
                 }
             }
+        }
             .navigationTitle(deck.title)
             .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
+            .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     isPresentingEdit = true
@@ -277,8 +279,8 @@ struct DeckContentView: View {
                 }
             }
         }
-        .scrollDisabled(isMenuExpanded)
-        .background(Color(uiColor: .systemGroupedBackground))
+            .scrollDisabled(isMenuExpanded)
+            .background(Color(uiColor: .systemGroupedBackground))
     }
 
     // MARK: - Menu Overlay
@@ -295,10 +297,10 @@ struct DeckContentView: View {
                     .foregroundStyle(.clear)
                     .contentShape(.rect)
                     .onTapGesture {
-                        withAnimation(.snappy(duration: 0.3, extraBounce: 0)) {
-                            isMenuExpanded = false
-                        }
+                    withAnimation(.snappy(duration: 0.3, extraBounce: 0)) {
+                        isMenuExpanded = false
                     }
+                }
                     .allowsHitTesting(isMenuExpanded)
 
                 if isMenuExpanded {
@@ -315,15 +317,15 @@ struct DeckContentView: View {
                             },
                             onExport: { viewModel.exportDeck(deck) }
                         )
-                        .frame(width: 240)
+                            .frame(width: 240)
                     }
-                    .transition(.blurReplace)
-                    .padding(placeAbove ? .bottom : .top, placeAbove ? (screenHeight - menuPosition.minY + 12) : (menuPosition.maxY + 12))
-                    .padding(.trailing, proxy.size.width - menuPosition.maxX)
+                        .transition(.blurReplace)
+                        .padding(placeAbove ? .bottom : .top, placeAbove ? (screenHeight - menuPosition.minY + 12) : (menuPosition.maxY + 12))
+                        .padding(.trailing, proxy.size.width - menuPosition.maxX)
                 }
             }
         }
-        .ignoresSafeArea()
+            .ignoresSafeArea()
     }
 
     // MARK: - Subviews
@@ -340,13 +342,13 @@ struct DeckContentView: View {
                     back: ZoneCardContent(rootZone: card.backZone)
                 )
             }
-            .overlay(alignment: .bottom) {
+                .overlay(alignment: .bottom) {
                 if showStats {
                     CardStatsView(card: card)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .overlay(alignment: .bottomTrailing) {
+                .overlay(alignment: .bottomTrailing) {
                 Button {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                         showStats.toggle()
@@ -386,10 +388,10 @@ struct DeckContentView: View {
                     StatIconItem(icon: "clock", value: dateString(card.dueDate), label: "Due", color: card.dueDate <= Date() ? .red : .primary)
                 }
             }
-            .padding(20)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
-            .padding()
+                .padding(20)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
+                .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
+                .padding()
         }
 
         private func dateString(_ date: Date) -> String {
@@ -433,10 +435,10 @@ struct DeckView: View {
             } else {
                 Color(uiColor: .systemGroupedBackground)
                     .onAppear {
-                        if self.viewModel == nil {
-                            self.viewModel = DeckViewModel(searchQuery: searchQuery)
-                        }
+                    if self.viewModel == nil {
+                        self.viewModel = DeckViewModel(searchQuery: searchQuery)
                     }
+                }
             }
         }
     }

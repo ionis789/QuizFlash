@@ -233,7 +233,7 @@ struct CalendarSectionView: View {
     /// A circular avatar button that navigates to the Settings screen.
     private var avatarButton: some View {
         Button {
-            router.path.append(AppRoute.settings)
+            router.append(AppRoute.settings)
         } label: {
             ZStack {
                 Circle()

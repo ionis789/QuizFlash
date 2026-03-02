@@ -101,7 +101,7 @@ struct HomeDashboardView: View {
                     ForEach(recentDecks) { deck in
                         RecentDeckCardView(deck: deck) {
                             // 🟢 iOS 17 fix: push the identifier instead of the model
-                            router.path.append(deck.persistentModelID)
+                            router.append(deck.persistentModelID)
                         }
                     }
                 }
@@ -143,7 +143,7 @@ struct HomeDashboardView: View {
                 ) {
                     ForEach(folders) { folder in
                         FolderCardView(folder: folder) {
-                            router.path.append(AppRoute.folder(folder))
+                            router.append(AppRoute.folder(folder))
                         }
                     }
                 }

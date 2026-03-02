@@ -95,8 +95,11 @@ final class LibraryViewModel {
         searchTask?.cancel()
         searchTask = nil
         cachedSearchPayloads = []
-        cachedGroupedDecks = []
         searchResults = []
+        let searchActor = self.sharedSearchActor
+        Task {
+            await searchActor?.tearDown()
+        }
         // NOTE: We intentionally keep `cachedDeckIDs` and `savedScrollOffset` populated.
         // cachedDeckIDs preserves the dedup check so re-appearing the Library tab
         // doesn't re-fault every card's text through SwiftData's row cache.
@@ -149,6 +152,10 @@ final class LibraryViewModel {
         let deckInfos = decks.map { (id: $0.persistentModelID, title: $0.title, icon: $0.icon, colorHex: $0.colorHex) }
 
         cacheTask = Task { @MainActor [weak self] in
+            // Yield CPU entirely to allow the NavigationStack tab-switch animation
+            // to finish smoothly without SQLite load contention causing micro-lag.
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
             guard let self else { return }
 
             if self.sharedSearchActor == nil {
@@ -219,13 +226,19 @@ final class LibraryViewModel {
     // MARK: - Delete
 
     func deleteSelectedDecks(from allDecks: [DeckModel], context: ModelContext) {
-        for deck in allDecks where selectedDecks.contains(deck.id) { context.delete(deck) }
+        for deck in allDecks where selectedDecks.contains(deck.id) {
+            deck.folder?.deckCount -= 1
+            context.delete(deck)
+        }
         selectedDecks.removeAll()
         isSelecting = false
     }
 
     func confirmSingleDeletion(context: ModelContext) {
-        if let deck = deckToDelete { context.delete(deck) }
+        if let deck = deckToDelete {
+            deck.folder?.deckCount -= 1
+            context.delete(deck)
+        }
         deckToDelete = nil
     }
 
@@ -309,8 +322,27 @@ final class LibraryViewModel {
 // MARK: - Safe Background Actor
 // =============================================================================
 
-@ModelActor
+/// Isolated background actor that strictly avoids the iOS 17 `@ModelActor`
+/// Zombie Context bug. It manually instantiates its `ModelContext` and uses
+/// `flushRAM()` to instantly destroy and recreate the context, breaking all
+/// `NotificationCenter` observer retains and freeing the row cache.
 final actor LibrarySearchActor {
+    
+    private let modelContainer: ModelContainer
+    private var context: ModelContext
+    
+    init(modelContainer: ModelContainer) {
+        self.modelContainer = modelContainer
+        self.context = ModelContext(modelContainer)
+    }
+    
+    /// Instantly drops the current context and creates a fresh one.
+    /// On iOS 17, this is the only way to sever the hidden NotificationCenter
+    /// observation ties and forcefully trigger GC on fetched models.
+    private func flushRAM() {
+        self.context = ModelContext(modelContainer)
+    }
+
     func buildPayloads(for deckInfos: [(id: PersistentIdentifier, title: String, icon: String, colorHex: String)]) -> [DeckSearchPayload] {
         var results: [DeckSearchPayload] = []
 
@@ -319,7 +351,7 @@ final actor LibrarySearchActor {
                 // Fetch cards for this specific deck using the isolated actor context.
                 let id = info.id
                 var desc = FetchDescriptor<CardModel>(predicate: #Predicate { $0.deck?.persistentModelID == id })
-                guard let cards = try? modelContext.fetch(desc) else { return }
+                guard let cards = try? self.context.fetch(desc) else { return }
 
                 let searchCards = cards.map { CardSearchPayload(id: $0.id, frontText: $0.frontText, backText: $0.backText) }
 
@@ -332,7 +364,12 @@ final actor LibrarySearchActor {
                 ))
             }
         }
-
+        
+        flushRAM()
         return results
+    }
+    
+    func tearDown() {
+        flushRAM()
     }
 }

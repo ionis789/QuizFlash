@@ -311,7 +311,11 @@ final class CreateDeckViewModel {
             let titleChanged = deck.title != trimmedTitle
             deck.title = trimmedTitle
 
-            deck.folder = selectedFolder
+            if deck.folder != selectedFolder {
+                deck.folder?.deckCount -= 1
+                selectedFolder?.deckCount += 1
+                deck.folder = selectedFolder
+            }
 
             var cardsChanged = false
 
@@ -354,6 +358,7 @@ final class CreateDeckViewModel {
             let newDeck = DeckModel(title: trimmedTitle, icon: "book.closed.fill", colorHex: "#FFFFFF")
             context.insert(newDeck)
             newDeck.folder = selectedFolder
+            selectedFolder?.deckCount += 1
 
             for draft in draftCards {
                 newDeck.lastAssignedCardNumber += 1
