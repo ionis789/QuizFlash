@@ -37,7 +37,7 @@ private let kShadowRadius: CGFloat = 160
 
 /// Maximum opacity at the solid edge of the gradient.
 /// 1.0 = fully opaque at the screen edge. Lower = subtler vignette overall.
-private let kMaxAlpha: CGFloat = 0.4
+private let kMaxAlpha: CGFloat = 0.6
 //private let kMaxAlpha: CGFloat = 0.88
 
 // MARK: - EdgeShadowOverlay

@@ -174,9 +174,16 @@ struct LibraryView: View {
                 viewModel.updateSearch(query: newValue)
             }
         }
-        // ── Memory Leak Fix: Release cached model references on tab suspend ──
+        // ── Memory Leak Fix: Release cached model references on folder pop ──
+        // Only call tearDown() for folder views (folderContext != nil).
+        // The root Library tab (folderContext == nil) uses the long-lived
+        // sharedViewModel that persists across tab switches — calling tearDown()
+        // there would destroy cachedSearchPayloads on every tab switch and make
+        // cachedDeckIDs stale (empty cache but matching IDs → search never rebuilds).
         .onDisappear {
-            viewModel.tearDown()
+            if folderContext != nil {
+                viewModel.tearDown()
+            }
         }
     }
 

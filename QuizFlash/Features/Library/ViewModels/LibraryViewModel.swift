@@ -85,27 +85,24 @@ final class LibraryViewModel {
 
     // MARK: - Lifecycle
 
-    /// Releases all cached SwiftData model references and cancels in-flight
-    /// async work. Called when the Library tab is suspended during a tab switch.
-    /// The cache will be lazily rebuilt on the next `onAppear` via
-    /// `rebuildCacheIfNeeded`.
+    /// Called when a folder LibraryView is popped (folderContext != nil).
+    /// Clears all cached SwiftData references and cancels in-flight async work.
+    /// Also resets cachedDeckIDs so the next onAppear triggers a real rebuild
+    /// (since cachedSearchPayloads will be empty, we need a fresh fetch).
+    /// savedScrollOffset is intentionally kept so the scroll position can be
+    /// restored if the folder is re-pushed.
     func tearDown() {
         cacheTask?.cancel()
         cacheTask = nil
         searchTask?.cancel()
         searchTask = nil
         cachedSearchPayloads = []
-        searchResults = []
+        cachedDeckIDs = []        // Must be cleared together with cachedSearchPayloads.
+        searchResults = []        // so the next onAppear's rebuildCacheIfNeeded fires.
         let searchActor = self.sharedSearchActor
         Task {
             await searchActor?.tearDown()
         }
-        // NOTE: We intentionally keep `cachedDeckIDs` and `savedScrollOffset` populated.
-        // cachedDeckIDs preserves the dedup check so re-appearing the Library tab
-        // doesn't re-fault every card's text through SwiftData's row cache.
-        // savedScrollOffset preserves the UIScrollView contentOffset.y so
-        // ScrollPositionRestorer can restore the exact pixel position on the
-        // next navigation return — without it the list would always reset to top.
     }
 
     // MARK: - Search Cache (Async)
@@ -140,31 +137,35 @@ final class LibraryViewModel {
         // We intentionally do NOT access deck.cards here — that would
         // fault ALL CardModel objects into the main context permanently
         // (iOS 17 has no ModelContext.reset()).
-        struct DeckInfo: Sendable {
-            let id: PersistentIdentifier
-            let title: String
-            let icon: String
-            let colorHex: String
-        }
-        cacheTask?.cancel()
 
         // Capture simple structs from the main context
         let deckInfos = decks.map { (id: $0.persistentModelID, title: $0.title, icon: $0.icon, colorHex: $0.colorHex) }
 
-        cacheTask = Task { @MainActor [weak self] in
-            // Yield CPU entirely to allow the NavigationStack tab-switch animation
-            // to finish smoothly without SQLite load contention causing micro-lag.
+        cacheTask = Task { [weak self] in
+            // Sleep on a background thread so the tab-switch animation is never
+            // blocked. The previous implementation used Task { @MainActor in ... sleep }
+            // which held the MainActor for 350 ms, causing visible animation stutter.
             try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }
-            guard let self else { return }
 
-            if self.sharedSearchActor == nil {
-                self.sharedSearchActor = LibrarySearchActor(modelContainer: container)
+            // All SwiftUI/SwiftData mutations must happen on the MainActor.
+            await MainActor.run {
+                guard let self, !Task.isCancelled else { return }
+                if self.sharedSearchActor == nil {
+                    self.sharedSearchActor = LibrarySearchActor(modelContainer: container)
+                }
             }
-            let payloads = await self.sharedSearchActor!.buildPayloads(for: deckInfos)
+
+            guard !Task.isCancelled, let self else { return }
+            let actor: LibrarySearchActor? = await MainActor.run { self.sharedSearchActor }
+            guard let actor else { return }
+
+            let payloads = await actor.buildPayloads(for: deckInfos)
 
             guard !Task.isCancelled else { return }
-            self.cachedSearchPayloads = payloads
+            await MainActor.run {
+                self.cachedSearchPayloads = payloads
+            }
         }
     }
 
@@ -333,14 +334,18 @@ final actor LibrarySearchActor {
     
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
-        self.context = ModelContext(modelContainer)
+        let ctx = ModelContext(modelContainer)
+        ctx.autosaveEnabled = false   // Prevents NotificationCenter registration → no zombie context on iOS 17
+        self.context = ctx
     }
     
     /// Instantly drops the current context and creates a fresh one.
     /// On iOS 17, this is the only way to sever the hidden NotificationCenter
     /// observation ties and forcefully trigger GC on fetched models.
     private func flushRAM() {
-        self.context = ModelContext(modelContainer)
+        let fresh = ModelContext(modelContainer)
+        fresh.autosaveEnabled = false  // Same fix — must be set before any use
+        self.context = fresh
     }
 
     func buildPayloads(for deckInfos: [(id: PersistentIdentifier, title: String, icon: String, colorHex: String)]) -> [DeckSearchPayload] {
@@ -350,7 +355,7 @@ final actor LibrarySearchActor {
             autoreleasepool {
                 // Fetch cards for this specific deck using the isolated actor context.
                 let id = info.id
-                var desc = FetchDescriptor<CardModel>(predicate: #Predicate { $0.deck?.persistentModelID == id })
+                let desc = FetchDescriptor<CardModel>(predicate: #Predicate { $0.deck?.persistentModelID == id })
                 guard let cards = try? self.context.fetch(desc) else { return }
 
                 let searchCards = cards.map { CardSearchPayload(id: $0.id, frontText: $0.frontText, backText: $0.backText) }

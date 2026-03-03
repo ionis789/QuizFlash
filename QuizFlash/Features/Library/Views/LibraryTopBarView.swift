@@ -144,17 +144,17 @@ struct LibraryTopBarView: View {
                 }
             } label: {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.title3.bold())
                     .foregroundStyle(accent)
-                    .frame(width: 44, height: 36)
+                    .frame(width: 46, height: 46)
             }
 
             // Menu icon
             Menu { menuContent } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.title3.bold())
                     .foregroundStyle(accent)
-                    .frame(width: 44, height: 50)
+                    .frame(width: 52, height: 52)
             }
         }
         .background(darkPillBackground(cornerRadius: 18))
@@ -173,7 +173,6 @@ struct LibraryTopBarView: View {
             .overlay(
                 Capsule()
                     .fill(accent.opacity(0.15))
-                    .padding(5)
             )
     }
 
