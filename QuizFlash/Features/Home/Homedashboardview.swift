@@ -101,6 +101,7 @@ struct HomeDashboardView: View {
                     ForEach(recentDecks) { deck in
                         RecentDeckCardView(deck: deck) {
                             // 🟢 iOS 17 fix: push the identifier instead of the model
+                            router.deckBackLabel = "Home"
                             router.append(deck.persistentModelID)
                         }
                     }

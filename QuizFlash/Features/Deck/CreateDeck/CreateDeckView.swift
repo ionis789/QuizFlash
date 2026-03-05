@@ -49,9 +49,10 @@ struct CreateDeckView: View {
     private var isGenerating: Bool { viewModel.aiState != .idle }
 
     /// Contextual rule for tab bar visibility.
-    /// Forces the tab bar to hide whenever the keyboard is active or AI is working.
+    /// Forces the tab bar to hide only while the keyboard is active or AI is generating.
+    /// Materialization (card reveal animation) intentionally leaves the bar visible.
     private var tabRule: TabBarVisibilityRule {
-        if isTitleFocused || isGenerating || isMaterializing {
+        if isTitleFocused || isGenerating {
             return .hidden
         }
         return .implicit

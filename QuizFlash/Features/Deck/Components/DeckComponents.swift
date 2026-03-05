@@ -50,7 +50,7 @@ struct DeckHeaderView: View {
                 // Title & Info
                 VStack(alignment: .leading, spacing: 4) {
                     Text(deck.title)
-                        .font(.title3.weight(.bold))
+                        .font(.title.weight(.bold)).fontDesign(.rounded)
                         .lineLimit(1)
 
                     HStack(spacing: 8) {
@@ -182,68 +182,117 @@ private struct PlayModeCard: View {
     }
 }
 
+/// Pinned section header showing only the card count label.
+/// Action buttons (add, menu) have been promoted to DeckActionOverlay so they
+/// remain accessible at a fixed position regardless of scroll depth.
 struct DeckSectionToolbar: View {
     let deck: DeckModel
-    let isSelecting: Bool
-    @Binding var sortOrder: SortOrder
-    @Binding var isMenuExpanded: Bool
-    @Binding var menuPosition: CGRect // The final @State to actually render
-    let menuTracker: MenuPositionTracker // The silent tracker
-
-    var onAdd: () -> Void
-    var onStartSelection: () -> Void
-    var onExport: (() -> Void)? = nil
-
-    private var accent: Color {
-        ThemeManager.shared.accentColor.color
-    }
+    /// When `true` the deck title pill is visible — fade the label to avoid redundancy.
+    var pillVisible: Bool = false
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack {
             Text("CARDS(\(deck.cardCount))")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.secondary)
-
+            // Fade and slide the label away while the title pill is showing.
+            .opacity(pillVisible ? 0 : 1)
+                .offset(x: pillVisible ? -8 : 0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: pillVisible)
             Spacer()
-
-            Button(action: onAdd) {
-                ZStack {
-                    Circle()
-                        .fill(accent.opacity(0.15))
-                        .frame(width: 40, height: 40)
-                    Image(systemName: "plus")
-                        .font(.headline.bold())
-                        .foregroundStyle(accent)
-                }
-            }
-
-
-            if deck.cardCount > 0 {
-                Button {
-                    // Update state ONLY ONCE when clicked, triggering the UI redraw
-                    menuPosition = menuTracker.rect
-                    withAnimation(.smooth) { isMenuExpanded.toggle() }
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(accent.opacity(isSelecting || isMenuExpanded ? 1.0 : 0.15))
-                            .frame(width: 40, height: 40)
-                        Image(systemName: "ellipsis")
-                            .font(.headline.bold())
-                            .foregroundStyle(isSelecting || isMenuExpanded ? .white : accent)
-                    }
-                }
-                .onGeometryChange(for: CGRect.self) { proxy in
-                    proxy.frame(in: .global)
-                } action: { newValue in
-                    // Silently track without triggering 120Hz @State redraws
-                    menuTracker.rect = newValue
-                }
-            }
-
-
         }
             .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+    }
+}
+
+// MARK: - 5. Action Buttons Overlay (top-trailing)
+
+/// Floating action buttons rendered as a top-trailing overlay on DeckContentView.
+///
+/// Mirrors the visual style of the back-button overlay (top-leading):
+/// each button is a standalone capsule with ultraThinMaterial fill and an
+/// accent-tinted overlay, matching the exact padding and height of the back button.
+///
+/// The ellipsis button tracks its own frame via onGeometryChange so that
+/// DeckContentView can position the DeckMenuControls dropdown correctly
+/// relative to the button regardless of device size or orientation.
+struct DeckActionOverlay: View {
+    let deck: DeckModel
+    let isSelecting: Bool
+    @Binding var isMenuExpanded: Bool
+    @Binding var menuPosition: CGRect
+    let menuTracker: MenuPositionTracker
+    let onAdd: () -> Void
+    let onStartSelection: () -> Void
+    let onExport: () -> Void
+
+    private var accent: Color { ThemeManager.shared.accentColor.color }
+    /// True when the ellipsis button should render in its active (filled) state.
+    private var isMenuActive: Bool { isSelecting || isMenuExpanded }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            addButton
+            if deck.cardCount > 0 { menuButton }
+        }
+            .padding(.trailing, 16)
+            .padding(.top, 8)
+    }
+
+    // MARK: Add Button
+
+    private var addButton: some View {
+        Button(action: onAdd) {
+            Image(systemName: "plus")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(accent)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .frame(height: 50)
+                .background(
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Capsule().fill(accent.opacity(0.15)))
+            )
+        }
+            .buttonStyle(.plain)
+    }
+
+    // MARK: Menu Button
+
+    /// Ellipsis button that triggers DeckMenuControls.
+    /// onGeometryChange feeds menuPosition so the dropdown is anchored to this button.
+    private var menuButton: some View {
+        Button {
+            menuPosition = menuTracker.rect
+            withAnimation(.snappy(duration: 0.3, extraBounce: 0)) {
+                isMenuExpanded.toggle()
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 13, weight: .bold))
+            // Active state: white icon on solid-accent background.
+            // Inactive state: accent icon on tinted-material background.
+            .foregroundStyle(isMenuActive ? .white : accent)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .frame(height: 50)
+                .background(
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Capsule().fill(isMenuActive ? accent : accent.opacity(0.15)))
+            )
+                .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isMenuActive)
+        }
+            .buttonStyle(.plain)
+        // Track the button's global frame so menuOverlay can place the dropdown
+        // directly below (or above) this button without hard-coded offsets.
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .global)
+        } action: { newValue in
+            menuTracker.rect = newValue
+        }
     }
 }
 

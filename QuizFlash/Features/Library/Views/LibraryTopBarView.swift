@@ -30,6 +30,10 @@ struct LibraryTopBarView: View {
     @Binding var isSearching: Bool
 
     var isScrolled: Bool = false
+    /// When non-nil, a back button is shown on the left instead of the deck-count pill.
+    var onBack: (() -> Void)? = nil
+    /// Text shown inside the back button pill. Only used when onBack != nil.
+    var backLabel: String = "Library"
 
     @FocusState private var isSearchFocused: Bool
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -51,9 +55,13 @@ struct LibraryTopBarView: View {
 
     private var titleRow: some View {
         ZStack(alignment: .center) {
-            // Left: deck count — standalone dark capsule
+            // Left: back button (folder view) OR deck count pill (root)
             HStack {
-                deckCountPill
+                if let onBack {
+                    backButton(action: onBack)
+                } else {
+                    deckCountPill
+                }
                 Spacer()
             }
 
@@ -212,5 +220,26 @@ struct LibraryTopBarView: View {
         } label: {
             Label("Sort By", systemImage: "arrow.up.arrow.down")
         }
+    }
+
+    // MARK: - Back Button
+
+    /// Pill-shaped back button shown when the view is pushed (folder context).
+    /// Mirrors the deck-count pill dimensions so the layout stays balanced.
+    private func backButton(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 13, weight: .bold))
+                Text(backLabel)
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(accent)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .frame(height: 50)
+            .background(darkPillBackground(cornerRadius: 20))
+        }
+        .buttonStyle(.plain)
     }
 }

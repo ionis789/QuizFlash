@@ -100,6 +100,7 @@ struct LibrarySelectionBarView: View {
         .shadow(color: .black.opacity(0.18), radius: 16, x: 0, y: 6)
         .padding(.horizontal, 16)
         .padding(.bottom, 12)
+        .contentShape(Rectangle())  // Absorb all taps including padding — prevent fall-through to layers below.
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedCount)
     }
 }

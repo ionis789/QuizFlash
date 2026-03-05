@@ -96,11 +96,13 @@ struct LibraryView: View {
         Group {
             if folderContext != nil {
                 // Child View Configuration (Pushed onto the NavigationStack)
+                // swipeBack is suppressed while selection is active — a tap in the
+                // empty area should only exit selection, never also dismiss the folder.
                 contentWithModifiers
                     .toolbar(.hidden, for: .navigationBar)
-                    .swipeBack {
-                    dismiss()
-                }
+                    .swipeBack(enabled: !viewModel.isSelecting) {
+                        dismiss()
+                    }
             } else {
                 // Root View Configuration (Base Tab)
                 // The native navigation bar is suppressed here too — LibraryTopBarView
@@ -124,6 +126,12 @@ struct LibraryView: View {
 
     // MARK: - Main Content
 
+    /// The label shown in the folder view's back button.
+    /// "Library" when opened from Library tab, "Home" when opened from Home tab, etc.
+    private var folderBackLabel: String {
+        router.activeTab.rawValue
+    }
+
     private var mainContent: some View {
         LibraryLayout(
             decks: decks,
@@ -136,6 +144,8 @@ struct LibraryView: View {
             },
             onDeckNavigate: { deck in
                 // 🟢 iOS 17 fix: push the identifier instead of the model
+                // Back label: folder name when inside a folder, otherwise active tab name
+                router.deckBackLabel = folderContext?.title ?? router.activeTab.rawValue
                 router.append(deck.persistentModelID)
             },
             onDeleteSelected: {
@@ -143,6 +153,8 @@ struct LibraryView: View {
                     viewModel.deleteSelectedDecks(from: decks, context: context)
                 }
             },
+            onBack: folderContext != nil ? { dismiss() } : nil,
+            backLabel: folderContext != nil ? folderBackLabel : "Library",
             isSearching: $isSearching,
             searchText: $searchText,
             folderContext: folderContext

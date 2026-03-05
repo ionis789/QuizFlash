@@ -80,6 +80,7 @@ struct SearchResultsView: View {
 
     private func navigateToDeck(with id: PersistentIdentifier) {
         guard let deck = context.model(for: id) as? DeckModel else { return }
+        router.deckBackLabel = "Search"
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
             // 🟢 iOS 17 fix: push the identifier instead of the model
             router.append(deck.persistentModelID)

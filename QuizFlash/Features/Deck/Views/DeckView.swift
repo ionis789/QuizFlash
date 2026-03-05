@@ -6,7 +6,7 @@
 import SwiftUI
 import SwiftData
 
-private let kHeroCollapseDistance: CGFloat = 200
+private let kHeroCollapseDistance: CGFloat = 10
 
 struct DeckContentView: View {
     @Environment(\.modelContext) var context
@@ -25,14 +25,43 @@ struct DeckContentView: View {
     @State private var isMenuExpanded: Bool = false
     @State private var menuPosition: CGRect = .zero
     @State private var menuTracker = MenuPositionTracker()
+    /// Scroll-driven progress — updated by DeckScrollMonitor via KVO, never by SwiftUI state
+    @State private var scrollState = DeckScrollState()
+
+    /// View-level safe-area bottom (from SwiftUI GeometryReader inside the ZStack).
+    /// Inside TabView this includes UITabBar.height (~49 pt) on top of the physical
+    /// home-indicator inset, even when the tab bar is hidden via NativeTabBarConfigurator.
+    @State private var viewSafeBottom: CGFloat = 0
+
+    /// Physical screen safe-area bottom read directly from UIWindow.
+    /// Always equals only the home-indicator inset (~34 pt) — never inflated by the tab bar.
+    @State private var physicalSafeBottom: CGFloat = 0
+
+    /// Extra height that TabView adds to the safe area for its native UITabBar.
+    /// When the tab bar is hidden (selection mode), this offset remains until the async
+    /// safe-area recalculation completes. Applying -tabBarOffset as bottom padding on
+    /// DeckSelectionBottomBar moves it down to the correct physical position immediately.
+    private var tabBarOffset: CGFloat {
+        max(0, viewSafeBottom - physicalSafeBottom)
+    }
 
     @Query private var userProfiles: [UserProfile]
     private var userProfile: UserProfile? { userProfiles.first }
+
+    private var subtitleText: String {
+        let f = DateFormatter()
+        f.dateStyle = .medium; f.timeStyle = .none
+        return "\(f.string(from: deck.createdAt))  •  \(deck.cardCount) cards"
+    }
 
     // MARK: - Body
 
     var body: some View {
         deckContent
+            // Hide the floating tab bar only while selection mode is active,
+            // so it does not overlap DeckSelectionBottomBar.
+            // In normal browsing the tab bar remains visible.
+            .customTabBarVisibility(viewModel.isSelecting ? .hidden : .implicit)
             .onAppear {
             Task {
                 await viewModel.loadSnapshot(
@@ -97,22 +126,95 @@ struct DeckContentView: View {
                     onDone: viewModel.exitSelectionMode,
                     onDelete: { viewModel.showDeleteConfirmation = true }
                 )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .padding(.bottom, 20)
-                    .zIndex(10)
+                // TabView inflates the ZStack safe-area bottom by UITabBar.height
+                // even while the bar is hidden. tabBarOffset = that extra inset.
+                // Negative padding shifts the bar down to sit above the home indicator,
+                // not above the phantom tab bar space.
+                .padding(.bottom, -tabBarOffset)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(10)
             }
         }
             .overlay(alignment: .topLeading) { menuOverlay }
+            .overlay(alignment: .topLeading) { backButtonOverlay }
+            .overlay(alignment: .topTrailing) { actionButtonsOverlay }
             .swipeBack { dismiss() }
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
-            .navigationDestination(for: PersistentIdentifier.self) { deckID in
-            if let deck = context.model(for: deckID) as? DeckModel {
-                DeckView(deck: deck)
-                    .toolbar(.hidden, for: .navigationBar)
-                // APLICĂ NOUA METODĂ AICI:
-                .hideTabBarOnPush()
+            .environment(scrollState)
+            .background {
+                // Capture safe-area insets for tabBarOffset computation.
+                // GeometryReader inside .background reads the ZStack's coordinate space,
+                // which includes the TabView-injected UITabBar inset in .bottom.
+                // UIWindow is queried separately for the physical-only inset.
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear {
+                            viewSafeBottom     = geo.safeAreaInsets.bottom
+                            physicalSafeBottom = UIApplication.shared
+                                .connectedScenes
+                                .compactMap { $0 as? UIWindowScene }
+                                .first?.windows
+                                .first(where: { $0.isKeyWindow })?
+                                .safeAreaInsets.bottom ?? 0
+                        }
+                        .onChange(of: geo.safeAreaInsets.bottom) { _, v in
+                            viewSafeBottom = v
+                            physicalSafeBottom = UIApplication.shared
+                                .connectedScenes
+                                .compactMap { $0 as? UIWindowScene }
+                                .first?.windows
+                                .first(where: { $0.isKeyWindow })?
+                                .safeAreaInsets.bottom ?? 0
+                        }
+                }
             }
+    }
+
+    // MARK: - Back Button
+
+    private var backButtonOverlay: some View {
+        Button { dismiss() } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 13, weight: .bold))
+                Text(router.deckBackLabel)
+                    .font(.system(size: 13, weight: .semibold))
+            }
+                .foregroundStyle(ThemeManager.shared.accentColor.color)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .frame(height: 50)
+                .background(
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Capsule().fill(ThemeManager.shared.accentColor.color.opacity(0.15)))
+            )
         }
+            .buttonStyle(.plain)
+            .padding(.leading, 16)
+            .padding(.top, 8)
+    }
+
+    // MARK: - Action Buttons Overlay
+
+    /// Top-trailing overlay providing the add (+) and menu (ellipsis) buttons.
+    /// Symmetric counterpart to backButtonOverlay — same capsule style, same
+    /// vertical alignment, positioned at the trailing edge instead of leading.
+    private var actionButtonsOverlay: some View {
+        DeckActionOverlay(
+            deck: deck,
+            isSelecting: viewModel.isSelecting,
+            isMenuExpanded: $isMenuExpanded,
+            menuPosition: $menuPosition,
+            menuTracker: menuTracker,
+            onAdd: { isAddingCard = true },
+            onStartSelection: {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    viewModel.isSelecting = true
+                }
+            },
+            onExport: { viewModel.exportDeck(deck) }
+        )
     }
 
     /// `mainContent` plus all fullScreenCover presentations.
@@ -175,119 +277,142 @@ struct DeckContentView: View {
         }
     }
 
-    // MARK: - Main Content
-
     private var mainContent: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                if searchQuery == nil {
-                    DeckHeroView(
-                        deck: deck,
-                        stats: viewModel.currentStats,
-                        onEdit: { isPresentingEdit = true }
-                    )
-                        .padding(.top, 16)
-                        .zIndex(-1)
-                }
+        GeometryReader { outer in
+            let safeTop = outer.safeAreaInsets.top == 0 ? 47.0 : outer.safeAreaInsets.top
 
-                if let query = searchQuery, !query.isEmpty {
-                    HStack {
-                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
-                            .foregroundStyle(Color.accentColor)
-                        Text("Filtered by \"**\(query)**\"")
-                            .font(.subheadline)
-                        Spacer()
-                    }
+            ScrollView {
+                VStack(spacing: 0) {
+
+                    if let query = searchQuery, !query.isEmpty {
+                        HStack {
+                            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                                .foregroundStyle(Color.accentColor)
+                            Text("Filtered by \"**\(query)**\"")
+                                .font(.subheadline)
+                            Spacer()
+                        }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                         .background(Color.accentColor.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .padding(.horizontal, 20)
                         .padding(.top, 12)
-                }
-
-                VStack(spacing: 16) {
-                    if searchQuery == nil || searchQuery?.isEmpty == true {
-                        DeckPlayModesView(deck: deck, onPlay: { isPlayingQuiz = true })
-                            .padding(.top, 16)
-                        DeckProgressView(deck: deck, stats: viewModel.currentStats, cards: viewModel.allCardInfos)
                     }
 
-                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                        Section {
-                            Color.clear.frame(height: 4)
+                    VStack(spacing: 16) {
 
-                            DeckCardGridView(
-                                cards: viewModel.cachedGroupedCards,
-                                isSelecting: viewModel.isSelecting,
-                                selectedCards: viewModel.selectedCards,
-                                onToggleSelection: { gridCard in viewModel.toggleSelection(for: gridCard.id) },
-                                onTapCard: { gridCard in
-                                    if viewModel.isSelecting {
-                                        viewModel.toggleSelection(for: gridCard.id)
-                                    } else if searchQuery != nil {
-                                        if let model = context.model(for: gridCard.id) as? CardModel { editingCard = model }
-                                    } else {
-                                        if let model = context.model(for: gridCard.id) as? CardModel { previewedCard = model }
+                        HStack(alignment: .center, spacing: 16) {
+                            // Tappable area: title + edit icon both open deck editor
+                            Button {
+                                isPresentingEdit = true
+                            } label: {
+                                HStack(alignment: .center, spacing: 10) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(deck.title)
+                                            .font(.system(size: 38, weight: .heavy, design: .rounded))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(2)
+                                            .minimumScaleFactor(0.7)
+                                        Text(subtitleText)
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(.secondary)
                                     }
-                                },
-                                onLongPressCard: { gridCard in
-                                    if viewModel.isSelecting {
-                                        viewModel.toggleSelection(for: gridCard.id)
-                                    } else {
-                                        if let model = context.model(for: gridCard.id) as? CardModel {
-                                            editingCard = model
+                                    // Edit affordance icon — visually hints the row is editable
+                                    Image(systemName: "pencil")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundStyle(.secondary.opacity(0.6))
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+
+                            Spacer(minLength: 0)
+                            DeckMasteryRing(mastery: viewModel.currentStats.deckMastery,
+                                           deckColor: Color(hex: deck.colorHex) ?? .blue)
+                        }
+                        .padding(.horizontal, 20)
+                        // Extra top padding ensures the title clears the floating back-button overlay
+                        .padding(.top, 68)
+
+                        // Invisible anchor — when this crosses safeAreaTop, pill appears
+                        Color.clear
+                            .frame(height: 1)
+                            .onGeometryChange(for: CGFloat.self) { proxy in
+                                proxy.frame(in: .global).minY
+                            } action: { minY in
+                                let isAbove = minY < safeTop
+                                if scrollState.pillVisible != isAbove {
+                                    scrollState.pillVisible = isAbove
+                                }
+                            }
+
+                        if searchQuery == nil || searchQuery?.isEmpty == true {
+                            DeckProgressView(deck: deck, stats: viewModel.currentStats, cards: viewModel.allCardInfos)
+                            DeckPlayModesView(deck: deck, onPlay: { isPlayingQuiz = true })
+                                .padding(.top, 16)
+                        }
+
+                        LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                            Section {
+                                Color.clear.frame(height: 4)
+                                DeckCardGridView(
+                                    cards: viewModel.cachedGroupedCards,
+                                    isSelecting: viewModel.isSelecting,
+                                    selectedCards: viewModel.selectedCards,
+                                    onToggleSelection: { gridCard in viewModel.toggleSelection(for: gridCard.id) },
+                                    onTapCard: { gridCard in
+                                        if viewModel.isSelecting {
+                                            viewModel.toggleSelection(for: gridCard.id)
+                                        } else if searchQuery != nil {
+                                            if let model = context.model(for: gridCard.id) as? CardModel { editingCard = model }
+                                        } else {
+                                            if let model = context.model(for: gridCard.id) as? CardModel { previewedCard = model }
+                                        }
+                                    },
+                                    onLongPressCard: { gridCard in
+                                        if viewModel.isSelecting {
+                                            viewModel.toggleSelection(for: gridCard.id)
+                                        } else {
+                                            if let model = context.model(for: gridCard.id) as? CardModel { editingCard = model }
+                                        }
+                                    },
+                                    onDeleteCard: { gridCard in
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                            viewModel.deleteSingleCard(id: gridCard.id, from: deck, context: context)
                                         }
                                     }
-                                },
-                                onDeleteCard: { gridCard in
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                        viewModel.deleteSingleCard(id: gridCard.id, from: deck, context: context)
-                                    }
-                                }
-                            )
-
-                            Color.clear.frame(height: 120)
-                        } header: {
-                            DeckSectionToolbar(
-                                deck: deck,
-                                isSelecting: viewModel.isSelecting,
-                                sortOrder: $viewModel.sortOrder,
-                                isMenuExpanded: $isMenuExpanded,
-                                menuPosition: $menuPosition,
-                                menuTracker: menuTracker,
-                                onAdd: { isAddingCard = true },
-                                onStartSelection: {
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                        viewModel.isSelecting = true
-                                    }
-                                },
-                                onExport: { viewModel.exportDeck(deck) }
-                            )
-                                .padding(.vertical, 8)
+                                )
+                                Color.clear.frame(height: 120)
+                            } header: {
+                                // Simplified to label-only. Action buttons (+, ellipsis)
+                                // are now rendered via the topTrailing overlay so they
+                                // remain accessible regardless of scroll position.
+                                DeckSectionToolbar(
+                                    deck: deck,
+                                    pillVisible: scrollState.pillVisible
+                                )
                                 .background(Color(uiColor: .systemGroupedBackground))
+                            }
                         }
                     }
-                }
                     .contentShape(Rectangle())
                     .onTapGesture {
-                    if viewModel.isSelecting { viewModel.exitSelectionMode() }
+                        if viewModel.isSelecting { viewModel.exitSelectionMode() }
+                    }
+                    .frame(minHeight: outer.size.height)
                 }
             }
-        }
-            .navigationTitle(deck.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    isPresentingEdit = true
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                }
-            }
-        }
+            .scrollIndicators(.hidden)
             .scrollDisabled(isMenuExpanded)
             .background(Color(uiColor: .systemGroupedBackground))
+            .overlay(alignment: .top) {
+                if searchQuery == nil {
+                    DeckHeroView(deck: deck, stats: viewModel.currentStats)
+                        .allowsHitTesting(false)
+                }
+            }
+        }
     }
 
     // MARK: - Menu Overlay

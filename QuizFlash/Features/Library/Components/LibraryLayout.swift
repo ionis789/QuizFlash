@@ -1,34 +1,6 @@
 //
 //  LibraryLayout.swift
 //  QuizFlash
-//
-//  ── iOS 17 scroll-position changes vs original ────────────────────────
-//
-//  1. `lastTappedDeckID` (@State) → removed.
-//     @State can be silently reset when iOS 17's NavigationStack reconstructs
-//     view struct identity during a pop. Replaced by `viewModel.savedScrollOffset`
-//     (raw Y, lives in @Observable) which survives every body re-evaluation.
-//
-//  2. New `@State private var libraryScrollView: UIScrollView?`
-//     Delivered by CollapsingScrollView.onScrollViewReady on iOS 17.
-//     Used for programmatic scroll-to-top via UIKit instead of
-//     SwiftUI's ScrollViewProxy (which requires rendered cells).
-//
-//  3. LazyVStack → VStack on iOS 17 via `stackContent` @ViewBuilder property.
-//     Eager VStack gives UIHostingController the full intrinsic content height
-//     after the very first layout pass — the prerequisite for iOS17ScrollHost
-//     to set contentOffset synchronously in viewDidLayoutSubviews, before
-//     the pop animation's first frame is drawn.
-//
-//  4. `onAppear` iOS 17 block simplified.
-//     The old `scrollProxy?.scrollTo(targetID)` + 50 ms delay is gone.
-//     iOS17ScrollHost handles restoration internally, before first paint.
-//
-//  5. Required addition to LibraryViewModel:
-//
-//       /// Raw UIScrollView contentOffset.y — persists across pops on iOS 17.
-//       var savedScrollOffset: CGFloat = 0
-//
 
 import SwiftUI
 import SwiftData
@@ -44,6 +16,10 @@ struct LibraryLayout: View {
     let onCardTap: (PersistentIdentifier) -> Void
     let onDeckNavigate: (DeckModel) -> Void
     let onDeleteSelected: () -> Void
+    /// Called when the user taps the back button in a folder view. Nil for root Library.
+    var onBack: (() -> Void)? = nil
+    /// Label shown in the back button when onBack != nil.
+    var backLabel: String = "Library"
 
     @Binding var isSearching: Bool
     @Binding var searchText: String
@@ -60,6 +36,23 @@ struct LibraryLayout: View {
     /// safeAreaInsets.top captured from the root body context (non-zero here).
     @State private var safeTop: CGFloat = 0
 
+    /// Safe-area bottom reported by SwiftUI at the ZStack level.
+    /// Inside TabView this includes the UITabBar height (~49 pt) on top of the
+    /// physical home-indicator inset, regardless of whether UITabBar is hidden.
+    @State private var viewSafeBottom: CGFloat = 0
+
+    /// Physical screen safe-area bottom (home indicator only, ~34 pt).
+    /// Read directly from UIWindow so it is never inflated by TabView's layout.
+    @State private var physicalSafeBottom: CGFloat = 0
+
+    /// Extra bottom offset introduced by TabView for its native UITabBar.
+    /// When the tab bar is hidden (selection / search mode), the SwiftUI layout
+    /// system still reserves this space. Applying a negative bottom padding equal
+    /// to tabBarOffset moves the selection bar down to the correct visual position.
+    private var tabBarOffset: CGFloat {
+        max(0, viewSafeBottom - physicalSafeBottom)
+    }
+
 
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -68,6 +61,14 @@ struct LibraryLayout: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
+
+            // Full-bleed background.  Empty-space tap-to-dismiss is handled
+            // via onScrollViewEmptySpaceTap on the scroll content VStack, which
+            // operates at UIScrollView level and correctly ignores deck-row taps.
+            Color.black
+                .ignoresSafeArea()
+                .zIndex(-1)
+
             mainScrollArea
 
             // ── Edge shadows — top + bottom vignette ─────────────────────────
@@ -87,7 +88,9 @@ struct LibraryLayout: View {
                     viewModel: viewModel,
                     searchText: $searchText,
                     isSearching: $isSearching,
-                    isScrolled: viewModel.savedScrollOffset > 10
+                    isScrolled: viewModel.savedScrollOffset > 10,
+                    onBack: onBack,
+                    backLabel: backLabel
                 )
                 // Capture rendered height so the ScrollView spacer and blur
                 // frame stay in sync. Guard prevents redundant state writes.
@@ -110,8 +113,13 @@ struct LibraryLayout: View {
                     decks: decks,
                     onDeleteTap: { viewModel.showDeleteConfirmation = true }
                 )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(10)
+                // TabView inflates the ZStack's safe-area bottom by UITabBar height
+                // even when the bar is hidden. tabBarOffset = that extra inset.
+                // A negative bottom padding shifts the bar down by exactly that
+                // amount so it sits above the home indicator, not above the tab bar.
+                .padding(.bottom, -tabBarOffset)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(10)
             }
 
             if viewModel.isImporting || viewModel.isExporting {
@@ -124,14 +132,31 @@ struct LibraryLayout: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
-            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isSearching)
-            .background { Color.black.ignoresSafeArea() }
-            .background {
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isSearching)
+        .background {
             GeometryReader { geo in
                 Color.clear
-                    .onAppear { safeTop = geo.safeAreaInsets.top }
-                    .onChange(of: geo.safeAreaInsets.top) { _, v in safeTop = v }
+                    .onAppear {
+                        safeTop         = geo.safeAreaInsets.top
+                        viewSafeBottom  = geo.safeAreaInsets.bottom
+                        physicalSafeBottom = UIApplication.shared
+                            .connectedScenes
+                            .compactMap { $0 as? UIWindowScene }
+                            .first?.windows
+                            .first(where: { $0.isKeyWindow })?
+                            .safeAreaInsets.bottom ?? 0
+                    }
+                    .onChange(of: geo.safeAreaInsets.top)    { _, v in safeTop = v }
+                    .onChange(of: geo.safeAreaInsets.bottom) { _, v in
+                        viewSafeBottom = v
+                        physicalSafeBottom = UIApplication.shared
+                            .connectedScenes
+                            .compactMap { $0 as? UIWindowScene }
+                            .first?.windows
+                            .first(where: { $0.isKeyWindow })?
+                            .safeAreaInsets.bottom ?? 0
+                    }
             }
         }
     }
@@ -142,8 +167,6 @@ struct LibraryLayout: View {
         ScrollView {
             VStack(spacing: 0) {
                 // ── Scroll Position Restoration ───────────────────────────────
-                // Must be first so its superview-chain walk reliably finds the
-                // UIScrollView ancestor before any other content is laid out.
                 ScrollPositionRestorer(
                     getOffset: { viewModel.savedScrollOffset },
                     onOffsetChange: { offset in
@@ -151,80 +174,46 @@ struct LibraryLayout: View {
                         viewModel.savedScrollOffset = offset
                     }
                 )
-                    .frame(width: 0, height: 0)
+                .frame(width: 0, height: 0)
 
                 if !isSearching && decks.isEmpty && viewModel.cachedGroupedDecks.isEmpty {
                     Spacer().frame(height: 40)
                 }
 
                 stackContent
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                    guard viewModel.isSelecting else { return }
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        viewModel.exitSelectionMode()
-                    }
+            }
+            // Dismiss selection mode when the user taps on empty scroll-view space
+            // (gaps between cards, area below all decks). Detection is performed at
+            // the UIScrollView level via gestureRecognizerShouldBegin + hitTest:
+            // PlatformGroupContainer as the deepest hit view = empty space.
+            // Deck-row taps return a leaf view (RBDrawingView) → correctly ignored.
+            .onScrollViewEmptySpaceTap(isActive: viewModel.isSelecting && !isSearching) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    viewModel.exitSelectionMode()
                 }
             }
-                .safeAreaInset(edge: .bottom) {
+            .safeAreaInset(edge: .bottom) {
                 Color.clear
                     .frame(height: 100)
                     .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
             }
-                .safeAreaInset(edge: .top) {
+            .safeAreaInset(edge: .top) {
                 Color.clear
                     .frame(height: 100)
                     .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
             }
         }
-        // Extends the ScrollView frame edge-to-edge under the status bar so
-        // deck rows physically pass behind the blur layer as the user scrolls.
-        // .safeAreaInset below still reserves the correct top inset for content.
         .ignoresSafeArea(.container, edges: .top)
-        // ── Scroll Coordinate Space ───────────────────────────────────────────
-        // Named space consumed by ScrollProximityModifier in LibraryContentViews.
-        // Each row reads its own minY from this space via .visualEffect to apply
-        // the scale + blur + opacity dissolve as it approaches the header zone.
-        // This is the ONLY change required in LibraryLayout for the effect.
         .coordinateSpace(name: kLibraryScrollSpace)
-        // ── Frosted-Glass Blur Overlay ────────────────────────────────────────
-        // Placed as a .overlay on the ScrollView — the only compositing position
-        // where UIKit's blur renderer samples live, scrolling pixel data.
-        //
-        // A blur inside the content VStack (even with .visualEffect offset tricks)
-        // renders in a child CALayer that gets composited AFTER the scroll content
-        // layer, so it samples the static app background instead of deck rows.
-        //
-        // A .overlay on the ScrollView is rendered by UIKit as a sibling layer
-        // ABOVE the UIScrollView's content layer but WITHIN the same parent
-        // CALayer — exactly the compositing relationship the blur needs to see
-        // the pixels that are moving underneath it in real time.
-        //
-        // .ignoresSafeArea(edges: .top) bleeds the blur into the status bar area,
-        // so the header looks seamlessly fused to the top of the screen.
-        // .allowsHitTesting(false) lets all touches fall through to the
-        // LibraryTopBarView buttons rendered above it.
-
-        // ── Content Inset Spacer ───────────────────────────────────────────────
-        // Color.clear reserves the exact same top space that LibraryTopBarView
-        // occupies, so deck rows start just below the header without the header
-        // being a child of the ScrollView (which would place it under the blur).
-        // LibraryTopBarView itself lives in the ZStack at zIndex(6) — above blur.
         .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear
-                .frame(height: headerHeight)
+            Color.clear.frame(height: headerHeight)
         }
-            .onAppear {
-            updateGroupedDecks()
-        }
-            .onChange(of: decks) { _, _ in updateGroupedDecks() }
-            .onChange(of: viewModel.sortOrder) { _, _ in updateGroupedDecks() }
-            .onChange(of: searchText) { _, newValue in
+        .onAppear { updateGroupedDecks() }
+        .onChange(of: decks) { _, _ in updateGroupedDecks() }
+        .onChange(of: viewModel.sortOrder) { _, _ in updateGroupedDecks() }
+        .onChange(of: searchText) { _, newValue in
             inputDebounceTask?.cancel()
-            if newValue.isEmpty {
-                viewModel.searchText = ""
-                return
-            }
+            if newValue.isEmpty { viewModel.searchText = ""; return }
             inputDebounceTask = Task { @MainActor in
                 do {
                     try await Task.sleep(nanoseconds: 150_000_000)
@@ -233,13 +222,13 @@ struct LibraryLayout: View {
                 } catch { }
             }
         }
-            .onChange(of: isSearching) { _, active in
+        .onChange(of: isSearching) { _, active in
             if !active {
                 inputDebounceTask?.cancel()
                 viewModel.searchText = ""
             }
         }
-            .onDisappear {
+        .onDisappear {
             groupingTask?.cancel()
             groupingTask = nil
             inputDebounceTask?.cancel()

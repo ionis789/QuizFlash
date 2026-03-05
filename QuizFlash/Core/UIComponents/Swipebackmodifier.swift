@@ -28,10 +28,11 @@ public extension View {
     /// }
     /// ```
     ///
+    /// - Parameter enabled: When false the gesture is fully disabled. Defaults to true.
     /// - Parameter action: The closure to execute when the swipe gesture successfully commits.
     /// - Returns: A view that responds to the edge swipe gesture.
-    func swipeBack(action: @escaping () -> Void) -> some View {
-        modifier(SwipeBackModifier(action: action))
+    func swipeBack(enabled: Bool = true, action: @escaping () -> Void) -> some View {
+        modifier(SwipeBackModifier(enabled: enabled, action: action))
     }
 }
 
@@ -40,6 +41,7 @@ public extension View {
 /// The internal modifier that handles the state and rendering of the swipe gesture.
 private struct SwipeBackModifier: ViewModifier {
 
+    var enabled: Bool
     let action: () -> Void
 
     // MARK: Gesture State
@@ -84,6 +86,7 @@ private struct SwipeBackModifier: ViewModifier {
                 isActive: $isActive,
                 startY: $startY,
                 edge: $edge,
+                enabled: enabled,
                 commitThreshold: commitThreshold,
                 edgeActivationWidth: edgeActivationWidth,
                 onCommit: {
@@ -148,6 +151,7 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
     @Binding var startY: CGFloat
     @Binding var edge: Edge
 
+    var enabled: Bool
     let commitThreshold: CGFloat
     let edgeActivationWidth: CGFloat
     let onCommit: () -> Void
@@ -161,6 +165,8 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
 
     func updateUIView(_ uiView: ControllerView, context: Context) {
         uiView.coordinator = context.coordinator
+        // Disable the pan recognizer at runtime when the gesture is suppressed.
+        uiView.panRecognizer?.isEnabled = enabled
     }
 
     func makeCoordinator() -> Coordinator {
@@ -219,6 +225,10 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            // If the modifier has been disabled (e.g. during selection mode),
+            // reject the gesture immediately — before any position checks.
+            guard parent.enabled else { return false }
+
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer, let view = pan.view else { return false }
 
             let loc = pan.location(in: view)
@@ -251,6 +261,9 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
 private class ControllerView: UIView {
     weak var coordinator: NativeEdgeSwipeController.Coordinator?
     private weak var panGesture: UIPanGestureRecognizer?
+
+    /// Exposed so `NativeEdgeSwipeController.updateUIView` can toggle `isEnabled`.
+    var panRecognizer: UIPanGestureRecognizer? { panGesture }
 
     override func didMoveToWindow() {
         super.didMoveToWindow()

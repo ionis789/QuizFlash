@@ -19,12 +19,17 @@ final class NavigationManager {
     // Tracks the current tab so cross-app navigations push to the right stack
     var activeTab: AppTab = .home
 
+    /// The label shown on DeckView's back button, e.g. "Library", "Home", or a folder name.
+    /// Set by the call site that pushes a DeckView. Cleared on popToRoot.
+    var deckBackLabel: String = "Back"
+
     func popToRoot() {
         switch activeTab {
         case .home: homePath = NavigationPath()
         case .library: libraryPath = NavigationPath()
         case .create: createPath = NavigationPath()
         }
+        deckBackLabel = "Back"
     }
     
     func append<V: Hashable>(_ route: V) {
