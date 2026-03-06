@@ -100,9 +100,14 @@ struct HomeDashboardView: View {
                 HStack(spacing: 16) {
                     ForEach(recentDecks) { deck in
                         RecentDeckCardView(deck: deck) {
-                            // 🟢 iOS 17 fix: push the identifier instead of the model
-                            router.deckBackLabel = "Home"
-                            router.append(deck.persistentModelID)
+                            // Back label is frozen at push time — immune to cross-tab
+                            // mutation of router state. HomeDashboardView is always
+                            // rendered inside the Home tab's NavigationStack, so
+                            // router.activeTab.rawValue == AppTab.home.rawValue here.
+                            router.append(DeckNavigationValue(
+                                deckID: deck.persistentModelID,
+                                backLabel: router.activeTab.rawValue
+                            ))
                         }
                     }
                 }
@@ -144,7 +149,9 @@ struct HomeDashboardView: View {
                 ) {
                     ForEach(folders) { folder in
                         FolderCardView(folder: folder) {
-                            router.append(AppRoute.folder(folder))
+                            // Back label is frozen at push time — immune to subsequent
+                            // router.activeTab mutations during tab-switch animations.
+                            router.append(AppRoute.folder(folder, backLabel: router.activeTab.rawValue))
                         }
                     }
                 }

@@ -16,6 +16,10 @@ struct DeckContentView: View {
     @Bindable var deck: DeckModel
     let searchQuery: String?
 
+    // The back-button label frozen at push time via DeckNavigationValue.
+    // Never read from router state — immune to cross-tab mutation.
+    let backLabel: String
+
     @State private var isAddingCard = false
     @State private var isPresentingEdit = false
     @State private var isPlayingQuiz = false
@@ -176,7 +180,7 @@ struct DeckContentView: View {
         DeckCustomNavigationBar(
             deck: deck,
             stats: viewModel.currentStats,
-            backLabel: router.deckBackLabel,
+            backLabel: backLabel,
             searchQuery: searchQuery,
             isSelecting: viewModel.isSelecting,
             isMenuExpanded: $isMenuExpanded,
@@ -201,7 +205,7 @@ struct DeckContentView: View {
             HStack(spacing: 5) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 13, weight: .bold))
-                Text(router.deckBackLabel)
+                Text(backLabel)
                     .font(.system(size: 13, weight: .semibold))
             }
                 .foregroundStyle(ThemeManager.shared.accentColor.color)
@@ -592,25 +596,27 @@ struct DeckContentView: View {
 struct DeckView: View {
     let deck: DeckModel
     let searchQuery: String?
+    let backLabel: String
 
     @State private var viewModel: DeckViewModel? = nil
 
-    init(deck: DeckModel, searchQuery: String? = nil) {
+    init(deck: DeckModel, searchQuery: String? = nil, backLabel: String) {
         self.deck = deck
         self.searchQuery = searchQuery
+        self.backLabel = backLabel
     }
 
     var body: some View {
         Group {
             if let vm = viewModel {
-                DeckContentView(deck: deck, searchQuery: searchQuery, viewModel: vm)
+                DeckContentView(deck: deck, searchQuery: searchQuery, backLabel: backLabel, viewModel: vm)
             } else {
                 Color(uiColor: .systemGroupedBackground)
                     .onAppear {
-                    if self.viewModel == nil {
-                        self.viewModel = DeckViewModel(searchQuery: searchQuery)
+                        if self.viewModel == nil {
+                            self.viewModel = DeckViewModel(searchQuery: searchQuery)
+                        }
                     }
-                }
             }
         }
     }

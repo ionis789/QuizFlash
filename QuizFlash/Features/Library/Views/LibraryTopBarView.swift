@@ -46,7 +46,7 @@ struct LibraryTopBarView: View {
                 titleRow
             }
         }
-            .onChange(of: isSearching) { _, active in
+        .onChange(of: isSearching) { _, active in
             if active { isSearchFocused = true }
         }
     }
@@ -55,17 +55,10 @@ struct LibraryTopBarView: View {
 
     private var titleRow: some View {
         ZStack(alignment: .center) {
-            // Left: back button (folder view) OR deck count pill (root)
-            HStack {
-                if let onBack {
-                    backButton(action: onBack)
-                } else {
-                    searchIcon
-                }
-                Spacer()
-            }
 
-            // Center: screen title
+            // Center layer: title + deck count, absolutely centred in the ZStack.
+            // This layer is intentionally excluded from the HStack below so its
+            // position is never shifted by the varying widths of the sidebar controls.
             VStack(spacing: 2) {
                 Text(title)
                     .font(.system(size: 20, weight: .bold, design: .rounded))
@@ -73,15 +66,56 @@ struct LibraryTopBarView: View {
                 deckCountPill
             }
 
-            // Right: search + menu grouped in a single pill (iOS 26 pattern)
-            HStack {
-                Spacer()
+            // Sidebar layer: a single HStack owns BOTH the leading and trailing
+            // controls. This is the direct fix for two bugs caused by the previous
+            // two-layer approach (.frame(maxWidth: .infinity) on each side):
+            //
+            // Bug 1 — Text truncation ("H..."):
+            //   Two separate maxWidth:infinity layers inside a ZStack each resolve
+            //   independently to the ZStack's proposed width. During a NavigationStack
+            //   interactive swipe-back, SwiftUI repeatedly proposes an intermediate
+            //   compressed width. Both layers momentarily race to claim that narrow
+            //   width, collapsing the leading Group to near-zero before fixedSize can
+            //   correct it. A single HStack+Spacer makes one coherent layout pass and
+            //   never proposes zero to either child.
+            //
+            // Bug 2 — Leading control flicker/overlap:
+            //   Without explicit .id() tags, SwiftUI's reconciler treats the Group at
+            //   the same ZStack slot in the pushed view (backButton) and the root view
+            //   (searchIcon) as the same view, attempting to morph between them during
+            //   the slide transition. Stable identity tags force a clean insert/remove.
+            HStack(spacing: 0) {
+                leadingControl
+                    // Guarantees the leading view is always proposed its ideal width,
+                    // even if the ZStack receives a compressed proposal mid-transition.
+                    .fixedSize()
+                Spacer(minLength: 0)
                 moreSettingsButton
             }
         }
-            .padding(.horizontal, 16)
-            .padding(.top, 4)
-            .padding(.bottom, 10)
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 10)
+    }
+
+    // MARK: - Leading Control
+
+    /// Resolves to a back button (folder context) or a search icon (root context).
+    ///
+    /// Explicit `.id()` tags are required to prevent SwiftUI from cross-fading
+    /// between the two variants during a NavigationStack slide transition. Without
+    /// them, the reconciler sees the same structural position in both the pushed
+    /// and root LibraryTopBarView instances and tries to animate one shape into the
+    /// other — producing a visible overlap glitch at the start of the gesture.
+    @ViewBuilder
+    private var leadingControl: some View {
+        if let onBackAction = onBack {
+            backButton(action: onBackAction)
+                .id("topbar.leading.back")
+        } else {
+            searchIcon
+                .id("topbar.leading.search")
+        }
     }
 
     // MARK: - Search Bar
@@ -109,10 +143,10 @@ struct LibraryTopBarView: View {
                             .font(.system(size: 15))
                             .foregroundStyle(.tertiary)
                     }
-                        .padding(.trailing, 12)
+                    .padding(.trailing, 12)
                 }
             }
-                .background(darkPillBackground(cornerRadius: 14))
+            .background(darkPillBackground(cornerRadius: 14))
 
             Button("Cancel") {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -121,13 +155,13 @@ struct LibraryTopBarView: View {
                     isSearchFocused = false
                 }
             }
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(accent)
-                .transition(.move(edge: .trailing).combined(with: .opacity))
+            .font(.system(size: 15, weight: .medium))
+            .foregroundStyle(accent)
+            .transition(.move(edge: .trailing).combined(with: .opacity))
         }
-            .padding(.horizontal, 16)
-            .padding(.top, 4)
-            .padding(.bottom, 10)
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 10)
     }
 
     // MARK: - Subviews
@@ -138,44 +172,6 @@ struct LibraryTopBarView: View {
             .font(.system(size: 13, weight: .bold))
             .fontDesign(.rounded)
             .foregroundStyle(.secondary)
-    }
-
-    /// Search + menu icons grouped inside a single pill — mirrors the
-    /// iOS 26 center-control pill but placed on the trailing side.
-    private var actionGroupPill: some View {
-        HStack(spacing: 0) {
-            // Search icon
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isSearching = true
-                    isSearchFocused = true
-                }
-            } label: {
-                Image(systemName: "magnifyingglass")
-                    .font(.title3.bold())
-                    .foregroundStyle(accent)
-                    .frame(width: 50, height: 50)
-            }
-
-            // Menu icon
-            Menu { menuContent } label: {
-                Image(systemName: "ellipsis")
-                    .font(.title3.bold())
-                    .foregroundStyle(accent)
-                    .frame(width: 50, height: 50)
-            }
-        }
-            .background {
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay {
-                Capsule()
-                    .fill(Color.white.opacity(0.35))
-                    .blur(radius: 10)
-                    .mask(Capsule().stroke(lineWidth: 4))
-                    .blendMode(.overlay)
-            }
-        }
     }
 
     private var searchIcon: some View {
@@ -190,18 +186,18 @@ struct LibraryTopBarView: View {
                 .font(.title3.bold())
                 .foregroundStyle(accent)
         }
-            .frame(width: 50, height: 50)
-            .contentShape(Circle())
-            .background {
+        .frame(width: 50, height: 50)
+        .contentShape(Circle())
+        .background {
             Circle()
                 .fill(.ultraThinMaterial)
                 .overlay {
-                Circle()
-                    .fill(Color.white.opacity(0.35))
-                    .blur(radius: 10)
-                    .mask(Capsule().stroke(lineWidth: 4))
-                    .blendMode(.overlay)
-            }
+                    Circle()
+                        .fill(Color.white.opacity(0.35))
+                        .blur(radius: 10)
+                        .mask(Capsule().stroke(lineWidth: 4))
+                        .blendMode(.overlay)
+                }
         }
     }
 
@@ -212,24 +208,21 @@ struct LibraryTopBarView: View {
                 .font(.title3.bold())
                 .foregroundStyle(accent)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-
         }
-            .frame(width: 50, height: 50)
-            .contentShape(Circle())
-            .background {
+        .frame(width: 50, height: 50)
+        .contentShape(Circle())
+        .background {
             Circle()
                 .fill(.ultraThinMaterial)
                 .overlay {
-                Circle()
-                    .fill(Color.white.opacity(0.35))
-                    .blur(radius: 10)
-                    .mask(Capsule().stroke(lineWidth: 4))
-                    .blendMode(.overlay)
-            }
+                    Circle()
+                        .fill(Color.white.opacity(0.35))
+                        .blur(radius: 10)
+                        .mask(Capsule().stroke(lineWidth: 4))
+                        .blendMode(.overlay)
+                }
         }
-
     }
-
 
     // MARK: - Shared Dark-Frosted Background
 
@@ -242,9 +235,9 @@ struct LibraryTopBarView: View {
         Capsule()
             .fill(.ultraThinMaterial)
             .overlay(
-            Capsule()
-                .fill(accent.opacity(0.15))
-        )
+                Capsule()
+                    .fill(accent.opacity(0.15))
+            )
     }
 
     // MARK: - Menu Content
@@ -262,7 +255,7 @@ struct LibraryTopBarView: View {
         } label: {
             Label("Select", systemImage: "checkmark.circle")
         }
-            .disabled(viewModel.isSelecting || isSearching)
+        .disabled(viewModel.isSelecting || isSearching)
 
         Divider()
 
@@ -297,22 +290,25 @@ struct LibraryTopBarView: View {
                 Text(backLabel)
                     .font(.system(size: 13, weight: .semibold))
             }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .frame(height: 50)
-                .foregroundStyle(accent)
-                .background {
+            // Secondary guard: keeps the label from collapsing in edge-case
+            // layout passes where the Button itself receives a narrow proposal.
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .frame(height: 50)
+            .foregroundStyle(accent)
+            .background {
                 Capsule()
                     .fill(.ultraThinMaterial)
                     .overlay {
-                    Capsule()
-                        .fill(Color.white.opacity(0.35))
-                        .blur(radius: 10)
-                        .mask(Capsule().stroke(lineWidth: 4))
-                        .blendMode(.overlay)
-                }
+                        Capsule()
+                            .fill(Color.white.opacity(0.35))
+                            .blur(radius: 10)
+                            .mask(Capsule().stroke(lineWidth: 4))
+                            .blendMode(.overlay)
+                    }
             }
         }
-            .buttonStyle(.plain)
+        .buttonStyle(.plain)
     }
 }

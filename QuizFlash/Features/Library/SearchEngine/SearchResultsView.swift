@@ -80,10 +80,13 @@ struct SearchResultsView: View {
 
     private func navigateToDeck(with id: PersistentIdentifier) {
         guard let deck = context.safeModel(for: id, as: DeckModel.self) else { return }
-        router.deckBackLabel = "Search"
+        // Back label is frozen at push time — "Search" indicates the user navigated
+        // from a search result, so the back button correctly reads "< Search".
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            // Push the identifier instead of the model — iOS 17 safe navigation.
-            router.append(deck.persistentModelID)
+            router.append(DeckNavigationValue(
+                deckID: deck.persistentModelID,
+                backLabel: "Search"
+            ))
         }
     }
 }

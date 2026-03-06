@@ -324,28 +324,43 @@ final class LibraryViewModel {
 // =============================================================================
 
 /// Isolated background actor that strictly avoids the iOS 17 `@ModelActor`
-/// Zombie Context bug. It manually instantiates its `ModelContext` and uses
+/// Zombie Context bug. It manually manages its `ModelContext` and uses
 /// `flushRAM()` to instantly destroy and recreate the context, breaking all
 /// `NotificationCenter` observer retains and freeing the row cache.
+///
+/// Context lifecycle — why lazy:
+/// Swift actor `init` is NOT isolated to the actor's executor when called
+/// synchronously from another isolation domain (e.g. MainActor). If the
+/// context were created inside `init`, it would be instantiated on the
+/// MainActor and then used on the background executor → "Unbinding from the
+/// main queue" warning. The lazy accessor creates the context on the first
+/// call that happens inside an actor-isolated method, guaranteeing that
+/// instantiation and all subsequent accesses share the same executor.
 final actor LibrarySearchActor {
-    
+
     private let modelContainer: ModelContainer
-    private var context: ModelContext
-    
-    init(modelContainer: ModelContainer) {
-        self.modelContainer = modelContainer
+    /// Backing store — nil until first actor-isolated access.
+    private var _context: ModelContext?
+
+    /// Actor-isolated accessor. Creates the context on the first call, which
+    /// always occurs on the actor's background executor, never on the MainActor.
+    private var context: ModelContext {
+        if let existing = _context { return existing }
         let ctx = ModelContext(modelContainer)
         ctx.autosaveEnabled = false   // Prevents NotificationCenter registration → no zombie context on iOS 17
-        self.context = ctx
+        _context = ctx
+        return ctx
     }
-    
-    /// Instantly drops the current context and creates a fresh one.
-    /// On iOS 17, this is the only way to sever the hidden NotificationCenter
-    /// observation ties and forcefully trigger GC on fetched models.
+
+    init(modelContainer: ModelContainer) {
+        self.modelContainer = modelContainer
+        // Intentionally no ModelContext creation here. See actor-level comment.
+    }
+
+    /// Severs the current context from NotificationCenter by niling the reference.
+    /// On the next access, `context` recreates it lazily on the actor's executor.
     private func flushRAM() {
-        let fresh = ModelContext(modelContainer)
-        fresh.autosaveEnabled = false  // Same fix — must be set before any use
-        self.context = fresh
+        _context = nil
     }
 
     func buildPayloads(for deckInfos: [(id: PersistentIdentifier, title: String, icon: String, colorHex: String)]) -> [DeckSearchPayload] {

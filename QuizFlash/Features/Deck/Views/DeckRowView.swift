@@ -163,16 +163,33 @@ struct DeckRowView: View {
 // MARK: - Safe Background Actor (iOS 17 Memory Leak Fix)
 // =============================================================================
 
-/// A custom background actor implementing strictly "Pilonul 1" & "Pilonul 2".
-/// It manually manages the ModelContext and flushes RAM to prevent the
-/// iOS 17 NotificationCenter Zombie Context memory leak.
+/// A custom background actor for counting new cards without touching the main
+/// `ModelContext`. Implements the same lazy-context pattern as `LibrarySearchActor`
+/// to prevent the "ModelContext: Unbinding from the main queue" warning.
+///
+/// Root cause: `getSharedActor(container:)` is `@MainActor`, so the actor's
+/// `init` body executes on the MainActor (Swift non-async actor inits are not
+/// isolated to the actor's executor). Creating `ModelContext` in `init` would
+/// therefore instantiate it on the MainActor, while `countNewCards` uses it on
+/// the background executor → SwiftData "Unbinding" warning. The lazy accessor
+/// defers context creation to the first actor-isolated call, guaranteeing
+/// instantiation and use share the same executor.
 final actor DeckRowActor {
     private let modelContainer: ModelContainer
-    private var backgroundContext: ModelContext
+    /// Backing store — nil until first actor-isolated access.
+    private var _context: ModelContext?
+
+    /// Actor-isolated accessor. Created lazily on the actor's background executor.
+    private var context: ModelContext {
+        if let existing = _context { return existing }
+        let ctx = ModelContext(modelContainer)
+        _context = ctx
+        return ctx
+    }
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
-        self.backgroundContext = ModelContext(modelContainer)
+        // Intentionally no ModelContext creation here. See actor-level comment.
     }
 
     func countNewCards(for deckID: PersistentIdentifier) -> Int {
@@ -182,20 +199,22 @@ final actor DeckRowActor {
                 $0.consecutiveCorrectAnswers == 0
         })
 
-        // Optimize: We only need the count.
+        // Optimise: count only — no need to materialise full model objects.
         desc.propertiesToFetch = [\.persistentModelID]
 
-        let count = (try? backgroundContext.fetchCount(desc)) ?? 0
+        let count = (try? context.fetchCount(desc)) ?? 0
 
-        // 🟢 PILONUL 2: FLUSH RAM
-        // Distrugem contextul actual și îl recreăm pentru a tăia
-        // legăturile invizibile cu NotificationCenter și row cache.
+        // Sever NotificationCenter observer ties accumulated during the fetch.
+        // Niling the reference forces lazy recreation on the next call, which
+        // is the only reliable way to free the row cache on iOS 17.
         flushRAM()
 
         return count
     }
 
+    /// Drops the current context reference. The lazy accessor recreates it on
+    /// the next actor-isolated call, on the actor's own background executor.
     private func flushRAM() {
-        self.backgroundContext = ModelContext(modelContainer)
+        _context = nil
     }
 }

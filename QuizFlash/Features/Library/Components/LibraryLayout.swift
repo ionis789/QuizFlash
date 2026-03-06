@@ -13,18 +13,23 @@ struct LibraryLayout: View {
     @Bindable var viewModel: LibraryViewModel
     let router: NavigationManager
 
+    // The screen title displayed in LibraryTopBarView.
+    // Passed as a plain String so LibraryLayout carries no navigation context knowledge —
+    // it renders identically whether hosted by LibraryView ("Library") or FolderView
+    // (the folder's title). The caller owns the semantic meaning of the title.
+    let title: String
+
     let onCardTap: (PersistentIdentifier) -> Void
     let onDeckNavigate: (DeckModel) -> Void
     let onDeleteSelected: () -> Void
-    /// Called when the user taps the back button in a folder view. Nil for root Library.
+    /// Non-nil when the layout is hosted inside a pushed screen (e.g. FolderView).
+    /// Wired to the host's dismiss action so LibraryTopBarView can render a back button.
     var onBack: (() -> Void)? = nil
-    /// Label shown in the back button when onBack != nil.
+    /// Label shown in the back button pill. Ignored when onBack is nil.
     var backLabel: String = "Library"
 
     @Binding var isSearching: Bool
     @Binding var searchText: String
-
-    var folderContext: FolderModel?
 
     // ── State ──
     @State private var groupingTask: Task<Void, Never>? = nil
@@ -62,9 +67,9 @@ struct LibraryLayout: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
 
-            // Full-bleed background.  Empty-space tap-to-dismiss is handled
-            // via onScrollViewEmptySpaceTap on the scroll content VStack, which
-            // operates at UIScrollView level and correctly ignores deck-row taps.
+            // Full-bleed background. Empty-space tap-to-dismiss is handled
+            // via a pure SwiftUI background gesture on the scroll content VStack.
+            // Child view gestures (deck row Buttons) take priority — no UIKit needed.
             Color.black
                 .ignoresSafeArea()
                 .zIndex(-1)
@@ -83,7 +88,7 @@ struct LibraryLayout: View {
             // ── Header — above gradient, below selection bar ──────────────────
             VStack(spacing: 0) {
                 LibraryTopBarView(
-                    title: folderContext?.title ?? "Library",
+                    title: title,
                     deckCount: decks.count,
                     viewModel: viewModel,
                     searchText: $searchText,
@@ -182,16 +187,6 @@ struct LibraryLayout: View {
 
                 stackContent
             }
-            // Dismiss selection mode when the user taps on empty scroll-view space
-            // (gaps between cards, area below all decks). Detection is performed at
-            // the UIScrollView level via gestureRecognizerShouldBegin + hitTest:
-            // PlatformGroupContainer as the deepest hit view = empty space.
-            // Deck-row taps return a leaf view (RBDrawingView) → correctly ignored.
-            .onScrollViewEmptySpaceTap(isActive: viewModel.isSelecting && !isSearching) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    viewModel.exitSelectionMode()
-                }
-            }
             .safeAreaInset(edge: .bottom) {
                 Color.clear
                     .frame(height: 100)
@@ -203,6 +198,28 @@ struct LibraryLayout: View {
                     .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
             }
         }
+        // ── Selection mode dismiss on empty-space tap ─────────────────────
+        // .gesture (not .simultaneousGesture, not .highPriorityGesture) on a
+        // parent view loses to any gesture on a child view.
+        //
+        //   • Tap on a deck row → the row's Button (child of ScrollView) wins,
+        //     this gesture never fires → only toggleSelection runs.
+        //   • Tap on empty space between cards or below the last card → no
+        //     child Button covers that point → this gesture fires → dismiss.
+        //
+        // Using .gesture on ScrollView instead of .background on VStack solves
+        // the "short list" problem: the ScrollView always fills the full screen
+        // area regardless of content height, so the gesture is reachable even
+        // when 1–2 cards leave large empty space below them. No minHeight
+        // inflation needed → no unwanted scroll created.
+        .gesture(
+            TapGesture().onEnded {
+                guard viewModel.isSelecting && !isSearching else { return }
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    viewModel.exitSelectionMode()
+                }
+            }
+        )
         .ignoresSafeArea(.container, edges: .top)
         .coordinateSpace(name: kLibraryScrollSpace)
         .safeAreaInset(edge: .top, spacing: 0) {

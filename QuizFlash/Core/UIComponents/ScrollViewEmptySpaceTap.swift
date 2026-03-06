@@ -25,11 +25,18 @@
 //    Tap below all decks → same as above; PlatformGroupContainer is deepest.
 //
 //  Decision rule — check hitView identity only, no walk needed:
-//    • hitView is UIScrollView                  → bare surface    → dismiss ✓
-//    • hitView IS a SwiftUI container class     → empty space     → dismiss ✓
-//      (PlatformGroupContainer, _UIHostingView…)
-//    • hitView is anything else                 → leaf content    → block   ✗
-//      (RBDrawingView, UILabel, _UIInheritedView… inside a deck row)
+//    • hitView is UIScrollView              → bare surface    → dismiss ✓
+//    • hitView is PlatformGroupContainer    → empty space     → dismiss ✓
+//    • hitView is anything else             → leaf content    → block   ✗
+//
+//  ⚠️  Container detection is deliberately conservative: only PlatformGroupContainer
+//  is allowlisted. Broad prefix checks like `_SwiftUI` or `_UIHostingView` are
+//  intentionally absent — they are fragile against deck row refactors that introduce
+//  SwiftUI-bridged subviews whose class names match those prefixes.
+//
+//  If empty-space detection stops working after a UI refactor, enable the
+//  SVEST_DEBUG flag (target → Build Settings → OTHER_SWIFT_FLAGS → -DSVEST_DEBUG)
+//  and check the Xcode console output to identify the new container class name.
 //
 
 import SwiftUI
@@ -117,56 +124,111 @@ struct ScrollViewEmptySpaceTap: UIViewRepresentable {
 
         // MARK: - Empty-Space Detection
 
-        /// Returns `true` when the tap lands on bare scroll-view surface or on a
-        /// SwiftUI layout container with no child content at that pixel.
+        /// Returns `true` when the tap lands on genuinely empty scroll-view space
+        /// with no deck row or other interactive content at the tapped pixel.
         ///
-        /// The check is intentionally shallow — we only inspect the single deepest
-        /// view returned by hitTest, not the full superview chain.
+        /// Detection strategy — two independent signals:
         ///
-        /// Rationale:
-        /// PlatformGroupContainer spans the full LazyVStack height. When the user
-        /// taps on a deck card, a leaf view (RBDrawingView) inside the container
-        /// captures the hit and becomes the deepest view. When the tap lands on
-        /// empty space (gaps between cards, area below all cards), no leaf view
-        /// covers that pixel and UIKit returns the container itself as deepest.
-        /// Container-as-deepest-view is therefore the definitive empty-space signal.
+        /// 1. **`PlatformGroupContainer` as deepest hit view.**
+        ///    When no deck card covers the tapped pixel, UIKit stops at
+        ///    `PlatformGroupContainer` (the SwiftUI host for the entire LazyVStack).
+        ///    When a deck card does cover the pixel, UIKit descends into a leaf
+        ///    view inside the card. Container-as-deepest = definitive empty signal.
+        ///
+        /// 2. **`hitView === scrollView` ONLY when no content subview exists at
+        ///    the point (verified via `contentView` walk).**
+        ///    Returning `true` unconditionally for `hitView === scrollView` is
+        ///    unsafe: a broken `_UIReparentingView` hierarchy (caused by a
+        ///    `.contextMenu` with `preview:` on deck rows) makes `hitTest` fall
+        ///    back to the scroll view even for deck card taps, producing a false
+        ///    positive. The extra `hasNoContentSubview` guard prevents this.
+        ///
+        /// **Explicit blocklist for UIKit reparenting artifacts.**
+        /// `_UIReparentingView` is added to the deck row hierarchy by UIKit's
+        /// context-menu interaction when a `preview:` block is present. If it
+        /// appears as the deepest hit view, the tap is on a deck row — never
+        /// on empty space — and the gesture must not begin.
         private func isEmptySpace(at point: CGPoint, in scrollView: UIScrollView) -> Bool {
             guard let hitView = scrollView.hitTest(point, with: nil) else {
                 // Point is outside the scroll view bounds entirely.
                 return true
             }
 
-            // Tap landed on the bare UIScrollView surface — no content layer at all.
-            if hitView === scrollView { return true }
+            #if SVEST_DEBUG
+            // Enable with OTHER_SWIFT_FLAGS = -DSVEST_DEBUG in Build Settings.
+            // Tap on a deck card  → should print a leaf class (RBDrawingView, etc.)
+            // Tap on empty space  → should print PlatformGroupContainer
+            let className = String(describing: type(of: hitView))
+            print("[SVEST] hitTest: \(className) | isContainer: \(isKnownEmptySpaceView(hitView)) | isBlocked: \(isReparentingArtifact(hitView))")
+            #endif
 
-            // Tap landed on a SwiftUI layout container acting as the deepest view.
-            // This means no child view (deck card, label, button) covers this pixel.
-            // The container caught the tap only because it fills the content area —
-            // the pixel itself is visually and interactively empty.
-            if isSwiftUILayoutContainer(hitView) { return true }
+            // UIKit reparenting artifacts appear inside deck rows when a
+            // .contextMenu with preview: is installed. They are never empty space.
+            if isReparentingArtifact(hitView) { return false }
 
-            // Tap landed on a real content leaf view (RBDrawingView, UILabel, etc.)
-            // that lives inside a deck row — do not dismiss.
+            // Bare scroll-view surface, but ONLY if no content subview exists at
+            // this point. The extra check guards against broken _UIReparentingView
+            // hierarchies where hitTest falls back to the scrollView for card taps.
+            if hitView === scrollView {
+                return hasNoContentSubview(at: point, in: scrollView)
+            }
+
+            // SwiftUI layout container as deepest view — no card covers this pixel.
+            if isKnownEmptySpaceView(hitView) { return true }
+
+            // Leaf content view — tap is on a deck row or other interactive element.
             return false
         }
 
-        /// Returns `true` for UIView subclasses that SwiftUI uses as layout
-        /// containers rather than as content-rendering leaves.
-        ///
-        /// These views fill large areas of the scroll content but contain no
-        /// user-visible interactive pixels of their own — they are transparent
-        /// pass-through containers. When hitTest returns one of these as the
-        /// *deepest* hit view, it means no actual content lives at that point.
-        private func isSwiftUILayoutContainer(_ view: UIView) -> Bool {
+        /// Returns `true` only for SwiftUI layout container classes that span
+        /// large content areas but contain no interactive pixels of their own.
+        /// Deliberately narrow — broad prefix checks were removed to prevent
+        /// false positives from UIHostingView-wrapped deck subviews.
+        private func isKnownEmptySpaceView(_ view: UIView) -> Bool {
             let name = String(describing: type(of: view))
-            // SwiftUI's primary content hosting container (wraps LazyVStack et al).
-            // Confirmed as the deepest hit view for all empty-space taps via debug.
+            // Primary SwiftUI content host for LazyVStack — confirmed via debug.
             if name == "PlatformGroupContainer" { return true }
-            // UIHostingView subclasses — root SwiftUI-to-UIKit bridges.
-            if name.hasPrefix("_UIHostingView")  { return true }
-            // Any other SwiftUI-private container view.
-            if name.hasPrefix("_SwiftUI")         { return true }
+            // ─────────────────────────────────────────────────────────────────
+            // Intentionally absent:
+            //   _UIHostingView prefix — matches UIHostingView-wrapped deck subviews.
+            //   _SwiftUI prefix       — matches rendering leaves inside deck cards.
+            // ─────────────────────────────────────────────────────────────────
             return false
+        }
+
+        /// Returns `true` for UIKit-internal views injected by context-menu
+        /// interaction machinery. These always live inside deck rows, never on
+        /// empty space, and must never trigger the dismiss gesture.
+        ///
+        /// `_UIReparentingView` is inserted when `.contextMenu(preview:)` is
+        /// active on a deck row. If the reparenting fails (logged as a warning),
+        /// the view may remain in the hierarchy and become the deepest hit view
+        /// for subsequent taps on the affected row.
+        private func isReparentingArtifact(_ view: UIView) -> Bool {
+            let name = String(describing: type(of: view))
+            if name == "_UIReparentingView"             { return true }
+            if name == "_UIContextMenuContainerView"    { return true }
+            if name == "_UIContextMenuActionsListView"  { return true }
+            return false
+        }
+
+        /// Confirms that no content subview of `scrollView` covers `point`.
+        /// Used as a secondary guard when `hitTest` returns the scroll view itself
+        /// — a situation that can occur both legitimately (bare surface below all
+        /// content) and erroneously (broken `_UIReparentingView` hierarchy).
+        private func hasNoContentSubview(at point: CGPoint, in scrollView: UIScrollView) -> Bool {
+            for subview in scrollView.subviews {
+                // Skip the scroll indicators and other UIScrollView internals.
+                let subName = String(describing: type(of: subview))
+                if subName.hasPrefix("_UIScrollView") { continue }
+                if subName.hasPrefix("UIImageView")   { continue }  // scroll indicator
+                let convertedPoint = scrollView.convert(point, to: subview)
+                if subview.bounds.contains(convertedPoint) {
+                    // A content subview covers this point — not bare surface.
+                    return false
+                }
+            }
+            return true
         }
     }
 
@@ -175,11 +237,11 @@ struct ScrollViewEmptySpaceTap: UIViewRepresentable {
     /// Zero-size UIView that locates the ancestor UIScrollView and installs the
     /// tap recognizer once the full UIKit hierarchy is assembled.
     ///
-    /// Uses didMoveToWindow (not didMoveToSuperview) because SwiftUI builds the
-    /// UIKit hierarchy inside-out. At didMoveToSuperview time the UIScrollView
+    /// Uses `didMoveToWindow` (not `didMoveToSuperview`) because SwiftUI builds the
+    /// UIKit hierarchy inside-out. At `didMoveToSuperview` time the UIScrollView
     /// ancestor is not yet attached above AnchorView in the chain.
-    /// didMoveToWindow fires after the complete hierarchy is connected to the
-    /// window. DispatchQueue.main.async defers by one run-loop cycle to let
+    /// `didMoveToWindow` fires after the complete hierarchy is connected to the
+    /// window. `DispatchQueue.main.async` defers by one run-loop cycle to let
     /// SwiftUI finish any pending layout pass before we walk the superview chain.
     final class AnchorView: UIView {
 
@@ -217,11 +279,10 @@ extension View {
     /// Installs an empty-space tap handler on the nearest ancestor UIScrollView.
     ///
     /// `action` fires only when `isActive` is `true` AND the tap lands on bare
-    /// scroll-view surface or a SwiftUI layout container with no child content
-    /// at the tapped pixel (gaps between deck rows, area below all decks).
+    /// scroll-view surface or `PlatformGroupContainer` with no child content at
+    /// the tapped pixel (gaps between deck rows, area below all decks).
     ///
-    /// Deck rows and any other leaf SwiftUI content are excluded automatically —
-    /// no additional configuration required.
+    /// Deck rows and any other leaf SwiftUI content are excluded automatically.
     func onScrollViewEmptySpaceTap(
         isActive: Bool,
         perform action: @escaping () -> Void

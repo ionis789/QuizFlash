@@ -16,12 +16,8 @@ final class NavigationManager {
     var libraryPath = NavigationPath()
     var createPath = NavigationPath()
     
-    // Tracks the current tab so cross-app navigations push to the right stack
+    // Tracks the current tab so cross-app navigations push to the right stack.
     var activeTab: AppTab = .home
-
-    /// The label shown on DeckView's back button, e.g. "Library", "Home", or a folder name.
-    /// Set by the call site that pushes a DeckView. Cleared on popToRoot.
-    var deckBackLabel: String = "Back"
 
     func popToRoot() {
         switch activeTab {
@@ -29,7 +25,6 @@ final class NavigationManager {
         case .library: libraryPath = NavigationPath()
         case .create: createPath = NavigationPath()
         }
-        deckBackLabel = "Back"
     }
     
     func append<V: Hashable>(_ route: V) {
@@ -44,7 +39,11 @@ final class NavigationManager {
 enum AppRoute {
     case createDeck
     case settings
-    case folder(FolderModel)
+    // backLabel is encoded at push time so FolderView never needs to read
+    // router.activeTab reactively. A reactive read would cause FolderView to
+    // re-render mid-tab-switch (when activeTab changes), making the back button
+    // text update while the view is still visible in the cross-fade animation.
+    case folder(FolderModel, backLabel: String)
 }
 
 extension AppRoute: Equatable {
@@ -52,7 +51,9 @@ extension AppRoute: Equatable {
         switch (lhs, rhs) {
         case (.createDeck, .createDeck): return true
         case (.settings, .settings): return true
-        case (.folder(let a), .folder(let b)): return a.persistentModelID == b.persistentModelID
+        // backLabel is intentionally excluded from equality — two pushes to the
+        // same folder are the same route regardless of which tab initiated them.
+        case (.folder(let a, _), .folder(let b, _)): return a.persistentModelID == b.persistentModelID
         default: return false
         }
     }
@@ -63,7 +64,8 @@ extension AppRoute: Hashable {
         switch self {
         case .createDeck: hasher.combine(0)
         case .settings:   hasher.combine(1)
-        case .folder(let f): hasher.combine(2); hasher.combine(f.persistentModelID)
+        // backLabel excluded from hash — consistent with Equatable above.
+        case .folder(let f, _): hasher.combine(2); hasher.combine(f.persistentModelID)
         }
     }
 }

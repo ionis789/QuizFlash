@@ -97,6 +97,10 @@ struct LibraryDeckListRow: View {
     let onEditColor: () -> Void
     let onDelete: () -> Void
 
+    /// Controls the custom long-press action menu visibility.
+    /// Owned here so it resets automatically when the row is recycled by LazyVStack.
+    @State private var showActionMenu = false
+
     var body: some View {
         HStack(spacing: 10) {
             if isSelecting {
@@ -105,7 +109,7 @@ struct LibraryDeckListRow: View {
                         onToggleSelection()
                     }
                 }
-                    .transition(.move(edge: .leading).combined(with: .opacity))
+                .transition(.move(edge: .leading).combined(with: .opacity))
             }
 
             Button {
@@ -122,23 +126,124 @@ struct LibraryDeckListRow: View {
                 DeckRowView(deck: deck)
                     .frame(maxWidth: .infinity)
             }
-                .buttonStyle(ScaleButtonStyle())
-                .contextMenu {
-                if !isSelecting {
-                    Button(action: onEditColor) {
-                        Label("Change Color", systemImage: "paintpalette")
-                    }
-                    Divider()
-                    Button(role: .destructive, action: onDelete) {
-                        Label("Delete", systemImage: "trash")
-                    }
+            .buttonStyle(ScaleButtonStyle())
+            .padding(.vertical, 6)
+            // ── Long-Press Action Menu ──────────────────────────────────────
+            // .contextMenu is intentionally absent.
+            //
+            // On iOS 17, SwiftUI's .contextMenu always uses UIContextMenuInteraction
+            // internally, which injects _UIReparentingView into UIHostingController.view
+            // regardless of whether a custom preview: block is present. This corrupts
+            // the scroll view's UIKit hierarchy and is explicitly unsupported by UIKit.
+            // Replaced with a pure-SwiftUI long-press + overlay menu.
+            .onLongPressGesture(minimumDuration: 0.4) {
+                guard !isSelecting else { return }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                    showActionMenu = true
                 }
             }
-                .padding(.vertical, 6)
         }
-            .scaleEffect(isSelecting && isSelected ? 0.9 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelected)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelecting)
+        .scaleEffect(isSelecting && isSelected ? 0.9 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelected)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelecting)
+        // The overlay menu is anchored to the row itself so it always positions
+        // correctly relative to the card, even when the list is scrolled.
+        .overlay(alignment: .bottom) {
+            if showActionMenu {
+                DeckActionMenu(
+                    onEditColor: {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                            showActionMenu = false
+                        }
+                        // Slight delay lets the dismiss animation complete before
+                        // presenting the color picker sheet.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            onEditColor()
+                        }
+                    },
+                    onDelete: {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                            showActionMenu = false
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            onDelete()
+                        }
+                    },
+                    onDismiss: {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                            showActionMenu = false
+                        }
+                    }
+                )
+                .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
+                .zIndex(100)
+            }
+        }
+        // Tap outside the menu to dismiss it.
+        .background {
+            if showActionMenu {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                            showActionMenu = false
+                        }
+                    }
+                    .ignoresSafeArea()
+                    .zIndex(99)
+            }
+        }
+    }
+}
+
+// MARK: - Deck Action Menu
+//
+// Pure SwiftUI replacement for UIContextMenuInteraction.
+// Renders as a floating pill anchored below the long-pressed row.
+// No UIKit interaction machinery — zero risk of _UIReparentingView injection.
+
+private struct DeckActionMenu: View {
+    let onEditColor: () -> Void
+    let onDelete: () -> Void
+    let onDismiss: () -> Void
+
+    private var accent: Color { ThemeManager.shared.accentColor.color }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: onEditColor) {
+                Label("Change Color", systemImage: "paintpalette")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 13)
+            }
+
+            Divider()
+                .padding(.horizontal, 12)
+
+            Button(action: onDelete) {
+                Label("Delete", systemImage: "trash")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 13)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.18), radius: 16, x: 0, y: 6)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
+        )
+        .frame(width: 220)
+        .offset(y: 8)
+        .allowsHitTesting(true)
     }
 }
 
