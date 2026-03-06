@@ -304,9 +304,9 @@ private struct MiniCardPreview: View {
                     .padding(.vertical, 2)
                     .background(Color.secondary.opacity(0.15), in: Capsule())
                 Spacer()
-                HStack(spacing: 3) {
+                HStack {
                     Image(systemName: cardStatus.icon)
-                    Text(cardStatus.label)
+//                    Text(cardStatus.label)
                 }
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(cardStatus.color)

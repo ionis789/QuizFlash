@@ -140,7 +140,12 @@ struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     }
 
     func encode() -> Data? { try? JSONEncoder().encode(self) }
-    static func decode(from data: Data) -> ZoneModel? { try? JSONDecoder().decode(ZoneModel.self, from: data) }
+
+    /// Decodes a `ZoneModel` from raw JSON data.
+    /// Explicitly `nonisolated` so it can be called from any actor context without
+    /// inheriting the `@MainActor` isolation that `ZoneCardContent`'s `@Observable`
+    /// annotation spreads to co-located types in the same source file.
+    nonisolated static func decode(from data: Data) -> ZoneModel? { try? JSONDecoder().decode(ZoneModel.self, from: data) }
 
     mutating func addZone(in addDirection: AddDirection) -> ZoneModel {
         let newZone = ZoneModel.empty()

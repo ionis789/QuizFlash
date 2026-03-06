@@ -46,7 +46,7 @@ struct LibraryTopBarView: View {
                 titleRow
             }
         }
-        .onChange(of: isSearching) { _, active in
+            .onChange(of: isSearching) { _, active in
             if active { isSearchFocused = true }
         }
     }
@@ -59,16 +59,18 @@ struct LibraryTopBarView: View {
             HStack {
                 if let onBack {
                     backButton(action: onBack)
-                } else {
-                    deckCountPill
                 }
                 Spacer()
             }
 
             // Center: screen title
-            Text(title)
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                .foregroundStyle(.primary)
+            VStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+                deckCountPill
+            }
+                .shadow(color: .black, radius: 10)
 
             // Right: search + menu grouped in a single pill (iOS 26 pattern)
             HStack {
@@ -76,9 +78,9 @@ struct LibraryTopBarView: View {
                 actionGroupPill
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
-        .padding(.bottom, 10)
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 10)
     }
 
     // MARK: - Search Bar
@@ -106,10 +108,10 @@ struct LibraryTopBarView: View {
                             .font(.system(size: 15))
                             .foregroundStyle(.tertiary)
                     }
-                    .padding(.trailing, 12)
+                        .padding(.trailing, 12)
                 }
             }
-            .background(darkPillBackground(cornerRadius: 14))
+                .background(darkPillBackground(cornerRadius: 14))
 
             Button("Cancel") {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -118,13 +120,13 @@ struct LibraryTopBarView: View {
                     isSearchFocused = false
                 }
             }
-            .font(.system(size: 15, weight: .medium))
-            .foregroundStyle(accent)
-            .transition(.move(edge: .trailing).combined(with: .opacity))
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(accent)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
-        .padding(.bottom, 10)
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 10)
     }
 
     // MARK: - Subviews
@@ -132,12 +134,9 @@ struct LibraryTopBarView: View {
     /// Deck count badge — standalone dark capsule, left-anchored.
     private var deckCountPill: some View {
         Text(deckCount == 0 ? "No Decks" : "\(deckCount) Deck\(deckCount == 1 ? "" : "s")")
-            .font(.system(size: 13, weight: .semibold))
+            .font(.system(size: 13, weight: .bold))
+            .fontDesign(.rounded)
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .frame(height: 50)
-            .background(darkPillBackground(cornerRadius: 20))
     }
 
     /// Search + menu icons grouped inside a single pill — mirrors the
@@ -154,7 +153,7 @@ struct LibraryTopBarView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.title3.bold())
                     .foregroundStyle(accent)
-                    .frame(width: 46, height: 46)
+                    .frame(width: 50, height: 50)
             }
 
             // Menu icon
@@ -162,10 +161,20 @@ struct LibraryTopBarView: View {
                 Image(systemName: "ellipsis")
                     .font(.title3.bold())
                     .foregroundStyle(accent)
-                    .frame(width: 52, height: 52)
+                    .frame(width: 50, height: 50)
             }
         }
-        .background(darkPillBackground(cornerRadius: 18))
+            .background {
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay {
+                Capsule()
+                    .fill(Color.white.opacity(0.35))
+                    .blur(radius: 10)
+                    .mask(Capsule().stroke(lineWidth: 4))
+                    .blendMode(.overlay)
+            }
+        }
     }
 
     // MARK: - Shared Dark-Frosted Background
@@ -179,9 +188,9 @@ struct LibraryTopBarView: View {
         Capsule()
             .fill(.ultraThinMaterial)
             .overlay(
-                Capsule()
-                    .fill(accent.opacity(0.15))
-            )
+            Capsule()
+                .fill(accent.opacity(0.15))
+        )
     }
 
     // MARK: - Menu Content
@@ -199,7 +208,7 @@ struct LibraryTopBarView: View {
         } label: {
             Label("Select", systemImage: "checkmark.circle")
         }
-        .disabled(viewModel.isSelecting || isSearching)
+            .disabled(viewModel.isSelecting || isSearching)
 
         Divider()
 
@@ -229,17 +238,27 @@ struct LibraryTopBarView: View {
     private func backButton(action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 13, weight: .bold))
+                Image(systemName: "chevron.compact.left")
+                    .font(.system(size: 24, weight: .bold))
                 Text(backLabel)
                     .font(.system(size: 13, weight: .semibold))
             }
-            .foregroundStyle(accent)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .frame(height: 50)
-            .background(darkPillBackground(cornerRadius: 20))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .frame(height: 50)
+                .foregroundStyle(accent)
+                .background {
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                    Capsule()
+                        .fill(Color.white.opacity(0.35))
+                        .blur(radius: 10)
+                        .mask(Capsule().stroke(lineWidth: 4))
+                        .blendMode(.overlay)
+                }
+            }
         }
-        .buttonStyle(.plain)
+            .buttonStyle(.plain)
     }
 }

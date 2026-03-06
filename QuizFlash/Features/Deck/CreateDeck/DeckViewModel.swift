@@ -147,11 +147,21 @@ final class DeckViewModel {
     ///   Phase 1 (sync): Remove from allCardInfos in-memory → instant UI response, no DB read.
     ///   Phase 2 (async): Re-fetch snapshot via CardFetchActor → accurate stats refresh.
     ///   The main ModelContext is used ONLY for the delete + save mutation, never to read cards.
+    ///
+    /// Safety note: `ModelContext.model(for:)` can crash at runtime on iOS 17/26 if the
+    /// persistent identifier cannot be resolved (deleted row, schema mismatch). We use
+    /// a `FetchDescriptor` predicate lookup instead — returns empty array instead of crashing.
     func deleteSingleCard(id: PersistentIdentifier, from deck: DeckModel, context: ModelContext) {
-        if let card = context.model(for: id) as? CardModel {
+        // Safe fetch: avoids the ModelContext.model(for:) fatal crash when the
+        // identifier cannot be resolved (e.g. already-deleted record, schema change).
+        let descriptor = FetchDescriptor<CardModel>(
+            predicate: #Predicate { $0.persistentModelID == id }
+        )
+        if let card = (try? context.fetch(descriptor))?.first {
             context.delete(card)
+            try? context.save()
         }
-        try? context.save()
+
         deck.cardCount = max(0, deck.cardCount - 1)
         deck.editedAt = Date()
         selectedCards.remove(id)
@@ -176,12 +186,15 @@ final class DeckViewModel {
     func deleteSelectedCards(from deck: DeckModel, context: ModelContext) {
         let idsToDelete = selectedCards
 
-        for id in idsToDelete {
-            if let card = context.model(for: id) as? CardModel {
-                context.delete(card)
-            }
+        // Safe batch fetch: a single round-trip avoids N individual model(for:) crashes.
+        let descriptor = FetchDescriptor<CardModel>(
+            predicate: #Predicate { idsToDelete.contains($0.persistentModelID) }
+        )
+        if let cards = try? context.fetch(descriptor) {
+            for card in cards { context.delete(card) }
+            try? context.save()
         }
-        try? context.save()
+
         deck.cardCount = max(0, deck.cardCount - idsToDelete.count)
         deck.editedAt = Date()
         isSelecting = false

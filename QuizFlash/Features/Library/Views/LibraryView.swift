@@ -138,7 +138,7 @@ struct LibraryView: View {
             viewModel: viewModel,
             router: router,
             onCardTap: { cardID in
-                if let card = context.model(for: cardID) as? CardModel {
+                if let card = context.safeModel(for: cardID, as: CardModel.self) {
                     viewModel.editingCardFromSearch = card
                 }
             },

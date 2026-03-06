@@ -15,7 +15,7 @@ struct QuizFlashApp: App {
     @State private var themeManager = ThemeManager.shared
 
     init() {
-        // 
+        //
         MathWebViewPool.shared.prewarm()
     }
 
@@ -29,7 +29,7 @@ struct QuizFlashApp: App {
                     print(URL.documentsDirectory.path())
                 }
         }
-            .modelContainer(for: [DeckModel.self, CardModel.self, ReviewEvent.self, UserProfile.self, DailyActivityLog.self])
+            .modelContainer(for: [FolderModel.self, DeckModel.self, CardModel.self, ReviewEvent.self, UserProfile.self, DailyActivityLog.self])
     }
 }
 

@@ -60,13 +60,13 @@ struct DefaultModePlayContent: View {
         }
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isComplete)
             .task {
-                if !viewModel.isSessionStarted {
-                    await viewModel.startSession(container: modelContext.container)
-                }
+            if !viewModel.isSessionStarted {
+                await viewModel.startSession(container: modelContext.container)
             }
+        }
             .onDisappear {
-                viewModel.tearDown()
-            }
+            viewModel.tearDown()
+        }
             .navigationBarHidden(true)
     }
 
@@ -85,19 +85,21 @@ struct DefaultModePlayContent: View {
                     GameplayCard(
                         card: card,
                         onSwipe: { direction in
-                            viewModel.handleSwipe(direction, context: modelContext)
+                            viewModel.handleSwipe(direction)
                         },
                         isFlipped: $bindableViewModel.isFlipped
                     )
                     // Folosim ID-ul unic pentru a forța SwiftUI să înlocuiască vizualul
                     .id(card.id)
-                    // Opțional: o tranziție simplă ca să nu apară brusc
-                    .transition(.asymmetric(insertion: .opacity, removal: .opacity))
+                        .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.96)),
+                        removal: .opacity
+                    ))
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.spring(response: 0.4, dampingFraction: 0.82), value: viewModel.currentIndex)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: viewModel.currentIndex)
     }
 
     // MARK: - Header
@@ -114,9 +116,21 @@ struct DefaultModePlayContent: View {
                     Spacer()
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
-                            .font(.headline.bold())
+                            .font(.system(size: 24).bold())
+                            .fontDesign(.rounded)
                             .padding(8)
-                            .background(.ultraThinMaterial, in: Circle())
+                            .frame(width: 50, height: 50)
+                            .background {
+                            Circle()
+                                .fill(.ultraThinMaterial)
+                                .overlay {
+                                Circle()
+                                    .fill(Color.white.opacity(0.35))
+                                    .blur(radius: 10)
+                                    .mask(Capsule().stroke(lineWidth: 4))
+                                    .blendMode(.overlay)
+                            }
+                        }
                     }
                 }
             }
@@ -135,22 +149,20 @@ struct DefaultModePlayContent: View {
             HStack {
                 Text(viewModel.isFlipped ? "ANSWER" : "QUESTION")
                     .font(.caption.weight(.bold))
+                    .fontDesign(.rounded)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
                     .animation(.spring(response: 0.3), value: viewModel.isFlipped)
 
                 Spacer()
 
                 HStack(spacing: 12) {
                     HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                        Text("\(viewModel.correctCount)").font(.subheadline.weight(.semibold))
-                    }
-                    HStack(spacing: 4) {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
                         Text("\(viewModel.wrongCards.count)").font(.subheadline.weight(.semibold))
+                    }
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                        Text("\(viewModel.correctCount)").font(.subheadline.weight(.semibold))
                     }
                 }
                     .padding(.horizontal, 12)
@@ -333,10 +345,10 @@ struct DefaultModePlay: View {
             } else {
                 Color(uiColor: .systemBackground)
                     .onAppear {
-                        if self.viewModel == nil {
-                            self.viewModel = DefaultModePlayViewModel(deck: deck)
-                        }
+                    if self.viewModel == nil {
+                        self.viewModel = DefaultModePlayViewModel(deck: deck)
                     }
+                }
             }
         }
     }

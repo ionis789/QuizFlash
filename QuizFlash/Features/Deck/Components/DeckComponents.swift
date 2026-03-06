@@ -89,19 +89,19 @@ struct DeckPlayModesView: View {
     private var isEmpty: Bool { deck.cardCount == 0 }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("PLAY MODES")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 20)
+                .font(.caption.weight(.heavy))
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 24)
 
             LazyVGrid(
-                columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
-                spacing: 10
+                columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
+                spacing: 16
             ) {
                 PlayModeCard(
                     title: "Default",
-                    subtitle: "Swipe to review",
+                    subtitle: "Swipe review",
                     systemImage: "play.fill",
                     color: accentColor,
                     isAvailable: !isEmpty,
@@ -109,7 +109,7 @@ struct DeckPlayModesView: View {
                 )
                 PlayModeCard(
                     title: "Quiz",
-                    subtitle: "Multiple choice",
+                    subtitle: "Multi choice",
                     systemImage: "questionmark.square.dashed",
                     color: .purple,
                     isAvailable: !isEmpty,
@@ -117,8 +117,8 @@ struct DeckPlayModesView: View {
                 )
                 PlayModeCard(
                     title: "Learn",
-                    subtitle: "Spaced repetition",
-                    systemImage: "book.and.wrench",
+                    subtitle: "Spaced rep",
+                    systemImage: "brain.head.profile", // Switched to a more organic icon
                     color: .teal,
                     isAvailable: !isEmpty,
                     action: onPlay
@@ -147,41 +147,49 @@ private struct PlayModeCard: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 16) {
+                // Top section: Icon
                 ZStack {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(color.opacity(isAvailable ? 0.15 : 0.06))
-                        .frame(width: 34, height: 34)
+                    Circle()
+                        .fill(color.opacity(isAvailable ? 0.15 : 0.05))
+                        .frame(width: 44, height: 44) // Larger touch target for the icon
+
                     Image(systemName: systemImage)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(isAvailable ? color : color.opacity(0.30))
                 }
-                VStack(alignment: .leading, spacing: 2) {
+
+                // Bottom section: Texts
+                VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.headline.weight(.bold))
+                        .fontDesign(.rounded)
                         .foregroundStyle(isAvailable ? .primary : .tertiary)
+
                     Text(subtitle)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-                Spacer(minLength: 0)
             }
-                .padding(10)
-                .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-            )
-                .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isAvailable ? color.opacity(0.12) : Color.clear, lineWidth: 0.5)
-            )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
+                .background {
+                RoundedRectangle(cornerRadius: 40, style: .continuous)
+                    .fill(
+                    Color.libraryDeckRow
+                        .shadow(.inner(color: Color.white.opacity(0.15), radius: 1, x: 0, y: 0))
+                )
+            }
+                .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
         }
-            .buttonStyle(.plain)
-            .disabled(!isAvailable)
-            .opacity(isAvailable ? 1.0 : 0.45)
+            .buttonStyle(.plain) // Prevent default dimming, handle custom if needed
+        .disabled(!isAvailable)
+        // Springy scale effect when pressed is natively handled by UI if you wrap in an animated button style,
+        // but for now opacity handles the disabled state beautifully.
+        .opacity(isAvailable ? 1.0 : 0.5)
     }
 }
-
 /// Pinned section header showing only the card count label.
 /// Action buttons (add, menu) have been promoted to DeckActionOverlay so they
 /// remain accessible at a fixed position regardless of scroll depth.
@@ -234,10 +242,10 @@ struct DeckActionOverlay: View {
     var body: some View {
         HStack(spacing: 8) {
             addButton
-            if deck.cardCount > 0 { menuButton }
+
+            menuButton
+                .scaleEffect(isMenuActive ? 1.1 : 1.0)
         }
-            .padding(.trailing, 16)
-            .padding(.top, 8)
     }
 
     // MARK: Add Button
@@ -245,16 +253,25 @@ struct DeckActionOverlay: View {
     private var addButton: some View {
         Button(action: onAdd) {
             Image(systemName: "plus")
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(accent)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .frame(height: 50)
-                .background(
-                Capsule()
+                .frame(width: 50, height: 50)
+                .background {
+                Circle()
                     .fill(.ultraThinMaterial)
-                    .overlay(Capsule().fill(accent.opacity(0.15)))
-            )
+                    .overlay {
+                    Circle()
+                        .fill(Color.white.opacity(0.35))
+                        .blur(radius: 10)
+                        .mask(
+                        Circle()
+                            .stroke(lineWidth: 4)
+                    )
+                        .blendMode(.overlay)
+                }
+            }
         }
             .buttonStyle(.plain)
     }
@@ -271,18 +288,27 @@ struct DeckActionOverlay: View {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 20, weight: .bold))
             // Active state: white icon on solid-accent background.
             // Inactive state: accent icon on tinted-material background.
             .foregroundStyle(isMenuActive ? .white : accent)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .frame(height: 50)
-                .background(
-                Capsule()
+                .frame(width: 50, height: 50)
+                .background {
+                Circle()
                     .fill(.ultraThinMaterial)
-                    .overlay(Capsule().fill(isMenuActive ? accent : accent.opacity(0.15)))
-            )
+                    .overlay {
+                    Circle()
+                        .fill(Color.white.opacity(0.35))
+                        .blur(radius: 10)
+                        .mask(
+                        Circle()
+                            .stroke(lineWidth: 4)
+                    )
+                        .blendMode(.overlay)
+                }
+            }
                 .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isMenuActive)
         }
             .buttonStyle(.plain)

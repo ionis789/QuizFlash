@@ -26,34 +26,46 @@ struct CustomTabBar: View {
                             TabItemView(tab, width: tabItemWidth, height: tabItemHeight)
                         }
                     }
-                    .background(alignment: .leading) {
+                        .background(alignment: .leading) {
                         ZStack {
                             Capsule(style: .continuous).fill(Color.white.opacity(0.15))
                             Capsule(style: .continuous).stroke(Color.white.opacity(0.3), lineWidth: 1)
                                 .opacity(isActive ? 1 : 0)
                         }
-                        .compositingGroup()
-                        .frame(width: tabItemWidth, height: tabItemHeight)
-                        .scaleEffect(isActive ? 1.3 : 1)
-                        .offset(x: dragOffset)
+                            .compositingGroup()
+                            .frame(width: tabItemWidth, height: tabItemHeight)
+                            .scaleEffect(isActive ? 1.3 : 1)
+                            .offset(x: dragOffset)
                     }
-                    .padding(3)
-                    .background(Capsule().fill(.ultraThinMaterial))
-                    .geometryGroup()
+                        .padding(3)
+                    // MARK: Tabbar Background
+//                    .background(Capsule().fill(.ultraThinMaterial))
+                    .background {
+                        Capsule()
+                            .fill(.ultraThinMaterial)
+                            .overlay {
+                            Capsule()
+                                .fill(Color.white.opacity(0.35))
+                                .blur(radius: 10)
+                                .mask(Capsule().stroke(lineWidth: 4))
+                                .blendMode(.overlay)
+                        }
+                    }
+                        .geometryGroup()
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isIPad ? .bottomTrailing : .bottom)
-            .onAppear {
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isIPad ? .bottomTrailing : .bottom)
+                .onAppear {
                 guard !isInitialOffsetSet else { return }
                 dragOffset = CGFloat(activeTab.index) * tabItemWidth
                 isInitialOffsetSet = true
             }
         }
-        .frame(height: 56)
-        .padding(.horizontal, 25)
-        .animation(.bouncy, value: dragOffset)
-        .animation(.bouncy, value: isActive)
-        .animation(.smooth, value: activeTab)
+            .frame(height: 56)
+            .padding(.horizontal, 25)
+            .animation(.bouncy, value: dragOffset)
+            .animation(.bouncy, value: isActive)
+            .animation(.smooth, value: activeTab)
     }
 
     @ViewBuilder
@@ -71,32 +83,32 @@ struct CustomTabBar: View {
                 .font(.caption2)
                 .lineLimit(1)
         }
-        .foregroundStyle(activeTab == tab ? accent : Color.primary)
-        .frame(width: width, height: height)
-        .contentShape(.capsule)
-        .simultaneousGesture(
+            .foregroundStyle(activeTab == tab ? accent : Color.primary)
+            .frame(width: width, height: height)
+            .contentShape(.capsule)
+            .simultaneousGesture(
             DragGesture(minimumDistance: 0)
                 .updating($isActive) { _, out, _ in out = true }
                 .onChanged { value in
-                    let xOffset = value.translation.width
-                    if let lastDragOffset {
-                        dragOffset = max(min(xOffset + lastDragOffset, CGFloat(tabCount) * width), 0)
-                    } else { lastDragOffset = dragOffset }
-                }
+                let xOffset = value.translation.width
+                if let lastDragOffset {
+                    dragOffset = max(min(xOffset + lastDragOffset, CGFloat(tabCount) * width), 0)
+                } else { lastDragOffset = dragOffset }
+            }
                 .onEnded { value in
-                    lastDragOffset = nil
-                    let landingIndex = Int((dragOffset / width).rounded())
-                    if tabs.indices.contains(landingIndex) {
-                        let newTab = tabs[landingIndex]
-                        dragOffset = CGFloat(landingIndex) * width
-                        if activeTab != newTab {
-                            activeTab = newTab
-                            tabTriggers[newTab, default: 0] += 1
-                        }
+                lastDragOffset = nil
+                let landingIndex = Int((dragOffset / width).rounded())
+                if tabs.indices.contains(landingIndex) {
+                    let newTab = tabs[landingIndex]
+                    dragOffset = CGFloat(landingIndex) * width
+                    if activeTab != newTab {
+                        activeTab = newTab
+                        tabTriggers[newTab, default: 0] += 1
                     }
                 }
+            }
         )
-        .simultaneousGesture(
+            .simultaneousGesture(
             TapGesture().onEnded { _ in
                 activeTab = tab
                 dragOffset = CGFloat(tab.index) * width

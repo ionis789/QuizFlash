@@ -517,6 +517,11 @@ struct MixedMathTextView: View {
     let alignment: HorizontalAlignment
     var isBold: Bool = false
     var isItalic: Bool = false
+    /// When `false` the underlying WKWebView disables all its gesture recognisers
+    /// so that taps and swipes pass through to the parent SwiftUI view.
+    /// Set to `false` in read-only contexts (card playback, preview).
+    /// Set to `true` in editable contexts (CreateCardView, ZoneContentView).
+    var isInteractive: Bool = true
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var webHeight: CGFloat = 50
@@ -533,10 +538,14 @@ struct MixedMathTextView: View {
                 isBold: isBold,
                 isItalic: isItalic,
                 alignment: alignment,
-                contentHeight: $webHeight
+                contentHeight: $webHeight,
+                isInteractive: isInteractive
             )
             .frame(height: webHeight)
             .frame(maxWidth: .infinity)
+            // When non-interactive, disable SwiftUI hit-testing too so the
+            // WKWebView layer never becomes the first responder for a tap.
+            .allowsHitTesting(isInteractive)
         } else {
             Text(LocalizedStringKey(clean))
                 .font(swiftUIFont)
@@ -727,6 +736,9 @@ struct MathWebView: UIViewRepresentable {
     let isItalic: Bool
     let alignment: HorizontalAlignment
     @Binding var contentHeight: CGFloat
+    /// When `false`, disables all UIKit gesture recognisers on the WKWebView
+    /// so that taps and drags pass through to the parent SwiftUI view unobstructed.
+    var isInteractive: Bool = true
 
     func makeCoordinator() -> Coordinator { Coordinator(contentHeight: $contentHeight) }
 
@@ -743,26 +755,45 @@ struct MathWebView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> WKWebView {
-        // 🟢 NOU: Împrumutăm WebView-ul (0 milisecunde în loc de 300 milisecunde)
         let webView = MathWebViewPool.shared.dequeue()
 
-        // Re-atașăm mesajul de înălțime la controller folosind delegatul specializat
-        // care reține webView-ul *WEAK*, nu *STRONG*.
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
         let scriptHandlerWrapper = WeakScriptMessageHandler(delegate: context.coordinator)
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "heightUpdate")
 
         context.coordinator.webView = webView
         context.coordinator.lastRenderedText = text
-        
+
+        // In read-only contexts (playback, preview), disable all UIKit interaction
+        // on the WKWebView. This prevents WebKit's internal gesture recognisers
+        // from consuming taps and drags that must reach the SwiftUI layer above.
+        applyInteractivity(to: webView)
+
         loadContent(in: webView)
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
+        // Re-apply interaction state in case isInteractive changed between renders.
+        applyInteractivity(to: webView)
         guard context.coordinator.lastRenderedText != text else { return }
         context.coordinator.lastRenderedText = text
         loadContent(in: webView)
+    }
+
+    /// Enables or disables all UIKit interaction on the WKWebView.
+    /// Affects the view itself, its internal UIScrollView, and every
+    /// subview gesture recogniser in the WebKit hierarchy.
+    private func applyInteractivity(to webView: WKWebView) {
+        webView.isUserInteractionEnabled = isInteractive
+        webView.scrollView.isUserInteractionEnabled = isInteractive
+        // Explicitly remove all gesture recognizers when non-interactive
+        // so WebKit's internal recognizers cannot override UIKit hit-testing.
+        if !isInteractive {
+            webView.scrollView.gestureRecognizers?.forEach {
+                webView.scrollView.removeGestureRecognizer($0)
+            }
+        }
     }
 
     private func loadContent(in webView: WKWebView) {

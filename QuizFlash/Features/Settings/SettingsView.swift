@@ -67,6 +67,12 @@ struct SettingsView: View {
                 }
 
                 NavigationLink {
+                    CardAppearanceSettingView()
+                } label: {
+                    Label("Card Appearance", systemImage: "rectangle.on.rectangle")
+                }
+
+                NavigationLink {
                     Text("Appearance Settings")
                 } label: {
                     Label("Appearance", systemImage: "moon.fill")

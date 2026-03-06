@@ -90,12 +90,6 @@ struct MainAppView: View {
         Binding(
             get: { router.activeTab },
             set: { tappedTab in
-                // The native UITabBar remains in the UIKit hierarchy even when
-                // hidden via appearance proxy and can still fire tab-switch events
-                // independently of this binding. Reject all sets while the custom
-                // bar is not visible (selection mode, search mode, pushed deck view).
-                guard isTabBarVisible else { return }
-
                 if tappedTab == router.activeTab {
                     // Re-tap: pop to root without leaving the tab.
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
@@ -128,7 +122,7 @@ struct MainAppView: View {
                     HomeView()
                         .toolbar(.hidden, for: .tabBar)
                         .navigationDestination(for: PersistentIdentifier.self) { deckID in
-                            if let deck = modelContext.model(for: deckID) as? DeckModel {
+                            if let deck = modelContext.safeModel(for: deckID, as: DeckModel.self) {
                                 DeckView(deck: deck)
                                     .toolbar(.hidden, for: .navigationBar)
                             }
@@ -144,7 +138,7 @@ struct MainAppView: View {
                     LibraryView()
                         .toolbar(.hidden, for: .tabBar)
                         .navigationDestination(for: PersistentIdentifier.self) { deckID in
-                            if let deck = modelContext.model(for: deckID) as? DeckModel {
+                            if let deck = modelContext.safeModel(for: deckID, as: DeckModel.self) {
                                 DeckView(deck: deck)
                                     .toolbar(.hidden, for: .navigationBar)
                             }
@@ -160,7 +154,7 @@ struct MainAppView: View {
                     CreateDeckView()
                         .toolbar(.hidden, for: .tabBar)
                         .navigationDestination(for: PersistentIdentifier.self) { deckID in
-                            if let deck = modelContext.model(for: deckID) as? DeckModel {
+                            if let deck = modelContext.safeModel(for: deckID, as: DeckModel.self) {
                                 DeckView(deck: deck)
                                     .toolbar(.hidden, for: .navigationBar)
                             }
@@ -190,40 +184,29 @@ struct MainAppView: View {
             // ── Tab Bar Layer ────────────────────────────────────────────────
             // ── Tab Bar Layer ────────────────────────────────────────────────
             .onPreferenceChange(TabBarVisibilityKey.self) { rule in
-                // Explicit animation context so CustomTabBar's .transition() is
-                // driven by the same spring as LibrarySelectionBarView — symmetric
-                // enter/exit. Without withAnimation the DispatchQueue hop creates a
-                // new transaction outside SwiftUI's current animation, causing the
-                // tab bar to snap in without its move+opacity transition.
+                // Fără animație aici, pentru că animația e pusă direct pe TabBar!
                 DispatchQueue.main.async {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        self.tabBarRule = rule
-                    }
+                    self.tabBarRule = rule
                 }
             }
             // ── Tab Bar Layer ────────────────────────────────────────────────
+            // ── Tab Bar Layer ────────────────────────────────────────────────
+            // Am eliminat `if isTabBarVisible` pentru a păstra view-ul în memorie.
+            // Animația de ascundere/afișare este controlată pur prin offset (mutație pe axa Y).
+
             EdgeShadowOverlay(topHeight: 60, bottomHeight: 60)
 
-            // CustomTabBar is always in the hierarchy — never conditionally inserted
-            // or removed. Insertion/removal causes SwiftUI to start the enter
-            // transition at the same moment the selection bar begins its exit
-            // transition; visually the selection bar covers the tab bar sliding up,
-            // so when the selection bar disappears the tab bar looks like it snaps in.
-            //
-            // Pure property animation (opacity + offset) avoids this entirely:
-            // both directions are smooth, continuous, and fully symmetric because
-            // SwiftUI interpolates existing properties rather than scheduling
-            // an insertion event at the end of another transition.
-            CustomTabBar(activeTab: tabSelectionBinding)
-                .padding(.bottom, 10)
-                .zIndex(1)
-                .opacity(isTabBarVisible ? 1 : 0)
-                .offset(y: isTabBarVisible ? 0 : 80)
-                // Disable hit-testing when invisible so taps pass through to
-                // the content below — equivalent to the view not being there.
-                .allowsHitTesting(isTabBarVisible)
-                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isTabBarVisible)
+            // Tab bar is conditionally present in the layout.
+            // Removing it entirely when hidden means it occupies zero space and
+            // receives zero hit events — no wrapper hacks needed.
+            if isTabBarVisible {
+                CustomTabBar(activeTab: tabSelectionBinding)
+                    .padding(.bottom, 10)
+                    .zIndex(1)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isTabBarVisible)
         .environment(router)
             .environment(libraryViewModel)
             .task {

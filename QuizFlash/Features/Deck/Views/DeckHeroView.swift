@@ -4,20 +4,16 @@ import SwiftUI
 
 enum HeroAnimation {
     /// Scroll pixels after which the pill becomes visible
-    static let scrollThreshold : CGFloat = 500
-    /// pill scale when just appearing (grows to 1.0)
+    static let scrollThreshold: CGFloat = 500
+    /// Pill scale when just appearing (grows to 1.0)
     static let pillInitialScale: CGFloat = 0.82
-    /// small ring diameter inside pill
-    static let smallRingSize   : CGFloat = 28
-    /// small ring stroke width
-    static let smallRingStroke : CGFloat = 3
 }
 
 // MARK: - DeckCollapsedPill
 //
 // Fixed overlay. Shows ONLY the collapsed pill once the user has scrolled
-// past HeroAnimation.scrollThreshold pixels. No expanded layer — the title
-// is rendered normally as part of the scroll content below.
+// past HeroAnimation.scrollThreshold pixels. The progress is now beautifully
+// integrated directly into the capsule's border, matching the navigation bar style.
 
 struct DeckHeroView: View {
 
@@ -26,7 +22,6 @@ struct DeckHeroView: View {
 
     @Environment(DeckScrollState.self) private var scrollState
 
-    private var deckColor: Color { Color(hex: deck.colorHex) ?? .blue }
     private var pillVisible: Bool { scrollState.pillVisible }
 
     var body: some View {
@@ -34,34 +29,79 @@ struct DeckHeroView: View {
     }
 
     private var collapsedPill: some View {
-        HStack(spacing: 10) {
-            AnimatedRingView(
-                mastery: stats.deckMastery,
-                deckColor: deckColor,
-                size: HeroAnimation.smallRingSize,
-                strokeWidth: HeroAnimation.smallRingStroke
-            )
-            .id("smallRing")
-            Text(deck.title)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .background(
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay(Capsule().fill(deckColor.opacity(0.12)))
-        )
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .opacity(pillVisible ? 1 : 0)
-        .scaleEffect(pillVisible ? 1 : HeroAnimation.pillInitialScale, anchor: .top)
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: pillVisible)
+        Text(deck.title)
+            .font(.system(size: 15, weight: .bold, design: .rounded))
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .frame(height: 50)
+            .background {
+                AnimatedPillBackground(mastery: stats.deckMastery)
+            }
+            .opacity(pillVisible ? 1 : 0)
+            .scaleEffect(pillVisible ? 1 : HeroAnimation.pillInitialScale, anchor: .top)
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: pillVisible)
     }
 }
+
+// MARK: - Animated Pill Background
+
+/// Handles the ultraThinMaterial and the dual-layered stroke (inactive white track + active colored progress).
+private struct AnimatedPillBackground: View {
+    let mastery: Double
+    
+    @State private var animatedMastery: Double = 0
+    @State private var isGlowing: Bool = false
+    
+    private var ringColor: Color { masteryColor(mastery) }
+    
+    var body: some View {
+        Capsule()
+            .fill(.ultraThinMaterial)
+            .overlay {
+                ZStack {
+                    // 1. Base Track (Inactive)
+                    // Matches the exact blurred, overlay-blended style of the Back button.
+                    Capsule()
+                        .fill(Color.white.opacity(0.35))
+                        .blur(radius: 10)
+                        .mask(Capsule().stroke(lineWidth: 4))
+                        .blendMode(.overlay)
+                    
+                    // 2. Active Progress Border
+                    // Colored portion matching the user's mastery level.
+                    Capsule()
+                        .fill(ringColor.opacity(isGlowing ? 1.0 : 0.85))
+                        .blur(radius: isGlowing ? 12 : 8)
+                        .mask {
+                            Capsule()
+                                .trim(from: 0, to: animatedMastery)
+                                .stroke(style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        }
+                        // SwiftUI default path draws from 3 o'clock.
+                        // Flipping the Y axis makes it start seamlessly from 9 o'clock (left side).
+                        .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
+                }
+            }
+            .onAppear {
+                withAnimation(.spring(response: 0.8, dampingFraction: 0.8).delay(0.15)) {
+                    animatedMastery = mastery
+                }
+            }
+            .onChange(of: mastery) { old, new in
+                guard abs(new - old) > 0.001 else { return }
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) { animatedMastery = new }
+                
+                // Trigger a temporary glow effect on update
+                withAnimation(.easeIn(duration: 0.2)) { isGlowing = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    withAnimation(.easeInOut(duration: 0.8)) { isGlowing = false }
+                }
+            }
+    }
+}
+
 
 // MARK: - DeckMasteryRing (public — used in scroll content)
 
@@ -89,56 +129,13 @@ struct DeckMasteryRing: View {
                 .font(.system(size: 15, weight: .black, design: .rounded))
                 .foregroundStyle(.primary)
         }
-        .frame(width: size, height: size)
-        .onAppear {
+            .frame(width: size, height: size)
+            .onAppear {
             withAnimation(.spring(response: 0.8, dampingFraction: 0.8).delay(0.15)) {
                 animatedMastery = mastery
             }
         }
-        .onChange(of: mastery) { old, new in
-            guard abs(new - old) > 0.001 else { return }
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) { animatedMastery = new }
-            withAnimation(.easeIn(duration: 0.2)) { isGlowing = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                withAnimation(.easeInOut(duration: 0.8)) { isGlowing = false }
-            }
-        }
-    }
-}
-
-
-
-private struct AnimatedRingView: View {
-    let mastery: Double
-    let deckColor: Color
-    let size: CGFloat
-    let strokeWidth: CGFloat
-
-    @State private var animatedMastery: Double = 0
-    @State private var isGlowing: Bool = false
-
-    private var ringColor: Color { masteryColor(mastery) }
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(deckColor.opacity(0.2), style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round))
-            Circle()
-                .trim(from: 0, to: animatedMastery)
-                .stroke(ringColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .shadow(color: isGlowing ? ringColor.opacity(0.8) : .clear, radius: isGlowing ? 10 : 0)
-            Text("\(Int(animatedMastery * 100))")
-                .font(.system(size: 8, weight: .black, design: .rounded))
-                .foregroundStyle(ringColor)
-        }
-        .frame(width: size, height: size)
-        .onAppear {
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.8).delay(0.15)) {
-                animatedMastery = mastery
-            }
-        }
-        .onChange(of: mastery) { old, new in
+            .onChange(of: mastery) { old, new in
             guard abs(new - old) > 0.001 else { return }
             withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) { animatedMastery = new }
             withAnimation(.easeIn(duration: 0.2)) { isGlowing = true }
@@ -153,11 +150,11 @@ private struct AnimatedRingView: View {
 
 func masteryColor(_ mastery: Double) -> Color {
     switch mastery {
-    case ..<0.25:     return .red
+    case ..<0.25: return .red
     case 0.25..<0.50: return .orange
     case 0.50..<0.75: return .yellow
     case 0.75..<0.90: return .teal
-    default:          return .green
+    default: return .green
     }
 }
 

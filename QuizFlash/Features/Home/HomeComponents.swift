@@ -12,12 +12,12 @@ import SwiftData
 struct DailyGoalProgressCard: View {
     let cardsReviewed: Int
     let dailyGoal: Int
-    
+
     private var progress: Double {
         let safeGoal = max(dailyGoal, 1)
         return min(Double(cardsReviewed) / Double(safeGoal), 1.0)
     }
-    
+
     private var isCompleted: Bool {
         cardsReviewed >= dailyGoal
     }
@@ -32,22 +32,22 @@ struct DailyGoalProgressCard: View {
                     .font(.caption.weight(.bold))
                     .fontDesign(.rounded)
             }
-            .gaugeStyle(.accessoryCircularCapacity)
-            .tint(isCompleted ? .green : .blue)
-            .scaleEffect(1.4) // Make it prominent
+                .gaugeStyle(.accessoryCircularCapacity)
+                .tint(isCompleted ? .green : .blue)
+                .scaleEffect(1.4) // Make it prominent
             .padding(.leading, 8)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(isCompleted ? "Goal Reached! 🎉" : "Daily Goal")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
-                
+
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
                     Text("\(cardsReviewed)")
                         .font(.title2.weight(.heavy))
                         .fontDesign(.rounded)
                         .foregroundStyle(isCompleted ? .green : .primary)
-                    
+
                     Text("/ \(dailyGoal) cards")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
@@ -55,10 +55,10 @@ struct DailyGoalProgressCard: View {
             }
             Spacer()
         }
-        .padding(20)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
+            .padding(20)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
     }
 }
 
@@ -76,7 +76,7 @@ struct MiniStatCardView: View {
                 .font(.title3)
                 .foregroundStyle(color.gradient)
                 .symbolRenderingMode(.multicolor)
-            
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(value)
                     .font(.headline.weight(.heavy))
@@ -91,11 +91,11 @@ struct MiniStatCardView: View {
                     .textCase(.uppercase)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: .black.opacity(0.03), radius: 6, x: 0, y: 3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .shadow(color: .black.opacity(0.03), radius: 6, x: 0, y: 3)
     }
 }
 
@@ -110,11 +110,11 @@ struct RecentDeckCardView: View {
     private func relativeLabel(for date: Date) -> String {
         let seconds = Int(Date().timeIntervalSince(date))
         switch seconds {
-        case ..<60:          return "just now"
-        case ..<3600:        return "\(seconds / 60)m ago"
-        case ..<86400:       return "\(seconds / 3600)h ago"
-        case ..<2_592_000:   return "\(seconds / 86400)d ago"
-        default:             return "\(seconds / 2_592_000)mo ago"
+        case ..<60: return "just now"
+        case ..<3600: return "\(seconds / 60)m ago"
+        case ..<86400: return "\(seconds / 3600)h ago"
+        case ..<2_592_000: return "\(seconds / 86400)d ago"
+        default: return "\(seconds / 2_592_000)mo ago"
         }
     }
 
@@ -132,7 +132,7 @@ struct RecentDeckCardView: View {
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(.white)
                 }
-                .frame(width: 60, height: 60)
+                    .frame(width: 60, height: 60)
 
                 // Right Content
                 VStack(alignment: .leading, spacing: 6) {
@@ -164,13 +164,13 @@ struct RecentDeckCardView: View {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(12)
-            .frame(width: 260)
-            .background(Color(uiColor: .secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(color: deckColor.opacity(0.1), radius: 10, x: 0, y: 4)
+                .padding(12)
+                .frame(width: 260)
+                .background(Color(uiColor: .secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .shadow(color: deckColor.opacity(0.1), radius: 10, x: 0, y: 4)
         }
-        .buttonStyle(.plain)
+            .buttonStyle(.plain)
     }
 }
 
@@ -197,7 +197,7 @@ struct FolderCardView: View {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.tertiary)
                 }
-                .padding(.bottom, 16)
+                    .padding(.bottom, 16)
 
                 // Title Area
                 Text(folder.title)
@@ -211,18 +211,19 @@ struct FolderCardView: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(uiColor: .secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            // Subtle top border to simulate physical folder lip
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background {
+                RoundedRectangle(cornerRadius: 40, style: .continuous)
+                    .fill(
+                    Color.libraryDeckRow
+                        .shadow(.inner(color: Color.white.opacity(0.15), radius: 1, x: 0, y: 0))
+                )
+            }
+                .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
+                .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
         }
-        .buttonStyle(.plain)
+            .buttonStyle(.plain)
     }
 }
 
@@ -230,13 +231,13 @@ struct FolderCardView: View {
 struct EmptyStatePlaceholder: View {
     let icon: String
     let message: String
-    
+
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 36, weight: .light))
                 .foregroundStyle(.tertiary)
-            
+
             Text(message)
                 .font(.subheadline.weight(.medium))
                 .fontDesign(.rounded)
@@ -244,11 +245,11 @@ struct EmptyStatePlaceholder: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-        .background(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 40)
+            .background(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(Color(uiColor: .tertiaryLabel).opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [6]))
         )

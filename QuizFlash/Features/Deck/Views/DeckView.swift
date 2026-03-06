@@ -58,10 +58,10 @@ struct DeckContentView: View {
 
     var body: some View {
         deckContent
-            // Hide the floating tab bar only while selection mode is active,
-            // so it does not overlap DeckSelectionBottomBar.
-            // In normal browsing the tab bar remains visible.
-            .customTabBarVisibility(viewModel.isSelecting ? .hidden : .implicit)
+        // Hide the floating tab bar only while selection mode is active,
+        // so it does not overlap DeckSelectionBottomBar.
+        // In normal browsing the tab bar remains visible.
+        .customTabBarVisibility(viewModel.isSelecting ? .hidden : .implicit)
             .onAppear {
             Task {
                 await viewModel.loadSnapshot(
@@ -131,44 +131,68 @@ struct DeckContentView: View {
                 // Negative padding shifts the bar down to sit above the home indicator,
                 // not above the phantom tab bar space.
                 .padding(.bottom, -tabBarOffset)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(10)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(10)
             }
         }
-            .overlay(alignment: .topLeading) { menuOverlay }
-            .overlay(alignment: .topLeading) { backButtonOverlay }
-            .overlay(alignment: .topTrailing) { actionButtonsOverlay }
-            .swipeBack { dismiss() }
+        // A single unified overlay for the top navigation items
+        .overlay(alignment: .top) { unifiedNavigationBar }
+            .overlay(alignment: .topLeading) { menuOverlay } // Dropdown menu remains separate Z-layer
+        .swipeBack { dismiss() }
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
             .environment(scrollState)
             .background {
-                // Capture safe-area insets for tabBarOffset computation.
-                // GeometryReader inside .background reads the ZStack's coordinate space,
-                // which includes the TabView-injected UITabBar inset in .bottom.
-                // UIWindow is queried separately for the physical-only inset.
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear {
-                            viewSafeBottom     = geo.safeAreaInsets.bottom
-                            physicalSafeBottom = UIApplication.shared
-                                .connectedScenes
-                                .compactMap { $0 as? UIWindowScene }
-                                .first?.windows
-                                .first(where: { $0.isKeyWindow })?
-                                .safeAreaInsets.bottom ?? 0
-                        }
-                        .onChange(of: geo.safeAreaInsets.bottom) { _, v in
-                            viewSafeBottom = v
-                            physicalSafeBottom = UIApplication.shared
-                                .connectedScenes
-                                .compactMap { $0 as? UIWindowScene }
-                                .first?.windows
-                                .first(where: { $0.isKeyWindow })?
-                                .safeAreaInsets.bottom ?? 0
-                        }
+            // Capture safe-area insets for tabBarOffset computation.
+            // GeometryReader inside .background reads the ZStack's coordinate space,
+            // which includes the TabView-injected UITabBar inset in .bottom.
+            // UIWindow is queried separately for the physical-only inset.
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear {
+                    viewSafeBottom = geo.safeAreaInsets.bottom
+                    physicalSafeBottom = UIApplication.shared
+                        .connectedScenes
+                        .compactMap { $0 as? UIWindowScene }
+                        .first?.windows
+                        .first(where: { $0.isKeyWindow })?
+                        .safeAreaInsets.bottom ?? 0
+                }
+                    .onChange(of: geo.safeAreaInsets.bottom) { _, v in
+                    viewSafeBottom = v
+                    physicalSafeBottom = UIApplication.shared
+                        .connectedScenes
+                        .compactMap { $0 as? UIWindowScene }
+                        .first?.windows
+                        .first(where: { $0.isKeyWindow })?
+                        .safeAreaInsets.bottom ?? 0
                 }
             }
+        }
     }
+
+    // MARK: Navigation Bar
+
+    private var unifiedNavigationBar: some View {
+        DeckCustomNavigationBar(
+            deck: deck,
+            stats: viewModel.currentStats,
+            backLabel: router.deckBackLabel,
+            searchQuery: searchQuery,
+            isSelecting: viewModel.isSelecting,
+            isMenuExpanded: $isMenuExpanded,
+            menuPosition: $menuPosition,
+            menuTracker: menuTracker,
+            onBack: { dismiss() },
+            onAdd: { isAddingCard = true },
+            onStartSelection: {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    viewModel.isSelecting = true
+                }
+            },
+            onExport: { viewModel.exportDeck(deck) }
+        )
+    }
+
 
     // MARK: - Back Button
 
@@ -184,11 +208,22 @@ struct DeckContentView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .frame(height: 50)
-                .background(
+                .background {
                 Capsule()
                     .fill(.ultraThinMaterial)
-                    .overlay(Capsule().fill(ThemeManager.shared.accentColor.color.opacity(0.15)))
-            )
+                    .overlay {
+                    // glow dark foarte subtil pentru adâncime
+                    Capsule()
+                        .fill(Color.white.opacity(0.35))
+                        .blur(radius: 10)
+                        .mask(
+                        Capsule()
+                            .stroke(lineWidth: 4)
+                    )
+                        .blendMode(.overlay)
+                }
+            }
+
         }
             .buttonStyle(.plain)
             .padding(.leading, 16)
@@ -292,60 +327,72 @@ struct DeckContentView: View {
                                 .font(.subheadline)
                             Spacer()
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(Color.accentColor.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(Color.accentColor.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
                     }
 
                     VStack(spacing: 16) {
 
-                        HStack(alignment: .center, spacing: 16) {
-                            // Tappable area: title + edit icon both open deck editor
-                            Button {
-                                isPresentingEdit = true
-                            } label: {
-                                HStack(alignment: .center, spacing: 10) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(deck.title)
-                                            .font(.system(size: 38, weight: .heavy, design: .rounded))
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(2)
-                                            .minimumScaleFactor(0.7)
-                                        Text(subtitleText)
-                                            .font(.subheadline.weight(.medium))
-                                            .foregroundStyle(.secondary)
+                        // MARK: - Premium Header Section
+                        // Replace the existing header HStack inside DeckView's mainContent with this:
+
+                        HStack(alignment: .center, spacing: 20) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(alignment: .center, spacing: 12) {
+                                    Text(deck.title)
+                                    // Using a larger, heavier font for that premium modern iOS feel
+                                    .font(.system(size: 42, weight: .heavy, design: .rounded))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(2)
+                                        .minimumScaleFactor(0.7)
+
+                                    // Edit affordance promoted to a subtle, yet tap-friendly circular button
+                                    Button {
+                                        isPresentingEdit = true
+                                    } label: {
+                                        Image(systemName: "pencil")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundStyle(.secondary.opacity(0.8))
+                                            .padding(10)
+                                            .background(.ultraThinMaterial, in: Circle())
                                     }
-                                    // Edit affordance icon — visually hints the row is editable
-                                    Image(systemName: "pencil")
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .foregroundStyle(.secondary.opacity(0.6))
+                                        .buttonStyle(.plain)
                                 }
-                                .contentShape(Rectangle())
+
+                                Text(subtitleText)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .textCase(.uppercase) // Uppercase for modern subtitling (like the reference app)
                             }
-                            .buttonStyle(.plain)
 
                             Spacer(minLength: 0)
-                            DeckMasteryRing(mastery: viewModel.currentStats.deckMastery,
-                                           deckColor: Color(hex: deck.colorHex) ?? .blue)
+
+                            // Slightly larger mastery ring to balance the bigger typography
+                            DeckMasteryRing(
+                                mastery: viewModel.currentStats.deckMastery,
+                                deckColor: Color(hex: deck.colorHex) ?? .blue,
+                                size: 76,
+                                strokeWidth: 9
+                            )
                         }
-                        .padding(.horizontal, 20)
-                        // Extra top padding ensures the title clears the floating back-button overlay
-                        .padding(.top, 68)
+                            .padding(.horizontal, 24) // Increased horizontal padding for a spacious look
+                        .padding(.top, 100) // Adjusted top padding to breathe under the navigation chrome
 
                         // Invisible anchor — when this crosses safeAreaTop, pill appears
                         Color.clear
                             .frame(height: 1)
                             .onGeometryChange(for: CGFloat.self) { proxy in
-                                proxy.frame(in: .global).minY
-                            } action: { minY in
-                                let isAbove = minY < safeTop
-                                if scrollState.pillVisible != isAbove {
-                                    scrollState.pillVisible = isAbove
-                                }
+                            proxy.frame(in: .global).minY
+                        } action: { minY in
+                            let isAbove = minY < safeTop
+                            if scrollState.pillVisible != isAbove {
+                                scrollState.pillVisible = isAbove
                             }
+                        }
 
                         if searchQuery == nil || searchQuery?.isEmpty == true {
                             DeckProgressView(deck: deck, stats: viewModel.currentStats, cards: viewModel.allCardInfos)
@@ -392,26 +439,20 @@ struct DeckContentView: View {
                                     deck: deck,
                                     pillVisible: scrollState.pillVisible
                                 )
-                                .background(Color(uiColor: .systemGroupedBackground))
+                                    .background(Color(uiColor: .systemGroupedBackground))
                             }
                         }
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
+                        .contentShape(Rectangle())
+                        .onTapGesture {
                         if viewModel.isSelecting { viewModel.exitSelectionMode() }
                     }
-                    .frame(minHeight: outer.size.height)
+                        .frame(minHeight: outer.size.height)
                 }
             }
-            .scrollIndicators(.hidden)
-            .scrollDisabled(isMenuExpanded)
-            .background(Color(uiColor: .systemGroupedBackground))
-            .overlay(alignment: .top) {
-                if searchQuery == nil {
-                    DeckHeroView(deck: deck, stats: viewModel.currentStats)
-                        .allowsHitTesting(false)
-                }
-            }
+                .scrollIndicators(.hidden)
+                .scrollDisabled(isMenuExpanded)
+                .background(Color(uiColor: .systemGroupedBackground))
         }
     }
 
@@ -545,7 +586,6 @@ struct DeckContentView: View {
     }
 }
 
-// HeroSection removed completely.
 
 // MARK: - iOS 17 Retain Cycle Wrapper
 

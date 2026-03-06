@@ -537,7 +537,8 @@ struct CardFaceView: View {
                             textColor: zone.textColor.color,
                             alignment: zone.textAlignment.horizontalAlignment,
                             isBold: zone.isBold,
-                            isItalic: zone.isItalic
+                            isItalic: zone.isItalic,
+                            isInteractive: false
                         )
                             .padding(.vertical, 4)
                             .padding(.horizontal, zone.highlightColor != HighlightColor.none ? 6 : 0)
