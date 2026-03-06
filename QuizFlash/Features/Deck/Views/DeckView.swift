@@ -29,22 +29,17 @@ struct DeckContentView: View {
     @State private var isMenuExpanded: Bool = false
     @State private var menuPosition: CGRect = .zero
     @State private var menuTracker = MenuPositionTracker()
-    /// Scroll-driven progress — updated by DeckScrollMonitor via KVO, never by SwiftUI state
+
+    /// Scroll-driven progress — updated by DeckScrollMonitor via KVO, never by SwiftUI state.
     @State private var scrollState = DeckScrollState()
 
-    /// View-level safe-area bottom (from SwiftUI GeometryReader inside the ZStack).
-    /// Inside TabView this includes UITabBar.height (~49 pt) on top of the physical
-    /// home-indicator inset, even when the tab bar is hidden via NativeTabBarConfigurator.
+    /// View-level safe-area bottom inset.
     @State private var viewSafeBottom: CGFloat = 0
 
-    /// Physical screen safe-area bottom read directly from UIWindow.
-    /// Always equals only the home-indicator inset (~34 pt) — never inflated by the tab bar.
+    /// Physical screen safe-area bottom inset.
     @State private var physicalSafeBottom: CGFloat = 0
 
     /// Extra height that TabView adds to the safe area for its native UITabBar.
-    /// When the tab bar is hidden (selection mode), this offset remains until the async
-    /// safe-area recalculation completes. Applying -tabBarOffset as bottom padding on
-    /// DeckSelectionBottomBar moves it down to the correct physical position immediately.
     private var tabBarOffset: CGFloat {
         max(0, viewSafeBottom - physicalSafeBottom)
     }
@@ -62,10 +57,10 @@ struct DeckContentView: View {
 
     var body: some View {
         deckContent
-        // Hide the floating tab bar only while selection mode is active,
-        // so it does not overlap DeckSelectionBottomBar.
-        // In normal browsing the tab bar remains visible.
-        .customTabBarVisibility(viewModel.isSelecting ? .hidden : .implicit)
+        /// Hides the native system navigation bar.
+        /// This stabilizes `safeAreaInsets` and prevents layout invalidation during scroll physics (rubber-banding).
+        .toolbar(.hidden, for: .navigationBar)
+            .customTabBarVisibility(viewModel.isSelecting ? .hidden : .implicit)
             .onAppear {
             Task {
                 await viewModel.loadSnapshot(
@@ -119,8 +114,6 @@ struct DeckContentView: View {
 
     // MARK: - Body Fragments
 
-    /// Top-level ZStack with selection bar, menu overlay, and navigation chrome.
-    /// Separated from `body` so the type-checker handles each expression independently.
     private var deckContent: some View {
         ZStack(alignment: .bottom) {
             mainContentWithCovers
@@ -130,26 +123,17 @@ struct DeckContentView: View {
                     onDone: viewModel.exitSelectionMode,
                     onDelete: { viewModel.showDeleteConfirmation = true }
                 )
-                // TabView inflates the ZStack safe-area bottom by UITabBar.height
-                // even while the bar is hidden. tabBarOffset = that extra inset.
-                // Negative padding shifts the bar down to sit above the home indicator,
-                // not above the phantom tab bar space.
-                .padding(.bottom, -tabBarOffset)
+                    .padding(.bottom, -tabBarOffset)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(10)
             }
         }
-        // A single unified overlay for the top navigation items
-        .overlay(alignment: .top) { unifiedNavigationBar }
-            .overlay(alignment: .topLeading) { menuOverlay } // Dropdown menu remains separate Z-layer
-        .swipeBack { dismiss() }
+            .overlay(alignment: .top) { unifiedNavigationBar }
+            .overlay(alignment: .topLeading) { menuOverlay }
+            .swipeBack { dismiss() }
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
             .environment(scrollState)
             .background {
-            // Capture safe-area insets for tabBarOffset computation.
-            // GeometryReader inside .background reads the ZStack's coordinate space,
-            // which includes the TabView-injected UITabBar inset in .bottom.
-            // UIWindow is queried separately for the physical-only inset.
             GeometryReader { geo in
                 Color.clear
                     .onAppear {
@@ -197,48 +181,6 @@ struct DeckContentView: View {
         )
     }
 
-
-    // MARK: - Back Button
-
-    private var backButtonOverlay: some View {
-        Button { dismiss() } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 13, weight: .bold))
-                Text(backLabel)
-                    .font(.system(size: 13, weight: .semibold))
-            }
-                .foregroundStyle(ThemeManager.shared.accentColor.color)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .frame(height: 50)
-                .background {
-                Capsule()
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                    // glow dark foarte subtil pentru adâncime
-                    Capsule()
-                        .fill(Color.white.opacity(0.35))
-                        .blur(radius: 10)
-                        .mask(
-                        Capsule()
-                            .stroke(lineWidth: 4)
-                    )
-                        .blendMode(.overlay)
-                }
-            }
-
-        }
-            .buttonStyle(.plain)
-            .padding(.leading, 16)
-            .padding(.top, 8)
-    }
-
-    // MARK: - Action Buttons Overlay
-
-    /// Top-trailing overlay providing the add (+) and menu (ellipsis) buttons.
-    /// Symmetric counterpart to backButtonOverlay — same capsule style, same
-    /// vertical alignment, positioned at the trailing edge instead of leading.
     private var actionButtonsOverlay: some View {
         DeckActionOverlay(
             deck: deck,
@@ -256,8 +198,6 @@ struct DeckContentView: View {
         )
     }
 
-    /// `mainContent` plus all fullScreenCover presentations.
-    /// Extracted so the type-checker does not have to process all five covers inside `body`.
     private var mainContentWithCovers: some View {
         mainContent
             .fullScreenCover(isPresented: $isAddingCard) {
@@ -317,6 +257,8 @@ struct DeckContentView: View {
     }
 
     private var mainContent: some View {
+        /// Wraps the scrollable content in a `GeometryReader` for synchronous layout calculation.
+        /// Combined with the hidden native toolbar, this guarantees a stable environment from frame zero.
         GeometryReader { outer in
             let safeTop = outer.safeAreaInsets.top == 0 ? 47.0 : outer.safeAreaInsets.top
 
@@ -340,21 +282,15 @@ struct DeckContentView: View {
                     }
 
                     VStack(spacing: 16) {
-
-                        // MARK: - Premium Header Section
-                        // Replace the existing header HStack inside DeckView's mainContent with this:
-
                         HStack(alignment: .center, spacing: 20) {
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack(alignment: .center, spacing: 12) {
                                     Text(deck.title)
-                                    // Using a larger, heavier font for that premium modern iOS feel
-                                    .font(.system(size: 42, weight: .heavy, design: .rounded))
+                                        .font(.system(size: 42, weight: .heavy, design: .rounded))
                                         .foregroundStyle(.primary)
                                         .lineLimit(2)
                                         .minimumScaleFactor(0.7)
 
-                                    // Edit affordance promoted to a subtle, yet tap-friendly circular button
                                     Button {
                                         isPresentingEdit = true
                                     } label: {
@@ -370,12 +306,11 @@ struct DeckContentView: View {
                                 Text(subtitleText)
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(.secondary)
-                                    .textCase(.uppercase) // Uppercase for modern subtitling (like the reference app)
+                                    .textCase(.uppercase)
                             }
 
                             Spacer(minLength: 0)
 
-                            // Slightly larger mastery ring to balance the bigger typography
                             DeckMasteryRing(
                                 mastery: viewModel.currentStats.deckMastery,
                                 deckColor: Color(hex: deck.colorHex) ?? .blue,
@@ -383,10 +318,10 @@ struct DeckContentView: View {
                                 strokeWidth: 9
                             )
                         }
-                            .padding(.horizontal, 24) // Increased horizontal padding for a spacious look
-                        .padding(.top, 100) // Adjusted top padding to breathe under the navigation chrome
+                            .padding(.horizontal, 24)
+                        /// Compensates for the safe area space removed by `.toolbar(.hidden, for: .navigationBar)`.
+                        .padding(.top, 144)
 
-                        // Invisible anchor — when this crosses safeAreaTop, pill appears
                         Color.clear
                             .frame(height: 1)
                             .onGeometryChange(for: CGFloat.self) { proxy in
@@ -435,16 +370,14 @@ struct DeckContentView: View {
                                     }
                                 )
                                 Color.clear.frame(height: 120)
-                            } header: {
-                                // Simplified to label-only. Action buttons (+, ellipsis)
-                                // are now rendered via the topTrailing overlay so they
-                                // remain accessible regardless of scroll position.
-                                DeckSectionToolbar(
-                                    deck: deck,
-                                    pillVisible: scrollState.pillVisible
-                                )
-                                    .background(Color(uiColor: .systemGroupedBackground))
                             }
+//                            header: {
+//                                DeckSectionToolbar(
+//                                    deck: deck,
+//                                    pillVisible: scrollState.pillVisible
+//                                )
+//                                    .background(Color(uiColor: .systemGroupedBackground))
+//                            }
                         }
                     }
                         .contentShape(Rectangle())
@@ -460,6 +393,7 @@ struct DeckContentView: View {
         }
     }
 
+// ... CardPreviewScreen, CardStatsView, StatIconItem, DeckView remain unchanged
     // MARK: - Menu Overlay
 
     @ViewBuilder
@@ -613,10 +547,10 @@ struct DeckView: View {
             } else {
                 Color(uiColor: .systemGroupedBackground)
                     .onAppear {
-                        if self.viewModel == nil {
-                            self.viewModel = DeckViewModel(searchQuery: searchQuery)
-                        }
+                    if self.viewModel == nil {
+                        self.viewModel = DeckViewModel(searchQuery: searchQuery)
                     }
+                }
             }
         }
     }
