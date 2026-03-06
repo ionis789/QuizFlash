@@ -59,23 +59,24 @@ struct LibraryTopBarView: View {
             HStack {
                 if let onBack {
                     backButton(action: onBack)
+                } else {
+                    searchIcon
                 }
                 Spacer()
             }
 
             // Center: screen title
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 Text(title)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
                 deckCountPill
             }
-                .shadow(color: .black, radius: 10)
 
             // Right: search + menu grouped in a single pill (iOS 26 pattern)
             HStack {
                 Spacer()
-                actionGroupPill
+                moreSettingsButton
             }
         }
             .padding(.horizontal, 16)
@@ -176,6 +177,59 @@ struct LibraryTopBarView: View {
             }
         }
     }
+
+    private var searchIcon: some View {
+        // Search icon
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isSearching = true
+                isSearchFocused = true
+            }
+        } label: {
+            Image(systemName: "magnifyingglass")
+                .font(.title3.bold())
+                .foregroundStyle(accent)
+        }
+            .frame(width: 50, height: 50)
+            .contentShape(Circle())
+            .background {
+            Circle()
+                .fill(.ultraThinMaterial)
+                .overlay {
+                Circle()
+                    .fill(Color.white.opacity(0.35))
+                    .blur(radius: 10)
+                    .mask(Capsule().stroke(lineWidth: 4))
+                    .blendMode(.overlay)
+            }
+        }
+    }
+
+    private var moreSettingsButton: some View {
+        // Menu icon
+        Menu { menuContent } label: {
+            Image(systemName: "ellipsis")
+                .font(.title3.bold())
+                .foregroundStyle(accent)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+        }
+            .frame(width: 50, height: 50)
+            .contentShape(Circle())
+            .background {
+            Circle()
+                .fill(.ultraThinMaterial)
+                .overlay {
+                Circle()
+                    .fill(Color.white.opacity(0.35))
+                    .blur(radius: 10)
+                    .mask(Capsule().stroke(lineWidth: 4))
+                    .blendMode(.overlay)
+            }
+        }
+
+    }
+
 
     // MARK: - Shared Dark-Frosted Background
 
