@@ -46,7 +46,7 @@ struct LibraryTopBarView: View {
                 titleRow
             }
         }
-        .onChange(of: isSearching) { _, active in
+            .onChange(of: isSearching) { _, active in
             if active { isSearchFocused = true }
         }
     }
@@ -86,16 +86,16 @@ struct LibraryTopBarView: View {
             //   the slide transition. Stable identity tags force a clean insert/remove.
             HStack(spacing: 0) {
                 leadingControl
-                    // Guarantees the leading view is always proposed its ideal width,
-                    // even if the ZStack receives a compressed proposal mid-transition.
-                    .fixedSize()
+                // Guarantees the leading view is always proposed its ideal width,
+                // even if the ZStack receives a compressed proposal mid-transition.
+                .fixedSize()
                 Spacer(minLength: 0)
                 moreSettingsButton
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
-        .padding(.bottom, 10)
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 10)
     }
 
     // MARK: - Leading Control
@@ -143,10 +143,10 @@ struct LibraryTopBarView: View {
                             .font(.system(size: 15))
                             .foregroundStyle(.tertiary)
                     }
-                    .padding(.trailing, 12)
+                        .padding(.trailing, 12)
                 }
             }
-            .background(darkPillBackground(cornerRadius: 14))
+                .background(darkPillBackground(cornerRadius: 14))
 
             Button("Cancel") {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -155,13 +155,13 @@ struct LibraryTopBarView: View {
                     isSearchFocused = false
                 }
             }
-            .font(.system(size: 15, weight: .medium))
-            .foregroundStyle(accent)
-            .transition(.move(edge: .trailing).combined(with: .opacity))
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(accent)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
-        .padding(.bottom, 10)
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 10)
     }
 
     // MARK: - Subviews
@@ -186,18 +186,18 @@ struct LibraryTopBarView: View {
                 .font(.title3.bold())
                 .foregroundStyle(accent)
         }
-        .frame(width: 50, height: 50)
-        .contentShape(Circle())
-        .background {
+            .frame(width: 50, height: 50)
+            .contentShape(Circle())
+            .background {
             Circle()
                 .fill(.ultraThinMaterial)
                 .overlay {
-                    Circle()
-                        .fill(Color.white.opacity(0.35))
-                        .blur(radius: 10)
-                        .mask(Capsule().stroke(lineWidth: 4))
-                        .blendMode(.overlay)
-                }
+                Circle()
+                    .fill(Color.white.opacity(0.35))
+                    .blur(radius: 10)
+                    .mask(Capsule().stroke(lineWidth: 4))
+                    .blendMode(.overlay)
+            }
         }
     }
 
@@ -209,18 +209,18 @@ struct LibraryTopBarView: View {
                 .foregroundStyle(accent)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 50, height: 50)
-        .contentShape(Circle())
-        .background {
+            .frame(width: 50, height: 50)
+            .contentShape(Circle())
+            .background {
             Circle()
                 .fill(.ultraThinMaterial)
                 .overlay {
-                    Circle()
-                        .fill(Color.white.opacity(0.35))
-                        .blur(radius: 10)
-                        .mask(Capsule().stroke(lineWidth: 4))
-                        .blendMode(.overlay)
-                }
+                Circle()
+                    .fill(Color.white.opacity(0.35))
+                    .blur(radius: 10)
+                    .mask(Capsule().stroke(lineWidth: 4))
+                    .blendMode(.overlay)
+            }
         }
     }
 
@@ -235,9 +235,9 @@ struct LibraryTopBarView: View {
         Capsule()
             .fill(.ultraThinMaterial)
             .overlay(
-                Capsule()
-                    .fill(accent.opacity(0.15))
-            )
+            Capsule()
+                .fill(accent.opacity(0.15))
+        )
     }
 
     // MARK: - Menu Content
@@ -255,7 +255,7 @@ struct LibraryTopBarView: View {
         } label: {
             Label("Select", systemImage: "checkmark.circle")
         }
-        .disabled(viewModel.isSelecting || isSearching)
+            .disabled(viewModel.isSelecting || isSearching)
 
         Divider()
 
@@ -276,6 +276,13 @@ struct LibraryTopBarView: View {
         } label: {
             Label("Sort By", systemImage: "arrow.up.arrow.down")
         }
+
+        Menu {
+            
+        } label: {
+            Label("Group By", systemImage: "arrow.up.arrow.down")
+        }
+
     }
 
     // MARK: - Back Button
@@ -293,22 +300,22 @@ struct LibraryTopBarView: View {
             // Secondary guard: keeps the label from collapsing in edge-case
             // layout passes where the Button itself receives a narrow proposal.
             .fixedSize(horizontal: true, vertical: false)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .frame(height: 50)
-            .foregroundStyle(accent)
-            .background {
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .frame(height: 50)
+                .foregroundStyle(accent)
+                .background {
                 Capsule()
                     .fill(.ultraThinMaterial)
                     .overlay {
-                        Capsule()
-                            .fill(Color.white.opacity(0.35))
-                            .blur(radius: 10)
-                            .mask(Capsule().stroke(lineWidth: 4))
-                            .blendMode(.overlay)
-                    }
+                    Capsule()
+                        .fill(Color.white.opacity(0.35))
+                        .blur(radius: 10)
+                        .mask(Capsule().stroke(lineWidth: 4))
+                        .blendMode(.overlay)
+                }
             }
         }
-        .buttonStyle(.plain)
+            .buttonStyle(.plain)
     }
 }

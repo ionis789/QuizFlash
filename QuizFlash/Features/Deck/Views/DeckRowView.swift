@@ -37,6 +37,15 @@ struct DeckRowView: View {
     private var accent: Color {
         ThemeManager.shared.accentColor.color
     }
+    
+    // Relative date formatter to replace the hardcoded "12 min ago"
+    private var timeAgoString: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        // Fallback to createdAt if editedAt is exactly the same or we just want a general "last touched" metric
+        // But DeckModel has both, editedAt is usually more relevant for an active deck.
+        return formatter.localizedString(for: deck.editedAt, relativeTo: Date())
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -89,7 +98,7 @@ struct DeckRowView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "clock")
                         .font(.system(size: 14))
-                    Text("12 min ago")
+                    Text(timeAgoString)
                         .font(.system(size: 14, weight: .medium))
                 }
                     .foregroundColor(Color(white: 0.7))

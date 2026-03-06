@@ -63,8 +63,16 @@ actor CardFetchActor {
         let todayStart = Calendar.current.startOfDay(for: now)
         var gridCards  = [GridCardInfo]()
         var accum      = StatsAccumulator()
+        
+        // Fetch directly from the SQLite store using a predicate. This bypasses
+        // the `deck.cards` relationship array, which is prone to caching bugs on iOS 17
+        // where it fails to reflect newly inserted cards across different contexts.
+        let descriptor = FetchDescriptor<CardModel>(
+            predicate: #Predicate { $0.deck?.persistentModelID == deckID }
+        )
+        let cards = (try? activeContext.fetch(descriptor)) ?? []
 
-        for card in Array(deck.cards) {
+        for card in cards {
             gridCards.append(GridCardInfo(
                 id:                   card.persistentModelID,
                 cardNumber:           card.cardNumber,

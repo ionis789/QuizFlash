@@ -345,6 +345,7 @@ final class CreateDeckViewModel {
                         backZone: draft.backZone,
                         cardNumber: deck.lastAssignedCardNumber
                     )
+                    newCard.deck = deck
                     deck.cards.append(newCard)
                     context.insert(newCard)
                     cardsChanged = true
@@ -367,6 +368,7 @@ final class CreateDeckViewModel {
                     backZone: draft.backZone,
                     cardNumber: newDeck.lastAssignedCardNumber
                 )
+                newCard.deck = newDeck
                 context.insert(newCard)
                 newDeck.cards.append(newCard)
             }

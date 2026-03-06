@@ -202,9 +202,15 @@ struct DeckContentView: View {
         mainContent
             .fullScreenCover(isPresented: $isAddingCard) {
             CreateCardView(searchQuery: nil) { frontZone, backZone in
-                let newCard = CardModel(frontZone: frontZone, backZone: backZone)
+                deck.lastAssignedCardNumber += 1
+                let newCard = CardModel(
+                    frontZone: frontZone,
+                    backZone: backZone,
+                    cardNumber: deck.lastAssignedCardNumber
+                )
                 newCard.deck = deck
                 context.insert(newCard)
+                deck.cardCount += 1
                 try? context.save()
                 deck.editedAt = Date()
             }
