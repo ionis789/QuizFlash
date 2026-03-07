@@ -1,39 +1,62 @@
 import SwiftUI
 
-/// Direcția în care se va aplica rotația 3D
+// MARK: - Scroll3DDirection
+
+/// The axis direction for the 3D rotation effect applied by ``ScrollProximityModifier``.
 public enum Scroll3DDirection {
-    /// Partea de jos a cardului vine înspre tine (iese din ecran)
+    /// The bottom of the card rotates towards the viewer (coming out of the screen).
     case forward
-    /// Partea de jos a cardului se duce în spate (intră în ecran)
+    /// The bottom of the card rotates away from the viewer (going into the screen).
     case backward
 }
 
-/// Un modificator care aplică un efect 3D de "pliere", dizolvare și micșorare
-/// care ÎNCEPE exact la o anumită distanță față de top-ul ecranului.
+// MARK: - ScrollProximityModifier
+
+/// A view modifier that applies a combined 3D fold, dissolve, and scale-down effect
+/// as the view scrolls past a defined trigger distance from the top of the screen.
+///
+/// Apply via the ``View/scrollProximityEffect(triggerDistanceFromTop:dissolveDistance:minScale:maxBlur:minOpacity:maxRotationX:direction:)``
+/// convenience modifier rather than using this type directly.
 public struct ScrollProximityModifier: ViewModifier {
-    
+
+    // MARK: - Configuration
+
+    /// The Y coordinate (from the top of the screen) at which the effect begins.
     var triggerDistanceFromTop: CGFloat
+
+    /// The distance over which the full effect is applied, measured upward from `triggerDistanceFromTop`.
     var dissolveDistance: CGFloat
+
+    /// The minimum scale the view reaches at the end of the effect. Values below `1.0` shrink the view.
     var minScale: CGFloat
+
+    /// The maximum blur radius applied at the end of the effect.
     var maxBlur: CGFloat
+
+    /// The minimum opacity the view reaches at the end of the effect.
     var minOpacity: CGFloat
+
+    /// The maximum rotation angle (in degrees) applied around the X axis.
     var maxRotationX: Double
-    
-    /// NOU: Direcția rotației
+
+    /// The axis direction of the 3D fold effect.
     var direction: Scroll3DDirection
-    
+
+    // MARK: - Body
+
     public func body(content: Content) -> some View {
         content
             .visualEffect { view, proxy in
                 let minY = proxy.frame(in: .global).minY
                 let distancePastTrigger = triggerDistanceFromTop - minY
                 let raw = max(0, min(1, distancePastTrigger / dissolveDistance))
-                
+
+                // Ease-in curve: effect accelerates as the view exits the trigger zone.
                 let eased = raw * raw
-                
-                // Determinăm axa X matematic în funcție de direcția aleasă
+
+                // Compute the X-axis direction based on the chosen rotation direction.
                 let axisX: CGFloat = direction == .backward ? -1.0 : 1.0
-                
+
                 return view
                     .rotation3DEffect(
                         .degrees(eased * maxRotationX),
@@ -48,16 +71,23 @@ public struct ScrollProximityModifier: ViewModifier {
     }
 }
 
+// MARK: - View Extension
+
 public extension View {
-    /// Aplică un efect de dispariție 3D când elementul dintr-un ScrollView trece de un anumit punct.
+    /// Applies a 3D fold-and-dissolve exit effect as the view scrolls past a trigger point.
+    ///
+    /// The effect combines rotation around the X axis, a scale-down, a blur, and an opacity
+    /// fade — all driven by the view's distance from the top of the screen.
+    ///
     /// - Parameters:
-    ///   - triggerDistanceFromTop: Punctul de start al animației (distanța de la top-ul ecranului).
-    ///   - dissolveDistance: Distanța pe care se desfășoară efectul în sus.
-    ///   - minScale: Cât de mult se micșorează la final (default 0.90).
-    ///   - maxBlur: Cât de tare se blurează la final (default 7.0).
-    ///   - minOpacity: Opacitatea finală (default 0.0).
-    ///   - maxRotationX: Gradul de rotație 3D (default 45 de grade).
-    ///   - direction: Direcția în care se pliază cardul (.backward sau .forward).
+    ///   - triggerDistanceFromTop: Distance from the screen top at which the effect begins. Default `20`.
+    ///   - dissolveDistance: Distance over which the full effect plays out. Default `200`.
+    ///   - minScale: Minimum scale reached at the end of the effect. Default `1.1`.
+    ///   - maxBlur: Maximum blur radius applied at the end of the effect. Default `7.0`.
+    ///   - minOpacity: Minimum opacity reached at the end of the effect. Default `0.0`.
+    ///   - maxRotationX: Maximum 3D rotation in degrees around the X axis. Default `45.0`.
+    ///   - direction: Whether the card folds `.backward` into the screen or `.forward` out of it.
+    ///     Defaults to `.backward` (rolling into the screen).
     func scrollProximityEffect(
         triggerDistanceFromTop: CGFloat = 20.0,
         dissolveDistance: CGFloat = 200.0,
@@ -65,7 +95,7 @@ public extension View {
         maxBlur: CGFloat = 7.0,
         minOpacity: CGFloat = 0.0,
         maxRotationX: Double = 45.0,
-        direction: Scroll3DDirection = .backward // Default este pe spate
+        direction: Scroll3DDirection = .backward
     ) -> some View {
         self.modifier(
             ScrollProximityModifier(

@@ -5,81 +5,114 @@
 
 import SwiftUI
 
+// MARK: - Date Extensions
+
 extension Date {
-    /// Gives the current week dates
+
+    // MARK: - Current Period Helpers
+
+    /// Returns the seven `Day` values for the current calendar week,
+    /// starting from the locale's first day of the week.
     static var currentWeek: [Day] {
         let calendar = Calendar.current
         guard let firstWeekDay = calendar.dateInterval(of: .weekOfMonth, for: .now)?.start else {
             return []
         }
-        
+
         var week: [Day] = []
         for index in 0..<7 {
             if let day = calendar.date(byAdding: .day, value: index, to: firstWeekDay) {
                 week.append(.init(date: day))
             }
         }
-        
+
         return week
     }
-    
-    /// Gives the dates for the current month
+
+    /// Returns all `Day` values for the current calendar month, padded with
+    /// leading and trailing days from adjacent months to fill a complete grid.
     static var currentMonth: [Day] {
         return extractDates(for: .now)
     }
-    
-    /// Helper to extract all dates for a given month, padded with previous/next month days to complete the visual grid rows
+
+    // MARK: - Grid Date Extraction
+
+    /// Returns up to 42 `Day` values covering the full calendar grid for the
+    /// month containing `month`, including padding days from adjacent months.
+    ///
+    /// 42 slots accommodate the maximum possible 6-row calendar grid (7 columns × 6 rows).
+    /// Days outside the target month have `isCurrentMonth` set to `false`,
+    /// allowing them to be rendered as greyed-out cells.
+    ///
+    /// - Parameter month: Any date within the desired calendar month.
+    /// - Returns: An array of up to 42 `Day` values, or an empty array on failure.
     static func extractDates(for month: Date) -> [Day] {
         let calendar = Calendar.current
         guard let monthInterval = calendar.dateInterval(of: .month, for: month),
               let firstDayOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: monthInterval.start)) else {
             return []
         }
-        
+
         var days: [Day] = []
-        let range = calendar.range(of: .day, in: .month, for: firstDayOfMonth)!
-        
-        // Find the week day of the first day to calculate padding
+        guard let range = calendar.range(of: .day, in: .month, for: firstDayOfMonth) else {
+            return []
+        }
+        _ = range // used only for bounds validation
+
+        // Calculate how many padding days precede the first day of the month.
         let firstWeekday = calendar.component(.weekday, from: firstDayOfMonth)
-        
-        // Get previous month padding (assuming Sunday is 1, Monday is 2. Adjust if Monday is first day)
-        // Adjusting firstWeekday so Monday=1, Sunday=7 if desired, but Apple defaults to system Locale.
-        // Let's use standard default Calendar behavior where startOfWeek is Sunday or Monday based on locale.
         let firstWeekdayIndex = firstWeekday - calendar.firstWeekday
         let paddingOffset = firstWeekdayIndex < 0 ? firstWeekdayIndex + 7 : firstWeekdayIndex
-        
-        for index in 0..<42 { // A typical 6 row calendar has 42 days minimum to fit all months
+
+        // Build 42 slots to fill a 6-row calendar grid.
+        for index in 0..<42 {
             let dayOffset = index - paddingOffset
             if let date = calendar.date(byAdding: .day, value: dayOffset, to: firstDayOfMonth) {
-                // If you only want exact current month, you can filter `calendar.isDate(date, equalTo: month, toGranularity: .month)`
-                // But typically UI needs the greyed out days from adjacent months too.
                 var day = Day(date: date)
                 day.isCurrentMonth = calendar.isDate(date, equalTo: month, toGranularity: .month)
                 days.append(day)
             }
         }
-        
+
         return days
     }
-    
-    /// Convert date to string in the given format
+
+    // MARK: - Formatting
+
+    /// Formats the date using the given `DateFormatter` format string and returns
+    /// the result as a `String`.
+    ///
+    /// - Parameter format: A `DateFormatter`-compatible format string, e.g. `"dd MMM yyyy"`.
+    /// - Returns: The formatted date string.
     func string(_ format: String) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = format
-        
         return formatter.string(from: self)
     }
-    
-    /// Check if both the dates are same
+
+    // MARK: - Comparison
+
+    /// Returns `true` if `self` and `date` fall on the same calendar day.
+    ///
+    /// - Parameter date: The date to compare against. Returns `false` if `nil`.
     func isSame(_ date: Date?) -> Bool {
         guard let date else { return false }
         return Calendar.current.isDate(self, inSameDayAs: date)
     }
-    
+
+    // MARK: - Day
+
+    /// A value type representing a single calendar day in a date grid.
     struct Day: Identifiable, Hashable {
+
+        /// A stable unique identifier for this day (UUID string).
         var id: String = UUID().uuidString
+
+        /// The underlying `Date` value for this calendar day.
         var date: Date
+
+        /// `true` when this day belongs to the month being displayed;
+        /// `false` for padding days from adjacent months.
         var isCurrentMonth: Bool = true
-        /// Other additional Properties as per your needs!
     }
 }

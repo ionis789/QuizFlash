@@ -47,8 +47,9 @@ final class ImageCache {
 
     // MARK: - Public Interface
 
-    /// Returns a downsampled `UIImage` for the given raw image data, using a disk-source
-    /// efficient pipeline that skips full decompression until the image is actually needed.
+    /// Returns a downsampled `UIImage` for the given raw image data, using a
+    /// disk-source efficient pipeline that skips full decompression until the
+    /// image is actually needed.
     ///
     /// Results are cached keyed by `"\(id)_\(targetSize.width)x\(targetSize.height)"`.
     ///
@@ -56,13 +57,14 @@ final class ImageCache {
     ///   - data: The raw image data (JPEG, PNG, etc.).
     ///   - id: A stable string identifier for the image (e.g. a zone UUID string).
     ///   - targetSize: The point-size at which the image will be rendered.
-    ///   - scale: The display scale. Defaults to the main screen's scale.
+    ///   - scale: The display scale. Defaults to `UITraitCollection.current.displayScale`,
+    ///     the iOS 17+-recommended replacement for the deprecated `UIScreen.main.scale`.
     /// - Returns: A downsampled `UIImage`, or a full-resolution fallback if downsampling fails.
     func image(
         for data: Data,
         id: String,
         targetSize: CGSize,
-        scale: CGFloat = UIScreen.main.scale
+        scale: CGFloat = UITraitCollection.current.displayScale
     ) -> UIImage? {
         let cacheKey = "\(id)_\(targetSize.width)x\(targetSize.height)" as NSString
 

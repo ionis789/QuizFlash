@@ -2,20 +2,26 @@
 //  AvatarView.swift
 //  QuizFlash
 //
-//  Created by Ion Socol on 07.03.2026.
-//
 
 import SwiftUI
 
-/// A circular avatar button that navigates to the Settings screen.
+// MARK: - HomeAvatarView
+
+/// A circular avatar button displayed in the home screen navigation bar.
+///
+/// Tapping the button appends the `AppRoute.settings` destination to the
+/// current `NavigationManager` stack, pushing the Settings screen.
 struct HomeAvatarView: View {
 
+    // MARK: - Configuration
 
-    /// The global navigation router.
+    /// The global navigation router used to push the Settings screen.
     let router: NavigationManager
 
-    /// The fixed dimension for the profile avatar button.
+    /// The fixed width and height of the avatar button.
     private let iconSize: CGFloat = 54.0
+
+    // MARK: - View
 
     var body: some View {
         Button {
@@ -34,9 +40,7 @@ struct HomeAvatarView: View {
                     .foregroundStyle(Color.primary.opacity(0.85))
                     .padding(2.5)
             }
-                .frame(width: iconSize, height: iconSize)
+            .frame(width: iconSize, height: iconSize)
         }
     }
 }
-
-

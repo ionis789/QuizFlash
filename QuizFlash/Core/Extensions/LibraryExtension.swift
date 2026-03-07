@@ -1,15 +1,21 @@
 //
-//  Extension.swift
+//  LibraryExtension.swift
 //  QuizFlash
-//
-//  Created by Ion Socol on 08.02.2026.
 //
 
 import SwiftUI
 
-
 // MARK: - Color Extensions
+
 extension Color {
+
+    /// Creates a `Color` from a hexadecimal string.
+    ///
+    /// Accepts 6-digit (`RRGGBB`) and 8-digit (`RRGGBBAA`) hex strings,
+    /// with or without a leading `#`.
+    ///
+    /// - Parameter hex: A hexadecimal colour string, e.g. `"#FF5733"` or `"FF5733FF"`.
+    /// - Returns: A `Color` instance, or `nil` if the string cannot be parsed.
     init?(hex: String) {
         var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
@@ -40,7 +46,10 @@ extension Color {
         self.init(red: r, green: g, blue: b, opacity: a)
     }
 
-
+    /// Returns the colour as an uppercase hex string (`#RRGGBB` or `#RRGGBBAA`).
+    ///
+    /// Returns `nil` if the colour cannot be represented in the sRGB colour space
+    /// (e.g. wide-gamut or pattern colours).
     func toHex() -> String? {
         let uic = UIColor(self)
         guard let components = uic.cgColor.components, components.count >= 3 else {
@@ -64,31 +73,43 @@ extension Color {
     }
 }
 
+// MARK: - SortOrder
 
-
+/// The available sort orders for deck and folder lists in the Library.
 enum SortOrder: String, CaseIterable {
-    case newest = "Newest"
-    case oldest = "Oldest"
-    case lastEdited = "Edited"
+    case newest      = "Newest"
+    case oldest      = "Oldest"
+    case lastEdited  = "Edited"
     case alphabetical = "A-Z"
 
+    /// The SF Symbol name associated with this sort order for use in the UI.
     var icon: String {
         switch self {
-        case .newest: return "arrow.down"
-        case .oldest: return "arrow.up"
-        case .lastEdited: return "pencil"
+        case .newest:       return "arrow.down"
+        case .oldest:       return "arrow.up"
+        case .lastEdited:   return "pencil"
         case .alphabetical: return "textformat.abc"
         }
     }
 }
 
+// MARK: - ViewMode
+
+/// The display mode for the Library's content grid — either a linear list or a 2-column gallery.
 enum ViewMode: String, CaseIterable {
-    case list = "List", gallery = "Gallery"
+    case list    = "List"
+    case gallery = "Gallery"
+
+    /// The SF Symbol name representing this view mode in toggle controls.
     var systemImage: String { self == .list ? "list.bullet" : "square.grid.2x2" }
 }
 
-// MARK: - Scale Button Style
+// MARK: - ScaleButtonStyle
+
+/// A `ButtonStyle` that applies a subtle scale-down effect on press,
+/// providing tactile feedback without altering the button's visual appearance.
 struct ScaleButtonStyle: ButtonStyle {
+    /// Scales the label to 96% on press, restoring smoothly with an ease-out curve.
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
@@ -96,67 +117,14 @@ struct ScaleButtonStyle: ButtonStyle {
     }
 }
 
+// MARK: - View + Keyboard
+
 extension View {
+    /// Dismisses the software keyboard by resigning the first responder.
+    ///
+    /// Call this from a button action or a tap gesture when you need to
+    /// programmatically hide the keyboard without a `FocusState` binding.
     func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
-
-// MARK: - Supporting Views
-
-private struct ScoreCard: View {
-    let icon: String
-    let value: String
-    let label: String
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(color)
-
-            Text(value)
-                .font(.subheadline.weight(.bold))
-
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(Color(uiColor: .secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-}
-
-private struct HintLabel: View {
-    let icon: String
-    let text: String
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-            Text(text)
-        }
-            .foregroundStyle(color)
-    }
-}
-
-private struct StatItem: View {
-    let value: String
-    let label: String
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.title3.weight(.bold))
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-}
-
-
