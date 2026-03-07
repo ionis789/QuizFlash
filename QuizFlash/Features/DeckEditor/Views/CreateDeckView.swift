@@ -3,9 +3,9 @@
 //  QuizFlash
 //
 //  Abstract:
-//  The primary entry point for creating or editing a deck.
-//  Uses FocusState-driven tab bar visibility management to ensure
-//  a clean UI during text input and AI generation.
+//  Primary entry point for creating or editing a deck.
+//  Delegates all state and business logic to `CreateDeckViewModel`.
+//  Manages only local UI concerns: keyboard focus and tab-bar visibility.
 //
 
 import SwiftUI
@@ -14,6 +14,9 @@ import PhotosUI
 import UniformTypeIdentifiers
 
 // MARK: - Preference Key for Scroll Tracking
+
+/// Accumulates the scroll view's origin offset so the nav-bar and hero title
+/// can react to the user's scroll position.
 struct ScrollOffsetKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
@@ -37,18 +40,12 @@ struct CreateDeckView: View {
     /// Drives the tab bar visibility rule reactively.
     @FocusState private var isTitleFocused: Bool
 
-    // ── Materialization state ─────────────────────────────────────────────────
-    @State private var revealedCardIndices: Set<Int> = []
-    @State private var isMaterializing: Bool = false
-
-    // ── Scroll & Animation state ──────────────────────────────────────────────
-    @State private var scrollOffset: CGFloat = 0
-
     // MARK: - Computed Properties
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var isGenerating: Bool { viewModel.aiState != .idle }
 
     /// Contextual rule for tab bar visibility.
+    ///
     /// Forces the tab bar to hide only while the keyboard is active or AI is generating.
     /// Materialization (card reveal animation) intentionally leaves the bar visible.
     private var tabRule: TabBarVisibilityRule {
@@ -59,7 +56,6 @@ struct CreateDeckView: View {
     }
 
     // MARK: - Initialization
-    // The binding is removed to favor a decoupled, preference-based architecture.
     init(deckToEdit: DeckModel? = nil) {
         _viewModel = State(initialValue: CreateDeckViewModel(deckToEdit: deckToEdit))
     }
@@ -96,7 +92,7 @@ struct CreateDeckView: View {
             }
                 .coordinateSpace(name: "scrollSpace")
                 .onPreferenceChange(ScrollOffsetKey.self) { offset in
-                scrollOffset = offset
+                viewModel.scrollOffset = offset
             }
                 .safeAreaInset(edge: .top) {
                 customNavBar
@@ -119,8 +115,6 @@ struct CreateDeckView: View {
                     isForPDF: viewModel.pendingPDFURL != nil,
                     onGenerate: {
                         viewModel.showAIOptionsOverlay = false
-                        revealedCardIndices.removeAll()
-                        isMaterializing = false
                         viewModel.startAIGeneration()
                     },
                     onCancel: {
@@ -135,7 +129,7 @@ struct CreateDeckView: View {
         }
             .toolbar(.hidden, for: .navigationBar)
         // ── Gestures ──
-        .onChange(of: scrollOffset) { _, newOffset in
+        .onChange(of: viewModel.scrollOffset) { _, newOffset in
             if newOffset > 120 {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 dismiss()
@@ -151,8 +145,8 @@ struct CreateDeckView: View {
         )
         // ── AI Lifecycle ──
         .onChange(of: viewModel.aiState) { _, newState in
-            if case .idle = newState, !viewModel.draftCards.isEmpty, !isMaterializing {
-                startMaterializationSequence()
+            if case .idle = newState, !viewModel.draftCards.isEmpty, !viewModel.isMaterializing {
+                viewModel.startMaterializationSequence()
             }
         }
             .fullScreenCover(isPresented: $viewModel.isCreatingNewCard) {
@@ -173,47 +167,19 @@ struct CreateDeckView: View {
         .customTabBarVisibility(tabRule)
     }
 
-    // MARK: - Helper Methods & Animations
-
-    private var showInlineTitle: Bool {
-        scrollOffset < -40
-    }
-
-    private var heroOpacity: Double {
-        let maxOffset: CGFloat = -10
-        let minOffset: CGFloat = -60
-        if scrollOffset > maxOffset { return 1.0 }
-        if scrollOffset < minOffset { return 0.0 }
-        return 1.0 - Double((maxOffset - scrollOffset) / (maxOffset - minOffset))
-    }
-
-    private func startMaterializationSequence() {
-        isMaterializing = true
-        let count = viewModel.draftCards.count
-        for i in 0..<count {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.10) {
-                withAnimation(.spring(response: 0.48, dampingFraction: 0.72)) { revealedCardIndices.insert(i) }
-                if i == 0 || i == count - 1 { UIImpactFeedbackGenerator(style: .soft).impactOccurred() }
-            }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + Double(count) * 0.10 + 0.5) { isMaterializing = false }
-    }
-}
-
-// ... Rest of the extensions (Subviews, Navigation Bar, etc.) remain functionally same but cleaned
-// MARK: - Subviews
+    // MARK: - Subviews
 private extension CreateDeckView {
 
-    // ── 1. CUSTOM NAV BAR FĂRĂ BUTON DE CLOSE ──────────────────────────────
+    // MARK: 1. Custom Navigation Bar
     var customNavBar: some View {
         ZStack {
-            // Titlul centrat pe ecran (apare prin fade in)
+            // Condensed inline title — fades in as the hero area scrolls out of view.
             Text(viewModel.deckTitle.isEmpty ? "Untitled Deck" : viewModel.deckTitle)
                 .font(.headline)
-                .opacity(showInlineTitle ? 1 : 0)
-                .animation(.easeInOut(duration: 0.2), value: showInlineTitle)
+                .opacity(viewModel.showInlineTitle ? 1 : 0)
+                .animation(.easeInOut(duration: 0.2), value: viewModel.showInlineTitle)
 
-            // Butonul de Save aliniat pe dreapta
+            // Save button aligned to the trailing edge.
             HStack {
                 Spacer()
 
@@ -238,13 +204,13 @@ private extension CreateDeckView {
             .background(
             Rectangle()
                 .fill(.ultraThinMaterial)
-                .opacity(showInlineTitle ? 1 : 0)
+                .opacity(viewModel.showInlineTitle ? 1 : 0)
                 .ignoresSafeArea(edges: .top)
         )
-            .animation(.easeInOut(duration: 0.2), value: showInlineTitle)
+            .animation(.easeInOut(duration: 0.2), value: viewModel.showInlineTitle)
     }
 
-    // ── 2. Hero Title Area ───────────────────────────────────────────────────
+    // MARK: 2. Hero Title Area
     var heroTitleArea: some View {
         VStack(alignment: .leading, spacing: 12) {
             TextField("Untitled Deck", text: $viewModel.deckTitle)
@@ -253,8 +219,7 @@ private extension CreateDeckView {
                 .focused($isTitleFocused)
                 .submitLabel(.done)
 
-            // ── Folder Selection Picker ───────────────────────────────────────
-            // A sleek, production-ready menu allowing users to route the deck to a specific folder.
+            // Folder destination picker
             Menu {
                 Button {
                     isTitleFocused = false
@@ -283,8 +248,7 @@ private extension CreateDeckView {
                         .font(.caption2.weight(.bold))
                 }
                     .font(.subheadline.weight(.semibold))
-                // Daca ai o extensie de Color(hex:), o poti folosi in loc de .accentColor
-                .foregroundStyle(viewModel.selectedFolder == nil ? .secondary : Color.accentColor)
+                    .foregroundStyle(viewModel.selectedFolder == nil ? .secondary : Color.accentColor)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background(
@@ -295,11 +259,16 @@ private extension CreateDeckView {
         }
             .padding(.horizontal, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .opacity(heroOpacity)
-            .scaleEffect(scrollOffset < 0 ? max(0.85, 1 + (scrollOffset / 400)) : 1 + (scrollOffset / 300), anchor: .bottomLeading)
+            .opacity(viewModel.heroOpacity)
+            .scaleEffect(
+            viewModel.scrollOffset < 0
+                ? max(0.85, 1 + (viewModel.scrollOffset / 400))
+                : 1 + (viewModel.scrollOffset / 300),
+            anchor: .bottomLeading
+        )
     }
 
-    // ── 3. Sticky Tool Bar ───────────────────────────────────────────────────
+    // MARK: 3. Sticky Toolbar
     var stickyToolBar: some View {
         HStack(spacing: 14) {
             Group {
@@ -318,8 +287,6 @@ private extension CreateDeckView {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(Color.accentColor.opacity(0.15), in: .capsule)
-
-
                 }
             }
                 .transition(.opacity)
@@ -342,8 +309,8 @@ private extension CreateDeckView {
                     .clipShape(Capsule())
                     .shadow(color: .purple.opacity(0.3), radius: 6, y: 3)
             }
-                .disabled(isGenerating || isMaterializing)
-                .opacity(isGenerating || isMaterializing ? 0.5 : 1)
+                .disabled(isGenerating || viewModel.isMaterializing)
+                .opacity(isGenerating || viewModel.isMaterializing ? 0.5 : 1)
                 .confirmationDialog("Generate Cards with AI", isPresented: $viewModel.showAIPickerOptions, titleVisibility: .visible) {
                 Button("Choose Photos") { viewModel.showAIPhotoPicker = true }
                 Button("Choose PDF") { viewModel.showAIPDFPicker = true }
@@ -357,7 +324,8 @@ private extension CreateDeckView {
                 Image(systemName: "plus")
                     .font(.body.weight(.bold))
                     .padding(12)
-                    .background(accent.opacity(0.15), in: .circle) }
+                    .background(accent.opacity(0.15), in: .circle)
+            }
         }
             .disabled(isGenerating)
             .padding(.horizontal, 20)
@@ -365,7 +333,7 @@ private extension CreateDeckView {
             .animation(.easeInOut(duration: 0.3), value: viewModel.aiState)
     }
 
-    // ── 4. Cards List Content ────────────────────────────────────────────────
+    // MARK: 4. Cards List Content
     var cardsListContent: some View {
         Group {
             if case .extractingText = viewModel.aiState {
@@ -377,7 +345,7 @@ private extension CreateDeckView {
             } else {
                 LazyVStack(spacing: 16) {
                     ForEach(Array(viewModel.draftCards.enumerated()), id: \.element.id) { index, card in
-                        MaterializingCardWrapper(isRevealed: revealedCardIndices.contains(index) || !isMaterializing) {
+                        MaterializingCardWrapper(isRevealed: viewModel.revealedCardIndices.contains(index) || !viewModel.isMaterializing) {
                             DetailedCardRowView(card: card, index: index + 1)
                                 .contentShape(Rectangle())
                                 .onTapGesture { isTitleFocused = false; viewModel.cardToEdit = card }

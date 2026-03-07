@@ -1,34 +1,43 @@
 //
-//  ZoneFormatBarView.swift
+//  EditorFormatMenuBar.swift
 //  QuizFlash
 //
-//  Format bar with isolated drag gesture handling.
-//  Synchronized preview clearing and zone addition for flawless UX.
-//  Features: Invisible tracking with fluid Bubble Fill interaction.
+//  Format bar providing text/media formatting controls and a radial drag menu
+//  for adding zones in any direction.
 //
 
 import SwiftUI
 
-// MARK: - Zone Format Bar
+// MARK: - Editor Format Menu Bar
 
+/// The persistent formatting toolbar shown at the bottom of the card editor.
+///
+/// Contains:
+/// - A radial drag-to-add button for inserting zones in any direction
+/// - Text formatting controls (style, weight, alignment, colour, highlight, bullet)
+/// - Media controls (alignment, size) when the selected zone contains an image or sketch
+/// - A split button (visible when the focused zone has ≥ 2 lines)
+/// - A delete button and a "Done" button to dismiss the bar
 struct EditorFormatMenuBar: View {
     let content: ZoneCardContent
     let path: ZonePath
-    
+
     var onAddZoneAction: (AddDirection) -> Void
     var onPreviewDirection: (AddDirection?) -> Void
     var onSplit: () -> Void
     var onClose: () -> Void
-    
-    // UI State - Local to this view
+
+    // MARK: - Local UI State
     @State private var isDraggingMenu = false
     @State private var activeDirection: AddDirection? = nil
-    
-    // Geometry Constraints
+
+    // MARK: - Layout Constants
     private let menuCenter = CGPoint(x: 50, y: -90)
-    private let arrowRadius: CGFloat = 44           // Mai strâns pentru un look compact
-    private let captureRadius: CGFloat = 20         // Raza minimă de la centru pentru a selecta o direcție
-    
+    /// Radial distance between the hub and each directional bubble (in points).
+    private let arrowRadius: CGFloat = 44
+    /// Minimum drag distance from the hub centre required to select a direction.
+    private let captureRadius: CGFloat = 20
+
     init(
         content: ZoneCardContent,
         path: ZonePath,
@@ -44,17 +53,18 @@ struct EditorFormatMenuBar: View {
         self.onSplit = onSplit
         self.onClose = onClose
     }
-    
+
     private var zone: ZoneModel? { content.zone(at: path) }
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var zoneController = ZoneController.shared
     private var lineTracker = ZoneLineTracker.shared
-    
+
+    /// Returns `true` when the focused zone has at least 2 lines and can be split.
     private var canSplit: Bool {
         guard let zone = zone,
               zone.contentType == .text,
               let zoneID = zone.id as UUID? else { return false }
-        
+
         if let heightInfo = zoneController.zoneHeightInfo(for: zoneID) {
             return heightInfo.canSplit
         }
@@ -103,7 +113,7 @@ struct EditorFormatMenuBar: View {
     }
     
     // MARK: - Drag Menu Button
-    
+
     private var dragMenuButton: some View {
         Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
             .font(.body.weight(.medium))
@@ -112,7 +122,7 @@ struct EditorFormatMenuBar: View {
             .background(isDraggingMenu ? accent : accent.opacity(0.12), in: Capsule())
             .overlay {
                 if isDraggingMenu {
-                    // Hub-ul cu bule (Fără cursor)
+                    // Radial direction picker — appears while the user is dragging
                     DirectionPopoverMenu(
                         activeDirection: activeDirection,
                         accent: accent,
@@ -134,9 +144,9 @@ struct EditorFormatMenuBar: View {
                     .onEnded { value in handleDragEnd(value) }
             )
     }
-    
-    // MARK: - Drag Handling (Invisible Gesture Tracking)
-    
+
+    // MARK: - Drag Handling
+
     private func handleDragChange(_ value: DragGesture.Value) {
         if !isDraggingMenu {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -144,13 +154,13 @@ struct EditorFormatMenuBar: View {
                 isDraggingMenu = true
             }
         }
-        
-        // Multiplicator pentru a nu fi nevoit să tragi degetul prea mult
+
+        // Scale up translation so the user does not need to drag far.
         let dx = value.translation.width * 1.3
         let dy = value.translation.height * 1.3
         let distToCenter = hypot(dx, dy)
-        
-        // Determinăm pe ce direcție se află degetul
+
+        // Map the drag angle to one of the four cardinal directions.
         var newDir: AddDirection? = nil
         if distToCenter > captureRadius {
             let angle = atan2(dy, dx)
@@ -160,29 +170,29 @@ struct EditorFormatMenuBar: View {
             else if angle > -3*pi/4 && angle <= -pi/4 { newDir = .up }
             else { newDir = .left }
         }
-        
-        // Declanșăm starea DOAR dacă traversăm dintr-o zonă în alta
+
+        // Only trigger haptic feedback and state update when crossing a boundary.
         let prevDir = activeDirection
         if newDir != prevDir {
             if newDir != nil { UISelectionFeedbackGenerator().selectionChanged() }
             else { UIImpactFeedbackGenerator(style: .rigid).impactOccurred() }
-            
+
             withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                 activeDirection = newDir
             }
             onPreviewDirection(newDir)
         }
     }
-    
+
     private func handleDragEnd(_ value: DragGesture.Value) {
         let finalDir = activeDirection
-        
+
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             isDraggingMenu = false
             activeDirection = nil
             onPreviewDirection(nil)
         }
-        
+
         if let dir = finalDir { onAddZoneAction(dir) }
     }
     
@@ -256,14 +266,18 @@ struct EditorFormatMenuBar: View {
 
 // MARK: - Popover Menu Elements
 
+/// Radial hub showing four directional chevrons.
+///
+/// The active direction bubble scales up and fills with the accent colour,
+/// giving clear visual feedback about which zone-add action will fire on release.
 struct DirectionPopoverMenu: View {
     let activeDirection: AddDirection?
     let accent: Color
     let arrowRadius: CGFloat
-    
+
     var body: some View {
         ZStack {
-            // Central Hub
+            // Central hub
             Circle()
                 .fill(Color.gray.opacity(0.15))
                 .frame(width: 32, height: 32)
@@ -271,8 +285,8 @@ struct DirectionPopoverMenu: View {
                 .scaleEffect(activeDirection != nil ? 0.6 : 1.0)
                 .opacity(activeDirection != nil ? 0.3 : 1.0)
                 .animation(.spring(response: 0.3, dampingFraction: 0.6), value: activeDirection)
-            
-            // Nodes (Chevrons)
+
+            // Directional bubbles
             PopoverBubble(icon: "chevron.up", isActive: activeDirection == .up, accent: accent).offset(y: -arrowRadius)
             PopoverBubble(icon: "chevron.down", isActive: activeDirection == .down, accent: accent).offset(y: arrowRadius)
             PopoverBubble(icon: "chevron.left", isActive: activeDirection == .left, accent: accent).offset(x: -arrowRadius)
@@ -282,11 +296,14 @@ struct DirectionPopoverMenu: View {
     }
 }
 
+/// A single directional bubble in the radial direction picker.
+///
+/// Scales up and fills with the accent colour when `isActive` is `true`.
 struct PopoverBubble: View {
     let icon: String
     let isActive: Bool
     let accent: Color
-    
+
     var body: some View {
         Image(systemName: icon)
             .font(.title3.weight(.bold))
@@ -295,7 +312,6 @@ struct PopoverBubble: View {
             .background(
                 ZStack {
                     Circle().fill(.ultraThinMaterial)
-                    // EFECTUL DE UMPLERE: Apare din centru
                     if isActive {
                         Circle()
                             .fill(accent)

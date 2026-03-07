@@ -742,12 +742,13 @@ struct MathWebView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(contentHeight: $contentHeight) }
 
-    // 🟢 NOU: Funcția SwiftUI automată care prinde momentul când cardul dispare
+    // Called automatically by SwiftUI when the view is removed from the hierarchy.
+    // Breaks the retain cycle and returns the WKWebView to the shared pool.
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
         // 1. Unlink coordinator to break any lingering weak/unowned chains
         coordinator.webView = nil
 
-        // 2. Remove script handler to break the JS context retain cycle
+        // 2. Remove the script message handler to break the JS context retain cycle
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
 
         // 3. Return to pool (or discard if full)
@@ -797,7 +798,8 @@ struct MathWebView: UIViewRepresentable {
     }
 
     private func loadContent(in webView: WKWebView) {
-        // loadHTMLString e complet non-blocking. Procesul grafic rulează separat de sistemul iOS principal!
+        // loadHTMLString is fully non-blocking; WebKit rendering runs in a
+        // dedicated OS process separate from the main run loop.
         webView.loadHTMLString(buildHTML(), baseURL: Bundle.main.bundleURL)
     }
 

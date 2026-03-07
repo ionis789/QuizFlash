@@ -1,26 +1,29 @@
 //
-//  AIGenerationSkeletonView.swift
+//  AIGenerationView.swift
 //  QuizFlash
+//
+//  Loading states and skeleton UI displayed while AI flashcard generation runs.
 //
 
 import SwiftUI
 
-// MARK: - Extracting Loading State (Noua Animație pentru OCR)
+// MARK: - AI Extracting Loading View
 
+/// Animated scanning overlay shown during the text-extraction phase of the AI pipeline.
 struct AIExtractingLoadingView: View {
     @State private var isScanning = false
-    
+
     var body: some View {
         VStack(spacing: 24) {
             Spacer().frame(height: 60)
-            
+
             ZStack {
-                // Document Icon
+                // Document icon
                 Image(systemName: "doc.text.viewfinder")
                     .font(.system(size: 64, weight: .thin))
                     .foregroundStyle(.secondary.opacity(0.4))
-                
-                // Scanning Laser Line
+
+                // Animated scan line
                 Rectangle()
                     .fill(
                         LinearGradient(
@@ -37,7 +40,7 @@ struct AIExtractingLoadingView: View {
                         value: isScanning
                     )
             }
-            
+
             VStack(spacing: 8) {
                 Text("Analyzing Document...")
                     .font(.headline)
@@ -48,22 +51,19 @@ struct AIExtractingLoadingView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
-            
+
             Spacer()
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
-        .onAppear {
-            isScanning = true
-        }
+        .onAppear { isScanning = true }
     }
 }
 
+// MARK: - AI Generation Skeleton List
 
-// MARK: - Skeleton List
-
+/// A staggered list of skeleton cards shown while AI generates flashcards.
 struct AIGenerationSkeletonList: View {
-
     let cardCount: Int
     @State private var appeared = false
 
@@ -82,16 +82,18 @@ struct AIGenerationSkeletonList: View {
                     )
             }
         }
-        .onAppear {
-            appeared = true
-        }
+        .onAppear { appeared = true }
     }
 }
 
-// MARK: - Single Skeleton Card (ULTRA OPTIMIZAT)
+// MARK: - Skeleton Card View
 
+/// Single animated skeleton placeholder for one AI-generated card.
+///
+/// Uses a seeded RNG so bar widths are deterministic per index, avoiding
+/// layout shifts on re-render.  The rotating angular gradient border is
+/// GPU-composited via a mask to keep the shimmer effect cheap.
 struct AISkeletonCardView: View {
-
     let index: Int
     let globalAppeared: Bool
 
@@ -99,7 +101,7 @@ struct AISkeletonCardView: View {
     @State private var rotation: Double = 0.0
 
     private let barWidths: [CGFloat]
-    
+
     private let glowColors: [Color] = [
         Color.indigo, Color.cyan, Color.purple,
         Color.orange, Color.pink, Color.indigo
@@ -114,39 +116,32 @@ struct AISkeletonCardView: View {
 
     var body: some View {
         ZStack {
-            // ── 1. Fundal solid opac ──────────────────────────────────────────
+            // 1. Opaque background
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
-            
-            // ── 2. Flowing Border Super Optimizat (GPU Accelerated) ───────────
+
+            // 2. Rotating gradient border (GPU-accelerated via mask)
             GeometryReader { geo in
-                // Desenăm un gradient uriaș pe care GPU-ul îl rotește ieftin
                 let maxDim = max(geo.size.width, geo.size.height) * 1.5
-                
                 AngularGradient(gradient: Gradient(colors: glowColors), center: .center)
                     .frame(width: maxDim, height: maxDim)
                     .position(x: geo.size.width / 2, y: geo.size.height / 2)
                     .rotationEffect(.degrees(rotation))
             }
             .mask {
-                // Gradientul se va vedea strict unde desenăm această mască
                 ZStack {
-                    // Masca pentru Glow Exterior
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .stroke(lineWidth: 4)
                         .blur(radius: 6)
                         .opacity(0.8)
-                    
-                    // Masca pentru Linia Fină
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .stroke(lineWidth: 1.5)
                 }
             }
             .opacity(0.85)
 
-            // ── 3. Conținut skeleton ──────────────────────────────────────────
+            // 3. Skeleton content
             VStack(alignment: .leading, spacing: 0) {
-
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.purple.opacity(phase ? 0.35 : 0.18))
                     .frame(width: 64, height: 20)
@@ -186,8 +181,6 @@ struct AISkeletonCardView: View {
         }
         .onAppear {
             phase = true
-            
-            // Această animație rotește gradientul gigant folosind CoreAnimation
             withAnimation(
                 .linear(duration: 3.5)
                 .repeatForever(autoreverses: false)
@@ -199,6 +192,7 @@ struct AISkeletonCardView: View {
 }
 
 // MARK: - Skeleton Bar
+
 private struct SkeletonBar: View {
     let widthFraction: CGFloat
     let phase: Bool
@@ -215,7 +209,11 @@ private struct SkeletonBar: View {
     }
 }
 
-// MARK: - Materialization Wrapper
+// MARK: - Materializing Card Wrapper
+
+/// Wraps a card view with a staggered spring reveal animation and a particle burst effect.
+///
+/// Used in `CreateDeckView` during the post-generation materialization sequence.
 struct MaterializingCardWrapper<Content: View>: View {
     let isRevealed: Bool
     @ViewBuilder let content: () -> Content
@@ -241,7 +239,8 @@ struct MaterializingCardWrapper<Content: View>: View {
     }
 }
 
-// MARK: - Burst
+// MARK: - Materialization Burst
+
 private struct MaterializationBurst: View {
     @State private var expanded = false
     private let items: [(angle: Double, symbol: String, color: Color)] = [
@@ -266,6 +265,9 @@ private struct MaterializationBurst: View {
 }
 
 // MARK: - Seeded RNG
+
+/// A deterministic pseudo-random number generator seeded per card index.
+/// Ensures skeleton bar widths are stable across re-renders.
 private struct SeededRNG: RandomNumberGenerator {
     private var state: UInt64
     init(seed: UInt64) { state = seed == 0 ? 1 : seed }

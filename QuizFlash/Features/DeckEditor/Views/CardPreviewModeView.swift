@@ -80,7 +80,7 @@ struct CardPreviewModeView: View {
                         }
                             .padding(.horizontal, isCompact ? 20 : 28)
                             .padding(.vertical, isCompact ? 20 : 24)
-                        // AICI SE ÎNTÂMPLĂ MAGIA CENTRĂRII VERTICALE
+                        // Vertical centering magic: the VStack fills at least the full visible height.
                         .frame(minHeight: scrollProxy.size.height, alignment: .center)
                     }
                         .scrollBounceBehavior(.basedOnSize)

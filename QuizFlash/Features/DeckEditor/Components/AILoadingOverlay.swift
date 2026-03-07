@@ -2,10 +2,21 @@
 //  AILoadingOverlay.swift
 //  QuizFlash
 //
+//  Full-screen overlay displayed during AI flashcard generation.
+//  Adapts its icon, title, and gradient to the current `AIGenerationState`.
+//
 
 import SwiftUI
 
 // MARK: - AI Loading Overlay
+
+/// Full-screen overlay shown during all phases of AI card generation.
+///
+/// Provides animated visual feedback for each pipeline stage:
+/// - `.analyzingDocument` — orange/yellow gradient with document viewfinder icon
+/// - `.extractingText` — blue/cyan gradient with text viewfinder icon
+/// - `.generatingCards` — purple/blue gradient with sparkles icon + rotating phrase
+/// - `.error` — red/orange gradient with exclamation icon + dismiss button
 struct AILoadingOverlay: View {
     let state: AIGenerationState
     let onDismiss: () -> Void
@@ -110,7 +121,7 @@ struct AILoadingOverlay: View {
             withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
                 isPulsing = true
             }
-            // Change phrase every 2 seconds
+            // Rotate through loading phrases every 2 seconds.
             Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
                 withAnimation(.easeInOut(duration: 0.4)) {
                     currentPhrase = (currentPhrase + 1) % loadingPhrases.count

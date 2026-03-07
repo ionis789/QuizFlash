@@ -2,47 +2,58 @@
 //  ImageCropEditorView.swift
 //  QuizFlash
 //
-//  Production-ready Freeform Image Cropping Tool (Apple Photos Style).
+//  Production-ready freeform image cropping tool (Apple Photos style).
 //
 
 import SwiftUI
 
-// MARK: - Drag Handles Enum
+// MARK: - Crop Drag Handle
+
+/// Identifies which edge or corner of the crop frame is being dragged.
 private enum CropDragHandle {
     case topLeft, topRight, bottomLeft, bottomRight
     case top, bottom, left, right
     case none
 }
 
-// MARK: - Main Freeform Crop Editor View
+// MARK: - Image Crop Editor View
+
+/// Full-screen freeform image cropping editor.
+///
+/// Supports:
+/// - Pinch-to-zoom and pan on the underlying image
+/// - Edge and corner drag handles for precise crop region selection
+/// - Rounded-corner crop frame with a rule-of-thirds grid overlay
+/// - A reset action that animates back to the original framing
 struct ImageCropEditorView: View {
     let image: UIImage
     var onCrop: (UIImage) -> Void
     var onCancel: () -> Void
 
-    // View & Layout State
+    // MARK: - View & Layout State
     @State private var containerSize: CGSize = .zero
     @State private var imageDisplayRect: CGRect = .zero
 
-    // Crop Rect State
+    // MARK: - Crop Rect State
     @State private var cropRect: CGRect = .zero
     @State private var lastCropRect: CGRect = .zero
     @State private var activeHandle: CropDragHandle = .none
 
-    // Zoom & Pan State for the Image
+    // MARK: - Zoom & Pan State
     @State private var imageScale: CGFloat = 1.0
     @State private var lastImageScale: CGFloat = 1.0
     @State private var imageOffset: CGSize = .zero
     @State private var lastImageOffset: CGSize = .zero
-    
-    // UI/UX State
+
+    // MARK: - UI State
     @State private var isInteracting: Bool = false
 
     private let minCropSize: CGFloat = 80
     private let handleSize: CGFloat = 44
-    private let cornerRadius: CGFloat = 16 // ADDED: Beautiful rounded corners
+    private let cornerRadius: CGFloat = 16
 
-    private var accent: Color { .blue } // Swap back to ThemeManager.shared.accentColor.color
+    /// Uses the app's global accent color for interactive UI chrome (toolbar buttons, Done button).
+    private var accent: Color { ThemeManager.shared.accentColor.color }
 
     var body: some View {
         NavigationStack {
@@ -51,7 +62,7 @@ struct ImageCropEditorView: View {
                     Color.black.ignoresSafeArea()
 
                     if imageDisplayRect != .zero {
-                        // 1. The Underlying Image (Zoomable and Pannable)
+                        // 1. Underlying image — zoomable and pannable
                         Image(uiImage: image)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
@@ -84,17 +95,17 @@ struct ImageCropEditorView: View {
                                 )
                             )
 
-                        // 2. Dimmed Overlay with Cutout (Now Rounded)
+                        // 2. Dimmed overlay with rounded crop cutout
                         dimmedOverlay
 
-                        // 3. The Interactive Crop Frame (Grid + Handles)
+                        // 3. Interactive crop frame — grid lines + drag handles
                         cropFrameView
                     }
                 }
                 .onAppear { setupInitialLayout(with: proxy.size) }
                 .onChange(of: proxy.size, initial: false) { _, newSize in setupInitialLayout(with: newSize) }
             }
-            // ADDED: Prevents the iOS Home Bar from stealing your bottom crop drags!
+            // Prevents the iOS system home bar from intercepting bottom-edge crop drags.
             .defersSystemGestures(on: .bottom)
             .navigationTitle("Crop Image")
             .navigationBarTitleDisplayMode(.inline)
@@ -107,14 +118,13 @@ struct ImageCropEditorView: View {
                         .tint(.white)
                 }
                 
-                // ADDED: Reset Button centered or grouped
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: resetToOriginal) {
                         Image(systemName: "arrow.uturn.backward")
                             .fontWeight(.semibold)
                     }
                     .tint(.white)
-                    // Only show reset if something has actually changed
+                    // Shown only when the crop or pan/zoom state differs from the original.
                     .opacity(hasChanges ? 1.0 : 0.0)
                     .animation(.easeInOut, value: hasChanges)
                 }
@@ -129,6 +139,8 @@ struct ImageCropEditorView: View {
     }
 
     // MARK: - Computed Properties
+
+    /// Returns `true` when the crop region, zoom, or pan state differs from its initial value.
     private var hasChanges: Bool {
         cropRect != imageDisplayRect || imageScale != 1.0 || imageOffset != .zero
     }
@@ -170,13 +182,15 @@ struct ImageCropEditorView: View {
     }
 
     // MARK: - UI Components
+
+    /// Semi-transparent black overlay with a rounded rectangular cutout revealing
+    /// only the selected crop region.
     private var dimmedOverlay: some View {
         Color.black.opacity(0.7)
             .ignoresSafeArea()
             .mask(
                 ZStack {
                     Color.black
-                    // ADDED: Cutout is now perfectly rounded
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .frame(width: cropRect.width, height: cropRect.height)
                         .position(x: cropRect.midX, y: cropRect.midY)
@@ -189,24 +203,24 @@ struct ImageCropEditorView: View {
 
     private var cropFrameView: some View {
         ZStack {
-            // Inner Grid & Border
+            // Inner grid and border
             gridOverlay
                 .frame(width: cropRect.width, height: cropRect.height)
                 .position(x: cropRect.midX, y: cropRect.midY)
 
-            // ADDED: The new beautiful rounded thick corner visuals
+            // Thick rounded corner accents — purely decorative
             thickRoundedCorners
                 .frame(width: cropRect.width, height: cropRect.height)
                 .position(x: cropRect.midX, y: cropRect.midY)
-                .allowsHitTesting(false) // Purely visual
+                .allowsHitTesting(false)
 
-            // Edge Handles
+            // Edge handles
             edgeHandle(for: .top)
             edgeHandle(for: .bottom)
             edgeHandle(for: .left)
             edgeHandle(for: .right)
 
-            // Corner Handles (Invisible hitboxes for dragging)
+            // Corner handles (invisible hit targets)
             invisibleCornerHitbox(for: .topLeft)
             invisibleCornerHitbox(for: .topRight)
             invisibleCornerHitbox(for: .bottomLeft)
@@ -216,11 +230,11 @@ struct ImageCropEditorView: View {
 
     private var gridOverlay: some View {
         ZStack {
-            // Main Border (Now Rounded)
+            // Main border
             RoundedRectangle(cornerRadius: cornerRadius)
                 .stroke(Color.white, lineWidth: 1.5)
 
-            // Rule of Thirds Grid
+            // Rule-of-thirds grid lines
             ZStack {
                 VStack(spacing: 0) {
                     Spacer()
@@ -237,20 +251,20 @@ struct ImageCropEditorView: View {
                     Spacer()
                 }
             }
-            // Clip the internal grid so lines don't bleed out of the rounded corners
+            // Clip grid lines so they don't bleed past the rounded corners.
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
             .opacity(isInteracting ? 1.0 : 0.0)
         }
     }
 
-    // ADDED: A highly elegant way to draw perfect rounded corners
-    // It creates one thick rounded rectangle and masks it so only the 4 corners show.
+    /// Draws thick rounded-corner accents by masking a stroked rectangle
+    /// so only the four corner regions remain visible.
     private var thickRoundedCorners: some View {
         RoundedRectangle(cornerRadius: cornerRadius)
             .stroke(Color.white, lineWidth: 4)
             .mask(
                 ZStack {
-                    let size: CGFloat = 40 // Length of the corner handles
+                    let size: CGFloat = 40
                     Rectangle().frame(width: size, height: size).position(x: 0, y: 0)
                     Rectangle().frame(width: size, height: size).position(x: cropRect.width, y: 0)
                     Rectangle().frame(width: size, height: size).position(x: 0, y: cropRect.height)
@@ -294,7 +308,8 @@ struct ImageCropEditorView: View {
             .gesture(dragGesture(for: position))
     }
 
-    // MARK: - Gestures & Logic
+    // MARK: - Gestures
+
     private func dragGesture(for handle: CropDragHandle) -> some Gesture {
         DragGesture()
             .onChanged { value in
@@ -311,6 +326,8 @@ struct ImageCropEditorView: View {
                 withAnimation(.easeOut(duration: 0.2)) { isInteracting = false }
             }
     }
+
+    // MARK: - Crop Rect Mutation
 
     private func updateCropRect(handle: CropDragHandle, translation: CGSize) {
         var minX = lastCropRect.minX, minY = lastCropRect.minY
@@ -343,7 +360,10 @@ struct ImageCropEditorView: View {
         cropRect = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
-    // MARK: - Pixel-Perfect Cropping Core
+    // MARK: - Pixel-Perfect Crop
+
+    /// Converts the screen-space crop rectangle back to pixel coordinates in the
+    /// original image and performs the actual `CGImage` crop.
     private func processCrop() {
         let normalizedImage = image.normalizedOrientation()
         let scaledImageWidth = imageDisplayRect.width * imageScale
@@ -372,7 +392,14 @@ struct ImageCropEditorView: View {
     }
 }
 
+// MARK: - UIImage Orientation Helper
+
 extension UIImage {
+    /// Returns a new image with the orientation normalised to `.up`.
+    ///
+    /// Some camera captures arrive with a non-standard `imageOrientation` that
+    /// must be baked into the pixel data before cropping, otherwise the crop
+    /// rectangle will be applied to the wrong axis.
     func normalizedOrientation() -> UIImage {
         if imageOrientation == .up { return self }
         UIGraphicsBeginImageContextWithOptions(size, false, scale)

@@ -65,6 +65,38 @@ final class CreateDeckViewModel {
     var showSuccessOverlay = false
     let deckToEdit: DeckModel?
 
+    // MARK: - Materialization Animation State
+
+    /// Indices of cards that have been revealed during the staggered entry animation.
+    var revealedCardIndices: Set<Int> = []
+
+    /// True while the staggered card reveal sequence is running.
+    var isMaterializing: Bool = false
+
+    // MARK: - Scroll / Navigation State
+
+    /// Latest scroll offset reported by the scroll view's preference key.
+    ///
+    /// Drives both `showInlineTitle` and `heroOpacity` computed properties.
+    var scrollOffset: CGFloat = 0
+
+    // MARK: - Derived Navigation State
+
+    /// Returns `true` when the scroll offset is deep enough to show the condensed
+    /// inline title in the navigation bar.
+    var showInlineTitle: Bool { scrollOffset < -40 }
+
+    /// Returns the opacity of the hero title area as a function of scroll offset.
+    ///
+    /// Fades the hero out as the user scrolls up past the collapse threshold.
+    var heroOpacity: Double {
+        let maxOffset: CGFloat = -10
+        let minOffset: CGFloat = -60
+        if scrollOffset > maxOffset { return 1.0 }
+        if scrollOffset < minOffset { return 0.0 }
+        return 1.0 - Double((maxOffset - scrollOffset) / (maxOffset - minOffset))
+    }
+
     init(deckToEdit: DeckModel? = nil) {
         self.deckToEdit = deckToEdit
         if let deck = deckToEdit {
@@ -75,15 +107,16 @@ final class CreateDeckViewModel {
     }
 
     // MARK: - PDF Selection and Auto-Analysis
-    //
-    /// Called from `CreateView` immediately after the user selects a PDF.
+
+    /// Called immediately after the user selects a PDF.
+    ///
     /// Runs a PDFKit quality check in the background and populates `pdfAnalysis`
-    /// before the overlay becomes visible — no perceptible delay to the user.
+    /// before the options overlay becomes visible — no perceptible delay for the user.
     func pdfWasSelected(_ url: URL) {
         pendingPDFURL = url
         pdfAnalysis = nil
 
-        // Rulăm analiza în background imediat
+        // Run analysis in the background immediately.
         Task {
             guard url.startAccessingSecurityScopedResource() else { return }
             defer { url.stopAccessingSecurityScopedResource() }
@@ -111,6 +144,8 @@ final class CreateDeckViewModel {
 
     // MARK: - AI Generation
 
+    /// Starts the appropriate AI generation pipeline based on the currently
+    /// selected input source (photos or PDF).
     func startAIGeneration() {
         if !selectedAIPhotos.isEmpty {
             processPhotosForAI()
@@ -262,6 +297,35 @@ final class CreateDeckViewModel {
         }
     }
 
+    // MARK: - Materialization Animation
+
+    /// Triggers the staggered card reveal animation after AI generation completes.
+    ///
+    /// Each card slides in with a spring animation, staggered by 100 ms per index.
+    /// Haptic feedback fires at the start and end of the sequence.
+    func startMaterializationSequence() {
+        guard !isMaterializing else { return }
+        isMaterializing = true
+        revealedCardIndices.removeAll()
+        let count = draftCards.count
+        for i in 0..<count {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.10) {
+                withAnimation(.spring(response: 0.48, dampingFraction: 0.72)) {
+                    self.revealedCardIndices.insert(i)
+                }
+                if i == 0 || i == count - 1 {
+                    UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Double(count) * 0.10 + 0.5) {
+            self.isMaterializing = false
+        }
+    }
+
+    // MARK: - Reset AI State
+
+    /// Resets the AI pipeline state to `.idle` with an animation.
     func resetAIState() {
         withAnimation { aiState = .idle }
     }
@@ -270,6 +334,7 @@ final class CreateDeckViewModel {
     // MARK: - Card Actions
     // =========================================================================
 
+    /// Appends a new draft card with the given front and back zones.
     func addCard(frontZone: ZoneModel, backZone: ZoneModel) {
         let newCard = DraftCard(
             frontZone: frontZone,
@@ -282,6 +347,7 @@ final class CreateDeckViewModel {
         withAnimation { draftCards.append(newCard) }
     }
 
+    /// Updates the draft card's zone content and bumps `editedAt` if content changed.
     func updateCard(_ card: DraftCard, frontZone: ZoneModel, backZone: ZoneModel) {
         guard let index = draftCards.firstIndex(where: { $0.id == card.id }) else { return }
         var updated = draftCards[index]
@@ -292,12 +358,19 @@ final class CreateDeckViewModel {
         withAnimation { draftCards[index] = updated }
     }
 
+    /// Removes the specified draft card from the list.
     func deleteCard(_ card: DraftCard) {
         withAnimation { draftCards.removeAll { $0.id == card.id } }
     }
 
     // MARK: - Save Deck
 
+    /// Persists the current draft state to SwiftData.
+    ///
+    /// - If `deckToEdit` is set, performs an in-place update (diff-based).
+    /// - Otherwise, creates a brand-new `DeckModel` and inserts all draft cards.
+    ///
+    /// Shows a brief success overlay before navigating away.
     func saveDeck(context: ModelContext, router: NavigationManager, dismiss: DismissAction) {
         let trimmedTitle = deckTitle.trimmingCharacters(in: .whitespaces)
 

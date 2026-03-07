@@ -2,12 +2,18 @@
 //  ZoneView.swift
 //  QuizFlash
 //
+//  Recursive zone editor and read-only card face preview.
+//  All zone mutations go through `ZoneCardContent`; views are read-only consumers.
+//
 
 import SwiftUI
 import PhotosUI
 
-// MARK: - Fake Ghost Block View
+// MARK: - Ghost Block View
 
+/// A dashed-border placeholder that previews where a new zone will be inserted
+/// during a drag-to-add gesture. Rendered as a visual overlay only — never
+/// mutates the zone data model.
 struct FakeGhostBlockView: View {
     let isHorizontal: Bool
 
@@ -25,6 +31,11 @@ struct FakeGhostBlockView: View {
 
 // MARK: - Zone Editor View (Recursive)
 
+/// Recursive view that renders a zone tree rooted at `path`.
+///
+/// - Leaf zones are handed off to `ZoneContentView` for text/image/sketch rendering.
+/// - Container zones layout their children using `HStack` (horizontal) or
+///   `VStack` (vertical) and inject ghost block overlays based on `previewDirection`.
 struct ZoneEditorView: View {
     @Bindable var content: ZoneCardContent
     let path: ZonePath
@@ -158,6 +169,14 @@ struct ZoneEditorView: View {
 
 // MARK: - Zone Content View (Leaf)
 
+/// Renders the content of a single leaf zone: text editor, image, or sketch.
+///
+/// Handles:
+/// - Focus negotiation with `ZoneFocusManager` and `ZoneController`
+/// - Switching between `ZoneTextViewRepresentable` (edit mode) and
+///   `MixedMathTextView` / `CodeSnippetView` (preview mode)
+/// - Image long-press → full-screen `ImageCropEditorView`
+/// - Ghost block overlays for all four add-directions
 struct ZoneContentView: View {
     @Bindable var content: ZoneCardContent
     let path: ZonePath
@@ -404,7 +423,15 @@ struct ZoneContentView: View {
         isFocused = true; onSelect()
     }
 
-    // 🔥 FIX IMPORTANT: Am scos logica distructivă care ștergea forțat '$$' de pe zonele matematice
+    // MARK: - Pure Text Binding
+
+    /// Returns a binding that writes zone text changes to the content tree.
+    ///
+    /// Avoids redundant writes by checking for equality before mutating the tree,
+    /// preventing superfluous `@Observable` invalidations.
+    ///
+    /// Note: The binding intentionally does NOT strip or alter math delimiters (e.g. `$$`)
+    /// so that KaTeX rendering is not disrupted while the user edits math content.
     private var pureTextBinding: Binding<String> {
         Binding(get: {
             return zone?.text ?? ""
@@ -518,7 +545,7 @@ struct CardFaceView: View {
             Color.clear.frame(height: 28).padding(.vertical, 4)
         case .text, .code:
             if !zone.text.isEmpty {
-                // Verificare blindată și aici
+                // Route to CodeSnippetView for fenced code blocks.
                 if zone.contentType == .code || zone.text.hasPrefix("```") {
                     CodeSnippetView(rawText: zone.text)
                         .padding(.vertical, 4)
