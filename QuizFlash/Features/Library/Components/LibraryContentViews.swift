@@ -46,12 +46,16 @@ let kLibraryScrollSpace = "libraryScroll"
 
 // MARK: - List View
 
+/// The main list view displaying grouped decks.
+/// Relies purely on primitives to ensure performance.
 struct LibraryListView: View {
     let groupedDecks: [DeckSection]
     let isSelecting: Bool
     let selectedDeckIDs: Set<PersistentIdentifier>
+    let activeActionMenuDeckID: PersistentIdentifier?
     let onNavigate: (DeckModel) -> Void
     let onToggleSelection: (DeckModel) -> Void
+    let onToggleActionMenu: (PersistentIdentifier?) -> Void
     let onEditColor: (DeckModel) -> Void
     let onDelete: (DeckModel) -> Void
 
@@ -67,8 +71,10 @@ struct LibraryListView: View {
                         deck: deck,
                         isSelecting: isSelecting,
                         isSelected: selectedDeckIDs.contains(deck.id),
+                        showActionMenu: activeActionMenuDeckID == deck.id,
                         onNavigate: { onNavigate(deck) },
                         onToggleSelection: { onToggleSelection(deck) },
+                        onToggleActionMenu: { show in onToggleActionMenu(show ? deck.id : nil) },
                         onEditColor: { onEditColor(deck) },
                         onDelete: { onDelete(deck) }
                     )
@@ -88,18 +94,18 @@ struct LibraryListView: View {
 // SwiftUI re-evaluates this view ONLY when the parent passes new values.
 // No observation registrations → no iOS 17 observation leak.
 
+/// A single row representing a deck in the library.
+/// Uses primitive values and closures to maintain high scroll performance without observing state.
 struct LibraryDeckListRow: View {
     let deck: DeckModel
     let isSelecting: Bool
     let isSelected: Bool
+    let showActionMenu: Bool
     let onNavigate: () -> Void
     let onToggleSelection: () -> Void
+    let onToggleActionMenu: (Bool) -> Void
     let onEditColor: () -> Void
     let onDelete: () -> Void
-
-    /// Controls the custom long-press action menu visibility.
-    /// Owned here so it resets automatically when the row is recycled by LazyVStack.
-    @State private var showActionMenu = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -139,7 +145,7 @@ struct LibraryDeckListRow: View {
             .onLongPressGesture(minimumDuration: 0.4) {
                 guard !isSelecting else { return }
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                    showActionMenu = true
+                    onToggleActionMenu(true)
                 }
             }
         }
@@ -153,7 +159,7 @@ struct LibraryDeckListRow: View {
                 DeckActionMenu(
                     onEditColor: {
                         withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                            showActionMenu = false
+                            onToggleActionMenu(false)
                         }
                         // Slight delay lets the dismiss animation complete before
                         // presenting the color picker sheet.
@@ -163,7 +169,7 @@ struct LibraryDeckListRow: View {
                     },
                     onDelete: {
                         withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                            showActionMenu = false
+                            onToggleActionMenu(false)
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                             onDelete()
@@ -171,7 +177,7 @@ struct LibraryDeckListRow: View {
                     },
                     onDismiss: {
                         withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                            showActionMenu = false
+                            onToggleActionMenu(false)
                         }
                     }
                 )
@@ -186,7 +192,7 @@ struct LibraryDeckListRow: View {
                     .contentShape(Rectangle())
                     .onTapGesture {
                         withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                            showActionMenu = false
+                            onToggleActionMenu(false)
                         }
                     }
                     .ignoresSafeArea()
@@ -249,6 +255,7 @@ private struct DeckActionMenu: View {
 
 // MARK: - Section Header
 
+/// Header for grouped library sections.
 struct LibrarySectionHeader: View {
     let title: String
 
@@ -273,6 +280,7 @@ struct LibrarySectionHeader: View {
 
 // MARK: - Empty State
 
+/// View shown when there are no decks available in the library yet.
 struct LibraryEmptyStateView: View {
     private var accent: Color { ThemeManager.shared.accentColor.color }
 
@@ -304,6 +312,7 @@ struct LibraryEmptyStateView: View {
 
 // MARK: - Selection Indicator
 
+/// Circle checkmark indicator for deck selection mode.
 struct LibrarySelectionIndicator: View {
     let isSelected: Bool
     let onToggle: () -> Void
@@ -335,6 +344,7 @@ struct LibrarySelectionIndicator: View {
 
 // MARK: - Loading Overlay
 
+/// Semi-transparent loading overlay with spinner used for operations like import and export.
 struct LibraryLoadingOverlay: View {
     let message: String
 

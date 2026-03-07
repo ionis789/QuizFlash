@@ -35,16 +35,17 @@ private enum Layout {
 
 // MARK: - Container
 
+/// Displays a list of search results matching the query.
+/// List items use a lazy container to defer loading of card previews.
 struct SearchResultsView: View {
     @Environment(\.modelContext) private var context
     @Environment(NavigationManager.self) private var router
+    @Environment(LibraryViewModel.self) private var viewModel
 
     let results: [DeckSearchResultItem]
     let query: String
     let isSearchLoading: Bool
     let onCardTap: (PersistentIdentifier) -> Void
-
-    @State private var expandedDecks: Set<PersistentIdentifier> = []
 
     var body: some View {
         LazyVStack(spacing: 28) {
@@ -52,7 +53,7 @@ struct SearchResultsView: View {
                 SearchResultGroupView(
                     result: result,
                     query: query,
-                    isExpanded: expandedDecks.contains(result.id),
+                    isExpanded: viewModel.expandedSearchDecks.contains(result.id),
                     onDeckTap:      { navigateToDeck(with: result.id) },
                     onCardTap:      onCardTap,
                     onToggleExpand: { toggleExpansion(for: result.id) }
@@ -63,18 +64,14 @@ struct SearchResultsView: View {
         .padding(.horizontal, 20)
         .padding(.top, 24)
         .padding(.bottom, 80)
-        // When results shrink significantly (new shorter query), collapse all.
-        .onChange(of: results.count) { old, new in
-            if new < old - 5 { expandedDecks.removeAll() }
-        }
     }
 
     // MARK: - Helpers
 
+    /// Animated toggle for expanding a specific result deck.
     private func toggleExpansion(for id: PersistentIdentifier) {
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-            if expandedDecks.contains(id) { expandedDecks.remove(id) }
-            else                          { expandedDecks.insert(id) }
+            viewModel.toggleSearchDeckExpansion(for: id)
         }
     }
 
@@ -174,7 +171,7 @@ private struct DeckHeaderRow: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(16)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .background(Color(uiColor: .secondarySystemGroupedBackground)) // Or ThemeManager if custom card background is preferred.
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
     }

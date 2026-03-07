@@ -18,17 +18,19 @@
 //  near-black semi-transparent look native to iOS 26 controls without
 //  requiring a custom UIVisualEffectView wrapper.
 
+//  requiring a custom UIVisualEffectView wrapper.
+
 import SwiftUI
 
 // MARK: - LibraryTopBarView
 
+/// A floating top navigation bar tailored for the Library view and its derived contexts.
+/// Mimics the iOS 26 grouped-icon aesthetics with robust multi-layer interactions.
 struct LibraryTopBarView: View {
     let title: String
     let deckCount: Int
     @Bindable var viewModel: LibraryViewModel
-    @Binding var searchText: String
-    @Binding var isSearching: Bool
-
+    
     var isScrolled: Bool = false
     /// When non-nil, a back button is shown on the left instead of the deck-count pill.
     var onBack: (() -> Void)? = nil
@@ -40,13 +42,13 @@ struct LibraryTopBarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if isSearching {
+            if viewModel.isSearching {
                 searchBar
             } else {
                 titleRow
             }
         }
-            .onChange(of: isSearching) { _, active in
+            .onChange(of: viewModel.isSearching) { _, active in
             if active { isSearchFocused = true }
         }
     }
@@ -129,15 +131,15 @@ struct LibraryTopBarView: View {
                     .foregroundStyle(.secondary)
                     .padding(.leading, 12)
 
-                TextField("Search decks & cards…", text: $searchText)
+                TextField("Search decks & cards…", text: $viewModel.searchText)
                     .focused($isSearchFocused)
                     .submitLabel(.search)
                     .font(.system(size: 15))
                     .padding(.vertical, 10)
 
-                if !searchText.isEmpty {
+                if !viewModel.searchText.isEmpty {
                     Button {
-                        searchText = ""
+                        viewModel.clearSearch()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 15))
@@ -150,8 +152,7 @@ struct LibraryTopBarView: View {
 
             Button("Cancel") {
                 withAnimation(.easeInOut(duration: 0.2)) {
-                    isSearching = false
-                    searchText = ""
+                    viewModel.clearSearch()
                     isSearchFocused = false
                 }
             }
@@ -178,7 +179,7 @@ struct LibraryTopBarView: View {
         // Search icon
         Button {
             withAnimation(.easeInOut(duration: 0.2)) {
-                isSearching = true
+                viewModel.isSearching = true
                 isSearchFocused = true
             }
         } label: {
@@ -255,7 +256,7 @@ struct LibraryTopBarView: View {
         } label: {
             Label("Select", systemImage: "checkmark.circle")
         }
-            .disabled(viewModel.isSelecting || isSearching)
+            .disabled(viewModel.isSelecting || viewModel.isSearching)
 
         Divider()
 

@@ -7,6 +7,9 @@ import SwiftData
 
 // MARK: - LibraryLayout
 
+/// Shared layout engine for `LibraryView` and `FolderView`.
+/// Handles coordinate spaces, structural overlays, safe area computation,
+/// and delegates all business logic to `LibraryViewModel`.
 struct LibraryLayout: View {
 
     let decks: [DeckModel]
@@ -32,8 +35,6 @@ struct LibraryLayout: View {
     @Binding var searchText: String
 
     // ── State ──
-    @State private var groupingTask: Task<Void, Never>? = nil
-    @State private var inputDebounceTask: Task<Void, Never>? = nil
 
     /// Height of LibraryTopBarView measured live.
     @State private var headerHeight: CGFloat = 0
@@ -58,9 +59,8 @@ struct LibraryLayout: View {
         max(0, viewSafeBottom - physicalSafeBottom)
     }
 
-
-
     private var accent: Color { ThemeManager.shared.accentColor.color }
+    private var backgroundTheme: Color { Color(uiColor: .systemBackground) }
 
     // MARK: - Body
 
@@ -70,7 +70,7 @@ struct LibraryLayout: View {
             // Full-bleed background. Empty-space tap-to-dismiss is handled
             // via a pure SwiftUI background gesture on the scroll content VStack.
             // Child view gestures (deck row Buttons) take priority — no UIKit needed.
-            Color.black
+            backgroundTheme
                 .ignoresSafeArea()
                 .zIndex(-1)
 
@@ -91,8 +91,6 @@ struct LibraryLayout: View {
                     title: title,
                     deckCount: decks.count,
                     viewModel: viewModel,
-                    searchText: $searchText,
-                    isSearching: $isSearching,
                     isScrolled: viewModel.savedScrollOffset > 10,
                     onBack: onBack,
                     backLabel: backLabel
@@ -225,32 +223,9 @@ struct LibraryLayout: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: headerHeight)
         }
-        .onAppear { updateGroupedDecks() }
-        .onChange(of: decks) { _, _ in updateGroupedDecks() }
-        .onChange(of: viewModel.sortOrder) { _, _ in updateGroupedDecks() }
-        .onChange(of: searchText) { _, newValue in
-            inputDebounceTask?.cancel()
-            if newValue.isEmpty { viewModel.searchText = ""; return }
-            inputDebounceTask = Task { @MainActor in
-                do {
-                    try await Task.sleep(nanoseconds: 150_000_000)
-                    guard !Task.isCancelled else { return }
-                    viewModel.searchText = newValue
-                } catch { }
-            }
-        }
-        .onChange(of: isSearching) { _, active in
-            if !active {
-                inputDebounceTask?.cancel()
-                viewModel.searchText = ""
-            }
-        }
-        .onDisappear {
-            groupingTask?.cancel()
-            groupingTask = nil
-            inputDebounceTask?.cancel()
-            inputDebounceTask = nil
-        }
+        .onAppear { viewModel.updateGroupedDecks(from: decks) }
+        .onChange(of: decks) { _, newDecks in viewModel.updateGroupedDecks(from: newDecks) }
+        .onChange(of: viewModel.sortOrder) { _, _ in viewModel.updateGroupedDecks(from: decks) }
     }
 
     // MARK: - Scroll content
@@ -273,6 +248,7 @@ struct LibraryLayout: View {
                 groupedDecks: viewModel.cachedGroupedDecks,
                 isSelecting: viewModel.isSelecting,
                 selectedDeckIDs: viewModel.selectedDecks,
+                activeActionMenuDeckID: viewModel.activeActionMenuDeckID,
                 onNavigate: { deck in
                     onDeckNavigate(deck)
                 },
@@ -281,53 +257,15 @@ struct LibraryLayout: View {
                         viewModel.toggleSelection(for: deck)
                     }
                 },
+                onToggleActionMenu: { id in
+                    viewModel.activeActionMenuDeckID = id
+                },
                 onEditColor: { deck in viewModel.deckToEditColor = deck },
                 onDelete: { deck in viewModel.deckToDelete = deck }
             )
             // Needed so ScrollViewReader can actually find the items:
             .id("LibraryList-\(viewModel.cachedGroupedDecks.count)")
         }
-    }
-
-    // MARK: - Grouping
-
-    private func updateGroupedDecks() {
-        groupingTask?.cancel()
-        // Shield against 1-frame SwiftData empty-array glitch on iOS 17 pop.
-        guard !decks.isEmpty else { return }
-
-        let snapshot = decks
-        let sortOrder = viewModel.sortOrder
-
-        if viewModel.cachedGroupedDecks.isEmpty {
-            viewModel.cachedGroupedDecks = LibraryGrouping.sections(decks: snapshot, sortOrder: sortOrder)
-            return
-        }
-
-        groupingTask = Task {
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            guard !Task.isCancelled else { return }
-            let sections = await MainActor.run {
-                LibraryGrouping.sections(decks: snapshot, sortOrder: sortOrder)
-            }
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                if !areSectionsStructurallyIdentical(old: viewModel.cachedGroupedDecks, new: sections) {
-                    viewModel.cachedGroupedDecks = sections
-                }
-            }
-        }
-    }
-
-    private func areSectionsStructurallyIdentical(old: [DeckSection], new: [DeckSection]) -> Bool {
-        guard old.count == new.count else { return false }
-        for i in 0..<old.count {
-            if old[i].title != new[i].title { return false }
-            let o = old[i].decks, n = new[i].decks
-            guard o.count == n.count else { return false }
-            for j in 0..<o.count { if o[j].id != n[j].id { return false } }
-        }
-        return true
     }
 
     // MARK: - Search overlays

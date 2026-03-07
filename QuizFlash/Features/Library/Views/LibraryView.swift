@@ -25,6 +25,8 @@
 import SwiftUI
 import SwiftData
 
+/// The root view for the Library tab. Displays all available decks globally.
+/// Strictly follows MVVM; all state is managed by `LibraryViewModel`.
 struct LibraryView: View {
 
     // MARK: - Environment
@@ -37,15 +39,11 @@ struct LibraryView: View {
 
     @Query(sort: \DeckModel.createdAt, order: .reverse) private var decks: [DeckModel]
 
-    // MARK: - Local UI State
-
-    @State private var isSearching: Bool = false
-    @State private var searchText: String = ""
-
     // MARK: - Tab Bar Visibility
 
+    /// Determines when the main application tab bar should be hidden.
     private var tabRule: TabBarVisibilityRule {
-        if isSearching || sharedViewModel.isSelecting { return .hidden }
+        if sharedViewModel.isSearching || sharedViewModel.isSelecting { return .hidden }
         return .implicit
     }
 
@@ -71,8 +69,11 @@ struct LibraryView: View {
 
     // MARK: - Main Content
 
+    @MainActor
     private var mainContent: some View {
-        LibraryLayout(
+        @Bindable var viewModel = sharedViewModel
+
+        return LibraryLayout(
             decks: decks,
             viewModel: sharedViewModel,
             router: router,
@@ -96,8 +97,8 @@ struct LibraryView: View {
                 }
             },
             onBack: nil,
-            isSearching: $isSearching,
-            searchText: $searchText
+            isSearching: $viewModel.isSearching,
+            searchText: $viewModel.searchText
         )
         // ── Lifecycle & Cache Invalidation ───────────────────────────────────
         .onAppear {
@@ -107,23 +108,12 @@ struct LibraryView: View {
             rebuildCacheIfNeeded(newDecks)
         }
         // ── Search State Management ──────────────────────────────────────────
-        .onChange(of: isSearching) { _, active in
-            sharedViewModel.isSearching = active
-            if !active {
-                searchText = ""
-                sharedViewModel.searchText = ""
-                sharedViewModel.searchResults = []
-            }
+        .onChange(of: sharedViewModel.searchText) { _, newValue in
+            sharedViewModel.debounceSearchInput(newValue)
         }
-        .onChange(of: searchText) { _, newValue in
-            sharedViewModel.searchText = newValue
-            if newValue.isEmpty {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    sharedViewModel.searchResults = []
-                    sharedViewModel.isSearchLoading = false
-                }
-            } else {
-                sharedViewModel.updateSearch(query: newValue)
+        .onChange(of: sharedViewModel.isSearching) { _, active in
+            if !active {
+                sharedViewModel.clearSearch()
             }
         }
         // tearDown() is intentionally omitted for the root Library tab.

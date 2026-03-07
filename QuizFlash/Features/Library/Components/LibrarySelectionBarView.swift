@@ -8,6 +8,8 @@
 
 import SwiftUI
 
+/// A floating contextual bar displayed at the bottom of the screen during selection mode.
+/// Provides actions for selected decks such as exporting or deleting.
 struct LibrarySelectionBarView: View {
 
     @Bindable var viewModel: LibraryViewModel

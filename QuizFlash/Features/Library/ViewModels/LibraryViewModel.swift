@@ -29,8 +29,14 @@ import SwiftData
 final class LibraryViewModel {
 
     // MARK: - View Preferences
+    
+    /// The shared background search actor instance.
     var sharedSearchActor: LibrarySearchActor?
+    
+    /// Current selected sort order for decks.
     var sortOrder: SortOrder = .newest
+    
+    /// Last hash used to compute grouped decks, preventing redundant updates.
     var lastGroupedDecksHash: Int = 0
 
     /// Raw UIScrollView contentOffset.y saved by ScrollPositionRestorer.
@@ -40,53 +46,99 @@ final class LibraryViewModel {
     var savedScrollOffset: CGFloat = 0
 
     // MARK: - Selection State
+    
+    /// Indicates if the user is currently selecting decks.
     var isSelecting = false
+    
+    /// A set holding the identifiers of the currently selected decks.
     var selectedDecks: Set<PersistentIdentifier> = []
+    
+    /// Indicates if the delete confirmation dialog should be shown.
     var showDeleteConfirmation = false
 
     // MARK: - Action States
+    
+    /// The specific deck marked for deletion.
     var deckToDelete: DeckModel?
+    
+    /// The specific deck marked for color editing.
     var deckToEditColor: DeckModel?
+    
+    /// The specific card currently being edited from the search results.
     var editingCardFromSearch: CardModel?
+    
+    /// The identifier of the deck whose action menu is currently open.
+    var activeActionMenuDeckID: PersistentIdentifier?
 
     // MARK: - Search State
+    
+    /// The current search text query.
     var searchText: String = ""
+    
+    /// The list of search results matching the current query.
     var searchResults: [DeckSearchResultItem] = []
+    
+    /// Indicates if the user is currently in search mode.
     var isSearching: Bool = false
+    
+    /// Indicates if an active search query is still being computed.
     var isSearchLoading: Bool = false
+    
+    /// Decks expanded in the search results view.
+    var expandedSearchDecks: Set<PersistentIdentifier> = []
 
     private var searchTask: Task<Void, Never>?
+    private var inputDebounceTask: Task<Void, Never>?
     private var cacheTask: Task<Void, Never>? // tracks in-flight cache builds
+    private var groupingTask: Task<Void, Never>?
+    
     private let searchEngine = SearchEngine()
 
+    /// The payload cache holding data used for swift searching without hitting the database repeatedly.
     var cachedSearchPayloads: [DeckSearchPayload] = []
 
-    // Grouped deck sections for LibraryListView.
-    // Stored here rather than as @State in LibraryLayout so the sorted list
-    // survives tab switches without a 50ms debounce flash on re-appear.
-    // For the root tab, sharedViewModel persists indefinitely. For folder views,
-    // localViewModel is recreated on path restoration — handled by synchronous
-    // first-load computation in LibraryLayout.updateGroupedDecks().
+    /// Grouped deck sections for LibraryListView.
+    /// Stored here rather than as @State in LibraryLayout so the sorted list
+    /// survives tab switches without a 50ms debounce flash on re-appear.
     var cachedGroupedDecks: [DeckSection] = []
 
-    // Tracks which deck IDs were used to build the current cache.
-    // Stored here (not in the View) so the deduplication check survives
-    // across view re-renders, tab switches, and new LibraryView instances
-    // that share this viewModel via environment injection.
+    /// Tracks which deck IDs were used to build the current cache.
+    /// Deduplication check survives across view re-renders, tab switches, etc.
     var cachedDeckIDs: Set<PersistentIdentifier> = []
 
     // MARK: - Import/Export States
+    
+    /// Triggers the system file importer.
     var showFileImporter = false
+    
+    /// Indicates if an import operation is running.
     var isImporting = false
+    
+    /// Shows the import error alert.
     var showImportError = false
+    
+    /// The localized import error message.
     var importErrorMessage = ""
+    
+    /// Shows the import success alert.
     var showImportSuccess = false
+    
+    /// Name of the recently imported deck.
     var importedDeckName = ""
 
+    /// Indicates if an export operation is running.
     var isExporting = false
+    
+    /// The URLs generated for the exported decks.
     var exportedURLs: [URL] = []
+    
+    /// Shows the share sheet using the exported URLs.
     var showShareSheet = false
+    
+    /// Shows the export error alert.
     var showExportError = false
+    
+    /// The localized export error message.
     var exportErrorMessage = ""
 
     // MARK: - Lifecycle
@@ -102,9 +154,14 @@ final class LibraryViewModel {
         cacheTask = nil
         searchTask?.cancel()
         searchTask = nil
+        inputDebounceTask?.cancel()
+        inputDebounceTask = nil
+        groupingTask?.cancel()
+        groupingTask = nil
         cachedSearchPayloads = []
         cachedDeckIDs = []        // Must be cleared together with cachedSearchPayloads.
         searchResults = []        // so the next onAppear's rebuildCacheIfNeeded fires.
+        expandedSearchDecks = []
         let searchActor = self.sharedSearchActor
         Task {
             await searchActor?.tearDown()
@@ -175,9 +232,43 @@ final class LibraryViewModel {
         }
     }
 
-    // MARK: - Search (Streamed)
+    // MARK: - Search Processing & Input
 
-    func updateSearch(query: String) {
+    /// Clears the input and toggles off search state safely.
+    func clearSearch() {
+        inputDebounceTask?.cancel()
+        searchTask?.cancel()
+        searchText = ""
+        isSearching = false
+        isSearchLoading = false
+        searchResults = []
+        expandedSearchDecks.removeAll()
+    }
+    
+    /// Reevaluates input and debounces text changes before searching.
+    func debounceSearchInput(_ newValue: String) {
+        inputDebounceTask?.cancel()
+        searchText = newValue
+
+        if newValue.trimmingCharacters(in: .whitespaces).isEmpty {
+            searchTask?.cancel()
+            isSearchLoading = false
+            searchResults = []
+            expandedSearchDecks.removeAll()
+            return
+        }
+
+        inputDebounceTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: 150_000_000)
+                guard !Task.isCancelled else { return }
+                updateSearch(query: newValue)
+            } catch {}
+        }
+    }
+
+    /// Performs the search operation.
+    private func updateSearch(query: String) {
         searchTask?.cancel()
         let trimmedQuery = query.trimmingCharacters(in: .whitespaces)
 
@@ -201,8 +292,6 @@ final class LibraryViewModel {
                 }
             }
 
-            // Debounce is handled by LibraryLayout's inputDebounceTask.
-            // No additional sleep needed here.
             guard !Task.isCancelled else { return }
 
             let stream = searchEngine.performSearchStream(
@@ -213,18 +302,76 @@ final class LibraryViewModel {
                 guard !Task.isCancelled else { break }
                 await MainActor.run {
                     self.searchResults = resultsChunk
+                    
+                    // Auto-collapse logic when search results shrink drastically
+                    if self.searchResults.count < self.expandedSearchDecks.count - 5 {
+                        self.expandedSearchDecks.removeAll()
+                    }
                 }
             }
         }
     }
 
+    /// Toggles the expanded status of a deck in the search results view.
+    func toggleSearchDeckExpansion(for deckID: PersistentIdentifier) {
+        if expandedSearchDecks.contains(deckID) {
+            expandedSearchDecks.remove(deckID)
+        } else {
+            expandedSearchDecks.insert(deckID)
+        }
+    }
+
+    // MARK: - Grouping Computation
+
+    /// Computes and caches grouped decks on a background thread.
+    func updateGroupedDecks(from snapshot: [DeckModel]) {
+        groupingTask?.cancel()
+        guard !snapshot.isEmpty else { return }
+
+        let localSortOrder = sortOrder
+
+        if cachedGroupedDecks.isEmpty {
+            cachedGroupedDecks = LibraryGrouping.sections(decks: snapshot, sortOrder: localSortOrder)
+            return
+        }
+
+        groupingTask = Task {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard !Task.isCancelled else { return }
+            
+            let sections = await MainActor.run {
+                LibraryGrouping.sections(decks: snapshot, sortOrder: localSortOrder)
+            }
+            guard !Task.isCancelled else { return }
+            
+            await MainActor.run {
+                if !self.areSectionsStructurallyIdentical(old: self.cachedGroupedDecks, new: sections) {
+                    self.cachedGroupedDecks = sections
+                }
+            }
+        }
+    }
+
+    private func areSectionsStructurallyIdentical(old: [DeckSection], new: [DeckSection]) -> Bool {
+        guard old.count == new.count else { return false }
+        for i in 0..<old.count {
+            if old[i].title != new[i].title { return false }
+            let o = old[i].decks, n = new[i].decks
+            guard o.count == n.count else { return false }
+            for j in 0..<o.count { if o[j].id != n[j].id { return false } }
+        }
+        return true
+    }
+
     // MARK: - Selection
 
+    /// Toggles the selection of a specific deck.
     func toggleSelection(for deck: DeckModel) {
         if selectedDecks.contains(deck.id) { selectedDecks.remove(deck.id) }
         else { selectedDecks.insert(deck.id) }
     }
 
+    /// Clears selected decks and collapses the selection mode.
     func exitSelectionMode() {
         isSelecting = false
         selectedDecks.removeAll()

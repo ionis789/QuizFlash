@@ -7,19 +7,25 @@
 
 import Foundation
 
-// MARK: - Deck Section (for list/gallery grouping)
+// MARK: - Deck Section (For List/Gallery Grouping)
 
+/// Represents a grouped section of decks tailored for list or gallery presentation.
 struct DeckSection: Identifiable, Equatable {
+    /// A unique identifier for the section, typically the section title itself.
     let id: String
+    /// The display title for the section (e.g., "Today", "This Week").
     let title: String
+    /// The decks contained within this section.
     let decks: [DeckModel]
+    /// The date reference used for sorting this section relative to others.
     let dateForSorting: Date
 }
 
 // MARK: - Grouping Helper
 
+/// A utility enum providing logic to group a list of decks into sections.
 enum LibraryGrouping {
-    /// Builds sections from decks based on sort order (by date or single "All Decks").
+    /// Builds and sorts sections from a flat array of decks based on the active `SortOrder`.
     static func sections(decks: [DeckModel], sortOrder: SortOrder) -> [DeckSection] {
         let sortedAll = decks.sorted { d1, d2 in
             switch sortOrder {

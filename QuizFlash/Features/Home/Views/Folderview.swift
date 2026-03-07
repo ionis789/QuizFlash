@@ -72,8 +72,6 @@ struct FolderView: View {
     /// The scope matches the folder's deck subset so the search cache is correctly
     /// isolated from the root Library tab's view model.
     @State private var viewModel = LibraryViewModel()
-    @State private var isSearching: Bool = false
-    @State private var searchText: String = ""
 
     // MARK: - Init
 
@@ -92,7 +90,7 @@ struct FolderView: View {
     /// In normal browsing the tab bar remains visible even though this view is pushed,
     /// mirroring the pattern used by Mail and Files for shallow navigation hierarchies.
     private var tabRule: TabBarVisibilityRule {
-        if isSearching || viewModel.isSelecting { return .hidden }
+        if viewModel.isSearching || viewModel.isSelecting { return .hidden }
         return .visible
     }
 
@@ -146,8 +144,8 @@ struct FolderView: View {
             },
             onBack: { dismiss() },
             backLabel: backLabel,
-            isSearching: $isSearching,
-            searchText: $searchText
+            isSearching: Binding(get: { viewModel.isSearching }, set: { viewModel.isSearching = $0 }),
+            searchText: Binding(get: { viewModel.searchText }, set: { viewModel.searchText = $0 })
         )
         // MARK: Lifecycle & Cache Invalidation
         .onAppear {
@@ -157,24 +155,13 @@ struct FolderView: View {
             rebuildCacheIfNeeded(newDecks)
         }
         // MARK: Search State Management
-        .onChange(of: isSearching) { _, active in
-            viewModel.isSearching = active
+        .onChange(of: viewModel.isSearching) { _, active in
             if !active {
-                searchText = ""
-                viewModel.searchText = ""
-                viewModel.searchResults = []
+                viewModel.clearSearch()
             }
         }
-        .onChange(of: searchText) { _, newValue in
-            viewModel.searchText = newValue
-            if newValue.isEmpty {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    viewModel.searchResults = []
-                    viewModel.isSearchLoading = false
-                }
-            } else {
-                viewModel.updateSearch(query: newValue)
-            }
+        .onChange(of: viewModel.searchText) { _, newValue in
+            viewModel.debounceSearchInput(newValue)
         }
         // MARK: Memory Cleanup on Pop
         // The local viewModel is scoped to this folder push. tearDown() cancels
