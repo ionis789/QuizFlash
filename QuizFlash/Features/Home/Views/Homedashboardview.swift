@@ -3,7 +3,7 @@
 //
 // Renders the scrollable dashboard content below the sticky calendar header.
 // This view is purely presentational — all state and logic live in HomeViewModel
-// and CalendarViewModel, passed in as constants.
+// and CalendarViewModel, passed in as immutable constants.
 
 import SwiftUI
 import SwiftData
@@ -13,23 +13,39 @@ import SwiftData
 /// The scrollable body of the Home screen, rendered below the collapsible calendar header.
 ///
 /// Displays three sections in order:
-/// 1. **Daily Activity** — stats for the selected calendar day.
-/// 2. **Recent Decks** — a horizontal carousel of recently opened decks (if any).
+/// 1. **Daily Activity** — stats for the currently selected calendar day.
+/// 2. **Recent Decks** — a horizontal carousel of recently opened decks (shown only when non-empty).
 /// 3. **Folders** — a two-column grid of user folders.
+///
+/// `HomeDashboardView` is a **dumb view**: it holds no `@State`, makes no decisions,
+/// and contains no formatting logic. All data arrives as `let` constants from `HomeView`.
 struct HomeDashboardView: View {
 
-    // MARK: - Properties
+    // MARK: - Dependencies
 
+    /// Business logic and sheet state for the Home screen.
     let viewModel: HomeViewModel
+
+    /// The list of folders fetched by `HomeView`'s `@Query`.
     let folders: [FolderModel]
+
+    /// The top 5 recently opened decks, pre-filtered and pre-sliced by `HomeView`.
     let recentDecks: [DeckModel]
+
+    /// The active user profile, used to display the current study streak.
     let userProfile: UserProfile?
+
+    /// The calendar view model; provides the selected date for looking up the day's log.
     let calendarVM: CalendarViewModel
+
+    /// The global navigation router for pushing deck and folder destinations.
     let router: NavigationManager
 
     // MARK: - Derived Data
 
-    /// Activity log for the date currently selected in the calendar.
+    /// The activity log for the date currently selected in the calendar.
+    ///
+    /// Uses the O(1) cache lookup from `HomeViewModel` to avoid scanning the full log array.
     private var selectedDayLog: DailyActivityLog? {
         viewModel.getFastLog(for: calendarVM.selectedDate)
     }
@@ -57,6 +73,7 @@ struct HomeDashboardView: View {
 
     // MARK: - Daily Activity Section
 
+    /// Renders the hero goal-progress card and three compact secondary stat cards.
     private var statsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Daily Activity")
@@ -97,6 +114,7 @@ struct HomeDashboardView: View {
 
     // MARK: - Recent Decks Section
 
+    /// Renders a horizontally scrollable carousel of recently opened deck cards.
     private var recentDecksSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Recent Decks")
@@ -109,9 +127,7 @@ struct HomeDashboardView: View {
                     ForEach(recentDecks) { deck in
                         HomeRecentDeckCardView(deck: deck) {
                             // Back label is frozen at push time — immune to cross-tab
-                            // mutation of router state. HomeDashboardView is always
-                            // rendered inside the Home tab's NavigationStack, so
-                            // router.activeTab.rawValue == AppTab.home.rawValue here.
+                            // mutation of router.activeTab during tab-switch animations.
                             router.append(DeckNavigationValue(
                                 deckID: deck.persistentModelID,
                                 backLabel: router.activeTab.rawValue
@@ -119,16 +135,17 @@ struct HomeDashboardView: View {
                         }
                     }
                 }
-                    .padding(.horizontal, 20)
-                // Extra padding so card drop shadows are not clipped.
+                .padding(.horizontal, 20)
+                // Extra vertical padding so card drop shadows are not clipped.
                 .padding(.bottom, 16)
-                    .padding(.top, 4)
+                .padding(.top, 4)
             }
         }
     }
 
     // MARK: - Folders Section
 
+    /// Renders the folder grid, including the "add folder" header button and an empty state.
     private var foldersSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -138,18 +155,22 @@ struct HomeDashboardView: View {
 
                 Spacer()
 
+                // Uses the current theme accent colour — no hardcoded colours.
                 Button {
                     viewModel.showCreateFolder = true
                 } label: {
                     Image(systemName: "folder.badge.plus")
                         .font(.title3.weight(.semibold))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(ThemeManager.shared.accentColor.color)
                         .symbolRenderingMode(.hierarchical)
                 }
             }
 
             if folders.isEmpty {
-                EmptyStatePlaceholderFolderCard(icon: "folder.badge.plus", message: "No folders yet. Create one to organize your decks.")
+                EmptyStatePlaceholderFolderCard(
+                    icon: "folder.badge.plus",
+                    message: "No folders yet. Create one to organize your decks."
+                )
             } else {
                 LazyVGrid(
                     columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
@@ -167,4 +188,3 @@ struct HomeDashboardView: View {
         }
     }
 }
-

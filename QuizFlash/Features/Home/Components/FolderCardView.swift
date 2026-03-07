@@ -1,24 +1,37 @@
+// FolderCardView.swift
+// QuizFlash
 //
-//  FolderCardView.swift
-//  QuizFlash
-//
-//  Created by Ion Socol on 07.03.2026.
-//
+// Grid card components for the Folders section of HomeDashboardView.
 
 import SwiftUI
 
-// MARK: - Folder Card (Tactile Style)
-/// Designed to look more like a native iOS folder structure with depth.
+// MARK: - Folder Card
+
+/// A tactile folder card that visually mimics a native iOS folder with layered depth.
+///
+/// The card colour is derived from `FolderModel.colorHex` (user-chosen) rather than
+/// the global theme accent, so each folder retains its individual identity.
+///
+/// - Parameters:
+///   - folder: The folder model to display.
+///   - action: Called when the user taps the card to open the folder.
 struct FolderCardView: View {
+
+    // MARK: - Input
+
     let folder: FolderModel
     let action: () -> Void
 
+    // MARK: - Body
+
     var body: some View {
-        let folderColor = Color(hex: folder.colorHex) ?? .blue
+        let folderColor = Color(hex: folder.colorHex) ?? ThemeManager.shared.accentColor.color
 
         Button(action: action) {
             VStack(alignment: .leading, spacing: 0) {
-                // Header Area with Folder Icon
+
+                // MARK: Header
+
                 HStack {
                     Image(systemName: "folder.fill")
                         .font(.title)
@@ -30,9 +43,10 @@ struct FolderCardView: View {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.tertiary)
                 }
-                    .padding(.bottom, 16)
+                .padding(.bottom, 16)
 
-                // Title Area
+                // MARK: Title
+
                 Text(folder.title)
                     .font(.headline.weight(.semibold))
                     .fontDesign(.rounded)
@@ -40,31 +54,44 @@ struct FolderCardView: View {
                     .lineLimit(1)
                     .padding(.bottom, 4)
 
+                // MARK: Deck Count
+
+                // Safe: deckCount is a denormalized Int — no relationship fault at render time.
                 Text("\(folder.deckCount) decks")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
             }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background {
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
                 RoundedRectangle(cornerRadius: 40, style: .continuous)
                     .fill(
-                    Color.libraryDeckRow
-                        .shadow(.inner(color: Color.white.opacity(0.15), radius: 1, x: 0, y: 0))
-                )
+                        Color.libraryDeckRow
+                            .shadow(.inner(color: Color.white.opacity(0.15), radius: 1, x: 0, y: 0))
+                    )
             }
-                .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
-                .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+            .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
+            .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
         }
-            .buttonStyle(.plain)
+        .buttonStyle(.plain)
     }
 }
 
+// MARK: - Empty State Placeholder
 
-// MARK: - Empty State View
+/// A dashed-border placeholder card shown in the Folders grid when the user has no folders.
+///
+/// - Parameters:
+///   - icon: An SF Symbols identifier shown above the message.
+///   - message: A short guidance string (e.g. "No folders yet. Create one to organize your decks.").
 struct EmptyStatePlaceholderFolderCard: View {
+
+    // MARK: - Input
+
     let icon: String
     let message: String
+
+    // MARK: - Body
 
     var body: some View {
         VStack(spacing: 12) {
@@ -79,13 +106,16 @@ struct EmptyStatePlaceholderFolderCard: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
         }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 40)
-            .background(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+        .background(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(Color(uiColor: .tertiaryLabel).opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [6]))
+                .strokeBorder(
+                    Color(uiColor: .tertiaryLabel).opacity(0.3),
+                    style: StrokeStyle(lineWidth: 1, dash: [6])
+                )
         )
     }
 }

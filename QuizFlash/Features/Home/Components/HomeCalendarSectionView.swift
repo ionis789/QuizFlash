@@ -1,42 +1,49 @@
-// CalendarSectionView.swift
+// HomeCalendarSectionView.swift
 // QuizFlash
 //
-// Created by QuizFlash.
-//
+// A sticky, collapsible calendar header for the Home screen.
+// Transitions from a fully expanded month grid to a compact single-week row
+// as the user scrolls the underlying content upward.
 
 import SwiftUI
 
-// MARK: - Calendar Section
+// MARK: - Home Calendar Section View
 
-/// A sticky, collapsible calendar header that seamlessly transitions from an expanded month grid
+/// A sticky, collapsible calendar header that transitions from an expanded month grid
 /// to a compact weekly row during vertical scrolling.
 ///
-/// Architecture notes:
-/// - Utilizes an absolute Z-axis layering system to prevent layout recalculation jumps (jank) during rapid scrolling.
-/// - Employs a static background composition to ensure zero memory leaks when rendering `.ultraThinMaterial`.
+/// **Architecture notes:**
+/// - Uses an absolute Z-axis layering system to avoid layout recalculation jumps
+///   (jank) during rapid scrolling.
+/// - Employs a static background composition to ensure zero memory leaks when
+///   rendering `.ultraThinMaterial` inside a `GeometryReader`.
+/// - All colours are sourced from `ThemeManager` or semantic SwiftUI tokens — no
+///   hardcoded values.
 struct HomeCalendarSectionView: View {
 
     // MARK: - Dependencies
 
-    /// The view model managing date selection and grid data generation.
+    /// The view model managing date selection and grid data.
     var calendarVM: CalendarViewModel
 
-    /// The maximum height of the header when fully expanded.
+    /// Maximum height of the header when fully expanded.
     let extendedHeight: CGFloat
 
-    /// The total scrollable distance required to fully collapse the header.
+    /// Total scrollable distance required to fully collapse the header.
     let scrollDistance: CGFloat
 
-    /// The top safe area inset used to compute absolute anchor points.
+    /// Top safe-area inset used to compute absolute anchor points.
     let safeAreaTop: CGFloat
 
-    /// A dictionary providing O(1) access to daily activity data.
+    /// O(1) lookup dictionary providing daily activity data keyed by `yyyy-MM-dd`.
     let logsCache: [String: DailyActivityLog]
 
-    /// The global navigation router.
+    /// The global navigation router (passed to `HomeAvatarView`).
     let router: NavigationManager
 
-    /// The fixed dimension for the profile avatar button.
+    // MARK: - Private Constants
+
+    /// Fixed dimension for the profile avatar button.
     private let iconSize: CGFloat = 54.0
 
     // MARK: - Body
@@ -48,10 +55,10 @@ struct HomeCalendarSectionView: View {
 
             let minY = proxy.frame(in: .scrollView(axis: .vertical)).minY
 
-            /// Normalized collapse progress where 0.0 is fully expanded and 1.0 is fully compact.
+            /// Normalised collapse progress: 0.0 = fully expanded, 1.0 = fully compact.
             let progress = max(0, min(-minY / scrollDistance, 1.0))
 
-            /// Vertical offset applied to keep the entire header pinned to the top.
+            /// Vertical offset applied to keep the entire header pinned to the screen top.
             let stickyOffset: CGFloat = minY < 0 ? -minY : 0
 
             // MARK: Grid Geometry
@@ -59,15 +66,13 @@ struct HomeCalendarSectionView: View {
             let containerWidth = proxy.size.width - 40
             let naturalEmptySpace = containerWidth * 0.10
             let targetSpace = iconSize + 20
-
             let requiredPush = max(0, (targetSpace - naturalEmptySpace) / 0.9)
 
             // MARK: Avatar Absolute Positioning
 
-            let expandedCenterY = safeAreaTop + calendarVM.topPaddingExpanded + (calendarVM.titleHeight / 2.0)
+            let expandedCenterY  = safeAreaTop + calendarVM.topPaddingExpanded  + (calendarVM.titleHeight / 2.0)
             let collapsedCenterY = safeAreaTop + calendarVM.topPaddingCollapsed + (calendarVM.weekLabelHeight + calendarVM.rowHeight) / 2.0
-
-            let currentCenterY = expandedCenterY - ((expandedCenterY - collapsedCenterY) * progress)
+            let currentCenterY   = expandedCenterY - ((expandedCenterY - collapsedCenterY) * progress)
             let avatarAbsoluteTop = currentCenterY - (iconSize / 2.0)
 
             // MARK: Render Tree
@@ -85,27 +90,26 @@ struct HomeCalendarSectionView: View {
 
                     Spacer(minLength: 0)
                 }
-
-                    .padding(.horizontal, 20)
-                    .padding(.top, calendarVM.topPaddingExpanded - (calendarVM.topPaddingExpanded - calendarVM.topPaddingCollapsed) * progress)
-                    .padding(.bottom, calendarVM.bottomPadding)
-                // 3. Dynamic drop shadow based strictly on scroll distance
+                .padding(.horizontal, 20)
+                .padding(.top, calendarVM.topPaddingExpanded - (calendarVM.topPaddingExpanded - calendarVM.topPaddingCollapsed) * progress)
+                .padding(.bottom, calendarVM.bottomPadding)
                 .shadow(color: .black.opacity(0.08 * progress), radius: 10, y: 4)
 
-                // LAYER 2: Absolute Avatar
+                // LAYER 2: Absolute Avatar (floats independently of the content stack)
                 HomeAvatarView(router: router)
                     .padding(.trailing, 20)
                     .padding(.top, avatarAbsoluteTop)
             }
-                .offset(y: stickyOffset)
+            .offset(y: stickyOffset)
         }
-            .frame(height: extendedHeight)
+        .frame(height: extendedHeight)
     }
 
     // MARK: - Subviews
 
     /// Renders the month and year title row, flanked by navigation chevrons.
-    /// Fades out and collapses vertically as `progress` approaches 1.0.
+    ///
+    /// Fades out and collapses vertically as `progress` approaches 1.0 (fully compact).
     @ViewBuilder
     private func titleRow(progress: CGFloat) -> some View {
         ZStack {
@@ -114,8 +118,8 @@ struct HomeCalendarSectionView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.trailing, iconSize + 8)
 
-            // Navigation chevrons use an invisible anchor text to maintain symmetric
-            // spacing regardless of the month string's width.
+            // Invisible anchor text maintains symmetric chevron spacing
+            // regardless of the variable month string width.
             HStack(spacing: 8) {
                 chevronButton(increment: false)
 
@@ -127,16 +131,17 @@ struct HomeCalendarSectionView: View {
 
                 chevronButton(increment: true)
             }
-                .frame(maxWidth: .infinity)
-                .padding(.trailing, iconSize + 8)
+            .frame(maxWidth: .infinity)
+            .padding(.trailing, iconSize + 8)
         }
-            .frame(height: calendarVM.titleHeight * (1 - progress), alignment: .center)
-            .padding(.bottom, calendarVM.titleBottomSpacing * (1 - progress))
-            .clipped()
-            .opacity(1.0 - progress * 2)
+        .frame(height: calendarVM.titleHeight * (1 - progress), alignment: .center)
+        .padding(.bottom, calendarVM.titleBottomSpacing * (1 - progress))
+        .clipped()
+        .opacity(1.0 - progress * 2)
     }
 
     /// Renders the weekday labels and the scrollable grid of days.
+    ///
     /// Compresses horizontally and scales down slightly as `progress` increases.
     @ViewBuilder
     private func calendarGrid(progress: CGFloat, requiredPush: CGFloat) -> some View {
@@ -148,22 +153,21 @@ struct HomeCalendarSectionView: View {
             ZStack(alignment: .top) {
                 dayGrid(totalGridHeight: totalGridHeight, progress: progress)
             }
-                .frame(
+            .frame(
                 height: calendarVM.rowHeight + (totalGridHeight - calendarVM.rowHeight) * (1 - progress),
                 alignment: .top
             )
-                .clipped()
+            .clipped()
         }
-            .padding(7 * progress)
-            .padding(.horizontal, 12 * progress)
-            .background {
+        .padding(7 * progress)
+        .padding(.horizontal, 12 * progress)
+        .background {
             RoundedRectangle(cornerRadius: 30)
                 .fill(.ultraThinMaterial.opacity(progress))
         }
-            .padding(.trailing, requiredPush * progress)
-            .scaleEffect(1 - 0.10 * progress, anchor: .topLeading)
-
-            .clipped()
+        .padding(.trailing, requiredPush * progress)
+        .scaleEffect(1 - 0.10 * progress, anchor: .topLeading)
+        .clipped()
     }
 
     /// A horizontal row displaying abbreviated weekday symbols (e.g., Sun, Mon).
@@ -176,11 +180,13 @@ struct HomeCalendarSectionView: View {
                     .foregroundStyle(.secondary)
             }
         }
-            .frame(height: calendarVM.weekLabelHeight, alignment: .center)
+        .frame(height: calendarVM.weekLabelHeight, alignment: .center)
     }
 
-    /// The full month grid. Rows outside the selected week fade out based on their
-    /// vertical distance from the active row during the collapse animation.
+    /// The full month grid.
+    ///
+    /// Rows outside the selected week fade out based on their vertical distance from
+    /// the active row's position during the collapse animation.
     @ViewBuilder
     private func dayGrid(totalGridHeight: CGFloat, progress: CGFloat) -> some View {
         VStack(spacing: 0) {
@@ -192,21 +198,23 @@ struct HomeCalendarSectionView: View {
                     ForEach(row) { day in
                         CalendarDayCellView(day: day, log: logsCache[day.dateString])
                             .onTapGesture {
-                            calendarVM.selectDate(day.date)
-                        }
+                                calendarVM.selectDate(day.date)
+                            }
                     }
                 }
-                    .frame(height: calendarVM.rowHeight)
-                    .opacity(rowOpacity)
+                .frame(height: calendarVM.rowHeight)
+                .opacity(rowOpacity)
                 // Disable automatic opacity interpolation during month transitions.
                 .transaction { $0.animation = nil }
             }
         }
-            .frame(height: totalGridHeight, alignment: .top)
-            .offset(y: -(calendarVM.monthProgress * calendarVM.rowHeight) * progress)
+        .frame(height: totalGridHeight, alignment: .top)
+        .offset(y: -(calendarVM.monthProgress * calendarVM.rowHeight) * progress)
     }
 
-    /// A circular navigation button for advancing or rewinding the displayed month.
+    /// A circular button for advancing or rewinding the displayed month.
+    ///
+    /// - Parameter increment: `true` to move forward one month, `false` to go back.
     private func chevronButton(increment: Bool) -> some View {
         Button {
             calendarVM.monthUpdate(increment: increment)
@@ -218,77 +226,80 @@ struct HomeCalendarSectionView: View {
                 .background(Color.primary.opacity(0.06), in: Circle())
         }
     }
+}
 
+// MARK: - Calendar Day Cell View
 
+/// Renders a single day cell in the calendar grid.
+///
+/// Handles visual state mapping for today, productive study days, and the selected date.
+/// Colours come exclusively from `ThemeManager` or semantic SwiftUI tokens.
+struct CalendarDayCellView: View {
 
-    // MARK: - Calendar Day Cell
+    // MARK: - Input
 
-    /// Renders a single day cell in the calendar grid.
-    /// Handles visual state mapping for today, productivity streaks, and selection.
-    struct CalendarDayCellView: View {
+    let day: Day
+    let log: DailyActivityLog?
 
-        // MARK: - Properties
+    // MARK: - Computed States
 
-        let day: Day
-        let log: DailyActivityLog?
+    private var isToday: Bool {
+        Calendar.current.isDateInToday(day.date)
+    }
 
-        // MARK: - Computed States
+    /// `true` when the day had study activity.
+    ///
+    /// Excludes today to prevent premature productivity styling before the session ends.
+    private var isProductiveDay: Bool {
+        !isToday && (log?.cardsReviewed ?? 0) > 0
+    }
 
-        private var isToday: Bool {
-            Calendar.current.isDateInToday(day.date)
-        }
+    /// The active theme accent colour, resolved from `ThemeManager`.
+    private var accent: Color {
+        ThemeManager.shared.accentColor.color
+    }
 
-        /// Evaluates if the day had study activity. Excludes 'today' to prevent premature productivity styling.
-        private var isProductiveDay: Bool {
-            !isToday && (log?.cardsReviewed ?? 0) > 0
-        }
+    // MARK: - Styling
 
-        private var accent: Color {
-            ThemeManager.shared.accentColor.color
-        }
+    private var backgroundColor: Color {
+        if isToday          { return accent }
+        if isProductiveDay  { return .green }
+        if day.isSelected   { return .primary }
+        return .clear
+    }
 
-        // MARK: - Styling
+    private var backgroundOpacity: Double {
+        if day.isSelected   { return 1.0 }
+        if isToday          { return 0.15 }
+        if isProductiveDay  { return 0.15 }
+        return 0
+    }
 
-        private var backgroundColor: Color {
-            if isToday { return accent }
-            if isProductiveDay { return .green }
-            if day.isSelected { return .primary }
-            return .clear
-        }
+    private var textColor: Color {
+        if day.isSelected && (isProductiveDay || isToday) { return .white }
+        if day.isSelected   { return Color(uiColor: .systemBackground) }
+        if isToday          { return accent }
+        if isProductiveDay  { return .green }
+        if day.ignored      { return .secondary.opacity(0.3) }
+        return .primary
+    }
 
-        private var backgroundOpacity: Double {
-            if day.isSelected { return 1.0 }
-            if isToday { return 0.15 }
-            if isProductiveDay { return 0.15 }
-            return 0
-        }
+    // MARK: - Body
 
-        private var textColor: Color {
-            if day.isSelected && (isProductiveDay || isToday) { return .white }
-            if day.isSelected { return Color(uiColor: .systemBackground) }
-            if isToday { return accent }
-            if isProductiveDay { return .green }
-            if day.ignored { return .secondary.opacity(0.3) }
-            return .primary
-        }
-
-        // MARK: - Body
-
-        var body: some View {
-            Text(day.shortSymbol)
-                .font(.system(
+    var body: some View {
+        Text(day.shortSymbol)
+            .font(.system(
                 size: 16,
                 weight: (day.isSelected || isToday) ? .bold : .medium,
                 design: .rounded
             ))
-                .foregroundStyle(textColor)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background {
+            .foregroundStyle(textColor)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
                 Circle()
                     .fill(backgroundColor.opacity(backgroundOpacity))
                     .frame(width: 40, height: 40)
             }
-                .contentShape(Rectangle())
-        }
+            .contentShape(Rectangle())
     }
 }
