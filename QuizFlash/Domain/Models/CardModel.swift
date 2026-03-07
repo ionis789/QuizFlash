@@ -2,81 +2,125 @@
 //  CardModel.swift
 //  QuizFlash
 //
+//  A SwiftData model representing a single flashcard.
+//  This file must remain free of SwiftUI and UIKit imports —
+//  it is a pure data layer that the entire app depends on.
+//
 
-import SwiftUI
+import Foundation
 import SwiftData
 
 // MARK: - Card Content Type
+
+/// Describes the rendering mode for one side of a flashcard.
 enum CardContentType: String, Codable {
     case text
     case canvas
 }
 
-// MARK: - Card Model (SwiftData)
+// MARK: - Card Model
+
+/// A SwiftData persistent model representing a single flashcard within a deck.
+///
+/// `CardModel` is a pure data entity. It must not import SwiftUI or UIKit,
+/// and must not contain any presentation logic or UI state.
+/// All UI-related behaviour (display formatting, colour, animations) belongs
+/// in the ViewModel or View layers.
 @Model
 class CardModel {
+
+    // MARK: - Raw Content Storage
+
+    /// Raw string storing the `CardContentType` for the front face.
     var frontTypeRaw: String = CardContentType.text.rawValue
+
+    /// Raw string storing the `CardContentType` for the back face.
     var backTypeRaw: String = CardContentType.text.rawValue
 
+    /// Serialised `ZoneModel` tree for the front face, stored externally for performance.
     @Attribute(.externalStorage)
     var frontZoneData: Data?
 
+    /// Serialised `ZoneModel` tree for the back face, stored externally for performance.
     @Attribute(.externalStorage)
     var backZoneData: Data?
 
+    // MARK: - Text Preview Cache
+
+    /// Denormalised plain-text preview of the front face (max 200 characters).
+    /// Used for search indexing without decoding the full zone tree.
     var frontText: String = ""
+
+    /// Denormalised plain-text preview of the back face (max 200 characters).
+    /// Used for search indexing without decoding the full zone tree.
     var backText: String = ""
 
+    // MARK: - Metadata
+
+    /// The date this card was first created.
     var createdAt: Date = Date()
+
+    /// The date this card was last edited.
     var editedAt: Date = Date()
+
+    /// The sequential display number assigned by the parent deck.
     var cardNumber: Int = 0
 
-    // 🔴 ELIMINAT: lastSeenAt, timesCorrect, timesWrong, stats (CardStats)
-    // Au fost înlocuite de reviewHistory și parametrii SRS
+    // MARK: - Relationships
 
+    /// The deck that owns this card. Nil if the card has been orphaned.
     var deck: DeckModel?
 
-    // 🟢 NOU: Istoricul complet de review-uri (The Data Engine)
+    /// Full review history for this card, used by the SRS engine.
     @Relationship(deleteRule: .cascade, inverse: \ReviewEvent.card)
     var reviewHistory: [ReviewEvent] = []
 
-    // 🟢 NOU: Spaced Repetition Parameters (SRS)
-    var dueDate: Date = Date() // Când trebuie revizuit cardul?
-    var easeFactor: Double = 2.5 // Multiplicatorul de dificultate (default 2.5)
-    var interval: Int = 0 // Zile până la următoarea revizuire
+    // MARK: - Spaced Repetition Parameters
+
+    /// The next review date calculated by the SRS algorithm.
+    var dueDate: Date = Date()
+
+    /// The SM-2 ease factor (difficulty multiplier). Defaults to 2.5.
+    var easeFactor: Double = 2.5
+
+    /// Interval in days until the next scheduled review.
+    var interval: Int = 0
+
+    /// Number of consecutive correct answers since the last lapse.
     var consecutiveCorrectAnswers: Int = 0
 
-    // MARK: - Caching
-    @Transient private var cachedFrontZone: ZoneModel?
-    @Transient private var cachedBackZone: ZoneModel?
+    // MARK: - Zone Cache
 
-    /// Releases the decoded ZoneModel caches, reclaiming memory.
-    /// ZoneModel can contain imageData (megabytes). Without clearing,
-    /// every card that's ever been displayed keeps its decoded zones
-    /// alive for the entire app session via the ModelContext.
-    /// The zones will be re-decoded from frontZoneData/backZoneData on next access.
-    func clearZoneCache() {
-        cachedFrontZone = nil
-        cachedBackZone = nil
-    }
+    /// In-memory cache for the decoded front `ZoneModel`.
+    /// Avoids redundant JSON decoding on every access within the same session.
+    @Transient private var cachedFrontZone: ZoneModel?
+
+    /// In-memory cache for the decoded back `ZoneModel`.
+    /// Avoids redundant JSON decoding on every access within the same session.
+    @Transient private var cachedBackZone: ZoneModel?
 
     // MARK: - Computed Properties
 
+    /// The content type for the front face. Backed by `frontTypeRaw` for SwiftData compatibility.
     var frontType: CardContentType {
         get { CardContentType(rawValue: frontTypeRaw) ?? .text }
         set { frontTypeRaw = newValue.rawValue }
     }
 
+    /// The content type for the back face. Backed by `backTypeRaw` for SwiftData compatibility.
     var backType: CardContentType {
         get { CardContentType(rawValue: backTypeRaw) ?? .text }
         set { backTypeRaw = newValue.rawValue }
     }
 
+    /// The decoded `ZoneModel` tree for the front face.
+    ///
+    /// Getting this property decodes `frontZoneData` from JSON on first access and
+    /// caches the result. Setting it encodes the new zone to JSON and updates the
+    /// `frontText` preview cache.
     var frontZone: ZoneModel {
         get {
-            if let cached = cachedFrontZone {
-                return cached
-            }
+            if let cached = cachedFrontZone { return cached }
             if let data = frontZoneData, let zone = ZoneModel.decode(from: data) {
                 cachedFrontZone = zone
                 return zone
@@ -90,11 +134,14 @@ class CardModel {
         }
     }
 
+    /// The decoded `ZoneModel` tree for the back face.
+    ///
+    /// Getting this property decodes `backZoneData` from JSON on first access and
+    /// caches the result. Setting it encodes the new zone to JSON and updates the
+    /// `backText` preview cache.
     var backZone: ZoneModel {
         get {
-            if let cached = cachedBackZone {
-                return cached
-            }
+            if let cached = cachedBackZone { return cached }
             if let data = backZoneData, let zone = ZoneModel.decode(from: data) {
                 cachedBackZone = zone
                 return zone
@@ -108,7 +155,29 @@ class CardModel {
         }
     }
 
+    // MARK: - Cache Management
+
+    /// Releases the decoded `ZoneModel` caches, immediately reclaiming memory.
+    ///
+    /// `ZoneModel` can contain image data (megabytes). Without clearing,
+    /// every card that has ever been displayed keeps its decoded zones
+    /// alive for the entire app session via the `ModelContext` row cache.
+    /// The zones will be re-decoded from `frontZoneData`/`backZoneData` on next access.
+    func clearZoneCache() {
+        cachedFrontZone = nil
+        cachedBackZone = nil
+    }
+
     // MARK: - Initializer
+
+    /// Creates a new `CardModel` with the given zone content and metadata.
+    ///
+    /// - Parameters:
+    ///   - frontZone: The zone tree for the front face of the card.
+    ///   - backZone: The zone tree for the back face of the card.
+    ///   - frontType: The rendering mode for the front face. Defaults to `.text`.
+    ///   - backType: The rendering mode for the back face. Defaults to `.text`.
+    ///   - cardNumber: The sequential display number. Defaults to `0`.
     init(
         frontZone: ZoneModel,
         backZone: ZoneModel,
@@ -121,7 +190,7 @@ class CardModel {
 
         self.frontZoneData = frontZone.encode()
         self.backZoneData = backZone.encode()
-        
+
         self.cardNumber = cardNumber
 
         self.frontText = frontZone.previewText(maxLength: 200)
@@ -130,7 +199,7 @@ class CardModel {
         self.createdAt = Date()
         self.editedAt = Date()
 
-        // Initializare SRS
+        // SRS defaults — matches SM-2 algorithm starting state.
         self.dueDate = Date()
         self.easeFactor = 2.5
         self.interval = 0
@@ -138,25 +207,56 @@ class CardModel {
     }
 }
 
-// 🔴 ȘTERGE complet clasa `CardStats` (dacă o ai în acest fișier). Nu mai avem nevoie de ea.
+// MARK: - Draft Card
 
-// MARK: - Draft Card (For CreateView)
-// (Rămâne EXACT la fel cum îl ai tu acum, nu am modificat nimic la el, deoarece este perfect pentru UI-ul de creare).
+/// A transient, non-persistent value type used to buffer edits in the card creation or
+/// editing UI before they are committed to a `CardModel` in the SwiftData store.
+///
+/// `DraftCard` is intentionally a `struct` so it is cheap to copy and
+/// can be held in `@State` without triggering SwiftData observation.
 struct DraftCard: Identifiable {
+
+    // MARK: - Properties
+
+    /// A stable unique identifier for this draft, used for SwiftUI list diffing.
     let id = UUID()
 
+    /// The `PersistentIdentifier` of the `CardModel` being edited, or `nil` for new cards.
     var originalCardID: PersistentIdentifier?
 
+    /// The zone tree for the front face.
     var frontZone: ZoneModel
+
+    /// The zone tree for the back face.
     var backZone: ZoneModel
+
+    /// The rendering mode for the front face.
     var frontType: CardContentType
+
+    /// The rendering mode for the back face.
     var backType: CardContentType
 
+    /// The date this draft was originally created (mirrors the source `CardModel`).
     var createdAt: Date?
+
+    /// The date this draft was last edited (mirrors the source `CardModel`).
     var editedAt: Date?
 
+    /// Convenience accessor returning the last edit date. Alias for `editedAt`.
     var lastEditDate: Date? { editedAt }
 
+    // MARK: - Initializer
+
+    /// Creates a new `DraftCard`, optionally pre-populated with content from an existing card.
+    ///
+    /// - Parameters:
+    ///   - originalCardID: The ID of the card being edited. Pass `nil` for a new card.
+    ///   - frontZone: Initial zone tree for the front face. Defaults to an empty text zone.
+    ///   - backZone: Initial zone tree for the back face. Defaults to an empty text zone.
+    ///   - frontType: Rendering mode for the front face. Defaults to `.text`.
+    ///   - backType: Rendering mode for the back face. Defaults to `.text`.
+    ///   - createdAt: Original creation date. Defaults to `nil`.
+    ///   - editedAt: Original edit date. Defaults to `nil`.
     init(
         originalCardID: PersistentIdentifier? = nil,
         frontZone: ZoneModel = .text(),
@@ -175,6 +275,13 @@ struct DraftCard: Identifiable {
         self.editedAt = editedAt
     }
 
+    // MARK: - Factory
+
+    /// Creates a `DraftCard` pre-populated from an existing `CardModel`.
+    ///
+    /// Use this when opening the edit sheet for an existing card.
+    /// - Parameter card: The source `CardModel` to mirror.
+    /// - Returns: A `DraftCard` with all fields copied from `card`.
     static func from(_ card: CardModel) -> DraftCard {
         DraftCard(
             originalCardID: card.id,

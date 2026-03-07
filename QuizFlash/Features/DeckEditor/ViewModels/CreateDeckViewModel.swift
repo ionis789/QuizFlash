@@ -1,6 +1,8 @@
 //
-//  CreateViewModel.swift
+//  CreateDeckViewModel.swift
 //  QuizFlash
+//
+//  Manages all state and business logic for the deck creation and editing flow.
 //
 
 import SwiftUI
@@ -8,6 +10,10 @@ import SwiftData
 import PhotosUI
 import PDFKit
 
+// MARK: - Create Deck View Model
+
+/// The ViewModel for `CreateDeckView`, managing draft card state, AI generation,
+/// and deck persistence for both new deck creation and existing deck editing.
 @Observable
 @MainActor
 final class CreateDeckViewModel {
@@ -24,7 +30,8 @@ final class CreateDeckViewModel {
     var selectedFolder: FolderModel? = nil
 
     // MARK: - PDF Analysis
-    // Populat automat când utilizatorul alege un PDF, înainte să apese Generează
+
+    /// Pre-populated automatically when the user selects a PDF, before tapping Generate.
     var pdfAnalysis: PDFAnalysisInfo? = nil
 
     // MARK: - Generation Settings
@@ -36,7 +43,7 @@ final class CreateDeckViewModel {
         didSet {
             guard !selectedAIPhotos.isEmpty else { return }
             showAIPickerOptions = false
-            // Pentru poze nu facem analiză — arătăm direct overlay-ul
+            // For photos, no pre-analysis step is needed — show the options overlay directly.
             pdfAnalysis = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 withAnimation(.spring()) { self.showAIOptionsOverlay = true }
@@ -47,7 +54,7 @@ final class CreateDeckViewModel {
     var pendingPDFURL: URL? = nil
 
     // MARK: - Services
-//    private let aiService = AIFlashcardService(apiKey: "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")
+
     private let aiService = AIFlashcardService(apiKey: "sk-a40ab294a6ea4efa91c003e8c1fccba2")
 
     // MARK: - Deck / Cards State
@@ -67,13 +74,11 @@ final class CreateDeckViewModel {
         }
     }
 
-    // =========================================================================
-    // MARK: - PDF Selection + Auto-Analysis
-    // Apelat din CreateView imediat ce utilizatorul a ales un PDF.
-    // Rulează PDFKit quality check în background și populează pdfAnalysis
-    // înainte ca overlay-ul să fie vizibil — fără delay perceptibil.
-    // =========================================================================
-
+    // MARK: - PDF Selection and Auto-Analysis
+    //
+    /// Called from `CreateView` immediately after the user selects a PDF.
+    /// Runs a PDFKit quality check in the background and populates `pdfAnalysis`
+    /// before the overlay becomes visible — no perceptible delay to the user.
     func pdfWasSelected(_ url: URL) {
         pendingPDFURL = url
         pdfAnalysis = nil
@@ -93,20 +98,18 @@ final class CreateDeckViewModel {
                 extractedChars: chars
             )
 
-            // Setăm automat modul recomandat
+            // Set the recommended extraction mode automatically based on PDF quality.
             self.pdfAnalysis = info
             self.extractionMode = info.recommendation
 
-            // Deschidem overlay-ul abia după ce avem analiza
+            // Open the overlay only after analysis is ready.
             withAnimation(.spring()) {
                 self.showAIOptionsOverlay = true
             }
         }
     }
 
-    // =========================================================================
-    // MARK: - Start Generation
-    // =========================================================================
+    // MARK: - AI Generation
 
     func startAIGeneration() {
         if !selectedAIPhotos.isEmpty {
@@ -116,11 +119,10 @@ final class CreateDeckViewModel {
         }
     }
 
-    // =========================================================================
     // MARK: - Process Photos
-    // Fast  → Vision OCR pe device (gratuit)
-    // Quality → GPT Vision, toate imaginile într-un singur request
-    // =========================================================================
+    //
+    // Fast    — On-device Vision OCR (free, fast)
+    // Quality — GPT Vision, all images in a single request (accurate, understands diagrams)
 
     private func processPhotosForAI() {
         aiState = .extractingText
@@ -129,7 +131,7 @@ final class CreateDeckViewModel {
 
         Task {
             do {
-                // Încărcăm imaginile din PhotosPicker
+                // Load images from the PhotosPicker.
                 var images: [UIImage] = []
                 for item in items {
                     if let data = try await item.loadTransferable(type: Data.self),
@@ -143,7 +145,7 @@ final class CreateDeckViewModel {
 
                 switch extractionMode {
                 case .fast:
-                    // Vision OCR pe device → text → GPT text mode (ieftin)
+                    // On-device Vision OCR → extracted text → GPT text mode (cheaper).
                     let extraction = await DocumentTextExtractor.extract(from: images)
                     guard let text = extraction.text, !text.isEmpty else {
                         throw AIServiceError.parsingFailed
@@ -155,7 +157,7 @@ final class CreateDeckViewModel {
                     )
 
                 case .quality:
-                    // GPT Vision cu toate imaginile (mai scump, mai lent, înțelege diagrame)
+                    // GPT Vision with all images in a single request (slower, understands diagrams).
                     aiState = .generatingCards(progress: 0, foundCount: 0)
                     cards = try await aiService.generateFlashcards(
                         from: images,
@@ -171,15 +173,14 @@ final class CreateDeckViewModel {
         }
     }
 
-    // =========================================================================
     // MARK: - Process PDF
-    // Fast    → DocumentTextExtractor pipeline: PDFKit → Vision OCR
-    // Quality → Render pagini → GPT Vision, toate într-un singur request
-    // =========================================================================
+    //
+    // Fast    — Automatic pipeline: PDFKit → on-device Vision OCR (free)
+    // Quality — Render pages as images → all in a single GPT Vision request
 
     private func processPDFForAI(url: URL) {
         guard url.startAccessingSecurityScopedResource() else {
-            aiState = .error("Nu am putut accesa fișierul PDF.")
+            aiState = .error("Could not access the PDF file.")
             return
         }
 
@@ -193,12 +194,12 @@ final class CreateDeckViewModel {
 
                 switch extractionMode {
                 case .fast:
-                    // Pipeline automat: PDFKit → Vision OCR pe device (gratuit)
+                    // Automatic pipeline: PDFKit → on-device Vision OCR (free).
                     aiState = .extractingText
                     let extraction = await DocumentTextExtractor.extract(from: url)
 
                     guard let text = extraction.text, !text.isEmpty else {
-                        // Textul e prea slab — fallback automat la Quality
+                        // Extracted text quality is too low — fall back to Quality mode automatically.
                         aiState = .generatingCards(progress: 0, foundCount: 0)
                         let images = await DocumentTextExtractor.renderPDFPages(from: url)
                         cards = try await aiService.generateFlashcards(
@@ -216,7 +217,7 @@ final class CreateDeckViewModel {
                     )
 
                 case .quality:
-                    // Render toate paginile → un singur request GPT Vision
+                    // Render all pages → single GPT Vision request.
                     aiState = .extractingText
                     let images = await DocumentTextExtractor.renderPDFPages(from: url, dpi: 150)
                     guard !images.isEmpty else { throw AIServiceError.parsingFailed }
@@ -295,13 +296,7 @@ final class CreateDeckViewModel {
         withAnimation { draftCards.removeAll { $0.id == card.id } }
     }
 
-    // =========================================================================
     // MARK: - Save Deck
-    // =========================================================================
-
-    // =========================================================================
-    // MARK: - Save Deck
-    // =========================================================================
 
     func saveDeck(context: ModelContext, router: NavigationManager, dismiss: DismissAction) {
         let trimmedTitle = deckTitle.trimmingCharacters(in: .whitespaces)
@@ -374,8 +369,6 @@ final class CreateDeckViewModel {
             }
             newDeck.cardCount = newDeck.cards.count
 
-
-
             try? context.save()
         }
 
@@ -404,8 +397,12 @@ final class CreateDeckViewModel {
     }
 }
 
-// MARK: - UIImage resize helper
+// MARK: - UIImage Resize Helper
+
 extension UIImage {
+    /// Resizes the image to fit within `maxDimension` × `maxDimension` while preserving aspect ratio.
+    ///
+    /// Used before sending images to the AI service to reduce request payload size.
     func resizedForAI(toMaxDimension maxDimension: CGFloat) -> UIImage {
         let size = self.size
         guard size.width > maxDimension || size.height > maxDimension else { return self }
@@ -417,8 +414,12 @@ extension UIImage {
     }
 }
 
-// MARK: - DocumentTextExtractor helper pentru pdfPageCount (non-isolated)
+// MARK: - DocumentTextExtractor Page Count Helper
+
 extension DocumentTextExtractor {
+    /// Counts the number of pages in the PDF at the given URL.
+    ///
+    /// Runs in a non-isolated async context to avoid blocking the `MainActor`.
     static func pdfPageCount(url: URL) async -> Int {
         PDFDocument(url: url)?.pageCount ?? 0
     }

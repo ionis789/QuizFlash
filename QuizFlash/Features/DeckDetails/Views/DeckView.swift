@@ -2,10 +2,19 @@
 //  DeckView.swift
 //  QuizFlash
 //
+//  Deck detail screen showing the card grid, stats, and play-mode entry points.
+//  Business logic is fully delegated to `DeckViewModel`.
+//
+//  ## iOS 17 Retain Cycle Wrapper
+//  `DeckView` is a thin wrapper that lazily creates `DeckViewModel` on appear,
+//  preventing the retain cycle that arises when a `@Observable` ViewModel is
+//  strongly captured by its own SwiftUI View during `NavigationStack` push.
+//  The actual UI lives in `DeckContentView`.
 
 import SwiftUI
 import SwiftData
 
+/// Threshold scroll distance before the compact navigation pill fades in.
 private let kHeroCollapseDistance: CGFloat = 10
 
 struct DeckContentView: View {
@@ -47,11 +56,21 @@ struct DeckContentView: View {
     @Query private var userProfiles: [UserProfile]
     private var userProfile: UserProfile? { userProfiles.first }
 
+    /// Formats deck creation date and card count for display under the deck title.
+    ///
+    /// Uses a static `DateFormatter` to avoid allocating a new formatter on every render pass.
     private var subtitleText: String {
-        let f = DateFormatter()
-        f.dateStyle = .medium; f.timeStyle = .none
-        return "\(f.string(from: deck.createdAt))  •  \(deck.cardCount) cards"
+        let count = deck.cardCount
+        return "\(Self.subtitleDateFormatter.string(from: deck.createdAt))  •  \(count) card\(count == 1 ? "" : "s")"
     }
+
+    /// Static date formatter for `subtitleText`. Allocated once for the app session.
+    private static let subtitleDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f
+    }()
 
     // MARK: - Body
 
@@ -345,7 +364,7 @@ struct DeckContentView: View {
                                 .padding(.top, 16)
                         }
 
-                        LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
                             Section {
                                 Color.clear.frame(height: 4)
                                 DeckCardGridView(
@@ -377,14 +396,8 @@ struct DeckContentView: View {
                                 )
                                 Color.clear.frame(height: 120)
                             }
-//                            header: {
-//                                DeckSectionToolbar(
-//                                    deck: deck,
-//                                    pillVisible: scrollState.pillVisible
-//                                )
-//                                    .background(Color(uiColor: .systemGroupedBackground))
-//                            }
                         }
+
                     }
                         .contentShape(Rectangle())
                         .onTapGesture {
@@ -395,12 +408,12 @@ struct DeckContentView: View {
             }
                 .scrollIndicators(.hidden)
                 .scrollDisabled(isMenuExpanded)
-                .background(Color(uiColor: .systemGroupedBackground))
+                .background(Color(.systemGroupedBackground))
         }
     }
 
-// ... CardPreviewScreen, CardStatsView, StatIconItem, DeckView remain unchanged
     // MARK: - Menu Overlay
+
 
     @ViewBuilder
     private var menuOverlay: some View {
@@ -551,12 +564,12 @@ struct DeckView: View {
             if let vm = viewModel {
                 DeckContentView(deck: deck, searchQuery: searchQuery, backLabel: backLabel, viewModel: vm)
             } else {
-                Color(uiColor: .systemGroupedBackground)
+                Color(.systemGroupedBackground)
                     .onAppear {
-                    if self.viewModel == nil {
-                        self.viewModel = DeckViewModel(searchQuery: searchQuery)
+                        if self.viewModel == nil {
+                            self.viewModel = DeckViewModel(searchQuery: searchQuery)
+                        }
                     }
-                }
             }
         }
     }

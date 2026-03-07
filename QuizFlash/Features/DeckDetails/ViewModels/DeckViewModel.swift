@@ -2,31 +2,28 @@
 //  DeckViewModel.swift
 //  QuizFlash
 //
-//  iOS 17 Memory Leak — Changes in this file:
+//  Manages all UI state and business logic for the Deck detail screen.
 //
-//  BEFORE: updateGroupedCards(for deck: DeckModel, context: ModelContext) -> DeckStats
-//    Called synchronously on the main actor. Reading Array(deck.cards) loaded every
-//    CardModel into the main ModelContext's row cache. iOS 17 never evicted them on
-//    back-navigation → the cumulative +1 MB/cycle leak.
+//  ## iOS 17 Memory-Safe Card Loading
+//  All card fetches are delegated to `CardPreviewCache` (which uses a background actor).
+//  The main `ModelContext` never reads a single `CardModel` — only `Sendable` value types
+//  (`GridCardInfo`, `DeckStats`) cross the actor boundary.
+//  This prevents the iOS 17 row-cache accumulation (+1 MB/cycle) bug.
 //
-//  AFTER: loadSnapshot(deckID:, container:) async
-//    Delegates all DB reads to CardFetchActor (off the main actor). The main ModelContext
-//    never touches a single CardModel. Only Sendable value types (GridCardInfo, DeckStats)
-//    cross the actor boundary → zero contribution to the main context's row cache.
-//
-//  Deletion flow:
-//    Mutations still happen on the main context (correct — they need the live DeckModel).
-//    After save(), we update allCardInfos in-memory (instant UI) and fire an async
-//    loadSnapshot to refresh accurate stats. No deck.cards read on the main context.
-//
+//  ## Deletion Flow
+//  Mutations still happen on the main context (they require the live `DeckModel`).
+//  After `save()`, `allCardInfos` is updated in-memory for instant UI feedback, then
+//  an async `loadSnapshot` refreshes accurate stats. No `deck.cards` read on main.
 
 import SwiftUI
 import SwiftData
 
-// MARK: - GridCardInfo
+// MARK: - Grid Card Info
 
-/// Sendable value type representing a single card's display data.
-/// The only SwiftData-derived type that crosses actor boundaries in this architecture.
+/// A lightweight, `Sendable` value type representing one card's display data.
+///
+/// This is the only SwiftData-derived type that crosses actor boundaries in this
+/// architecture. It contains no `ModelContext` references, preventing row-cache retention.
 struct GridCardInfo: Identifiable, Equatable, Hashable, Sendable {
     let id: PersistentIdentifier
     let cardNumber: Int
@@ -38,14 +35,15 @@ struct GridCardInfo: Identifiable, Equatable, Hashable, Sendable {
     let editedAt: Date
 }
 
-// MARK: - DeckViewModel
+// MARK: - Deck View Model
 
+/// The ViewModel for `DeckView`, managing card data, selection, search, sort, and export state.
+///
+/// Isolated to `@MainActor` and using `@Observable` for iOS 17+ observation.
+/// The class is `final` as it is not designed to be subclassed.
 @Observable
 @MainActor
 final class DeckViewModel {
-
-
-
 
     // MARK: - Selection State
     var isSelecting = false

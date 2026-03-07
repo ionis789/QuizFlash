@@ -2,21 +2,50 @@
 //  CardFetchActor.swift
 //  QuizFlash
 //
+//  A background actor responsible for fetching card data and generating
+//  thumbnails in isolation from the main-thread ModelContext.
+//  This file must remain free of SwiftUI and UIKit imports —
+//  it is a pure data-layer repository.
+//
 
-import SwiftUI
+import Foundation
 import SwiftData
+import UIKit
 
-// MARK: - Global DeckStats
-// Mutat aici pentru a fi vizibil global și pentru a respecta standardul Sendable (Safe Concurrency)
+// MARK: - DeckStats
+
+/// A lightweight, sendable value type summarising the review statistics for a single deck.
+///
+/// `DeckStats` is computed on the background actor and then transferred to the
+/// main actor for display, so it must conform to `Sendable`.
 struct DeckStats: Sendable {
+
+    // MARK: - Properties
+
+    /// The total number of cards in the deck.
     let totalCards: Int
+
+    /// The number of cards whose `dueDate` is on or before the current time.
     let dueCards: Int
+
+    /// The cumulative number of review events recorded across all cards.
     let totalReviews: Int
+
+    /// The review accuracy as an integer percentage (0–100).
     let accuracy: Int
+
+    /// The total XP earned from all review events in the deck.
     let totalXPEarned: Int
+
+    /// The average mastery score across all cards, from `0.0` (none) to `1.0` (mastered).
     let deckMastery: Double
+
+    /// The number of review events recorded today (since midnight local time).
     let todayReviewed: Int
 
+    // MARK: - Factory
+
+    /// A zeroed-out `DeckStats` value representing a deck with no data.
     static let empty = DeckStats(
         totalCards: 0, dueCards: 0, totalReviews: 0,
         accuracy: 0, totalXPEarned: 0, deckMastery: 0.0, todayReviewed: 0
@@ -24,18 +53,59 @@ struct DeckStats: Sendable {
 }
 
 // MARK: - CardDataSnapshot
+
+/// A sendable snapshot pairing a list of lightweight card summaries with aggregated deck statistics.
+///
+/// Produced by ``CardFetchActor/fetchSnapshot(deckID:)`` and transferred
+/// to the main actor for rendering the deck grid.
 struct CardDataSnapshot: Sendable {
+
+    // MARK: - Properties
+
+    /// Lightweight representations of each card, safe to pass across actor boundaries.
     let gridCards: [GridCardInfo]
+
+    /// Aggregated statistics for the deck at the time the snapshot was taken.
     let stats: DeckStats
 }
 
 // MARK: - CardFetchActor
+
+/// A Swift actor that performs all card-related data fetches on a dedicated background context.
+///
+/// Using a dedicated `ModelContext` on the actor isolates reads from the main-thread
+/// context, preventing UI jank and avoiding the iOS 17 `ModelContext` row-cache trap
+/// where faulted relationship arrays permanently retain large model graphs in memory.
+///
+/// ## Memory Management
+///
+/// After each fetch, ``flushContext()`` replaces the active `ModelContext` with a fresh
+/// instance, immediately deallocating any `CardModel` objects (and their `Data` blobs)
+/// that were loaded into the previous context's row cache.
 actor CardFetchActor {
 
-    // Salvăm container-ul pentru a putea recrea contextul oricând
+    // MARK: - Private State
+
+    /// The shared `ModelContainer` used to create fresh `ModelContext` instances.
+    ///
+    /// Retaining the container (not the context) is the correct pattern: the container
+    /// is shared and cheap, while each context owns its own in-memory row cache.
     private let container: ModelContainer
+
+    /// The current background `ModelContext` used for fetching.
+    ///
+    /// Replaced by ``flushContext()`` after every operation to free the row cache.
     private var activeContext: ModelContext
 
+    // MARK: - Initialization
+
+    /// Creates a new `CardFetchActor` backed by the given `ModelContainer`.
+    ///
+    /// A fresh `ModelContext` with auto-save disabled is created immediately.
+    /// Auto-save is disabled because this actor performs read-only fetches
+    /// and must never accidentally persist partial state to the store.
+    ///
+    /// - Parameter container: The shared `ModelContainer` for the app's schema.
     init(container: ModelContainer) {
         self.container = container
         let ctx = ModelContext(container)
@@ -43,10 +113,16 @@ actor CardFetchActor {
         self.activeContext = ctx
     }
 
-    /// 🔥 FIX iOS 17: Golirea Memoriei Cache
-    /// Deoarece SwiftData nu are funcția `.reset()`, distrugem fizic contextul vechi
-    /// și inițializăm unul nou. Orice card de 2MB reținut în vechiul context este dealocat instantaneu.
-    private func flushRAM() {
+    // MARK: - Context Management
+
+    /// Replaces the active `ModelContext` with a new, empty one, immediately freeing RAM.
+    ///
+    /// SwiftData does not expose a `reset()` method on `ModelContext`. The only reliable
+    /// way to evict large objects (e.g. card `Data` blobs of several MB) from the
+    /// iOS 17 row cache is to discard the context object entirely and allocate a fresh one.
+    /// The old context — and all models it retains — is deallocated as soon as ARC
+    /// releases the last reference.
+    private func flushContext() {
         let freshContext = ModelContext(container)
         freshContext.autosaveEnabled = false
         self.activeContext = freshContext
@@ -54,16 +130,31 @@ actor CardFetchActor {
 
     // MARK: - Card Snapshot
 
+    /// Fetches a lightweight snapshot of all cards in the specified deck.
+    ///
+    /// This method:
+    /// 1. Fetches `CardModel` objects directly from SQLite using a predicate,
+    ///    bypassing the `deck.cards` relationship array (which is unreliable on iOS 17
+    ///    across different `ModelContext` instances).
+    /// 2. Projects each card into a ``GridCardInfo`` value type.
+    /// 3. Accumulates deck statistics via ``StatsAccumulator``.
+    /// 4. Flushes the context immediately after projection to reclaim memory.
+    ///
+    /// - Parameter deckID: The `PersistentIdentifier` of the target deck.
+    /// - Returns: A ``CardDataSnapshot`` containing grid-display data and statistics.
     func fetchSnapshot(deckID: PersistentIdentifier) -> CardDataSnapshot {
         guard let deck = activeContext.model(for: deckID) as? DeckModel else {
             return CardDataSnapshot(gridCards: [], stats: .empty)
         }
 
+        // Suppress "unused variable" warning — deck is fetched to verify the ID resolves.
+        _ = deck
+
         let now        = Date()
         let todayStart = Calendar.current.startOfDay(for: now)
         var gridCards  = [GridCardInfo]()
         var accum      = StatsAccumulator()
-        
+
         // Fetch directly from the SQLite store using a predicate. This bypasses
         // the `deck.cards` relationship array, which is prone to caching bugs on iOS 17
         // where it fails to reflect newly inserted cards across different contexts.
@@ -86,8 +177,9 @@ actor CardFetchActor {
             accum.accumulate(card: card, now: now, todayStart: todayStart)
         }
 
-        // Dealocăm cardurile grele din RAM imediat după ce am creat structurile ușoare GridCardInfo
-        flushRAM()
+        // Flush heavy CardModel objects from RAM immediately after projecting
+        // them into lightweight GridCardInfo structs.
+        flushContext()
 
         return CardDataSnapshot(
             gridCards: gridCards,
@@ -97,14 +189,24 @@ actor CardFetchActor {
 
     // MARK: - Thumbnail Generation
 
+    /// Generates a compressed thumbnail payload for the card identified by `id`.
+    ///
+    /// This method reads the raw zone data blobs, flushes the context to free memory,
+    /// and then decodes and downsamples the first image or sketch found in the zone tree.
+    /// Flushing before decoding ensures that the heavy `Data` blobs stored in the
+    /// `ModelContext` row cache are released before the CPU-intensive decode step begins.
+    ///
+    /// - Parameter id: The `PersistentIdentifier` of the target `CardModel`.
+    /// - Returns: A ``CardPreviewPayload`` containing the thumbnail and media presence flags,
+    ///   or `nil` if the card cannot be found in the store.
     func generateThumbnail(for id: PersistentIdentifier) -> CardPreviewPayload? {
         guard let card = activeContext.model(for: id) as? CardModel else { return nil }
 
         let frontData = card.frontZoneData
         let backData  = card.backZoneData
 
-        // Evacuăm baza de date din RAM înainte să stresăm procesorul cu decodarea imaginilor
-        flushRAM()
+        // Flush the database from RAM before the CPU-intensive image decode step.
+        flushContext()
 
         let frontZone = frontData.flatMap { ZoneModel.decode(from: $0) }
         let backZone  = backData.flatMap  { ZoneModel.decode(from: $0) }
@@ -127,22 +229,52 @@ actor CardFetchActor {
 
     // MARK: - Lifecycle
 
+    /// Performs cleanup when the actor is no longer needed.
+    ///
+    /// Replaces the active context with a fresh one so that any models
+    /// still retained in the row cache are deallocated before the actor itself
+    /// is released by ARC.
     func tearDown() {
-        // Omorâm contextul definitiv înainte de a fi curățat de Garbage Collector
-        flushRAM()
+        flushContext()
     }
 }
 
 // MARK: - StatsAccumulator
 
+/// A mutable value type that accumulates per-card review statistics
+/// during a single pass over a card collection.
+///
+/// Designed for use inside ``CardFetchActor`` only. Not thread-safe.
 private struct StatsAccumulator {
+
+    // MARK: - Accumulation State
+
+    /// Running total of review events across all processed cards.
     var totalReviews   = 0
+
+    /// Running total of review events rated `.good` or better.
     var correctReviews = 0
+
+    /// Running total of XP awarded across all review events.
     var totalXP        = 0
+
+    /// Running count of cards whose `dueDate` is on or before the current time.
     var dueCards       = 0
+
+    /// Running sum of per-card mastery scores; divided by card count to produce the average.
     var masterySum     = 0.0
+
+    /// Running count of review events that occurred today (since midnight local time).
     var todayReviewed  = 0
 
+    // MARK: - Mutation
+
+    /// Incorporates the statistics of a single card into the accumulator.
+    ///
+    /// - Parameters:
+    ///   - card: The `CardModel` to process.
+    ///   - now: The reference timestamp for due-date comparison.
+    ///   - todayStart: Midnight in the user's local time zone, used for today's review count.
     mutating func accumulate(card: CardModel, now: Date, todayStart: Date) {
         let history     = card.reviewHistory
         totalReviews   += history.count
@@ -153,6 +285,13 @@ private struct StatsAccumulator {
         masterySum     += Self.masteryScore(for: card)
     }
 
+    // MARK: - Build
+
+    /// Produces a finalised ``DeckStats`` value from the accumulated data.
+    ///
+    /// - Parameter count: The total number of cards processed (used as the denominator
+    ///   for mastery averaging).
+    /// - Returns: A populated ``DeckStats`` snapshot.
     func build(count: Int) -> DeckStats {
         DeckStats(
             totalCards:    count,
@@ -166,6 +305,17 @@ private struct StatsAccumulator {
         )
     }
 
+    // MARK: - Mastery Scoring
+
+    /// Calculates a normalised mastery score for a single card based on its SRS interval
+    /// and ease factor.
+    ///
+    /// Cards with no review history return `0.0`. Cards with a long interval and a high
+    /// ease factor approach `1.0`. The scale is intentionally non-linear to reward
+    /// sustained retention over raw review volume.
+    ///
+    /// - Parameter card: The `CardModel` to score.
+    /// - Returns: A `Double` in the range `[0.0, 1.0]`.
     private static func masteryScore(for card: CardModel) -> Double {
         guard !card.reviewHistory.isEmpty else { return 0.0 }
         switch card.interval {

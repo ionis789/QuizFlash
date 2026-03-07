@@ -1,13 +1,21 @@
 // HomeDashboardView.swift
 // QuizFlash
 //
-// Renders the scrollable dashboard content below the calendar header.
+// Renders the scrollable dashboard content below the sticky calendar header.
+// This view is purely presentational — all state and logic live in HomeViewModel
+// and CalendarViewModel, passed in as constants.
 
 import SwiftUI
 import SwiftData
 
-// MARK: - Home Dashboard
+// MARK: - Home Dashboard View
 
+/// The scrollable body of the Home screen, rendered below the collapsible calendar header.
+///
+/// Displays three sections in order:
+/// 1. **Daily Activity** — stats for the selected calendar day.
+/// 2. **Recent Decks** — a horizontal carousel of recently opened decks (if any).
+/// 3. **Folders** — a two-column grid of user folders.
 struct HomeDashboardView: View {
 
     // MARK: - Properties
@@ -55,13 +63,13 @@ struct HomeDashboardView: View {
                 .font(.system(.title3, design: .rounded, weight: .bold))
                 .foregroundStyle(.primary)
 
-            // Hero Card: Progresul zilnic (Cards vs Goal)
+            // Hero card: daily cards reviewed vs. goal.
             DailyGoalProgressCard(
                 cardsReviewed: selectedDayLog?.cardsReviewed ?? 0,
                 dailyGoal: selectedDayLog?.dailyGoal ?? 50
             )
 
-            // Secundary Stats: XP, Streak, New Learned într-un grid mai compact
+            // Secondary stats: XP, Streak, Learned — compact horizontal grid.
             HStack(spacing: 12) {
                 MiniStatCardView(
                     title: "XP",
@@ -112,7 +120,7 @@ struct HomeDashboardView: View {
                     }
                 }
                     .padding(.horizontal, 20)
-                // Spațiu extra pentru umbre
+                // Extra padding so card drop shadows are not clipped.
                 .padding(.bottom, 16)
                     .padding(.top, 4)
             }

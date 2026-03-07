@@ -66,7 +66,7 @@ struct CreateCardView: View {
         backZone: ZoneModel,
         searchQuery: String? = nil,
       
-        onSave: @escaping (ZoneModel, ZoneModel) -> Void,
+          onSave: @escaping (ZoneModel, ZoneModel) -> Void
     ) {
 
         self.onSaveZones = onSave

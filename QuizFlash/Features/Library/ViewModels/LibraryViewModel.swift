@@ -2,22 +2,28 @@
 //  LibraryViewModel.swift
 //  QuizFlash
 //
-//  PERFORMANCE FIX — buildSearchCache
-//  ─────────────────────────────────────────────────────────────────────────────
-//  The original buildSearchCache() mapped 76 decks synchronously on the
-//  MainActor. Each deck iterates all its cards, and each card calls
-//  extractAllText() which recursively walks the zone tree. With 76 decks ×
-//  ~20 cards × zone traversal = thousands of recursive calls per invocation,
-//  all blocking the main thread. This was the direct cause of lag on tab
-//  switches (onAppear fires buildSearchCache every time).
+//  Manages all UI state and business logic for the Library screen and folder views.
 //
-//  FIX: The entire payload-building loop runs on a background thread via
-//  Task.detached. The MainActor receives only the finished [DeckSearchPayload]
-//  array. The main thread is free to animate the tab transition uninterrupted.
+//  ## Search Cache Architecture
+//  Building the search cache requires walking every card's zone tree — thousands
+//  of recursive calls that would block the main thread with 70+ decks. The cache
+//  is built on a background thread via `LibrarySearchActor` (Services/Search/).
+//  The `MainActor` receives only the finished `[DeckSearchPayload]` array, keeping
+//  tab-switch animations smooth and uninterrupted.
+//
+//  `LibrarySearchActor` has been extracted to `Services/Search/LibrarySearchActor.swift`.
 
 import SwiftUI
 import SwiftData
 
+// MARK: - Library View Model
+
+/// The ViewModel for `LibraryView` and `FolderView`.
+///
+/// Manages selection state, search state, import/export state, and the
+/// background search payload cache. One instance lives as a long-lived
+/// environment object in the root Library tab; each pushed `FolderView`
+/// creates an isolated local instance that is torn down on pop.
 @Observable
 @MainActor
 final class LibraryViewModel {
@@ -319,77 +325,5 @@ final class LibraryViewModel {
     }
 }
 
-// =============================================================================
-// MARK: - Safe Background Actor
-// =============================================================================
-
-/// Isolated background actor that strictly avoids the iOS 17 `@ModelActor`
-/// Zombie Context bug. It manually manages its `ModelContext` and uses
-/// `flushRAM()` to instantly destroy and recreate the context, breaking all
-/// `NotificationCenter` observer retains and freeing the row cache.
-///
-/// Context lifecycle — why lazy:
-/// Swift actor `init` is NOT isolated to the actor's executor when called
-/// synchronously from another isolation domain (e.g. MainActor). If the
-/// context were created inside `init`, it would be instantiated on the
-/// MainActor and then used on the background executor → "Unbinding from the
-/// main queue" warning. The lazy accessor creates the context on the first
-/// call that happens inside an actor-isolated method, guaranteeing that
-/// instantiation and all subsequent accesses share the same executor.
-final actor LibrarySearchActor {
-
-    private let modelContainer: ModelContainer
-    /// Backing store — nil until first actor-isolated access.
-    private var _context: ModelContext?
-
-    /// Actor-isolated accessor. Creates the context on the first call, which
-    /// always occurs on the actor's background executor, never on the MainActor.
-    private var context: ModelContext {
-        if let existing = _context { return existing }
-        let ctx = ModelContext(modelContainer)
-        ctx.autosaveEnabled = false   // Prevents NotificationCenter registration → no zombie context on iOS 17
-        _context = ctx
-        return ctx
-    }
-
-    init(modelContainer: ModelContainer) {
-        self.modelContainer = modelContainer
-        // Intentionally no ModelContext creation here. See actor-level comment.
-    }
-
-    /// Severs the current context from NotificationCenter by niling the reference.
-    /// On the next access, `context` recreates it lazily on the actor's executor.
-    private func flushRAM() {
-        _context = nil
-    }
-
-    func buildPayloads(for deckInfos: [(id: PersistentIdentifier, title: String, icon: String, colorHex: String)]) -> [DeckSearchPayload] {
-        var results: [DeckSearchPayload] = []
-
-        for info in deckInfos {
-            autoreleasepool {
-                // Fetch cards for this specific deck using the isolated actor context.
-                let id = info.id
-                let desc = FetchDescriptor<CardModel>(predicate: #Predicate { $0.deck?.persistentModelID == id })
-                guard let cards = try? self.context.fetch(desc) else { return }
-
-                let searchCards = cards.map { CardSearchPayload(id: $0.id, frontText: $0.frontText, backText: $0.backText) }
-
-                results.append(DeckSearchPayload(
-                    id: info.id,
-                    title: info.title,
-                    icon: info.icon,
-                    colorHex: info.colorHex,
-                    cards: searchCards
-                ))
-            }
-        }
-        
-        flushRAM()
-        return results
-    }
-    
-    func tearDown() {
-        flushRAM()
-    }
-}
+// LibrarySearchActor has been extracted to:
+// Services/Search/LibrarySearchActor.swift

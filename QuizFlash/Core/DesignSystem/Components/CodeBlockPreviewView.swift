@@ -2,49 +2,20 @@
 //  CodeBlockPreviewView.swift
 //  QuizFlash
 //
-//  Renderer vizual pentru zone de tip cod (fontFamily == .monospaced).
-//  Afișat în ZonePreviewView și ZoneContentView (modul read-only).
-//
-//  ─────────────────────────────────────────────────────────────
-//  IMPORTANT — FontFamily.monospaced
-//  ─────────────────────────────────────────────────────────────
-//  Adaugă acest case în enum-ul tău FontFamily:
-//
-//    case monospaced
-//
-//  Și implementările:
-//
-//    func font(size: CGFloat, weight: Font.Weight) -> Font {
-//        switch self {
-//        case .system:    return .system(size: size, weight: weight)
-//        case .monospaced: return .system(size: size, weight: weight, design: .monospaced)
-//        // ... restul case-urilor
-//        }
-//    }
-//
-//    func uiFont(size: CGFloat, weight: UIFont.Weight) -> UIFont {
-//        switch self {
-//        case .system:    return .systemFont(ofSize: size, weight: weight)
-//        case .monospaced: return UIFont.monospacedSystemFont(ofSize: size, weight: weight)
-//        // ... restul case-urilor
-//        }
-//    }
-//  ─────────────────────────────────────────────────────────────
 
 import SwiftUI
 
 // =============================================================================
 // MARK: - CodeBlockPreviewView
 //
-// View folosit în ZonePreviewView pentru a afișa un bloc de cod.
 // Design:
 //   ┌─────────────────────────────────────────┐
-//   │ JAVA                              [copy] │  ← header bar
+//   │ JAVA                              [copy]│  ← header bar
 //   ├─────────────────────────────────────────┤
 //   │ public class Animal {                   │
-//   │     private String name;               │  ← code body
-//   │     public Animal(String name) {        │    scroll orizontal pentru linii lungi
-//   │         this.name = name;              │
+//   │     private String name;                │  ← code body
+//   │     public Animal(String name) {        │    scroll       |            orizontal pentru linii lungi |
+//   │         this.name = name;               │
 //   │     }                                   │
 //   │ }                                       │
 //   └─────────────────────────────────────────┘

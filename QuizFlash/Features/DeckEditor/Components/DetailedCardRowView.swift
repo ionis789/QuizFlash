@@ -60,16 +60,18 @@ struct DetailedCardRowView: View {
             }
 
             // MARK: - Thumbnails Gallery
-            let allThumbnails = (card.frontZone.thumbnails + card.backZone.thumbnails).prefix(4)
-            if !allThumbnails.isEmpty {
+            let allThumbnailData = (card.frontZone.thumbnailDataList + card.backZone.thumbnailDataList).prefix(4)
+            if !allThumbnailData.isEmpty {
                 HStack(spacing: 10) {
-                    ForEach(Array(allThumbnails.enumerated()), id: \.offset) { _, img in
-                        Image(uiImage: img)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 46, height: 46)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                    ForEach(Array(allThumbnailData.enumerated()), id: \.offset) { _, data in
+                        if let img = UIImage(data: data) {
+                            Image(uiImage: img)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 46, height: 46)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                        }
                     }
                 }
                     .padding(.top, 4)
@@ -124,7 +126,7 @@ struct DetailedCardRowView: View {
         1 + (zone.children?.reduce(0) { $0 + zoneCount($1) } ?? 0)
     }
 
-    /// Recursively numără câte imagini valide există în zone
+    /// Recursively counts the number of valid image zones in the subtree.
     private func imageCount(in zone: ZoneModel) -> Int {
         if zone.isLeaf {
             return (zone.contentType == .image && zone.hasContent) ? 1 : 0
@@ -132,7 +134,7 @@ struct DetailedCardRowView: View {
         return zone.children?.reduce(0) { $0 + imageCount(in: $1) } ?? 0
     }
 
-    /// Recursively numără câte schițe valide există în zone
+    /// Recursively counts the number of valid sketch zones in the subtree.
     private func sketchCount(in zone: ZoneModel) -> Int {
         if zone.isLeaf {
             return (zone.contentType == .sketch && zone.hasContent) ? 1 : 0
