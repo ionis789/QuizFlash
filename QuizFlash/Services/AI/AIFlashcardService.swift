@@ -1,5 +1,5 @@
 import Foundation
-import UIKit
+import UIKit // Required for UIImage – image pipeline only, no UI components used
 
 // =============================================================================
 // MARK: - AI Service Errors
@@ -20,8 +20,8 @@ public enum AIServiceError: LocalizedError {
         case .networkError: return "Network error."
         case .invalidResponse: return "Invalid response."
         case .parsingFailed: return "Parsing failed."
-        case .rateLimitExceeded: return "To many requests. Try again later."
-        case .timeout: return "Timeout no response from the server."
+        case .rateLimitExceeded: return "Too many requests. Try again later."
+        case .timeout: return "Timeout – no response from the server."
         case .unknown(let msg): return msg
         }
     }
@@ -82,17 +82,38 @@ public final class AIFlashcardService {
     // MARK: - Public Entry Points
     // -------------------------------------------------------------------------
 
-    func generateFlashcards(from pdfURL: URL, targetCards: Int) async throws -> [AIFlashcard] {
+    /// Generates flashcards from a PDF file.
+    ///
+    /// - Parameters:
+    ///   - pdfURL: The local file URL of the PDF document.
+    ///   - targetCards: The desired number of flashcards to generate.
+    /// - Returns: An array of `AIFlashcard` values.
+    /// - Throws: `AIServiceError` if extraction, network communication, or parsing fails.
+    public func generateFlashcards(from pdfURL: URL, targetCards: Int) async throws -> [AIFlashcard] {
         let result = await DocumentTextExtractor.extract(from: pdfURL)
         return try await route(result: result, targetCards: targetCards)
     }
 
-    func generateFlashcards(from images: [UIImage], targetCards: Int) async throws -> [AIFlashcard] {
+    /// Generates flashcards from a collection of images.
+    ///
+    /// - Parameters:
+    ///   - images: An array of `UIImage` values (camera captures, scanned pages, etc.).
+    ///   - targetCards: The desired number of flashcards to generate.
+    /// - Returns: An array of `AIFlashcard` values.
+    /// - Throws: `AIServiceError` if network communication or parsing fails.
+    public func generateFlashcards(from images: [UIImage], targetCards: Int) async throws -> [AIFlashcard] {
         let result = await DocumentTextExtractor.extract(from: images)
         return try await route(result: result, targetCards: targetCards)
     }
 
-    func generateFlashcards(fromText text: String, targetCards: Int) async throws -> [AIFlashcard] {
+    /// Generates flashcards from a plain-text string.
+    ///
+    /// - Parameters:
+    ///   - text: The source text content.
+    ///   - targetCards: The desired number of flashcards to generate.
+    /// - Returns: An array of `AIFlashcard` values.
+    /// - Throws: `AIServiceError` if network communication or parsing fails.
+    public func generateFlashcards(fromText text: String, targetCards: Int) async throws -> [AIFlashcard] {
         return try await dispatchText(text, targetCards: targetCards, needsOCRCorrection: false)
     }
 
@@ -159,7 +180,7 @@ public final class AIFlashcardService {
 
     private func splitIntoChunks(_ text: String) -> [String] {
         guard text.count > maxCharsPerChunk else { return [text] }
-        let pageSeparator = "\n\n--- Pagina următoare ---\n\n"
+        let pageSeparator = "\n\n--- Next page ---\n\n"
         let pages = text.components(separatedBy: pageSeparator)
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
@@ -410,7 +431,7 @@ public final class AIFlashcardService {
     }
 
     private func decodeFlashcards(from jsonString: String) throws -> [AIFlashcard] {
-        // Strip markdown code fences if present (shouldn't happen with json_object mode, but safe)````≥≤`
+        // Strip markdown code fences if present (shouldn't happen with json_object mode, but defensive)
         print("═══════════════════════════════════")
         print("📦 RAW GPT JSON:")
         print(jsonString)
@@ -440,7 +461,7 @@ public final class AIFlashcardService {
             }
 
             return cards.map { card in
-                // Folosim resolvedQuestionZones în loc de question_zones
+                // Use resolvedQuestionZones instead of question_zones for robust fallback handling
                 let questionZones = card.resolvedQuestionZones
                     .map { AIZoneParser.sanitizeLatex($0) }
                     .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }

@@ -20,13 +20,15 @@ struct LoginView: View {
             Text("QuizFlash")
                 .font(.largeTitle.bold())
             
-            Text("Învață rapid și eficient.")
+            Text("Learn fast and effectively.")
                 .foregroundStyle(.gray)
             
             Spacer()
             
             Button(action: {
-                authManager.loginWithGoogle()
+                Task {
+                    await authManager.loginWithGoogle()
+                }
             }) {
                 HStack {
                     Image(systemName: "globe")

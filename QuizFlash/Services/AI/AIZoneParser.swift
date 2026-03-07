@@ -66,15 +66,15 @@ struct AIZoneParser {
         let trimmed = processed.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .empty() }
 
-        // Verificăm dacă zona este un bloc de cod markdown
+        // Check whether this zone is a Markdown code block
         if trimmed.hasPrefix("```") && trimmed.hasSuffix("```") {
             let lines = trimmed.components(separatedBy: .newlines)
             if lines.count > 1 {
-                // Extragem limbajul (ex: java din ```java)
+                // Extract the language identifier (e.g. "java" from ```java)
                 let firstLine = lines[0].trimmingCharacters(in: CharacterSet(charactersIn: "`").union(.whitespaces))
                 let language = firstLine.isEmpty ? nil : firstLine
 
-                // Extragem codul efectiv (fără prima și ultima linie)
+                // Extract the code body (drop the first and last fence lines)
                 let codeContent = lines.dropFirst().dropLast().joined(separator: "\n")
 
                 return .code(codeContent, language: language)

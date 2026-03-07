@@ -5,34 +5,59 @@
 //  Created by Ion Socol on 23.12.2025.
 //
 
-import SwiftUI
+import Foundation
+import Observation
 
+// MARK: - AuthManager
+
+/// Manages the authentication state of the current user.
+///
+/// `AuthManager` is a singleton that persists the authenticated status in
+/// `UserDefaults` and exposes it as an `@Observable` property so any SwiftUI
+/// view that reads `isAuthenticated` is automatically invalidated on change.
+///
+/// All state mutations happen on the `MainActor` to guarantee thread-safe
+/// observation updates.
 @Observable
-class AuthManager {
+@MainActor
+final class AuthManager {
 
+    // MARK: - Shared Instance
 
+    /// The app-wide singleton.
+    static let shared = AuthManager()
 
-    var isAuthenticated: Bool {
+    // MARK: - State
+
+    /// Whether a user is currently authenticated.
+    ///
+    /// Persisted in `UserDefaults` under the key `"is_authenticated"`.
+    private(set) var isAuthenticated: Bool {
         didSet {
             UserDefaults.standard.set(isAuthenticated, forKey: "is_authenticated")
         }
     }
 
-    init() {
+    // MARK: - Init
+
+    private init() {
         self.isAuthenticated = UserDefaults.standard.bool(forKey: "is_authenticated")
     }
 
-    func loginWithGoogle() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            withAnimation {
-                self.isAuthenticated = true
-            }
-        }
+    // MARK: - Public Interface
+
+    /// Simulates a Google Sign-In flow.
+    ///
+    /// In production replace this stub with the real Google Sign-In SDK call.
+    /// The method is `async` so call-sites can `await` completion without
+    /// blocking the main thread.
+    func loginWithGoogle() async {
+        try? await Task.sleep(for: .seconds(1))
+        isAuthenticated = true
     }
 
+    /// Signs the current user out and clears the persisted session.
     func logout() {
-        withAnimation {
-            self.isAuthenticated = false
-        }
+        isAuthenticated = false
     }
 }

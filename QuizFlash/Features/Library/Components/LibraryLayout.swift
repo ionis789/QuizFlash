@@ -61,6 +61,13 @@ struct LibraryLayout: View {
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var backgroundTheme: Color { Color(uiColor: .systemBackground) }
+    private var searchTransition: Animation {
+            .spring(response: UIConstants.Animation.instant, dampingFraction: 0.92)
+    }
+    private var searchContentMaxWidth: CGFloat { 720 }
+    private var searchPromptTopPadding: CGFloat {
+        UIConstants.Spacing.huge + UIConstants.Spacing.large + UIConstants.Size.buttonHeight + UIConstants.Spacing.large
+    }
 
     // MARK: - Body
 
@@ -75,6 +82,11 @@ struct LibraryLayout: View {
                 .zIndex(-1)
 
             mainScrollArea
+                .allowsHitTesting(!viewModel.isSearching)
+                .accessibilityHidden(viewModel.isSearching)
+
+            searchOverlay
+                .zIndex(4)
 
             // ── Edge shadows — top + bottom vignette ─────────────────────────
             // Tune kShadowRadius in EdgeShadowOverlay.swift to adjust both edges.
@@ -121,8 +133,8 @@ struct LibraryLayout: View {
                 // A negative bottom padding shifts the bar down by exactly that
                 // amount so it sits above the home indicator, not above the tab bar.
                 .padding(.bottom, -tabBarOffset)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(10)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(10)
             }
 
             if viewModel.isImporting || viewModel.isExporting {
@@ -135,31 +147,30 @@ struct LibraryLayout: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isSearching)
-        .background {
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+            .background {
             GeometryReader { geo in
                 Color.clear
                     .onAppear {
-                        safeTop         = geo.safeAreaInsets.top
-                        viewSafeBottom  = geo.safeAreaInsets.bottom
-                        physicalSafeBottom = UIApplication.shared
-                            .connectedScenes
-                            .compactMap { $0 as? UIWindowScene }
-                            .first?.windows
-                            .first(where: { $0.isKeyWindow })?
-                            .safeAreaInsets.bottom ?? 0
-                    }
-                    .onChange(of: geo.safeAreaInsets.top)    { _, v in safeTop = v }
+                    safeTop = geo.safeAreaInsets.top
+                    viewSafeBottom = geo.safeAreaInsets.bottom
+                    physicalSafeBottom = UIApplication.shared
+                        .connectedScenes
+                        .compactMap { $0 as? UIWindowScene }
+                        .first?.windows
+                        .first(where: { $0.isKeyWindow })?
+                        .safeAreaInsets.bottom ?? 0
+                }
+                    .onChange(of: geo.safeAreaInsets.top) { _, v in safeTop = v }
                     .onChange(of: geo.safeAreaInsets.bottom) { _, v in
-                        viewSafeBottom = v
-                        physicalSafeBottom = UIApplication.shared
-                            .connectedScenes
-                            .compactMap { $0 as? UIWindowScene }
-                            .first?.windows
-                            .first(where: { $0.isKeyWindow })?
-                            .safeAreaInsets.bottom ?? 0
-                    }
+                    viewSafeBottom = v
+                    physicalSafeBottom = UIApplication.shared
+                        .connectedScenes
+                        .compactMap { $0 as? UIWindowScene }
+                        .first?.windows
+                        .first(where: { $0.isKeyWindow })?
+                        .safeAreaInsets.bottom ?? 0
+                }
             }
         }
     }
@@ -177,7 +188,7 @@ struct LibraryLayout: View {
                         viewModel.savedScrollOffset = offset
                     }
                 )
-                .frame(width: 0, height: 0)
+                    .frame(width: 0, height: 0)
 
                 if !isSearching && decks.isEmpty && viewModel.cachedGroupedDecks.isEmpty {
                     Spacer().frame(height: 40)
@@ -185,12 +196,12 @@ struct LibraryLayout: View {
 
                 stackContent
             }
-            .safeAreaInset(edge: .bottom) {
+                .safeAreaInset(edge: .bottom) {
                 Color.clear
                     .frame(height: 100)
                     .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
             }
-            .safeAreaInset(edge: .top) {
+                .safeAreaInset(edge: .top) {
                 Color.clear
                     .frame(height: 100)
                     .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
@@ -218,14 +229,14 @@ struct LibraryLayout: View {
                 }
             }
         )
-        .ignoresSafeArea(.container, edges: .top)
-        .coordinateSpace(name: kLibraryScrollSpace)
-        .safeAreaInset(edge: .top, spacing: 0) {
+            .ignoresSafeArea(.container, edges: .top)
+            .coordinateSpace(name: kLibraryScrollSpace)
+            .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: headerHeight)
         }
-        .onAppear { viewModel.updateGroupedDecks(from: decks) }
-        .onChange(of: decks) { _, newDecks in viewModel.updateGroupedDecks(from: newDecks) }
-        .onChange(of: viewModel.sortOrder) { _, _ in viewModel.updateGroupedDecks(from: decks) }
+            .onAppear { viewModel.updateGroupedDecks(from: decks) }
+            .onChange(of: decks) { _, newDecks in viewModel.updateGroupedDecks(from: newDecks) }
+            .onChange(of: viewModel.sortOrder) { _, _ in viewModel.updateGroupedDecks(from: decks) }
     }
 
     // MARK: - Scroll content
@@ -239,9 +250,7 @@ struct LibraryLayout: View {
 
     @ViewBuilder
     private var deckListContent: some View {
-        if viewModel.isSearching {
-            searchResultsLayer.transition(.opacity)
-        } else if viewModel.cachedGroupedDecks.isEmpty {
+        if viewModel.cachedGroupedDecks.isEmpty {
             LibraryEmptyStateView().transition(.opacity)
         } else {
             LibraryListView(
@@ -270,61 +279,146 @@ struct LibraryLayout: View {
 
     // MARK: - Search overlays
 
+    private var searchOverlay: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                Color.clear
+                    .frame(height: headerHeight + UIConstants.Spacing.standard)
+
+                searchResultsLayer
+                    .frame(maxWidth: .infinity, alignment: .top)
+                    .padding(.bottom, UIConstants.Spacing.huge)
+            }
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .ignoresSafeArea(.container, edges: .top)
+        .background {
+            searchOverlayBackground
+        }
+        .compositingGroup()
+        .opacity(viewModel.isSearching ? 1 : 0)
+        .offset(y: viewModel.isSearching ? 0 : -UIConstants.Spacing.small)
+        .allowsHitTesting(viewModel.isSearching)
+        .accessibilityHidden(!viewModel.isSearching)
+        .animation(searchTransition, value: viewModel.isSearching)
+    }
+
+    private var searchOverlayBackground: some View {
+        backgroundTheme
+            .ignoresSafeArea()
+    }
+
     @ViewBuilder
     private var searchResultsLayer: some View {
         if viewModel.searchText.isEmpty {
-            readyToSearchPrompt
-        } else if viewModel.isSearchLoading && viewModel.searchResults.isEmpty {
-            Color.clear.frame(height: 300)
+            searchContentContainer {
+                readyToSearchPrompt
+            }
         } else if viewModel.searchResults.isEmpty && !viewModel.isSearchLoading {
-            noResultsPrompt
+            searchContentContainer {
+                noResultsPrompt
+            }
         } else {
-            SearchResultsView(
-                results: viewModel.searchResults,
-                query: viewModel.searchText,
-                isSearchLoading: viewModel.isSearchLoading,
-                onCardTap: onCardTap
-            )
+            searchContentContainer {
+                SearchResultsView(
+                    results: viewModel.searchResults,
+                    query: viewModel.searchText,
+                    isSearchLoading: viewModel.isSearchLoading,
+                    onCardTap: onCardTap
+                )
+            }
         }
+    }
+
+    private func searchContentContainer<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .frame(maxWidth: searchContentMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .top)
+            .padding(.horizontal, UIConstants.Spacing.large)
     }
 
     private var readyToSearchPrompt: some View {
-        VStack(spacing: 18) {
-            Spacer().frame(height: 80)
-            ZStack {
-                Circle()
-                    .fill(accent.opacity(0.12))
-                    .frame(width: 80, height: 80)
-                Image(systemName: "sparkle.magnifyingglass")
-                    .font(.system(size: 36, weight: .regular))
-                    .foregroundStyle(accent)
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+
+
+
+            VStack(
+                alignment: .leading,
+                spacing: UIConstants.Spacing.extraLarge
+            ) {
+                SearchEntryBulletRow(
+                    title: "Deck titles",
+                    subtitle: "Jump straight to a topic, subject, or collection by name."
+                )
+                SearchEntryBulletRow(
+                    title: "Question prompts",
+                    subtitle: "Look for a phrase from the front side of any flashcard."
+                )
+                SearchEntryBulletRow(
+                    title: "Answers and explanations",
+                    subtitle: "Search a keyword buried inside card content and study notes."
+                )
             }
-            Text("Ready to search?")
-                .font(.system(.title2, design: .rounded).weight(.bold))
-            Text("Type a keyword to find specific\ndecks, questions or answers.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Spacer()
+
+            Spacer(minLength: 0)
         }
-            .frame(maxWidth: .infinity)
-            .transition(.opacity)
+        .padding(.top, searchPromptTopPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var noResultsPrompt: some View {
-        VStack(spacing: 14) {
-            Spacer().frame(height: 80)
-            Image(systemName: "magnifyingglass.circle.fill")
-                .font(.system(size: 48, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text("No results found")
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            Text("No results for “\(viewModel.searchText)”")
                 .font(.system(.title3, design: .rounded).weight(.bold))
-            Text("Try different keywords.")
+
+            Text("Try a broader keyword, another phrase, or search by deck title.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Spacer()
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                SearchEntryBulletRow(
+                    title: "Broaden the term",
+                    subtitle: "Remove extra words or search for the core subject."
+                )
+                SearchEntryBulletRow(
+                    title: "Try the deck name",
+                    subtitle: "Search first by title, then refine with card text."
+                )
+            }
         }
-            .frame(maxWidth: .infinity)
-            .transition(.opacity)
+        .padding(.top, searchPromptTopPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - SearchEntryBulletRow
+
+private struct SearchEntryBulletRow: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
+            Circle()
+                .fill(ThemeManager.shared.accentColor.color.opacity(0.9))
+                .frame(width: 6, height: 6)
+                .padding(.top, 7)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Text(subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
     }
 }

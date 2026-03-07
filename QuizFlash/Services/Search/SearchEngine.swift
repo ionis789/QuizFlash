@@ -6,8 +6,28 @@
 import Foundation
 import SwiftData
 
+// MARK: - Search Engine
+
+/// A Swift `actor` that executes fuzzy, multi-token, streaming search across
+/// a snapshot of deck data.
+///
+/// `SearchEngine` is intentionally **decoupled from any persistence layer** —
+/// it only receives pre-built `DeckSearchPayload` values (plain value types)
+/// so it can be fully tested without a live `ModelContext`.
+///
+/// Results are delivered progressively via an `AsyncStream`, allowing the UI
+/// to display partial matches as soon as the first deck is processed.
 actor SearchEngine {
 
+    /// Performs a streaming, multi-token search over the provided deck payloads.
+    ///
+    /// The stream yields sorted partial results every `SearchEngineConfig.yieldEveryNDecks`
+    /// decks, then yields a final sorted result set and finishes.
+    ///
+    /// - Parameters:
+    ///   - query: The raw search query string. Multiple words are treated as independent tokens.
+    ///   - payloads: Pre-built `DeckSearchPayload` snapshots to search through.
+    /// - Returns: An `AsyncStream` of `[DeckSearchResultItem]`, each emission being a full sorted snapshot.
     nonisolated func performSearchStream(
         query: String,
         in payloads: [DeckSearchPayload]

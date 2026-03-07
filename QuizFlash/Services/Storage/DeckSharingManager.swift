@@ -3,7 +3,6 @@
 //  QuizFlash
 //
 
-import SwiftUI
 import Foundation
 import SwiftData
 import UniformTypeIdentifiers
@@ -86,6 +85,14 @@ enum DeckSharingError: LocalizedError {
 
 // MARK: - Deck Sharing Manager
 
+/// Manages export and import of decks using the `.qflash` file format.
+///
+/// The format is a single JSON file with Base64-encoded image assets embedded
+/// in `ZoneModel` values. This avoids ZIP-compression issues while keeping the
+/// file self-contained and easy to share.
+///
+/// All public methods are `async` and run on the `MainActor` so that `@Published`
+/// progress properties are always mutated on the correct thread.
 @MainActor
 final class DeckSharingManager: ObservableObject {
     static let shared = DeckSharingManager()
@@ -103,9 +110,14 @@ final class DeckSharingManager: ObservableObject {
 
     // MARK: - Export
 
-    /// Export a deck to a .qflash file
-    /// Returns the URL of the created file for sharing
-    /// Format: Single JSON file with Base64-encoded images (no ZIP compression issues)
+    /// Exports a deck to a `.qflash` file and returns its temporary URL.
+    ///
+    /// The returned URL points to a file inside `FileManager.temporaryDirectory`.
+    /// Pass it directly to a `ShareLink` or `UIActivityViewController`.
+    ///
+    /// - Parameter deck: The `DeckModel` to export.
+    /// - Returns: The URL of the generated `.qflash` file.
+    /// - Throws: `DeckSharingError.exportFailed` if encoding or writing fails.
     func exportDeck(_ deck: DeckModel) async throws -> URL {
         isExporting = true
         progress = 0
@@ -189,8 +201,13 @@ final class DeckSharingManager: ObservableObject {
 
     // MARK: - Import
 
-    /// Import a deck from a .qflash file URL
-    /// Format: Single JSON file with Base64-encoded images
+    /// Imports a deck from a `.qflash` file URL into the given `ModelContext`.
+    ///
+    /// - Parameters:
+    ///   - url: The file URL of the `.qflash` archive (may be security-scoped).
+    ///   - context: The `ModelContext` in which the imported `DeckModel` will be saved.
+    /// - Returns: The newly created and persisted `DeckModel`.
+    /// - Throws: `DeckSharingError` if the file cannot be read, decoded, or saved.
     func importDeck(from url: URL, into context: ModelContext) async throws -> DeckModel {
         isImporting = true
         progress = 0
@@ -254,18 +271,18 @@ final class DeckSharingManager: ObservableObject {
         progress = 0.7
         currentOperation = "Importing cards..."
 
-        // 7. Create cards - zones already have imageData from JSON decoding
+        // 7. Create cards – zones already contain imageData decoded from JSON
         let totalCards = exportedDeck.cards.count
         for (index, exportedCard) in exportedDeck.cards.enumerated() {
             progress = 0.7 + (0.25 * Double(index) / Double(max(totalCards, 1)))
 
-            // NOU: Inițializatorul actualizat care previne eroarea de `backingData`
+            // Updated initializer to prevent `backingData` binding errors
             let newCard = CardModel(
                 frontZone: exportedCard.frontZone,
                 backZone: exportedCard.backZone
             )
             
-            // Păstrăm datele de creație originale din import!
+            // Preserve original creation timestamps from the imported file
             newCard.createdAt = exportedCard.createdAt
             newCard.editedAt = exportedCard.editedAt
             newCard.deck = newDeck
@@ -304,6 +321,9 @@ final class DeckSharingManager: ObservableObject {
 
 // MARK: - Storage Manager
 
+/// Calculates and tracks the on-device storage footprint of all decks.
+///
+/// Runs storage calculations asynchronously so the UI is never blocked.
 @MainActor
 final class StorageManager: ObservableObject {
     static let shared = StorageManager()
@@ -415,6 +435,11 @@ final class StorageManager: ObservableObject {
 
 // MARK: - Garbage Collector
 
+/// Cleans up orphaned image data and expired temporary files to reclaim storage.
+///
+/// Call `cleanupDeckData(_:context:)` before deleting a deck, and
+/// `runFullCleanup(context:)` periodically (e.g. on app launch) to purge
+/// temporary `.qflash` export files older than 24 hours.
 @MainActor
 final class GarbageCollector: ObservableObject {
     static let shared = GarbageCollector()

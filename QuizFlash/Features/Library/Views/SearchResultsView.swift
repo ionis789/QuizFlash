@@ -54,16 +54,15 @@ struct SearchResultsView: View {
                     result: result,
                     query: query,
                     isExpanded: viewModel.expandedSearchDecks.contains(result.id),
-                    onDeckTap:      { navigateToDeck(with: result.id) },
-                    onCardTap:      onCardTap,
+                    onDeckTap: { navigateToDeck(with: result.id) },
+                    onCardTap: onCardTap,
                     onToggleExpand: { toggleExpansion(for: result.id) }
                 )
-                .equatable()
+                    .equatable()
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 24)
-        .padding(.bottom, 80)
+            .safeAreaPadding(.top, 55)
+            .safeAreaPadding(.bottom, 80)
     }
 
     // MARK: - Helpers
@@ -93,8 +92,8 @@ struct SearchResultsView: View {
 private struct SearchResultGroupView: View, Equatable {
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.result      == rhs.result
-            && lhs.query    == rhs.query
+        lhs.result == rhs.result
+            && lhs.query == rhs.query
             && lhs.isExpanded == rhs.isExpanded
     }
 
@@ -110,7 +109,7 @@ private struct SearchResultGroupView: View, Equatable {
             Button(action: onDeckTap) {
                 DeckHeaderRow(result: result, query: query)
             }
-            .buttonStyle(ScaleButtonStyle())
+                .buttonStyle(ScaleButtonStyle())
 
             if !result.matchedCards.isEmpty {
                 CardListSection(
@@ -138,14 +137,14 @@ private struct DeckHeaderRow: View {
             ZStack {
                 Circle()
                     .fill(LinearGradient(
-                        colors: [deckColor.opacity(0.8), deckColor.opacity(0.4)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
+                    colors: [deckColor.opacity(0.8), deckColor.opacity(0.4)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
                     .frame(width: 44, height: 44)
                 Image(systemName: result.deckIcon.isEmpty
-                      ? "sparkles.rectangle.stack.fill"
-                      : result.deckIcon)
+                    ? "sparkles.rectangle.stack.fill"
+                : result.deckIcon)
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.white)
             }
@@ -170,10 +169,10 @@ private struct DeckHeaderRow: View {
                 .font(.body.weight(.semibold))
                 .foregroundStyle(.tertiary)
         }
-        .padding(16)
-        .background(Color(uiColor: .secondarySystemGroupedBackground)) // Or ThemeManager if custom card background is preferred.
+            .padding(16)
+            .background(Color(uiColor: .secondarySystemGroupedBackground)) // Or ThemeManager if custom card background is preferred.
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
+            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
     }
 
     private var matchCountLabel: String {
@@ -195,8 +194,6 @@ private struct CardListSection: View {
     let isExpanded: Bool
     let onCardTap: (PersistentIdentifier) -> Void
     let onToggleExpand: () -> Void
-
-    private var maxWidth: CGFloat { UIScreen.main.bounds.width * 0.88 }
 
     // Always-visible preview slice
     private var previewCards: ArraySlice<MatchedCardInfo> {
@@ -229,7 +226,7 @@ private struct CardListSection: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 
     // MARK: - Show More Button
@@ -247,20 +244,20 @@ private struct CardListSection: View {
                     .font(.system(size: 11, weight: .bold))
                     .opacity(0.5)
             }
-            .foregroundStyle(accent)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
-            .frame(maxWidth: maxWidth)
-            .background(
+                .foregroundStyle(accent)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .frame(maxWidth: .infinity)
+                .background(
                 accent.opacity(0.08),
                 in: RoundedRectangle(cornerRadius: 13, style: .continuous)
             )
-            .overlay(
+                .overlay(
                 RoundedRectangle(cornerRadius: 13, style: .continuous)
                     .stroke(accent.opacity(0.18), lineWidth: 1)
             )
         }
-        .buttonStyle(ScaleButtonStyle())
+            .buttonStyle(ScaleButtonStyle())
     }
 
     // MARK: - Expanded Section
@@ -285,10 +282,10 @@ private struct CardListSection: View {
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
                         .padding(.vertical, 8)
-                        .frame(maxWidth: maxWidth)
+                        .frame(maxWidth: .infinity)
                 }
             }
-            .frame(maxWidth: maxWidth)
+                .frame(maxWidth: .infinity)
 
             // ── Collapse button ───────────────────────────────────────────────
             Button(action: onToggleExpand) {
@@ -298,10 +295,10 @@ private struct CardListSection: View {
                     Text("Show less")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                 }
-                .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(ScaleButtonStyle())
-            .padding(.top, 8)
+                .buttonStyle(ScaleButtonStyle())
+                .padding(.top, 8)
         }
     }
 
@@ -311,8 +308,8 @@ private struct CardListSection: View {
         Button { onCardTap(card.id) } label: {
             CardSnippetRow(card: card, query: query)
         }
-        .buttonStyle(ScaleButtonStyle())
-        .frame(maxWidth: maxWidth)
+            .buttonStyle(ScaleButtonStyle())
+            .frame(maxWidth: .infinity)
     }
 }
 
@@ -352,17 +349,17 @@ private struct CardSnippetRow: View {
                     font: .subheadline,
                     baseColor: .secondary
                 )
-                .lineLimit(3)
-                .multilineTextAlignment(.leading)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
 
                 Spacer(minLength: 0)
             }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity)
-        .background(Color(uiColor: .tertiarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
+            .padding(14)
+            .frame(maxWidth: .infinity)
+            .background(Color(uiColor: .tertiarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.primary.opacity(0.04), lineWidth: 1)
         )
@@ -371,8 +368,8 @@ private struct CardSnippetRow: View {
     private var badgeColor: Color {
         switch card.matchSide {
         case .front: .blue
-        case .back:  .purple
-        case .both:  .orange
+        case .back: .purple
+        case .both: .orange
         }
     }
 }

@@ -2,6 +2,9 @@
 //  HighlightedText.swift
 //  QuizFlash
 //
+//  A reusable SwiftUI `View` that renders text with highlighted search tokens.
+//  Lives in `Core/DesignSystem/Components` — pure UI, no data-layer coupling.
+//
 //  SWIFT 6 ACTOR ISOLATION FIX
 //  ─────────────────────────────────────────────────────────────────────────────
 //  In Swift 6, SwiftUI's `Font` and `Color` are `@MainActor`-isolated types.

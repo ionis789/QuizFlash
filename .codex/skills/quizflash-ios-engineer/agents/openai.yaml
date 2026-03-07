@@ -1,0 +1,4 @@
+interface:
+  display_name: "QuizFlash iOS Engineer"
+  short_description: "QuizFlash SwiftUI and SwiftData coding guide"
+  default_prompt: "Use $quizflash-ios-engineer to implement or review a change in the QuizFlash iOS app."

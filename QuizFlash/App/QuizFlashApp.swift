@@ -11,7 +11,7 @@ import SwiftData
 @main
 struct QuizFlashApp: App {
 
-    @State var authManager = AuthManager()
+    @State var authManager = AuthManager.shared
     @State private var themeManager = ThemeManager.shared
 
     init() {

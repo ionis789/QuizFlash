@@ -21,5 +21,5 @@ struct RootView: View {
 
 #Preview {
     RootView()
-        .environment(AuthManager())
+        .environment(AuthManager.shared)
 }
