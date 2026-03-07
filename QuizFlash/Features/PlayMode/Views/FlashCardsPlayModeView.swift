@@ -1,34 +1,47 @@
 //
-//  DefaultModePlay.swift
+//  FlashCardsPlayModeView.swift
 //  QuizFlash
+//
+//  The primary playback screen for a swipe-to-rate flashcard session.
+//  This view is intentionally "dumb" — it only renders ViewModel state
+//  and forwards user interactions to `DefaultModePlayViewModel`.
 //
 
 import SwiftUI
 import SwiftData
 
+// MARK: - FlashCardsPlayModeView
+
+/// The main play-mode screen.
+///
+/// Displays a stack of `GameplayCard` views one at a time, a header progress bar,
+/// and a completion overlay with session statistics when all cards have been reviewed.
+///
+/// All business logic (XP, SRS, gamification) lives in `DefaultModePlayViewModel`.
+/// This view only reads observable state and calls ViewModel methods.
 struct FlashCardsPlayModeView: View {
+
+    // MARK: - Environment
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var modelContext
 
+    // MARK: - Properties
+
+    /// The deck being studied — passed from the parent and forwarded to the ViewModel.
     let deck: DeckModel
+
+    /// The `@Observable` ViewModel that owns all session state.
     @Bindable var viewModel: DefaultModePlayViewModel
+
+    // MARK: - Convenience
 
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
     private var isCompact: Bool { horizontalSizeClass == .compact }
 
-    private var screenBackground: some View {
-        LinearGradient(
-            colors: colorScheme == .dark
-                ? [Color(uiColor: .systemBackground), Color(uiColor: .secondarySystemBackground)]
-            : [Color(uiColor: .systemGray6), Color(uiColor: .systemBackground)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
-    // Inițializarea curată fără `@State` retain cycle
+    // MARK: - Body
 
     var body: some View {
         GeometryReader { geo in
@@ -49,7 +62,7 @@ struct FlashCardsPlayModeView: View {
                             .padding(.horizontal, isCompact ? 16 : (isScreenLandscape ? geo.size.width * 0.15 : 40))
                             .padding(.bottom, isCompact ? 20 : 40)
                     }
-                        .transition(.opacity)
+                    .transition(.opacity)
                 }
 
                 if viewModel.isComplete {
@@ -58,30 +71,30 @@ struct FlashCardsPlayModeView: View {
                 }
             }
         }
-            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isComplete)
-            .task {
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isComplete)
+        .task {
             if !viewModel.isSessionStarted {
                 await viewModel.startSession(container: modelContext.container)
             }
         }
-            .onDisappear {
+        .onDisappear {
             viewModel.tearDown()
         }
-            .navigationBarHidden(true)
+        .navigationBarHidden(true)
     }
 
     // MARK: - Card Area
+
     private var cardArea: some View {
         ZStack {
             if viewModel.isSessionStarted {
                 if !viewModel.cards.isEmpty && viewModel.currentIndex < viewModel.cards.count {
-                    // Randăm STRICT un singur card - cel curent. Fără pre-load.
+                    // Render exactly ONE card — the current one. No pre-loading.
                     let index = viewModel.currentIndex
-                    let card = viewModel.cards[index]
+                    let card  = viewModel.cards[index]
 
                     @Bindable var bindableViewModel = viewModel
 
-                    // 🟢 NOU: Acum pasăm mainContext către ViewModel, care modifică log-ul prin ID-ul original
                     GameplayCard(
                         card: card,
                         onSwipe: { direction in
@@ -89,22 +102,24 @@ struct FlashCardsPlayModeView: View {
                         },
                         isFlipped: $bindableViewModel.isFlipped
                     )
-                    // Folosim ID-ul unic pentru a forța SwiftUI să înlocuiască vizualul
+                    // Unique ID forces SwiftUI to replace the visual when the card changes.
                     .id(card.id)
-                        .transition(.asymmetric(
+                    .transition(.asymmetric(
                         insertion: .opacity.combined(with: .scale(scale: 0.96)),
-                        removal: .opacity
+                        removal:   .opacity
                     ))
                 }
             }
         }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: viewModel.currentIndex)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.spring(response: 0.22, dampingFraction: 0.82), value: viewModel.currentIndex)
     }
 
     // MARK: - Header
+
     private var header: some View {
         VStack(spacing: 16) {
+            // Title + dismiss button
             ZStack {
                 HStack {
                     Spacer()
@@ -121,31 +136,31 @@ struct FlashCardsPlayModeView: View {
                             .padding(8)
                             .frame(width: 50, height: 50)
                             .background {
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                                .overlay {
                                 Circle()
-                                    .fill(Color.white.opacity(0.35))
-                                    .blur(radius: 10)
-                                    .mask(Capsule().stroke(lineWidth: 4))
-                                    .blendMode(.overlay)
+                                    .fill(.ultraThinMaterial)
+                                    .overlay {
+                                        Circle()
+                                            .fill(Color.white.opacity(0.35))
+                                            .blur(radius: 10)
+                                            .mask(Capsule().stroke(lineWidth: 4))
+                                            .blendMode(.overlay)
+                                    }
                             }
-                        }
                     }
                 }
             }
 
-            // Progress Bar
+            // Progress bar — one segment per card in the session.
             HStack(spacing: 4) {
-                ForEach(0..<viewModel.cards.count, id: \.self) { index in
+                ForEach(viewModel.progressSegments, id: \.id) { segment in
                     Capsule()
-                        .fill(index < viewModel.currentIndex ? accentColor : Color.gray.opacity(0.5))
+                        .fill(segment.completed ? accentColor : Color.gray.opacity(0.5))
                         .frame(height: 4)
                 }
             }
-                .animation(.spring(response: 0.3), value: viewModel.currentIndex)
+            .animation(.spring(response: 0.3), value: viewModel.currentIndex)
 
-            // Q/A Indicator & Stats
+            // Question/Answer indicator and live score counters.
             HStack {
                 Text(viewModel.isFlipped ? "ANSWER" : "QUESTION")
                     .font(.caption.weight(.bold))
@@ -165,22 +180,24 @@ struct FlashCardsPlayModeView: View {
                         Text("\(viewModel.correctCount)").font(.subheadline.weight(.semibold))
                     }
                 }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, in: Capsule())
             }
         }
     }
 
     // MARK: - Completion Overlay
+
     private var completionOverlay: some View {
         ZStack {
-            // Fundal blurat pentru a focusa atenția
+            // Blurred backdrop to focus attention on the summary card.
             Color.black.opacity(0.5).ignoresSafeArea()
                 .background(.ultraThinMaterial)
 
             VStack(spacing: 0) {
-                // Partea Superioară: Victorie și XP
+
+                // ── Victory header ───────────────────────────────────────────
                 VStack(spacing: 16) {
                     ZStack {
                         Circle()
@@ -189,50 +206,78 @@ struct FlashCardsPlayModeView: View {
                         Image(systemName: "star.circle.fill")
                             .font(.system(size: 80))
                             .foregroundStyle(
-                                .linearGradient(colors: [.yellow, .orange], startPoint: .top, endPoint: .bottom)
-                        )
+                                .linearGradient(
+                                    colors: [.yellow, .orange],
+                                    startPoint: .top, endPoint: .bottom
+                                )
+                            )
                             .shadow(color: .orange.opacity(0.5), radius: 10, y: 5)
                     }
-                        .padding(.bottom, 8)
+                    .padding(.bottom, 8)
 
                     Text("Session Complete!")
                         .font(isCompact ? .title : .largeTitle)
                         .fontWeight(.black)
 
-                    // Badge-ul de XP
+                    // XP badge — value comes from the ViewModel.
                     HStack(spacing: 6) {
                         Image(systemName: "sparkles")
                         Text("+\(viewModel.sessionXP) XP")
                             .fontWeight(.bold)
                     }
-                        .font(.title2)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(
+                    .font(.title2)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(
                         Capsule().fill(
-                                .linearGradient(colors: [.orange, .red], startPoint: .leading, endPoint: .trailing)
+                            .linearGradient(
+                                colors: [.orange, .red],
+                                startPoint: .leading, endPoint: .trailing
+                            )
                         )
                     )
-                        .shadow(color: .orange.opacity(0.3), radius: 8, y: 4)
+                    .shadow(color: .orange.opacity(0.3), radius: 8, y: 4)
                 }
-                    .padding(.top, 40)
-                    .padding(.bottom, 32)
+                .padding(.top, 40)
+                .padding(.bottom, 32)
 
-                // Grid-ul cu Statistici (Acuratețe, Timp, Corect, Greșit)
-                let accuracy = viewModel.totalSessionSwipes == 0 ? 0 : Int((Double(viewModel.totalSessionCorrect) / Double(viewModel.totalSessionSwipes)) * 100)
-                let timeSpent = Date().timeIntervalSince(viewModel.sessionStartTime)
-
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    SessionStatBox(title: "Accuracy", value: "\(accuracy)%", icon: "target", color: .green)
-                    SessionStatBox(title: "Time", value: formatTime(timeSpent), icon: "timer", color: .blue)
-                    SessionStatBox(title: "Correct", value: "\(viewModel.correctCount)", icon: "checkmark.circle.fill", color: .green)
-                    SessionStatBox(title: "Wrong", value: "\(viewModel.wrongCards.count)", icon: "xmark.circle.fill", color: .red)
+                // ── Statistics grid ──────────────────────────────────────────
+                // Accuracy and duration are computed by the ViewModel —
+                // the view simply reads and displays the result.
+                LazyVGrid(
+                    columns: [GridItem(.flexible()), GridItem(.flexible())],
+                    spacing: 16
+                ) {
+                    SessionStatBox(
+                        title: "Accuracy",
+                        value: "\(viewModel.sessionAccuracy)%", // Use ViewModel prop
+                        icon:  "target",
+                        color: .green
+                    )
+                    SessionStatBox(
+                        title: "Time",
+                        value: viewModel.formattedSessionDuration, // Use ViewModel prop
+                        icon:  "timer",
+                        color: .blue
+                    )
+                    SessionStatBox(
+                        title: "Correct",
+                        value: "\(viewModel.correctCount)",
+                        icon:  "checkmark.circle.fill",
+                        color: .green
+                    )
+                    SessionStatBox(
+                        title: "Wrong",
+                        value: "\(viewModel.wrongCards.count)",
+                        icon:  "xmark.circle.fill",
+                        color: .red
+                    )
                 }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 32)
 
-                // Butoanele de acțiune
+                // ── Action buttons ───────────────────────────────────────────
                 VStack(spacing: 16) {
                     if !viewModel.wrongCards.isEmpty {
                         Button {
@@ -245,9 +290,9 @@ struct FlashCardsPlayModeView: View {
                                 .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 16))
                                 .foregroundStyle(.orange)
                                 .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                            )
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                                )
                         }
                     }
 
@@ -261,35 +306,38 @@ struct FlashCardsPlayModeView: View {
                             .shadow(color: Color.accentColor.opacity(0.3), radius: 10, y: 5)
                     }
                 }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 32)
             }
-                .background(
+            .background(
                 RoundedRectangle(cornerRadius: 32)
                     .fill(Color(uiColor: .secondarySystemGroupedBackground))
                     .shadow(color: .black.opacity(0.2), radius: 30, y: 15)
             )
-                .padding(isCompact ? 24 : 60)
+            .padding(isCompact ? 24 : 60)
         }
     }
 
-    // Helper pentru formatarea timpului investit
-    private func formatTime(_ interval: TimeInterval) -> String {
-        let minutes = Int(interval) / 60
-        let seconds = Int(interval) % 60
-        if minutes > 0 {
-            return "\(minutes)m \(seconds)s"
-        } else {
-            return "\(seconds)s"
-        }
+    // MARK: - Background
+
+    private var screenBackground: some View {
+        LinearGradient(
+            colors: colorScheme == .dark
+                ? [Color(uiColor: .systemBackground), Color(uiColor: .secondarySystemBackground)]
+                : [Color(uiColor: .systemGray6), Color(uiColor: .systemBackground)],
+            startPoint: .top,
+            endPoint:   .bottom
+        )
     }
 }
 
-// MARK: - Componentă nouă pentru UI-ul statisticilor din overlay
+// MARK: - SessionStatBox
+
+/// A single statistics tile used inside the completion overlay grid.
 private struct SessionStatBox: View {
     let title: String
     let value: String
-    let icon: String
+    let icon:  String
     let color: Color
 
     var body: some View {
@@ -310,29 +358,22 @@ private struct SessionStatBox: View {
             }
             Spacer(minLength: 0)
         }
-            .padding(16)
-            .background(Color(uiColor: .systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
+        .padding(16)
+        .background(Color(uiColor: .systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
     }
 }
 
+// MARK: - iOS 17 Retain-Cycle Wrapper
 
-private struct StatItem: View {
-    let value: String
-    let label: String
-    var color: Color = .primary
-    var body: some View {
-        VStack(spacing: 4) {
-            Text(value).font(.title2.weight(.bold)).foregroundStyle(color)
-            Text(label).font(.caption).foregroundStyle(.secondary)
-        }
-    }
-}
-
-// MARK: - iOS 17 Retain Cycle Wrapper
-// `.fullScreenCover` permanently retains `@State` initialized with `State(initialValue:)`.
-// This wrapper creates the ViewModel OUTSIDE `init()` dynamically with `.onAppear`.
+/// Wraps `FlashCardsPlayModeView` to avoid the iOS 17 retain-cycle caused by
+/// `.fullScreenCover` permanently retaining a `@State` ViewModel initialised
+/// inside `init()`.
+///
+/// The ViewModel is created lazily on first appearance via `.onAppear`, ensuring
+/// the closure-based initialisation escapes the cover's internal storage before
+/// the persistent reference is established.
 struct DefaultModePlay: View {
     let deck: DeckModel
 
@@ -345,10 +386,10 @@ struct DefaultModePlay: View {
             } else {
                 Color(uiColor: .systemBackground)
                     .onAppear {
-                    if self.viewModel == nil {
-                        self.viewModel = DefaultModePlayViewModel(deck: deck)
+                        if self.viewModel == nil {
+                            self.viewModel = DefaultModePlayViewModel(deck: deck)
+                        }
                     }
-                }
             }
         }
     }

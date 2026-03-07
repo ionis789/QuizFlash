@@ -2,11 +2,23 @@
 //  FlipCard.swift
 //  QuizFlash
 //
+//  A SwiftUI view that renders both faces of a flashcard and animates
+//  a 3D flip transition between the question (front) and answer (back) faces.
+//
+//  Content overflow is handled by two user-selectable modes:
+//  - **Scale** — shrinks content proportionally to always fit inside the card.
+//  - **Scroll** — enables vertical scrolling when content overflows, with
+//    `scrollDisabled(true)` when content fits so gestures pass through
+//    to `SwipeableCard`'s UIKit recognisers unobstructed.
+//
 
 import SwiftUI
 
-// MARK: - Content Height Measurement
+// MARK: - ContentHeightKey
 
+/// `PreferenceKey` used to propagate the natural (unconstrained) height of
+/// card-face content up through the view hierarchy so the parent can decide
+/// whether to scale or enable scrolling.
 private struct ContentHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
@@ -16,56 +28,95 @@ private struct ContentHeightKey: PreferenceKey {
 
 // MARK: - FlipCard
 
+/// Renders the question and answer faces of a `PlayableCard` with a 3D Y-axis
+/// flip animation controlled by the `isFlipped` binding.
+///
+/// The view exposes two overflow modes via `CardContentMode` (stored in
+/// `@AppStorage`), allowing users to choose between proportional scaling and
+/// a scrollable layout without restarting the session.
+///
+/// ## Performance Notes
+/// - `rotation3DEffect` uses opacity gating (`.opacity(isFlipped ? 1 : 0)`) to
+///   avoid rendering both faces simultaneously on the GPU.
+/// - `contentShape(Rectangle())` ensures the full card surface forwards touches
+///   to `SwipeableCard`'s underlying UIKit gesture recognisers.
 struct FlipCard: View {
+
+    // MARK: - Properties
+
+    /// The card snapshot to display.
     let card: PlayableCard
+
+    /// Controls which face is currently visible.
+    ///
+    /// `false` = front (question), `true` = back (answer).
     @Binding var isFlipped: Bool
+
+    // MARK: - Environment
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.colorScheme) private var colorScheme
 
-    /// Reads the user's chosen overflow mode from UserDefaults.
-    /// Reacts automatically when the user changes the setting in Settings.
+    // MARK: - AppStorage
+
+    /// Reads the user's chosen overflow mode from `UserDefaults`.
+    ///
+    /// Reacts automatically when the user changes the setting in Settings,
+    /// without requiring the session to be restarted.
     @AppStorage(CardContentMode.storageKey)
     private var rawContentMode: String = CardContentMode.scaleToFit.rawValue
+
+    // MARK: - State
+
+    /// Measured natural height of the front face content.
+    @State private var frontContentHeight: CGFloat = 0
+
+    /// Measured natural height of the back face content.
+    @State private var backContentHeight: CGFloat = 0
+
+    // MARK: - Convenience
 
     private var contentMode: CardContentMode {
         CardContentMode(rawValue: rawContentMode) ?? .scaleToFit
     }
-
-    @State private var frontContentHeight: CGFloat = 0
-    @State private var backContentHeight: CGFloat = 0
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var cardCornerRadius: CGFloat { isCompact ? 24 : 32 }
     private var hPad: CGFloat { isCompact ? 20 : 28 }
     private var vPad: CGFloat { isCompact ? 20 : 24 }
 
+    // MARK: - Body
+
     var body: some View {
         ZStack {
+            // Back face (answer) — rotated into view when isFlipped == true.
             cardFace(zone: card.backZone, contentHeight: $backContentHeight)
                 .rotation3DEffect(.degrees(isFlipped ? 0 : 180), axis: (x: 0, y: 1, z: 0))
                 .opacity(isFlipped ? 1 : 0)
 
+            // Front face (question) — starts at 0° rotation, flips away.
             cardFace(zone: card.frontZone, contentHeight: $frontContentHeight)
                 .rotation3DEffect(.degrees(isFlipped ? -180 : 0), axis: (x: 0, y: 1, z: 0))
                 .opacity(isFlipped ? 0 : 1)
         }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Full-surface hit testing so SwipeableCard gestures fire everywhere.
         .contentShape(Rectangle())
     }
 
+    // MARK: - Card Face Builder
+
     @ViewBuilder
     private func cardFace(zone: ZoneModel, contentHeight: Binding<CGFloat>) -> some View {
         ZStack {
+            // Card background
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
                 .fill(cardBackground)
                 .shadow(color: shadowColor, radius: isCompact ? 16 : 24, y: 8)
 
-            // Soft inner glow border: a blurred stroke clipped to the card
-            // shape so the glow bleeds inward only, never outside the card.
-            // Two layers — a tight crisp rim + a wider soft halo behind it —
-            // produce the "warm inner light" look without any harsh edge.
+            // Inner glow border — two layers produce a warm soft-edge effect.
+            // A tight crisp rim sits in front of a wider blurred halo, creating
+            // the "warm inner light" look without any harsh visible edge.
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
                 .stroke(Color.white.opacity(colorScheme == .dark ? 0.18 : 0.55), lineWidth: 1)
                 .blur(radius: 2)
@@ -76,9 +127,6 @@ struct FlipCard: View {
                 .blur(radius: 1)
 
             // Content area — switches between user-selected overflow modes.
-            // Scale mode: no ScrollView, avoids UIKit gesture conflict with SwipeableCard.
-            // Scroll mode: ScrollView disabled when content fits (no gesture conflict),
-            //              enabled only when content overflows the card bounds.
             Group {
                 if contentMode == .scrollable {
                     scrollableContent(zone: zone, contentHeight: contentHeight)
@@ -91,11 +139,12 @@ struct FlipCard: View {
     }
 
     // MARK: - Scale Mode
-    //
-    // Measures natural content height and shrinks it proportionally so
-    // everything is always visible without any scrolling.
-    // No ScrollView → no UIKit gesture recogniser competing with SwipeableCard.
 
+    /// Measures natural content height and shrinks it proportionally so
+    /// everything is always visible without any scrolling.
+    ///
+    /// No `ScrollView` is used here, so there is no UIKit gesture recogniser
+    /// competing with `SwipeableCard`'s pan and tap recognisers.
     @ViewBuilder
     private func scaledContent(zone: ZoneModel, contentHeight: Binding<CGFloat>) -> some View {
         GeometryReader { available in
@@ -130,26 +179,26 @@ struct FlipCard: View {
     }
 
     // MARK: - Scroll Mode
-    //
-    // KEY DESIGN:
-    //
-    // 1. Overflow detection — content height is measured via PreferenceKey
-    //    and compared to the available card height. `scrollDisabled(true)` is
-    //    applied when content fits. A disabled ScrollView is transparent to
-    //    all gestures — tap (flip) and horizontal pan (swipe) reach
-    //    SwipeableCard's UIKit recognisers exactly as in scale mode.
-    //
-    // 2. When scroll IS active (overflow) — UIScrollView only intercepts
-    //    vertical pans. Horizontal pans pass through to SwipeableCard's
-    //    UIPanGestureRecognizer naturally because its `gestureRecognizerShouldBegin`
-    //    approves gestures with dominant horizontal velocity.
-    //
-    // 3. Tap for flip when scroll is active — SwipeableCard's UITapGestureRecognizer
-    //    sits below the ScrollView layer and is blocked. We add `.onTapGesture`
-    //    directly here, toggling `isFlipped` which is already a @Binding.
-    //    In non-scroll or scroll-disabled state this tap handler is never
-    //    reached because SwipeableCard's recogniser fires first.
 
+    /// Enables vertical scrolling when card content overflows the available height.
+    ///
+    /// ## Gesture Interaction Design
+    ///
+    /// 1. **Overflow detection** — content height is measured via `ContentHeightKey`
+    ///    and compared to the available card height. `scrollDisabled(true)` is
+    ///    applied when content fits, making the `ScrollView` transparent to all
+    ///    gestures so taps and horizontal pans reach `SwipeableCard` unobstructed.
+    ///
+    /// 2. **When scroll is active** (content overflows) — `UIScrollView` only
+    ///    intercepts vertical pans. Horizontal pans pass through to `SwipeableCard`'s
+    ///    `UIPanGestureRecognizer` because its `gestureRecognizerShouldBegin` approves
+    ///    only gestures with dominant horizontal velocity.
+    ///
+    /// 3. **Tap for flip when scroll is active** — `SwipeableCard`'s
+    ///    `UITapGestureRecognizer` sits below the `ScrollView` layer and is blocked.
+    ///    An `.onTapGesture` is added directly here to toggle `isFlipped` via
+    ///    its `@Binding`. In non-scroll (or scroll-disabled) state this tap handler
+    ///    is never reached because `SwipeableCard`'s recogniser fires first.
     @ViewBuilder
     private func scrollableContent(zone: ZoneModel, contentHeight: Binding<CGFloat>) -> some View {
         GeometryReader { available in
@@ -175,12 +224,12 @@ struct FlipCard: View {
                         }
                 }
                 .scrollIndicators(.hidden)
-                // When content fits, disable scroll so gestures pass through
+                // Disable scrolling when content fits so drag gestures pass through
                 // to SwipeableCard's UIKit recognisers unobstructed.
                 .scrollDisabled(!needsScroll)
-                // Tap is always handled here — a disabled ScrollView is
-                // transparent to drag gestures but still blocks taps from
-                // reaching SwipeableCard's UITapGestureRecognizer beneath it.
+                // Tap is handled here because a disabled ScrollView is transparent
+                // to drag gestures but still blocks taps from reaching
+                // SwipeableCard's UITapGestureRecognizer beneath it.
                 .onTapGesture {
                     withAnimation(.interactiveSpring(response: 0.45, dampingFraction: 0.85)) {
                         isFlipped.toggle()
@@ -194,6 +243,9 @@ struct FlipCard: View {
         }
     }
 
+    // MARK: - Empty State
+
+    /// Placeholder displayed when the zone contains no renderable content.
     private var emptyContent: some View {
         VStack(spacing: 12) {
             Image(systemName: "text.quote")
@@ -203,20 +255,18 @@ struct FlipCard: View {
                 .font(isCompact ? .body : .title3)
                 .foregroundStyle(.secondary)
         }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    // MARK: - Styling
 
     private var cardBackground: some ShapeStyle {
         colorScheme == .dark
             ? AnyShapeStyle(Color(uiColor: .secondarySystemBackground))
-        : AnyShapeStyle(Color.white)
+            : AnyShapeStyle(Color.white)
     }
 
     private var shadowColor: Color {
         colorScheme == .dark ? Color.black.opacity(0.4) : Color.black.opacity(0.12)
-    }
-
-    private var borderColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.06)
     }
 }

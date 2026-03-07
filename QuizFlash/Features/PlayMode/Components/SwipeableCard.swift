@@ -2,48 +2,68 @@
 //  SwipeableCard.swift
 //  QuizFlash
 //
-//  BULLETPROOF VERSION — all known issues resolved:
+//  UIKit-backed swipeable card container targeting 60–120 fps on ProMotion displays.
 //
-//  ISSUE 1 — Teleport at gesture start:
+//  ## Architecture
+//  - Gesture writes `pendingDX` (a plain `CGFloat` — zero overhead).
+//  - A `CADisplayLink` commits exactly one `CATransaction` per display frame,
+//    keeping the main thread clear of layout work between frames.
+//  - `shouldRasterize` flattens the SwiftUI sub-layer tree to a single GPU
+//    texture during drag, then is disabled after the gesture ends so the
+//    3D flip animation in `FlipCard` renders correctly.
+//  - An `_FPSBadge` overlay (pure `UIView`/`CADisplayLink`) shows live FPS
+//    without touching any SwiftUI state and therefore never triggers re-renders.
+//
+//  ## Known Issues Resolved
+//
+//  **ISSUE 1 — Teleport at gesture start:**
 //    `card.layer.removeAllAnimations()` snaps the MODEL layer to its final
-//    value. If done outside a disabled-actions CATransaction, Core Animation
+//    value. If done outside a disabled-actions `CATransaction`, Core Animation
 //    wraps the subsequent `card.center = visualCenter` in an implicit 0.25s
 //    animation → visible jump on screen.
-//    Fix: entire .began setup is one atomic CATransaction with disabled actions.
+//    Fix: entire `.began` setup is one atomic `CATransaction` with
+//    `setDisableActions(true)`.
 //
-//  ISSUE 2 — Vertical swipe causes card glitches:
-//    Axis lock was checked in .changed AFTER the gesture was already recognised.
-//    The gesture system had already begun, pendingTranslation was being written,
-//    and the card could receive partial vertical translations before the check.
+//  **ISSUE 2 — Vertical swipe causes card glitches:**
+//    Axis lock was checked in `.changed` AFTER the gesture was already recognised.
 //    Fix: override `gestureRecognizerShouldBegin`. If the initial velocity is
-//    primarily vertical, return false — the gesture is killed before .began fires.
-//    The card never moves for vertical swipes regardless of what happens later.
+//    primarily vertical, return `false` — the gesture is rejected before
+//    `.began` fires. The card never moves for vertical swipes.
 //
-//  ISSUE 3 — Y-axis card movement:
-//    dy * 0.10 was applied to card.center.y, causing visible vertical drift
-//    on diagonal swipes and contributing to glitch appearance.
-//    Fix: card moves on X axis ONLY. Y is always restCenter.y.
+//  **ISSUE 3 — Y-axis card movement:**
+//    `dy * 0.10` was applied to `card.center.y`, causing visible vertical drift
+//    on diagonal swipes.
+//    Fix: card moves on X axis ONLY. Y is always `restCenter.y`.
 //
-//  ISSUE 4 — layoutSubviews resetting card mid-drag:
-//    If any parent layout invalidation fired during drag, layoutSubviews would
-//    reset card.frame = bounds even with the isDragging guard, because the guard
-//    was set after the presentation-layer read. Race condition.
-//    Fix: isDragging is set on container as the FIRST operation in .began,
-//    inside the same CATransaction that does all the setup.
+//  **ISSUE 4 — `layoutSubviews` resetting card mid-drag:**
+//    If any parent layout invalidation fired during drag, `layoutSubviews` would
+//    reset `card.frame = bounds` even with the `isDragging` guard, because the
+//    guard was set after the presentation-layer read. Race condition.
+//    Fix: `isDragging` is set on the container as the FIRST operation in `.began`,
+//    inside the same `CATransaction` that performs all the setup.
 //
-//  ARCHITECTURE (unchanged):
-//  - Gesture writes pendingTranslation (plain assign, no CATransaction)
-//  - CADisplayLink commits ONE CATransaction per display frame
-//  - shouldRasterize flattens SwiftUI sub-layer tree to single texture
-//  - FPS badge is a pure UIView/CADisplayLink — zero SwiftUI state impact
 
 import SwiftUI
 import UIKit
 
+// MARK: - SwipeDirection
+
+/// The horizontal direction in which the user swiped a card.
 enum SwipeDirection { case left, right }
 
 // MARK: - SwipeableCard
 
+/// A SwiftUI wrapper around a UIKit-backed pan gesture layer.
+///
+/// Hosts arbitrary SwiftUI content inside a draggable `UIView` driven by
+/// `CADisplayLink` at up to 120 fps. A `CADisplayLink` commits exactly one
+/// `CATransaction` per display refresh, ensuring smooth drag without blocking
+/// the main thread between frames.
+///
+/// - Parameters:
+///   - onSwipe: Closure invoked when the user completes a decisive horizontal swipe.
+///   - onTap: Optional closure invoked on a single tap (used to flip the card).
+///   - content: The SwiftUI content to display inside the swipeable container.
 struct SwipeableCard<Content: View>: View {
     let onSwipe: (SwipeDirection) -> Void
     let onTap:   (() -> Void)?
@@ -55,10 +75,12 @@ struct SwipeableCard<Content: View>: View {
 }
 
 // MARK: - FPS Badge
-//
-// Pure UIView + CADisplayLink. No @Published, no @StateObject.
-// Invisible to SwiftUI's diffing engine — never triggers updateUIView.
 
+/// A lightweight FPS counter overlay rendered by a pure `UIView` + `CADisplayLink`.
+///
+/// Uses no SwiftUI state (`@Published`, `@StateObject`, etc.) so it is
+/// completely invisible to SwiftUI's diffing engine and never triggers
+/// `updateUIView` on the parent representable.
 private struct _FPSBadge: UIViewRepresentable {
     func makeUIView(context: Context) -> _FPSBadgeView { _FPSBadgeView() }
     func updateUIView(_ uiView: _FPSBadgeView, context: Context) {}
@@ -108,6 +130,12 @@ private final class _FPSBadgeView: UIView {
 
 // MARK: - UIViewRepresentable
 
+/// The `UIViewRepresentable` bridge that creates and manages the UIKit view hierarchy
+/// for `SwipeableCard`.
+///
+/// Delegates all gesture handling to `Coordinator` and guards against
+/// SwiftUI re-renders invalidating the `shouldRasterize` texture cache
+/// during an active drag.
 private struct _SwipeHost<Content: View>: UIViewRepresentable {
     let onSwipe: (SwipeDirection) -> Void
     let onTap:   (() -> Void)?
@@ -169,8 +197,9 @@ private struct _SwipeHost<Content: View>: UIViewRepresentable {
         return fixed
     }
 
-    // Guard: never update SwiftUI content during an active drag.
-    // Any rootView update invalidates the shouldRasterize texture cache.
+    // Never push a SwiftUI content update to the host during an active drag.
+    // Any rootView reassignment invalidates the `shouldRasterize` texture cache,
+    // causing a visible pop the next time the card is rasterised mid-flight.
     func updateUIView(_ uiView: _FixedContainer, context: Context) {
         guard !context.coordinator.isDragging else { return }
         context.coordinator.host?.rootView = content()
@@ -179,6 +208,14 @@ private struct _SwipeHost<Content: View>: UIViewRepresentable {
 
 // MARK: - Fixed Container
 
+/// The fixed-size `UIView` that anchors the card hierarchy.
+///
+/// Owns two sub-views: `draggableCard` (the visible card content) and
+/// `glowView` (an empty view behind the card that casts a directional
+/// coloured shadow indicating swipe direction without any rasterisation cost).
+///
+/// Overrides `hitTest` to forward touches to `draggableCard` even when it has
+/// moved outside the container bounds during a drag.
 final class _FixedContainer: UIView {
     weak var draggableCard: UIView?
     weak var glowView:      UIView?
@@ -219,6 +256,20 @@ final class _FixedContainer: UIView {
 
 extension _SwipeHost {
 
+    /// Manages the pan and tap gesture recognisers, the `CADisplayLink` render loop,
+    /// and the card exit/snap-back animations for a single `_SwipeHost` instance.
+    ///
+    /// ## Rendering Pipeline
+    /// 1. `handlePan(_:)` writes `pendingDX` (a plain `CGFloat` — no lock needed
+    ///    because all writes happen on the main thread).
+    /// 2. `renderFrame(_:)` fires once per display refresh and commits the transform,
+    ///    center, and glow shadow in one `CATransaction` with actions disabled,
+    ///    keeping the main thread clear between frames.
+    ///
+    /// ## Gesture Filtering
+    /// `gestureRecognizerShouldBegin` rejects gestures whose initial velocity is
+    /// primarily vertical (|vy| > |vx| / 1.5), preventing the card from moving
+    /// or glitching on accidental vertical touches.
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
 
         let onSwipe: (SwipeDirection) -> Void
@@ -262,19 +313,19 @@ extension _SwipeHost {
 
         // MARK: - gestureRecognizerShouldBegin
         //
-        // ISSUE 2 FIX: reject the gesture BEFORE it starts if the initial
-        // finger direction is primarily vertical. This prevents .began from
+        // Axis-lock filter: reject the gesture before it starts when the initial
+        // finger direction is primarily vertical. This prevents `.began` from
         // ever firing for vertical swipes — the card never moves or glitches.
-        // This is the only correct place to do axis filtering; doing it in
-        // .changed is always too late.
+        // Performing the check here (before `.began`) is the only correct approach;
+        // filtering in `.changed` is always too late.
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
                   let view = pan.view else { return true }
             let v = pan.velocity(in: view)
             // Require horizontal velocity to be at least 1.5× the vertical.
-            // This threshold is tight enough to catch accidental diagonal starts
-            // without making horizontal swipes harder to trigger.
+            // This threshold catches accidental diagonal starts without making
+            // intentional horizontal swipes harder to trigger.
             guard v != .zero else { return true }
             return abs(v.x) > abs(v.y) * 1.5
         }
@@ -292,11 +343,10 @@ extension _SwipeHost {
             switch gesture.state {
 
             case .began:
-                // ISSUE 1 + 4 FIX: set isDragging FIRST, then do all setup
-                // inside ONE CATransaction with actions disabled.
-                // This guarantees:
+                // Set isDragging FIRST, then perform all setup inside ONE
+                // CATransaction with actions disabled. This guarantees:
                 //   a) layoutSubviews cannot reset card.frame (isDragging = true)
-                //   b) the center assignment from presentationLayer is
+                //   b) the center assignment from the presentation layer is
                 //      non-animated (no implicit CA transaction wrapping it)
                 isDragging           = true
                 container.isDragging = true
@@ -396,10 +446,10 @@ extension _SwipeHost {
         }
 
         // MARK: - Render Frame
-        //
-        // Fires exactly once per display refresh.
-        // X axis only — card.center.y is always restCenter.y.
-        // One CATransaction, no shadow changes on draggable layer.
+
+        // Fires exactly once per display refresh via the CADisplayLink.
+        // The card moves on the X axis only — card.center.y is always restCenter.y.
+        // One CATransaction with disabled actions keeps the commit atomic and overhead-free.
 
         @objc private func renderFrame(_ link: CADisplayLink) {
             guard isGestureActive,
