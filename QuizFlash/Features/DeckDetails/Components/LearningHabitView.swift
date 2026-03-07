@@ -2,32 +2,45 @@
 //  LearningHabitView.swift
 //  QuizFlash
 //
-//  Habit tracker section — 28-day heatmap, XP level bar, streak.
-//  Alimentat din DailyActivityLog + UserProfile (injectat din DeckView via @Query).
+//  Habit-tracker section — 28-day activity heatmap, XP level bar, and streak badge.
+//  Data is injected from `DeckView` via `DailyActivityLog` records and a `UserProfile`
+//  fetched with `@Query` — this view is fully dumb and contains no fetch logic.
 //
 
 import SwiftUI
 
 // MARK: - LearningHabitView
 
+/// Displays a 28-day activity heatmap, an XP / level progress bar, and a streak badge.
+///
+/// This is a pure display component: all data arrives via `let` properties injected
+/// by the parent view. No `@Query`, `@Environment`, or network calls are made here.
 struct LearningHabitView: View {
+
+    // MARK: - Inputs
+
+    /// All activity log entries used to build the 28-day heatmap.
     let activityLogs: [DailyActivityLog]
+    /// The current user's profile, providing streak, XP, and level data.
     let userProfile: UserProfile?
 
-    // MARK: - Derived data
+    // MARK: - Derived Data
 
-    private var streak: Int { userProfile?.currentStreak ?? 0 }
+    private var streak: Int  { userProfile?.currentStreak ?? 0 }
     private var totalXP: Int { userProfile?.totalXP ?? 0 }
-    private var level: Int { userProfile?.level ?? 1 }
+    private var level: Int   { userProfile?.level ?? 1 }
 
-    /// XP already earned inside the current level (0–499)
-    private var xpInLevel: Int { totalXP % 500 }
+    /// XP already earned inside the current level (0–499).
+    private var xpInLevel: Int    { totalXP % 500 }
+    /// Fractional progress through the current level, in [0, 1].
     private var xpProgress: Double { Double(xpInLevel) / 500.0 }
+    /// XP remaining to reach the next level.
     private var xpToNextLevel: Int { 500 - xpInLevel }
 
-    /// Reviewed cards in the last 28 days
+    /// Total cards reviewed across the last 28 days.
     private var totalRecentCards: Int { last28Days.reduce(0) { $0 + $1.cardsReviewed } }
 
+    /// Builds the array of `DayCell` values for the 28-day heatmap, ordered oldest → today.
     private var last28Days: [DayCell] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -47,12 +60,13 @@ struct LearningHabitView: View {
         }
     }
 
+    /// The maximum single-day card-review count across the 28-day window (used to normalise heatmap intensity).
     private var maxCards: Int { max(1, last28Days.map(\.cardsReviewed).max() ?? 1) }
 
+    /// The app's current accent colour, sourced from `ThemeManager`.
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
 
     // MARK: - Body
-
     var body: some View {
         VStack(spacing: 10) {
             sectionHeader
@@ -232,18 +246,27 @@ struct LearningHabitView: View {
     }
 }
 
-// MARK: - Heatmap Square
+// MARK: - HeatmapSquare
 
+/// A single square cell in the 28-day activity heatmap.
+///
+/// Colour intensity is linearly scaled to `maxCards` so the darkest cell
+/// always represents the most active day in the current window.
 private struct HeatmapSquare: View {
+    /// The data model for this specific day.
     let cell: LearningHabitView.DayCell
+    /// The maximum single-day count used for intensity normalisation.
     let maxCards: Int
+    /// The accent colour applied at varying opacities.
     let accentColor: Color
 
+    /// Normalised activity intensity in [0, 1].
     private var intensity: Double {
         guard cell.cardsReviewed > 0 else { return 0 }
         return min(1.0, Double(cell.cardsReviewed) / Double(maxCards))
     }
 
+    /// Fill colour derived from intensity. Zero-activity days use a neutral tint.
     private var fillColor: AnyShapeStyle {
         if cell.cardsReviewed == 0 {
             return AnyShapeStyle(Color.secondary.opacity(0.08))
@@ -269,24 +292,34 @@ private struct HeatmapSquare: View {
     }
 }
 
-// MARK: - DayCell model
+// MARK: - DayCell
 
 extension LearningHabitView {
+    /// A value type representing a single day in the 28-day activity heatmap.
     struct DayCell {
+        /// The calendar day this cell represents.
         let date: Date
+        /// Number of cards reviewed on this day.
         let cardsReviewed: Int
+        /// XP earned on this day.
         let xpEarned: Int
+        /// `true` when the user met their daily review goal on this day.
         let isPerfectDay: Bool
+        /// `true` when this cell represents today.
         let isToday: Bool
     }
 }
 
-// MARK: - Array helper (avoids name collision with any future stdlib method)
+// MARK: - Array + chunks
 
 private extension Array {
+    /// Splits the array into sequential sub-arrays of at most `size` elements.
+    ///
+    /// Named `chunks(of:)` to avoid collisions with any future stdlib method.
     func chunks(of size: Int) -> [[Element]] {
         stride(from: 0, to: count, by: size).map {
             Array(self[$0 ..< Swift.min($0 + size, count)])
         }
     }
 }
+

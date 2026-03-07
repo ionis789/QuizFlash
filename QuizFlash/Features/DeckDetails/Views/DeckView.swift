@@ -359,7 +359,11 @@ struct DeckContentView: View {
                         }
 
                         if searchQuery == nil || searchQuery?.isEmpty == true {
-                            DeckProgressView(deck: deck, stats: viewModel.currentStats, cards: viewModel.allCardInfos)
+                            DeckProgressView(
+                                progress: viewModel.progressStats,
+                                stats: viewModel.currentStats,
+                                deckCardCount: deck.cardCount
+                            )
                             DeckPlayModesView(deck: deck, onPlay: { isPlayingQuiz = true })
                                 .padding(.top, 16)
                         }

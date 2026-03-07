@@ -2,16 +2,19 @@
 //  DeckSharingViews.swift
 //  QuizFlash
 //
+//  UI-only sharing and storage components.
+//  These are dumb views — all export state lives in `DeckViewModel` and is
+//  passed down via closures or bindings. No `@StateObject` / `@ObservedObject`.
+//
 
 import SwiftUI
 import SwiftData
 
-
-/// UI-only: share sheet, export button, import progress, storage info.
-
 // MARK: - Share Sheet
 
+/// A thin `UIViewControllerRepresentable` wrapper around `UIActivityViewController`.
 struct ShareSheet: UIViewControllerRepresentable {
+    /// The items to share (typically a `[URL]`).
     let items: [Any]
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
@@ -23,57 +26,53 @@ struct ShareSheet: UIViewControllerRepresentable {
 
 // MARK: - Export Deck Button
 
+/// A dumb button that triggers deck export via a closure supplied by the parent ViewModel.
+///
+/// All export state (`isExporting`, share sheet presentation) is owned by `DeckViewModel`
+/// and bound through the parent view — this component has zero local state.
 struct ExportDeckButton: View {
-    let deck: DeckModel
 
-    @StateObject private var sharingManager = DeckSharingManager.shared
-    @State private var exportedURL: URL?
-    @State private var showShareSheet = false
-    @State private var showError = false
-    @State private var errorMessage = ""
+    // MARK: - Inputs
+
+    /// Called when the user taps the export button. The parent is responsible for
+    /// updating `isExporting` and presenting the share sheet.
+    let onExport: () -> Void
+
+    /// Mirrors `DeckViewModel.isExporting`; disables the button and shows a spinner.
+    let isExporting: Bool
+
+    // MARK: - Body
 
     var body: some View {
         Button {
-            exportDeck()
+            onExport()
         } label: {
-            if sharingManager.isExporting {
+            if isExporting {
                 ProgressView()
                     .progressViewStyle(.circular)
             } else {
                 Label("Export Deck", systemImage: "square.and.arrow.up")
             }
         }
-            .disabled(sharingManager.isExporting)
-            .sheet(isPresented: $showShareSheet) {
-            if let url = exportedURL {
-                ShareSheet(items: [url])
-            }
-        }
-            .alert("Export Error", isPresented: $showError) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(errorMessage)
-        }
-    }
-
-    private func exportDeck() {
-        Task {
-            do {
-                let url = try await sharingManager.exportDeck(deck)
-                exportedURL = url
-                showShareSheet = true
-            } catch {
-                errorMessage = error.localizedDescription
-                showError = true
-            }
-        }
+        .disabled(isExporting)
     }
 }
 
 // MARK: - Import Progress View
 
+/// Displays live import progress driven by a `DeckSharingManager` instance
+/// passed directly from the presenting view.
+///
+/// Uses `@ObservedObject` because `DeckSharingManager` is an `ObservableObject`-based
+/// service; ownership stays with the caller.
 struct ImportProgressView: View {
+
+    // MARK: - Inputs
+
+    /// The sharing manager observed for progress updates.
     @ObservedObject var sharingManager: DeckSharingManager
+
+    // MARK: - Body
 
     var body: some View {
         VStack(spacing: 16) {
@@ -84,22 +83,38 @@ struct ImportProgressView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-            .padding()
-            .frame(width: 250)
+        .padding()
+        .frame(width: 250)
     }
 }
 
 // MARK: - Storage Info View
 
+/// Full-screen list that shows per-deck storage usage and offers a cleanup action.
+///
+/// `StorageManager` and `GarbageCollector` are still `ObservableObject`-based services;
+/// they are owned here via `@StateObject` because they represent independent domain
+/// logic not related to `DeckViewModel`.
 struct StorageInfoView: View {
+
+    // MARK: - Inputs
+
     @Environment(\.modelContext) private var context
-    @StateObject private var storageManager = StorageManager.shared
+    /// The list of decks whose storage footprint should be calculated.
+    let decks: [DeckModel]
+
+    // MARK: - Private State
+
+    @StateObject private var storageManager   = StorageManager.shared
     @StateObject private var garbageCollector = GarbageCollector.shared
     @State private var lastCleanupDate: String = "Never"
-    let decks: [DeckModel]
+
+    // MARK: - Body
 
     var body: some View {
         List {
+
+            // MARK: Summary Section
             Section {
                 HStack {
                     Label("Total Used", systemImage: "externaldrive.fill")
@@ -121,12 +136,16 @@ struct StorageInfoView: View {
                 Text("Storage")
             }
 
+            // MARK: Per-Deck Breakdown Section
             Section {
                 if storageManager.deckStorageInfo.isEmpty && !storageManager.isCalculating {
                     Text("No deck data")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(Array(storageManager.deckStorageInfo.values).sorted(by: { $0.totalBytes > $1.totalBytes })) { info in
+                    ForEach(
+                        Array(storageManager.deckStorageInfo.values)
+                            .sorted { $0.totalBytes > $1.totalBytes }
+                    ) { info in
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(info.deckTitle)
@@ -145,6 +164,7 @@ struct StorageInfoView: View {
                 Text("By Deck")
             }
 
+            // MARK: Cleanup Section
             Section {
                 Button {
                     Task {
@@ -159,7 +179,7 @@ struct StorageInfoView: View {
                         }
                     }
                 }
-                    .disabled(garbageCollector.isRunning)
+                .disabled(garbageCollector.isRunning)
 
                 if garbageCollector.bytesFreed > 0 {
                     HStack {
@@ -173,14 +193,15 @@ struct StorageInfoView: View {
                 Text("Cleanup")
             }
         }
-            .navigationTitle("Storage")
-            .task {
+        .navigationTitle("Storage")
+        .task {
             await storageManager.calculateStorage(for: decks)
             if let lastCleanup = garbageCollector.lastCleanupDate {
-                let formater = RelativeDateTimeFormatter()
-                formater.unitsStyle = .full
-                lastCleanupDate = formater.localizedString(for: lastCleanup, relativeTo: Date())
+                let formatter = RelativeDateTimeFormatter()
+                formatter.unitsStyle = .full
+                lastCleanupDate = formatter.localizedString(for: lastCleanup, relativeTo: Date())
             }
         }
     }
 }
+
