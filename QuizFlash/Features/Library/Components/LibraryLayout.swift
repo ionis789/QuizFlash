@@ -64,9 +64,9 @@ struct LibraryLayout: View {
     private var searchTransition: Animation {
             .spring(response: UIConstants.Animation.instant, dampingFraction: 0.92)
     }
-    private var searchContentMaxWidth: CGFloat { 720 }
+    private var searchContentMaxWidth: CGFloat { UIConstants.Layout.librarySearchContentMaxWidth }
     private var searchPromptTopPadding: CGFloat {
-        UIConstants.Spacing.huge + UIConstants.Spacing.large + UIConstants.Size.buttonHeight + UIConstants.Spacing.large
+        UIConstants.Layout.searchPromptTopPadding
     }
 
     // MARK: - Body
@@ -91,8 +91,7 @@ struct LibraryLayout: View {
             // ── Edge shadows — top + bottom vignette ─────────────────────────
             // Tune kShadowRadius in EdgeShadowOverlay.swift to adjust both edges.
             EdgeShadowOverlay(
-//                topHeight: headerHeight + safeTop,
-                topHeight: safeTop + 40,
+                topHeight: safeTop + UIConstants.Layout.topEdgeShadowHeight,
                 bottomHeight: 60
             )
                 .zIndex(5)
@@ -283,11 +282,11 @@ struct LibraryLayout: View {
         ScrollView {
             VStack(spacing: 0) {
                 Color.clear
-                    .frame(height: headerHeight + UIConstants.Spacing.standard)
+                    .frame(height: headerHeight + UIConstants.Layout.compactScreenEdgeInset)
 
                 searchResultsLayer
                     .frame(maxWidth: .infinity, alignment: .top)
-                    .padding(.bottom, UIConstants.Spacing.huge)
+                    .padding(.bottom, UIConstants.Layout.sectionSpacing)
             }
         }
         .scrollDismissesKeyboard(.interactively)
@@ -336,17 +335,17 @@ struct LibraryLayout: View {
         content()
             .frame(maxWidth: searchContentMaxWidth, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .top)
-            .padding(.horizontal, UIConstants.Spacing.large)
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
     }
 
     private var readyToSearchPrompt: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+        VStack(alignment: .leading, spacing: UIConstants.Layout.searchPromptSectionSpacing) {
 
 
 
             VStack(
                 alignment: .leading,
-                spacing: UIConstants.Spacing.extraLarge
+                spacing: UIConstants.Layout.sectionSpacing
             ) {
                 SearchEntryBulletRow(
                     title: "Deck titles",

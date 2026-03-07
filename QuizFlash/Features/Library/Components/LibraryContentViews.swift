@@ -78,7 +78,7 @@ struct LibraryListView: View {
                         onEditColor: { onEditColor(deck) },
                         onDelete: { onDelete(deck) }
                     )
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
                         .padding(.vertical, 5)
                         .scrollProximityEffect()
                         .id(deck.id)
@@ -273,7 +273,7 @@ struct LibrarySectionHeader: View {
                 .fill(Color.primary.opacity(0.1))
                 .frame(height: 0.5)
         }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
             .padding(.vertical, 14)
     }
 }

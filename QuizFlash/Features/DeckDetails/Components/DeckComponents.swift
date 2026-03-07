@@ -92,7 +92,7 @@ struct DeckHeaderView: View {
                         .background(.ultraThinMaterial, in: Circle())
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
             .padding(.top, 16)
             .padding(.bottom, 12)
         }
@@ -128,7 +128,7 @@ struct DeckPlayModesView: View {
             Text("PLAY MODES")
                 .font(.caption.weight(.heavy))
                 .foregroundStyle(.tertiary)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
 
             LazyVGrid(
                 columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
@@ -167,7 +167,7 @@ struct DeckPlayModesView: View {
                     action: { }
                 )
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
         }
     }
 }
@@ -260,7 +260,7 @@ struct DeckSectionToolbar: View {
                 .animation(.spring(response: 0.3, dampingFraction: 0.8), value: pillVisible)
             Spacer()
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
         .padding(.vertical, 8)
     }
 }
@@ -427,10 +427,10 @@ struct DeckSelectionBottomBar: View {
             .disabled(selectedCount == 0)
             .opacity(selectedCount == 0 ? 0.5 : 1)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
         .padding(.vertical, 10)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .padding(.horizontal, 20)
+        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
     }
 }

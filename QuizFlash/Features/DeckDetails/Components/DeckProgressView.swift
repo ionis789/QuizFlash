@@ -36,7 +36,7 @@ struct DeckProgressView: View {
             Text("DECK PROGRESS")
                 .font(.caption.weight(.heavy))
                 .foregroundStyle(.tertiary)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
 
             VStack(spacing: 24) {
 
@@ -93,7 +93,7 @@ struct DeckProgressView: View {
                     )
             }
             .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
-            .padding(.horizontal, 20)
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
         }
     }
 }
@@ -140,4 +140,3 @@ private struct QuickStat: View {
         }
     }
 }
-

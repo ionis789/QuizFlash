@@ -6,7 +6,7 @@
 //  and `FlipCard` (content layer) into a single card unit.
 //
 //  This view is intentionally "dumb" — it owns no business logic.
-//  Swipe events are forwarded directly to `DefaultModePlayViewModel`
+//  Swipe events are forwarded directly to `FlashCardsPlayModeViewModel`
 //  via the `onSwipe` closure; flip state is driven by the ViewModel's
 //  `isFlipped` binding.
 //
@@ -22,8 +22,8 @@ import SwiftUI
 /// - `FlipCard` — SwiftUI 3D flip animation showing the question or answer face.
 ///
 /// All state changes are propagated upward: `onSwipe` triggers
-/// `DefaultModePlayViewModel.handleSwipe(_:)`, and `isFlipped` is a binding
-/// to `DefaultModePlayViewModel.isFlipped`.
+/// `FlashCardsPlayModeViewModel.handleSwipe(_:)`, and `isFlipped` is a binding
+/// to `FlashCardsPlayModeViewModel.isFlipped`.
 struct GameplayCard: View {
 
     // MARK: - Properties

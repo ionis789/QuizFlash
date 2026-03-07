@@ -91,15 +91,13 @@ struct DetailedCardRowView: View {
 
         }
             .padding(16)
-            .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                .shadow(color: Color.black.opacity(0.04), radius: 10, x: 0, y: 4)
-        )
-            .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.04), lineWidth: 1)
-        )
+            .background {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(
+                Color.libraryDeckRow
+                    .shadow(.inner(color: Color.white.opacity(0.15), radius: 1, x: 0, y: 0))
+            )
+        }
     }
 
     // MARK: - Helper Views

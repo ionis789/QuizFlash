@@ -48,7 +48,7 @@ struct DeckHeroView: View {
             .font(.system(size: 15, weight: .bold, design: .rounded))
             .foregroundStyle(.primary)
             .lineLimit(1)
-            .padding(.horizontal, 20)
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
             .padding(.vertical, 8)
             .frame(height: 50)
             .background {
@@ -240,4 +240,3 @@ struct CompactMasteryArc: View {
         }
     }
 }
-

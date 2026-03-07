@@ -9,6 +9,7 @@
 
 import Foundation
 import CoreGraphics
+import UIKit
 
 // MARK: - UI Constants
 
@@ -20,6 +21,11 @@ import CoreGraphics
 /// .cornerRadius(UIConstants.Radius.card)
 /// ```
 enum UIConstants {
+
+    /// Returns `true` when the current interface idiom is iPad.
+    static var isPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
 
     // MARK: - Spacing
 
@@ -85,6 +91,94 @@ enum UIConstants {
         static let buttonHeight: CGFloat = 50
         /// 120 pt — minimum card height in grid/list.
         static let cardMinHeight: CGFloat = 120
+    }
+
+    // MARK: - Layout
+
+    /// Semantic screen-level layout metrics that adapt between iPhone and iPad.
+    ///
+    /// Use these values when a layout token represents a screen region or chrome
+    /// treatment rather than a low-level spacing primitive.
+    enum Layout {
+        /// Compact edge inset used by floating controls and navigation chrome.
+        static var compactScreenEdgeInset: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.large : UIConstants.Spacing.standard
+        }
+
+        /// Standard edge inset used by full-width screen content containers.
+        static var screenEdgeInset: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.extraLarge : UIConstants.Spacing.large
+        }
+
+        /// Wider inset used by hero sections that benefit from extra breathing room.
+        static var heroScreenEdgeInset: CGFloat {
+            UIConstants.isPad
+                ? UIConstants.Spacing.extraLarge + UIConstants.Spacing.tiny
+                : UIConstants.Spacing.extraLarge
+        }
+
+        /// Default section-to-section spacing for large screen content areas.
+        static var sectionSpacing: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.huge : UIConstants.Spacing.extraLarge
+        }
+
+        /// Top inset used by floating top bars.
+        static var floatingTopBarTopPadding: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.large : UIConstants.Spacing.tiny
+        }
+
+        /// Bottom inset used by floating top bars.
+        static var floatingTopBarBottomPadding: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.medium : UIConstants.Spacing.small + 2
+        }
+
+        /// Vertical spacing used by the Library empty-search and no-results prompts.
+        static var searchPromptSectionSpacing: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.extraLarge : UIConstants.Spacing.large
+        }
+
+        /// Top offset that clears the Library chrome before search guidance content begins.
+        static var searchPromptTopPadding: CGFloat {
+            UIConstants.Spacing.huge
+                + searchPromptSectionSpacing
+                + UIConstants.Size.buttonHeight
+                + searchPromptSectionSpacing
+        }
+
+        /// Maximum width for the Library search-content column.
+        static var librarySearchContentMaxWidth: CGFloat {
+            UIConstants.isPad ? 860 : 720
+        }
+
+        /// Top shadow/vignette height for screens with floating chrome.
+        static var topEdgeShadowHeight: CGFloat {
+            UIConstants.isPad ? 52 : 40
+        }
+
+        /// Expanded top padding for the Home calendar header.
+        static var homeCalendarExpandedTopPadding: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.huge : UIConstants.Spacing.standard
+        }
+
+        /// Collapsed top padding for the Home calendar header.
+        static var homeCalendarCollapsedTopPadding: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.standard : 0
+        }
+
+        /// Top spacing above the first Home dashboard section.
+        static var homeDashboardTopPadding: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.huge : UIConstants.Spacing.extraLarge
+        }
+
+        /// Top spacing for the Deck hero title block.
+        static var deckHeroTopPadding: CGFloat {
+            UIConstants.isPad ? 176 : 144
+        }
+
+        /// Top inset for the floating Deck navigation bar.
+        static var deckNavigationTopPadding: CGFloat {
+            UIConstants.isPad ? floatingTopBarTopPadding : UIConstants.Spacing.small
+        }
     }
 
     // MARK: - Animation

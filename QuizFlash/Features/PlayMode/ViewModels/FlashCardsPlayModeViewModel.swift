@@ -1,5 +1,5 @@
 //
-//  DefaultModePlayViewModel.swift
+//  FlashCardsPlayModeViewModel.swift
 //  QuizFlash
 //
 //  Manages the runtime state for a default (swipe-to-rate) flashcard session.
@@ -12,7 +12,7 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - Default Mode Play ViewModel
+// MARK: - FlashCards Play Mode ViewModel
 
 /// The ViewModel for `FlashCardsPlayModeView`, coordinating card sequencing,
 /// XP scoring, SRS updates, and gamification writes for a single swipe-based
@@ -23,7 +23,7 @@ import SwiftData
 /// automatically safe to consume from SwiftUI without extra synchronisation.
 @Observable
 @MainActor
-final class DefaultModePlayViewModel {
+final class FlashCardsPlayModeViewModel {
 
     // MARK: - Session State
 

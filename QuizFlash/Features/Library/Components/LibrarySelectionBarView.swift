@@ -89,7 +89,7 @@ struct LibrarySelectionBarView: View {
             .buttonStyle(ScaleButtonStyle())
             .disabled(selectedCount == 0)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
         .padding(.vertical, 10)
         .background(
             .ultraThinMaterial,
@@ -100,10 +100,9 @@ struct LibrarySelectionBarView: View {
                 .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.18), radius: 16, x: 0, y: 6)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
         .padding(.bottom, 12)
         .contentShape(Rectangle())  // Absorb all taps including padding — prevent fall-through to layers below.
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedCount)
     }
 }
-

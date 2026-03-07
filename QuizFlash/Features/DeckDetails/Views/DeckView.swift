@@ -298,11 +298,11 @@ struct DeckContentView: View {
                                 .font(.subheadline)
                             Spacer()
                         }
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
                             .padding(.vertical, 12)
                             .background(Color.accentColor.opacity(0.1))
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
                             .padding(.top, 12)
                     }
 
@@ -343,9 +343,9 @@ struct DeckContentView: View {
                                 strokeWidth: 9
                             )
                         }
-                            .padding(.horizontal, 24)
+                            .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
                         /// Compensates for the safe area space removed by `.toolbar(.hidden, for: .navigationBar)`.
-                        .padding(.top, 144)
+                        .padding(.top, UIConstants.Layout.deckHeroTopPadding)
 
                         Color.clear
                             .frame(height: 1)

@@ -63,9 +63,9 @@ struct HomeCalendarSectionView: View {
 
             // MARK: Grid Geometry
 
-            let containerWidth = proxy.size.width - 40
+            let containerWidth = proxy.size.width - (UIConstants.Layout.screenEdgeInset * 2)
             let naturalEmptySpace = containerWidth * 0.10
-            let targetSpace = iconSize + 20
+            let targetSpace = iconSize + UIConstants.Layout.screenEdgeInset
             let requiredPush = max(0, (targetSpace - naturalEmptySpace) / 0.9)
 
             // MARK: Avatar Absolute Positioning
@@ -90,14 +90,14 @@ struct HomeCalendarSectionView: View {
 
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
                 .padding(.top, calendarVM.topPaddingExpanded - (calendarVM.topPaddingExpanded - calendarVM.topPaddingCollapsed) * progress)
                 .padding(.bottom, calendarVM.bottomPadding)
                 .shadow(color: .black.opacity(0.08 * progress), radius: 10, y: 4)
 
                 // LAYER 2: Absolute Avatar (floats independently of the content stack)
                 HomeAvatarView(router: router)
-                    .padding(.trailing, 20)
+                    .padding(.trailing, UIConstants.Layout.screenEdgeInset)
                     .padding(.top, avatarAbsoluteTop)
             }
             .offset(y: stickyOffset)

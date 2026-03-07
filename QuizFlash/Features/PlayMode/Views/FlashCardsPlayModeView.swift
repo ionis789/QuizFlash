@@ -4,7 +4,7 @@
 //
 //  The primary playback screen for a swipe-to-rate flashcard session.
 //  This view is intentionally "dumb" — it only renders ViewModel state
-//  and forwards user interactions to `DefaultModePlayViewModel`.
+//  and forwards user interactions to `FlashCardsPlayModeViewModel`.
 //
 
 import SwiftUI
@@ -17,7 +17,7 @@ import SwiftData
 /// Displays a stack of `GameplayCard` views one at a time, a header progress bar,
 /// and a completion overlay with session statistics when all cards have been reviewed.
 ///
-/// All business logic (XP, SRS, gamification) lives in `DefaultModePlayViewModel`.
+/// All business logic (XP, SRS, gamification) lives in `FlashCardsPlayModeViewModel`.
 /// This view only reads observable state and calls ViewModel methods.
 struct FlashCardsPlayModeView: View {
 
@@ -34,7 +34,7 @@ struct FlashCardsPlayModeView: View {
     let deck: DeckModel
 
     /// The `@Observable` ViewModel that owns all session state.
-    @Bindable var viewModel: DefaultModePlayViewModel
+    @Bindable var viewModel: FlashCardsPlayModeViewModel
 
     // MARK: - Convenience
 
@@ -377,7 +377,7 @@ private struct SessionStatBox: View {
 struct DefaultModePlay: View {
     let deck: DeckModel
 
-    @State private var viewModel: DefaultModePlayViewModel? = nil
+    @State private var viewModel: FlashCardsPlayModeViewModel? = nil
 
     var body: some View {
         Group {
@@ -387,7 +387,7 @@ struct DefaultModePlay: View {
                 Color(uiColor: .systemBackground)
                     .onAppear {
                         if self.viewModel == nil {
-                            self.viewModel = DefaultModePlayViewModel(deck: deck)
+                            self.viewModel = FlashCardsPlayModeViewModel(deck: deck)
                         }
                     }
             }

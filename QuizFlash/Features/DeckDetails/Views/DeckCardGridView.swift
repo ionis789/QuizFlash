@@ -192,7 +192,7 @@ struct DeckCardGridView: View {
                         .padding(.vertical, 8)
                         .background(.ultraThinMaterial, in: Capsule())
                         .padding(.bottom, 16)
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
                 }
 
                 let chunks = section.cards.chunked(into: columnsCount)
@@ -209,7 +209,7 @@ struct DeckCardGridView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
                     .padding(.bottom, 16)
                 }
             }
@@ -265,7 +265,7 @@ struct DeckCardGridView: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
         )
-        .padding(.horizontal, 20)
+        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
     }
 }
 

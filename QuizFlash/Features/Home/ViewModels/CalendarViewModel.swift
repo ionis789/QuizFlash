@@ -128,10 +128,14 @@ final class CalendarViewModel {
     let rowHeight: CGFloat = 44.0
 
     /// Top padding applied when the header is fully expanded.
-    let topPaddingExpanded: CGFloat = 16.0
+    var topPaddingExpanded: CGFloat {
+        UIConstants.Layout.homeCalendarExpandedTopPadding
+    }
 
     /// Top padding applied when the header is fully collapsed (compact sticky state).
-    let topPaddingCollapsed: CGFloat = 0.0
+    var topPaddingCollapsed: CGFloat {
+        UIConstants.Layout.homeCalendarCollapsedTopPadding
+    }
 
     /// Bottom padding below the calendar grid.
     let bottomPadding: CGFloat = 0.0

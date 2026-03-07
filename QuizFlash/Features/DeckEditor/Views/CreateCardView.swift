@@ -1,28 +1,17 @@
 //
-//  CreateCardView.swift
+//  AddCardSheetView.swift
 //  QuizFlash
 //
-//  Full-screen card editor with zone-based content layout.
-//  Ghost block previews are purely visual — no data mutations occur during drag.
+//  Card editor with zone-based content and PURE VISUAL ghost previews.
+//  NO data model mutation during drag - ghost is rendered as overlay only.
 //
 
 import SwiftUI
 import PhotosUI
 import SwiftData
 
-// MARK: - Create Card View
+// MARK: - Add Card Sheet View
 
-/// Full-screen modal for creating or editing a single flashcard.
-///
-/// The editor uses a two-sided segmented picker (Question / Answer) and a
-/// recursive `ZoneEditorView` to support arbitrary zone layouts on each face.
-///
-/// **Key design constraints:**
-/// - `ZoneCardContent` is the single mutable source of truth for zone trees.
-/// - Ghost block previews during drag-to-add are rendered as overlays only;
-///   the zone tree is never mutated until the user lifts their finger.
-/// - Focus is managed via `ZoneFocusManager` and `ZoneController` (singletons)
-///   so UIKit's first-responder state stays consistent across SwiftUI re-renders.
 struct CreateCardView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme

@@ -55,17 +55,17 @@ struct HomeDashboardView: View {
     var body: some View {
         VStack(spacing: 0) {
             statsSection
-                .padding(.top, 25)
-                .padding(.horizontal, 20)
+                .padding(.top, UIConstants.Layout.homeDashboardTopPadding)
+                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
 
             if !recentDecks.isEmpty {
                 recentDecksSection
-                    .padding(.top, 24)
+                    .padding(.top, UIConstants.Layout.sectionSpacing)
             }
 
             foldersSection
-                .padding(.top, 24)
-                .padding(.horizontal, 20)
+                .padding(.top, UIConstants.Layout.sectionSpacing)
+                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
 
             Spacer(minLength: 150)
         }
@@ -120,7 +120,7 @@ struct HomeDashboardView: View {
             Text("Recent Decks")
                 .font(.system(.title3, design: .rounded, weight: .bold))
                 .foregroundStyle(.primary)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
@@ -135,7 +135,7 @@ struct HomeDashboardView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
                 // Extra vertical padding so card drop shadows are not clipped.
                 .padding(.bottom, 16)
                 .padding(.top, 4)

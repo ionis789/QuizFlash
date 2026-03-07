@@ -112,8 +112,7 @@ struct DeckCustomNavigationBar: View {
             }
         }
         // Apply uniform horizontal/top padding for the entire navigation bar.
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
+        .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
+        .padding(.top, UIConstants.Layout.deckNavigationTopPadding)
     }
 }
-

@@ -60,7 +60,9 @@ struct LibraryTopBarView: View {
     private var searchGlyphSize: CGFloat { 17 }
     private var searchGlyphFrame: CGFloat { 18 }
     private var trailingControlReservation: CGFloat {
-        UIConstants.Size.buttonHeight + UIConstants.Spacing.standard + UIConstants.Spacing.small
+        UIConstants.Size.buttonHeight
+            + UIConstants.Layout.compactScreenEdgeInset
+            + UIConstants.Spacing.small
     }
     private var searchButtonHitSize: CGFloat {
         UIConstants.Size.buttonHeight + UIConstants.Spacing.small
@@ -91,9 +93,9 @@ struct LibraryTopBarView: View {
                     .opacity(ellipsisOpacity)
                     .allowsHitTesting(!viewModel.isSearching && ellipsisOpacity > 0.01)
                     .accessibilityHidden(viewModel.isSearching)
-                    .padding(.trailing, UIConstants.Spacing.standard)
-                    .padding(.top, UIConstants.Spacing.tiny)
-                    .padding(.bottom, UIConstants.Spacing.small + 2)
+                    .padding(.trailing, UIConstants.Layout.compactScreenEdgeInset)
+                    .padding(.top, UIConstants.Layout.floatingTopBarTopPadding)
+                    .padding(.bottom, UIConstants.Layout.floatingTopBarBottomPadding)
                     .transition(.identity)
                     .transaction { transaction in
                         transaction.animation = nil
@@ -134,8 +136,8 @@ struct LibraryTopBarView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, trailingControlReservation)
-        .padding(.top, UIConstants.Spacing.tiny)
-        .padding(.bottom, UIConstants.Spacing.small + 2)
+        .padding(.top, UIConstants.Layout.floatingTopBarTopPadding)
+        .padding(.bottom, UIConstants.Layout.floatingTopBarBottomPadding)
     }
 
     private var idleLeadingControlRow: some View {
@@ -145,9 +147,9 @@ struct LibraryTopBarView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, UIConstants.Spacing.standard)
-        .padding(.top, UIConstants.Spacing.tiny)
-        .padding(.bottom, UIConstants.Spacing.small + 2)
+        .padding(.leading, UIConstants.Layout.compactScreenEdgeInset)
+        .padding(.top, UIConstants.Layout.floatingTopBarTopPadding)
+        .padding(.bottom, UIConstants.Layout.floatingTopBarBottomPadding)
     }
 
     // MARK: - Leading Control
@@ -171,10 +173,10 @@ struct LibraryTopBarView: View {
             cancelButton
         }
         .frame(maxWidth: .infinity)
-        .padding(.leading, UIConstants.Spacing.standard)
-        .padding(.trailing, UIConstants.Spacing.standard)
-        .padding(.top, UIConstants.Spacing.tiny)
-        .padding(.bottom, UIConstants.Spacing.small + 2)
+        .padding(.leading, UIConstants.Layout.compactScreenEdgeInset)
+        .padding(.trailing, UIConstants.Layout.compactScreenEdgeInset)
+        .padding(.top, UIConstants.Layout.floatingTopBarTopPadding)
+        .padding(.bottom, UIConstants.Layout.floatingTopBarBottomPadding)
         .sensoryFeedback(.selection, trigger: isSearchFocused)
     }
 
