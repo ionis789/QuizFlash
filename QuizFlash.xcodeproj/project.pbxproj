@@ -139,33 +139,9 @@
 		CB5C2D742EF8A48400FB1D07 /* QuizFlash.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QuizFlash.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		CB0D6E0F2F53E56A009DC1B1 /* Exceptions for "QuizFlash" folder in "QuizFlash" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Features/Deck/Components/FolderDeckListView.swift,
-			);
-			target = CB5C2D732EF8A48400FB1D07 /* QuizFlash */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		CB0D6E102F53E56A009DC1B1 /* Exceptions for "QuizFlash" folder in "Copy Bundle Resources" phase from "QuizFlash" target */ = {
-			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			buildPhase = CB5C2D722EF8A48400FB1D07 /* Resources */;
-			membershipExceptions = (
-				Features/Deck/Components/FolderDeckListView.swift,
-			);
-		};
-/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CB5C2D762EF8A48400FB1D07 /* QuizFlash */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				CB0D6E0F2F53E56A009DC1B1 /* Exceptions for "QuizFlash" folder in "QuizFlash" target */,
-				CB0D6E102F53E56A009DC1B1 /* Exceptions for "QuizFlash" folder in "Copy Bundle Resources" phase from "QuizFlash" target */,
-			);
 			path = QuizFlash;
 			sourceTree = "<group>";
 		};

@@ -56,11 +56,6 @@ struct LibraryModalsAndDialogs: ViewModifier {
                     }
                 }
             }
-            .sheet(item: $viewModel.deckToEditColor) { deck in
-                DeckColorPickerSheet(deck: deck)
-                    .presentationDetents([.medium])
-                    .presentationDragIndicator(.visible)
-            }
             .sheet(isPresented: $viewModel.showShareSheet) {
                 ShareSheet(items: viewModel.exportedURLs)
             }

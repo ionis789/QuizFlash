@@ -17,7 +17,7 @@ final class NavigationManager {
     var createPath = NavigationPath()
     
     // Tracks the current tab so cross-app navigations push to the right stack.
-    var activeTab: AppTab = .home
+    var activeTab: AppTabBar = .home
 
     func popToRoot() {
         switch activeTab {
