@@ -73,30 +73,6 @@ final class CreateDeckViewModel {
     /// True while the staggered card reveal sequence is running.
     var isMaterializing: Bool = false
 
-    // MARK: - Scroll / Navigation State
-
-    /// Latest scroll offset reported by the scroll view's preference key.
-    ///
-    /// Drives both `showInlineTitle` and `heroOpacity` computed properties.
-    var scrollOffset: CGFloat = 0
-
-    // MARK: - Derived Navigation State
-
-    /// Returns `true` when the scroll offset is deep enough to show the condensed
-    /// inline title in the navigation bar.
-    var showInlineTitle: Bool { scrollOffset < -40 }
-
-    /// Returns the opacity of the hero title area as a function of scroll offset.
-    ///
-    /// Fades the hero out as the user scrolls up past the collapse threshold.
-    var heroOpacity: Double {
-        let maxOffset: CGFloat = -10
-        let minOffset: CGFloat = -60
-        if scrollOffset > maxOffset { return 1.0 }
-        if scrollOffset < minOffset { return 0.0 }
-        return 1.0 - Double((maxOffset - scrollOffset) / (maxOffset - minOffset))
-    }
-
     init(deckToEdit: DeckModel? = nil) {
         self.deckToEdit = deckToEdit
         if let deck = deckToEdit {

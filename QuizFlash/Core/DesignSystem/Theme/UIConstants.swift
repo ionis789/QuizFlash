@@ -175,6 +175,16 @@ enum UIConstants {
             UIConstants.isPad ? 176 : 144
         }
 
+        /// Tighter top spacing for the Create Deck hero block.
+        static var createDeckHeroTopPadding: CGFloat {
+            UIConstants.isPad ? 52 : UIConstants.Spacing.extraLarge
+        }
+
+        /// Top inset that keeps the pinned Create Deck toolbar below the floating save button.
+        static var createDeckPinnedToolbarTopInset: CGFloat {
+            deckNavigationTopPadding + UIConstants.Size.buttonHeight + UIConstants.Spacing.small
+        }
+
         /// Top inset for the floating Deck navigation bar.
         static var deckNavigationTopPadding: CGFloat {
             UIConstants.isPad ? floatingTopBarTopPadding : UIConstants.Spacing.small
