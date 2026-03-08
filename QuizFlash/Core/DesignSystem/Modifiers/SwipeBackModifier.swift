@@ -302,8 +302,7 @@ private struct JellyIndicator: View {
     var body: some View {
         ZStack {
             JellyEdgeShape(stretch: stretch, edge: edge)
-                .fill(.regularMaterial)
-                .colorScheme(.dark)
+                .fill(.ultraThinMaterial)
                 .shadow(color: .black.opacity(0.3), radius: 6, x: edge == .leading ? 2 : -2, y: 0)
 
             Image(systemName: edge == .leading ? "chevron.left" : "chevron.right")

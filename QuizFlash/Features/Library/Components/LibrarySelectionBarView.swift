@@ -15,12 +15,13 @@ struct LibrarySelectionBarView: View {
     @Bindable var viewModel: LibraryViewModel
     let decks: [DeckModel]
     let onDeleteTap: () -> Void
+    var onMoveTap: (() -> Void)? = nil
 
-    private var accent: Color { ThemeManager.shared.accentColor.color }
     private var selectedCount: Int { viewModel.selectedDecks.count }
+    private var hasSelection: Bool { selectedCount > 0 }
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: UIConstants.Spacing.medium) {
 
             // ── Done ──────────────────────────────────────────────────────────
             Button {
@@ -31,78 +32,65 @@ struct LibrarySelectionBarView: View {
                 Text("Done")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 11)
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(.horizontal, 16)
+                    .frame(height: UIConstants.Size.selectionToolbarControl)
+                    .glassButton(shape: .capsule)
             }
-            .buttonStyle(ScaleButtonStyle())
+            .buttonStyle(.plain)
 
             Spacer()
 
-            // ── Selected count badge ──────────────────────────────────────────
-            if selectedCount > 0 {
-                Text("\(selectedCount) selected")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .transition(.opacity.combined(with: .scale))
+            // ── Move ──────────────────────────────────────────────────────────
+            SelectionToolbarIconButton(
+                isEnabled: hasSelection,
+                accessibilityLabel: "Move selected decks",
+                action: { onMoveTap?() }
+            ) {
+                Image(systemName: "folder")
+                    .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
+                    .foregroundStyle(hasSelection ? Color.primary : Color.secondary)
             }
-
-            Spacer()
 
             // ── Export ────────────────────────────────────────────────────────
-            Button {
-                viewModel.exportSelectedDecks(from: decks)
-            } label: {
-                Group {
-                    if viewModel.isExporting {
-                        ProgressView().scaleEffect(0.75)
-                    } else {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
+            SelectionToolbarIconButton(
+                isEnabled: hasSelection && !viewModel.isExporting,
+                accessibilityLabel: "Export selected decks",
+                action: { viewModel.exportSelectedDecks(from: decks) }
+            ) {
+                if viewModel.isExporting {
+                    ProgressView()
+                        .scaleEffect(0.75)
+                        .tint(hasSelection ? Color.primary : Color.secondary)
+                } else {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
+                        .foregroundStyle(hasSelection ? Color.primary : Color.secondary)
                 }
-                .foregroundStyle(selectedCount == 0 ? .primary : accent)
-                .frame(width: 44, height: 44)
-                .background(
-                    Circle().fill(selectedCount == 0
-                                  ? Color.secondary.opacity(0.1)
-                                  : accent.opacity(0.15))
-                )
             }
-            .buttonStyle(ScaleButtonStyle())
-            .disabled(selectedCount == 0 || viewModel.isExporting)
 
             // ── Delete ────────────────────────────────────────────────────────
-            Button {
-                onDeleteTap()
-            } label: {
+            SelectionToolbarIconButton(
+                isEnabled: hasSelection,
+                accessibilityLabel: deleteAccessibilityLabel,
+                badgeCount: selectedCount,
+                action: onDeleteTap
+            ) {
                 Image(systemName: "trash")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(selectedCount == 0 ? .secondary : Color.red)
-                    .frame(width: 44, height: 44)
-                    .background(
-                        Circle().fill(selectedCount == 0
-                                      ? Color.secondary.opacity(0.1)
-                                      : Color.red.opacity(0.15))
-                    )
+                    .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
+                    .foregroundStyle(hasSelection ? Color.red : Color.secondary)
             }
-            .buttonStyle(ScaleButtonStyle())
-            .disabled(selectedCount == 0)
         }
-        .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
+        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
         .padding(.vertical, 10)
-        .background(
-            .ultraThinMaterial,
-            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.18), radius: 16, x: 0, y: 6)
-        .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
         .padding(.bottom, 12)
         .contentShape(Rectangle())  // Absorb all taps including padding — prevent fall-through to layers below.
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedCount)
+    }
+
+    private var deleteAccessibilityLabel: String {
+        "Delete \(selectedCount) selected deck\(selectedCount == 1 ? "" : "s")"
     }
 }

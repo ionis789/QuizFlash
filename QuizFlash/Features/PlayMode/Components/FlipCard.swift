@@ -28,7 +28,7 @@ private struct ContentHeightKey: PreferenceKey {
 
 // MARK: - FlipCard
 
-/// Renders the question and answer faces of a `PlayableCard` with a 3D Y-axis
+/// Renders the question and answer faces of a flashcard with a 3D Y-axis
 /// flip animation controlled by the `isFlipped` binding.
 ///
 /// The view exposes two overflow modes via `CardContentMode` (stored in
@@ -44,8 +44,11 @@ struct FlipCard: View {
 
     // MARK: - Properties
 
-    /// The card snapshot to display.
-    let card: PlayableCard
+    /// Decoded content for the question face.
+    private let frontZone: ZoneModel
+
+    /// Decoded content for the answer face.
+    private let backZone: ZoneModel
 
     /// Controls which face is currently visible.
     ///
@@ -85,17 +88,33 @@ struct FlipCard: View {
     private var hPad: CGFloat { isCompact ? 20 : 28 }
     private var vPad: CGFloat { isCompact ? 20 : 24 }
 
+    // MARK: - Init
+
+    /// Creates a card renderer from a playback snapshot.
+    init(card: PlayableCard, isFlipped: Binding<Bool>) {
+        self.frontZone = card.frontZone
+        self.backZone = card.backZone
+        self._isFlipped = isFlipped
+    }
+
+    /// Creates a card renderer directly from question and answer zones.
+    init(frontZone: ZoneModel, backZone: ZoneModel, isFlipped: Binding<Bool>) {
+        self.frontZone = frontZone
+        self.backZone = backZone
+        self._isFlipped = isFlipped
+    }
+
     // MARK: - Body
 
     var body: some View {
         ZStack {
             // Back face (answer) — rotated into view when isFlipped == true.
-            cardFace(zone: card.backZone, contentHeight: $backContentHeight)
+            cardFace(zone: backZone, contentHeight: $backContentHeight)
                 .rotation3DEffect(.degrees(isFlipped ? 0 : 180), axis: (x: 0, y: 1, z: 0))
                 .opacity(isFlipped ? 1 : 0)
 
             // Front face (question) — starts at 0° rotation, flips away.
-            cardFace(zone: card.frontZone, contentHeight: $frontContentHeight)
+            cardFace(zone: frontZone, contentHeight: $frontContentHeight)
                 .rotation3DEffect(.degrees(isFlipped ? -180 : 0), axis: (x: 0, y: 1, z: 0))
                 .opacity(isFlipped ? 0 : 1)
         }

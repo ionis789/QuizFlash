@@ -57,51 +57,34 @@ struct LibraryTopBarView: View {
         .linear(duration: ellipsisFadeInDuration)
             .delay(ellipsisFadeInDelay)
     }
-    private var searchGlyphSize: CGFloat { 17 }
-    private var searchGlyphFrame: CGFloat { 18 }
+    private var searchGlyphSize: CGFloat { UIConstants.Size.actionIcon }
+    private var searchGlyphFrame: CGFloat { UIConstants.Size.actionIcon }
     private var trailingControlReservation: CGFloat {
         UIConstants.Size.buttonHeight
             + UIConstants.Layout.compactScreenEdgeInset
             + UIConstants.Spacing.small
     }
     private var searchButtonHitSize: CGFloat {
-        UIConstants.Size.buttonHeight + UIConstants.Spacing.small
+        UIConstants.Size.actionButton
     }
 
     var body: some View {
-        ZStack {
-            ZStack {
-                titleRow
-                    .opacity(viewModel.isSearching ? 0 : 1)
-                    .accessibilityHidden(viewModel.isSearching)
+        ZStack(alignment: .top) {
+            titleRow
+                .opacity(viewModel.isSearching ? 0 : 1)
+                .accessibilityHidden(viewModel.isSearching)
 
-                idleLeadingControlRow
-                    .opacity(viewModel.isSearching ? 0 : 1)
-                    .allowsHitTesting(!viewModel.isSearching)
-                    .accessibilityHidden(viewModel.isSearching)
+            idleChromeRow
+                .opacity(viewModel.isSearching ? 0 : 1)
+                .allowsHitTesting(!viewModel.isSearching)
+                .accessibilityHidden(viewModel.isSearching)
 
-                searchBar
-                    .opacity(viewModel.isSearching ? 1 : 0)
-                    .allowsHitTesting(viewModel.isSearching)
-                    .accessibilityHidden(!viewModel.isSearching)
-            }
-            .frame(maxWidth: .infinity)
+            searchBar
+                .opacity(viewModel.isSearching ? 1 : 0)
+                .allowsHitTesting(viewModel.isSearching)
+                .accessibilityHidden(!viewModel.isSearching)
         }
-        .overlay(alignment: .trailing) {
-            if showsEllipsis {
-                moreSettingsButton
-                    .opacity(ellipsisOpacity)
-                    .allowsHitTesting(!viewModel.isSearching && ellipsisOpacity > 0.01)
-                    .accessibilityHidden(viewModel.isSearching)
-                    .padding(.trailing, UIConstants.Layout.compactScreenEdgeInset)
-                    .padding(.top, UIConstants.Layout.floatingTopBarTopPadding)
-                    .padding(.bottom, UIConstants.Layout.floatingTopBarBottomPadding)
-                    .transition(.identity)
-                    .transaction { transaction in
-                        transaction.animation = nil
-                    }
-            }
-        }
+        .frame(maxWidth: .infinity, alignment: .top)
         .onAppear {
             isSearchFocused = viewModel.isSearching
             cancelOpacity = viewModel.isSearching ? 1 : 0
@@ -136,20 +119,30 @@ struct LibraryTopBarView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, trailingControlReservation)
-        .padding(.top, UIConstants.Layout.floatingTopBarTopPadding)
-        .padding(.bottom, UIConstants.Layout.floatingTopBarBottomPadding)
+        .padding(.top, UIConstants.Layout.deckNavigationTopPadding)
+        .padding(.bottom, UIConstants.Spacing.small + 2)
     }
 
-    private var idleLeadingControlRow: some View {
-        HStack(spacing: 0) {
+    private var idleChromeRow: some View {
+        HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
             leadingControl
                 .fixedSize()
+
             Spacer(minLength: 0)
+
+            if showsEllipsis {
+                moreSettingsButton
+                    .opacity(ellipsisOpacity)
+                    .allowsHitTesting(!viewModel.isSearching && ellipsisOpacity > 0.01)
+                    .accessibilityHidden(viewModel.isSearching)
+                    .transition(.identity)
+                    .transaction { transaction in
+                        transaction.animation = nil
+                    }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, UIConstants.Layout.compactScreenEdgeInset)
-        .padding(.top, UIConstants.Layout.floatingTopBarTopPadding)
-        .padding(.bottom, UIConstants.Layout.floatingTopBarBottomPadding)
+        .topNavigationChrome()
     }
 
     // MARK: - Leading Control
@@ -173,10 +166,7 @@ struct LibraryTopBarView: View {
             cancelButton
         }
         .frame(maxWidth: .infinity)
-        .padding(.leading, UIConstants.Layout.compactScreenEdgeInset)
-        .padding(.trailing, UIConstants.Layout.compactScreenEdgeInset)
-        .padding(.top, UIConstants.Layout.floatingTopBarTopPadding)
-        .padding(.bottom, UIConstants.Layout.floatingTopBarBottomPadding)
+        .topNavigationChrome()
         .sensoryFeedback(.selection, trigger: isSearchFocused)
     }
 
@@ -199,7 +189,7 @@ struct LibraryTopBarView: View {
             trailingAccessory
         }
         .padding(.horizontal, UIConstants.Spacing.standard)
-        .frame(height: 54)
+        .frame(height: UIConstants.Size.capsuleHeight)
         .contentShape(Capsule())
         .background {
             searchFieldBackground(isSource: viewModel.isSearching)
@@ -283,8 +273,8 @@ struct LibraryTopBarView: View {
                     .fill(.clear)
                 searchIconBackground
                     .frame(
-                        width: UIConstants.Size.buttonHeight,
-                        height: UIConstants.Size.buttonHeight
+                        width: UIConstants.Size.actionButton,
+                        height: UIConstants.Size.actionButton
                     )
                     .scaleEffect(searchIconBackgroundScale)
                 searchGlyph(color: accent, isSource: !viewModel.isSearching)
@@ -305,10 +295,10 @@ struct LibraryTopBarView: View {
             ZStack {
                 floatingCircleBackground
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
                     .foregroundStyle(accent)
             }
-            .frame(width: UIConstants.Size.buttonHeight, height: UIConstants.Size.buttonHeight)
+            .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
             .contentShape(Circle())
         }
     }
@@ -364,40 +354,25 @@ struct LibraryTopBarView: View {
 
     private var floatingCircleBackground: some View {
         Circle()
-            .fill(.ultraThinMaterial)
-            .overlay {
-                Circle()
-                    .fill(Color.white.opacity(0.35))
-                    .blur(radius: 10)
-                    .mask(Circle().stroke(lineWidth: 4))
-                    .blendMode(.overlay)
-            }
+            .fill(.clear)
+            .glassButton(shape: .circle)
     }
 
     private var searchIconBackground: some View {
-        searchChromeBackground(
-            cornerRadius: UIConstants.Size.buttonHeight / 2,
-            isSource: !viewModel.isSearching
-        )
+        Circle()
+            .fill(.clear)
+            .glassButton(shape: .circle)
+            .matchedGeometryEffect(
+                id: "library.topbar.searchBackground",
+                in: searchTransitionNamespace,
+                isSource: !viewModel.isSearching
+            )
     }
 
     private func searchFieldBackground(isSource: Bool) -> some View {
-        searchChromeBackground(cornerRadius: 27, isSource: isSource)
-    }
-
-    private func searchChromeBackground(cornerRadius: CGFloat, isSource: Bool) -> some View {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(.ultraThinMaterial)
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.white.opacity(0.35))
-                    .blur(radius: 10)
-                    .mask(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .stroke(lineWidth: 4)
-                    )
-                    .blendMode(.overlay)
-            }
+        Capsule()
+            .fill(.clear)
+            .glassButton(shape: .capsule)
             .matchedGeometryEffect(
                 id: "library.topbar.searchBackground",
                 in: searchTransitionNamespace,
@@ -455,26 +430,18 @@ struct LibraryTopBarView: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 Image(systemName: "chevron.compact.left")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: UIConstants.Size.navigationChromeIcon, weight: .bold))
+                    .fontDesign(.rounded)
                 Text(backLabel)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold))
+                    .fontDesign(.rounded)
             }
             .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .frame(height: UIConstants.Size.buttonHeight)
+            .frame(height: UIConstants.Size.capsuleHeight)
             .foregroundStyle(accent)
-            .background {
-                Capsule()
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        Capsule()
-                            .fill(Color.white.opacity(0.35))
-                            .blur(radius: 10)
-                            .mask(Capsule().stroke(lineWidth: 4))
-                            .blendMode(.overlay)
-                    }
-            }
+            .glassButton(shape: .capsule)
         }
         .buttonStyle(.plain)
     }

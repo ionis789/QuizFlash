@@ -134,14 +134,7 @@ struct DeckRowView: View {
             }
         }
         .padding(16)
-        .background {
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(
-                    Color.libraryDeckRow
-                        .shadow(.inner(color: Color.white.opacity(0.15), radius: 1, x: 0, y: 0))
-                )
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .widgetStyle(cornerRadius: 30)
         .task(id: deck.persistentModelID) {
             // Use a throwaway ModelContext on a background actor to count new cards.
             // This avoids faulting any CardModel into the main context's permanent

@@ -73,26 +73,17 @@ struct DeckCustomNavigationBar: View {
                 Button(action: onBack) {
                     HStack(spacing: 5) {
                         Image(systemName: "chevron.compact.left")
-                            .font(.system(size: 24, weight: .bold)).fontDesign(.rounded)
+                            .font(.system(size: UIConstants.Size.navigationChromeIcon, weight: .bold))
+                            .fontDesign(.rounded)
                         Text(backLabel)
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold))
                             .fontDesign(.rounded)
                     }
                     .foregroundStyle(accentColor)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .frame(height: 50)
-                    .background {
-                        Capsule()
-                            .fill(.ultraThinMaterial)
-                            .overlay {
-                                Capsule()
-                                    .fill(Color.white.opacity(0.35))
-                                    .blur(radius: 10)
-                                    .mask(Capsule().stroke(lineWidth: 4))
-                                    .blendMode(.overlay)
-                            }
-                    }
+                    .frame(height: UIConstants.Size.capsuleHeight)
+                    .glassButton(shape: .capsule)
                 }
                 .buttonStyle(.plain)
 
@@ -111,8 +102,6 @@ struct DeckCustomNavigationBar: View {
                 )
             }
         }
-        // Apply uniform horizontal/top padding for the entire navigation bar.
-        .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
-        .padding(.top, UIConstants.Layout.deckNavigationTopPadding)
+        .topNavigationChrome()
     }
 }

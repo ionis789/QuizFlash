@@ -87,10 +87,12 @@ struct DeckHeaderView: View {
                 // Edit button
                 Button(action: onEdit) {
                     Image(systemName: "pencil")
-                        .font(.subheadline.weight(.semibold))
-                        .padding(10)
-                        .background(.ultraThinMaterial, in: Circle())
+                        .font(.system(size: UIConstants.Size.actionIcon, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+                        .glassButton(shape: .circle)
                 }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
             .padding(.top, 16)
@@ -218,14 +220,11 @@ private struct PlayModeCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)
-            .background {
+            .widgetStyle()
+            .overlay {
                 RoundedRectangle(cornerRadius: 40, style: .continuous)
-                    .fill(
-                        Color.libraryDeckRow
-                            .shadow(.inner(color: Color.white.opacity(0.15), radius: 1, x: 0, y: 0))
-                    )
+                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(!isAvailable)
@@ -318,22 +317,10 @@ struct DeckActionOverlay: View {
     private var addButton: some View {
         Button(action: onAdd) {
             Image(systemName: "plus")
-                .font(.system(size: 20, weight: .bold))
+                .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
                 .foregroundStyle(accent)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .frame(width: 50, height: 50)
-                .background {
-                    Circle()
-                        .fill(.ultraThinMaterial)
-                        .overlay {
-                            Circle()
-                                .fill(Color.white.opacity(0.35))
-                                .blur(radius: 10)
-                                .mask(Circle().stroke(lineWidth: 4))
-                                .blendMode(.overlay)
-                        }
-                }
+                .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+                .glassButton(shape: .circle)
         }
         .buttonStyle(.plain)
     }
@@ -352,24 +339,12 @@ struct DeckActionOverlay: View {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .font(.system(size: 20, weight: .bold))
+                .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
                 // Active: white icon on solid-accent fill.
                 // Inactive: accent icon on tinted-material fill.
                 .foregroundStyle(isMenuActive ? .white : accent)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .frame(width: 50, height: 50)
-                .background {
-                    Circle()
-                        .fill(.ultraThinMaterial)
-                        .overlay {
-                            Circle()
-                                .fill(Color.white.opacity(0.35))
-                                .blur(radius: 10)
-                                .mask(Circle().stroke(lineWidth: 4))
-                                .blendMode(.overlay)
-                        }
-                }
+                .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+                .glassButton(shape: .circle)
                 .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isMenuActive)
         }
         .buttonStyle(.plain)
@@ -402,30 +377,31 @@ struct DeckSelectionBottomBar: View {
     // MARK: - Body
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: UIConstants.Spacing.medium) {
 
             // Done button
             Button(action: onDone) {
                 Text("Done")
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .frame(height: UIConstants.Size.selectionToolbarControl)
+                    .glassButton(shape: .capsule)
             }
+            .buttonStyle(.plain)
 
             Spacer()
 
             // Delete button — disabled and dimmed when nothing is selected
-            Button(role: .destructive, action: onDelete) {
-                Text("Delete(\(selectedCount))")
-                    .fontWeight(.semibold)
-                    .font(.subheadline)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial, in: Capsule())
+            SelectionToolbarIconButton(
+                isEnabled: selectedCount > 0,
+                accessibilityLabel: "Delete \(selectedCount) selected card\(selectedCount == 1 ? "" : "s")",
+                badgeCount: selectedCount,
+                action: onDelete
+            ) {
+                Image(systemName: "trash")
+                    .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
+                    .foregroundStyle(selectedCount > 0 ? Color.red : Color.secondary)
             }
-            .disabled(selectedCount == 0)
-            .opacity(selectedCount == 0 ? 0.5 : 1)
         }
         .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
         .padding(.vertical, 10)

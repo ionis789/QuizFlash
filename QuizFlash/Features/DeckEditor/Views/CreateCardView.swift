@@ -105,7 +105,19 @@ struct CreateCardView: View {
                 .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhoto, matching: .images)
                 .onChange(of: selectedPhoto) { _, item in addPhoto(item) }
                 .fullScreenCover(isPresented: $showSketchModal) { CanvasModalView { data in addSketch(data) } }
-                .fullScreenCover(isPresented: $showPreview) { CardPreviewModeView(front: frontZoneContent, back: backZoneContent) }
+                .fullScreenSheet(
+                    ignoresSafeArea: true,
+                    isPresented: $showPreview,
+                    dragDismissActivationHeight: 180
+                ) { safeArea in
+                    CardPreviewModeView(
+                        front: frontZoneContent,
+                        back: backZoneContent,
+                        safeAreaInsets: safeArea
+                    )
+                } background: {
+                    CardPreviewModeBackground()
+                }
                 .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedPath)
                 .animation(.spring(response: 0.2, dampingFraction: 0.7), value: previewDirection)
                 .onAppear {

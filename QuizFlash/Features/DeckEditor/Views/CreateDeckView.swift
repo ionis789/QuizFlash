@@ -25,8 +25,8 @@ struct CreateDeckView: View {
     // MARK: - State
     @State private var viewModel: CreateDeckViewModel
     @State private var scrollState = CreateDeckScrollState()
-    @State private var leadingControlWidth: CGFloat = UIConstants.Size.buttonHeight * 2.1
-    @State private var trailingControlWidth: CGFloat = (UIConstants.Size.buttonHeight * 2) + UIConstants.Spacing.small
+    @State private var leadingControlWidth: CGFloat = UIConstants.Size.actionButton
+    @State private var trailingControlWidth: CGFloat = (UIConstants.Size.actionButton * 2) + UIConstants.Spacing.small
 
     /// Tracks the focus state of the deck title text field.
     /// Drives the tab bar visibility rule reactively.
@@ -260,8 +260,7 @@ private extension CreateDeckView {
                 }
             }
         }
-        .padding(.horizontal, horizontalInset)
-        .padding(.top, UIConstants.Layout.deckNavigationTopPadding)
+        .topNavigationChrome(horizontalInset: horizontalInset)
     }
 
     private var headerMetadataRow: some View {
@@ -330,14 +329,12 @@ private extension CreateDeckView {
     }
 
     private var doneButton: some View {
-        CreateDeckCapsuleButton(
+        CreateDeckChromeButton(
             action: handleSave,
             isEnabled: canSave,
             accessibilityLabel: "Save deck"
         ) {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 25, weight: .bold, design: .rounded))
-            .foregroundStyle(canSave ? accent : .secondary)
+            CreateDeckChromeButtonLabel(symbol: "checkmark", tint: canSave ? accent : .secondary)
         }
     }
 
@@ -409,10 +406,8 @@ private extension CreateDeckView {
 
     private var moreActionsButton: some View {
         Menu(content: { moreMenuContents }) {
-            CreateDeckChromeButtonLabel(symbol: "ellipsis", tint: accent, fontSize: 22)
-                .background {
-                    CreateDeckGlassCapsuleBackground()
-                }
+            CreateDeckChromeButtonLabel(symbol: "ellipsis", tint: accent)
+                .glassButton(shape: .circle)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("More actions")
@@ -529,10 +524,8 @@ private struct CreateDeckChromeButton<Label: View>: View {
     var body: some View {
         Button(action: action) {
             label()
-                .frame(width: 50, height: 50)
-                .background {
-                CreateDeckGlassCapsuleBackground()
-            }
+                .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+                .glassButton(shape: .circle)
         }
             .buttonStyle(.plain)
             .disabled(!isEnabled)
@@ -564,26 +557,22 @@ private struct CreateDeckCapsuleContainer<Content: View>: View {
     var body: some View {
         content()
             .padding(.horizontal, UIConstants.Spacing.standard)
-            .frame(height: UIConstants.Size.buttonHeight)
-            .background {
-                CreateDeckGlassCapsuleBackground()
-            }
+            .frame(minWidth: UIConstants.Size.capsuleHeight)
+            .frame(height: UIConstants.Size.capsuleHeight)
+            .glassButton(shape: .capsule)
     }
 }
 
 private struct CreateDeckChromeButtonLabel: View {
     let symbol: String
     let tint: Color
-    var fontSize: CGFloat = 20
-
 
     var body: some View {
-
         Image(systemName: symbol)
-            .font(.system(size: fontSize, weight: .bold))
+            .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
             .fontDesign(.rounded)
             .foregroundStyle(tint)
-            .frame(width: 50, height: 50)
+            .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
     }
 }
 
@@ -628,28 +617,12 @@ private struct CreateDeckCollapsedTitlePill: View {
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, UIConstants.Spacing.small)
             .frame(width: resolvedWidth)
-            .frame(height: UIConstants.Size.buttonHeight)
-            .background {
-                CreateDeckGlassCapsuleBackground()
-            }
+            .frame(height: UIConstants.Size.capsuleHeight)
+            .glassButton(shape: .capsule)
             .opacity(isVisible ? 1 : 0)
             .scaleEffect(isVisible ? 1 : 0.82, anchor: .top)
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isVisible)
             .accessibilityLabel(title.isEmpty ? "Untitled Deck" : title)
-    }
-}
-
-private struct CreateDeckGlassCapsuleBackground: View {
-    var body: some View {
-        Capsule()
-            .fill(.ultraThinMaterial)
-            .overlay {
-            Capsule()
-                .fill(Color.white.opacity(0.35))
-                .blur(radius: 10)
-                .mask(Capsule().stroke(lineWidth: 4))
-                .blendMode(.overlay)
-        }
     }
 }
 

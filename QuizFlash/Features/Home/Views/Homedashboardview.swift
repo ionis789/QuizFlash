@@ -160,10 +160,13 @@ struct HomeDashboardView: View {
                     viewModel.showCreateFolder = true
                 } label: {
                     Image(systemName: "folder.badge.plus")
-                        .font(.title3.weight(.semibold))
+                        .font(.system(size: UIConstants.Size.actionIcon, weight: .semibold))
                         .foregroundStyle(ThemeManager.shared.accentColor.color)
                         .symbolRenderingMode(.hierarchical)
+                        .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+                        .glassButton(shape: .circle)
                 }
+                .buttonStyle(.plain)
             }
 
             if folders.isEmpty {

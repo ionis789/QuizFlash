@@ -75,8 +75,7 @@ struct HomeRecentDeckCardView: View {
             }
             .padding(12)
             .frame(width: 260)
-            .background(Color(uiColor: .secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .widgetStyle(cornerRadius: 24)
             .shadow(color: deckColor.opacity(0.1), radius: 10, x: 0, y: 4)
         }
         .buttonStyle(.plain)

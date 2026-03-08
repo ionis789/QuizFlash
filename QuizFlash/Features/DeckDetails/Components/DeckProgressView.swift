@@ -85,14 +85,7 @@ struct DeckProgressView: View {
                 }
             }
             .padding(24)
-            .background {
-                RoundedRectangle(cornerRadius: 40, style: .continuous)
-                    .fill(
-                        Color(uiColor: .secondarySystemBackground)
-                            .shadow(.inner(color: Color.white.opacity(0.15), radius: 1, x: 0, y: 0))
-                    )
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
+            .widgetStyle()
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
         }
     }

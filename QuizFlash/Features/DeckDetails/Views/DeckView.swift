@@ -244,7 +244,15 @@ struct DeckContentView: View {
         }) {
             NavigationStack { DefaultModePlay(deck: deck) }
         }
-            .fullScreenCover(item: $previewedCard) { CardPreviewScreen(card: $0) }
+            .fullScreenSheet(
+                ignoresSafeArea: true,
+                item: $previewedCard,
+                dragDismissActivationHeight: 180
+            ) { card, safeArea in
+                DeckCardPreviewSheetView(card: card, safeAreaInsets: safeArea)
+            } background: {
+                CardPreviewModeBackground()
+            }
             .fullScreenCover(item: $editingCard) { card in
             NavigationStack {
                 CreateCardView(
@@ -320,10 +328,10 @@ struct DeckContentView: View {
                                         isPresentingEdit = true
                                     } label: {
                                         Image(systemName: "pencil")
-                                            .font(.system(size: 16, weight: .bold))
+                                            .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
                                             .foregroundStyle(.secondary.opacity(0.8))
-                                            .padding(10)
-                                            .background(.ultraThinMaterial, in: Circle())
+                                            .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+                                            .glassButton(shape: .circle)
                                     }
                                         .buttonStyle(.plain)
                                 }
@@ -464,41 +472,201 @@ struct DeckContentView: View {
 
     // MARK: - Subviews
 
-    private struct CardPreviewScreen: View {
+    private struct DeckCardPreviewSheetView: View {
         let card: CardModel
+        let safeAreaInsets: UIEdgeInsets
+
+        @Environment(\.dismiss) private var dismiss
+        @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
+        @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+        @Environment(\.colorScheme) private var colorScheme
+
+        @State private var isFlipped = false
+        @State private var topChromeHeight: CGFloat = 0
         @State private var showStats = false
-        @Environment(\.dismiss) var dismiss
+        @Namespace private var statsTransition
+
+        private var isCompact: Bool { horizontalSizeClass == .compact }
+        private var accent: Color { ThemeManager.shared.accentColor.color }
+        private var chromeButtonHeight: CGFloat {
+            UIConstants.Size.capsuleHeight
+        }
+        private var leadingChromeWidth: CGFloat {
+            isCompact ? 160 : 188
+        }
 
         var body: some View {
-            ZStack {
-                CardPreviewModeView(
-                    front: ZoneCardContent(rootZone: card.frontZone),
-                    back: ZoneCardContent(rootZone: card.backZone)
+            GeometryReader { geo in
+                let isLandscape = geo.size.width > geo.size.height
+                let resolvedSafeTopInset = max(safeAreaInsets.top, geo.safeAreaInsets.top)
+                let resolvedSafeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
+                let horizontalInset = isCompact
+                    ? UIConstants.Layout.compactScreenEdgeInset
+                    : UIConstants.Layout.screenEdgeInset
+                let cardHorizontalInset = isCompact
+                    ? UIConstants.Spacing.standard
+                    : (isLandscape ? geo.size.width * 0.15 : 40)
+                let cardTopInset = topChromeHeight + UIConstants.Spacing.medium
+                let cardBottomInset = max(resolvedSafeBottomInset, UIConstants.Spacing.standard)
+                let availableCardHeight = max(
+                    UIConstants.Size.cardMinHeight,
+                    geo.size.height - cardTopInset - cardBottomInset
                 )
-            }
-                .overlay(alignment: .bottom) {
-                if showStats {
-                    CardStatsView(card: card)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-                .overlay(alignment: .bottomTrailing) {
-                Button {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        showStats.toggle()
+                let panelWidth = min(
+                    max(280, geo.size.width * (UIConstants.isPad ? 0.34 : 0.7)),
+                    UIConstants.isPad ? 420 : 336
+                )
+
+                ZStack {
+                    if fullScreenSheetDismiss == nil {
+                        CardPreviewModeBackground()
+                            .ignoresSafeArea()
                     }
-                } label: {
-                    Image(systemName: "info.circle")
-                        .font(.title3.bold())
-                        .padding()
-                        .foregroundStyle(.primary)
+
+                    FlipCard(
+                        frontZone: card.frontZone,
+                        backZone: card.backZone,
+                        isFlipped: $isFlipped
+                    )
+                    .frame(maxWidth: .infinity)
+                    .frame(height: availableCardHeight)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.interactiveSpring(response: 0.45, dampingFraction: 0.85)) {
+                            isFlipped.toggle()
+                        }
+                    }
+                    .padding(.top, cardTopInset)
+                    .padding(.horizontal, cardHorizontalInset)
+                    .padding(.bottom, cardBottomInset)
+
+                    if showStats {
+                        Color.black.opacity(0.16)
+                            .ignoresSafeArea()
+                            .onTapGesture { closeStats() }
+                    }
                 }
+                .overlay(alignment: .top) {
+                    previewChrome(
+                        safeTopInset: resolvedSafeTopInset,
+                        horizontalInset: horizontalInset
+                    )
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if showStats {
+                        statsSurface(width: panelWidth)
+                            .padding(.trailing, horizontalInset)
+                            .padding(.bottom, resolvedSafeBottomInset + UIConstants.Spacing.large)
+                    }
+                }
+                .fullScreenSheetDragActivationHeight(cardTopInset)
+                .animation(.spring(response: 0.38, dampingFraction: 0.86), value: showStats)
+            }
+        }
+
+        private func previewChrome(safeTopInset: CGFloat, horizontalInset: CGFloat) -> some View {
+            VStack(spacing: UIConstants.Spacing.small) {
+                Capsule()
+                    .fill(Color.white.opacity(colorScheme == .dark ? 0.2 : 0.35))
+                    .frame(width: 56, height: 5)
+                    .accessibilityHidden(true)
+
+                ZStack {
+                    VStack(spacing: 2) {
+                        Text("Preview Mode")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        faceLabel
+                    }
+
+                    HStack {
+                        statsButton
+                            .frame(width: leadingChromeWidth, alignment: .leading)
+
+                        Spacer(minLength: 0)
+
+                        doneButton
+                            .frame(width: chromeButtonHeight, alignment: .trailing)
+                    }
+                }
+                .frame(height: chromeButtonHeight)
+            }
+            .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
+            .padding(.horizontal, horizontalInset)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { newHeight in
+                if abs(topChromeHeight - newHeight) > 0.5 {
+                    topChromeHeight = newHeight
+                }
+            }
+        }
+
+        private var faceLabel: some View {
+            Text(isFlipped ? "ANSWER" : "QUESTION")
+                .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+
+        private var statsButton: some View {
+            Button {
+                if showStats {
+                    closeStats()
+                } else {
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+                        showStats = true
+                    }
+                }
+            } label: {
+                Image(systemName: "chart.bar.xaxis")
+                    .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
+                    .foregroundStyle(showStats ? .primary : .secondary)
+            }
+            .buttonStyle(.plain)
+        }
+
+        private var doneButton: some View {
+            Button(action: closePreview) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(accent)
+                    .frame(width: chromeButtonHeight, height: chromeButtonHeight)
+                    .glassButton(shape: .circle)
+            }
+            .buttonStyle(.plain)
+        }
+
+        @ViewBuilder
+        private func statsSurface(width: CGFloat) -> some View {
+            CardStatsView(card: card, onClose: closeStats)
+                .frame(width: width)
+                .matchedGeometryEffect(id: "preview.stats.surface", in: statsTransition, anchor: .bottomTrailing)
+                .transition(.identity)
+                .zIndex(2)
+        }
+
+        private func closeStats() {
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+                showStats = false
+            }
+        }
+
+        private func closePreview() {
+            if let fullScreenSheetDismiss {
+                fullScreenSheetDismiss()
+            } else {
+                dismiss()
             }
         }
     }
 
     private struct CardStatsView: View {
         let card: CardModel
+        let onClose: () -> Void
+
         var totalReviews: Int { card.reviewHistory.count }
         var correctReviews: Int { card.reviewHistory.filter { $0.difficultyRaw >= ReviewDifficulty.good.rawValue }.count }
         var accuracy: Int {
@@ -506,43 +674,95 @@ struct DeckContentView: View {
             return Int((Double(correctReviews) / Double(totalReviews)) * 100)
         }
         var totalXPEarned: Int { card.reviewHistory.reduce(0) { $0 + $1.xpAwarded } }
+        private static let dueDateFormatter: DateFormatter = {
+            let formatter = DateFormatter()
+            formatter.setLocalizedDateFormatFromTemplate("d MMM")
+            return formatter
+        }()
 
         var body: some View {
-            VStack(spacing: 16) {
-                Text("Spaced Repetition Stats").font(.headline.bold())
-                HStack(spacing: 24) {
-                    StatIconItem(icon: "arrow.2.squarepath", value: "\(totalReviews)", label: "Reviews", color: .blue)
-                    StatIconItem(icon: "target", value: "\(accuracy)%", label: "Accuracy", color: .green)
-                    StatIconItem(icon: "sparkles", value: "\(totalXPEarned)", label: "XP", color: .yellow)
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+                Capsule()
+                    .fill(Color.white.opacity(0.2))
+                    .frame(width: 40, height: 4)
+                    .accessibilityHidden(true)
+                    .frame(maxWidth: .infinity)
+
+                HStack(alignment: .top, spacing: UIConstants.Spacing.standard) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Spaced Repetition Stats")
+                            .font(.system(size: 20, weight: .black, design: .rounded))
+                            .foregroundStyle(.primary)
+                        Text("Live card memory and schedule snapshot")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .frame(width: 42, height: 42)
+                            .glassButton(shape: .circle)
+                    }
+                    .buttonStyle(.plain)
                 }
-                Divider()
-                HStack(spacing: 24) {
-                    StatIconItem(icon: "brain.head.profile", value: String(format: "%.1f", card.easeFactor), label: "Ease", color: .purple)
-                    StatIconItem(icon: "calendar.badge.clock", value: "\(card.interval)d", label: "Interval", color: .orange)
-                    StatIconItem(icon: "clock", value: dateString(card.dueDate), label: "Due", color: card.dueDate <= Date() ? .red : .primary)
+
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3),
+                    spacing: 12
+                ) {
+                    StatMetricTile(icon: "arrow.2.squarepath", value: "\(totalReviews)", label: "Reviews", color: .blue)
+                    StatMetricTile(icon: "target", value: "\(accuracy)%", label: "Accuracy", color: .green)
+                    StatMetricTile(icon: "sparkles", value: "\(totalXPEarned)", label: "XP", color: .yellow)
+                    StatMetricTile(icon: "brain.head.profile", value: String(format: "%.1f", card.easeFactor), label: "Ease", color: .purple)
+                    StatMetricTile(icon: "calendar.badge.clock", value: "\(card.interval)d", label: "Interval", color: .orange)
+                    StatMetricTile(icon: "clock", value: dateString(card.dueDate), label: "Due", color: card.dueDate <= Date() ? .red : .primary)
                 }
             }
-                .padding(20)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
-                .padding()
+            .padding(20)
+            .widgetStyle(cornerRadius: 30)
+            .overlay {
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
+            }
+            .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
         }
 
         private func dateString(_ date: Date) -> String {
-            let f = DateFormatter(); f.dateStyle = .short; f.timeStyle = .none
-            return f.string(from: date)
+            Self.dueDateFormatter.string(from: date)
         }
     }
 
-    private struct StatIconItem: View {
-        let icon: String; let value: String; let label: String
+    private struct StatMetricTile: View {
+        let icon: String
+        let value: String
+        let label: String
         var color: Color = .primary
+
         var body: some View {
-            VStack(spacing: 6) {
-                Image(systemName: icon).font(.title2).foregroundStyle(color)
-                Text(value).font(.headline.bold())
-                Text(label).font(.caption).foregroundStyle(.secondary)
+            VStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(color)
+                    .frame(width: 24, height: 24)
+                Text(value)
+                    .font(.system(size: 22, weight: .black, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                Text(label.uppercased())
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 12)
+            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
     }
 }

@@ -44,7 +44,7 @@ struct HomeCalendarSectionView: View {
     // MARK: - Private Constants
 
     /// Fixed dimension for the profile avatar button.
-    private let iconSize: CGFloat = 54.0
+    private let iconSize: CGFloat = UIConstants.Size.actionButton
 
     // MARK: - Body
 
@@ -220,11 +220,12 @@ struct HomeCalendarSectionView: View {
             calendarVM.monthUpdate(increment: increment)
         } label: {
             Image(systemName: increment ? "chevron.right" : "chevron.left")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: UIConstants.Size.actionIcon, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 36, height: 36)
-                .background(Color.primary.opacity(0.06), in: Circle())
+                .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+                .glassButton(shape: .circle)
         }
+        .buttonStyle(.plain)
     }
 }
 

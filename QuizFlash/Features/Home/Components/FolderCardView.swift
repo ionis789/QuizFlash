@@ -63,14 +63,7 @@ struct FolderCardView: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 40, style: .continuous)
-                    .fill(
-                        Color.libraryDeckRow
-                            .shadow(.inner(color: Color.white.opacity(0.15), radius: 1, x: 0, y: 0))
-                    )
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
+            .widgetStyle()
             .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
         }
         .buttonStyle(.plain)

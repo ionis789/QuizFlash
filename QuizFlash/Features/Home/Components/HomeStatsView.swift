@@ -81,8 +81,7 @@ struct DailyGoalProgressCard: View {
             Spacer()
         }
         .padding(20)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .widgetStyle(cornerRadius: 24)
         .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
     }
 }
@@ -134,8 +133,7 @@ struct MiniStatCardView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .widgetStyle(cornerRadius: 18)
         .shadow(color: .black.opacity(0.03), radius: 6, x: 0, y: 3)
     }
 }

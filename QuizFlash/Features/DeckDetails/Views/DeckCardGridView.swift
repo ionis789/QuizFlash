@@ -224,7 +224,11 @@ struct DeckCardGridView: View {
             if isSelecting { onToggleSelection(card) }
             else           { onTapCard(card) }
         } label: {
-            MiniCardPreview(card: card, isSelected: isSelecting && isSelected)
+            MiniCardPreview(
+                card: card,
+                isSelected: isSelecting && isSelected,
+                isSelectionMode: isSelecting
+            )
         }
         .buttonStyle(.plain)
         .overlay(alignment: .topTrailing) {
@@ -276,10 +280,10 @@ struct DeckCardGridView: View {
 private struct MiniCardPreview: View {
     let card: GridCardInfo
     var isSelected: Bool = false
+    var isSelectionMode: Bool = false
 
     @Environment(\.colorScheme)  private var colorScheme
     @Environment(\.modelContext) private var context
-    private var accent: Color { ThemeManager.shared.accentColor.color }
 
     @State private var thumbnail:      UIImage? = nil
     @State private var hasFrontImage:  Bool     = false
@@ -295,25 +299,7 @@ private struct MiniCardPreview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Card number + status badge row
-            HStack {
-                Text("#\(card.cardNumber)")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.secondary.opacity(0.15), in: Capsule())
-                Spacer()
-                HStack {
-                    Image(systemName: cardStatus.icon)
-//                    Text(cardStatus.label)
-                }
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(cardStatus.color)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(cardStatus.color.opacity(0.15), in: Capsule())
-            }
+            headerRow
 
             questionPreview
             Spacer(minLength: 0)
@@ -331,10 +317,12 @@ private struct MiniCardPreview: View {
         .frame(height: 140)
         .background(cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(isSelected ? .gray : borderColor, lineWidth: isSelected ? 1 : 0.5)
-        )
+        .overlay {
+            if !isSelectionMode {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(borderColor, lineWidth: 0.5)
+            }
+        }
         // True lazy loading: thumbnail is requested only when the cell becomes visible.
         // task(id:) cancels automatically when the cell scrolls off screen, preventing
         // wasted work for rapidly-scrolled cells.
@@ -363,21 +351,41 @@ private struct MiniCardPreview: View {
     @ViewBuilder
     private var questionPreview: some View {
         let text = card.frontText
-        if let img = thumbnail {
-            HStack(spacing: 10) {
+        if !text.isEmpty {
+            Text(text).font(.subheadline).lineLimit(3).multilineTextAlignment(.leading)
+        } else if didLoad && thumbnail == nil {
+            Text("Empty card").font(.subheadline).foregroundStyle(.tertiary)
+        }
+    }
+
+    private var headerRow: some View {
+        HStack(spacing: 8) {
+            if let img = thumbnail {
                 Image(uiImage: img)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: 44, height: 44)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                if !text.isEmpty {
-                    Text(text).font(.subheadline).lineLimit(2).multilineTextAlignment(.leading)
-                }
+                    .frame(width: 32, height: 32)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-        } else if !text.isEmpty {
-            Text(text).font(.subheadline).lineLimit(3).multilineTextAlignment(.leading)
-        } else if didLoad {
-            Text("Empty card").font(.subheadline).foregroundStyle(.tertiary)
+
+            Text("#\(card.cardNumber)")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.secondary.opacity(0.15), in: Capsule())
+
+            Spacer()
+
+            HStack {
+                Image(systemName: cardStatus.icon)
+//                Text(cardStatus.label)
+            }
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(cardStatus.color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(cardStatus.color.opacity(0.15), in: Capsule())
         }
     }
 
@@ -448,14 +456,14 @@ private struct SelectionBubble: View {
 
     var body: some View {
         ZStack {
-            Circle().strokeBorder(isSelected ? accent : Color.secondary.opacity(0.3), lineWidth: 2)
             if isSelected {
                 Circle().fill(accent)
                 Image(systemName: "checkmark").font(.caption2.weight(.bold)).foregroundStyle(.white)
+            } else {
+                Circle().fill(.ultraThinMaterial)
             }
         }
-        .frame(width: 24, height: 24)
-        .background(.ultraThinMaterial, in: Circle())
+        .frame(width: 26, height: 26)
         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)
     }
 }

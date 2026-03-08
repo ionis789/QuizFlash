@@ -83,12 +83,26 @@ enum UIConstants {
     enum Size {
         /// 16 pt — small inline icon.
         static let iconSmall: CGFloat = 16
+        /// 20 pt — unified symbol size for top navigation and action buttons.
+        static let navigationChromeIcon: CGFloat = 20
+        /// 13 pt — unified text size for navigation capsule labels.
+        static let navigationChromeLabel: CGFloat = 13
+        /// 20 pt — default icon size for circular and capsule action chrome.
+        static let actionIcon: CGFloat = navigationChromeIcon
         /// 24 pt — standard icon size.
         static let iconStandard: CGFloat = 24
         /// 32 pt — large icon or avatar.
         static let iconLarge: CGFloat = 32
+        /// 50 pt — standard square action button size.
+        static let actionButton: CGFloat = 50
         /// 50 pt — standard tappable button height.
         static let buttonHeight: CGFloat = 50
+        /// 50 pt — standard height for adaptive glass capsules.
+        static let capsuleHeight: CGFloat = 50
+        /// 60 pt — unified control size used by selection toolbars.
+        static let selectionToolbarControl: CGFloat = 60
+        /// 24 pt — icon size used inside 60 pt selection toolbar controls.
+        static let selectionToolbarIcon: CGFloat = 24
         /// 120 pt — minimum card height in grid/list.
         static let cardMinHeight: CGFloat = 120
     }
