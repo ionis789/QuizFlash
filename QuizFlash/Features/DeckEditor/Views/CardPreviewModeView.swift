@@ -8,7 +8,6 @@ import UIKit
 
 // MARK: - Card Preview Mode View
 
-/// Full-screen preview that reuses the real play-mode card chrome and flip surface.
 struct CardPreviewModeView: View {
     let front: ZoneCardContent
     let back: ZoneCardContent
@@ -24,19 +23,10 @@ struct CardPreviewModeView: View {
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var accent: Color { ThemeManager.shared.accentColor.color }
-    private var chromeButtonHeight: CGFloat {
-        UIConstants.Size.capsuleHeight
-    }
-    private var sideControlWidth: CGFloat {
-        isCompact ? 88 : 104
-    }
+    private var chromeButtonHeight: CGFloat { UIConstants.Size.capsuleHeight }
+    private var sideControlWidth: CGFloat { isCompact ? 88 : 104 }
 
-    /// Creates a preview surface for editor and deck-detail contexts.
-    init(
-        front: ZoneCardContent,
-        back: ZoneCardContent,
-        safeAreaInsets: UIEdgeInsets = .zero
-    ) {
+    init(front: ZoneCardContent, back: ZoneCardContent, safeAreaInsets: UIEdgeInsets = .zero) {
         self.front = front
         self.back = back
         self.safeAreaInsets = safeAreaInsets
@@ -45,7 +35,7 @@ struct CardPreviewModeView: View {
     var body: some View {
         GeometryReader { geo in
             let isLandscape = geo.size.width > geo.size.height
-            let resolvedSafeTopInset = max(safeAreaInsets.top, geo.safeAreaInsets.top)
+            let resolvedSafeTopInset    = max(safeAreaInsets.top,    geo.safeAreaInsets.top)
             let resolvedSafeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
             let headerHorizontalInset = isCompact
                 ? UIConstants.Layout.compactScreenEdgeInset
@@ -53,7 +43,7 @@ struct CardPreviewModeView: View {
             let cardHorizontalInset = isCompact
                 ? UIConstants.Spacing.standard
                 : (isLandscape ? geo.size.width * 0.15 : 40)
-            let cardTopInset = topChromeHeight + UIConstants.Spacing.medium
+            let cardTopInset     = topChromeHeight + UIConstants.Spacing.medium
             let cardBottomPadding = max(resolvedSafeBottomInset, UIConstants.Spacing.standard)
             let availableCardHeight = max(
                 UIConstants.Size.cardMinHeight,
@@ -62,8 +52,7 @@ struct CardPreviewModeView: View {
 
             ZStack(alignment: .top) {
                 if fullScreenSheetDismiss == nil {
-                    CardPreviewModeBackground()
-                        .ignoresSafeArea()
+                    CardPreviewModeBackground().ignoresSafeArea()
                 }
 
                 FlipCard(
@@ -84,10 +73,7 @@ struct CardPreviewModeView: View {
                 .padding(.horizontal, cardHorizontalInset)
                 .padding(.bottom, cardBottomPadding)
 
-                topChrome(
-                    safeTopInset: resolvedSafeTopInset,
-                    horizontalInset: headerHorizontalInset
-                )
+                topChrome(safeTopInset: resolvedSafeTopInset, horizontalInset: headerHorizontalInset)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .fullScreenSheetDragActivationHeight(cardTopInset)
@@ -107,30 +93,20 @@ struct CardPreviewModeView: View {
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
-
                     faceLabel
                 }
-
                 HStack {
-                    Color.clear
-                        .frame(width: sideControlWidth, height: 1)
-
+                    Color.clear.frame(width: sideControlWidth, height: 1)
                     Spacer(minLength: 0)
-
-                    doneButton
-                        .frame(width: sideControlWidth, alignment: .trailing)
+                    doneButton.frame(width: sideControlWidth, alignment: .trailing)
                 }
             }
             .frame(height: chromeButtonHeight)
         }
         .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
         .padding(.horizontal, horizontalInset)
-        .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.size.height
-        } action: { newHeight in
-            if abs(topChromeHeight - newHeight) > 0.5 {
-                topChromeHeight = newHeight
-            }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { newH in
+            if abs(topChromeHeight - newH) > 0.5 { topChromeHeight = newH }
         }
     }
 
@@ -153,45 +129,49 @@ struct CardPreviewModeView: View {
     }
 
     private func handleDone() {
-        if let fullScreenSheetDismiss {
-            fullScreenSheetDismiss()
-        } else {
-            dismiss()
-        }
+        if let fullScreenSheetDismiss { fullScreenSheetDismiss() } else { dismiss() }
     }
 }
 
 // MARK: - Card Preview Mode Background
 
-/// Shared preview gradient used by both the content surface and custom sheet backdrop.
+/// At rest: pure black (dark) / systemGray6 (light).
+///
+/// During drag a very dark charcoal gradient appears **only at the top** of the
+/// surface, fading to transparent at ~25 % of height.  This makes the rounded
+/// top corners clearly visible against the dark strip while the body stays black.
+///
+/// The overlay reaches full opacity at just 10 % of screen travel so the effect
+/// is visible within the very first pixels of a drag.
 struct CardPreviewModeBackground: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.fullScreenSheetDragProgress) private var dragProgress
+
+    /// Reaches 1.0 after only 10 % of screen travel.
+    private var overlayOpacity: Double {
+        min(dragProgress / 0.10, 1.0)
+    }
 
     var body: some View {
         ZStack {
+            // ── Base ────────────────────────────────────────────────────────
+            if colorScheme == .dark {
+                Color.black
+            } else {
+                Color(uiColor: .systemGray6)
+            }
+
+            // ── Top-strip dark charcoal gradient ────────────────────────────
             LinearGradient(
-                colors: colorScheme == .dark
-                    ? [
-                        Color(uiColor: .secondarySystemBackground),
-                        Color(uiColor: .systemBackground),
-                        Color.black
-                    ]
-                    : [
-                        Color(uiColor: .systemGray6),
-                        Color(uiColor: .systemBackground)
-                    ],
+                stops: [
+                    .init(color: Color(white: colorScheme == .dark ? 0.08 : 0.70), location: 0.00),
+                    .init(color: Color(white: colorScheme == .dark ? 0.08 : 0.70), location: 0.04),
+                    .init(color: .clear,                                             location: 0.25)
+                ],
                 startPoint: .top,
                 endPoint: .bottom
             )
-
-            LinearGradient(
-                colors: [
-                    Color.white.opacity(colorScheme == .dark ? 0.08 : 0.18),
-                    .clear
-                ],
-                startPoint: .top,
-                endPoint: .center
-            )
+            .opacity(overlayOpacity)
         }
     }
 }

@@ -9,6 +9,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 // MARK: - FlashCardsPlayModeView
 
@@ -24,7 +25,7 @@ struct FlashCardsPlayModeView: View {
     // MARK: - Environment
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var modelContext
 
@@ -33,34 +34,55 @@ struct FlashCardsPlayModeView: View {
     /// The deck being studied — passed from the parent and forwarded to the ViewModel.
     let deck: DeckModel
 
+    /// Safe-area values passed by the custom full-screen sheet container.
+    let safeAreaInsets: UIEdgeInsets
+
     /// The `@Observable` ViewModel that owns all session state.
     @Bindable var viewModel: FlashCardsPlayModeViewModel
+
+    @State private var headerHeight: CGFloat = 0
 
     // MARK: - Convenience
 
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
     private var isCompact: Bool { horizontalSizeClass == .compact }
+    private var chromeButtonSize: CGFloat { UIConstants.Size.capsuleHeight }
+    private var scoreChromeMinWidth: CGFloat { isCompact ? 118 : 132 }
 
     // MARK: - Body
 
     var body: some View {
         GeometryReader { geo in
             let isScreenLandscape = geo.size.width > geo.size.height
+            let resolvedSafeTopInset = max(safeAreaInsets.top, geo.safeAreaInsets.top)
+            let resolvedSafeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
+            let headerTopPadding: CGFloat = resolvedSafeTopInset + UIConstants.Spacing.tiny
+            let headerHorizontalPadding: CGFloat = isCompact ? 20 : 32
+            let headerBottomPadding: CGFloat = isCompact ? 20 : 30
 
             ZStack {
-                screenBackground
-                    .ignoresSafeArea()
+                if fullScreenSheetDismiss == nil {
+                    screenBackground
+                        .ignoresSafeArea()
+                }
 
                 if !viewModel.isComplete {
                     VStack(spacing: 0) {
                         header
-                            .padding(.top, 16)
-                            .padding(.horizontal, isCompact ? 20 : 32)
-                            .padding(.bottom, isCompact ? 20 : 30)
+                            .padding(.top, headerTopPadding)
+                            .padding(.horizontal, headerHorizontalPadding)
+                            .padding(.bottom, headerBottomPadding)
+                            .onGeometryChange(for: CGFloat.self) { proxy in
+                                proxy.size.height
+                            } action: { newHeight in
+                                if abs(headerHeight - newHeight) > 0.5 {
+                                    headerHeight = newHeight
+                                }
+                            }
 
                         cardArea
                             .padding(.horizontal, isCompact ? 16 : (isScreenLandscape ? geo.size.width * 0.15 : 40))
-                            .padding(.bottom, isCompact ? 20 : 40)
+                            .padding(.bottom, max(resolvedSafeBottomInset, isCompact ? 20 : 40))
                     }
                     .transition(.opacity)
                 }
@@ -70,6 +92,7 @@ struct FlashCardsPlayModeView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
             }
+            .fullScreenSheetDragActivationHeight(headerHeight)
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isComplete)
         .task {
@@ -118,73 +141,85 @@ struct FlashCardsPlayModeView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(spacing: 16) {
-            // Title + dismiss button
+        VStack(spacing: UIConstants.Spacing.standard) {
+            Capsule()
+                .fill(Color.white.opacity(0.2))
+                .frame(width: 56, height: 5)
+                .accessibilityHidden(true)
+
             ZStack {
-                HStack {
-                    Spacer()
+                VStack(spacing: 2) {
                     Text(viewModel.deck.title)
-                        .font(.headline.bold())
-                    Spacer()
+                        .font(.system(size: isCompact ? 20 : 22, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+
+                    Text(viewModel.isFlipped ? "ANSWER" : "QUESTION")
+                        .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .animation(.spring(response: 0.3), value: viewModel.isFlipped)
                 }
+
                 HStack {
-                    Spacer()
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 24).bold())
-                            .fontDesign(.rounded)
-                            .padding(8)
-                            .frame(width: 50, height: 50)
-                            .background {
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .overlay {
-                                        Circle()
-                                            .fill(Color.white.opacity(0.35))
-                                            .blur(radius: 10)
-                                            .mask(Capsule().stroke(lineWidth: 4))
-                                            .blendMode(.overlay)
-                                    }
-                            }
-                    }
+                    liveScoreChrome
+                        .frame(minWidth: scoreChromeMinWidth, alignment: .leading)
+
+                    Spacer(minLength: 0)
+
+                    dismissButton
+                        .frame(width: scoreChromeMinWidth, alignment: .trailing)
                 }
             }
+            .frame(height: chromeButtonSize)
 
-            // Progress bar — one segment per card in the session.
-            HStack(spacing: 4) {
-                ForEach(viewModel.progressSegments, id: \.id) { segment in
-                    Capsule()
-                        .fill(segment.completed ? accentColor : Color.gray.opacity(0.5))
-                        .frame(height: 4)
-                }
-            }
-            .animation(.spring(response: 0.3), value: viewModel.currentIndex)
+            progressChrome
+        }
+    }
 
-            // Question/Answer indicator and live score counters.
-            HStack {
-                Text(viewModel.isFlipped ? "ANSWER" : "QUESTION")
-                    .font(.caption.weight(.bold))
-                    .fontDesign(.rounded)
-                    .foregroundStyle(.secondary)
-                    .animation(.spring(response: 0.3), value: viewModel.isFlipped)
+    private var dismissButton: some View {
+        Button(action: handleDismiss) {
+            Image(systemName: "xmark")
+                .font(.system(size: 20, weight: .bold))
+                .fontDesign(.rounded)
+                .foregroundStyle(.primary)
+                .frame(width: chromeButtonSize, height: chromeButtonSize)
+                .glassButton(shape: .circle)
+        }
+        .buttonStyle(.plain)
+    }
 
-                Spacer()
-
-                HStack(spacing: 12) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
-                        Text("\(viewModel.wrongCards.count)").font(.subheadline.weight(.semibold))
-                    }
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                        Text("\(viewModel.correctCount)").font(.subheadline.weight(.semibold))
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial, in: Capsule())
+    private var progressChrome: some View {
+        HStack(spacing: 4) {
+            ForEach(viewModel.progressSegments, id: \.id) { segment in
+                Capsule()
+                    .fill(segment.completed ? accentColor : Color.gray.opacity(0.5))
+                    .frame(height: 4)
             }
         }
+        .animation(.spring(response: 0.3), value: viewModel.currentIndex)
+    }
+
+    private var liveScoreChrome: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 4) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+                Text("\(viewModel.wrongCards.count)")
+                    .font(.subheadline.weight(.semibold))
+            }
+
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Text("\(viewModel.correctCount)")
+                    .font(.subheadline.weight(.semibold))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial, in: Capsule())
     }
 
     // MARK: - Completion Overlay
@@ -296,7 +331,7 @@ struct FlashCardsPlayModeView: View {
                         }
                     }
 
-                    Button { dismiss() } label: {
+                    Button(action: handleDismiss) {
                         Text("Continue")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
@@ -321,13 +356,15 @@ struct FlashCardsPlayModeView: View {
     // MARK: - Background
 
     private var screenBackground: some View {
-        LinearGradient(
-            colors: colorScheme == .dark
-                ? [Color(uiColor: .systemBackground), Color(uiColor: .secondarySystemBackground)]
-                : [Color(uiColor: .systemGray6), Color(uiColor: .systemBackground)],
-            startPoint: .top,
-            endPoint:   .bottom
-        )
+        CardPreviewModeBackground()
+    }
+
+    private func handleDismiss() {
+        if let fullScreenSheetDismiss {
+            fullScreenSheetDismiss()
+        } else {
+            dismiss()
+        }
     }
 }
 
@@ -376,13 +413,18 @@ private struct SessionStatBox: View {
 /// the persistent reference is established.
 struct DefaultModePlay: View {
     let deck: DeckModel
+    var safeAreaInsets: UIEdgeInsets = .zero
 
     @State private var viewModel: FlashCardsPlayModeViewModel? = nil
 
     var body: some View {
         Group {
             if let vm = viewModel {
-                FlashCardsPlayModeView(deck: deck, viewModel: vm)
+                FlashCardsPlayModeView(
+                    deck: deck,
+                    safeAreaInsets: safeAreaInsets,
+                    viewModel: vm
+                )
             } else {
                 Color(uiColor: .systemBackground)
                     .onAppear {

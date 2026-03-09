@@ -94,7 +94,17 @@ struct DeckContentView: View {
             MathWebViewPool.shared.flush()
         }
             .onChange(of: isPlayingQuiz) { old, new in
-            if old == true && new == false { viewModel.savedScrollOffset = 1 }
+            if old == true && new == false {
+                deck.lastOpenedAt = Date()
+                try? context.save()
+                viewModel.savedScrollOffset = 1
+                Task {
+                    await viewModel.loadSnapshot(
+                        deckID: deck.persistentModelID,
+                        container: context.container
+                    )
+                }
+            }
         }
             .onChange(of: isPresentingEdit) { old, new in
             if old == true && new == false { viewModel.savedScrollOffset = 1 }
@@ -237,13 +247,14 @@ struct DeckContentView: View {
             .fullScreenCover(isPresented: $isPresentingEdit) {
             NavigationStack { CreateDeckView(deckToEdit: deck) }
         }
-            .fullScreenCover(isPresented: $isPlayingQuiz, onDismiss: {
-            deck.lastOpenedAt = Date()
-            try? context.save()
-            Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
-        }) {
-            NavigationStack { DefaultModePlay(deck: deck) }
-        }
+            .fullScreenSheet(
+                ignoresSafeArea: true,
+                isPresented: $isPlayingQuiz
+            ) { safeArea in
+                DefaultModePlay(deck: deck, safeAreaInsets: safeArea)
+            } background: {
+                CardPreviewModeBackground()
+            }
             .fullScreenSheet(
                 ignoresSafeArea: true,
                 item: $previewedCard,

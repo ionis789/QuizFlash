@@ -2,26 +2,16 @@
 //  View+FullScreenSheet.swift
 //  QuizFlash
 //
-//  Reusable full-screen sheet wrapper that coordinates a custom slide-out
-//  dismissal animation for both drag gestures and button-triggered dismissals.
-//
 
 import SwiftUI
 import UIKit
 
 // MARK: - Full Screen Sheet Dismiss Action
 
-/// Environment-provided dismiss action that reuses the custom sheet slide-out animation.
 struct FullScreenSheetDismissAction {
     private let handler: () -> Void
-
-    init(_ handler: @escaping () -> Void) {
-        self.handler = handler
-    }
-
-    func callAsFunction() {
-        handler()
-    }
+    init(_ handler: @escaping () -> Void) { self.handler = handler }
+    func callAsFunction() { handler() }
 }
 
 // MARK: - Environment Values
@@ -32,26 +22,31 @@ private struct FullScreenSheetDismissActionKey: EnvironmentKey {
 
 private struct FullScreenSheetDragActivationHeightPreferenceKey: PreferenceKey {
     static let defaultValue: CGFloat? = nil
-
     static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
-        if let next = nextValue() {
-            value = next
-        }
+        if let next = nextValue() { value = next }
     }
 }
 
+private struct FullScreenSheetDragProgressKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
 extension EnvironmentValues {
-    /// Dismisses a custom `fullScreenSheet` using the wrapper's coordinated animation.
     var fullScreenSheetDismiss: FullScreenSheetDismissAction? {
         get { self[FullScreenSheetDismissActionKey.self] }
         set { self[FullScreenSheetDismissActionKey.self] = newValue }
+    }
+
+    /// 0 = sheet at rest, 1 = fully off-screen.
+    var fullScreenSheetDragProgress: CGFloat {
+        get { self[FullScreenSheetDragProgressKey.self] }
+        set { self[FullScreenSheetDragProgressKey.self] = newValue }
     }
 }
 
 // MARK: - View Extension
 
 extension View {
-    /// Presents a full-screen sheet with a coordinated drag-to-dismiss animation.
     @ViewBuilder
     func fullScreenSheet<Content: View, Background: View>(
         ignoresSafeArea: Bool = false,
@@ -70,7 +65,6 @@ extension View {
         }
     }
 
-    /// Presents an identifiable item in a full-screen sheet with a coordinated drag-to-dismiss animation.
     @ViewBuilder
     func fullScreenSheet<Item: Identifiable, Content: View, Background: View>(
         ignoresSafeArea: Bool = false,
@@ -83,26 +77,19 @@ extension View {
             FullScreenSheetContainer(
                 ignoresSafeArea: ignoresSafeArea,
                 dragDismissActivationHeight: dragDismissActivationHeight,
-                content: { safeAreaInsets in
-                    content(wrappedItem, safeAreaInsets)
-                },
+                content: { insets in content(wrappedItem, insets) },
                 background: background
             )
         }
     }
 
-    /// Publishes the maximum Y coordinate that may start a sheet drag-to-dismiss interaction.
     func fullScreenSheetDragActivationHeight(_ height: CGFloat?) -> some View {
-        preference(
-            key: FullScreenSheetDragActivationHeightPreferenceKey.self,
-            value: height
-        )
+        preference(key: FullScreenSheetDragActivationHeightPreferenceKey.self, value: height)
     }
 }
 
 // MARK: - Full Screen Sheet Container
 
-/// Hosts the presented view and drives the custom offset-based dismissal motion.
 private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     let ignoresSafeArea: Bool
     let dragDismissActivationHeight: CGFloat?
@@ -121,8 +108,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     }
 
     private var dragProgress: CGFloat {
-        let height = max(windowSize.height, 1)
-        return min(max(offset / height, 0), 1)
+        min(max(offset / max(windowSize.height, 1), 0), 1)
     }
 
     private var activeSheetCornerRadius: CGFloat {
@@ -131,9 +117,6 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     }
 
     var body: some View {
-        // The rounded-top shape used to clip the background layer during drag.
-        // Only the background is clipped — content is never clipped, so text
-        // inside cards never reflows when the corner radius animates in/out.
         let sheetShape = UnevenRoundedRectangle(
             cornerRadii: .init(
                 topLeading: activeSheetCornerRadius,
@@ -145,23 +128,13 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         )
 
         let baseView = ZStack {
-            // ── Background layer ────────────────────────────────────────────
-            // clipShape is applied HERE, not on the ZStack, so layout of
-            // everything above this layer is never affected.  The shadow is
-            // also placed here so it hugs the rounded shape during drag.
+            // Background only is clipped — content frame never changes so
+            // text/cards never reflow during drag. Shadow removed entirely.
             background
+                .environment(\.fullScreenSheetDragProgress, dragProgress)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipShape(sheetShape)
-                .shadow(
-                    color: .black.opacity(dragProgress > 0 ? 0.14 : 0),
-                    radius: dragProgress > 0 ? UIConstants.Shadow.heavyRadius : 0,
-                    y: dragProgress > 0 ? UIConstants.Shadow.yOffset * 2 : 0
-                )
 
-            // ── Content layer ───────────────────────────────────────────────
-            // No clipShape, no shadow — the background layer provides all
-            // visual chrome.  Text, cards, and scroll views measure against
-            // the full-screen frame at all times.
             content(safeAreaInsets)
                 .scrollDisabled(scrollDisabled)
         }
@@ -169,25 +142,19 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(.rect)
         .offset(y: offset)
-        .presentationBackground {
-            // Transparent so the background inside the ZStack body is the only
-            // visible surface — prevents a double-background artefact.
-            Color.clear
-        }
+        .presentationBackground { Color.clear }
         .ignoresSafeArea(.container, edges: ignoresSafeArea ? .all : [])
-        .environment(\.fullScreenSheetDismiss, FullScreenSheetDismissAction {
-            animateDismiss()
-        })
-        .onPreferenceChange(FullScreenSheetDragActivationHeightPreferenceKey.self) { newValue in
-            preferredDragActivationHeight = newValue
+        .environment(\.fullScreenSheetDismiss, FullScreenSheetDismissAction { animateDismiss() })
+        .onPreferenceChange(FullScreenSheetDragActivationHeightPreferenceKey.self) {
+            preferredDragActivationHeight = $0
         }
 
         if #available(iOS 18.0, *) {
             baseView.gesture(
-                CustomPanGesture { gesture in
-                    let translation = boundedTranslation(from: gesture.translation(in: gesture.view).y)
-                    let velocity = boundedVelocity(from: gesture.velocity(in: gesture.view).y / 5)
-                    let locationY = gesture.location(in: gesture.view).y
+                CustomPanGesture { [self] gesture in
+                    let translation = clampedTranslation(gesture.translation(in: gesture.view).y)
+                    let locationY   = gesture.location(in: gesture.view).y
+                    let velocityY   = gesture.velocity(in: gesture.view).y
 
                     switch gesture.state {
                     case .began:
@@ -200,15 +167,25 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                         offset = translation
 
                     case .ended, .cancelled, .failed:
-                        guard scrollDisabled else { return }
-
-                        gesture.isEnabled = false
-                        finalizeDrag(translation: translation, velocity: velocity) {
-                            gesture.isEnabled = true
+                        if scrollDisabled {
+                            gesture.isEnabled = false
+                            let predictedEnd = translation + max(velocityY * 0.28, 0)
+                            finalizeDrag(translation: translation, predictedEnd: predictedEnd) {
+                                gesture.isEnabled = true
+                            }
+                        } else {
+                            let startY = gesture.location(in: gesture.view).y - translation
+                            let isDownwardFlick = velocityY > 500
+                                && canStartDismiss(at: startY)
+                                && abs(gesture.translation(in: gesture.view).y)
+                                    >= abs(gesture.translation(in: gesture.view).x)
+                            if isDownwardFlick {
+                                gesture.isEnabled = false
+                                animateDismiss { gesture.isEnabled = true }
+                            }
                         }
 
-                    default:
-                        ()
+                    default: ()
                     }
                 }
             )
@@ -217,28 +194,79 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         }
     }
 
+    // MARK: - iOS 17 Fallback Gesture
+
     private var fallbackDismissGesture: some Gesture {
-        DragGesture(minimumDistance: 6, coordinateSpace: .global)
+        DragGesture(minimumDistance: 0, coordinateSpace: .global)
             .onChanged { value in
-                guard shouldTrackFallbackDismiss(value) else { return }
-
-                if !scrollDisabled {
+                if scrollDisabled {
+                    offset = clampedTranslation(value.translation.height)
+                } else {
+                    guard shouldStartFallbackTracking(value) else { return }
                     scrollDisabled = true
+                    offset = clampedTranslation(value.translation.height)
                 }
-
-                offset = boundedTranslation(from: value.translation.height)
             }
             .onEnded { value in
-                guard scrollDisabled, shouldTrackFallbackDismiss(value) else { return }
+                let translation  = clampedTranslation(value.translation.height)
+                let predictedEnd = max(value.predictedEndTranslation.height, 0)
+                let velocityY    = value.predictedEndTranslation.height - value.translation.height
 
-                let translation = boundedTranslation(from: value.translation.height)
-                let velocity = boundedVelocity(
-                    from: value.predictedEndTranslation.height - value.translation.height
-                )
-
-                finalizeDrag(translation: translation, velocity: velocity, completion: nil)
+                if scrollDisabled {
+                    finalizeDrag(translation: translation, predictedEnd: predictedEnd, completion: nil)
+                } else {
+                    let isDownwardFlick = velocityY > 500
+                        && value.translation.height > -20
+                        && abs(value.translation.height) >= abs(value.translation.width)
+                        && canStartDismiss(at: value.startLocation.y)
+                    if isDownwardFlick { animateDismiss() }
+                }
             }
     }
+
+    // MARK: - Dismiss Logic
+
+    private func finalizeDrag(
+        translation: CGFloat,
+        predictedEnd: CGFloat,
+        completion: (() -> Void)?
+    ) {
+        if predictedEnd > windowSize.height * 0.28 {
+            animateDismiss(completion: completion)
+        } else {
+            withAnimation(dismissalAnimation) { offset = 0 }
+            if translation < windowSize.height * 0.05 {
+                scrollDisabled = false
+                completion?()
+            } else {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))
+                    scrollDisabled = false
+                    completion?()
+                }
+            }
+        }
+    }
+
+    private func animateDismiss(completion: (() -> Void)? = nil) {
+        guard !isAnimatingDismiss else { return }
+        isAnimatingDismiss = true
+        scrollDisabled = true
+
+        withAnimation(dismissalAnimation) { offset = windowSize.height }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))
+            var tx = Transaction()
+            tx.disablesAnimations = true
+            withTransaction(tx) { dismiss() }
+            isAnimatingDismiss = false
+            scrollDisabled = false
+            completion?()
+        }
+    }
+
+    // MARK: - Helpers
 
     private var windowSize: CGSize {
         keyWindow?.bounds.size ?? UIScreen.main.bounds.size
@@ -256,71 +284,19 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     }
 
     private func canStartDismiss(at locationY: CGFloat) -> Bool {
-        let activationHeight = preferredDragActivationHeight ?? dragDismissActivationHeight
-        guard let activationHeight else { return true }
-        return locationY <= activationHeight
+        let h = preferredDragActivationHeight ?? dragDismissActivationHeight
+        guard let h else { return true }
+        return locationY <= h
     }
 
-    private func shouldTrackFallbackDismiss(_ value: DragGesture.Value) -> Bool {
+    private func shouldStartFallbackTracking(_ value: DragGesture.Value) -> Bool {
         canStartDismiss(at: value.startLocation.y)
             && value.translation.height > 0
             && abs(value.translation.height) > abs(value.translation.width)
     }
 
-    private func boundedTranslation(from rawValue: CGFloat) -> CGFloat {
-        min(max(rawValue, 0), windowSize.height)
-    }
-
-    private func boundedVelocity(from rawValue: CGFloat) -> CGFloat {
-        min(max(rawValue, 0), windowSize.height / 2)
-    }
-
-    private func finalizeDrag(
-        translation: CGFloat,
-        velocity: CGFloat,
-        completion: (() -> Void)?
-    ) {
-        let halfHeight = windowSize.height / 2
-
-        if (translation + velocity) > halfHeight {
-            animateDismiss(completion: completion)
-        } else {
-            withAnimation(dismissalAnimation) {
-                offset = 0
-            }
-
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))
-                scrollDisabled = false
-                completion?()
-            }
-        }
-    }
-
-    private func animateDismiss(completion: (() -> Void)? = nil) {
-        guard !isAnimatingDismiss else { return }
-
-        isAnimatingDismiss = true
-        scrollDisabled = true
-
-        withAnimation(dismissalAnimation) {
-            offset = windowSize.height
-        }
-
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))
-
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-
-            withTransaction(transaction) {
-                dismiss()
-            }
-
-            isAnimatingDismiss = false
-            scrollDisabled = false
-            completion?()
-        }
+    private func clampedTranslation(_ raw: CGFloat) -> CGFloat {
+        min(max(raw, 0), windowSize.height)
     }
 
     private var animationDurationMilliseconds: Int {
@@ -328,21 +304,18 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     }
 }
 
-// MARK: - Custom Pan Gesture
+// MARK: - Custom Pan Gesture (iOS 18+)
 
-/// Bridges a `UIPanGestureRecognizer` into SwiftUI so the sheet can coordinate with nested scroll views.
 @available(iOS 18.0, *)
 private struct CustomPanGesture: UIGestureRecognizerRepresentable {
     var handle: (UIPanGestureRecognizer) -> Void
 
-    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
-        Coordinator()
-    }
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
 
     func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
-        let gesture = UIPanGestureRecognizer()
-        gesture.delegate = context.coordinator
-        return gesture
+        let g = UIPanGestureRecognizer()
+        g.delegate = context.coordinator
+        return g
     }
 
     func updateUIGestureRecognizer(_ recognizer: UIPanGestureRecognizer, context: Context) {}
@@ -354,32 +327,23 @@ private struct CustomPanGesture: UIGestureRecognizerRepresentable {
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
-            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
         ) -> Bool {
-            guard let panGesture = gestureRecognizer as? UIPanGestureRecognizer else {
-                return false
-            }
-
-            let verticalVelocity = panGesture.velocity(in: panGesture.view).y
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return false }
+            let vy = pan.velocity(in: pan.view).y
             var scrollOffset: CGFloat = 0
-
-            if let collectionView = otherGestureRecognizer.view as? UICollectionView {
-                scrollOffset = collectionView.contentOffset.y + collectionView.adjustedContentInset.top
+            if let cv = other.view as? UICollectionView {
+                scrollOffset = cv.contentOffset.y + cv.adjustedContentInset.top
             }
-
-            if let scrollView = otherGestureRecognizer.view as? UIScrollView {
-                scrollOffset = scrollView.contentOffset.y + scrollView.adjustedContentInset.top
+            if let sv = other.view as? UIScrollView {
+                scrollOffset = sv.contentOffset.y + sv.adjustedContentInset.top
             }
-
-            return Int(scrollOffset) <= 1 && verticalVelocity > 0
+            return Int(scrollOffset) <= 1 && vy > 0
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            let hasZoomGesture = gestureRecognizer.view?.gestureRecognizers?.contains(where: {
-                ($0.name ?? "").localizedStandardContains("zoom")
-            }) ?? false
-
-            return !hasZoomGesture
+            !(gestureRecognizer.view?.gestureRecognizers?
+                .contains(where: { ($0.name ?? "").localizedStandardContains("zoom") }) ?? false)
         }
     }
 }
