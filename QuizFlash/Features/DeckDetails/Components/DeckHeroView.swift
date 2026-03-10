@@ -62,12 +62,14 @@ struct DeckHeroView: View {
 
 // MARK: - AnimatedPillBackground
 
-/// Renders the `ultraThinMaterial` capsule background with a dual-layered mastery ring border.
+/// Renders the `ultraThinMaterial` capsule background with an animated mastery border.
 ///
-/// - Layer 1 (inactive track): A blurred white stroke that matches the style of the back button.
+/// - Layer 1 (surface): A plain `ultraThinMaterial` capsule.
 /// - Layer 2 (active progress): A colour-tinted fill trimmed to `mastery`, starting from the
 ///   9 o'clock position (achieved via a 180° Y-axis flip of the default 3 o'clock origin).
 private struct AnimatedPillBackground: View {
+
+    private static let progressLineWidth: CGFloat = 4
 
     // MARK: - Inputs
 
@@ -87,27 +89,22 @@ private struct AnimatedPillBackground: View {
         Capsule()
             .fill(.ultraThinMaterial)
             .overlay {
-                ZStack {
-                    // Base track (inactive) — blurred overlay-blend style matching the Back button.
-                    Capsule()
-                        .fill(Color.white.opacity(0.35))
-                        .blur(radius: 10)
-                        .mask(Capsule().stroke(lineWidth: 4))
-                        .blendMode(.overlay)
-
-                    // Active progress border — coloured portion reflecting the mastery level.
-                    // SwiftUI trims from 3 o'clock by default; flipping the Y axis shifts the
-                    // start point to 9 o'clock for a left-to-right fill appearance.
-                    Capsule()
-                        .fill(ringColor.opacity(isGlowing ? 1.0 : 0.85))
-                        .blur(radius: isGlowing ? 12 : 8)
-                        .mask {
-                            Capsule()
-                                .trim(from: 0, to: animatedMastery)
-                                .stroke(style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                        }
-                        .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
-                }
+                // Active progress border — coloured portion reflecting the mastery level.
+                // SwiftUI trims from 3 o'clock by default; flipping the Y axis shifts the
+                // start point to 9 o'clock for a left-to-right fill appearance.
+                Capsule()
+                    .fill(ringColor.opacity(isGlowing ? 1.0 : 0.85))
+                    .blur(radius: isGlowing ? 12 : 8)
+                    .mask {
+                        Capsule()
+                            .inset(by: Self.progressLineWidth / 2)
+                            .trim(from: 0, to: animatedMastery)
+                            .stroke(
+                                style: StrokeStyle(lineWidth: Self.progressLineWidth, lineCap: .round)
+                            )
+                    }
+                    .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
+                    .clipShape(Capsule())
             }
             .onAppear {
                 withAnimation(.spring(response: 0.8, dampingFraction: 0.8).delay(0.15)) {
@@ -166,16 +163,17 @@ struct DeckMasteryRing: View {
             Text("\(Int(animatedMastery * 100))%")
                 .font(.system(size: 15, weight: .black, design: .rounded))
                 .foregroundStyle(.primary)
+                .contentTransition(.numericText())
         }
         .frame(width: size, height: size)
         .onAppear {
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.8).delay(0.15)) {
+            withAnimation(.spring(response: 1.1, dampingFraction: 0.82).delay(0.15)) {
                 animatedMastery = mastery
             }
         }
         .onChange(of: mastery) { old, new in
             guard abs(new - old) > 0.001 else { return }
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) { animatedMastery = new }
+            withAnimation(.spring(response: 0.9, dampingFraction: 0.78)) { animatedMastery = new }
             withAnimation(.easeIn(duration: 0.2)) { isGlowing = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                 withAnimation(.easeInOut(duration: 0.8)) { isGlowing = false }

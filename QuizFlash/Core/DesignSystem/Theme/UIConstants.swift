@@ -93,6 +93,10 @@ enum UIConstants {
         static let iconStandard: CGFloat = 24
         /// 32 pt — large icon or avatar.
         static let iconLarge: CGFloat = 32
+        /// 28 pt — compact square action control used inside hero titles and dense cards.
+        static let actionButtonCompact: CGFloat = 28
+        /// 32 pt — standard square action button size.
+        static let actionButtonMedium: CGFloat = 32
         /// 50 pt — standard square action button size.
         static let actionButton: CGFloat = 50
         /// 50 pt — standard tappable button height.
@@ -105,6 +109,16 @@ enum UIConstants {
         static let selectionToolbarIcon: CGFloat = 24
         /// 120 pt — minimum card height in grid/list.
         static let cardMinHeight: CGFloat = 120
+        /// 34 pt — compact width for the inline hero edit control.
+        static let heroInlineActionWidth: CGFloat = 34
+        /// 30 pt — compact height for the inline hero edit control.
+        static let heroInlineActionHeight: CGFloat = 30
+        /// 30 pt — top-trailing card options button size.
+        static let cardOptionsButton: CGFloat = 30
+        /// 152 pt — standard height for deck grid cards.
+        static let deckGridCardHeight: CGFloat = 152
+        /// 228 pt — width for anchored visionOS-style floating menus.
+        static let floatingContextMenuWidth: CGFloat = 228
     }
 
     // MARK: - Layout
@@ -131,7 +145,7 @@ enum UIConstants {
                 : UIConstants.Spacing.extraLarge
         }
 
-        /// Default section-to-section spacing for large screen content areas.
+        /// Default section-to-section spacing for large screen content areas. 
         static var sectionSpacing: CGFloat {
             UIConstants.isPad ? UIConstants.Spacing.huge : UIConstants.Spacing.extraLarge
         }
@@ -187,6 +201,16 @@ enum UIConstants {
         /// Top spacing for the Deck hero title block.
         static var deckHeroTopPadding: CGFloat {
             UIConstants.isPad ? 176 : 144
+        }
+
+        /// Breathing room between the floating Deck chrome and the large hero title block.
+        static var deckHeroChromeClearance: CGFloat {
+            UIConstants.isPad ? 56 : 44
+        }
+
+        /// Extra upward travel required before the Deck hero pill may replace the large title.
+        static var deckHeroPillRevealClearance: CGFloat {
+            UIConstants.isPad ? 56 : 44
         }
 
         /// Tighter top spacing for the Create Deck hero block.

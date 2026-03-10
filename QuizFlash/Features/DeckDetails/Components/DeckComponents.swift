@@ -54,12 +54,12 @@ struct DeckHeaderView: View {
                 ZStack {
                     Circle()
                         .fill(
-                            LinearGradient(
-                                colors: [deckColor.opacity(0.7), deckColor.opacity(0.3)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+                        LinearGradient(
+                            colors: [deckColor.opacity(0.7), deckColor.opacity(0.3)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         )
+                    )
                         .frame(width: 56, height: 56)
 
                     Image(systemName: deck.icon.isEmpty ? "sparkles.rectangle.stack.fill" : deck.icon)
@@ -78,98 +78,112 @@ struct DeckHeaderView: View {
                         Text("•")
                         Text(formattedCreationDate)
                     }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 // Edit button
                 Button(action: onEdit) {
-                    Image(systemName: "pencil")
-                        .font(.system(size: UIConstants.Size.actionIcon, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-                        .glassButton(shape: .circle)
+                Image(systemName: "pencil.line")
+                    .font(
+                        .system(
+                            size: 11,
+                            weight: .bold
+                        )
+                    )
+                    .foregroundStyle(.secondary)
+                    .frame(
+                        height: UIConstants.Size.heroInlineActionHeight
+                    )
+                    .padding(.horizontal, 12)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(Color.white.opacity(0.10), lineWidth: 0.75)
+                    }
                 }
-                .buttonStyle(.plain)
+                    .buttonStyle(.plain)
             }
-            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+            .background(Color(uiColor: .systemGroupedBackground))
     }
 }
 
 // MARK: - DeckPlayModesView
 
-/// A 2×2 grid of play-mode cards (Default, Quiz, Learn, Match).
+/// A horizontally scrolling carousel of deck play-mode cards.
 ///
-/// Each card fires `onPlay` when tapped. The "Match" tile is always disabled
-/// (coming soon). All styling is driven by `ThemeManager.shared`.
+/// The card width intentionally leaves part of the next card visible so the
+/// section communicates that more modes are available with a horizontal swipe.
 struct DeckPlayModesView: View {
 
     // MARK: - Inputs
 
     /// The deck being played — used to disable tiles when it has no cards.
     let deck: DeckModel
-    /// Called when the user taps any active play-mode card.
-    var onPlay: () -> Void
+    /// Called when the user taps a play-mode card.
+    let onOpenMode: (DeckPlayModeDestination) -> Void
+    /// Called when the user taps the mode-specific options button.
+    let onOpenSettings: (DeckPlayModeDestination) -> Void
 
     // MARK: - Computed Properties
 
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
-    /// `true` when the deck has no cards; disables all play tiles.
-    private var isEmpty: Bool { deck.cardCount == 0 }
+    private var deckColor: Color { Color(hex: deck.colorHex) ?? accentColor }
+    /// `true` when the deck has at least one card and flashcards can launch immediately.
+    private var hasCards: Bool { deck.cardCount > 0 }
 
     // MARK: - Body
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
             Text("PLAY MODES")
                 .font(.caption.weight(.heavy))
                 .foregroundStyle(.tertiary)
                 .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
 
-            LazyVGrid(
-                columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
-                spacing: 16
-            ) {
-                PlayModeCard(
-                    title: "Default",
-                    subtitle: "Swipe review",
-                    systemImage: "play.fill",
-                    color: accentColor,
-                    isAvailable: !isEmpty,
-                    action: onPlay
-                )
-                PlayModeCard(
-                    title: "Quiz",
-                    subtitle: "Multi choice",
-                    systemImage: "questionmark.square.dashed",
-                    color: .purple,
-                    isAvailable: !isEmpty,
-                    action: onPlay
-                )
-                PlayModeCard(
-                    title: "Learn",
-                    subtitle: "Spaced rep",
-                    systemImage: "brain.head.profile",
-                    color: .teal,
-                    isAvailable: !isEmpty,
-                    action: onPlay
-                )
-                PlayModeCard(
-                    title: "Match",
-                    subtitle: "Coming soon",
-                    systemImage: "square.grid.2x2",
-                    color: .gray,
-                    isAvailable: false,
-                    action: { }
-                )
+            GeometryReader { proxy in
+                let availableWidth = max(0, proxy.size.width - (UIConstants.Layout.screenEdgeInset * 2))
+                let widthScale = UIConstants.isPad ? 0.36 : 0.78
+                let cardWidth = min(max(availableWidth * widthScale, 220), UIConstants.isPad ? 290 : 300)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: UIConstants.Spacing.standard) {
+                        ForEach(DeckPlayModeDestination.allCases) { mode in
+                            PlayModeCard(
+                                mode: mode,
+                                tintColor: mode.tintColor(
+                                    deckColor: deckColor,
+                                    accentColor: accentColor
+                                ),
+                                canPlay: hasCards && mode.isGameplayAvailable,
+                                hasCards: hasCards,
+                                onOpenMode: onOpenMode,
+                                onOpenSettings: onOpenSettings
+                            )
+                                .frame(width: cardWidth)
+                        }
+                    }
+                        .scrollTargetLayout()
+                        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                        .padding(.vertical, UIConstants.Spacing.small)
+                }
+                    .scrollIndicators(.hidden)
+                    .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
             }
-            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                .frame(height: 148)
+
+            if !hasCards {
+                Text("Add cards to start a session. Settings stay available for every mode.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            }
         }
     }
 }
@@ -181,54 +195,91 @@ private struct PlayModeCard: View {
 
     // MARK: - Inputs
 
-    let title: String
-    let subtitle: String
-    let systemImage: String
-    let color: Color
-    let isAvailable: Bool
-    let action: () -> Void
+    let mode: DeckPlayModeDestination
+    let tintColor: Color
+    let canPlay: Bool
+    let hasCards: Bool
+    let onOpenMode: (DeckPlayModeDestination) -> Void
+    let onOpenSettings: (DeckPlayModeDestination) -> Void
 
     // MARK: - Body
 
     var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 16) {
+        ZStack(alignment: .topTrailing) {
+            Button {
+                guard canPlay else { return }
+                onOpenMode(mode)
+            } label: {
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+                    HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(tintColor.opacity(canPlay ? 0.18 : 0.12))
+                                .frame(width: 56, height: 56)
 
-                // Icon badge
-                ZStack {
-                    Circle()
-                        .fill(color.opacity(isAvailable ? 0.15 : 0.05))
-                        .frame(width: 44, height: 44)
+                            Image(systemName: mode.systemImage)
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundStyle(canPlay ? tintColor : tintColor.opacity(0.72))
+                        }
 
-                    Image(systemName: systemImage)
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(isAvailable ? color : color.opacity(0.30))
+                        VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny) {
+                            Text(mode.title)
+                                .font(.system(size: 19, weight: .bold, design: .rounded))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+
+                            Text(mode.subtitle)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+
+                            if !mode.isGameplayAvailable {
+                                Text("Gameplay coming soon")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            } else if !hasCards {
+                                Text("Add cards to start")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+
+                        Spacer(minLength: UIConstants.Size.actionButton)
+                    }
                 }
-
-                // Labels
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline.weight(.bold))
-                        .fontDesign(.rounded)
-                        .foregroundStyle(isAvailable ? .primary : .tertiary)
-
-                    Text(subtitle)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                    .frame(maxWidth: .infinity, minHeight: 96, maxHeight: 96, alignment: .leading)
+                    .padding(14)
+                    .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
-            .widgetStyle()
-            .overlay {
-                RoundedRectangle(cornerRadius: 40, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
+                .buttonStyle(.plain)
+
+            Button {
+                onOpenSettings(mode)
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(tintColor)
+                    .frame(width: 34, height: 34)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 13, style: .continuous)
+                            .fill(tintColor.opacity(0.12))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 13, style: .continuous)
+                            .stroke(Color.white.opacity(0.10), lineWidth: 0.75)
+                    }
             }
+                .buttonStyle(.plain)
+                .padding(12)
         }
-        .buttonStyle(.plain)
-        .disabled(!isAvailable)
-        .opacity(isAvailable ? 1.0 : 0.5)
+            .widgetStyle(cornerRadius: 28)
+            .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
+        }
     }
 }
 
@@ -259,8 +310,8 @@ struct DeckSectionToolbar: View {
                 .animation(.spring(response: 0.3, dampingFraction: 0.8), value: pillVisible)
             Spacer()
         }
-        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-        .padding(.vertical, 8)
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .padding(.vertical, 8)
     }
 }
 
@@ -322,7 +373,7 @@ struct DeckActionOverlay: View {
                 .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
                 .glassButton(shape: .circle)
         }
-        .buttonStyle(.plain)
+            .buttonStyle(.plain)
     }
 
     // MARK: - Menu Button
@@ -340,15 +391,15 @@ struct DeckActionOverlay: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
-                // Active: white icon on solid-accent fill.
-                // Inactive: accent icon on tinted-material fill.
-                .foregroundStyle(isMenuActive ? .white : accent)
+            // Active: white icon on solid-accent fill.
+            // Inactive: accent icon on tinted-material fill.
+            .foregroundStyle(isMenuActive ? .white : accent)
                 .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
                 .glassButton(shape: .circle)
                 .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isMenuActive)
         }
-        .buttonStyle(.plain)
-        .onGeometryChange(for: CGRect.self) { proxy in
+            .buttonStyle(.plain)
+            .onGeometryChange(for: CGRect.self) { proxy in
             proxy.frame(in: .global)
         } action: { newValue in
             menuTracker.rect = newValue
@@ -387,7 +438,7 @@ struct DeckSelectionBottomBar: View {
                     .frame(height: UIConstants.Size.selectionToolbarControl)
                     .glassButton(shape: .capsule)
             }
-            .buttonStyle(.plain)
+                .buttonStyle(.plain)
 
             Spacer()
 
@@ -403,10 +454,94 @@ struct DeckSelectionBottomBar: View {
                     .foregroundStyle(selectedCount > 0 ? Color.red : Color.secondary)
             }
         }
-        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+    }
+}
+
+// MARK: - DeckCardContextMenu
+
+/// Anchored floating menu for card-level actions such as edit, pin, and delete.
+struct DeckCardContextMenu: View {
+    let card: GridCardInfo
+    let onEdit: () -> Void
+    let onTogglePin: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: UIConstants.Spacing.small) {
+            DeckCardContextMenuAction(
+                icon: "pencil",
+                tint: .primary,
+                backgroundColor: Color.white.opacity(0.05),
+                accessibilityLabel: "Edit Card"
+            ) {
+                onEdit()
+            }
+
+            DeckCardContextMenuAction(
+                icon: card.isPinned ? "pin.slash.fill" : "pin.fill",
+                tint: card.isPinned ? .orange : card.deckStatusColor,
+                backgroundColor: (card.isPinned ? Color.orange : card.deckStatusColor).opacity(card.isPinned ? 0.20 : 0.14),
+                accessibilityLabel: card.isPinned ? "Unpin Card" : "Pin Card"
+            ) {
+                onTogglePin()
+            }
+
+            DeckCardContextMenuAction(
+                icon: "trash",
+                tint: .red,
+                backgroundColor: Color.red.opacity(0.16),
+                accessibilityLabel: "Delete Card"
+            ) {
+                onDelete()
+            }
+        }
+        .padding(10)
+        .fixedSize()
+        .background {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    Color.libraryDeckRow
+                        .shadow(.inner(color: Color.white.opacity(0.12), radius: 1, x: 0, y: 0))
+                )
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 0.85)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(color: .black.opacity(0.35), radius: 22, y: 12)
+    }
+}
+
+private struct DeckCardContextMenuAction: View {
+    let icon: String
+    let tint: Color
+    let backgroundColor: Color
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(backgroundColor)
+
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(tint)
+            }
+            .frame(width: UIConstants.Size.buttonHeight, height: UIConstants.Size.buttonHeight)
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
     }
 }

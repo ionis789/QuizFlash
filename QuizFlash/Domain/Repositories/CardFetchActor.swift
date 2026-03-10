@@ -169,6 +169,7 @@ actor CardFetchActor {
                 cardNumber:           card.cardNumber,
                 interval:             card.interval,
                 reviewHistoryIsEmpty: card.reviewHistory.isEmpty,
+                isPinned:             card.isPinned,
                 frontText:            card.frontText,
                 backText:             card.backText,
                 createdAt:            card.createdAt,

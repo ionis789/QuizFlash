@@ -28,12 +28,18 @@ struct CustomMenuButton: View {
     /// When `true`, the button is non-interactive and rendered at 40% opacity.
     var disabled: Bool = false
 
+    /// Optional override tint used for semantic actions such as destructive delete.
+    var tint: Color? = nil
+
     /// The action to perform when the button is tapped.
     let action: () -> Void
 
     // MARK: - Private
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
+    private var foregroundColor: Color {
+        tint ?? (isSelected ? accent : .primary)
+    }
 
     // MARK: - Body
 
@@ -42,11 +48,11 @@ struct CustomMenuButton: View {
             HStack {
                 Text(title)
                     .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .foregroundStyle(isSelected ? accent : Color.primary)
+                    .foregroundStyle(foregroundColor)
                 Spacer(minLength: 0)
                 Image(systemName: icon)
                     .font(.system(size: 15, weight: .regular))
-                    .foregroundStyle(isSelected ? accent : Color.primary)
+                    .foregroundStyle(foregroundColor)
                     .frame(width: 24, alignment: .center)
             }
             .padding(.vertical, 10)

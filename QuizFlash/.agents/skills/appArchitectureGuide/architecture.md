@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # QuizFlash Architecture Reference
 
 ## Contents

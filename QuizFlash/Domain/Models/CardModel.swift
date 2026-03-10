@@ -66,6 +66,9 @@ class CardModel {
     /// The sequential display number assigned by the parent deck.
     var cardNumber: Int = 0
 
+    /// Keeps the card surfaced at the top of deck views regardless of the active sort order.
+    var isPinned: Bool = false
+
     // MARK: - Relationships
 
     /// The deck that owns this card. Nil if the card has been orphaned.
@@ -183,7 +186,8 @@ class CardModel {
         backZone: ZoneModel,
         frontType: CardContentType = .text,
         backType: CardContentType = .text,
-        cardNumber: Int = 0
+        cardNumber: Int = 0,
+        isPinned: Bool = false
     ) {
         self.frontTypeRaw = frontType.rawValue
         self.backTypeRaw = backType.rawValue
@@ -192,6 +196,7 @@ class CardModel {
         self.backZoneData = backZone.encode()
 
         self.cardNumber = cardNumber
+        self.isPinned = isPinned
 
         self.frontText = frontZone.previewText(maxLength: 200)
         self.backText = backZone.previewText(maxLength: 200)
@@ -284,7 +289,7 @@ struct DraftCard: Identifiable {
     /// - Returns: A `DraftCard` with all fields copied from `card`.
     static func from(_ card: CardModel) -> DraftCard {
         DraftCard(
-            originalCardID: card.id,
+            originalCardID: card.persistentModelID,
             frontZone: card.frontZone,
             backZone: card.backZone,
             frontType: card.frontType,

@@ -17,6 +17,7 @@
 
 import SwiftUI
 import SwiftData
+import OSLog
 
 // MARK: - Grid Card Info
 
@@ -30,6 +31,7 @@ struct GridCardInfo: Identifiable, Equatable, Hashable, Sendable {
     let cardNumber: Int
     let interval: Int
     let reviewHistoryIsEmpty: Bool
+    let isPinned: Bool
     let frontText: String
     let backText: String
     let createdAt: Date
@@ -72,6 +74,10 @@ struct DeckProgressStats: Equatable {
 @Observable
 @MainActor
 final class DeckViewModel {
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
+        category: "DeckViewModel"
+    )
 
     // MARK: - Selection State
 
@@ -97,7 +103,7 @@ final class DeckViewModel {
 
     // MARK: - Scroll Restoration
 
-    /// Non-zero value signals `DeckView` to restore scroll position after a sheet dismissal.
+    /// Persisted pixel scroll offset used by `ScrollPositionRestorer` in `DeckView`.
     var savedScrollOffset: CGFloat = 0
 
     // MARK: - Search
@@ -302,6 +308,42 @@ final class DeckViewModel {
         }
     }
 
+    /// Toggles the persistent pinned state of a single card and immediately re-groups the grid.
+    ///
+    /// Pinning is a presentation preference rather than a spaced-repetition statistic,
+    /// so the ViewModel updates the in-memory snapshot directly instead of reloading the
+    /// entire deck from the background actor.
+    ///
+    /// - Parameters:
+    ///   - id: The persistent identifier of the card to pin or unpin.
+    ///   - context: The main `ModelContext` used for the mutation.
+    func togglePinnedState(for id: PersistentIdentifier, context: ModelContext) {
+        let descriptor = FetchDescriptor<CardModel>(
+            predicate: #Predicate { $0.persistentModelID == id }
+        )
+
+        do {
+            guard let card = try context.fetch(descriptor).first else { return }
+
+            let pinnedState = !card.isPinned
+            let editDate = Date()
+            card.isPinned = pinnedState
+            card.editedAt = editDate
+            card.deck?.editedAt = editDate
+            try context.save()
+
+            if let index = allCardInfos.firstIndex(where: { $0.id == id }) {
+                allCardInfos[index] = allCardInfos[index].updating(
+                    isPinned: pinnedState,
+                    editedAt: editDate
+                )
+                performGrouping(on: allCardInfos)
+            }
+        } catch {
+            logger.error("Failed to toggle pinned state for card: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     // MARK: - Export
 
     /// Exports the deck to a shareable file and presents the system share sheet.
@@ -356,6 +398,9 @@ final class DeckViewModel {
         }
 
         let sorted = filtered.sorted { c1, c2 in
+            if c1.isPinned != c2.isPinned {
+                return c1.isPinned && !c2.isPinned
+            }
             switch sortOrder {
             case .newest: return c1.createdAt > c2.createdAt
             case .oldest: return c1.createdAt < c2.createdAt
@@ -365,35 +410,58 @@ final class DeckViewModel {
             }
         }
 
+        let pinnedCards = sorted.filter(\.isPinned)
+        let regularCards = sorted.filter { !$0.isPinned }
+        var sections: [DeckCardGridView.CardSection] = []
+
+        if !pinnedCards.isEmpty {
+            sections.append(
+                DeckCardGridView.CardSection(
+                    id: "pinned",
+                    title: "Pinned",
+                    cards: pinnedCards,
+                    dateForSorting: nil
+                )
+            )
+        }
+
         guard sortOrder != .alphabetical else {
-            cachedGroupedCards = sorted.isEmpty ? [] : [
-    DeckCardGridView.CardSection(
-        id: "all", title: "All Cards", cards: sorted, dateForSorting: nil
-    )
-]
+            if !regularCards.isEmpty {
+                sections.append(
+                    DeckCardGridView.CardSection(
+                        id: "all",
+                        title: "All Cards",
+                        cards: regularCards,
+                        dateForSorting: nil
+                    )
+                )
+            }
+            cachedGroupedCards = sections
             return
         }
 
         let calendar = Calendar.current
-        let groups = Dictionary(grouping: sorted) { card -> Date in
+        let groups = Dictionary(grouping: regularCards) { card -> Date in
             let date = sortOrder == .lastEdited ? card.editedAt : card.createdAt
             return calendar.startOfDay(for: date)
         }
 
-        cachedGroupedCards = groups
+        let groupedSections = groups
             .map { startOfDay, cardsInGroup -> DeckCardGridView.CardSection in
-            let title = sectionTitle(for: startOfDay, calendar: calendar)
-            return DeckCardGridView.CardSection(
-                id: title,
-                title: title,
-                cards: cardsInGroup,
-                dateForSorting: startOfDay
-            )
-        }
+                let title = sectionTitle(for: startOfDay, calendar: calendar)
+                return DeckCardGridView.CardSection(
+                    id: title,
+                    title: title,
+                    cards: cardsInGroup,
+                    dateForSorting: startOfDay
+                )
+            }
             .sorted { s1, s2 in
-            guard let d1 = s1.dateForSorting, let d2 = s2.dateForSorting else { return false }
-            return sortOrder == .oldest ? d1 < d2: d1 > d2
-        }
+                guard let d1 = s1.dateForSorting, let d2 = s2.dateForSorting else { return false }
+                return sortOrder == .oldest ? d1 < d2 : d1 > d2
+            }
+
+        cachedGroupedCards = sections + groupedSections
     }
 
     // MARK: - Date Formatters
@@ -434,5 +502,24 @@ final class DeckViewModel {
             return Self.monthDayFormatter.string(from: date)
         }
         return Self.monthYearFormatter.string(from: date)
+    }
+}
+
+// MARK: - GridCardInfo Updates
+
+private extension GridCardInfo {
+    /// Returns a copy with only the mutable presentation fields replaced.
+    func updating(isPinned: Bool, editedAt: Date) -> GridCardInfo {
+        GridCardInfo(
+            id: id,
+            cardNumber: cardNumber,
+            interval: interval,
+            reviewHistoryIsEmpty: reviewHistoryIsEmpty,
+            isPinned: isPinned,
+            frontText: frontText,
+            backText: backText,
+            createdAt: createdAt,
+            editedAt: editedAt
+        )
     }
 }

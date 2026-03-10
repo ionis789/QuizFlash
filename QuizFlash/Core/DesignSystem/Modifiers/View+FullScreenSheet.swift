@@ -190,38 +190,37 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                 }
             )
         } else {
-            baseView.simultaneousGesture(fallbackDismissGesture)
+            baseView.background {
+                LegacySheetPanBridge(
+                    activationHeight: preferredDragActivationHeight ?? dragDismissActivationHeight
+                ) { [self] gesture in
+                    let translation = clampedTranslation(gesture.translation(in: gesture.view).y)
+                    let velocityY   = gesture.velocity(in: gesture.view).y
+
+                    switch gesture.state {
+                    case .began:
+                        scrollDisabled = true
+                        offset = translation
+
+                    case .changed:
+                        guard scrollDisabled else { return }
+                        offset = translation
+
+                    case .ended, .cancelled, .failed:
+                        guard scrollDisabled else { return }
+                        gesture.isEnabled = false
+                        let predictedEnd = translation + max(velocityY * 0.28, 0)
+                        finalizeDrag(translation: translation, predictedEnd: predictedEnd) {
+                            gesture.isEnabled = true
+                        }
+
+                    default:
+                        break
+                    }
+                }
+                .frame(width: 0, height: 0)
+            }
         }
-    }
-
-    // MARK: - iOS 17 Fallback Gesture
-
-    private var fallbackDismissGesture: some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .global)
-            .onChanged { value in
-                if scrollDisabled {
-                    offset = clampedTranslation(value.translation.height)
-                } else {
-                    guard shouldStartFallbackTracking(value) else { return }
-                    scrollDisabled = true
-                    offset = clampedTranslation(value.translation.height)
-                }
-            }
-            .onEnded { value in
-                let translation  = clampedTranslation(value.translation.height)
-                let predictedEnd = max(value.predictedEndTranslation.height, 0)
-                let velocityY    = value.predictedEndTranslation.height - value.translation.height
-
-                if scrollDisabled {
-                    finalizeDrag(translation: translation, predictedEnd: predictedEnd, completion: nil)
-                } else {
-                    let isDownwardFlick = velocityY > 500
-                        && value.translation.height > -20
-                        && abs(value.translation.height) >= abs(value.translation.width)
-                        && canStartDismiss(at: value.startLocation.y)
-                    if isDownwardFlick { animateDismiss() }
-                }
-            }
     }
 
     // MARK: - Dismiss Logic
@@ -289,18 +288,136 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         return locationY <= h
     }
 
-    private func shouldStartFallbackTracking(_ value: DragGesture.Value) -> Bool {
-        canStartDismiss(at: value.startLocation.y)
-            && value.translation.height > 0
-            && abs(value.translation.height) > abs(value.translation.width)
-    }
-
     private func clampedTranslation(_ raw: CGFloat) -> CGFloat {
         min(max(raw, 0), windowSize.height)
     }
 
     private var animationDurationMilliseconds: Int {
         Int(UIConstants.Animation.medium * 1_000)
+    }
+}
+
+// MARK: - Legacy Sheet Pan Bridge (iOS 17)
+
+private struct LegacySheetPanBridge: UIViewRepresentable {
+    let activationHeight: CGFloat?
+    let onPan: (UIPanGestureRecognizer) -> Void
+
+    func makeUIView(context: Context) -> ProbeView {
+        let view = ProbeView()
+        view.activationHeight = activationHeight
+        view.onPan = onPan
+        return view
+    }
+
+    func updateUIView(_ uiView: ProbeView, context: Context) {
+        uiView.activationHeight = activationHeight
+        uiView.onPan = onPan
+    }
+
+    final class ProbeView: UIView, UIGestureRecognizerDelegate {
+        var activationHeight: CGFloat?
+        var onPan: ((UIPanGestureRecognizer) -> Void)?
+
+        private weak var hostView: UIView?
+        private lazy var panGesture: UIPanGestureRecognizer = {
+            let gesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+            gesture.delegate = self
+            gesture.cancelsTouchesInView = false
+            gesture.delaysTouchesBegan = false
+            gesture.delaysTouchesEnded = false
+            gesture.maximumNumberOfTouches = 1
+            return gesture
+        }()
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            isHidden = true
+            isUserInteractionEnabled = false
+            backgroundColor = .clear
+        }
+
+        required init?(coder: NSCoder) { fatalError("Not implemented") }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if window != nil {
+                attachPanGestureIfNeeded()
+            } else {
+                detachPanGesture()
+            }
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            guard window != nil else { return }
+            attachPanGestureIfNeeded()
+        }
+
+        @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+            onPan?(gesture)
+        }
+
+        override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+                  let host = hostView else { return false }
+
+            let location = pan.location(in: host)
+            if let activationHeight, location.y > activationHeight {
+                return false
+            }
+
+            let velocity = pan.velocity(in: host)
+            if velocity == .zero { return true }
+            return velocity.y > 0 && abs(velocity.y) >= abs(velocity.x)
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+                  let host = hostView else { return false }
+
+            let velocityY = pan.velocity(in: host).y
+            var scrollOffset: CGFloat = 0
+            if let collectionView = otherGestureRecognizer.view as? UICollectionView {
+                scrollOffset = collectionView.contentOffset.y + collectionView.adjustedContentInset.top
+            } else if let scrollView = otherGestureRecognizer.view as? UIScrollView {
+                scrollOffset = scrollView.contentOffset.y + scrollView.adjustedContentInset.top
+            }
+            return Int(scrollOffset) <= 1 && velocityY > 0
+        }
+
+        private func attachPanGestureIfNeeded() {
+            guard let target = gestureHostView() else { return }
+            if hostView !== target {
+                detachPanGesture()
+                target.addGestureRecognizer(panGesture)
+                hostView = target
+            }
+        }
+
+        private func gestureHostView() -> UIView? {
+            var candidate: UIView? = superview
+            var highest: UIView?
+            while let view = candidate, !(view is UIWindow) {
+                highest = view
+                candidate = view.superview
+            }
+            return highest
+        }
+
+        private func detachPanGesture() {
+            if let hostView {
+                hostView.removeGestureRecognizer(panGesture)
+            }
+            hostView = nil
+        }
+
+        deinit {
+            detachPanGesture()
+        }
     }
 }
 

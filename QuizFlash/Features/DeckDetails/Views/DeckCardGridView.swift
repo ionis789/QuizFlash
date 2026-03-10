@@ -147,7 +147,7 @@ final class CardPreviewPayload: @unchecked Sendable {
     let hasFrontImage: Bool
     let hasFrontSketch: Bool
 
-    init(thumbnailData: Data?, hasFrontImage: Bool, hasFrontSketch: Bool) {
+    nonisolated init(thumbnailData: Data?, hasFrontImage: Bool, hasFrontSketch: Bool) {
         self.thumbnailData  = thumbnailData
         self.hasFrontImage  = hasFrontImage
         self.hasFrontSketch = hasFrontSketch
@@ -172,8 +172,7 @@ struct DeckCardGridView: View {
 
     var onToggleSelection: (GridCardInfo) -> Void
     var onTapCard: (GridCardInfo) -> Void
-    var onLongPressCard: (GridCardInfo) -> Void
-    var onDeleteCard: (GridCardInfo) -> Void
+    var onOpenCardMenu: (GridCardInfo, CGRect) -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -183,34 +182,36 @@ struct DeckCardGridView: View {
         if cards.isEmpty && !isSelecting {
             emptyState
         } else {
-            ForEach(cards) { section in
-                if section.id != "all" {
-                    Text(section.title)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .padding(.bottom, 16)
-                        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-                }
+            LazyVStack(spacing: 0) {
+                ForEach(cards) { section in
+                    if section.id != "all" {
+                        Text(section.title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .padding(.bottom, 16)
+                            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                    }
 
-                let chunks = section.cards.chunked(into: columnsCount)
-                ForEach(chunks.indices, id: \.self) { rowIndex in
-                    HStack(spacing: 16) {
-                        ForEach(chunks[rowIndex]) { card in
-                            cardCell(for: card)
-                                .id(card.id) // ✅ FIX CRITIC: Restore scroll position
-                        }
-                        let remaining = columnsCount - chunks[rowIndex].count
-                        if remaining > 0 {
-                            ForEach(0..<remaining, id: \.self) { _ in
-                                Color.clear.frame(maxWidth: .infinity)
+                    let chunks = section.cards.chunked(into: columnsCount)
+                    ForEach(chunks.indices, id: \.self) { rowIndex in
+                        HStack(spacing: 16) {
+                            ForEach(chunks[rowIndex]) { card in
+                                cardCell(for: card)
+                                    .id(card.id)
+                            }
+                            let remaining = columnsCount - chunks[rowIndex].count
+                            if remaining > 0 {
+                                ForEach(0..<remaining, id: \.self) { _ in
+                                    Color.clear.frame(maxWidth: .infinity)
+                                }
                             }
                         }
+                        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                        .padding(.bottom, 16)
                     }
-                    .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-                    .padding(.bottom, 16)
                 }
             }
         }
@@ -218,37 +219,15 @@ struct DeckCardGridView: View {
 
     @ViewBuilder
     private func cardCell(for card: GridCardInfo) -> some View {
-        let isSelected = selectedCards.contains(card.id)
-
-        Button {
-            if isSelecting { onToggleSelection(card) }
-            else           { onTapCard(card) }
-        } label: {
-            MiniCardPreview(
-                card: card,
-                isSelected: isSelecting && isSelected,
-                isSelectionMode: isSelecting
-            )
-        }
-        .buttonStyle(.plain)
-        .overlay(alignment: .topTrailing) {
-            if isSelecting {
-                SelectionBubble(isSelected: isSelected, accent: accent).padding(10)
-            }
-        }
-        .scaleEffect(isSelecting && isSelected ? 0.9 : 1)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelected)
-        .contextMenu {
-            if !isSelecting {
-                Button { onLongPressCard(card) } label: { Label("Edit",   systemImage: "pencil") }
-                Button(role: .destructive) { onDeleteCard(card) } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
-        }
-        .onLongPressGesture(minimumDuration: 0.5) {
-            if !isSelecting { onLongPressCard(card) }
-        }
+        DeckGridCardCell(
+            card: card,
+            isSelecting: isSelecting,
+            isSelected: selectedCards.contains(card.id),
+            accent: accent,
+            onToggleSelection: onToggleSelection,
+            onTapCard: onTapCard,
+            onOpenCardMenu: onOpenCardMenu
+        )
     }
 
     private var emptyState: some View {
@@ -273,6 +252,69 @@ struct DeckCardGridView: View {
     }
 }
 
+private struct DeckGridCardCell: View {
+    let card: GridCardInfo
+    let isSelecting: Bool
+    let isSelected: Bool
+    let accent: Color
+    let onToggleSelection: (GridCardInfo) -> Void
+    let onTapCard: (GridCardInfo) -> Void
+    let onOpenCardMenu: (GridCardInfo, CGRect) -> Void
+
+    @State private var cardFrame: CGRect = .zero
+    @State private var optionsButtonFrame: CGRect = .zero
+
+    var body: some View {
+        MiniCardPreview(
+            card: card,
+            isSelected: isSelecting && isSelected,
+            isSelectionMode: isSelecting
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(alignment: .topTrailing) {
+            if isSelecting {
+                SelectionBubble(isSelected: isSelected, accent: accent).padding(10)
+            } else {
+                optionsButton
+                    .padding(10)
+            }
+        }
+        .scaleEffect(isSelecting && isSelected ? 0.9 : 1)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelected)
+        .onTapGesture {
+            if isSelecting { onToggleSelection(card) }
+            else { onTapCard(card) }
+        }
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .global)
+        } action: { newValue in
+            cardFrame = newValue
+        }
+    }
+
+    private var optionsButton: some View {
+        Button {
+            onOpenCardMenu(card, resolvedAnchorFrame)
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.primary.opacity(0.88))
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .global)
+        } action: { newValue in
+            optionsButtonFrame = newValue
+        }
+    }
+
+    private var resolvedAnchorFrame: CGRect {
+        optionsButtonFrame == .zero ? cardFrame : optionsButtonFrame
+    }
+}
+
 // =============================================================================
 // MARK: - MiniCardPreview
 // =============================================================================
@@ -290,36 +332,29 @@ private struct MiniCardPreview: View {
     @State private var hasFrontSketch: Bool     = false
     @State private var didLoad:        Bool     = false
 
-    private var cardStatus: (color: Color, icon: String, label: String) {
-        if card.reviewHistoryIsEmpty { return (.blue,   "sparkles",                       "New")      }
-        if card.interval == 0        { return (.red,    "arrow.triangle.2.circlepath",    "Review")   }
-        if card.interval >= 14       { return (.teal,   "checkmark.seal.fill",            "Mastered") }
-        return                               (.orange, "flame.fill",                     "Learning")
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             headerRow
 
             questionPreview
             Spacer(minLength: 0)
 
-            // Media indicator icons
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 if hasFrontImage  { Image(systemName: "photo").font(.caption2) }
                 if hasFrontSketch { Image(systemName: "scribble.variable").font(.caption2) }
                 Spacer()
             }
             .foregroundStyle(.tertiary)
         }
-        .padding(14)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 140)
+        .frame(height: UIConstants.Size.deckGridCardHeight)
         .background(cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay {
             if !isSelectionMode {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(borderColor, lineWidth: 0.5)
             }
         }
@@ -350,16 +385,38 @@ private struct MiniCardPreview: View {
 
     @ViewBuilder
     private var questionPreview: some View {
-        let text = card.frontText
-        if !text.isEmpty {
-            Text(text).font(.subheadline).lineLimit(3).multilineTextAlignment(.leading)
-        } else if didLoad && thumbnail == nil {
-            Text("Empty card").font(.subheadline).foregroundStyle(.tertiary)
+        let frontText = card.frontText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let backText = card.backText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        VStack(alignment: .leading, spacing: 6) {
+            if !frontText.isEmpty {
+                Text(frontText)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(backText.isEmpty ? 7 : 5)
+                    .multilineTextAlignment(.leading)
+                    .minimumScaleFactor(0.8)
+            }
+
+            if !backText.isEmpty {
+                Text(backText)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(frontText.isEmpty ? 6 : 4)
+                    .multilineTextAlignment(.leading)
+                    .minimumScaleFactor(0.82)
+            }
+
+            if frontText.isEmpty && backText.isEmpty && didLoad && thumbnail == nil {
+                Text("Empty card")
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 
     private var headerRow: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .center, spacing: 8) {
             if let img = thumbnail {
                 Image(uiImage: img)
                     .resizable()
@@ -368,24 +425,27 @@ private struct MiniCardPreview: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
 
-            Text("#\(card.cardNumber)")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.secondary.opacity(0.15), in: Capsule())
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(card.deckStatusColor)
+                    .frame(width: 7, height: 7)
+
+                Text("\(card.cardNumber)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(card.deckStatusColor.opacity(0.13), in: Capsule())
+
+            if card.isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(card.deckStatusColor)
+                    .padding(.leading, 2)
+            }
 
             Spacer()
-
-            HStack {
-                Image(systemName: cardStatus.icon)
-//                Text(cardStatus.label)
-            }
-            .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(cardStatus.color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(cardStatus.color.opacity(0.15), in: Capsule())
         }
     }
 
@@ -398,16 +458,28 @@ private struct MiniCardPreview: View {
         }
     }
 
-    private var cardBackground: some ShapeStyle {
-        colorScheme == .dark
-            ? AnyShapeStyle(Color(uiColor: .secondarySystemGroupedBackground))
-            : AnyShapeStyle(Color.white)
+    private var cardBackground: some View {
+        let base = colorScheme == .dark
+            ? Color(uiColor: .secondarySystemGroupedBackground)
+            : Color.white
+
+        return RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(base)
     }
 
     private var borderColor: Color {
         colorScheme == .dark
             ? Color.white.opacity(0.08)
             : Color.black.opacity(0.06)
+    }
+}
+
+extension GridCardInfo {
+    var deckStatusColor: Color {
+        if reviewHistoryIsEmpty { return .blue }
+        if interval == 0 { return .red }
+        if interval >= 14 { return .teal }
+        return .orange
     }
 }
 
@@ -419,7 +491,7 @@ private struct MiniCardPreview: View {
 // All three are pure, stateless functions with no SwiftData dependencies.
 // =============================================================================
 
-func getFirstImageData(from zone: ZoneModel) -> Data? {
+nonisolated func getFirstImageData(from zone: ZoneModel) -> Data? {
     if zone.isLeaf {
         guard zone.contentType == .image || zone.contentType == .sketch else { return nil }
         return zone.imageData
@@ -427,12 +499,12 @@ func getFirstImageData(from zone: ZoneModel) -> Data? {
     return zone.children?.lazy.compactMap { getFirstImageData(from: $0) }.first
 }
 
-func containsMedia(_ zone: ZoneModel, contentType: ZoneContentType) -> Bool {
+nonisolated func containsMedia(_ zone: ZoneModel, contentType: ZoneContentType) -> Bool {
     if zone.isLeaf { return zone.contentType == contentType && zone.imageData != nil }
     return zone.children?.contains { containsMedia($0, contentType: contentType) } ?? false
 }
 
-func downsample(data: Data, maxDimension: CGFloat) -> UIImage? {
+nonisolated func downsample(data: Data, maxDimension: CGFloat) -> UIImage? {
     let options: [CFString: Any] = [
         kCGImageSourceShouldCache:                  false,
         kCGImageSourceCreateThumbnailFromImageAlways: true,

@@ -163,7 +163,6 @@ struct CreateDeckView: View {
         }
         .environment(scrollState)
         .toolbar(.hidden, for: .navigationBar)
-        .swipeBack { dismiss() }
         .confirmationDialog("Generate Cards with AI", isPresented: $viewModel.showAIPickerOptions, titleVisibility: .visible) {
             Button("Choose Photos") { viewModel.showAIPhotoPicker = true }
             Button("Choose PDF") { viewModel.showAIPDFPicker = true }

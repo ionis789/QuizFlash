@@ -219,6 +219,8 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
                   let pan = gestureRecognizer as? UIPanGestureRecognizer,
                   let view = pan.view else { return false }
 
+            guard !hasPresentedModal(in: view) else { return false }
+
             let loc = pan.location(in: view)
             let width = view.bounds.width
 
@@ -232,6 +234,37 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
 
             let velocity = pan.velocity(in: view)
             return abs(velocity.x) > abs(velocity.y)
+        }
+
+        private func hasPresentedModal(in view: UIView) -> Bool {
+            guard let root = view.window?.rootViewController else { return false }
+            return controllerTreeHasPresentedModal(root)
+        }
+
+        private func controllerTreeHasPresentedModal(_ controller: UIViewController) -> Bool {
+            if controller.presentedViewController != nil {
+                return true
+            }
+
+            if let navigationController = controller as? UINavigationController,
+               let visible = navigationController.visibleViewController,
+               controllerTreeHasPresentedModal(visible) {
+                return true
+            }
+
+            if let tabBarController = controller as? UITabBarController,
+               let selected = tabBarController.selectedViewController,
+               controllerTreeHasPresentedModal(selected) {
+                return true
+            }
+
+            if let splitViewController = controller as? UISplitViewController,
+               let trailing = splitViewController.viewControllers.last,
+               controllerTreeHasPresentedModal(trailing) {
+                return true
+            }
+
+            return controller.children.contains(where: controllerTreeHasPresentedModal)
         }
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {

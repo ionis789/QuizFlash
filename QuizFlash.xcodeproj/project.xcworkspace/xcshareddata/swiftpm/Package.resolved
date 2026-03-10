@@ -1,0 +1,15 @@
+{
+  "originHash" : "c7fddcc13fb32b63c286339c0268d65a06ebd71a6ba741b9ef4742192e9c4b23",
+  "pins" : [
+    {
+      "identity" : "pzcircularcontrol",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/philptr/PZCircularControl.git",
+      "state" : {
+        "revision" : "8a3423f7d91542d81c255157dd57656ca223792c",
+        "version" : "1.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}

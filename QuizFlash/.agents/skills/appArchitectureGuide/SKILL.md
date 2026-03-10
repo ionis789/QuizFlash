@@ -1,4 +1,8 @@
 ---
+trigger: always_on
+---
+
+---
 name: quizflash-ios-engineer
 description: Project-specific engineering guide for QuizFlash, a SwiftUI flashcard app targeting iOS 17+ with Swift 6, SwiftData, and `@Observable`. Use when Codex writes, reviews, debugs, or refactors code in this repository, especially for SwiftUI views, view models, SwiftData models, background fetch actors, navigation, theming, memory/performance work, and QuizFlash file-format or output conventions.
 ---
