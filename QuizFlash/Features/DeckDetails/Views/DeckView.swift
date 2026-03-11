@@ -19,6 +19,7 @@ private let kDeckChromeSpace = "DeckViewChromeSpace"
 
 struct DeckContentView: View {
     @Environment(\.modelContext) var context
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(NavigationManager.self) private var router
     @Environment(\.dismiss) private var dismiss
     @Bindable var deck: DeckModel
@@ -41,7 +42,10 @@ struct DeckContentView: View {
     @State private var menuTracker = MenuPositionTracker()
     @State private var activeCardMenu: GridCardInfo? = nil
     @State private var cardMenuPosition: CGRect = .zero
+    @State private var visibleCardIDs: Set<PersistentIdentifier> = []
     @State private var hasLoadedInitialSnapshot = false
+    @State private var shouldTearDownOnDisappear = false
+    @State private var viewportSnapshotResolver = DeckViewportSnapshotResolver()
     @State private var navigationBarHeight: CGFloat =
         UIConstants.Layout.deckNavigationTopPadding
         + UIConstants.Size.capsuleHeight
@@ -62,8 +66,15 @@ struct DeckContentView: View {
         max(0, viewSafeBottom - physicalSafeBottom)
     }
 
-    private var isSuspended: Bool {
-        router.activeTab != ownerTab
+    private var ownerPathDepth: Int {
+        switch ownerTab {
+        case .home:
+            return router.homePath.count
+        case .library:
+            return router.libraryPath.count
+        case .create:
+            return router.createPath.count
+        }
     }
 
     /// Reserved top spacing that keeps the hero content below the floating chrome.
@@ -73,6 +84,10 @@ struct DeckContentView: View {
 
     private var isAnyFloatingMenuOpen: Bool {
         isMenuExpanded || activeCardMenu != nil
+    }
+
+    private var isDeckActive: Bool {
+        router.activeTab == ownerTab
     }
 
     /// Formats deck creation date and card count for display under the deck title.
@@ -91,6 +106,60 @@ struct DeckContentView: View {
         return f
     }()
 
+    private func requestSnapshotReload() {
+        hasLoadedInitialSnapshot = true
+        viewModel.requestSnapshotLoad(
+            deckID: deck.persistentModelID,
+            container: context.container
+        )
+    }
+
+    private func requestSnapshotReloadWhenPossible() {
+        if isDeckActive {
+            requestSnapshotReload()
+        } else {
+            viewModel.markNeedsActivationRefresh()
+        }
+    }
+
+    private func dismissDeck() {
+        shouldTearDownOnDisappear = true
+        dismiss()
+    }
+
+    private func performHardTeardown() {
+        viewModel.tearDown()
+        ImageCache.shared.clearCache()
+        DeckGridRichPreviewRenderer.shared.suspend(flushCache: true)
+        MathWebViewPool.shared.flush()
+    }
+
+    private func captureFrozenViewportIfPossible() {
+        viewModel.setFrozenViewportImage(nil)
+    }
+
+    private func handleTabActivityChange(_ activeTab: AppTabBar) {
+        let isNowActive = activeTab == ownerTab
+        if isNowActive {
+            viewModel.setFrozenViewportImage(nil)
+            viewModel.setDeckActive(true)
+        } else {
+            closeCardMenu(animated: false)
+            isMenuExpanded = false
+            viewModel.setFrozenViewportImage(nil)
+            viewModel.setDeckActive(false)
+        }
+    }
+
+    private func updatedVisibleIDs(id: PersistentIdentifier, isVisible: Bool) -> Set<PersistentIdentifier> {
+        if isVisible {
+            visibleCardIDs.insert(id)
+        } else {
+            visibleCardIDs.remove(id)
+        }
+        return visibleCardIDs
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -100,45 +169,28 @@ struct DeckContentView: View {
             .toolbar(.hidden, for: .navigationBar)
             .customTabBarVisibility(viewModel.isSelecting ? .hidden : .implicit)
             .onAppear {
-                guard !hasLoadedInitialSnapshot, !isSuspended else { return }
-                hasLoadedInitialSnapshot = true
-                viewModel.requestSnapshotLoad(
-                    deckID: deck.persistentModelID,
-                    container: context.container
-                )
+                viewModel.setDeckActive(isDeckActive)
+                guard !hasLoadedInitialSnapshot else { return }
+                requestSnapshotReload()
             }
             .onDisappear {
+                guard shouldTearDownOnDisappear || ownerPathDepth == 0 else { return }
                 guard !isAddingCard,
                       !isPresentingEdit,
                       selectedPlayMode == nil,
                       selectedPlayModeSettings == nil,
                       previewedCard == nil,
                       editingCard == nil else { return }
-                viewModel.tearDown()
-                ImageCache.shared.clearCache()
-                DeckGridRichPreviewRenderer.shared.suspend()
-                MathWebViewPool.shared.flush()
+                performHardTeardown()
             }
             .onChange(of: deck.cardCount) {
-                guard !isSuspended else { return }
-                viewModel.requestSnapshotLoad(
-                    deckID: deck.persistentModelID,
-                    container: context.container
-                )
+                requestSnapshotReloadWhenPossible()
             }
             .onChange(of: viewModel.sortOrder) {
-                guard !isSuspended else { return }
-                viewModel.requestSnapshotLoad(
-                    deckID: deck.persistentModelID,
-                    container: context.container
-                )
+                viewModel.performGrouping(on: viewModel.allCardInfos)
             }
             .onChange(of: viewModel.searchQuery) {
-                guard !isSuspended else { return }
-                viewModel.requestSnapshotLoad(
-                    deckID: deck.persistentModelID,
-                    container: context.container
-                )
+                viewModel.performGrouping(on: viewModel.allCardInfos)
             }
             .onChange(of: viewModel.isSelecting) { _, isSelecting in
                 if isSelecting {
@@ -154,27 +206,11 @@ struct DeckContentView: View {
                 if old != nil && new == nil {
                     deck.lastOpenedAt = Date()
                     try? context.save()
-                    guard !isSuspended else { return }
-                    viewModel.requestSnapshotLoad(
-                        deckID: deck.persistentModelID,
-                        container: context.container
-                    )
+                    requestSnapshotReloadWhenPossible()
                 }
             }
-            .onChange(of: isSuspended) { _, suspended in
-                if suspended {
-                    closeCardMenu(animated: false)
-                    isMenuExpanded = false
-                    viewModel.suspendHeavyWork()
-                    CardPreviewCache.shared.flush()
-                    DeckGridRichPreviewRenderer.shared.suspend()
-                    MathWebViewPool.shared.flush()
-                } else {
-                    viewModel.requestSnapshotLoad(
-                        deckID: deck.persistentModelID,
-                        container: context.container
-                    )
-                }
+            .onChange(of: router.activeTab) { _, activeTab in
+                handleTabActivityChange(activeTab)
             }
             .alert(
                 "Delete \(viewModel.selectedCards.count) card\(viewModel.selectedCards.count == 1 ? "" : "s")?",
@@ -216,6 +252,8 @@ struct DeckContentView: View {
             .overlay(alignment: .top) { measuredNavigationBar }
             .overlay(alignment: .topLeading) { menuOverlay }
             .overlay(alignment: .topLeading) { cardMenuOverlay }
+            .overlay { frozenViewportOverlay }
+            .overlay { DeckViewportSnapshotProbe(resolver: viewportSnapshotResolver) }
             .swipeBack(
                 enabled: !viewModel.showShareSheet
                     && !isAddingCard
@@ -225,7 +263,7 @@ struct DeckContentView: View {
                     && previewedCard == nil
                     && editingCard == nil
                     && activeCardMenu == nil
-            ) { dismiss() }
+            ) { dismissDeck() }
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
             .environment(scrollState)
             .background {
@@ -286,7 +324,7 @@ struct DeckContentView: View {
             isMenuExpanded: $isMenuExpanded,
             menuPosition: $menuPosition,
             menuTracker: menuTracker,
-            onBack: { dismiss() },
+            onBack: { dismissDeck() },
             onAdd: { isAddingCard = true },
             onStartSelection: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -376,14 +414,24 @@ struct DeckContentView: View {
                         card.editedAt = Date()
                         deck.editedAt = Date()
                         try? context.save()
-                        viewModel.requestSnapshotLoad(
-                            deckID: deck.persistentModelID,
-                            container: context.container
-                        )
+                        requestSnapshotReloadWhenPossible()
                     }
                     editingCard = nil
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var frozenViewportOverlay: some View {
+        if isDeckActive, let frozenViewport = viewModel.frozenViewportImage {
+            Image(uiImage: frozenViewport)
+                .resizable()
+                .interpolation(.high)
+                .antialiased(true)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .transition(.identity)
         }
     }
 
@@ -411,6 +459,11 @@ struct DeckContentView: View {
                         viewModel.savedScrollOffset = offset
                     }
                 )
+                .frame(width: 0, height: 0)
+
+                DeckScrollActivityObserver { isScrolling in
+                    viewModel.setGridScrolling(isScrolling)
+                }
                 .frame(width: 0, height: 0)
 
                 if let query = searchQuery, !query.isEmpty {
@@ -513,7 +566,20 @@ struct DeckContentView: View {
                     cards: viewModel.cachedGroupedCards,
                     isSelecting: viewModel.isSelecting,
                     selectedCards: viewModel.selectedCards,
-                    isSuspended: isSuspended,
+                    isInitialWarmReady: viewModel.isInitialPreviewWarm,
+                    previewEntryProvider: viewModel.previewEntry(for:),
+                    onLayoutResolved: { columns, cardWidth in
+                        viewModel.preparePreviewSession(
+                            deckID: deck.persistentModelID,
+                            container: context.container,
+                            colorScheme: colorScheme,
+                            columns: columns,
+                            cardWidth: cardWidth
+                        )
+                    },
+                    onCardVisibilityChanged: { id, isVisible in
+                        viewModel.markVisibleCardIDs(updatedVisibleIDs(id: id, isVisible: isVisible))
+                    },
                     onToggleSelection: { gridCard in viewModel.toggleSelection(for: gridCard.id) },
                     onTapCard: { gridCard in
                         if viewModel.isSelecting {
@@ -971,6 +1037,136 @@ struct DeckContentView: View {
 
 
 // MARK: - iOS 17 Retain Cycle Wrapper
+
+@MainActor
+private final class DeckViewportSnapshotResolver {
+    weak var view: UIView?
+
+    func captureSnapshot() -> UIImage? {
+        guard let view, let window = view.window else { return nil }
+        let cropRect = view.convert(view.bounds, to: window)
+        guard cropRect.width > 1, cropRect.height > 1 else { return nil }
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = window.screen.scale
+        format.opaque = false
+
+        let renderer = UIGraphicsImageRenderer(size: cropRect.size, format: format)
+        return renderer.image { _ in
+            window.drawHierarchy(
+                in: CGRect(
+                    x: -cropRect.minX,
+                    y: -cropRect.minY,
+                    width: window.bounds.width,
+                    height: window.bounds.height
+                ),
+                afterScreenUpdates: false
+            )
+        }
+    }
+}
+
+private struct DeckViewportSnapshotProbe: UIViewRepresentable {
+    let resolver: DeckViewportSnapshotResolver
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+        resolver.view = view
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        resolver.view = uiView
+    }
+}
+
+private struct DeckScrollActivityObserver: UIViewRepresentable {
+    let onScrollingChanged: (Bool) -> Void
+
+    func makeUIView(context: Context) -> DeckScrollActivityProbeView {
+        let view = DeckScrollActivityProbeView()
+        view.onScrollingChanged = onScrollingChanged
+        return view
+    }
+
+    func updateUIView(_ uiView: DeckScrollActivityProbeView, context: Context) {
+        uiView.onScrollingChanged = onScrollingChanged
+    }
+}
+
+private final class DeckScrollActivityProbeView: UIView {
+    var onScrollingChanged: ((Bool) -> Void)?
+
+    private weak var scrollView: UIScrollView?
+    private var offsetObservation: NSKeyValueObservation?
+    private var idleWorkItem: DispatchWorkItem?
+    private var isScrolling = false
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil {
+            attachToScrollViewIfNeeded()
+        } else {
+            detach()
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        attachToScrollViewIfNeeded()
+    }
+
+    private func attachToScrollViewIfNeeded() {
+        guard scrollView == nil else { return }
+        guard let scrollView = nearestScrollView() else { return }
+        self.scrollView = scrollView
+        offsetObservation = scrollView.observe(\.contentOffset, options: [.new]) { [weak self] _, _ in
+            self?.markScrolling()
+        }
+    }
+
+    private func markScrolling() {
+        idleWorkItem?.cancel()
+
+        if !isScrolling {
+            isScrolling = true
+            onScrollingChanged?(true)
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.isScrolling = false
+            self.onScrollingChanged?(false)
+        }
+        idleWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
+    }
+
+    private func detach() {
+        idleWorkItem?.cancel()
+        idleWorkItem = nil
+        offsetObservation = nil
+        scrollView = nil
+
+        if isScrolling {
+            isScrolling = false
+            onScrollingChanged?(false)
+        }
+    }
+
+    private func nearestScrollView() -> UIScrollView? {
+        var current = superview
+        while let view = current {
+            if let scrollView = view as? UIScrollView {
+                return scrollView
+            }
+            current = view.superview
+        }
+        return nil
+    }
+}
 
 struct DeckView: View {
     let deck: DeckModel

@@ -32,14 +32,12 @@ struct CustomTabBar: View {
                             Capsule(style: .continuous).stroke(Color.white.opacity(0.3), lineWidth: 1)
                                 .opacity(isActive ? 1 : 0)
                         }
-                            .compositingGroup()
-                            .frame(width: tabItemWidth, height: tabItemHeight)
-                            .scaleEffect(isActive ? 1.3 : 1)
-                            .offset(x: dragOffset)
+                        .frame(width: tabItemWidth, height: tabItemHeight)
+                        .scaleEffect(isActive ? 1.3 : 1)
+                        .offset(x: dragOffset)
+                        .animation(.easeInOut(duration: UIConstants.Animation.instant), value: isActive)
                     }
                         .padding(3)
-                    // MARK: Tabbar Background
-//                    .background(Capsule().fill(.ultraThinMaterial))
                     .background {
                         Capsule()
                             .fill(.ultraThinMaterial)
@@ -51,7 +49,6 @@ struct CustomTabBar: View {
                                 .blendMode(.overlay)
                         }
                     }
-                        .geometryGroup()
                 }
             }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isIPad ? .bottomTrailing : .bottom)
@@ -60,12 +57,15 @@ struct CustomTabBar: View {
                 dragOffset = CGFloat(activeTab.index) * tabItemWidth
                 isInitialOffsetSet = true
             }
+                .onChange(of: activeTab) { _, newTab in
+                guard lastDragOffset == nil else { return }
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    dragOffset = CGFloat(newTab.index) * tabItemWidth
+                }
+            }
         }
             .frame(height: 56)
             .padding(.horizontal, 25)
-            .animation(.bouncy, value: dragOffset)
-            .animation(.bouncy, value: isActive)
-            .animation(.smooth, value: activeTab)
     }
 
     @ViewBuilder
@@ -100,7 +100,9 @@ struct CustomTabBar: View {
                 let landingIndex = Int((dragOffset / width).rounded())
                 if tabs.indices.contains(landingIndex) {
                     let newTab = tabs[landingIndex]
-                    dragOffset = CGFloat(landingIndex) * width
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        dragOffset = CGFloat(landingIndex) * width
+                    }
                     if activeTab != newTab {
                         activeTab = newTab
                         tabTriggers[newTab, default: 0] += 1
@@ -110,8 +112,10 @@ struct CustomTabBar: View {
         )
             .simultaneousGesture(
             TapGesture().onEnded { _ in
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    dragOffset = CGFloat(tab.index) * width
+                }
                 activeTab = tab
-                dragOffset = CGFloat(tab.index) * width
                 tabTriggers[tab, default: 0] += 1
             }
         )

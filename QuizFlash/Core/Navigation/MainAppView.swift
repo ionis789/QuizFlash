@@ -106,9 +106,6 @@ struct MainAppView: View {
                         router.popToRoot()
                     }
                 } else {
-                    // Flush the image cache on tab switch to prevent stale
-                    // downsampled bitmaps from accumulating across sessions.
-                    ImageCache.shared.clearCache()
                     router.activeTab = tappedTab
                 }
             }
