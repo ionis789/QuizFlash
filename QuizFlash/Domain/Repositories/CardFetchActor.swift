@@ -46,7 +46,7 @@ struct DeckStats: Sendable {
     // MARK: - Factory
 
     /// A zeroed-out `DeckStats` value representing a deck with no data.
-    static let empty = DeckStats(
+    nonisolated static let empty = DeckStats(
         totalCards: 0, dueCards: 0, totalReviews: 0,
         accuracy: 0, totalXPEarned: 0, deckMastery: 0.0, todayReviewed: 0
     )
@@ -164,14 +164,20 @@ actor CardFetchActor {
         let cards = (try? activeContext.fetch(descriptor)) ?? []
 
         for card in cards {
+            let frontText = card.frontText
+            let backText = card.backText
             gridCards.append(GridCardInfo(
                 id:                   card.persistentModelID,
                 cardNumber:           card.cardNumber,
                 interval:             card.interval,
                 reviewHistoryIsEmpty: card.reviewHistory.isEmpty,
                 isPinned:             card.isPinned,
-                frontText:            card.frontText,
-                backText:             card.backText,
+                frontText:            frontText,
+                backText:             backText,
+                frontPreviewText:     MathTextSanitizer.normalizedPreview(frontText),
+                backPreviewText:      MathTextSanitizer.normalizedPreview(backText),
+                frontNeedsRichSnapshot: MathTextSanitizer.needsRichPreview(frontText),
+                backNeedsRichSnapshot:  MathTextSanitizer.needsRichPreview(backText),
                 createdAt:            card.createdAt,
                 editedAt:             card.editedAt
             ))
@@ -268,6 +274,8 @@ private struct StatsAccumulator {
     /// Running count of review events that occurred today (since midnight local time).
     var todayReviewed  = 0
 
+    nonisolated init() {}
+
     // MARK: - Mutation
 
     /// Incorporates the statistics of a single card into the accumulator.
@@ -276,7 +284,7 @@ private struct StatsAccumulator {
     ///   - card: The `CardModel` to process.
     ///   - now: The reference timestamp for due-date comparison.
     ///   - todayStart: Midnight in the user's local time zone, used for today's review count.
-    mutating func accumulate(card: CardModel, now: Date, todayStart: Date) {
+    nonisolated mutating func accumulate(card: CardModel, now: Date, todayStart: Date) {
         let history     = card.reviewHistory
         totalReviews   += history.count
         correctReviews += history.filter { $0.difficultyRaw >= ReviewDifficulty.good.rawValue }.count
@@ -293,7 +301,7 @@ private struct StatsAccumulator {
     /// - Parameter count: The total number of cards processed (used as the denominator
     ///   for mastery averaging).
     /// - Returns: A populated ``DeckStats`` snapshot.
-    func build(count: Int) -> DeckStats {
+    nonisolated func build(count: Int) -> DeckStats {
         DeckStats(
             totalCards:    count,
             dueCards:      dueCards,
@@ -317,7 +325,7 @@ private struct StatsAccumulator {
     ///
     /// - Parameter card: The `CardModel` to score.
     /// - Returns: A `Double` in the range `[0.0, 1.0]`.
-    private static func masteryScore(for card: CardModel) -> Double {
+    nonisolated static func masteryScore(for card: CardModel) -> Double {
         guard !card.reviewHistory.isEmpty else { return 0.0 }
         switch card.interval {
         case 0:       return 0.10

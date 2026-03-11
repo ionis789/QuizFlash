@@ -472,36 +472,64 @@ struct DeckCardContextMenu: View {
     let onDelete: () -> Void
 
     var body: some View {
-        HStack(spacing: UIConstants.Spacing.small) {
-            DeckCardContextMenuAction(
-                icon: "pencil",
-                tint: .primary,
-                backgroundColor: Color.white.opacity(0.05),
-                accessibilityLabel: "Edit Card"
-            ) {
-                onEdit()
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny + 2) {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Circle()
+                        .fill(card.deckStatusColor)
+                        .frame(width: 8, height: 8)
+
+                    Text(card.deckCardLabel)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+
+                    Spacer(minLength: UIConstants.Spacing.small)
+                }
+
+                Text(card.cardMenuSummary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
 
-            DeckCardContextMenuAction(
-                icon: card.isPinned ? "pin.slash.fill" : "pin.fill",
-                tint: card.isPinned ? .orange : card.deckStatusColor,
-                backgroundColor: (card.isPinned ? Color.orange : card.deckStatusColor).opacity(card.isPinned ? 0.20 : 0.14),
-                accessibilityLabel: card.isPinned ? "Unpin Card" : "Pin Card"
-            ) {
-                onTogglePin()
-            }
+            Divider()
+                .background(Color.primary.opacity(0.08))
 
-            DeckCardContextMenuAction(
-                icon: "trash",
-                tint: .red,
-                backgroundColor: Color.red.opacity(0.16),
-                accessibilityLabel: "Delete Card"
-            ) {
-                onDelete()
+            VStack(spacing: UIConstants.Spacing.small) {
+                DeckCardContextMenuActionRow(
+                    title: "Edit Card",
+                    icon: "pencil",
+                    tint: .primary,
+                    iconBackground: Color.primary.opacity(0.07),
+                    accessibilityLabel: "Edit Card"
+                ) {
+                    onEdit()
+                }
+
+                DeckCardContextMenuActionRow(
+                    title: card.isPinned ? "Unpin Card" : "Pin Card",
+                    icon: card.isPinned ? "pin.slash.fill" : "pin.fill",
+                    tint: card.isPinned ? .orange : card.deckStatusColor,
+                    iconBackground: (card.isPinned ? Color.orange : card.deckStatusColor).opacity(card.isPinned ? 0.20 : 0.14),
+                    accessibilityLabel: card.isPinned ? "Unpin Card" : "Pin Card"
+                ) {
+                    onTogglePin()
+                }
+
+                DeckCardContextMenuActionRow(
+                    title: "Delete Card",
+                    icon: "trash",
+                    tint: .red,
+                    iconBackground: Color.red.opacity(0.16),
+                    isDestructive: true,
+                    accessibilityLabel: "Delete Card"
+                ) {
+                    onDelete()
+                }
             }
         }
-        .padding(10)
-        .fixedSize()
+        .padding(UIConstants.Spacing.medium)
+        .frame(width: UIConstants.Size.floatingContextMenuWidth, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(
@@ -518,24 +546,37 @@ struct DeckCardContextMenu: View {
     }
 }
 
-private struct DeckCardContextMenuAction: View {
+private struct DeckCardContextMenuActionRow: View {
+    let title: String
     let icon: String
     let tint: Color
-    let backgroundColor: Color
+    let iconBackground: Color
+    var isDestructive: Bool = false
     let accessibilityLabel: String
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(backgroundColor)
+            HStack(spacing: UIConstants.Spacing.medium) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(iconBackground)
 
-                Image(systemName: icon)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(tint)
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(tint)
+                }
+                .frame(width: 36, height: 36)
+
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(titleColor)
+
+                Spacer(minLength: UIConstants.Spacing.small)
             }
-            .frame(width: UIConstants.Size.buttonHeight, height: UIConstants.Size.buttonHeight)
+            .padding(.horizontal, UIConstants.Spacing.medium - 2)
+            .padding(.vertical, UIConstants.Spacing.small + 2)
+            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
@@ -543,5 +584,9 @@ private struct DeckCardContextMenuAction: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var titleColor: Color {
+        isDestructive ? .red : .primary
     }
 }

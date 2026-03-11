@@ -2,511 +2,27 @@ import SwiftUI
 import WebKit
 
 // =============================================================================
-// MARK: - MathTextSanitizer
-// =============================================================================
-//
-// TWO-LAYER DEFENCE:
-//
-// Layer 1 — Swift pre-processing (this file)
-//   • repairBareLatexDelimiters()
-//     Scans text for LaTeX commands (\in, \mid, \{, \ldots …) that appear
-//     outside any $…$ region and wraps them in proper $…$ delimiters.
-//     This prevents KaTeX's auto-render from accidentally ingesting
-//     surrounding natural-language text.
-//   • containsMath() now detects bare \command patterns too,
-//     so the text correctly routes to MathWebView instead of SwiftUI.Text.
-//
-// Layer 2 — JavaScript pre-processing (inside buildHTML)
-//   • A JS pass runs BEFORE renderMathInElement and escapes any remaining
-//     bare backslash sequences that slipped through Swift, preventing
-//     KaTeX from treating them as math mode openers.
-//
+// MARK: - MixedMathRenderStyle
 // =============================================================================
 
-struct MathTextSanitizer {
+/// Visual rendering modes for mixed rich-text previews.
+///
+/// The deck grid uses a quieter preview style so inline code and math remain
+/// typographic instead of looking like standalone chips inside a compact card.
+enum MixedMathRenderStyle: String, Sendable {
+    case standard
+    case deckCardPreview
 
-    // -------------------------------------------------------------------------
-    // MARK: - Constants
-    // -------------------------------------------------------------------------
-
-    /// Known LaTeX math function names — these are NOT natural-language words.
-    static let mathFunctionNames: Set<String> = [
-        "sin", "cos", "tan", "cot", "sec", "csc", "log", "ln", "exp",
-        "lim", "limsup", "liminf", "sup", "inf", "max", "min",
-        "det", "ker", "im", "tr", "rank", "def", "dim", "sgn",
-        "sign", "grad", "div", "curl", "mod", "gcd", "lcm",
-        "arg", "Re", "Im", "deg", "hom", "coker", "coim",
-        "Pr", "mathbb", "mathbf", "mathrm", "mathcal", "text"
-    ]
-
-    /// Characters that are valid INSIDE a math expression (besides letters/digits).
-    private static let mathPunctChars: Set<Character> = Set("^_{}()[]+-=<>/!|,.'*~;:")
-
-    // -------------------------------------------------------------------------
-    // MARK: - Public API
-    // -------------------------------------------------------------------------
-
-    /// Main entry point.  Call this on every string before rendering.
-    static func heal(_ input: String) -> String {
-        var t = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        // 1. Repair bare LaTeX FIRST (most important)
-        t = repairBareLatexDelimiters(t)
-        // 2. Fix unbalanced lone $ signs
-        t = fixOrphanDollar(t)
-        // 3. Strip currency symbols mistakenly inside $…$
-        t = stripInvalidMathTokens(t)
-        return t
-    }
-
-    /// Returns true if text contains math that needs WebView rendering.
-    static func containsMath(_ text: String) -> Bool {
-        // Existing dollar-based check
-        if text.contains("$") || text.contains("\\[") ||
-           text.contains("\\(") || text.contains("\\begin") {
-            return true
+    var inlineCodeClassName: String {
+        switch self {
+        case .standard:
+            return "inline-code--standard"
+        case .deckCardPreview:
+            return "inline-code--deck-card-preview"
         }
-        // NEW: also detect bare \command outside any delimiters
-        return hasBareLatexCommand(text)
-    }
-
-    static func containsInlineCode(_ text: String) -> Bool {
-        let pattern = "`[^`\n]+`"
-        return (try? NSRegularExpression(pattern: pattern))
-            .map { $0.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil }
-            ?? false
-    }
-
-    // =========================================================================
-    // MARK: - Core: Bare LaTeX Repair
-    // =========================================================================
-
-    /// Wraps LaTeX commands that appear outside $…$ in proper delimiters.
-    static func repairBareLatexDelimiters(_ text: String) -> String {
-        guard hasBareLatexCommand(text) else { return text }
-
-        // Process each line independently — safer and handles multi-paragraph zones.
-        let lines = text.components(separatedBy: "\n")
-        return lines.map { repairLine($0) }.joined(separator: "\n")
-    }
-
-    // -------------------------------------------------------------------------
-    // MARK: - Line-level Repair
-    // -------------------------------------------------------------------------
-
-    private static func repairLine(_ line: String) -> String {
-        guard hasBareLatexCommand(line) else { return line }
-
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-
-        // Strip optional list prefix (-, *, •, 1., a.)
-        let (listPrefix, content) = extractListPrefix(trimmed)
-
-        // If the content portion is a pure math expression → wrap the whole thing.
-        if looksLikePureMathExpression(content) {
-            let useBlock = content.contains("\\begin{")
-                        || content.contains("\\frac{")
-                        || content.contains("\\int")
-                        || content.contains("\\sum")
-                        || content.contains("\\prod")
-                        || content.count > 80
-            let delimiter = useBlock ? "$$" : "$"
-            let wrapped = "\(delimiter)\(content)\(delimiter)"
-            // Preserve indentation from original line
-            let indent = String(line.prefix(line.count - line.drop(while: { $0 == " " || $0 == "\t" }).count))
-            return "\(indent)\(listPrefix)\(wrapped)"
-        }
-
-        // Mixed content: scan and wrap individual math segments inline.
-        return wrapBareSegmentsInLine(line)
-    }
-
-    // -------------------------------------------------------------------------
-    // MARK: - Segment Scanner (character-level)
-    // -------------------------------------------------------------------------
-
-    /// Scans a line, finds bare \command segments, wraps them in $…$.
-    private static func wrapBareSegmentsInLine(_ line: String) -> String {
-        var result = ""
-        var i = line.startIndex
-        var inSingleDollar = false
-        var inDoubleDollar = false
-
-        while i < line.endIndex {
-            let c = line[i]
-
-            // ── Track existing $$ regions ──────────────────────────────────
-            if c == "$" {
-                let next = line.index(after: i)
-                if next < line.endIndex && line[next] == "$" {
-                    inDoubleDollar.toggle()
-                    result += "$$"
-                    i = line.index(after: next)
-                    continue
-                }
-                // Single $
-                inSingleDollar.toggle()
-                result.append(c)
-                i = line.index(after: i)
-                continue
-            }
-
-            // ── Detect bare \command outside any $ region ──────────────────
-            if c == "\\" && !inSingleDollar && !inDoubleDollar {
-                let next = line.index(after: i)
-                if next < line.endIndex {
-                    let nc = line[next]
-                    if nc.isLetter || nc == "{" || nc == "}" || nc == "|" || nc == "," {
-                        // Absorb any preceding math chars from result into this segment
-                        let (prefix, trimmedResult) = absorbPrecedingMathChars(from: result)
-                        result = trimmedResult
-
-                        // Collect the full math segment starting at \
-                        let (mathSeg, endIdx) = collectMathSegment(in: line, from: i)
-
-                        if mathSeg.isEmpty {
-                            result = trimmedResult + prefix
-                            result.append(c)
-                            i = line.index(after: i)
-                        } else {
-                            result += "$\(prefix)\(mathSeg)$"
-                            i = endIdx
-                        }
-                        continue
-                    }
-                }
-            }
-
-            result.append(c)
-            i = line.index(after: i)
-        }
-
-        return result
-    }
-
-    /// Looks backwards in an already-built result string and removes any
-    /// trailing math-compatible characters (like a preceding variable name
-    /// `x` in `x\in Y`).  Returns the absorbed prefix and the trimmed result.
-    private static func absorbPrecedingMathChars(from result: String) -> (prefix: String, trimmed: String) {
-        var prefix = ""
-        var trimmed = result
-
-        while let last = trimmed.last {
-            // Only absorb single letters or digits immediately before the command
-            // (e.g. the `x` in `x\in`). Stop at spaces or punctuation.
-            if (last.isLetter && prefix.isEmpty) || (last.isNumber && prefix.isEmpty) {
-                prefix = String(last) + prefix
-                trimmed.removeLast()
-            } else {
-                break
-            }
-        }
-
-        return (prefix, trimmed)
-    }
-
-    // -------------------------------------------------------------------------
-    // MARK: - Math Segment Collector
-    // -------------------------------------------------------------------------
-
-    /// Starting at `start` (which must be a `\`), collects a contiguous math
-    /// segment and returns it plus the index immediately after the segment.
-    private static func collectMathSegment(in text: String, from start: String.Index) -> (String, String.Index) {
-        var seg = ""
-        var i = start
-        var braceDepth = 0    // tracks {…} groups that are NOT \{ or \}
-
-        while i < text.endIndex {
-            let c = text[i]
-
-            // Hard stops
-            if c == "\n" || c == "$" { break }
-
-            // ── Backslash sequences ─────────────────────────────────────────
-            if c == "\\" {
-                let ni = text.index(after: i)
-                guard ni < text.endIndex else { break }
-                let nc = text[ni]
-
-                // \command  (letters)
-                if nc.isLetter {
-                    seg.append(c)
-                    var j = ni
-                    while j < text.endIndex && text[j].isLetter {
-                        seg.append(text[j])
-                        j = text.index(after: j)
-                    }
-                    i = j
-                    continue
-                }
-
-                // Escaped special chars: \{  \}  \|  \,  \;  \:  \.  \!  \\
-                let escapable: Set<Character> = ["{", "}", "|", ",", ";", ":", ".", "!", "\\", " ", "(", ")", "[", "]"]
-                if escapable.contains(nc) {
-                    seg.append(c)
-                    seg.append(nc)
-                    i = text.index(after: ni)
-                    continue
-                }
-
-                // Lone backslash — stop
-                break
-            }
-
-            // ── Brace tracking (only REAL braces, not \{ \}) ───────────────
-            if c == "{" {
-                braceDepth += 1
-                seg.append(c)
-                i = text.index(after: i)
-                continue
-            }
-            if c == "}" {
-                if braceDepth <= 0 { break }   // unmatched } — end of segment
-                braceDepth -= 1
-                seg.append(c)
-                i = text.index(after: i)
-                continue
-            }
-
-            // ── Space: decide whether math continues ───────────────────────
-            if c == " " || c == "\t" {
-                let next = peekNextWord(in: text, from: text.index(after: i))
-                if mathContinues(after: next, braceDepth: braceDepth) {
-                    seg.append(" ")
-                    i = text.index(after: i)
-                } else {
-                    break
-                }
-                continue
-            }
-
-            // ── Regular math-compatible char ───────────────────────────────
-            if isMathCompatibleChar(c) {
-                seg.append(c)
-                i = text.index(after: i)
-            } else {
-                break
-            }
-        }
-
-        // Trim any dangling punctuation (trailing comma, semicolon etc.)
-        let trimmed = seg.trimmingCharacters(in: CharacterSet(charactersIn: ",; \t"))
-        return (trimmed, i)
-    }
-
-    // -------------------------------------------------------------------------
-    // MARK: - Decision Helpers
-    // -------------------------------------------------------------------------
-
-    /// Returns the next non-space "word" starting from `from`.
-    private static func peekNextWord(in text: String, from start: String.Index) -> String {
-        var i = start
-        while i < text.endIndex && text[i] == " " { i = text.index(after: i) }
-        var word = ""
-        while i < text.endIndex {
-            let c = text[i]
-            if c.isWhitespace || c == "\n" || c == "$" { break }
-            word.append(c)
-            i = text.index(after: i)
-        }
-        return word
-    }
-
-    /// Returns true if math should continue after encountering a space,
-    /// based on the next "word" and current brace depth.
-    private static func mathContinues(after nextWord: String, braceDepth: Int) -> Bool {
-        if nextWord.isEmpty { return false }
-
-        // Inside open braces → always continue
-        if braceDepth > 0 { return true }
-
-        // Clearly math starters
-        if nextWord.hasPrefix("\\") { return true }
-        if nextWord.hasPrefix("^") || nextWord.hasPrefix("_") { return true }
-        if nextWord.hasPrefix("{") || nextWord.hasPrefix("(") || nextWord.hasPrefix("[") { return true }
-
-        // Single ASCII letter (likely a math variable: x, y, T, V …)
-        let stripped = nextWord.trimmingCharacters(in: CharacterSet(charactersIn: "{}()[]^_.,;:!"))
-        if stripped.count == 1 && stripped.first!.isASCIILetter { return true }
-
-        // Known math function name
-        if mathFunctionNames.contains(stripped.lowercased()) { return true }
-
-        // Contains math operators — likely still math
-        if nextWord.contains("=") || nextWord.contains("^") || nextWord.contains("_") { return true }
-
-        // Pure number
-        if stripped.allSatisfy({ $0.isNumber || $0 == "." || $0 == "-" || $0 == "," }) { return true }
-
-        // Anything else (3+ letter natural-language word) → stop
-        return false
-    }
-
-    /// True if a character can appear inside a math expression.
-    private static func isMathCompatibleChar(_ c: Character) -> Bool {
-        c.isLetter || c.isNumber || mathPunctChars.contains(c)
-    }
-
-    // -------------------------------------------------------------------------
-    // MARK: - Pure-Math Expression Detection
-    // -------------------------------------------------------------------------
-
-    /// Returns true if the entire string looks like a math expression
-    /// (i.e., no natural-language words that indicate it's prose).
-    static func looksLikePureMathExpression(_ text: String) -> Bool {
-        guard hasBareLatexCommand(text) else { return false }
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
-
-        let words = text.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-        var naturalWordCount = 0
-
-        for word in words {
-            // Strip wrapper math punctuation to expose the "core" word
-            let clean = word.trimmingCharacters(in: CharacterSet(charactersIn: "{}()[]^_+-=<>/!|,;.:$\\"))
-            if clean.isEmpty { continue }
-
-            // Skip obvious math tokens
-            if word.hasPrefix("\\")           { continue }  // \command
-            if clean.count <= 2               { continue }  // short (variable, operator)
-            if mathFunctionNames.contains(clean.lowercased()) { continue }
-
-            // Has embedded math chars → it's a math token like `f^{-1}` or `a_{n+1}`
-            let hasMathChar = clean.contains(where: { "^_{}()\\/=<>!|".contains($0) || $0.isNumber })
-            if hasMathChar { continue }
-
-            // All-letter word of 3+ chars without any math chars = natural language
-            if clean.allSatisfy({ $0.isLetter }) && clean.count >= 3 {
-                naturalWordCount += 1
-            }
-        }
-
-        return naturalWordCount == 0
-    }
-
-    // -------------------------------------------------------------------------
-    // MARK: - Bare Command Detection
-    // -------------------------------------------------------------------------
-
-    /// Returns true if the text contains a LaTeX backslash command that is
-    /// NOT inside a $…$ or $$…$$ delimiter region.
-    static func hasBareLatexCommand(_ text: String) -> Bool {
-        guard text.contains("\\") else { return false }
-
-        var inDollar = false
-        var i = text.startIndex
-
-        while i < text.endIndex {
-            let c = text[i]
-            let ni = text.index(after: i)
-
-            // Track $$ first (must come before single-$ check)
-            if c == "$" {
-                if ni < text.endIndex && text[ni] == "$" {
-                    inDollar.toggle()
-                    i = text.index(after: ni)
-                    continue
-                }
-                inDollar.toggle()
-                i = ni
-                continue
-            }
-
-            // Check for bare \command outside any $ region
-            if c == "\\" && !inDollar && ni < text.endIndex {
-                let nc = text[ni]
-                if nc.isLetter || nc == "{" || nc == "}" || nc == "|" {
-                    return true
-                }
-            }
-
-            i = ni
-        }
-
-        return false
-    }
-
-    // -------------------------------------------------------------------------
-    // MARK: - List Prefix Extraction
-    // -------------------------------------------------------------------------
-
-    /// Splits a line like "- content" into ("- ", "content").
-    private static func extractListPrefix(_ line: String) -> (prefix: String, content: String) {
-        // Matches: "- ", "* ", "• ", "1. ", "1) ", "a. ", "(a) "
-        let patterns = [
-            #"^(\s*(?:-|\*|•)\s+)"#,
-            #"^(\s*\d+[.)]\s+)"#,
-            #"^(\s*[a-zA-Z][.)]\s+)"#,
-            #"^(\s*\([a-zA-Z0-9]+\)\s+)"#
-        ]
-        for pattern in patterns {
-            if let range = line.range(of: pattern, options: .regularExpression) {
-                return (String(line[range]), String(line[range.upperBound...]))
-            }
-        }
-        return ("", line)
-    }
-
-    // -------------------------------------------------------------------------
-    // MARK: - Legacy Sanitizers (kept as-is)
-    // -------------------------------------------------------------------------
-
-    private static func fixOrphanDollar(_ input: String) -> String {
-        var t = input
-        // Count single $ (not part of $$)
-        var singles = 0
-        var idx = t.startIndex
-        while idx < t.endIndex {
-            if t[idx] == "$" {
-                let next = t.index(after: idx)
-                if next < t.endIndex && t[next] == "$" {
-                    idx = t.index(after: next) // skip $$
-                } else {
-                    singles += 1
-                    idx = next
-                }
-            } else {
-                idx = t.index(after: idx)
-            }
-        }
-        guard singles % 2 != 0 else { return t }
-        // Remove the last lone $
-        if let last = t.lastIndex(of: "$") {
-            let prev = last > t.startIndex ? t.index(before: last) : nil
-            if prev == nil || t[prev!] != "$" {
-                t.remove(at: last)
-            }
-        }
-        return t
-    }
-
-    private static func stripInvalidMathTokens(_ input: String) -> String {
-        let invalidChars = CharacterSet(charactersIn: "€£¥₹₩₿¢฿₪₨₦")
-        guard let regex = try? NSRegularExpression(
-            pattern: "(?<!\\$)\\$(?!\\$)(.+?)(?<!\\$)\\$(?!\\$)"
-        ) else { return input }
-
-        var result = input
-        let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
-        for match in matches.reversed() {
-            guard let fullRange  = Range(match.range,      in: result),
-                  let innerRange = Range(match.range(at: 1), in: result) else { continue }
-            let inner = String(result[innerRange])
-            if inner.unicodeScalars.contains(where: { invalidChars.contains($0) }) {
-                result.replaceSubrange(fullRange, with: inner)
-            }
-        }
-        return result
     }
 }
 
-// =============================================================================
-// MARK: - Character Extension
-// =============================================================================
-
-private extension Character {
-    var isASCIILetter: Bool { isASCII && isLetter }
-}
-
-// =============================================================================
 // MARK: - MixedMathTextView
 // =============================================================================
 
@@ -522,12 +38,15 @@ struct MixedMathTextView: View {
     /// Set to `false` in read-only contexts (card playback, preview).
     /// Set to `true` in editable contexts (CreateCardView, ZoneContentView).
     var isInteractive: Bool = true
+    var lineLimit: Int? = nil
+    var renderStyle: MixedMathRenderStyle = .standard
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var webHeight: CGFloat = 50
 
     var body: some View {
         let clean = MathTextSanitizer.heal(text)
+        let signature = renderSignature(for: clean)
 
         if MathTextSanitizer.containsMath(clean) || MathTextSanitizer.containsInlineCode(clean) {
             MathWebView(
@@ -538,6 +57,8 @@ struct MixedMathTextView: View {
                 isBold: isBold,
                 isItalic: isItalic,
                 alignment: alignment,
+                renderStyle: renderStyle,
+                renderSignature: signature,
                 contentHeight: $webHeight,
                 isInteractive: isInteractive
             )
@@ -551,9 +72,22 @@ struct MixedMathTextView: View {
                 .font(swiftUIFont)
                 .foregroundColor(textColor)
                 .multilineTextAlignment(nsTextAlignment)
+                .lineLimit(lineLimit)
                 .frame(maxWidth: .infinity, alignment: frameAlignment)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func renderSignature(for cleanText: String) -> String {
+        [
+            cleanText,
+            String(format: "%.3f", fontSize),
+            colorSignature,
+            alignmentSignature,
+            isBold ? "1" : "0",
+            isItalic ? "1" : "0",
+            renderStyle.rawValue
+        ].joined(separator: "|")
     }
 
     private var swiftUIFont: Font {
@@ -580,6 +114,27 @@ struct MixedMathTextView: View {
         case .trailing: return .trailing
         default:        return .leading
         }
+    }
+
+    private var alignmentSignature: String {
+        switch alignment {
+        case .center:
+            return "center"
+        case .trailing:
+            return "trailing"
+        default:
+            return "leading"
+        }
+    }
+
+    private var colorSignature: String {
+        if textColor == .primary {
+            return colorScheme == .dark ? "primary-dark" : "primary-light"
+        }
+        if textColor == .secondary {
+            return colorScheme == .dark ? "secondary-dark" : "secondary-light"
+        }
+        return colorScheme == .dark ? "custom-dark" : "custom-light"
     }
 }
 
@@ -631,10 +186,9 @@ class MathWebViewPool {
     }
 
     // Maximum number of idle WebViews kept alive between uses.
-    // Reduced from 8 to 2 to minimize resting memory footprint.
-    // 2 is enough for instant flip animation (front + back) while
-    // subsequent cards can spawn on demand without accumulating.
-    private static let maxPoolSize = 2
+    // Increased to 12 to support scrolling through grid view with KaTeX
+    // while maintaining a stable process limit.
+    private static let maxPoolSize = 12
 
     // One process pool shared across every WKWebView instance.
     // This is the single most impactful memory optimization available for
@@ -684,16 +238,14 @@ class MathWebViewPool {
     func enqueue(_ webView: WKWebView) {
         guard pool.count < Self.maxPoolSize else {
             // Pool is full — explicitly kill the WKProcess for this view
-            // before letting ARC release the wrapper.
-            // about:blank is the ONLY reliable way to flush WebKit memory on iOS.
             webView.evaluateJavaScript("document.body.innerHTML = ''; window.webkit.messageHandlers = null;")
             webView.load(URLRequest(url: URL(string: "about:blank")!))
             return
         }
 
-        // Reset content so the previous deck's HTML does not linger in memory.
-        webView.evaluateJavaScript("document.body.innerHTML = '';")
-        webView.load(URLRequest(url: URL(string: "about:blank")!))
+        // Fast clearing: just wipe the div content instead of reloading about:blank.
+        // This keeps KaTeX JS/CSS cached in the DOM perfectly.
+        webView.evaluateJavaScript("const el = document.getElementById('content'); if (el) el.innerHTML = '';")
         pool.append(webView)
     }
 
@@ -719,6 +271,9 @@ class MathWebViewPool {
         webView.scrollView.backgroundColor = .clear
         webView.scrollView.showsVerticalScrollIndicator = false
         webView.scrollView.showsHorizontalScrollIndicator = false
+        
+        // Load the base HTML template once upon creation.
+        webView.loadHTMLString(MathWebView.baseHTMLTemplate, baseURL: Bundle.main.bundleURL)
         return webView
     }
 }
@@ -735,6 +290,8 @@ struct MathWebView: UIViewRepresentable {
     let isBold: Bool
     let isItalic: Bool
     let alignment: HorizontalAlignment
+    let renderStyle: MixedMathRenderStyle
+    let renderSignature: String
     @Binding var contentHeight: CGFloat
     /// When `false`, disables all UIKit gesture recognisers on the WKWebView
     /// so that taps and drags pass through to the parent SwiftUI view unobstructed.
@@ -763,23 +320,23 @@ struct MathWebView: UIViewRepresentable {
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "heightUpdate")
 
         context.coordinator.webView = webView
-        context.coordinator.lastRenderedText = text
+        context.coordinator.lastRenderedSignature = renderSignature
 
         // In read-only contexts (playback, preview), disable all UIKit interaction
         // on the WKWebView. This prevents WebKit's internal gesture recognisers
         // from consuming taps and drags that must reach the SwiftUI layer above.
         applyInteractivity(to: webView)
 
-        loadContent(in: webView)
+        loadContent(in: webView, context: context)
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         // Re-apply interaction state in case isInteractive changed between renders.
         applyInteractivity(to: webView)
-        guard context.coordinator.lastRenderedText != text else { return }
-        context.coordinator.lastRenderedText = text
-        loadContent(in: webView)
+        guard context.coordinator.lastRenderedSignature != renderSignature else { return }
+        context.coordinator.lastRenderedSignature = renderSignature
+        loadContent(in: webView, context: context)
     }
 
     /// Enables or disables all UIKit interaction on the WKWebView.
@@ -797,17 +354,7 @@ struct MathWebView: UIViewRepresentable {
         }
     }
 
-    private func loadContent(in webView: WKWebView) {
-        // loadHTMLString is fully non-blocking; WebKit rendering runs in a
-        // dedicated OS process separate from the main run loop.
-        webView.loadHTMLString(buildHTML(), baseURL: Bundle.main.bundleURL)
-    }
-
-    // -------------------------------------------------------------------------
-    // MARK: - HTML Builder
-    // -------------------------------------------------------------------------
-
-    private func buildHTML() -> String {
+    private func loadContent(in webView: WKWebView, context: Context) {
         let cssAlign: String
         switch alignment {
         case .center:   cssAlign = "center"
@@ -821,10 +368,23 @@ struct MathWebView: UIViewRepresentable {
 
         let safeText  = text.replacingOccurrences(of: "&", with: "&amp;")
         let mdText    = processHTMLMarkdown(safeText)
-        let finalText = processInlineCode(mdText)
+        let finalText = processInlineCode(mdText, renderStyle: renderStyle)
+        
+        // Base64 encoding cleanly passes arbitrary UTF-8 characters across the JS payload boundary
+        guard let b64 = finalText.data(using: .utf8)?.base64EncodedString() else { return }
+        
+        let js = "updateMathContent('\(b64)', '\(cssColor)', \(fontSize), '\(cssAlign)', '\(weight)', '\(fontStyle)');"
+        context.coordinator.applyUpdate(js: js)
+    }
 
+    // -------------------------------------------------------------------------
+    // MARK: - HTML Builder
+    // -------------------------------------------------------------------------
+
+    /// A static, one-time HTML template injected into cached WebViews.
+    static var baseHTMLTemplate: String {
         let katexTags: String
-        if let urls = Self.katexBundleURLs() {
+        if let urls = katexBundleURLs() {
             katexTags = """
             <link rel="stylesheet" href="\(urls.css)">
             <script src="\(urls.js)"></script>
@@ -850,17 +410,12 @@ struct MathWebView: UIViewRepresentable {
             html, body {
                 background: transparent;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                font-size: \(fontSize)px;
-                font-weight: \(weight);
-                font-style: \(fontStyle);
-                color: \(cssColor);
-                text-align: \(cssAlign);
-                line-height: 1.6;
-                padding: 4px 2px;
                 overflow: hidden;
                 word-break: break-word;
+                margin: 0;
+                padding: 0;
             }
-            #content { width: 100%; white-space: pre-wrap; }
+            #content { width: 100%; white-space: pre-wrap; padding: 2px 0px; line-height: 1.5; }
 
             .katex-display {
                 margin: 0.6em 0;
@@ -877,9 +432,11 @@ struct MathWebView: UIViewRepresentable {
                 font-style: normal !important;
                 font-family: -apple-system, sans-serif !important;
             }
-            code {
+            code.inline-code {
                 font-family: ui-monospace, 'SF Mono', Menlo, monospace;
                 font-size: 0.88em;
+            }
+            code.inline-code--standard {
                 background: rgba(120, 120, 120, 0.15);
                 color: inherit;
                 border: 1px solid rgba(120, 120, 120, 0.2);
@@ -887,12 +444,24 @@ struct MathWebView: UIViewRepresentable {
                 padding: 2px 6px;
                 white-space: pre-wrap;
             }
+            code.inline-code--deck-card-preview {
+                background: transparent;
+                color: inherit;
+                border: none;
+                border-radius: 0;
+                padding: 0;
+                white-space: pre-wrap;
+                font-size: 0.92em;
+                font-weight: 600;
+                letter-spacing: -0.01em;
+                opacity: 0.94;
+            }
             strong, b { font-weight: bold; }
             em, i     { font-style: italic; }
         </style>
         </head>
         <body>
-        <div id="content">\(finalText)</div>
+        <div id="content"></div>
         <script>
         const extraMacros = {
             "\\\\thinspace":    "\\\\,",
@@ -907,29 +476,53 @@ struct MathWebView: UIViewRepresentable {
             "\\\\eps":      "\\\\varepsilon",
             "\\\\epsilon":  "\\\\varepsilon"
         };
+        
+        let updateTimeout;
 
-        renderMathInElement(document.getElementById('content'), {
-            delimiters: [
-                { left: '$$',    right: '$$',    display: true  },
-                { left: '\\\\[', right: '\\\\]', display: true  },
-                { left: '$',     right: '$',     display: false },
-                { left: '\\\\(', right: '\\\\)', display: false }
-            ],
-            throwOnError: false,
-            errorColor:   'inherit',
-            macros:        extraMacros
-        });
+        function updateMathContent(b64, color, fontSize, align, weight, fontStyle) {
+            document.body.style.color = color;
+            document.body.style.fontSize = fontSize + 'px';
+            document.body.style.textAlign = align;
+            document.body.style.fontWeight = weight;
+            document.body.style.fontStyle = fontStyle;
+
+            let bin = window.atob(b64);
+            let bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) {
+                bytes[i] = bin.charCodeAt(i);
+            }
+            let text = new TextDecoder('utf-8').decode(bytes);
+
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = text;
+            
+            try {
+                renderMathInElement(contentDiv, {
+                    delimiters: [
+                        { left: '$$',    right: '$$',    display: true  },
+                        { left: '\\\\[', right: '\\\\]', display: true  },
+                        { left: '$',     right: '$',     display: false },
+                        { left: '\\\\(', right: '\\\\)', display: false }
+                    ],
+                    ignoredTags: ["script", "noscript", "style", "textarea", "pre", "option"],
+                    throwOnError: false,
+                    errorColor:   'inherit',
+                    macros:        extraMacros
+                });
+            } catch(e) { console.error(e); }
+
+            clearTimeout(updateTimeout);
+            reportHeight();
+            updateTimeout = setTimeout(reportHeight, 50);
+        }
 
         function reportHeight() {
             const el = document.getElementById('content');
             const h  = Math.max(el.getBoundingClientRect().height, el.scrollHeight);
-            if (h > 0) {
-                window.webkit.messageHandlers.heightUpdate.postMessage(Math.ceil(h) + 20);
+            if (h > 0 && window.webkit && window.webkit.messageHandlers.heightUpdate) {
+                window.webkit.messageHandlers.heightUpdate.postMessage(Math.ceil(h));
             }
         }
-
-        setTimeout(reportHeight, 80);
-        setTimeout(reportHeight, 300);
 
         if (window.ResizeObserver) {
             new ResizeObserver(reportHeight).observe(document.getElementById('content'));
@@ -965,7 +558,7 @@ struct MathWebView: UIViewRepresentable {
         return result
     }
 
-    private func processInlineCode(_ text: String) -> String {
+    private func processInlineCode(_ text: String, renderStyle: MixedMathRenderStyle) -> String {
         guard let regex = try? NSRegularExpression(pattern: "`([^`\\n]+)`") else { return text }
         var result = text
         let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
@@ -973,7 +566,10 @@ struct MathWebView: UIViewRepresentable {
             guard let fullRange  = Range(match.range,        in: result),
                   let innerRange = Range(match.range(at: 1), in: result) else { continue }
             let inner = String(result[innerRange])
-            result.replaceSubrange(fullRange, with: "<code>\(inner)</code>")
+            result.replaceSubrange(
+                fullRange,
+                with: "<code class=\"inline-code \(renderStyle.inlineCodeClassName)\">\(inner)</code>"
+            )
         }
         return result
     }
@@ -990,7 +586,7 @@ struct MathWebView: UIViewRepresentable {
     class Coordinator: NSObject, WKScriptMessageHandler {
         @Binding var contentHeight: CGFloat
         weak var webView: WKWebView? // WEAK reference to break the retain cycle
-        var lastRenderedText: String = ""
+        var lastRenderedSignature: String = ""
 
         init(contentHeight: Binding<CGFloat>) {
             _contentHeight = contentHeight
@@ -1004,6 +600,21 @@ struct MathWebView: UIViewRepresentable {
                   let h = message.body as? Double, h > 0
             else { return }
             DispatchQueue.main.async { self.contentHeight = CGFloat(h) }
+        }
+
+        /// Safely evaluates JS once the `updateMathContent` function exists.
+        /// This fixes the race condition where `evaluateJavaScript` fires before baseHTMLTemplate is fully loaded in new pooled webviews.
+        func applyUpdate(js: String, retries: Int = 15) {
+            guard let webView = webView else { return }
+            webView.evaluateJavaScript("typeof updateMathContent") { result, _ in
+                if let str = result as? String, str == "function" {
+                    webView.evaluateJavaScript(js)
+                } else if retries > 0 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        self.applyUpdate(js: js, retries: retries - 1)
+                    }
+                }
+            }
         }
     }
 }

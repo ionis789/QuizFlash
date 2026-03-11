@@ -132,7 +132,7 @@ struct MainAppView: View {
                         .toolbar(.hidden, for: .tabBar)
                         .navigationDestination(for: DeckNavigationValue.self) { value in
                             if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
-                                DeckView(deck: deck, backLabel: value.backLabel)
+                                DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .home)
                                     .toolbar(.hidden, for: .navigationBar)
                             }
                         }
@@ -148,7 +148,7 @@ struct MainAppView: View {
                         .toolbar(.hidden, for: .tabBar)
                         .navigationDestination(for: DeckNavigationValue.self) { value in
                             if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
-                                DeckView(deck: deck, backLabel: value.backLabel)
+                                DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .library)
                                     .toolbar(.hidden, for: .navigationBar)
                             }
                         }
@@ -164,7 +164,7 @@ struct MainAppView: View {
                         .toolbar(.hidden, for: .tabBar)
                         .navigationDestination(for: DeckNavigationValue.self) { value in
                             if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
-                                DeckView(deck: deck, backLabel: value.backLabel)
+                                DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .create)
                                     .toolbar(.hidden, for: .navigationBar)
                             }
                         }

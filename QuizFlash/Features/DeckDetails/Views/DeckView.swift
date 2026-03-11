@@ -19,10 +19,11 @@ private let kDeckChromeSpace = "DeckViewChromeSpace"
 
 struct DeckContentView: View {
     @Environment(\.modelContext) var context
-
+    @Environment(NavigationManager.self) private var router
     @Environment(\.dismiss) private var dismiss
     @Bindable var deck: DeckModel
     let searchQuery: String?
+    let ownerTab: AppTabBar
 
     // The back-button label frozen at push time via DeckNavigationValue.
     // Never read from router state — immune to cross-tab mutation.
@@ -61,6 +62,10 @@ struct DeckContentView: View {
         max(0, viewSafeBottom - physicalSafeBottom)
     }
 
+    private var isSuspended: Bool {
+        router.activeTab != ownerTab
+    }
+
     /// Reserved top spacing that keeps the hero content below the floating chrome.
     private var topContentInset: CGFloat {
         navigationBarHeight + UIConstants.Layout.deckHeroChromeClearance
@@ -95,14 +100,12 @@ struct DeckContentView: View {
             .toolbar(.hidden, for: .navigationBar)
             .customTabBarVisibility(viewModel.isSelecting ? .hidden : .implicit)
             .onAppear {
-                guard !hasLoadedInitialSnapshot else { return }
+                guard !hasLoadedInitialSnapshot, !isSuspended else { return }
                 hasLoadedInitialSnapshot = true
-                Task {
-                    await viewModel.loadSnapshot(
-                        deckID: deck.persistentModelID,
-                        container: context.container
-                    )
-                }
+                viewModel.requestSnapshotLoad(
+                    deckID: deck.persistentModelID,
+                    container: context.container
+                )
             }
             .onDisappear {
                 guard !isAddingCard,
@@ -113,31 +116,29 @@ struct DeckContentView: View {
                       editingCard == nil else { return }
                 viewModel.tearDown()
                 ImageCache.shared.clearCache()
+                DeckGridRichPreviewRenderer.shared.suspend()
                 MathWebViewPool.shared.flush()
             }
             .onChange(of: deck.cardCount) {
-                Task {
-                    await viewModel.loadSnapshot(
-                        deckID: deck.persistentModelID,
-                        container: context.container
-                    )
-                }
+                guard !isSuspended else { return }
+                viewModel.requestSnapshotLoad(
+                    deckID: deck.persistentModelID,
+                    container: context.container
+                )
             }
             .onChange(of: viewModel.sortOrder) {
-                Task {
-                    await viewModel.loadSnapshot(
-                        deckID: deck.persistentModelID,
-                        container: context.container
-                    )
-                }
+                guard !isSuspended else { return }
+                viewModel.requestSnapshotLoad(
+                    deckID: deck.persistentModelID,
+                    container: context.container
+                )
             }
             .onChange(of: viewModel.searchQuery) {
-                Task {
-                    await viewModel.loadSnapshot(
-                        deckID: deck.persistentModelID,
-                        container: context.container
-                    )
-                }
+                guard !isSuspended else { return }
+                viewModel.requestSnapshotLoad(
+                    deckID: deck.persistentModelID,
+                    container: context.container
+                )
             }
             .onChange(of: viewModel.isSelecting) { _, isSelecting in
                 if isSelecting {
@@ -153,12 +154,26 @@ struct DeckContentView: View {
                 if old != nil && new == nil {
                     deck.lastOpenedAt = Date()
                     try? context.save()
-                    Task {
-                        await viewModel.loadSnapshot(
-                            deckID: deck.persistentModelID,
-                            container: context.container
-                        )
-                    }
+                    guard !isSuspended else { return }
+                    viewModel.requestSnapshotLoad(
+                        deckID: deck.persistentModelID,
+                        container: context.container
+                    )
+                }
+            }
+            .onChange(of: isSuspended) { _, suspended in
+                if suspended {
+                    closeCardMenu(animated: false)
+                    isMenuExpanded = false
+                    viewModel.suspendHeavyWork()
+                    CardPreviewCache.shared.flush()
+                    DeckGridRichPreviewRenderer.shared.suspend()
+                    MathWebViewPool.shared.flush()
+                } else {
+                    viewModel.requestSnapshotLoad(
+                        deckID: deck.persistentModelID,
+                        container: context.container
+                    )
                 }
             }
             .alert(
@@ -361,7 +376,10 @@ struct DeckContentView: View {
                         card.editedAt = Date()
                         deck.editedAt = Date()
                         try? context.save()
-                        Task { await viewModel.loadSnapshot(deckID: deck.persistentModelID, container: context.container) }
+                        viewModel.requestSnapshotLoad(
+                            deckID: deck.persistentModelID,
+                            container: context.container
+                        )
                     }
                     editingCard = nil
                 }
@@ -495,6 +513,7 @@ struct DeckContentView: View {
                     cards: viewModel.cachedGroupedCards,
                     isSelecting: viewModel.isSelecting,
                     selectedCards: viewModel.selectedCards,
+                    isSuspended: isSuspended,
                     onToggleSelection: { gridCard in viewModel.toggleSelection(for: gridCard.id) },
                     onTapCard: { gridCard in
                         if viewModel.isSelecting {
@@ -957,19 +976,27 @@ struct DeckView: View {
     let deck: DeckModel
     let searchQuery: String?
     let backLabel: String
+    let ownerTab: AppTabBar
 
     @State private var viewModel: DeckViewModel? = nil
 
-    init(deck: DeckModel, searchQuery: String? = nil, backLabel: String) {
+    init(deck: DeckModel, searchQuery: String? = nil, backLabel: String, ownerTab: AppTabBar) {
         self.deck = deck
         self.searchQuery = searchQuery
         self.backLabel = backLabel
+        self.ownerTab = ownerTab
     }
 
     var body: some View {
         Group {
             if let vm = viewModel {
-                DeckContentView(deck: deck, searchQuery: searchQuery, backLabel: backLabel, viewModel: vm)
+                DeckContentView(
+                    deck: deck,
+                    searchQuery: searchQuery,
+                    ownerTab: ownerTab,
+                    backLabel: backLabel,
+                    viewModel: vm
+                )
             } else {
                 Color(.systemGroupedBackground)
                     .onAppear {

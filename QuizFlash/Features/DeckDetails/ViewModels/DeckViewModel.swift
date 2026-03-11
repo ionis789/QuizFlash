@@ -34,6 +34,10 @@ struct GridCardInfo: Identifiable, Equatable, Hashable, Sendable {
     let isPinned: Bool
     let frontText: String
     let backText: String
+    let frontPreviewText: String
+    let backPreviewText: String
+    let frontNeedsRichSnapshot: Bool
+    let backNeedsRichSnapshot: Bool
     let createdAt: Date
     let editedAt: Date
 }
@@ -78,6 +82,7 @@ final class DeckViewModel {
         subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
         category: "DeckViewModel"
     )
+    @ObservationIgnored private var snapshotLoadTask: Task<Void, Never>?
 
     // MARK: - Selection State
 
@@ -149,7 +154,28 @@ final class DeckViewModel {
     ///   Removing them would destroy the card grid instantly on `.onDisappear`, which
     ///   fires when sheets or full-screen covers are presented — breaking scroll restoration.
     func tearDown() {
+        cancelSnapshotLoad()
         CardPreviewCache.shared.flush()
+    }
+
+    /// Cancels any in-flight snapshot reload started by the view layer.
+    func cancelSnapshotLoad() {
+        snapshotLoadTask?.cancel()
+        snapshotLoadTask = nil
+    }
+
+    /// Starts a replaceable snapshot load for the visible deck screen.
+    func requestSnapshotLoad(deckID: PersistentIdentifier, container: ModelContainer) {
+        cancelSnapshotLoad()
+        snapshotLoadTask = Task { [weak self] in
+            guard let self else { return }
+            await self.loadSnapshot(deckID: deckID, container: container)
+        }
+    }
+
+    /// Suspends any expensive background reloads while the deck tab is inactive.
+    func suspendHeavyWork() {
+        cancelSnapshotLoad()
     }
 
     // MARK: - Initial Card Load (iOS 17 Memory-Safe Path)
@@ -178,11 +204,15 @@ final class DeckViewModel {
             container: container
         )
         guard !Task.isCancelled else { return .empty }
+        applySnapshot(snapshot)
+        return snapshot.stats
+    }
+
+    private func applySnapshot(_ snapshot: CardDataSnapshot) {
         allCardInfos = snapshot.gridCards
         currentStats = snapshot.stats
         progressStats = computeProgressStats(from: snapshot.gridCards, deckCardCount: nil)
         performGrouping(on: snapshot.gridCards)
-        return snapshot.stats
     }
 
     // MARK: - Progress Stats Computation
@@ -518,6 +548,10 @@ private extension GridCardInfo {
             isPinned: isPinned,
             frontText: frontText,
             backText: backText,
+            frontPreviewText: frontPreviewText,
+            backPreviewText: backPreviewText,
+            frontNeedsRichSnapshot: frontNeedsRichSnapshot,
+            backNeedsRichSnapshot: backNeedsRichSnapshot,
             createdAt: createdAt,
             editedAt: editedAt
         )

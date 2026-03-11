@@ -113,10 +113,10 @@ enum UIConstants {
         static let heroInlineActionWidth: CGFloat = 34
         /// 30 pt — compact height for the inline hero edit control.
         static let heroInlineActionHeight: CGFloat = 30
-        /// 30 pt — top-trailing card options button size.
-        static let cardOptionsButton: CGFloat = 30
-        /// 152 pt — standard height for deck grid cards.
-        static let deckGridCardHeight: CGFloat = 152
+        /// 22 pt — compact top-trailing card options button size.
+        static let cardOptionsButton: CGFloat = 22
+        /// 184 pt — standard height for deck grid cards, sized to preserve breathing room for text and math previews.
+        static let deckGridCardHeight: CGFloat = 184
         /// 228 pt — width for anchored visionOS-style floating menus.
         static let floatingContextMenuWidth: CGFloat = 228
     }
