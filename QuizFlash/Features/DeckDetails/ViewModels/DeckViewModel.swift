@@ -18,7 +18,6 @@
 import SwiftUI
 import SwiftData
 import OSLog
-import UIKit
 
 // MARK: - Grid Card Info
 
@@ -84,12 +83,6 @@ final class DeckViewModel {
         category: "DeckViewModel"
     )
     @ObservationIgnored private var snapshotLoadTask: Task<Void, Never>?
-    @ObservationIgnored private var previewSession: DeckPreviewSession?
-    @ObservationIgnored private var currentDeckID: PersistentIdentifier?
-    @ObservationIgnored private var currentContainer: ModelContainer?
-    @ObservationIgnored private var currentSurfaceLayout: DeckCardSurfaceLayout?
-    @ObservationIgnored private var isDeckActive = true
-    @ObservationIgnored private var needsActivationRefresh = false
 
     // MARK: - Selection State
 
@@ -112,12 +105,6 @@ final class DeckViewModel {
 
     /// Pre-computed progress breakdown. Derived from `allCardInfos`; consumed by `DeckProgressView`.
     private(set) var progressStats: DeckProgressStats = .empty
-
-    /// `true` once the initial visible deck preview band has been fully rasterized.
-    private(set) var isInitialPreviewWarm = false
-
-    /// Frozen viewport image used to mask tab-switch re-activation work.
-    private(set) var frozenViewportImage: UIImage?
 
     // MARK: - Scroll Restoration
 
@@ -168,14 +155,6 @@ final class DeckViewModel {
     ///   fires when sheets or full-screen covers are presented — breaking scroll restoration.
     func tearDown() {
         cancelSnapshotLoad()
-        previewSession?.tearDown()
-        previewSession = nil
-        currentDeckID = nil
-        currentContainer = nil
-        currentSurfaceLayout = nil
-        frozenViewportImage = nil
-        isInitialPreviewWarm = false
-        needsActivationRefresh = false
         CardPreviewCache.shared.flush()
     }
 
@@ -187,8 +166,6 @@ final class DeckViewModel {
 
     /// Starts a replaceable snapshot load for the visible deck screen.
     func requestSnapshotLoad(deckID: PersistentIdentifier, container: ModelContainer) {
-        currentDeckID = deckID
-        currentContainer = container
         cancelSnapshotLoad()
         snapshotLoadTask = Task { [weak self] in
             guard let self else { return }
@@ -199,95 +176,6 @@ final class DeckViewModel {
     /// Suspends any expensive background reloads while the deck tab is inactive.
     func suspendHeavyWork() {
         cancelSnapshotLoad()
-        previewSession?.setScrolling(true)
-    }
-
-    /// Configures or refreshes the deck-owned image preview session for the current layout.
-    func preparePreviewSession(
-        deckID: PersistentIdentifier,
-        container: ModelContainer,
-        colorScheme: ColorScheme,
-        columns: Int,
-        cardWidth: CGFloat
-    ) {
-        currentDeckID = deckID
-        currentContainer = container
-
-        let layout = DeckCardSurfaceLayout(
-            cardWidth: cardWidth,
-            cardHeight: UIConstants.Size.deckGridCardHeight,
-            scale: UIScreen.main.scale,
-            isDarkMode: colorScheme == .dark,
-            columns: columns
-        )
-        currentSurfaceLayout = layout
-
-        if let previewSession, previewSession.deckID == deckID {
-            previewSession.updateContext(container: container, layout: layout)
-        } else {
-            let session = DeckPreviewSession(deckID: deckID, container: container, layout: layout)
-            session.onInitialWarmStateChange = { [weak self] isWarm in
-                guard let self else { return }
-                self.isInitialPreviewWarm = isWarm
-            }
-            session.onVisibleCardsReady = { [weak self] in
-                guard let self else { return }
-                if self.isDeckActive {
-                    self.frozenViewportImage = nil
-                }
-            }
-            previewSession = session
-        }
-
-        previewSession?.setActive(isDeckActive)
-        syncPreviewSessionIfPossible()
-    }
-
-    /// Returns the stable image entry for a given grid card.
-    func previewEntry(for card: GridCardInfo) -> DeckCardSurfaceEntry {
-        if let previewSession {
-            return previewSession.entry(for: card.id)
-        }
-
-        return DeckCardSurfaceEntry(cardID: card.id)
-    }
-
-    /// Updates the deck session with the currently visible card identifiers.
-    func markVisibleCardIDs(_ ids: Set<PersistentIdentifier>) {
-        previewSession?.markVisibleCardIDs(ids)
-    }
-
-    /// Pauses or resumes image rendering while the deck scroll view is moving.
-    func setGridScrolling(_ isScrolling: Bool) {
-        previewSession?.setScrolling(isScrolling)
-    }
-
-    /// Freezes or unfreezes the deck session when the owning tab becomes inactive/active.
-    func setDeckActive(_ active: Bool) {
-        isDeckActive = active
-        previewSession?.setActive(active)
-
-        if active, needsActivationRefresh,
-           let deckID = currentDeckID,
-           let container = currentContainer {
-            needsActivationRefresh = false
-            requestSnapshotLoad(deckID: deckID, container: container)
-        }
-    }
-
-    /// Stores the frozen viewport image used to mask a tab return.
-    func setFrozenViewportImage(_ image: UIImage?) {
-        frozenViewportImage = image
-    }
-
-    /// Flags that the deck should refresh from storage once it becomes active again.
-    func markNeedsActivationRefresh() {
-        needsActivationRefresh = true
-    }
-
-    /// Invalidates specific card preview surfaces after an edit.
-    func invalidatePreviewCards(_ ids: Set<PersistentIdentifier>) {
-        previewSession?.invalidate(ids)
     }
 
     // MARK: - Initial Card Load (iOS 17 Memory-Safe Path)
@@ -579,7 +467,6 @@ final class DeckViewModel {
                 )
             }
             cachedGroupedCards = sections
-            syncPreviewSessionIfPossible()
             return
         }
 
@@ -605,13 +492,6 @@ final class DeckViewModel {
             }
 
         cachedGroupedCards = sections + groupedSections
-        syncPreviewSessionIfPossible()
-    }
-
-    private func syncPreviewSessionIfPossible() {
-        guard let previewSession else { return }
-        previewSession.updateCards(allCardInfos, groupedSections: cachedGroupedCards)
-        isInitialPreviewWarm = previewSession.isInitialWarmComplete
     }
 
     // MARK: - Date Formatters
@@ -675,297 +555,5 @@ private extension GridCardInfo {
             createdAt: createdAt,
             editedAt: editedAt
         )
-    }
-}
-
-// MARK: - Deck Preview Session
-
-/// Per-card observable image slot used by the deck grid.
-@Observable
-@MainActor
-final class DeckCardSurfaceEntry {
-    let cardID: PersistentIdentifier
-    var image: UIImage?
-    var isLoading = false
-
-    init(cardID: PersistentIdentifier) {
-        self.cardID = cardID
-    }
-}
-
-/// Long-lived deck preview cache that keeps fully rasterized card surfaces warm while the deck lives in the stack.
-@MainActor
-final class DeckPreviewSession {
-    let deckID: PersistentIdentifier
-
-    var onInitialWarmStateChange: ((Bool) -> Void)?
-    var onVisibleCardsReady: (() -> Void)?
-
-    private(set) var isInitialWarmComplete = false
-
-    private var container: ModelContainer
-    private var layout: DeckCardSurfaceLayout
-    private var descriptorsByID: [PersistentIdentifier: DeckCardSurfaceDescriptor] = [:]
-    private var orderedIDs: [PersistentIdentifier] = []
-    private var entriesByID: [PersistentIdentifier: DeckCardSurfaceEntry] = [:]
-    private var renderKeysByID: [PersistentIdentifier: String] = [:]
-    private var renderTasks: [PersistentIdentifier: Task<Void, Never>] = [:]
-    private var visibleIDs: Set<PersistentIdentifier> = []
-    private var isActive = true
-    private var isScrolling = false
-
-    private static let maxConcurrentRenders = 2
-    private static let warmRows = 6
-    private static let prefetchRows = 4
-
-    init(deckID: PersistentIdentifier, container: ModelContainer, layout: DeckCardSurfaceLayout) {
-        self.deckID = deckID
-        self.container = container
-        self.layout = layout
-    }
-
-    func updateContext(container: ModelContainer, layout: DeckCardSurfaceLayout) {
-        self.container = container
-
-        guard self.layout != layout else { return }
-        self.layout = layout
-        isInitialWarmComplete = false
-        onInitialWarmStateChange?(false)
-        renderKeysByID.removeAll()
-        cancelAllRenders()
-        scheduleRendersIfPossible()
-    }
-
-    func updateCards(_ cards: [GridCardInfo], groupedSections: [DeckCardGridView.CardSection]) {
-        let nextIDs = Set(cards.map(\.id))
-        let removedIDs = Set(entriesByID.keys).subtracting(nextIDs)
-
-        for id in removedIDs {
-            renderTasks[id]?.cancel()
-            renderTasks[id] = nil
-            entriesByID[id] = nil
-            descriptorsByID[id] = nil
-            renderKeysByID[id] = nil
-        }
-
-        for card in cards {
-            let descriptor = DeckCardSurfaceDescriptor(card: card)
-            descriptorsByID[card.id] = descriptor
-            _ = entry(for: card.id)
-        }
-
-        orderedIDs = groupedSections.flatMap { section in
-            section.cards.map(\.id)
-        }
-
-        updateWarmState()
-        scheduleRendersIfPossible()
-    }
-
-    func entry(for id: PersistentIdentifier) -> DeckCardSurfaceEntry {
-        if let existing = entriesByID[id] {
-            return existing
-        }
-
-        let entry = DeckCardSurfaceEntry(cardID: id)
-        entriesByID[id] = entry
-        return entry
-    }
-
-    func setActive(_ active: Bool) {
-        isActive = active
-        if active {
-            updateVisibleState()
-            scheduleRendersIfPossible()
-        } else {
-            cancelAllRenders()
-        }
-    }
-
-    func setScrolling(_ scrolling: Bool) {
-        isScrolling = scrolling
-        if scrolling {
-            cancelAllRenders()
-        } else {
-            scheduleRendersIfPossible()
-        }
-    }
-
-    func markVisibleCardIDs(_ ids: Set<PersistentIdentifier>) {
-        visibleIDs = ids
-        updateVisibleState()
-        scheduleRendersIfPossible()
-    }
-
-    func invalidate(_ ids: Set<PersistentIdentifier>) {
-        for id in ids {
-            renderKeysByID[id] = nil
-            renderTasks[id]?.cancel()
-            renderTasks[id] = nil
-            entriesByID[id]?.isLoading = false
-        }
-        isInitialWarmComplete = false
-        onInitialWarmStateChange?(false)
-        scheduleRendersIfPossible()
-    }
-
-    func tearDown() {
-        cancelAllRenders()
-        entriesByID.removeAll()
-        descriptorsByID.removeAll()
-        renderKeysByID.removeAll()
-        orderedIDs.removeAll()
-        visibleIDs.removeAll()
-    }
-
-    private func scheduleRendersIfPossible() {
-        guard isActive, !isScrolling else { return }
-        guard !orderedIDs.isEmpty else {
-            if !isInitialWarmComplete {
-                isInitialWarmComplete = true
-                onInitialWarmStateChange?(true)
-            }
-            return
-        }
-
-        var pendingIDs = prioritizedPendingIDs()
-
-        while renderTasks.count < Self.maxConcurrentRenders,
-              let nextID = pendingIDs.first {
-            pendingIDs.removeFirst()
-            startRender(for: nextID)
-        }
-    }
-
-    private func startRender(for id: PersistentIdentifier) {
-        guard renderTasks[id] == nil else { return }
-        guard let descriptor = descriptorsByID[id] else { return }
-        let renderKey = makeRenderKey(for: descriptor)
-        guard renderKeysByID[id] != renderKey else { return }
-        let container = self.container
-        let layout = self.layout
-
-        let entry = entry(for: id)
-        entry.isLoading = true
-
-        renderTasks[id] = Task { [weak self] in
-            guard let self else { return }
-            let image = await DeckCardSurfaceRenderer.renderSurface(
-                descriptor: descriptor,
-                container: container,
-                layout: layout
-            )
-
-            await MainActor.run {
-                guard !Task.isCancelled else {
-                    self.finishRender(for: id, image: nil, renderKey: nil)
-                    return
-                }
-
-                self.finishRender(for: id, image: image, renderKey: renderKey)
-            }
-        }
-    }
-
-    private func finishRender(for id: PersistentIdentifier, image: UIImage?, renderKey: String?) {
-        renderTasks[id] = nil
-
-        guard let entry = entriesByID[id] else {
-            scheduleRendersIfPossible()
-            return
-        }
-
-        entry.isLoading = false
-
-        if let image, let renderKey {
-            entry.image = image
-            renderKeysByID[id] = renderKey
-        }
-
-        updateWarmState()
-        updateVisibleState()
-        scheduleRendersIfPossible()
-    }
-
-    private func prioritizedPendingIDs() -> [PersistentIdentifier] {
-        let initialWarmIDs = Set(orderedIDs.prefix(Self.warmRows * max(1, layout.columns)))
-
-        var prioritized: [PersistentIdentifier] = []
-        var seen: Set<PersistentIdentifier> = []
-
-        if !isInitialWarmComplete {
-            for id in orderedIDs where initialWarmIDs.contains(id) {
-                appendPending(id, to: &prioritized, seen: &seen)
-            }
-        }
-
-        if !visibleIDs.isEmpty,
-           let firstVisibleIndex = orderedIDs.firstIndex(where: { visibleIDs.contains($0) }),
-           let lastVisibleIndex = orderedIDs.lastIndex(where: { visibleIDs.contains($0) }) {
-            let span = Self.prefetchRows * max(1, layout.columns)
-            let start = max(0, firstVisibleIndex - span)
-            let end = min(orderedIDs.count - 1, lastVisibleIndex + span)
-
-            for id in orderedIDs[start...end] {
-                appendPending(id, to: &prioritized, seen: &seen)
-            }
-        }
-
-        for id in orderedIDs {
-            appendPending(id, to: &prioritized, seen: &seen)
-        }
-
-        return prioritized
-    }
-
-    private func appendPending(
-        _ id: PersistentIdentifier,
-        to prioritized: inout [PersistentIdentifier],
-        seen: inout Set<PersistentIdentifier>
-    ) {
-        guard !seen.contains(id) else { return }
-        guard let descriptor = descriptorsByID[id] else { return }
-        let renderKey = makeRenderKey(for: descriptor)
-        guard renderTasks[id] == nil else { return }
-        guard renderKeysByID[id] != renderKey else { return }
-
-        prioritized.append(id)
-        seen.insert(id)
-    }
-
-    private func updateWarmState() {
-        let warmSet = Set(orderedIDs.prefix(Self.warmRows * max(1, layout.columns)))
-        let ready = warmSet.isEmpty || warmSet.allSatisfy { renderKeysByID[$0] == makeRenderKey(forID: $0) }
-        guard ready != isInitialWarmComplete else { return }
-        isInitialWarmComplete = ready
-        onInitialWarmStateChange?(ready)
-    }
-
-    private func updateVisibleState() {
-        guard isActive else { return }
-        let ready = visibleIDs.allSatisfy { renderKeysByID[$0] == makeRenderKey(forID: $0) }
-        if ready {
-            onVisibleCardsReady?()
-        }
-    }
-
-    private func cancelAllRenders() {
-        for task in renderTasks.values {
-            task.cancel()
-        }
-        renderTasks.removeAll()
-        for entry in entriesByID.values {
-            entry.isLoading = false
-        }
-    }
-
-    private func makeRenderKey(for descriptor: DeckCardSurfaceDescriptor) -> String {
-        [DeckCardSurfaceRenderer.renderVersion, descriptor.surfaceSignature, layout.cacheKey]
-            .joined(separator: "|")
-    }
-
-    private func makeRenderKey(forID id: PersistentIdentifier) -> String? {
-        guard let descriptor = descriptorsByID[id] else { return nil }
-        return makeRenderKey(for: descriptor)
     }
 }
