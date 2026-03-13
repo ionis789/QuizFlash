@@ -116,8 +116,6 @@ struct DeckContentView: View {
                       editingCard == nil else { return }
                 viewModel.tearDown()
                 ImageCache.shared.clearCache()
-                DeckGridRichPreviewRenderer.shared.suspend()
-                MathWebViewPool.shared.flush()
             }
             .onChange(of: deck.cardCount) {
                 guard !isSuspended else { return }
@@ -167,8 +165,6 @@ struct DeckContentView: View {
                     isMenuExpanded = false
                     viewModel.suspendHeavyWork()
                     CardPreviewCache.shared.flush()
-                    DeckGridRichPreviewRenderer.shared.suspend()
-                    MathWebViewPool.shared.flush()
                 } else {
                     viewModel.requestSnapshotLoad(
                         deckID: deck.persistentModelID,

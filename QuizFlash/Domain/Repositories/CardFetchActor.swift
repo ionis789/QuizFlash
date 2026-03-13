@@ -176,8 +176,6 @@ actor CardFetchActor {
                 backText:             backText,
                 frontPreviewText:     MathTextSanitizer.normalizedPreview(frontText),
                 backPreviewText:      MathTextSanitizer.normalizedPreview(backText),
-                frontNeedsRichSnapshot: MathTextSanitizer.needsRichPreview(frontText),
-                backNeedsRichSnapshot:  MathTextSanitizer.needsRichPreview(backText),
                 createdAt:            card.createdAt,
                 editedAt:             card.editedAt
             ))

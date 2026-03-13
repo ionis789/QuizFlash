@@ -36,8 +36,6 @@ struct GridCardInfo: Identifiable, Equatable, Hashable, Sendable {
     let backText: String
     let frontPreviewText: String
     let backPreviewText: String
-    let frontNeedsRichSnapshot: Bool
-    let backNeedsRichSnapshot: Bool
     let createdAt: Date
     let editedAt: Date
 }
@@ -550,8 +548,6 @@ private extension GridCardInfo {
             backText: backText,
             frontPreviewText: frontPreviewText,
             backPreviewText: backPreviewText,
-            frontNeedsRichSnapshot: frontNeedsRichSnapshot,
-            backNeedsRichSnapshot: backNeedsRichSnapshot,
             createdAt: createdAt,
             editedAt: editedAt
         )

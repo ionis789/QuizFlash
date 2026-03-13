@@ -411,20 +411,40 @@ private struct MiniCardPreview: View {
         return trimmed.caseInsensitiveCompare("empty") == .orderedSame ? "" : trimmed
     }
 
+    private func plainDeckPreviewText(_ text: String) -> String {
+        var result = ""
+        var cursor = text.startIndex
+
+        while cursor < text.endIndex {
+            if text[cursor] == "`",
+               let closing = text[text.index(after: cursor)...].firstIndex(of: "`") {
+                result += String(text[text.index(after: cursor)..<closing])
+                cursor = text.index(after: closing)
+                continue
+            }
+
+            if text[cursor...].hasPrefix("**") {
+                let contentStart = text.index(cursor, offsetBy: 2)
+                if let closing = text[contentStart...].range(of: "**") {
+                    result += String(text[contentStart..<closing.lowerBound])
+                    cursor = closing.upperBound
+                    continue
+                }
+            }
+
+            result.append(text[cursor])
+            cursor = text.index(after: cursor)
+        }
+
+        return result
+    }
+
     private var frontText: String {
-        normalizedPreviewText(card.frontPreviewText)
+        normalizedPreviewText(plainDeckPreviewText(card.frontPreviewText))
     }
 
     private var backText: String {
-        normalizedPreviewText(card.backPreviewText)
-    }
-
-    private var rawFrontText: String {
-        card.frontText
-    }
-
-    private var rawBackText: String {
-        card.backText
+        normalizedPreviewText(plainDeckPreviewText(card.backPreviewText))
     }
 
     private var hasQuestionText: Bool {
@@ -453,71 +473,29 @@ private struct MiniCardPreview: View {
         return .standard
     }
 
-    private var questionLineLimit: Int {
-        if !hasQuestionText {
-            return 5
-        }
-        if !hasAnswerText {
-            return contentDensity == .dense ? 6 : 5
-        }
-
+    private var primaryLineLimit: Int {
         switch contentDensity {
         case .short:
-            return 3
-        case .standard:
             return 4
-        case .dense:
+        case .standard:
             return 5
+        case .dense:
+            return 6
         }
     }
 
-    private var questionMaxHeight: CGFloat {
-        if !hasQuestionText && hasAnswerText {
-            return 112
-        }
-        if !hasAnswerText {
+    private var primaryMaxHeight: CGFloat {
+        switch contentDensity {
+        case .short:
+            return 92
+        case .standard:
             return 118
-        }
-
-        switch contentDensity {
-        case .short:
-            return 58
-        case .standard:
-            return 80
         case .dense:
-            return 98
+            return 132
         }
     }
 
-    private var answerLineLimit: Int {
-        switch contentDensity {
-        case .short:
-            return 4
-        case .standard:
-            return 3
-        case .dense:
-            return 2
-        }
-    }
-
-    private var answerMaxHeight: CGFloat {
-        switch contentDensity {
-        case .short:
-            return 60
-        case .standard:
-            return 48
-        case .dense:
-            return 38
-        }
-    }
-
-    private var answerTextColor: Color {
-        colorScheme == .dark
-            ? Color.white.opacity(0.84)
-            : Color.black.opacity(0.62)
-    }
-
-    private var answerTrailingInset: CGFloat {
+    private var primaryTrailingInset: CGFloat {
         hasFooterVisual && !isSuspended ? DeckGridCardMetrics.mediaInsetCompensation : 0
     }
 
@@ -548,7 +526,7 @@ private struct MiniCardPreview: View {
                             y: DeckGridCardMetrics.headerTopInset
                         )
 
-                    contentZones(availableWidth: availableWidth)
+                    contentZones()
                         .frame(
                             width: availableWidth,
                             height: availableContentHeight,
@@ -705,73 +683,30 @@ private struct MiniCardPreview: View {
     }
 
     @ViewBuilder
-    private func contentZones(availableWidth: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            questionZone(availableWidth: availableWidth)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+    private func contentZones() -> some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: UIConstants.Spacing.small)
 
-            if hasQuestionText && hasAnswerText {
-                Spacer(minLength: DeckGridCardMetrics.zoneSpacing)
+            primaryZone()
+                .padding(.trailing, primaryTrailingInset)
 
-                secondaryZone(availableWidth: availableWidth)
-                    .frame(maxWidth: .infinity, alignment: .bottomLeading)
-            } else {
-                Spacer(minLength: 0)
-            }
+            Spacer(minLength: UIConstants.Spacing.small)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
     @ViewBuilder
-    private func questionZone(availableWidth: CGFloat) -> some View {
-        if hasQuestionText {
+    private func primaryZone() -> some View {
+        if !primaryText.isEmpty {
             previewText(
-                fallbackText: frontText,
-                richText: rawFrontText,
-                needsRichPreview: card.frontNeedsRichSnapshot,
-                fontSize: 16.5,
-                tone: .question,
-                lineLimit: questionLineLimit,
-                maxHeight: questionMaxHeight,
-                availableWidth: availableWidth,
-                side: .front
-            )
-        } else if hasAnswerText {
-            previewText(
-                fallbackText: backText,
-                richText: rawBackText,
-                needsRichPreview: card.backNeedsRichSnapshot,
-                fontSize: 15.5,
-                tone: .question,
-                lineLimit: 5,
-                maxHeight: 112,
-                availableWidth: availableWidth,
-                side: .back
+                text: primaryText,
+                fontSize: hasQuestionText ? 16.5 : 15.5,
+                textColor: .primary,
+                lineLimit: primaryLineLimit,
+                maxHeight: primaryMaxHeight
             )
         } else if didLoad && thumbnail == nil {
             emptyPlaceholder
-        }
-    }
-
-    private func secondaryZone(availableWidth: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            RoundedRectangle(cornerRadius: 1, style: .continuous)
-                .fill(Color.primary.opacity(colorScheme == .dark ? 0.16 : 0.09))
-                .frame(width: DeckGridCardMetrics.separatorWidth, height: 1)
-                .padding(.bottom, UIConstants.Spacing.small)
-
-            previewText(
-                fallbackText: backText,
-                richText: rawBackText,
-                needsRichPreview: card.backNeedsRichSnapshot,
-                fontSize: 13.5,
-                tone: .answer,
-                lineLimit: answerLineLimit,
-                maxHeight: answerMaxHeight,
-                availableWidth: max(0, availableWidth - answerTrailingInset),
-                side: .back
-            )
-            .padding(.trailing, answerTrailingInset)
         }
     }
 
@@ -788,41 +723,23 @@ private struct MiniCardPreview: View {
     }
 
     private func previewText(
-        fallbackText: String,
-        richText: String,
-        needsRichPreview: Bool,
+        text: String,
         fontSize: CGFloat,
-        tone: DeckGridRichPreviewTone,
+        textColor: Color,
         lineLimit: Int,
-        maxHeight: CGFloat,
-        availableWidth: CGFloat,
-        side: DeckGridRichPreviewSide
+        maxHeight: CGFloat
     ) -> some View {
-        DeckGridRichPreviewBlock(
-            request: needsRichPreview
-                ? DeckGridRichPreviewRequest(
-                    cardID: card.id,
-                    editedAt: card.editedAt,
-                    side: side,
-                    text: richText,
-                    width: max(1, availableWidth),
-                    maxHeight: maxHeight,
-                    fontSize: fontSize,
-                    tone: tone,
-                    colorScheme: colorScheme
-                )
-                : nil,
-            fallbackText: fallbackText,
-            fontSize: fontSize,
-            textColor: tone == .question ? .primary : answerTextColor,
-            lineLimit: lineLimit,
-            maxHeight: maxHeight,
-            availableWidth: availableWidth,
-            colorScheme: colorScheme,
-            isSuspended: isSuspended
-        )
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(maxHeight: maxHeight, alignment: .topLeading)
+        Text(verbatim: text)
+            .font(.system(size: fontSize, weight: .regular, design: .rounded))
+            .foregroundStyle(textColor)
+            .multilineTextAlignment(.center)
+            .lineLimit(lineLimit)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .frame(maxHeight: maxHeight, alignment: .center)
+            .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxHeight: maxHeight, alignment: .center)
         .clipped()
     }
 
@@ -954,269 +871,6 @@ private struct MiniCardPreview: View {
 
     private var borderLineWidth: CGFloat {
         isSelected ? 1.5 : (isSelectionMode ? 0 : 0.75)
-    }
-}
-
-private struct DeckGridRichPreviewBlock: View {
-    let request: DeckGridRichPreviewRequest?
-    let fallbackText: String
-    let fontSize: CGFloat
-    let textColor: Color
-    let lineLimit: Int
-    let maxHeight: CGFloat
-    let availableWidth: CGFloat
-    let colorScheme: ColorScheme
-    let isSuspended: Bool
-
-    @State private var snapshot: UIImage? = nil
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            fallbackBody
-                .opacity(snapshot == nil ? 1 : 0.001)
-
-            if let snapshot {
-                Image(uiImage: snapshot)
-                    .resizable()
-                    .interpolation(.high)
-                    .antialiased(true)
-                    .frame(
-                        width: snapshot.size.width,
-                        height: snapshot.size.height,
-                        alignment: .topLeading
-                    )
-            }
-        }
-        .task(id: "\(request?.cacheKey ?? "")-\(isSuspended ? 1 : 0)") {
-            guard let request, !isSuspended else {
-                snapshot = nil
-                return
-            }
-
-            let cached = await MainActor.run {
-                DeckGridRichPreviewCache.shared.image(for: request)
-            }
-            if let cached {
-                snapshot = cached
-                return
-            }
-
-            try? await Task.sleep(nanoseconds: 180_000_000)
-            guard !Task.isCancelled, !isSuspended else { return }
-
-            if let rendered = await DeckGridRichPreviewRenderer.shared.image(for: request),
-               !Task.isCancelled,
-               !isSuspended {
-                snapshot = rendered
-            }
-        }
-        .onChange(of: isSuspended) { _, suspended in
-            if suspended {
-                snapshot = nil
-            }
-        }
-        .onDisappear {
-            snapshot = nil
-        }
-    }
-
-    private var fallbackBody: some View {
-        DeckGridFormattedFallbackText(
-            text: fallbackText,
-            fontSize: fontSize,
-            textColor: textColor,
-            lineLimit: lineLimit,
-            maxHeight: maxHeight,
-            availableWidth: availableWidth,
-            colorScheme: colorScheme
-        )
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(maxHeight: maxHeight, alignment: .topLeading)
-        .clipped()
-    }
-}
-
-private struct DeckGridFormattedFallbackText: UIViewRepresentable {
-    let text: String
-    let fontSize: CGFloat
-    let textColor: Color
-    let lineLimit: Int
-    let maxHeight: CGFloat
-    let availableWidth: CGFloat
-    let colorScheme: ColorScheme
-
-    func makeUIView(context: Context) -> UILabel {
-        let label = UILabel()
-        label.backgroundColor = .clear
-        label.numberOfLines = lineLimit
-        label.lineBreakMode = .byTruncatingTail
-        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        label.setContentCompressionResistancePriority(.required, for: .vertical)
-        return label
-    }
-
-    func updateUIView(_ uiView: UILabel, context: Context) {
-        uiView.numberOfLines = lineLimit
-        uiView.preferredMaxLayoutWidth = max(1, availableWidth)
-        uiView.attributedText = DeckGridFormattedFallbackBuilder.make(
-            text: text,
-            fontSize: fontSize,
-            textColor: UIColor(textColor),
-            colorScheme: colorScheme
-        )
-    }
-
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UILabel, context: Context) -> CGSize? {
-        let width = max(1, proposal.width ?? availableWidth)
-        let fitted = uiView.sizeThatFits(
-            CGSize(width: width, height: .greatestFiniteMagnitude)
-        )
-        return CGSize(width: width, height: min(maxHeight, fitted.height))
-    }
-}
-
-private enum DeckGridFormattedFallbackBuilder {
-    private enum Segment {
-        case plain(String)
-        case strong(String)
-        case code(String)
-    }
-
-    static func make(
-        text: String,
-        fontSize: CGFloat,
-        textColor: UIColor,
-        colorScheme: ColorScheme
-    ) -> NSAttributedString {
-        let result = NSMutableAttributedString()
-        let segments = parse(text)
-
-        for segment in segments {
-            let fragment: NSAttributedString
-
-            switch segment {
-            case .plain(let value):
-                fragment = NSAttributedString(
-                    string: value,
-                    attributes: baseAttributes(fontSize: fontSize, textColor: textColor)
-                )
-
-            case .strong(let value):
-                fragment = NSAttributedString(
-                    string: value,
-                    attributes: strongAttributes(fontSize: fontSize, textColor: textColor)
-                )
-
-            case .code(let value):
-                fragment = NSAttributedString(
-                    string: MathTextSanitizer.normalizedCodeLiteral(value),
-                    attributes: codeAttributes(
-                        fontSize: fontSize,
-                        textColor: textColor,
-                        colorScheme: colorScheme
-                    )
-                )
-            }
-
-            result.append(fragment)
-        }
-
-        if result.length == 0 {
-            return NSAttributedString(
-                string: text,
-                attributes: baseAttributes(fontSize: fontSize, textColor: textColor)
-            )
-        }
-
-        return result
-    }
-
-    private static func parse(_ text: String) -> [Segment] {
-        var segments: [Segment] = []
-        var buffer = ""
-        var cursor = text.startIndex
-
-        func flushBuffer() {
-            guard !buffer.isEmpty else { return }
-            segments.append(.plain(buffer))
-            buffer.removeAll(keepingCapacity: true)
-        }
-
-        while cursor < text.endIndex {
-            if text[cursor] == "`",
-               let closing = text[text.index(after: cursor)...].firstIndex(of: "`") {
-                flushBuffer()
-                let inner = String(text[text.index(after: cursor)..<closing])
-                segments.append(.code(inner))
-                cursor = text.index(after: closing)
-                continue
-            }
-
-            if text[cursor...].hasPrefix("**") {
-                let contentStart = text.index(cursor, offsetBy: 2)
-                if let closing = text[contentStart...].range(of: "**") {
-                    flushBuffer()
-                    let inner = String(text[contentStart..<closing.lowerBound])
-                    segments.append(.strong(inner))
-                    cursor = closing.upperBound
-                    continue
-                }
-            }
-
-            buffer.append(text[cursor])
-            cursor = text.index(after: cursor)
-        }
-
-        flushBuffer()
-        return segments
-    }
-
-    private static func roundedFont(size: CGFloat, weight: UIFont.Weight) -> UIFont {
-        let base = UIFont.systemFont(ofSize: size, weight: weight)
-        let descriptor = base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor
-        return UIFont(descriptor: descriptor, size: size)
-    }
-
-    private static func paragraphStyle() -> NSMutableParagraphStyle {
-        let style = NSMutableParagraphStyle()
-        style.lineBreakMode = .byTruncatingTail
-        return style
-    }
-
-    private static func baseAttributes(fontSize: CGFloat, textColor: UIColor) -> [NSAttributedString.Key: Any] {
-        [
-            .font: roundedFont(size: fontSize, weight: .regular),
-            .foregroundColor: textColor,
-            .paragraphStyle: paragraphStyle()
-        ]
-    }
-
-    private static func strongAttributes(fontSize: CGFloat, textColor: UIColor) -> [NSAttributedString.Key: Any] {
-        [
-            .font: roundedFont(size: fontSize, weight: .bold),
-            .foregroundColor: textColor,
-            .paragraphStyle: paragraphStyle()
-        ]
-    }
-
-    private static func codeAttributes(
-        fontSize: CGFloat,
-        textColor: UIColor,
-        colorScheme: ColorScheme
-    ) -> [NSAttributedString.Key: Any] {
-        let background = colorScheme == .dark
-            ? UIColor.white.withAlphaComponent(0.08)
-            : UIColor.black.withAlphaComponent(0.06)
-        let foreground = colorScheme == .dark
-            ? UIColor.white.withAlphaComponent(0.94)
-            : textColor.withAlphaComponent(0.9)
-
-        return [
-            .font: UIFont.monospacedSystemFont(ofSize: max(11, fontSize * 0.9), weight: .semibold),
-            .foregroundColor: foreground,
-            .backgroundColor: background,
-            .paragraphStyle: paragraphStyle()
-        ]
     }
 }
 
