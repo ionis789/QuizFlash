@@ -10,10 +10,32 @@ import SwiftUI
 struct DetailedCardRowView: View {
     let card: DraftCard
     var index: Int
+    var fixedHeight: CGFloat? = nil
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
 
     var body: some View {
+        Group {
+            if let fixedHeight {
+                cardContent
+                    .padding(16)
+                    .frame(maxWidth: .infinity, minHeight: fixedHeight, maxHeight: fixedHeight, alignment: .topLeading)
+            } else {
+                cardContent
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(
+                    Color.libraryDeckRow
+                        .shadow(.inner(color: Color.white.opacity(0.15), radius: 1, x: 0, y: 0))
+                )
+        }
+    }
+
+    private var cardContent: some View {
         VStack(alignment: .leading, spacing: 14) {
 
             // MARK: - Header (Index, Media Icons, Last Edit)
@@ -88,15 +110,6 @@ struct DetailedCardRowView: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .padding(.top, 2)
-
-        }
-            .padding(16)
-            .background {
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(
-                Color.libraryDeckRow
-                    .shadow(.inner(color: Color.white.opacity(0.15), radius: 1, x: 0, y: 0))
-            )
         }
     }
 

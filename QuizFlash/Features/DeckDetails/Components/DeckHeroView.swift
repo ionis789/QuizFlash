@@ -35,28 +35,56 @@ struct DeckHeroView: View {
     let stats: DeckStats
 
     @Environment(DeckScrollState.self) private var scrollState
+    @State private var measuredTextWidth: CGFloat = 0
 
     /// Convenience accessor; avoids multiple `scrollState.pillVisible` reads.
     private var pillVisible: Bool { scrollState.pillVisible }
+    private var resolvedTitle: String {
+        let trimmed = deck.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Untitled Deck" : trimmed
+    }
+    private var resolvedWidth: CGFloat {
+        let intrinsicWidth = measuredTextWidth + (UIConstants.Spacing.standard * 2)
+        return min(220, max(UIConstants.Size.capsuleHeight, intrinsicWidth))
+    }
 
     var body: some View {
         collapsedPill
     }
 
     private var collapsedPill: some View {
-        Text(deck.title)
-            .font(.system(size: 15, weight: .bold, design: .rounded))
-            .foregroundStyle(.primary)
-            .lineLimit(1)
-            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-            .padding(.vertical, 8)
-            .frame(height: 50)
-            .background {
-                AnimatedPillBackground(mastery: stats.deckMastery)
-            }
-            .opacity(pillVisible ? 1 : 0)
-            .scaleEffect(pillVisible ? 1 : HeroAnimation.pillInitialScale, anchor: .top)
-            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: pillVisible)
+        ZStack {
+            Text(resolvedTitle)
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .hidden()
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.width
+                } action: { newWidth in
+                    if abs(measuredTextWidth - newWidth) > 0.5 {
+                        measuredTextWidth = newWidth
+                    }
+                }
+
+            Text(resolvedTitle)
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .minimumScaleFactor(0.92)
+                .frame(width: max(0, resolvedWidth - (UIConstants.Spacing.standard * 2)))
+        }
+        .padding(.horizontal, UIConstants.Spacing.standard)
+        .padding(.vertical, 8)
+        .frame(width: resolvedWidth)
+        .frame(height: UIConstants.Size.capsuleHeight)
+        .background {
+            AnimatedPillBackground(mastery: stats.deckMastery)
+        }
+        .opacity(pillVisible ? 1 : 0)
+        .scaleEffect(pillVisible ? 1 : HeroAnimation.pillInitialScale, anchor: .top)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: pillVisible)
     }
 }
 

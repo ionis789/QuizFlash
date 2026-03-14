@@ -17,6 +17,8 @@ struct CreateDeckView: View {
     // MARK: - Environment
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
+    @Environment(\.fullScreenSheetDismissCoordinator) private var fullScreenSheetDismissCoordinator
     @Environment(NavigationManager.self) private var router
 
     /// Fetches all available folders to populate the destination picker.
@@ -27,6 +29,8 @@ struct CreateDeckView: View {
     @State private var scrollState = CreateDeckScrollState()
     @State private var leadingControlWidth: CGFloat = UIConstants.Size.actionButton
     @State private var trailingControlWidth: CGFloat = (UIConstants.Size.actionButton * 2) + UIConstants.Spacing.small
+    @State private var showUnsavedChangesDialog = false
+    @State private var allowDismissWithoutConfirmation = false
 
     /// Tracks the focus state of the deck title text field.
     /// Drives the tab bar visibility rule reactively.
@@ -48,29 +52,23 @@ struct CreateDeckView: View {
         return "\(count) card\(count == 1 ? "" : "s")"
     }
     private var aiToolbarStatusText: String? {
-        if viewModel.isMaterializing {
-            return "Generating AI..."
-        }
-
         switch viewModel.aiState {
         case .extractingText:
             return "Reading Docs..."
-        case .generatingCards:
-            return "Generating AI..."
+        case .generatingCards(_, let foundCount):
+            let target = max(viewModel.aiTargetCardCount, 1)
+            return foundCount > 0 ? "AI \(foundCount)/\(target)" : "Generating AI..."
         default:
             return nil
         }
     }
     private var aiVisualStatusText: String? {
-        if viewModel.isMaterializing {
-            return "Generating"
-        }
-
         switch viewModel.aiState {
         case .extractingText:
             return "Reading Docs"
-        case .generatingCards:
-            return "Generating"
+        case .generatingCards(_, let foundCount):
+            let target = max(viewModel.aiTargetCardCount, 1)
+            return foundCount > 0 ? "\(foundCount)/\(target) Ready" : "Generating"
         default:
             return nil
         }
@@ -85,11 +83,17 @@ struct CreateDeckView: View {
         scrollState.pillVisible
             && !viewModel.draftCards.isEmpty
             && !isTitleFocused
-            && !viewModel.showAIOptionsOverlay
+            && viewModel.aiSheetDestination == nil
             && !viewModel.showSuccessOverlay
     }
     private var shouldShowCollapsedTitle: Bool {
-        scrollState.pillVisible && !viewModel.draftCards.isEmpty
+        scrollState.pillVisible && !viewModel.draftCards.isEmpty && !collapsedDeckTitle.isEmpty
+    }
+    private var canUseInteractiveDismiss: Bool {
+        fullScreenSheetDismiss != nil
+            && viewModel.aiSheetDestination == nil
+            && !viewModel.showSuccessOverlay
+            && !isTitleFocused
     }
 
     /// Contextual rule for tab bar visibility.
@@ -97,7 +101,7 @@ struct CreateDeckView: View {
     /// Forces the tab bar to hide only while the keyboard is active.
     /// Materialization (card reveal animation) intentionally leaves the bar visible.
     private var tabRule: TabBarVisibilityRule {
-        if isTitleFocused {
+        if isTitleFocused || viewModel.aiSheetDestination != nil {
             return .hidden
         }
         return .implicit
@@ -133,26 +137,6 @@ struct CreateDeckView: View {
                 if viewModel.showSuccessOverlay {
                     successOverlay.zIndex(100)
                 }
-
-                if viewModel.showAIOptionsOverlay {
-                    AIOptionsOverlay(
-                        requestedCardCount: $viewModel.requestedCardCount,
-                        extractionMode: $viewModel.extractionMode,
-                        pdfAnalysis: viewModel.pdfAnalysis,
-                        isForPDF: viewModel.pendingPDFURL != nil,
-                        onGenerate: {
-                            viewModel.showAIOptionsOverlay = false
-                            viewModel.startAIGeneration()
-                        },
-                        onCancel: {
-                            viewModel.showAIOptionsOverlay = false
-                            viewModel.selectedAIPhotos = []
-                            viewModel.pendingPDFURL = nil
-                            viewModel.pdfAnalysis = nil
-                        }
-                    )
-                    .zIndex(50)
-                }
             }
             .overlay(alignment: .top) {
                 navigationBar(containerWidth: outer.size.width)
@@ -163,15 +147,45 @@ struct CreateDeckView: View {
         }
         .environment(scrollState)
         .toolbar(.hidden, for: .navigationBar)
+        .confirmationDialog("Save changes before leaving?", isPresented: $showUnsavedChangesDialog, titleVisibility: .visible) {
+            if canSave {
+                Button("Save Changes") {
+                    handleSave()
+                }
+            }
+
+            Button("Discard Changes", role: .destructive) {
+                discardChangesAndDismiss()
+            }
+
+            Button("Keep Editing", role: .cancel) { }
+        } message: {
+            Text("You have unsaved changes in this deck.")
+        }
         .confirmationDialog("Generate Cards with AI", isPresented: $viewModel.showAIPickerOptions, titleVisibility: .visible) {
             Button("Choose Photos") { viewModel.showAIPhotoPicker = true }
             Button("Choose PDF") { viewModel.showAIPDFPicker = true }
             Button("Cancel", role: .cancel) { }
         } message: { Text("Extract text from images or documents.") }
-        // ── AI Lifecycle ──
-        .onChange(of: viewModel.aiState) { _, newState in
-            if case .idle = newState, !viewModel.draftCards.isEmpty, !viewModel.isMaterializing {
-                viewModel.startMaterializationSequence()
+        .confirmationDialog("Stop AI generation?", isPresented: $viewModel.showAICancelDialog, titleVisibility: .visible) {
+            if viewModel.hasGeneratedCardsInCurrentAISession {
+                Button("Keep \(viewModel.aiGeneratedCardCount) received cards") {
+                    viewModel.cancelAIGeneration(keepingGeneratedCards: true)
+                }
+                Button("Discard received cards", role: .destructive) {
+                    viewModel.cancelAIGeneration(keepingGeneratedCards: false)
+                }
+            } else {
+                Button("Stop generation", role: .destructive) {
+                    viewModel.cancelAIGeneration(keepingGeneratedCards: true)
+                }
+            }
+            Button("Continue", role: .cancel) { }
+        } message: {
+            if viewModel.hasGeneratedCardsInCurrentAISession {
+                Text("You can stop now and keep the cards already received, or discard this AI batch completely.")
+            } else {
+                Text("The current AI generation will stop immediately.")
             }
         }
         .fullScreenCover(isPresented: $viewModel.isCreatingNewCard) {
@@ -184,9 +198,45 @@ struct CreateDeckView: View {
                 viewModel.updateCard(card, frontZone: f, backZone: b)
             }
         }
+        .fullScreenSheet(
+            ignoresSafeArea: true,
+            item: $viewModel.aiSheetDestination,
+            dragDismissActivationHeight: 180
+        ) { _, safeArea in
+            AIGenerationSheetView(
+                viewModel: viewModel,
+                safeAreaInsets: safeArea,
+                onPrimaryAction: {
+                    viewModel.confirmAIGenerationFromSheet()
+                },
+                onCancel: {
+                    viewModel.dismissAISheet(clearPendingSourceSelection: true)
+                }
+            )
+        } background: {
+            AIGenerationSheetBackground()
+        }
         .photosPicker(isPresented: $viewModel.showAIPhotoPicker, selection: $viewModel.selectedAIPhotos, matching: .images)
         .fileImporter(isPresented: $viewModel.showAIPDFPicker, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
             if case .success(let urls) = result, let url = urls.first { viewModel.pdfWasSelected(url) }
+        }
+        .onChange(of: viewModel.aiSheetDestination) { oldValue, newValue in
+            if oldValue != nil, newValue == nil {
+                viewModel.handleAISheetDismissed()
+            }
+        }
+        .swipeBack(enabled: canUseInteractiveDismiss) {
+            requestDismiss()
+        }
+        .onAppear {
+            fullScreenSheetDismissCoordinator?.shouldAllowDismiss = {
+                attemptInteractiveDismissValidation()
+            }
+        }
+        .onDisappear {
+            if fullScreenSheetDismissCoordinator?.shouldAllowDismiss != nil {
+                fullScreenSheetDismissCoordinator?.shouldAllowDismiss = nil
+            }
         }
         // Apply the reactive visibility rule to the global tab bar.
         .customTabBarVisibility(tabRule)
@@ -269,7 +319,10 @@ private extension CreateDeckView {
 
             Spacer(minLength: 0)
 
-            generateActionControl
+            HStack(spacing: UIConstants.Spacing.small) {
+                mockAIActionControl
+                generateActionControl
+            }
         }
         .background {
             Color.clear
@@ -338,6 +391,28 @@ private extension CreateDeckView {
     }
 
     @ViewBuilder
+    private var mockAIActionControl: some View {
+        if !viewModel.isGenerating {
+            CreateDeckCapsuleButton(
+                action: {
+                    isTitleFocused = false
+                    viewModel.startMockAIGeneration()
+                },
+                accessibilityLabel: "Run mock AI generation"
+            ) {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Image(systemName: "bolt.badge.clock")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                    Text("Mock AI")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(.blue)
+            }
+        }
+    }
+
+    @ViewBuilder
     private var generateActionControl: some View {
         if let statusText = aiVisualStatusText {
             CreateDeckCapsuleContainer {
@@ -348,6 +423,18 @@ private extension CreateDeckView {
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
+
+                    Button {
+                        viewModel.requestAIGenerationCancel()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 22, height: 22)
+                            .background(Color.white.opacity(0.08), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Cancel AI generation")
                 }
             }
             .accessibilityLabel(aiToolbarStatusText ?? statusText)
@@ -386,7 +473,12 @@ private extension CreateDeckView {
     private func floatingGenerateAction(bottomInset: CGFloat) -> some View {
         generateActionControl
             .padding(.trailing, UIConstants.Layout.compactScreenEdgeInset)
-            .padding(.bottom, max(bottomInset, UIConstants.Spacing.standard) + UIConstants.Spacing.extraLarge)
+            .padding(
+                .bottom,
+                max(bottomInset, UIConstants.Spacing.standard)
+                    + UIConstants.Size.capsuleHeight
+                    + UIConstants.Spacing.medium
+            )
             .opacity(shouldShowFloatingGenerate ? 1 : 0)
             .offset(y: shouldShowFloatingGenerate ? 0 : 18)
             .scaleEffect(shouldShowFloatingGenerate ? 1 : 0.92, anchor: .trailing)
@@ -417,35 +509,116 @@ private extension CreateDeckView {
         Group {
             if case .extractingText = viewModel.aiState {
                 AIExtractingLoadingView().transition(.asymmetric(insertion: .opacity, removal: .opacity))
-            } else if case .generatingCards = viewModel.aiState {
-                AIGenerationSkeletonList(cardCount: viewModel.requestedCardCount).transition(.opacity)
+            } else if case .generatingCards(let progress, let foundCount) = viewModel.aiState {
+                LazyVStack(spacing: 16) {
+                    AIStreamingProgressCard(
+                        foundCount: foundCount,
+                        targetCount: max(viewModel.aiTargetCardCount, 1),
+                        progress: progress,
+                        onCancel: {
+                            viewModel.requestAIGenerationCancel()
+                        }
+                    )
+                    .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
+
+                    if !existingDraftCardsDuringAIGeneration.isEmpty {
+                        ForEach(Array(existingDraftCardsDuringAIGeneration.enumerated()), id: \.element.id) { index, card in
+                            draftCardRow(card, index: index + 1)
+                        }
+                    }
+
+                    aiGenerationCardSlots()
+                }
             } else if viewModel.draftCards.isEmpty {
                 emptyStateView.transition(.opacity)
             } else {
                 LazyVStack(spacing: 16) {
-                    ForEach(Array(viewModel.draftCards.enumerated()), id: \.element.id) { index, card in
-                        MaterializingCardWrapper(isRevealed: viewModel.revealedCardIndices.contains(index) || !viewModel.isMaterializing) {
-                            DetailedCardRowView(card: card, index: index + 1)
-                                .contentShape(Rectangle())
-                                .onTapGesture { isTitleFocused = false; viewModel.cardToEdit = card }
-                                .contextMenu {
-                                Button { viewModel.cardToEdit = card } label: { Label("Edit", systemImage: "pencil") }
-                                Button(role: .destructive) {
-                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { viewModel.deleteCard(card) }
-                                } label: { Label("Delete", systemImage: "trash") }
-                            }
-                                .transition(.asymmetric(
-                                insertion: .scale(scale: 0.9).combined(with: .opacity).combined(with: .move(edge: .bottom)),
-                                removal: .scale(scale: 0.8).combined(with: .opacity)
-                            ))
-                        }
-                    }
+                    draftCardRows()
                 }
             }
         }
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-            .animation(.easeInOut(duration: 0.35), value: viewModel.aiState)
+            .animation(
+                viewModel.isGenerating ? nil : .spring(response: 0.36, dampingFraction: 0.84),
+                value: viewModel.draftCards.map(\.id)
+            )
             .animation(.easeInOut(duration: 0.35), value: viewModel.draftCards.isEmpty)
+    }
+
+    private var existingDraftCardsDuringAIGeneration: ArraySlice<DraftCard> {
+        let cappedBaseCount = min(viewModel.aiGenerationBaseCardCount, viewModel.draftCards.count)
+        return viewModel.draftCards.prefix(cappedBaseCount)
+    }
+
+    private var generatedDraftCardsDuringAIGeneration: ArraySlice<DraftCard> {
+        let cappedBaseCount = min(viewModel.aiGenerationBaseCardCount, viewModel.draftCards.count)
+        return viewModel.draftCards.dropFirst(cappedBaseCount)
+    }
+
+    @ViewBuilder
+    private func aiGenerationCardSlots() -> some View {
+        let generatedCards = Array(generatedDraftCardsDuringAIGeneration)
+        let baseCount = existingDraftCardsDuringAIGeneration.count
+        let slotCount = max(viewModel.aiTargetCardCount, generatedCards.count)
+
+        ForEach(0..<slotCount, id: \.self) { slotIndex in
+            let card = slotIndex < generatedCards.count ? generatedCards[slotIndex] : nil
+            AIStreamingCardSlot(
+                slotIndex: slotIndex,
+                isFilled: card != nil,
+                filledCardID: card?.id
+            ) {
+                if let card {
+                    draftCardRow(card, index: baseCount + slotIndex + 1, appliesTransition: false)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func draftCardRows() -> some View {
+        ForEach(Array(viewModel.draftCards.enumerated()), id: \.element.id) { index, card in
+            draftCardRow(card, index: index + 1)
+        }
+    }
+
+    private func draftCardRow(
+        _ card: DraftCard,
+        index: Int,
+        appliesTransition: Bool = true
+    ) -> some View {
+        DetailedCardRowView(
+            card: card,
+            index: index,
+            fixedHeight: appliesTransition ? nil : UIConstants.Size.draftCardRowHeight
+        )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                isTitleFocused = false
+                viewModel.cardToEdit = card
+            }
+            .contextMenu {
+                Button { viewModel.cardToEdit = card } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+                Button(role: .destructive) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        viewModel.deleteCard(card)
+                    }
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+            .transition(
+                appliesTransition
+                    ? .asymmetric(
+                        insertion: .move(edge: .bottom)
+                            .combined(with: .opacity)
+                            .combined(with: .scale(scale: 0.96)),
+                        removal: .scale(scale: 0.92).combined(with: .opacity)
+                    )
+                    : .identity
+            )
     }
 
     var emptyStateView: some View {
@@ -508,7 +681,43 @@ private extension CreateDeckView {
 
     private func handleSave() {
         isTitleFocused = false
-        viewModel.saveDeck(context: context, router: router, dismiss: dismiss)
+        allowDismissWithoutConfirmation = true
+        let didStartDismissFlow = viewModel.saveDeck(
+            context: context,
+            router: router,
+            dismissAction: dismissPresentation
+        )
+        if !didStartDismissFlow {
+            allowDismissWithoutConfirmation = false
+        }
+    }
+
+    private func requestDismiss() {
+        guard attemptInteractiveDismissValidation() else { return }
+        allowDismissWithoutConfirmation = true
+        dismissPresentation()
+    }
+
+    private func attemptInteractiveDismissValidation() -> Bool {
+        guard !allowDismissWithoutConfirmation else { return true }
+        guard viewModel.hasUnsavedChanges else { return true }
+        Task { @MainActor in
+            showUnsavedChangesDialog = true
+        }
+        return false
+    }
+
+    private func discardChangesAndDismiss() {
+        allowDismissWithoutConfirmation = true
+        dismissPresentation()
+    }
+
+    private func dismissPresentation() {
+        if let fullScreenSheetDismiss {
+            fullScreenSheetDismiss()
+        } else {
+            dismiss()
+        }
     }
 }
 
@@ -582,11 +791,13 @@ private struct CreateDeckCollapsedTitlePill: View {
 
     @State private var measuredTextWidth: CGFloat = 0
 
+    private let maximumVisualWidth: CGFloat = 220
     private var hasTitle: Bool { !title.isEmpty }
     private var horizontalPadding: CGFloat { hasTitle ? UIConstants.Spacing.standard : 0 }
     private var resolvedWidth: CGFloat {
         let intrinsicWidth = measuredTextWidth + (horizontalPadding * 2)
-        return min(maxWidth, max(UIConstants.Size.buttonHeight, intrinsicWidth))
+        let cappedMaxWidth = min(maxWidth, maximumVisualWidth)
+        return min(cappedMaxWidth, max(UIConstants.Size.buttonHeight, intrinsicWidth))
     }
 
     var body: some View {
@@ -611,6 +822,7 @@ private struct CreateDeckCollapsedTitlePill: View {
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .minimumScaleFactor(0.92)
                 .frame(width: max(0, resolvedWidth - (horizontalPadding * 2)))
         }
             .padding(.horizontal, horizontalPadding)
@@ -628,166 +840,4 @@ private struct CreateDeckCollapsedTitlePill: View {
 @Observable
 private final class CreateDeckScrollState {
     var pillVisible: Bool = false
-}
-
-// MARK: - AIOptionsOverlay
-
-struct AIOptionsOverlay: View {
-    @Binding var requestedCardCount: Int
-    @Binding var extractionMode: ExtractionMode
-    let pdfAnalysis: PDFAnalysisInfo?
-    let isForPDF: Bool
-    var onGenerate: () -> Void
-    var onCancel: () -> Void
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.4)
-                .ignoresSafeArea()
-                .background(.ultraThinMaterial)
-
-            VStack(spacing: 20) {
-                Image(systemName: "sparkles.rectangle.stack")
-                    .font(.system(size: 40))
-                    .foregroundStyle(LinearGradient(
-                    colors: [.purple, .blue],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
-
-                Text("AI Generation Settings")
-                    .font(.title3.weight(.bold))
-
-                if isForPDF, let info = pdfAnalysis {
-                    pdfQualityBadge(info: info)
-                        .transition(.scale.combined(with: .opacity))
-                }
-
-                Stepper(value: $requestedCardCount, in: 5...100, step: 5) {
-                    Text("**\(requestedCardCount)** cards")
-                        .font(.headline)
-                }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(Color.secondary.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                modePicker
-
-                HStack(spacing: 16) {
-                    Button("Cancel", action: onCancel)
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.secondary.opacity(0.2))
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-
-                    Button("Generate", action: onGenerate)
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.accentColor)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-            }
-                .padding(28)
-                .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color(uiColor: .systemBackground))
-                    .shadow(color: .black.opacity(0.2), radius: 24, y: 12)
-            )
-                .padding(.horizontal, 36)
-        }
-            .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: pdfAnalysis?.quality)
-    }
-
-    @ViewBuilder
-    private func pdfQualityBadge(info: PDFAnalysisInfo) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: info.qualityIcon)
-                .foregroundStyle(info.isGoodForFast ? .green : .orange)
-                .font(.title3)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(info.qualityLabel)
-                    .font(.subheadline.weight(.semibold))
-                Text("\(info.pageCount) pages · ~\(info.extractedChars) chars")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text(info.recommendation == .fast ? "Fast ✓" : "Quality ✓")
-                .font(.caption.weight(.bold))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(info.isGoodForFast ? Color.green.opacity(0.2) : Color.orange.opacity(0.2))
-                .foregroundStyle(info.isGoodForFast ? .green : .orange)
-                .clipShape(Capsule())
-        }
-            .padding(14)
-            .background(Color.secondary.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private var modePicker: some View {
-        VStack(spacing: 8) {
-            ModeButton(
-                isSelected: extractionMode == .fast,
-                icon: "bolt.fill",
-                iconColor: .yellow,
-                title: "Fast (Free)",
-                description: isForPDF ? "PDFKit + on-device OCR." : "On-device OCR.",
-                onTap: { extractionMode = .fast }
-            )
-            ModeButton(
-                isSelected: extractionMode == .quality,
-                icon: "eye.fill",
-                iconColor: .purple,
-                title: "Quality (GPT Vision)",
-                description: isForPDF ? "Sends pages to GPT-4o." : "Sends images to GPT-4o.",
-                onTap: { extractionMode = .quality }
-            )
-        }
-    }
-}
-
-// MARK: - ModeButton
-
-private struct ModeButton: View {
-    let isSelected: Bool
-    let icon: String
-    let iconColor: Color
-    let title: String
-    let description: String
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: icon)
-                    .foregroundStyle(iconColor)
-                    .font(.title3)
-                    .frame(width: 28)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-                    .font(.title3)
-            }
-                .padding(14)
-                .background(RoundedRectangle(cornerRadius: 12).fill(isSelected ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.08)))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(isSelected ? Color.accentColor.opacity(0.5) : Color.clear, lineWidth: 1.5))
-        }
-            .buttonStyle(.plain)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelected)
-    }
 }

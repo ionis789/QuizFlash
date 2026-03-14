@@ -19,15 +19,14 @@ struct AIZoneParser {
     // -------------------------------------------------------------------------
 
     static func parse(text: String) -> ZoneModel {
-        let zones = extractZoneStrings(from: text)
-        return buildTree(from: zones)
+        parse(zones: extractZoneStrings(from: text))
     }
 
     static func parse(zones: [String]) -> ZoneModel {
         let cleaned = zones
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        return buildTree(from: cleaned)
+        return buildTree(from: mergeSplitCodeFenceZones(in: cleaned))
     }
 
     // -------------------------------------------------------------------------
@@ -38,9 +37,6 @@ struct AIZoneParser {
         var raw = text.trimmingCharacters(in: .whitespacesAndNewlines)
         raw = fixLiteralNewlines(raw)
 
-        raw = raw.replacingOccurrences(of: "\n```", with: "\n\(zoneDelimiter)```")
-        raw = raw.replacingOccurrences(of: "```\n", with: "```\(zoneDelimiter)\n")
-
         let parts = raw.contains(zoneDelimiter)
             ? raw.components(separatedBy: zoneDelimiter)
         : [raw]
@@ -48,6 +44,46 @@ struct AIZoneParser {
         return parts
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    private static func mergeSplitCodeFenceZones(in zones: [String]) -> [String] {
+        guard !zones.isEmpty else { return [] }
+
+        var merged: [String] = []
+        var bufferedCodeZone: String?
+
+        for zone in zones {
+            let trimmedZone = zone.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedZone.isEmpty else { continue }
+
+            if var buffer = bufferedCodeZone {
+                if !buffer.hasSuffix("\n") {
+                    buffer += "\n"
+                }
+                buffer += trimmedZone
+
+                if hasBalancedCodeFences(in: buffer) {
+                    merged.append(buffer)
+                    bufferedCodeZone = nil
+                } else {
+                    bufferedCodeZone = buffer
+                }
+                continue
+            }
+
+            if startsUnbalancedCodeFence(trimmedZone) {
+                bufferedCodeZone = trimmedZone
+            } else {
+                merged.append(trimmedZone)
+            }
+        }
+
+        if let bufferedCodeZone,
+           !bufferedCodeZone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            merged.append(bufferedCodeZone)
+        }
+
+        return merged
     }
     // -------------------------------------------------------------------------
     // MARK: - Tree Builder  (NO recursion)
@@ -82,6 +118,15 @@ struct AIZoneParser {
         }
 
         return .text(processed)
+    }
+
+    private static func startsUnbalancedCodeFence(_ input: String) -> Bool {
+        input.hasPrefix("```") && !hasBalancedCodeFences(in: input)
+    }
+
+    private static func hasBalancedCodeFences(in input: String) -> Bool {
+        let fenceCount = input.components(separatedBy: "```").count - 1
+        return fenceCount.isMultiple(of: 2)
     }
 
     // -------------------------------------------------------------------------

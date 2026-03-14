@@ -327,9 +327,15 @@ struct DeckContentView: View {
                 deck.editedAt = Date()
             }
         }
-            .fullScreenCover(isPresented: $isPresentingEdit) {
-            NavigationStack { CreateDeckView(deckToEdit: deck) }
-        }
+            .fullScreenSheet(
+                ignoresSafeArea: true,
+                isPresented: $isPresentingEdit,
+                dragDismissActivationHeight: 180
+            ) { _ in
+                NavigationStack { CreateDeckView(deckToEdit: deck) }
+            } background: {
+                Color(uiColor: .systemGroupedBackground)
+            }
             .fullScreenSheet(
                 ignoresSafeArea: true,
                 item: $selectedPlayMode

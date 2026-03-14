@@ -87,10 +87,188 @@ enum ExtractionMode: String {
     case quality = "quality(Premium)"
 }
 
+// MARK: - AI Generation Options
+
+/// Card-shape profile requested by the user for AI generation.
+public enum AICardGenerationType: String, CaseIterable, Identifiable, Codable {
+    case flashcards
+    case match
+    case quiz
+    case write
+
+    public var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .flashcards: return "Flash Cards"
+        case .match: return "Match Cards"
+        case .quiz: return "Quiz Cards"
+        case .write: return "Write Cards"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .flashcards: return "Balanced active-recall question and answer cards."
+        case .match: return "Short, pairable prompts and crisp matching answers."
+        case .quiz: return "Multiple-choice prompts with one correct answer."
+        case .write: return "Typed-answer prompts with exact recall focus."
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .flashcards: return "rectangle.stack.fill"
+        case .match: return "square.grid.2x2.fill"
+        case .quiz: return "questionmark.square.dashed"
+        case .write: return "pencil.and.scribble"
+        }
+    }
+}
+
+/// Depth and density profile requested by the user for generated cards.
+public enum AICardGenerationLevel: String, CaseIterable, Identifiable, Codable {
+    case simple
+    case balanced
+    case advanced
+
+    public var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .simple: return "Simple"
+        case .balanced: return "Balanced"
+        case .advanced: return "Advanced"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .simple: return "Focus on the clearest core facts and definitions."
+        case .balanced: return "Keep the current prompt style with normal depth."
+        case .advanced: return "Prefer nuanced, technical, higher-order understanding."
+        }
+    }
+}
+
+/// Distribution mode used to decide how much of each source segment is sent to AI.
+public enum AISourceDistributionMode: String, CaseIterable, Identifiable, Codable {
+    case auto
+    case manual
+
+    public var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .auto: return "Auto"
+        case .manual: return "Manual"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .auto: return "Distribute cards automatically based on detected text density."
+        case .manual: return "Choose exact image or page ranges and assign card counts yourself."
+        }
+    }
+}
+
+/// One source range assigned to a target number of cards.
+public struct AISourceRangeAllocation: Identifiable, Equatable, Codable {
+    public var id: UUID
+    public var startIndex: Int
+    public var endIndex: Int
+    public var cardCount: Int
+
+    public init(
+        id: UUID = UUID(),
+        startIndex: Int,
+        endIndex: Int,
+        cardCount: Int
+    ) {
+        self.id = id
+        self.startIndex = startIndex
+        self.endIndex = endIndex
+        self.cardCount = cardCount
+    }
+}
+
+/// One logical text segment that can be routed independently through the AI
+/// chunk planner (for example one OCR image or one PDF page).
+public struct AITextSourceSegment: Identifiable, Equatable, Codable {
+    public let id: UUID
+    public let index: Int
+    public let label: String
+    public let text: String
+
+    public init(
+        id: UUID = UUID(),
+        index: Int,
+        label: String,
+        text: String
+    ) {
+        self.id = id
+        self.index = index
+        self.label = label
+        self.text = text
+    }
+
+    public var characterCount: Int {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).count
+    }
+}
+
+/// User-controlled AI generation settings that shape both prompt behavior and
+/// how the source document is chunked into real-time batches.
+public struct AIGenerationOptions: Equatable, Codable {
+    public var cardType: AICardGenerationType = .flashcards
+    public var cardLevel: AICardGenerationLevel = .balanced
+    /// Legacy persisted field kept for backward compatibility. Delivery is
+    /// adaptive now and no longer uses a user-visible fixed batch size.
+    public var cardsPerBatch: Int = 3
+    public var sourceDistributionMode: AISourceDistributionMode = .auto
+
+    public init(
+        cardType: AICardGenerationType = .flashcards,
+        cardLevel: AICardGenerationLevel = .balanced,
+        cardsPerBatch: Int = 3,
+        sourceDistributionMode: AISourceDistributionMode = .auto
+    ) {
+        self.cardType = cardType
+        self.cardLevel = cardLevel
+        self.cardsPerBatch = cardsPerBatch
+        self.sourceDistributionMode = sourceDistributionMode
+    }
+
+    /// Resolves the per-request card quota adaptively for speed while keeping
+    /// requests small enough for stable output quality.
+    func resolvedCardsPerBatch(for targetCards: Int) -> Int {
+        let safeTarget = max(targetCards, 1)
+
+        let adaptiveBatchSize: Int
+        switch safeTarget {
+        case 1...4:
+            adaptiveBatchSize = safeTarget
+        case 5...12:
+            adaptiveBatchSize = 4
+        case 13...24:
+            adaptiveBatchSize = 6
+        case 25...50:
+            adaptiveBatchSize = 8
+        case 51...90:
+            adaptiveBatchSize = 10
+        default:
+            adaptiveBatchSize = 12
+        }
+
+        return min(adaptiveBatchSize, safeTarget)
+    }
+}
+
 // MARK: - AI Flashcard Model
 
 /// A single flashcard generated by the AI pipeline.
-public struct AIFlashcard: Identifiable, Codable {
+public struct AIFlashcard: Identifiable, Codable, Sendable {
     public let id: UUID
     /// The question side content, zone-delimited with `AIZoneParser.zoneDelimiter`.
     public let question: String

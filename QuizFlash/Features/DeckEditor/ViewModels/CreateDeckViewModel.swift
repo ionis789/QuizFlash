@@ -10,6 +10,66 @@ import SwiftData
 import PhotosUI
 import PDFKit
 
+/// The destination currently presented in the AI configuration sheet.
+enum AIGenerationSheetDestination: String, Identifiable {
+    case prepareGeneration
+
+    var id: String { rawValue }
+}
+
+// MARK: - AI Source Preparation
+
+/// One previewable source item shown inside the AI generation sheet.
+struct AIGenerationSourcePreviewItem: Identifiable {
+    let id = UUID()
+    let index: Int
+    let title: String
+    let characterCount: Int
+    let thumbnail: UIImage?
+}
+
+/// Fully prepared source payload reused by the generation sheet and the final
+/// AI pipeline so selection analysis is not recomputed unnecessarily.
+struct AIPreparedGenerationSource {
+    enum Kind {
+        case photos
+        case pdf
+    }
+
+    let kind: Kind
+    let previewItems: [AIGenerationSourcePreviewItem]
+    let textSegments: [AITextSourceSegment]
+    let images: [UIImage]
+    let pdfURL: URL?
+
+    var isPDF: Bool { kind == .pdf }
+    var itemCount: Int { previewItems.count }
+    var totalCharacterCount: Int { previewItems.reduce(0) { $0 + $1.characterCount } }
+    var itemLabels: [String] { previewItems.map(\.title) }
+}
+
+private struct DraftCardChangeSnapshot: Equatable {
+    let originalCardID: PersistentIdentifier?
+    let frontZone: ZoneModel
+    let backZone: ZoneModel
+    let frontType: CardContentType
+    let backType: CardContentType
+
+    init(card: DraftCard) {
+        originalCardID = card.originalCardID
+        frontZone = card.frontZone
+        backZone = card.backZone
+        frontType = card.frontType
+        backType = card.backType
+    }
+}
+
+private struct CreateDeckStateSnapshot: Equatable {
+    let title: String
+    let selectedFolderID: PersistentIdentifier?
+    let draftCards: [DraftCardChangeSnapshot]
+}
+
 // MARK: - Create Deck View Model
 
 /// The ViewModel for `CreateDeckView`, managing draft card state, AI generation,
@@ -25,7 +85,8 @@ final class CreateDeckViewModel {
     var showAIPickerOptions = false
     var showAIPhotoPicker = false
     var showAIPDFPicker = false
-    var showAIOptionsOverlay = false
+    var aiSheetDestination: AIGenerationSheetDestination? = nil
+    var showAICancelDialog = false
     var isGenerating: Bool { aiState != .idle }
     var selectedFolder: FolderModel? = nil
 
@@ -37,25 +98,98 @@ final class CreateDeckViewModel {
     // MARK: - Generation Settings
     var requestedCardCount: Int = 15
     var extractionMode: ExtractionMode = .fast
+    var aiGenerationOptions = AIGenerationOptions()
+    var preparedAISource: AIPreparedGenerationSource? = nil
+    var manualAISourceAllocations: [AISourceRangeAllocation] = []
+    var aiGeneratedCardCount: Int = 0
+    var aiTargetCardCount: Int = 0
+    var aiGenerationBaseCardCount: Int = 0
+
+    var hasPendingAISource: Bool {
+        preparedAISource != nil
+    }
+
+    var hasGeneratedCardsInCurrentAISession: Bool {
+        aiGeneratedCardCount > 0
+    }
+
+    var isPreparedSourcePDF: Bool {
+        preparedAISource?.isPDF == true
+    }
+
+    var canConfirmAIGeneration: Bool {
+        guard preparedAISource != nil else { return false }
+
+        switch aiGenerationOptions.sourceDistributionMode {
+        case .auto:
+            return requestedCardCount > 0
+        case .manual:
+            return manualAllocationValidationMessage == nil && manualAllocatedCardCount > 0
+        }
+    }
+
+    var manualAllocationValidationMessage: String? {
+        guard let source = preparedAISource else { return "No source selected." }
+        let allocations = normalizedManualAllocations(for: source.itemCount)
+        guard !allocations.isEmpty else { return "Add at least one range." }
+
+        if hasOverlappingAllocations(allocations) {
+            return "Manual ranges overlap. Make each range distinct."
+        }
+
+        return nil
+    }
+
+    var manualAllocatedCardCount: Int {
+        guard let source = preparedAISource else { return 0 }
+        return normalizedManualAllocations(for: source.itemCount)
+            .reduce(0) { $0 + $1.cardCount }
+    }
+
+    var resolvedAISourceAllocations: [AISourceRangeAllocation] {
+        guard let source = preparedAISource else { return [] }
+
+        switch aiGenerationOptions.sourceDistributionMode {
+        case .auto:
+            return automaticAllocations(
+                for: source.previewItems.map(\.characterCount),
+                totalCards: requestedCardCount
+            )
+        case .manual:
+            return normalizedManualAllocations(for: source.itemCount)
+        }
+    }
+
+    var summarizedAISourceAllocations: [AISourceRangeAllocation] {
+        mergeAllocationsWithSameRange(resolvedAISourceAllocations)
+    }
 
     // MARK: - Photos
     var selectedAIPhotos: [PhotosPickerItem] = [] {
         didSet {
             guard !selectedAIPhotos.isEmpty else { return }
             showAIPickerOptions = false
-            // For photos, no pre-analysis step is needed — show the options overlay directly.
+            let items = selectedAIPhotos
+            selectedAIPhotos = []
             pdfAnalysis = nil
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                withAnimation(.spring()) { self.showAIOptionsOverlay = true }
+            aiSourcePreparationTask?.cancel()
+            aiSourcePreparationTask = Task { [weak self] in
+                await self?.preparePhotoSource(from: items)
             }
         }
     }
 
-    var pendingPDFURL: URL? = nil
-
     // MARK: - Services
 
     private let aiService = AIFlashcardService(apiKey: "sk-a40ab294a6ea4efa91c003e8c1fccba2")
+    @ObservationIgnored private var aiGenerationTask: Task<Void, Never>?
+    @ObservationIgnored private var aiSourcePreparationTask: Task<Void, Never>?
+    @ObservationIgnored private var aiRevealTask: Task<Void, Error>?
+    @ObservationIgnored private var aiDeckTitleTask: Task<Void, Never>?
+    @ObservationIgnored private var pendingAIDeckTitleRequestID: UUID?
+    @ObservationIgnored private var pendingAIGeneratedCards: [AIFlashcard] = []
+    @ObservationIgnored private var aiDidFinishReceivingGeneratedCards = false
+    @ObservationIgnored private var clearsPendingAISourceOnSheetDismiss = false
 
     // MARK: - Deck / Cards State
     var deckTitle: String = ""
@@ -64,22 +198,36 @@ final class CreateDeckViewModel {
     var isCreatingNewCard = false
     var showSuccessOverlay = false
     let deckToEdit: DeckModel?
+    private let initialSnapshot: CreateDeckStateSnapshot
 
-    // MARK: - Materialization Animation State
-
-    /// Indices of cards that have been revealed during the staggered entry animation.
-    var revealedCardIndices: Set<Int> = []
-
-    /// True while the staggered card reveal sequence is running.
-    var isMaterializing: Bool = false
+    var hasUnsavedChanges: Bool {
+        currentSnapshot != initialSnapshot
+    }
 
     init(deckToEdit: DeckModel? = nil) {
         self.deckToEdit = deckToEdit
+        let initialTitle: String
+        let initialFolder: FolderModel?
+        let initialDrafts: [DraftCard]
+
         if let deck = deckToEdit {
             deckTitle = deck.title
             selectedFolder = deck.folder
             draftCards = deck.cards.map { DraftCard.from($0) }
+            initialTitle = deck.title
+            initialFolder = deck.folder
+            initialDrafts = deck.cards.map { DraftCard.from($0) }
+        } else {
+            initialTitle = ""
+            initialFolder = nil
+            initialDrafts = []
         }
+
+        initialSnapshot = CreateDeckStateSnapshot(
+            title: initialTitle.trimmingCharacters(in: .whitespacesAndNewlines),
+            selectedFolderID: initialFolder?.persistentModelID,
+            draftCards: initialDrafts.map(DraftCardChangeSnapshot.init)
+        )
     }
 
     // MARK: - PDF Selection and Auto-Analysis
@@ -87,34 +235,14 @@ final class CreateDeckViewModel {
     /// Called immediately after the user selects a PDF.
     ///
     /// Runs a PDFKit quality check in the background and populates `pdfAnalysis`
-    /// before the options overlay becomes visible — no perceptible delay for the user.
+    /// before the generation sheet becomes visible — no perceptible delay for the user.
     func pdfWasSelected(_ url: URL) {
-        pendingPDFURL = url
+        preparedAISource = nil
         pdfAnalysis = nil
+        aiSourcePreparationTask?.cancel()
 
-        // Run analysis in the background immediately.
-        Task {
-            guard url.startAccessingSecurityScopedResource() else { return }
-            defer { url.stopAccessingSecurityScopedResource() }
-
-            let quality = DocumentTextExtractor.pdfKitQuality(for: url)
-            let pageCount = await DocumentTextExtractor.pdfPageCount(url: url)
-            let chars = DocumentTextExtractor.extractWithPDFKit(from: url)?.count ?? 0
-
-            let info = PDFAnalysisInfo(
-                quality: quality,
-                pageCount: pageCount,
-                extractedChars: chars
-            )
-
-            // Set the recommended extraction mode automatically based on PDF quality.
-            self.pdfAnalysis = info
-            self.extractionMode = info.recommendation
-
-            // Open the overlay only after analysis is ready.
-            withAnimation(.spring()) {
-                self.showAIOptionsOverlay = true
-            }
+        aiSourcePreparationTask = Task { [weak self] in
+            await self?.preparePDFSource(from: url)
         }
     }
 
@@ -123,10 +251,75 @@ final class CreateDeckViewModel {
     /// Starts the appropriate AI generation pipeline based on the currently
     /// selected input source (photos or PDF).
     func startAIGeneration() {
-        if !selectedAIPhotos.isEmpty {
-            processPhotosForAI()
-        } else if let url = pendingPDFURL {
-            processPDFForAI(url: url)
+        guard let source = preparedAISource else { return }
+        let allocations = resolvedAISourceAllocations
+        let targetCardCount = targetCardCount(for: allocations)
+        guard targetCardCount > 0 else { return }
+
+        beginAIGenerationSession(targetCardCount: targetCardCount)
+        requestAIDeckTitleIfNeeded(from: source)
+        switch source.kind {
+        case .photos:
+            processPhotosForAI(
+                source,
+                allocations: allocations,
+                targetCardCount: targetCardCount
+            )
+        case .pdf:
+            processPDFForAI(
+                source,
+                allocations: allocations,
+                targetCardCount: targetCardCount
+            )
+        }
+    }
+
+    /// Streams a local mock payload through the same incremental UI path used
+    /// by the real AI generator so animation work can be tested deterministically.
+    func startMockAIGeneration() {
+        let mockCards = Self.mockAIFlashcards
+        guard !mockCards.isEmpty else { return }
+
+        requestedCardCount = mockCards.count
+        preparedAISource = nil
+        manualAISourceAllocations = []
+        pdfAnalysis = nil
+        aiSheetDestination = nil
+        showAIPickerOptions = false
+
+        beginAIGenerationSession(targetCardCount: mockCards.count)
+        aiState = .generatingCards(progress: 0, foundCount: 0)
+        resetAIGenerationRevealPipeline()
+        aiRevealTask = Task { [weak self] in
+            guard let self else { return }
+            try await self.drainGeneratedCardsContinuously()
+        }
+
+        let cardsPerBatch = aiGenerationOptions.resolvedCardsPerBatch(for: mockCards.count)
+        let batches = stride(from: 0, to: mockCards.count, by: cardsPerBatch).map { index in
+            Array(mockCards[index..<min(index + cardsPerBatch, mockCards.count)])
+        }
+
+        aiGenerationTask = Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                for batch in batches {
+                    try await Task.sleep(nanoseconds: 850_000_000)
+                    guard !Task.isCancelled else { return }
+                    pendingAIGeneratedCards.append(contentsOf: batch)
+                    await Task.yield()
+                }
+
+                aiDidFinishReceivingGeneratedCards = true
+                try await aiRevealTask?.value
+                try await Task.sleep(nanoseconds: 220_000_000)
+                guard !Task.isCancelled else { return }
+                completeAIGeneration()
+            } catch {
+                guard !(error is CancellationError) else { return }
+                handleAIGenerationFailure(error)
+            }
         }
     }
 
@@ -135,51 +328,57 @@ final class CreateDeckViewModel {
     // Fast    — On-device Vision OCR (free, fast)
     // Quality — GPT Vision, all images in a single request (accurate, understands diagrams)
 
-    private func processPhotosForAI() {
+    private func processPhotosForAI(
+        _ source: AIPreparedGenerationSource,
+        allocations: [AISourceRangeAllocation],
+        targetCardCount: Int
+    ) {
         aiState = .extractingText
-        let items = selectedAIPhotos
-        selectedAIPhotos = []
+        let options = effectiveAIGenerationOptions()
 
-        Task {
+        aiGenerationTask = Task { [weak self] in
+            guard let self else { return }
             do {
-                // Load images from the PhotosPicker.
-                var images: [UIImage] = []
-                for item in items {
-                    if let data = try await item.loadTransferable(type: Data.self),
-                        let image = UIImage(data: data) {
-                        images.append(image.resizedForAI(toMaxDimension: 1024))
-                    }
-                }
-                guard !images.isEmpty else { throw AIServiceError.parsingFailed }
-
-                let cards: [AIFlashcard]
-
                 switch extractionMode {
                 case .fast:
-                    // On-device Vision OCR → extracted text → GPT text mode (cheaper).
-                    let extraction = await DocumentTextExtractor.extract(from: images)
-                    guard let text = extraction.text, !text.isEmpty else {
-                        throw AIServiceError.parsingFailed
+                    let texts = source.textSegments.map(\.text)
+                    guard DocumentTextExtractor.isUsableOCRText(texts) else {
+                        try await consumeGeneratedCards(
+                            from: aiService.generateFlashcardsStream(
+                                from: source.images,
+                                itemLabels: source.itemLabels,
+                                targetCards: targetCardCount,
+                                allocations: allocations,
+                                options: options
+                            )
+                        )
+                        return
                     }
-                    aiState = .generatingCards(progress: 0, foundCount: 0)
-                    cards = try await aiService.generateFlashcards(
-                        fromText: text,
-                        targetCards: requestedCardCount
+
+                    try await consumeGeneratedCards(
+                        from: aiService.generateFlashcardsStream(
+                            fromSegments: source.textSegments,
+                            targetCards: targetCardCount,
+                            allocations: allocations,
+                            needsOCRCorrection: true,
+                            options: options
+                        )
                     )
 
                 case .quality:
-                    // GPT Vision with all images in a single request (slower, understands diagrams).
-                    aiState = .generatingCards(progress: 0, foundCount: 0)
-                    cards = try await aiService.generateFlashcards(
-                        from: images,
-                        targetCards: requestedCardCount
+                    try await consumeGeneratedCards(
+                        from: aiService.generateFlashcardsStream(
+                            from: source.images,
+                            itemLabels: source.itemLabels,
+                            targetCards: targetCardCount,
+                            allocations: allocations,
+                            options: options
+                        )
                     )
                 }
-
-                saveGeneratedCards(cards)
-
             } catch {
-                aiState = .error(error.localizedDescription)
+                guard !(error is CancellationError) else { return }
+                handleAIGenerationFailure(error)
             }
         }
     }
@@ -189,120 +388,929 @@ final class CreateDeckViewModel {
     // Fast    — Automatic pipeline: PDFKit → on-device Vision OCR (free)
     // Quality — Render pages as images → all in a single GPT Vision request
 
-    private func processPDFForAI(url: URL) {
+    private func processPDFForAI(
+        _ source: AIPreparedGenerationSource,
+        allocations: [AISourceRangeAllocation],
+        targetCardCount: Int
+    ) {
+        guard let url = source.pdfURL else {
+            aiState = .error("Could not access the PDF file.")
+            return
+        }
+
         guard url.startAccessingSecurityScopedResource() else {
             aiState = .error("Could not access the PDF file.")
             return
         }
 
-        pendingPDFURL = nil
+        let options = effectiveAIGenerationOptions()
 
-        Task {
+        aiGenerationTask = Task { [weak self] in
+            guard let self else { return }
             defer { url.stopAccessingSecurityScopedResource() }
 
             do {
-                let cards: [AIFlashcard]
-
                 switch extractionMode {
                 case .fast:
-                    // Automatic pipeline: PDFKit → on-device Vision OCR (free).
                     aiState = .extractingText
-                    let extraction = await DocumentTextExtractor.extract(from: url)
+                    let directTextIsReliable = (pdfAnalysis?.isGoodForFast ?? false)
+                        && source.textSegments.contains(where: { !$0.text.isEmpty })
 
-                    guard let text = extraction.text, !text.isEmpty else {
-                        // Extracted text quality is too low — fall back to Quality mode automatically.
-                        aiState = .generatingCards(progress: 0, foundCount: 0)
-                        let images = await DocumentTextExtractor.renderPDFPages(from: url)
-                        cards = try await aiService.generateFlashcards(
-                            from: images,
-                            targetCards: requestedCardCount
+                    if directTextIsReliable {
+                        try await consumeGeneratedCards(
+                            from: aiService.generateFlashcardsStream(
+                                fromSegments: source.textSegments,
+                                targetCards: targetCardCount,
+                                allocations: allocations,
+                                needsOCRCorrection: false,
+                                options: options
+                            )
                         )
-                        saveGeneratedCards(cards)
                         return
                     }
 
-                    aiState = .generatingCards(progress: 0, foundCount: 0)
-                    cards = try await aiService.generateFlashcards(
-                        fromText: text,
-                        targetCards: requestedCardCount
+                    let images = await DocumentTextExtractor.renderPDFPages(from: url)
+                    guard !images.isEmpty else { throw AIServiceError.parsingFailed }
+
+                    let pageTexts = await DocumentTextExtractor.extractVisionTexts(from: images)
+                    if DocumentTextExtractor.isUsableOCRText(pageTexts) {
+                        let ocrSegments = makeTextSegments(from: pageTexts, labelPrefix: "Page")
+                        try await consumeGeneratedCards(
+                            from: aiService.generateFlashcardsStream(
+                                fromSegments: ocrSegments,
+                                targetCards: targetCardCount,
+                                allocations: allocations,
+                                needsOCRCorrection: true,
+                                options: options
+                            )
+                        )
+                        return
+                    }
+
+                    try await consumeGeneratedCards(
+                        from: aiService.generateFlashcardsStream(
+                            from: images,
+                            itemLabels: source.itemLabels,
+                            targetCards: targetCardCount,
+                            allocations: allocations,
+                            options: options
+                        )
                     )
 
                 case .quality:
-                    // Render all pages → single GPT Vision request.
                     aiState = .extractingText
                     let images = await DocumentTextExtractor.renderPDFPages(from: url, dpi: 150)
                     guard !images.isEmpty else { throw AIServiceError.parsingFailed }
 
-                    aiState = .generatingCards(progress: 0, foundCount: 0)
-                    cards = try await aiService.generateFlashcards(
-                        from: images,
-                        targetCards: requestedCardCount
+                    try await consumeGeneratedCards(
+                        from: aiService.generateFlashcardsStream(
+                            from: images,
+                            itemLabels: source.itemLabels,
+                            targetCards: targetCardCount,
+                            allocations: allocations,
+                            options: options
+                        )
                     )
                 }
-
-                saveGeneratedCards(cards)
-
             } catch {
-                aiState = .error(error.localizedDescription)
+                guard !(error is CancellationError) else { return }
+                handleAIGenerationFailure(error)
             }
         }
     }
 
-    // =========================================================================
-    // MARK: - Save Cards
-    // =========================================================================
+    // MARK: - Source Preparation
 
-    private func saveGeneratedCards(_ generatedCards: [AIFlashcard]) {
-        withAnimation(.spring()) {
-            for aiCard in generatedCards {
-                let frontZone = AIZoneParser.parse(text: aiCard.question)
-                let backZone = AIZoneParser.parse(text: aiCard.answer)
-                let newDraft = DraftCard(
-                    frontZone: frontZone,
-                    backZone: backZone,
-                    frontType: .text,
-                    backType: .text,
-                    createdAt: Date(),
-                    editedAt: Date()
+    private func preparePhotoSource(from items: [PhotosPickerItem]) async {
+        do {
+            var images: [UIImage] = []
+
+            for item in items {
+                try Task.checkCancellation()
+                if let data = try await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    images.append(image.resizedForAI(toMaxDimension: 1024))
+                }
+            }
+
+            guard !images.isEmpty else { return }
+
+            let texts = await DocumentTextExtractor.extractVisionTexts(from: images)
+            let source = AIPreparedGenerationSource(
+                kind: .photos,
+                previewItems: makePhotoPreviewItems(images: images, texts: texts),
+                textSegments: makeTextSegments(from: texts, labelPrefix: "Image"),
+                images: images,
+                pdfURL: nil
+            )
+
+            prepareSheetState(for: source, pdfAnalysis: nil)
+        } catch is CancellationError {
+            return
+        } catch {
+            aiState = .error(error.localizedDescription)
+        }
+    }
+
+    private func preparePDFSource(from url: URL) async {
+        guard url.startAccessingSecurityScopedResource() else { return }
+        defer { url.stopAccessingSecurityScopedResource() }
+
+        let pageTexts = DocumentTextExtractor.extractPDFKitPages(from: url)
+        let thumbnails = await DocumentTextExtractor.renderPDFPreviewThumbnails(from: url)
+        let pageCount = max(pageTexts.count, await DocumentTextExtractor.pdfPageCount(url: url))
+        let extractedChars = pageTexts.reduce(0) { $0 + $1.count }
+        let info = PDFAnalysisInfo(
+            quality: DocumentTextExtractor.pdfKitQuality(for: url),
+            pageCount: pageCount,
+            extractedChars: extractedChars
+        )
+
+        let source = AIPreparedGenerationSource(
+            kind: .pdf,
+            previewItems: makePDFPreviewItems(
+                pageTexts: pageTexts,
+                pageCount: pageCount,
+                thumbnails: thumbnails
+            ),
+            textSegments: makeTextSegments(from: pageTexts, labelPrefix: "Page"),
+            images: [],
+            pdfURL: url
+        )
+
+        prepareSheetState(for: source, pdfAnalysis: info)
+    }
+
+    private func prepareSheetState(
+        for source: AIPreparedGenerationSource,
+        pdfAnalysis: PDFAnalysisInfo?
+    ) {
+        self.pdfAnalysis = pdfAnalysis
+        preparedAISource = source
+        manualAISourceAllocations = defaultManualAllocations(
+            itemCount: source.itemCount,
+            requestedCards: requestedCardCount
+        )
+        presentAIGenerationSheet()
+    }
+
+    private func makePhotoPreviewItems(
+        images: [UIImage],
+        texts: [String]
+    ) -> [AIGenerationSourcePreviewItem] {
+        images.enumerated().map { index, image in
+            let text = texts.indices.contains(index) ? texts[index] : ""
+        return AIGenerationSourcePreviewItem(
+            index: index + 1,
+            title: "Image \(index + 1)",
+            characterCount: text.count,
+            thumbnail: image.resizedForAI(toMaxDimension: 240)
+        )
+    }
+}
+
+    private func makePDFPreviewItems(
+        pageTexts: [String],
+        pageCount: Int,
+        thumbnails: [UIImage]
+    ) -> [AIGenerationSourcePreviewItem] {
+        let totalPages = max(pageCount, pageTexts.count)
+
+        return (0..<totalPages).map { index in
+            let text = pageTexts.indices.contains(index) ? pageTexts[index] : ""
+            return AIGenerationSourcePreviewItem(
+                index: index + 1,
+                title: "Page \(index + 1)",
+                characterCount: text.count,
+                thumbnail: thumbnails.indices.contains(index) ? thumbnails[index] : nil
+            )
+        }
+    }
+
+    private func makeTextSegments(
+        from texts: [String],
+        labelPrefix: String
+    ) -> [AITextSourceSegment] {
+        texts.enumerated().map { index, text in
+            AITextSourceSegment(
+                index: index + 1,
+                label: "\(labelPrefix) \(index + 1)",
+                text: text
+            )
+        }
+    }
+
+    // MARK: - Source Allocation Controls
+
+    /// Updates the auto-generation target card count selected in the sheet.
+    func setRequestedCardCount(_ count: Int) {
+        let clampedCount = min(max(count, 1), 100)
+        guard requestedCardCount != clampedCount else { return }
+
+        requestedCardCount = clampedCount
+    }
+
+    func setSourceDistributionMode(_ mode: AISourceDistributionMode) {
+        aiGenerationOptions.sourceDistributionMode = mode
+
+        guard mode == .manual, let source = preparedAISource else { return }
+        if manualAISourceAllocations.isEmpty {
+            manualAISourceAllocations = defaultManualAllocations(
+                itemCount: source.itemCount,
+                requestedCards: requestedCardCount
+            )
+        }
+    }
+
+    func addManualAllocation() {
+        guard let source = preparedAISource else { return }
+
+        let nextStart = min(
+            (manualAISourceAllocations.map(\.endIndex).max() ?? 0) + 1,
+            max(source.itemCount, 1)
+        )
+
+        manualAISourceAllocations.append(
+            AISourceRangeAllocation(
+                startIndex: nextStart,
+                endIndex: nextStart,
+                cardCount: 1
+            )
+        )
+    }
+
+    func removeManualAllocation(id: UUID) {
+        manualAISourceAllocations.removeAll { $0.id == id }
+    }
+
+    func updateManualAllocation(
+        id: UUID,
+        startIndex: Int? = nil,
+        endIndex: Int? = nil,
+        cardCount: Int? = nil
+    ) {
+        guard let source = preparedAISource,
+              let index = manualAISourceAllocations.firstIndex(where: { $0.id == id }) else { return }
+
+        var allocation = manualAISourceAllocations[index]
+
+        if let startIndex {
+            allocation.startIndex = min(max(startIndex, 1), source.itemCount)
+        }
+
+        if let endIndex {
+            allocation.endIndex = min(max(endIndex, 1), source.itemCount)
+        }
+
+        if allocation.endIndex < allocation.startIndex {
+            allocation.endIndex = allocation.startIndex
+        }
+
+        if let cardCount {
+            allocation.cardCount = max(cardCount, 1)
+        }
+
+        manualAISourceAllocations[index] = allocation
+    }
+
+    func allocationTitle(for allocation: AISourceRangeAllocation) -> String {
+        let noun = isPreparedSourcePDF ? "Pages" : "Images"
+        if allocation.startIndex == allocation.endIndex {
+            return "\(noun.dropLast()) \(allocation.startIndex)"
+        }
+        return "\(noun) \(allocation.startIndex)-\(allocation.endIndex)"
+    }
+
+    private func defaultManualAllocations(
+        itemCount: Int,
+        requestedCards: Int
+    ) -> [AISourceRangeAllocation] {
+        guard itemCount > 0, requestedCards > 0 else { return [] }
+        return [
+            AISourceRangeAllocation(
+                startIndex: 1,
+                endIndex: itemCount,
+                cardCount: requestedCards
+            )
+        ]
+    }
+
+    private func normalizedManualAllocations(for itemCount: Int) -> [AISourceRangeAllocation] {
+        guard itemCount > 0 else { return [] }
+
+        return manualAISourceAllocations
+            .map { allocation in
+                let start = min(max(allocation.startIndex, 1), itemCount)
+                let end = min(max(allocation.endIndex, start), itemCount)
+
+                return AISourceRangeAllocation(
+                    id: allocation.id,
+                    startIndex: start,
+                    endIndex: end,
+                    cardCount: max(allocation.cardCount, 1)
                 )
-                draftCards.append(newDraft)
             }
-            aiState = .idle
-            pdfAnalysis = nil
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            .sorted {
+                if $0.startIndex == $1.startIndex {
+                    return $0.endIndex < $1.endIndex
+                }
+                return $0.startIndex < $1.startIndex
+            }
+    }
+
+    private func hasOverlappingAllocations(_ allocations: [AISourceRangeAllocation]) -> Bool {
+        guard allocations.count > 1 else { return false }
+
+        for pairIndex in 1..<allocations.count {
+            let previous = allocations[pairIndex - 1]
+            let current = allocations[pairIndex]
+            if current.startIndex <= previous.endIndex {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func automaticAllocations(
+        for characterCounts: [Int],
+        totalCards: Int
+    ) -> [AISourceRangeAllocation] {
+        guard !characterCounts.isEmpty, totalCards > 0 else { return [] }
+
+        let coverageRangeCount = preferredCoverageRangeCount(
+            itemCount: characterCounts.count,
+            totalCards: totalCards
+        )
+
+        let baseRanges = weightedCoverageRanges(
+            for: characterCounts,
+            groupCount: coverageRangeCount
+        )
+        guard !baseRanges.isEmpty else { return [] }
+
+        let weights = normalizedWeights(from: characterCounts)
+        let rangeWeights = baseRanges.map { range in
+            weights[range].reduce(0, +)
+        }
+        let distributedCardCounts = distributedCardCounts(
+            totalCards: totalCards,
+            across: rangeWeights
+        )
+
+        return zip(baseRanges, distributedCardCounts).compactMap { range, cardCount in
+            guard cardCount > 0 else { return nil }
+            return AISourceRangeAllocation(
+                startIndex: range.lowerBound + 1,
+                endIndex: range.upperBound + 1,
+                cardCount: cardCount
+            )
         }
     }
 
-    // MARK: - Materialization Animation
+    private func preferredCoverageRangeCount(
+        itemCount: Int,
+        totalCards: Int
+    ) -> Int {
+        guard itemCount > 0, totalCards > 0 else { return 0 }
 
-    /// Triggers the staggered card reveal animation after AI generation completes.
-    ///
-    /// Each card slides in with a spring animation, staggered by 100 ms per index.
-    /// Haptic feedback fires at the start and end of the sequence.
-    func startMaterializationSequence() {
-        guard !isMaterializing else { return }
-        isMaterializing = true
-        revealedCardIndices.removeAll()
-        let count = draftCards.count
-        for i in 0..<count {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.10) {
-                withAnimation(.spring(response: 0.48, dampingFraction: 0.72)) {
-                    self.revealedCardIndices.insert(i)
-                }
-                if i == 0 || i == count - 1 {
-                    UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-                }
-            }
+        if itemCount <= 8 {
+            return min(itemCount, totalCards)
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + Double(count) * 0.10 + 0.5) {
-            self.isMaterializing = false
+
+        let sourceDriven = Int(ceil(Double(itemCount) / 6.0))
+        let cardDriven = Int(ceil(Double(totalCards) / 8.0))
+        let preferredCount = max(3, max(sourceDriven, cardDriven))
+
+        return min(itemCount, min(totalCards, min(preferredCount, 14)))
+    }
+
+    private func distributedCardCounts(
+        totalCards: Int,
+        across weights: [Double]
+    ) -> [Int] {
+        guard !weights.isEmpty, totalCards > 0 else { return [] }
+
+        var counts = Array(repeating: 1, count: weights.count)
+        let remainingCards = totalCards - counts.count
+        guard remainingCards > 0 else {
+            return counts
+        }
+
+        let safeTotalWeight = max(weights.reduce(0, +), .leastNonzeroMagnitude)
+        let rawExtras = weights.map { weight in
+            (weight / safeTotalWeight) * Double(remainingCards)
+        }
+
+        var assignedExtras = 0
+        var remainders: [(index: Int, value: Double)] = []
+
+        for (index, rawExtra) in rawExtras.enumerated() {
+            let wholeCards = Int(rawExtra.rounded(.down))
+            counts[index] += wholeCards
+            assignedExtras += wholeCards
+            remainders.append((index: index, value: rawExtra - Double(wholeCards)))
+        }
+
+        let leftoverCards = remainingCards - assignedExtras
+        guard leftoverCards > 0 else {
+            return counts
+        }
+
+        let orderedIndices = remainders
+            .sorted {
+                if $0.value == $1.value {
+                    return weights[$0.index] > weights[$1.index]
+                }
+                return $0.value > $1.value
+            }
+            .map(\.index)
+
+        for offset in 0..<leftoverCards {
+            counts[orderedIndices[offset % orderedIndices.count]] += 1
+        }
+
+        return counts
+    }
+
+    private func normalizedWeights(from characterCounts: [Int]) -> [Double] {
+        let positiveCounts = characterCounts.filter { $0 > 0 }
+        let averagePositive = positiveCounts.isEmpty
+            ? 1.0
+            : Double(positiveCounts.reduce(0, +)) / Double(positiveCounts.count)
+        let floorWeight = max(1.0, averagePositive * 0.18)
+
+        return characterCounts.map { count in
+            max(Double(count), floorWeight)
         }
     }
+
+    private func weightedCoverageRanges(
+        for characterCounts: [Int],
+        groupCount: Int
+    ) -> [ClosedRange<Int>] {
+        guard !characterCounts.isEmpty, groupCount > 0 else { return [] }
+
+        let cappedGroupCount = min(groupCount, characterCounts.count)
+        let weights = normalizedWeights(from: characterCounts)
+
+        if cappedGroupCount == characterCounts.count {
+            return characterCounts.indices.map { $0...$0 }
+        }
+
+        var ranges: [ClosedRange<Int>] = []
+        var startIndex = 0
+
+        for groupIndex in 0..<(cappedGroupCount - 1) {
+            let groupsRemaining = cappedGroupCount - groupIndex
+            let remainingWeight = weights[startIndex...].reduce(0, +)
+            let targetWeight = remainingWeight / Double(groupsRemaining)
+            let latestEndIndex = characterCounts.count - groupsRemaining
+
+            var endIndex = startIndex
+            var accumulatedWeight = 0.0
+
+            while endIndex < latestEndIndex {
+                accumulatedWeight += weights[endIndex]
+                if accumulatedWeight >= targetWeight {
+                    break
+                }
+                endIndex += 1
+            }
+
+            ranges.append(startIndex...endIndex)
+            startIndex = endIndex + 1
+        }
+
+        ranges.append(startIndex...(characterCounts.count - 1))
+        return ranges
+    }
+
+    private func mergeAllocationsWithSameRange(
+        _ allocations: [AISourceRangeAllocation]
+    ) -> [AISourceRangeAllocation] {
+        guard !allocations.isEmpty else { return [] }
+
+        var merged: [AISourceRangeAllocation] = []
+
+        for allocation in allocations {
+            if let last = merged.last,
+               last.startIndex == allocation.startIndex,
+               last.endIndex == allocation.endIndex {
+                merged[merged.count - 1] = AISourceRangeAllocation(
+                    id: last.id,
+                    startIndex: last.startIndex,
+                    endIndex: last.endIndex,
+                    cardCount: last.cardCount + allocation.cardCount
+                )
+            } else {
+                merged.append(allocation)
+            }
+        }
+
+        return merged
+    }
+
+    // =========================================================================
+    // MARK: - Progressive AI Save
+    // =========================================================================
+
+    private func beginAIGenerationSession(targetCardCount: Int) {
+        cancelAIGenerationTask()
+        resetAIGenerationRevealPipeline()
+        aiGenerationBaseCardCount = draftCards.count
+        aiTargetCardCount = targetCardCount
+        aiGeneratedCardCount = 0
+    }
+
+    private func targetCardCount(for allocations: [AISourceRangeAllocation]) -> Int {
+        let allocationTotal = allocations.reduce(0) { $0 + $1.cardCount }
+        return max(allocationTotal, 0)
+    }
+
+    private func consumeGeneratedCards(
+        from stream: AsyncThrowingStream<[AIFlashcard], Error>
+    ) async throws {
+        aiState = .generatingCards(progress: 0, foundCount: 0)
+        resetAIGenerationRevealPipeline()
+        aiRevealTask = Task { [weak self] in
+            guard let self else { return }
+            try await self.drainGeneratedCardsContinuously()
+        }
+
+        do {
+            for try await batch in stream {
+                guard !batch.isEmpty else { continue }
+                pendingAIGeneratedCards.append(contentsOf: batch)
+                await Task.yield()
+            }
+
+            aiDidFinishReceivingGeneratedCards = true
+            try await aiRevealTask?.value
+            completeAIGeneration()
+        } catch {
+            aiDidFinishReceivingGeneratedCards = true
+            aiRevealTask?.cancel()
+            aiRevealTask = nil
+            pendingAIGeneratedCards.removeAll()
+            throw error
+        }
+    }
+
+    private func drainGeneratedCardsContinuously() async throws {
+        let revealDelay = revealDelayNanoseconds(for: aiTargetCardCount)
+
+        while true {
+            try Task.checkCancellation()
+
+            if let nextCard = pendingAIGeneratedCards.first {
+                pendingAIGeneratedCards.removeFirst()
+                appendGeneratedCard(nextCard)
+
+                if !pendingAIGeneratedCards.isEmpty || !aiDidFinishReceivingGeneratedCards {
+                    try await Task.sleep(
+                        nanoseconds: adjustedRevealDelayNanoseconds(
+                            base: revealDelay,
+                            pendingCount: pendingAIGeneratedCards.count,
+                            isAwaitingMoreCards: !aiDidFinishReceivingGeneratedCards
+                        )
+                    )
+                }
+                continue
+            }
+
+            if aiDidFinishReceivingGeneratedCards {
+                break
+            }
+
+            if aiGeneratedCardCount > 0 {
+                try await Task.sleep(nanoseconds: revealDelay)
+            } else {
+                try await Task.sleep(nanoseconds: 30_000_000)
+            }
+        }
+    }
+
+    private func revealDelayNanoseconds(for targetCardCount: Int) -> UInt64 {
+        switch targetCardCount {
+        case 0...12:
+            return 220_000_000
+        case 13...30:
+            return 150_000_000
+        case 31...60:
+            return 90_000_000
+        default:
+            return 55_000_000
+        }
+    }
+
+    private func adjustedRevealDelayNanoseconds(
+        base: UInt64,
+        pendingCount: Int,
+        isAwaitingMoreCards: Bool
+    ) -> UInt64 {
+        guard isAwaitingMoreCards else { return base }
+
+        let multiplier: Double
+        switch pendingCount {
+        case ...1:
+            multiplier = 2.6
+        case 2...3:
+            multiplier = 1.9
+        case 4...6:
+            multiplier = 1.35
+        default:
+            multiplier = 1
+        }
+
+        return UInt64(Double(base) * multiplier)
+    }
+
+    private func appendGeneratedCard(_ generatedCard: AIFlashcard) {
+        let draft = DraftCard(
+            frontZone: AIZoneParser.parse(text: generatedCard.question),
+            backZone: AIZoneParser.parse(text: generatedCard.answer),
+            frontType: .text,
+            backType: .text,
+            createdAt: Date(),
+            editedAt: Date()
+        )
+
+        let updatedCount = aiGeneratedCardCount + 1
+        let progress = min(1.0, Double(updatedCount) / Double(max(aiTargetCardCount, 1)))
+
+        draftCards.append(draft)
+        aiGeneratedCardCount = updatedCount
+        aiState = .generatingCards(progress: progress, foundCount: updatedCount)
+    }
+
+    private func completeAIGeneration() {
+        aiGenerationTask = nil
+        resetAIGenerationRevealPipeline()
+        showAICancelDialog = false
+        aiState = .idle
+        pdfAnalysis = nil
+        preparedAISource = nil
+        manualAISourceAllocations = []
+        aiGenerationBaseCardCount = 0
+        aiGeneratedCardCount = 0
+        aiTargetCardCount = 0
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    private func handleAIGenerationFailure(_ error: Error) {
+        aiGenerationTask = nil
+        aiDeckTitleTask?.cancel()
+        aiDeckTitleTask = nil
+        pendingAIDeckTitleRequestID = nil
+        resetAIGenerationRevealPipeline()
+        showAICancelDialog = false
+        pdfAnalysis = nil
+        preparedAISource = nil
+        manualAISourceAllocations = []
+        aiGenerationBaseCardCount = 0
+        aiGeneratedCardCount = 0
+        aiTargetCardCount = 0
+        aiState = .error(error.localizedDescription)
+    }
+
+    private func cancelAIGenerationTask() {
+        aiGenerationTask?.cancel()
+        aiGenerationTask = nil
+        aiDeckTitleTask?.cancel()
+        aiDeckTitleTask = nil
+        pendingAIDeckTitleRequestID = nil
+        resetAIGenerationRevealPipeline()
+    }
+
+    func requestAIGenerationCancel() {
+        showAICancelDialog = true
+    }
+
+    func cancelAIGeneration(keepingGeneratedCards: Bool) {
+        showAICancelDialog = false
+        cancelAIGenerationTask()
+
+        if !keepingGeneratedCards {
+            let preservedCount = min(aiGenerationBaseCardCount, draftCards.count)
+            draftCards = Array(draftCards.prefix(preservedCount))
+        }
+
+        pdfAnalysis = nil
+        preparedAISource = nil
+        manualAISourceAllocations = []
+        aiGenerationBaseCardCount = 0
+        aiGeneratedCardCount = 0
+        aiTargetCardCount = 0
+        aiState = .idle
+    }
+
+    private func resetAIGenerationRevealPipeline() {
+        aiRevealTask?.cancel()
+        aiRevealTask = nil
+        pendingAIGeneratedCards.removeAll()
+        aiDidFinishReceivingGeneratedCards = false
+    }
+
+    func confirmAIGenerationFromSheet() {
+        guard canConfirmAIGeneration else { return }
+        clearsPendingAISourceOnSheetDismiss = false
+        aiSheetDestination = nil
+        startAIGeneration()
+    }
+
+    func dismissAISheet(clearPendingSourceSelection: Bool) {
+        clearsPendingAISourceOnSheetDismiss = clearPendingSourceSelection
+        aiSheetDestination = nil
+    }
+
+    func handleAISheetDismissed() {
+        defer { clearsPendingAISourceOnSheetDismiss = false }
+        guard clearsPendingAISourceOnSheetDismiss else { return }
+        clearPendingAISourceSelection()
+    }
+
+    private func effectiveAIGenerationOptions() -> AIGenerationOptions {
+        aiGenerationOptions
+    }
+
+    private func requestAIDeckTitleIfNeeded(from source: AIPreparedGenerationSource) {
+        let currentTitle = deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard currentTitle.isEmpty else {
+            aiDeckTitleTask?.cancel()
+            aiDeckTitleTask = nil
+            pendingAIDeckTitleRequestID = nil
+            return
+        }
+
+        let sampledText = sampledTextForAIDeckTitle(from: source)
+        guard !sampledText.isEmpty else { return }
+
+        aiDeckTitleTask?.cancel()
+        let requestID = UUID()
+        pendingAIDeckTitleRequestID = requestID
+
+        aiDeckTitleTask = Task { [weak self] in
+            guard let self else { return }
+
+            defer {
+                if pendingAIDeckTitleRequestID == requestID {
+                    aiDeckTitleTask = nil
+                    pendingAIDeckTitleRequestID = nil
+                }
+            }
+
+            do {
+                guard let suggestedTitle = try await aiService.generateDeckTitle(fromText: sampledText)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                    !suggestedTitle.isEmpty else {
+                    return
+                }
+
+                guard pendingAIDeckTitleRequestID == requestID else { return }
+                guard deckTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                deckTitle = suggestedTitle
+            } catch is CancellationError {
+                return
+            } catch {
+                return
+            }
+        }
+    }
+
+    private func sampledTextForAIDeckTitle(from source: AIPreparedGenerationSource) -> String {
+        let nonEmptySegments = source.textSegments.filter {
+            !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        guard !nonEmptySegments.isEmpty else { return "" }
+
+        let sampleCount = min(max(3, Int(ceil(Double(nonEmptySegments.count) / 10.0))), 6)
+        let sampledIndices = evenlySampledIndices(
+            totalCount: nonEmptySegments.count,
+            sampleCount: sampleCount
+        )
+
+        let sampledText = sampledIndices.map { index in
+            let segment = nonEmptySegments[index]
+            return "\(segment.label)\n\(segment.text)"
+        }
+        .joined(separator: "\n\n")
+
+        return String(sampledText.prefix(6_000))
+    }
+
+    private func evenlySampledIndices(
+        totalCount: Int,
+        sampleCount: Int
+    ) -> [Int] {
+        guard totalCount > 0, sampleCount > 0 else { return [] }
+        guard sampleCount < totalCount else { return Array(0..<totalCount) }
+
+        let step = Double(totalCount - 1) / Double(max(sampleCount - 1, 1))
+        return (0..<sampleCount).map { offset in
+            Int((Double(offset) * step).rounded())
+        }
+    }
+
+    private func presentAIGenerationSheet() {
+        clearsPendingAISourceOnSheetDismiss = true
+        aiSheetDestination = .prepareGeneration
+    }
+
+    private func clearPendingAISourceSelection() {
+        aiSourcePreparationTask?.cancel()
+        selectedAIPhotos = []
+        preparedAISource = nil
+        manualAISourceAllocations = []
+        pdfAnalysis = nil
+    }
+
+    private static let mockAIFlashcards: [AIFlashcard] = [
+        AIFlashcard(
+            question: "Care au fost principalele cauze si conditii care au determinat aparitia **Iluminismului** in secolul al XVIII-lea?",
+            answer: """
+            In secolele al XVII-lea si al XVIII-lea s-a produs o adevarata revolutie in gandire, cu descoperiri in matematica (Descartes, Leibniz), astronomie (Galileo Galilei) si mecanica (Newton).
+
+            Noua perspectiva asupra lumii, vazuta ca fiind in continua transformare, pe baza unor **legi specifice** care o guverneaza.
+
+            Masurarea tot mai precisa a timpului si spatiului datorita instrumentelor precum barometrul lui Torricelli sau ceasornicul lui Huygens.
+
+            Aceste progrese stiintifice au determinat, treptat, afirmarea unui nou mod de gandire, percepere si explicare a lumii.
+
+            In aceste conditii, in secolul al XVIII-lea, s-a nascut **Iluminismul**, un curent filosofic, ideologic si literar.
+            """
+        ),
+        AIFlashcard(
+            question: "Cum se caracterizeaza **conceptia deista** si **conceptia ateista** in cadrul Iluminismului, si care au fost reprezentantii lor?",
+            answer: """
+            **Deistii**, precum Voltaire, interpretau realitatea pe baza conceptiei deiste: Dumnezeu a creat lumea, dar nu intervine in evolutia ei.
+
+            Divinitatea nu mai era vazuta ca Fiinta Suprema, iar **dogmele religioase** erau respinse (de exemplu, revelatia divina sau minunile).
+
+            Deistii criticau atitudinea clerului catolic si atotputernicia Bisericii Catolice, fiind **antidogmatici** si **anticlericali**.
+
+            **Ateii**, precum d'Holbach si Diderot, nu credeau in existenta Divinitatii.
+
+            Ca si deistii, ateii au fost antidogmatici si anticlericali, urmarind slabirea influentei Bisericii Catolice in societate.
+            """
+        ),
+        AIFlashcard(
+            question: "Care au fost principalele **idei social-politice** sustinute de filozofii iluministi si care au fost contributiile lor specifice?",
+            answer: """
+            Montesquieu a argumentat principiul **separarii puterilor** in stat.
+
+            Voltaire a fost preocupat de buna organizare a statului.
+
+            Jean-Jacques Rousseau a abordat problema relatiilor dintre **individ si stat**.
+
+            Pe plan economic, Francois Quesnay a subliniat importanta agriculturii, impunandu-se curentul **fiziocrat**.
+
+            Adam Smith, considerat parintele economiei moderne, a elaborat teorii economice fundamentale.
+            """
+        ),
+        AIFlashcard(
+            question: "Cum s-a realizat **propagarea ideilor iluministe** si care au fost mijloacele si locurile-cheie pentru raspandirea lor?",
+            answer: """
+            Propagarea s-a realizat prin cafenelele literare si saloanele de lectura, unde se citeau operele iluministe.
+
+            Cluburile erau frecventate de tot mai multe persoane care dezbateau problemele societatii.
+
+            Tiparul a contribuit prin publicatiile savante (ca `Journal des Savantes`), presa cotidiana si brosuri.
+
+            Rolul cel mai insemnat l-a avut **dictionarul Enciclopedia**, care a format opinia publica.
+
+            Din Franta, Iluminismul a patruns in Prusia, Austria, Rusia, Spania, Portugalia, Tarile Romane etc.
+            """
+        ),
+        AIFlashcard(
+            question: "Ce reprezenta **Iluminismul** din punct de vedere social si care au fost obiectivele sale principale in ceea ce priveste transformarea societatii?",
+            answer: """
+            Iluminismul reprezenta modul de gandire al **burgheziei**, clasa sociala activa, in plina afirmare.
+
+            Denumirea de Iluminism exprima increderea filozofilor secolului al XVIII-lea in **ratiune** si in puterea de a lumina omenirea prin stiinta si cultura.
+
+            Francmasonii urmareau rasturnarea ordinii social-politice nedrepte a **Vechiului Regim** si crearea unei societati in care indivizii sa fie egali in drepturi.
+
+            A aparut in Franta ca o reactie impotriva inegalitatii si nedreptatilor din timpul Vechiului Regim (regimul politic absolutist anterior anului 1789).
+
+            S-au impus o alta perspectiva asupra societatii, noi **principii si valori** in cadrul acesteia.
+            """
+        )
+    ]
 
     // MARK: - Reset AI State
 
     /// Resets the AI pipeline state to `.idle` with an animation.
     func resetAIState() {
+        cancelAIGenerationTask()
+        aiSourcePreparationTask?.cancel()
+        showAICancelDialog = false
+        aiGenerationBaseCardCount = 0
+        aiGeneratedCardCount = 0
+        aiTargetCardCount = 0
+        preparedAISource = nil
+        manualAISourceAllocations = []
+        pdfAnalysis = nil
         withAnimation { aiState = .idle }
     }
 
@@ -347,8 +1355,17 @@ final class CreateDeckViewModel {
     /// - Otherwise, creates a brand-new `DeckModel` and inserts all draft cards.
     ///
     /// Shows a brief success overlay before navigating away.
-    func saveDeck(context: ModelContext, router: NavigationManager, dismiss: DismissAction) {
+    func saveDeck(
+        context: ModelContext,
+        router: NavigationManager,
+        dismissAction: @escaping () -> Void
+    ) -> Bool {
         let trimmedTitle = deckTitle.trimmingCharacters(in: .whitespaces)
+
+        if deckToEdit != nil && !hasUnsavedChanges {
+            dismissAction()
+            return true
+        }
 
         if let deck = deckToEdit {
             // ── UPDATE EXISTING DECK ──────────────────────────────────────────
@@ -417,8 +1434,12 @@ final class CreateDeckViewModel {
                 newDeck.cards.append(newCard)
             }
             newDeck.cardCount = newDeck.cards.count
+        }
 
-            try? context.save()
+        do {
+            try context.save()
+        } catch {
+            return false
         }
 
         // ── UI Triggers & Navigation ──────────────────────────────────────────
@@ -432,9 +1453,10 @@ final class CreateDeckViewModel {
                 if self.deckToEdit == nil {
                     self.resetForm()
                     router.popToRoot()
-                } else { dismiss() }
+                } else { dismissAction() }
             }
         }
+        return true
     }
 
     private func resetForm() {
@@ -442,7 +1464,17 @@ final class CreateDeckViewModel {
         draftCards = []
         cardToEdit = nil
         isCreatingNewCard = false
+        preparedAISource = nil
+        manualAISourceAllocations = []
         pdfAnalysis = nil
+    }
+
+    private var currentSnapshot: CreateDeckStateSnapshot {
+        CreateDeckStateSnapshot(
+            title: deckTitle.trimmingCharacters(in: .whitespacesAndNewlines),
+            selectedFolderID: selectedFolder?.persistentModelID,
+            draftCards: draftCards.map(DraftCardChangeSnapshot.init)
+        )
     }
 }
 

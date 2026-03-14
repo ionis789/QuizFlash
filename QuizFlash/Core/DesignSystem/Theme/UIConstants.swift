@@ -117,6 +117,8 @@ enum UIConstants {
         static let cardOptionsButton: CGFloat = 22
         /// 184 pt — standard height for deck grid cards, sized to preserve breathing room for text and math previews.
         static let deckGridCardHeight: CGFloat = 184
+        /// 192 pt — stable height for draft card rows during AI streaming and editor previews.
+        static let draftCardRowHeight: CGFloat = 192
         /// 228 pt — width for anchored visionOS-style floating menus.
         static let floatingContextMenuWidth: CGFloat = 228
     }

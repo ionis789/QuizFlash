@@ -20,6 +20,10 @@ private struct FullScreenSheetDismissActionKey: EnvironmentKey {
     static let defaultValue: FullScreenSheetDismissAction? = nil
 }
 
+private struct FullScreenSheetDismissCoordinatorKey: EnvironmentKey {
+    static let defaultValue: FullScreenSheetDismissCoordinator? = nil
+}
+
 private struct FullScreenSheetDragActivationHeightPreferenceKey: PreferenceKey {
     static let defaultValue: CGFloat? = nil
     static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
@@ -42,6 +46,17 @@ extension EnvironmentValues {
         get { self[FullScreenSheetDragProgressKey.self] }
         set { self[FullScreenSheetDragProgressKey.self] = newValue }
     }
+
+    var fullScreenSheetDismissCoordinator: FullScreenSheetDismissCoordinator? {
+        get { self[FullScreenSheetDismissCoordinatorKey.self] }
+        set { self[FullScreenSheetDismissCoordinatorKey.self] = newValue }
+    }
+}
+
+// MARK: - Dismiss Coordination
+
+final class FullScreenSheetDismissCoordinator {
+    var shouldAllowDismiss: (() -> Bool)?
 }
 
 // MARK: - View Extension
@@ -102,9 +117,10 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @State private var scrollDisabled = false
     @State private var isAnimatingDismiss = false
     @State private var preferredDragActivationHeight: CGFloat? = nil
+    @State private var dismissCoordinator = FullScreenSheetDismissCoordinator()
 
     private var dismissalAnimation: Animation {
-        .snappy(duration: UIConstants.Animation.medium, extraBounce: 0)
+            .snappy(duration: UIConstants.Animation.medium, extraBounce: 0)
     }
 
     private var dragProgress: CGFloat {
@@ -113,7 +129,8 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 
     private var activeSheetCornerRadius: CGFloat {
         guard offset > 0 else { return 0 }
-        return UIConstants.isPad ? 32 : 28
+//        return UIConstants.isPad ? 32 : 28
+        return 50
     }
 
     var body: some View {
@@ -138,14 +155,15 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             content(safeAreaInsets)
                 .scrollDisabled(scrollDisabled)
         }
-        .geometryGroup()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(.rect)
-        .offset(y: offset)
-        .presentationBackground { Color.clear }
-        .ignoresSafeArea(.container, edges: ignoresSafeArea ? .all : [])
-        .environment(\.fullScreenSheetDismiss, FullScreenSheetDismissAction { animateDismiss() })
-        .onPreferenceChange(FullScreenSheetDragActivationHeightPreferenceKey.self) {
+            .geometryGroup()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(.rect)
+            .offset(y: offset)
+            .presentationBackground { Color.clear }
+            .ignoresSafeArea(.container, edges: ignoresSafeArea ? .all : [])
+            .environment(\.fullScreenSheetDismiss, FullScreenSheetDismissAction { animateDismiss() })
+            .environment(\.fullScreenSheetDismissCoordinator, dismissCoordinator)
+            .onPreferenceChange(FullScreenSheetDragActivationHeightPreferenceKey.self) {
             preferredDragActivationHeight = $0
         }
 
@@ -153,8 +171,8 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             baseView.gesture(
                 CustomPanGesture { [self] gesture in
                     let translation = clampedTranslation(gesture.translation(in: gesture.view).y)
-                    let locationY   = gesture.location(in: gesture.view).y
-                    let velocityY   = gesture.velocity(in: gesture.view).y
+                    let locationY = gesture.location(in: gesture.view).y
+                    let velocityY = gesture.velocity(in: gesture.view).y
 
                     switch gesture.state {
                     case .began:
@@ -178,7 +196,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                             let isDownwardFlick = velocityY > 500
                                 && canStartDismiss(at: startY)
                                 && abs(gesture.translation(in: gesture.view).y)
-                                    >= abs(gesture.translation(in: gesture.view).x)
+                            >= abs(gesture.translation(in: gesture.view).x)
                             if isDownwardFlick {
                                 gesture.isEnabled = false
                                 animateDismiss { gesture.isEnabled = true }
@@ -195,7 +213,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                     activationHeight: preferredDragActivationHeight ?? dragDismissActivationHeight
                 ) { [self] gesture in
                     let translation = clampedTranslation(gesture.translation(in: gesture.view).y)
-                    let velocityY   = gesture.velocity(in: gesture.view).y
+                    let velocityY = gesture.velocity(in: gesture.view).y
 
                     switch gesture.state {
                     case .began:
@@ -218,7 +236,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                         break
                     }
                 }
-                .frame(width: 0, height: 0)
+                    .frame(width: 0, height: 0)
             }
         }
     }
@@ -249,6 +267,11 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 
     private func animateDismiss(completion: (() -> Void)? = nil) {
         guard !isAnimatingDismiss else { return }
+        guard dismissCoordinator.shouldAllowDismiss?() ?? true else {
+            scrollDisabled = false
+            completion?()
+            return
+        }
         isAnimatingDismiss = true
         scrollDisabled = true
 
@@ -360,7 +383,7 @@ private struct LegacySheetPanBridge: UIViewRepresentable {
 
         override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
-                  let host = hostView else { return false }
+                let host = hostView else { return false }
 
             let location = pan.location(in: host)
             if let activationHeight, location.y > activationHeight {
@@ -377,7 +400,7 @@ private struct LegacySheetPanBridge: UIViewRepresentable {
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
-                  let host = hostView else { return false }
+                let host = hostView else { return false }
 
             let velocityY = pan.velocity(in: host).y
             var scrollOffset: CGFloat = 0
@@ -435,7 +458,7 @@ private struct CustomPanGesture: UIGestureRecognizerRepresentable {
         return g
     }
 
-    func updateUIGestureRecognizer(_ recognizer: UIPanGestureRecognizer, context: Context) {}
+    func updateUIGestureRecognizer(_ recognizer: UIPanGestureRecognizer, context: Context) { }
 
     func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
         handle(recognizer)

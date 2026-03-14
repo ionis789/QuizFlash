@@ -47,6 +47,10 @@ final class FlashCardsPlayModeViewModel {
     /// `true` when the user has reviewed every card in the session.
     var isComplete: Bool = false
 
+    /// Total number of cards in the current run, preserved even if `cards`
+    /// gets cleared to release memory after completion.
+    var totalCardCount: Int = 0
+
     /// Cards the user swiped left (marked incorrect) — eligible for retry.
     var wrongCards: [PlayableCard] = []
 
@@ -93,11 +97,15 @@ final class FlashCardsPlayModeViewModel {
         Self.formatInterval(Date().timeIntervalSince(sessionStartTime))
     }
 
-    /// Progress segments for the header progress bar — `true` = completed.
-    ///
-    /// Exposed so the View can render a simple `ForEach` without arithmetic.
-    var progressSegments: [(id: Int, completed: Bool)] {
-        cards.indices.map { (id: $0, completed: $0 < currentIndex) }
+    /// Number of cards already reviewed in the active run.
+    var reviewedCardCount: Int {
+        min(currentIndex, totalCardCount)
+    }
+
+    /// Fractional progress for the header progress bar.
+    var progressFraction: Double {
+        guard totalCardCount > 0 else { return 0 }
+        return min(1, Double(reviewedCardCount) / Double(totalCardCount))
     }
 
     // MARK: - Static Helpers
@@ -143,6 +151,7 @@ final class FlashCardsPlayModeViewModel {
             if i1 != 0 && i2 == 0 { return false }
             return i1 < i2
         }
+        self.totalCardCount = self.cards.count
 
         self.isSessionStarted = true
     }
@@ -153,6 +162,7 @@ final class FlashCardsPlayModeViewModel {
     func tearDown() {
         cards = []
         wrongCards = []
+        totalCardCount = 0
         MathWebViewPool.shared.flush()
         ImageCache.shared.clearCache()
     }
@@ -294,12 +304,30 @@ final class FlashCardsPlayModeViewModel {
             if i1 != 0 && i2 == 0 { return false }
             return i1 < i2
         }
+        totalCardCount = cards.count
 
         currentIndex = 0
         correctCount = 0
         isComplete   = false
         isFlipped    = false
         currentCardStartTime = Date()
+    }
+
+    /// Reloads a single lightweight snapshot after inline card editing so the
+    /// current play session can stay on the same index with fresh content.
+    func refreshCardSnapshot(for cardID: PersistentIdentifier) async {
+        guard let container else { return }
+
+        let actor = PlaybackActor(modelContainer: container)
+        guard let refreshedCard = await actor.loadPlayableCard(for: cardID) else { return }
+
+        if let currentCardIndex = cards.firstIndex(where: { $0.id == cardID }) {
+            cards[currentCardIndex] = refreshedCard
+        }
+
+        if let wrongCardIndex = wrongCards.firstIndex(where: { $0.id == cardID }) {
+            wrongCards[wrongCardIndex] = refreshedCard
+        }
     }
 }
 
@@ -331,6 +359,21 @@ struct PlayableCard: Identifiable, Sendable {
 /// does not apply here.
 @ModelActor
 final actor PlaybackActor {
+
+    /// Loads one `PlayableCard` snapshot by persistent identifier.
+    func loadPlayableCard(for cardID: PersistentIdentifier) -> PlayableCard? {
+        guard let card = modelContext.model(for: cardID) as? CardModel else { return nil }
+
+        let frontZone = card.frontZoneData.flatMap { ZoneModel.decode(from: $0) } ?? ZoneModel(id: UUID())
+        let backZone = card.backZoneData.flatMap { ZoneModel.decode(from: $0) } ?? ZoneModel(id: UUID())
+
+        return PlayableCard(
+            id: card.persistentModelID,
+            frontZone: frontZone,
+            backZone: backZone,
+            interval: card.interval
+        )
+    }
 
     /// Loads cards for the given deck ID, decodes zone data on the actor's background
     /// context, and returns pure `Sendable` value types.

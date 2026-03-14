@@ -86,26 +86,378 @@ struct AIGenerationSkeletonList: View {
     }
 }
 
+// MARK: - AI Streaming Progress Card
+
+/// Compact progress card shown while AI batches arrive incrementally.
+///
+/// Keeps the generation state visible without blocking the newly inserted
+/// flashcards that stream into the list below it.
+struct AIStreamingProgressCard: View {
+    let foundCount: Int
+    let targetCount: Int
+    let progress: Double
+    var onCancel: (() -> Void)? = nil
+
+    @State private var shimmerPhase: CGFloat = -0.32
+
+    private var clampedProgress: CGFloat {
+        CGFloat(min(max(progress, 0), 1))
+    }
+
+    private var countText: String {
+        "\(foundCount)/\(targetCount)"
+    }
+
+    private var statusText: String {
+        "Cards appear as each AI batch finishes"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Generating cards")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+
+                    Text("\(foundCount) of \(targetCount) ready")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                }
+
+                Spacer(minLength: UIConstants.Spacing.small)
+
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Text(countText)
+                        .font(.system(size: 16, weight: .bold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.06), in: Capsule())
+                        .overlay {
+                            Capsule()
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        }
+                        .contentTransition(.numericText())
+
+                    if let onCancel {
+                        Button(action: onCancel) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 30, height: 30)
+                                .background(Color.white.opacity(0.06), in: Circle())
+                                .overlay {
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Cancel AI generation")
+                    }
+                }
+            }
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.08))
+
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.blue.opacity(0.92),
+                                    Color.blue.opacity(0.88),
+                                    Color.purple.opacity(0.90),
+                                    Color.pink.opacity(0.84)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(20, proxy.size.width * clampedProgress))
+                        .overlay(alignment: .leading) {
+                            LinearGradient(
+                                colors: [
+                                    .clear,
+                                    Color.white.opacity(0.08),
+                                    Color.white.opacity(0.42),
+                                    .clear
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: 96)
+                            .offset(x: shimmerPhase * proxy.size.width)
+                            .blendMode(.screen)
+                        }
+                        .clipShape(Capsule())
+                        .shadow(color: Color.blue.opacity(0.18), radius: 12, y: 3)
+
+                    if clampedProgress > 0 {
+                        Circle()
+                            .fill(Color.white.opacity(0.95))
+                            .frame(width: 8, height: 8)
+                            .blur(radius: 0.8)
+                            .offset(x: max(0, (proxy.size.width * clampedProgress) - 8))
+                    }
+                }
+                .clipShape(Capsule())
+            }
+            .frame(height: 12)
+            .animation(.easeInOut(duration: 0.26), value: clampedProgress)
+
+            Text(statusText)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, UIConstants.Spacing.large)
+        .padding(.vertical, 18)
+        .frame(minHeight: 138, alignment: .topLeading)
+        .background {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.libraryDeckRow)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.04),
+                                    Color.clear,
+                                    Color.blue.opacity(0.06)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .onAppear {
+            withAnimation(.linear(duration: 1.7).repeatForever(autoreverses: false)) {
+                shimmerPhase = 1.08
+            }
+        }
+    }
+}
+
+// MARK: - AI Streaming Card Slot
+
+/// Replaces a skeleton placeholder in place with the real generated card.
+///
+/// The transition uses a large internal glow fill followed by a soft content
+/// fade so the card feels illuminated into place instead of abruptly swapped.
+struct AIStreamingCardSlot<Content: View>: View {
+    let slotIndex: Int
+    let isFilled: Bool
+    let filledCardID: UUID?
+    @ViewBuilder let content: () -> Content
+
+    private let cornerRadius: CGFloat = 30
+    @State private var animatedCardID: UUID?
+    @State private var skeletonOpacity: Double = 1
+    @State private var contentOpacity: Double = 0
+    @State private var glowOpacity: Double = 0
+    @State private var glowExpansion: CGFloat = 0.76
+    @State private var animationTask: Task<Void, Never>?
+    @State private var isVisible = false
+    @State private var pendingRevealCardID: UUID?
+
+    var body: some View {
+        ZStack {
+            AISkeletonCardView(index: slotIndex, globalAppeared: true)
+                .opacity(isFilled ? skeletonOpacity : 1)
+
+            if isFilled {
+                content()
+                    .id(filledCardID)
+                    .opacity(max(0.001, contentOpacity))
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+
+                AIInternalGlowFillOverlay(
+                    cornerRadius: cornerRadius,
+                    intensity: glowOpacity,
+                    expansion: glowExpansion
+                )
+                .allowsHitTesting(false)
+            }
+        }
+        .frame(height: UIConstants.Size.draftCardRowHeight)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .task(id: filledCardID) {
+            pendingRevealCardID = filledCardID
+            guard isVisible else { return }
+            await startRevealAnimation(for: filledCardID)
+        }
+        .onAppear {
+            isVisible = true
+            let revealCardID = pendingRevealCardID ?? filledCardID
+            Task { @MainActor in
+                await startRevealAnimation(for: revealCardID)
+            }
+        }
+        .onDisappear {
+            isVisible = false
+            animationTask?.cancel()
+            animationTask = nil
+
+            guard isFilled, contentOpacity < 0.999 else { return }
+            pendingRevealCardID = filledCardID
+            animatedCardID = nil
+            setVisualState(skeleton: 1, content: 0, glow: 0, expansion: 0.76)
+        }
+    }
+
+    @MainActor
+    private func startRevealAnimation(for cardID: UUID?) async {
+        animationTask?.cancel()
+
+        guard isFilled, let cardID else {
+            animatedCardID = nil
+            pendingRevealCardID = nil
+            setVisualState(skeleton: 1, content: 0, glow: 0, expansion: 0.76)
+            return
+        }
+
+        guard animatedCardID != cardID || contentOpacity < 0.999 || skeletonOpacity > 0.001 else {
+            pendingRevealCardID = nil
+            return
+        }
+        animatedCardID = cardID
+        setVisualState(skeleton: 1, content: 0, glow: 0, expansion: 0.76)
+
+        animationTask = Task { @MainActor in
+            withAnimation(.easeInOut(duration: 0.34)) {
+                skeletonOpacity = 0.82
+                glowOpacity = 0.96
+                glowExpansion = 1.08
+            }
+
+            try? await Task.sleep(nanoseconds: 220_000_000)
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.easeOut(duration: 0.42)) {
+                skeletonOpacity = 0
+                glowOpacity = 0.42
+                glowExpansion = 1.22
+            }
+
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.easeIn(duration: 0.30)) {
+                contentOpacity = 1
+            }
+
+            try? await Task.sleep(nanoseconds: 220_000_000)
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.easeOut(duration: 0.26)) {
+                glowOpacity = 0
+                glowExpansion = 1.28
+            }
+
+            pendingRevealCardID = nil
+            animationTask = nil
+        }
+    }
+
+    @MainActor
+    private func setVisualState(
+        skeleton: Double,
+        content: Double,
+        glow: Double,
+        expansion: CGFloat
+    ) {
+        skeletonOpacity = skeleton
+        contentOpacity = content
+        glowOpacity = glow
+        glowExpansion = expansion
+    }
+}
+
+private struct AIInternalGlowFillOverlay: View {
+    let cornerRadius: CGFloat
+    let intensity: Double
+    let expansion: CGFloat
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(Color.white.opacity(0.04 + (intensity * 0.14)))
+
+            ZStack {
+                Ellipse()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.blue.opacity(0.48),
+                                Color.white.opacity(0.18),
+                                Color.purple.opacity(0.42),
+                                Color.clear
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 320, height: 240)
+                    .scaleEffect(expansion)
+                    .blur(radius: 54 + (intensity * 26))
+                    .offset(x: -18, y: -8)
+
+                Ellipse()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.clear,
+                                Color.white.opacity(0.18),
+                                Color.pink.opacity(0.34),
+                                Color.blue.opacity(0.28)
+                            ],
+                            startPoint: .topTrailing,
+                            endPoint: .bottomLeading
+                        )
+                    )
+                    .frame(width: 300, height: 220)
+                    .scaleEffect(expansion * 0.94)
+                    .blur(radius: 68 + (intensity * 30))
+                    .offset(x: 22, y: 12)
+
+                RoundedRectangle(cornerRadius: max(12, cornerRadius - 6), style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                    .padding(10)
+                    .blur(radius: 18)
+                    .opacity(intensity * 0.46)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .opacity(intensity)
+    }
+}
+
 // MARK: - Skeleton Card View
 
 /// Single animated skeleton placeholder for one AI-generated card.
 ///
 /// Uses a seeded RNG so bar widths are deterministic per index, avoiding
-/// layout shifts on re-render.  The rotating angular gradient border is
-/// GPU-composited via a mask to keep the shimmer effect cheap.
+/// layout shifts on re-render while the animated border keeps the placeholder
+/// visually active during streaming generation.
 struct AISkeletonCardView: View {
     let index: Int
     let globalAppeared: Bool
 
+    private let cornerRadius: CGFloat = 30
+
     @State private var phase = false
-    @State private var rotation: Double = 0.0
 
     private let barWidths: [CGFloat]
-
-    private let glowColors: [Color] = [
-        Color.indigo, Color.cyan, Color.purple,
-        Color.orange, Color.pink, Color.indigo
-    ]
 
     init(index: Int, globalAppeared: Bool) {
         self.index = index
@@ -116,76 +468,90 @@ struct AISkeletonCardView: View {
 
     var body: some View {
         ZStack {
-            // 1. Opaque background
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
-
-            // 2. Rotating gradient border (GPU-accelerated via mask)
-            GeometryReader { geo in
-                let maxDim = max(geo.size.width, geo.size.height) * 1.5
-                AngularGradient(gradient: Gradient(colors: glowColors), center: .center)
-                    .frame(width: maxDim, height: maxDim)
-                    .position(x: geo.size.width / 2, y: geo.size.height / 2)
-                    .rotationEffect(.degrees(rotation))
-            }
-            .mask {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(lineWidth: 4)
-                        .blur(radius: 6)
-                        .opacity(0.8)
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(lineWidth: 1.5)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(Color.libraryDeckRow.opacity(0.94))
+                .overlay {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
                 }
-            }
-            .opacity(0.85)
 
-            // 3. Skeleton content
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(phase ? 0.05 : 0.02),
+                            Color.clear,
+                            Color.blue.opacity(phase ? 0.03 : 0.015)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
             VStack(alignment: .leading, spacing: 0) {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.purple.opacity(phase ? 0.35 : 0.18))
-                    .frame(width: 64, height: 20)
-                    .animation(
-                        .easeInOut(duration: 1.1).repeatForever(autoreverses: true).delay(Double(index) * 0.15),
-                        value: phase
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.purple.opacity(phase ? 0.28 : 0.16),
+                                Color.blue.opacity(phase ? 0.20 : 0.10)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
                     )
+                    .frame(width: 64, height: 20)
                     .padding(.bottom, 14)
 
                 HStack(alignment: .top, spacing: 10) {
-                    Text("Q").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.primary.opacity(0.12)).frame(width: 20)
+                    Text("Q")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.primary.opacity(0.12))
+                        .frame(width: 20)
+
                     VStack(alignment: .leading, spacing: 7) {
-                        SkeletonBar(widthFraction: barWidths[0], phase: phase, delayOffset: 0)
-                        SkeletonBar(widthFraction: barWidths[1], phase: phase, delayOffset: 0.2)
+                        SkeletonBar(widthFraction: barWidths[0], phase: phase)
+                        SkeletonBar(widthFraction: barWidths[1], phase: phase)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                Divider().background(Color.primary.opacity(0.06)).padding(.vertical, 12)
+                Divider()
+                    .background(Color.primary.opacity(0.05))
+                    .padding(.vertical, 12)
 
                 HStack(alignment: .top, spacing: 10) {
-                    Text("A").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.primary.opacity(0.12)).frame(width: 20)
+                    Text("A")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.primary.opacity(0.12))
+                        .frame(width: 20)
+
                     VStack(alignment: .leading, spacing: 7) {
-                        SkeletonBar(widthFraction: barWidths[2], phase: phase, delayOffset: 0.1)
-                        SkeletonBar(widthFraction: barWidths[3], phase: phase, delayOffset: 0.3)
+                        SkeletonBar(widthFraction: barWidths[2], phase: phase)
+                        SkeletonBar(widthFraction: barWidths[3], phase: phase)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 HStack {
-                    RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(phase ? 0.08 : 0.15)).frame(width: 60, height: 8)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.primary.opacity(phase ? 0.10 : 0.16))
+                        .frame(width: 60, height: 8)
                     Spacer()
-                    RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(phase ? 0.08 : 0.15)).frame(width: 80, height: 8)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.primary.opacity(phase ? 0.10 : 0.16))
+                        .frame(width: 80, height: 8)
                 }
-                .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true).delay(Double(index) * 0.12), value: phase)
                 .padding(.top, 14)
             }
             .padding(16)
         }
+        .frame(height: UIConstants.Size.draftCardRowHeight)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .onAppear {
-            phase = true
-            withAnimation(
-                .linear(duration: 3.5)
-                .repeatForever(autoreverses: false)
-            ) {
-                rotation = 360.0
+            guard globalAppeared, !phase else { return }
+            withAnimation(.easeInOut(duration: 1.25).repeatForever(autoreverses: true)) {
+                phase = true
             }
         }
     }
@@ -196,71 +562,21 @@ struct AISkeletonCardView: View {
 private struct SkeletonBar: View {
     let widthFraction: CGFloat
     let phase: Bool
-    let delayOffset: Double
 
     var body: some View {
-        GeometryReader { geo in
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(Color.primary.opacity(phase ? 0.10 : 0.22))
-                .frame(width: geo.size.width * widthFraction, height: 11)
-        }
-        .frame(height: 11)
-        .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true).delay(delayOffset), value: phase)
-    }
-}
-
-// MARK: - Materializing Card Wrapper
-
-/// Wraps a card view with a staggered spring reveal animation and a particle burst effect.
-///
-/// Used in `CreateDeckView` during the post-generation materialization sequence.
-struct MaterializingCardWrapper<Content: View>: View {
-    let isRevealed: Bool
-    @ViewBuilder let content: () -> Content
-    @State private var burstActive = false
-
-    var body: some View {
-        ZStack {
-            content()
-                .opacity(isRevealed ? 1 : 0)
-                .scaleEffect(isRevealed ? 1 : 0.88)
-                .blur(radius: isRevealed ? 0 : 3)
-                .animation(.spring(response: 0.45, dampingFraction: 0.75), value: isRevealed)
-
-            if burstActive {
-                MaterializationBurst().allowsHitTesting(false)
-            }
-        }
-        .onChange(of: isRevealed) { _, revealed in
-            guard revealed else { return }
-            burstActive = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { burstActive = false }
-        }
-    }
-}
-
-// MARK: - Materialization Burst
-
-private struct MaterializationBurst: View {
-    @State private var expanded = false
-    private let items: [(angle: Double, symbol: String, color: Color)] = [
-        (0, "sparkle", .purple), (60, "star.fill", .indigo), (120, "sparkle", .white),
-        (180, "star.fill", .purple), (240, "sparkle", .blue), (300, "star.fill", .indigo)
-    ]
-
-    var body: some View {
-        ZStack {
-            ForEach(items.indices, id: \.self) { i in
-                let item = items[i]
-                Image(systemName: item.symbol)
-                    .font(.system(size: i % 2 == 0 ? 9 : 6))
-                    .foregroundStyle(item.color.opacity(expanded ? 0 : 0.9))
-                    .offset(x: cos(item.angle * .pi / 180) * (expanded ? 44 : 0),
-                            y: sin(item.angle * .pi / 180) * (expanded ? 30 : 0))
-                    .animation(.spring(response: 0.4, dampingFraction: 0.6).delay(Double(i) * 0.02), value: expanded)
-            }
-        }
-        .onAppear { expanded = true }
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color.primary.opacity(phase ? 0.12 : 0.18),
+                        Color.primary.opacity(phase ? 0.08 : 0.12)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .frame(maxWidth: .infinity, minHeight: 11, maxHeight: 11, alignment: .leading)
+            .scaleEffect(x: widthFraction, y: 1, anchor: .leading)
     }
 }
 

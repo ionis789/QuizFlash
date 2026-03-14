@@ -49,11 +49,15 @@ private struct FlashcardResponseDTO: Codable {
     let flashcards: [CardDTO]?
 }
 
+private struct DeckTitleResponseDTO: Codable {
+    let deck_title: String?
+}
+
 // =============================================================================
 // MARK: - AI Flashcard Service
 // =============================================================================
 
-public final class AIFlashcardService {
+public final class AIFlashcardService: @unchecked Sendable {
 
     // -------------------------------------------------------------------------
     // MARK: - Configuration
@@ -65,6 +69,31 @@ public final class AIFlashcardService {
     private let visionModel = "deepseek-chat"
     private let session: URLSession
     private let maxCharsPerChunk = 12_000
+    private let maxConcurrentTextPlanRequests = 6
+    private let maxConcurrentVisionPlanRequests = 4
+
+    private struct TextSourceUnit {
+        let content: String
+        let label: String
+    }
+
+    private struct TextBatchPlan: Sendable {
+        let text: String
+        let sourceLabel: String
+        let targetCards: Int
+        let batchIndex: Int
+        let totalBatches: Int
+        let passIndex: Int
+    }
+
+    private struct VisionBatchPlan: @unchecked Sendable {
+        let images: [UIImage]
+        let sourceLabel: String
+        let targetCards: Int
+        let batchIndex: Int
+        let totalBatches: Int
+        let passIndex: Int
+    }
 
     // -------------------------------------------------------------------------
     // MARK: - Init
@@ -90,8 +119,17 @@ public final class AIFlashcardService {
     /// - Returns: An array of `AIFlashcard` values.
     /// - Throws: `AIServiceError` if extraction, network communication, or parsing fails.
     public func generateFlashcards(from pdfURL: URL, targetCards: Int) async throws -> [AIFlashcard] {
-        let result = await DocumentTextExtractor.extract(from: pdfURL)
-        return try await route(result: result, targetCards: targetCards)
+        try await generateFlashcards(from: pdfURL, targetCards: targetCards, options: AIGenerationOptions())
+    }
+
+    public func generateFlashcards(
+        from pdfURL: URL,
+        targetCards: Int,
+        options: AIGenerationOptions
+    ) async throws -> [AIFlashcard] {
+        try await collectFlashcards(
+            from: generateFlashcardsStream(from: pdfURL, targetCards: targetCards, options: options)
+        )
     }
 
     /// Generates flashcards from a collection of images.
@@ -102,8 +140,17 @@ public final class AIFlashcardService {
     /// - Returns: An array of `AIFlashcard` values.
     /// - Throws: `AIServiceError` if network communication or parsing fails.
     public func generateFlashcards(from images: [UIImage], targetCards: Int) async throws -> [AIFlashcard] {
-        let result = await DocumentTextExtractor.extract(from: images)
-        return try await route(result: result, targetCards: targetCards)
+        try await generateFlashcards(from: images, targetCards: targetCards, options: AIGenerationOptions())
+    }
+
+    public func generateFlashcards(
+        from images: [UIImage],
+        targetCards: Int,
+        options: AIGenerationOptions
+    ) async throws -> [AIFlashcard] {
+        try await collectFlashcards(
+            from: generateFlashcardsStream(from: images, targetCards: targetCards, options: options)
+        )
     }
 
     /// Generates flashcards from a plain-text string.
@@ -114,22 +161,266 @@ public final class AIFlashcardService {
     /// - Returns: An array of `AIFlashcard` values.
     /// - Throws: `AIServiceError` if network communication or parsing fails.
     public func generateFlashcards(fromText text: String, targetCards: Int) async throws -> [AIFlashcard] {
-        return try await dispatchText(text, targetCards: targetCards, needsOCRCorrection: false)
+        try await generateFlashcards(fromText: text, targetCards: targetCards, options: AIGenerationOptions())
+    }
+
+    public func generateFlashcards(
+        fromText text: String,
+        targetCards: Int,
+        options: AIGenerationOptions
+    ) async throws -> [AIFlashcard] {
+        try await collectFlashcards(
+            from: generateFlashcardsStream(fromText: text, targetCards: targetCards, options: options)
+        )
+    }
+
+    /// Generates a short deck title that matches the dominant language and
+    /// subject of the supplied source text.
+    public func generateDeckTitle(fromText text: String) async throws -> String? {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return nil }
+
+        return try await sendDeckTitleRequest(
+            messages: buildDeckTitleMessages(fromText: trimmedText),
+            model: textModel
+        )
+    }
+
+    /// Streams flashcard batches from a PDF file as soon as each AI chunk finishes.
+    ///
+    /// - Parameters:
+    ///   - pdfURL: The local file URL of the PDF document.
+    ///   - targetCards: The desired number of flashcards to generate.
+    /// - Returns: An `AsyncThrowingStream` yielding card batches in completion order.
+    public func generateFlashcardsStream(
+        from pdfURL: URL,
+        targetCards: Int
+    ) -> AsyncThrowingStream<[AIFlashcard], Error> {
+        generateFlashcardsStream(from: pdfURL, targetCards: targetCards, options: AIGenerationOptions())
+    }
+
+    public func generateFlashcardsStream(
+        from pdfURL: URL,
+        targetCards: Int,
+        options: AIGenerationOptions
+    ) -> AsyncThrowingStream<[AIFlashcard], Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let result = await DocumentTextExtractor.extract(from: pdfURL)
+                    try await routeStream(
+                        result: result,
+                        targetCards: targetCards,
+                        options: options,
+                        continuation: continuation
+                    )
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+
+    /// Streams flashcard batches from a collection of images.
+    ///
+    /// - Parameters:
+    ///   - images: Images selected for AI generation.
+    ///   - targetCards: The desired number of flashcards to generate.
+    /// - Returns: An `AsyncThrowingStream` yielding card batches as they are ready.
+    public func generateFlashcardsStream(
+        from images: [UIImage],
+        targetCards: Int
+    ) -> AsyncThrowingStream<[AIFlashcard], Error> {
+        generateFlashcardsStream(from: images, targetCards: targetCards, options: AIGenerationOptions())
+    }
+
+    public func generateFlashcardsStream(
+        from images: [UIImage],
+        targetCards: Int,
+        options: AIGenerationOptions
+    ) -> AsyncThrowingStream<[AIFlashcard], Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let result = await DocumentTextExtractor.extract(from: images)
+                    try await routeStream(
+                        result: result,
+                        targetCards: targetCards,
+                        options: options,
+                        continuation: continuation
+                    )
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+
+    /// Streams flashcard batches from plain extracted text.
+    ///
+    /// - Parameters:
+    ///   - text: The extracted source text.
+    ///   - targetCards: The desired number of flashcards to generate.
+    /// - Returns: An `AsyncThrowingStream` yielding card batches in real time.
+    public func generateFlashcardsStream(
+        fromText text: String,
+        targetCards: Int
+    ) -> AsyncThrowingStream<[AIFlashcard], Error> {
+        generateFlashcardsStream(fromText: text, targetCards: targetCards, options: AIGenerationOptions())
+    }
+
+    public func generateFlashcardsStream(
+        fromText text: String,
+        targetCards: Int,
+        options: AIGenerationOptions
+    ) -> AsyncThrowingStream<[AIFlashcard], Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    try await dispatchTextStream(
+                        text,
+                        targetCards: targetCards,
+                        needsOCRCorrection: false,
+                        options: options,
+                        continuation: continuation
+                    )
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+
+    /// Streams flashcards from pre-analyzed text segments using an explicit
+    /// source-allocation plan.
+    public func generateFlashcardsStream(
+        fromSegments segments: [AITextSourceSegment],
+        targetCards: Int,
+        allocations: [AISourceRangeAllocation],
+        needsOCRCorrection: Bool = false,
+        options: AIGenerationOptions
+    ) -> AsyncThrowingStream<[AIFlashcard], Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    try await performTextRequests(
+                        plans: buildTextBatchPlans(
+                            segments: segments,
+                            allocations: allocations,
+                            options: options
+                        ),
+                        needsOCRCorrection: needsOCRCorrection,
+                        options: options
+                    ) { cards in
+                        continuation.yield(cards)
+                        await Task.yield()
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+
+    /// Streams flashcards from explicit image ranges using an externally
+    /// computed coverage plan.
+    public func generateFlashcardsStream(
+        from images: [UIImage],
+        itemLabels: [String],
+        targetCards: Int,
+        allocations: [AISourceRangeAllocation],
+        options: AIGenerationOptions
+    ) -> AsyncThrowingStream<[AIFlashcard], Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    try await performVisionRequests(
+                        plans: buildVisionBatchPlans(
+                            images: images,
+                            labels: itemLabels,
+                            allocations: allocations,
+                            options: options
+                        ),
+                        options: options
+                    ) { cards in
+                        continuation.yield(cards)
+                        await Task.yield()
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
     }
 
     // -------------------------------------------------------------------------
     // MARK: - Routing
     // -------------------------------------------------------------------------
 
-    private func route(result: ExtractionResult, targetCards: Int) async throws -> [AIFlashcard] {
+    private func route(
+        result: ExtractionResult,
+        targetCards: Int,
+        options: AIGenerationOptions
+    ) async throws -> [AIFlashcard] {
         switch result.method {
         case .pdfKit, .visionOCR:
             guard let text = result.text, !text.isEmpty else { throw AIServiceError.parsingFailed }
-            return try await dispatchText(text, targetCards: targetCards, needsOCRCorrection: result.needsOCRCorrection)
+            return try await dispatchText(
+                text,
+                targetCards: targetCards,
+                needsOCRCorrection: result.needsOCRCorrection,
+                options: options
+            )
         case .rawImages:
             guard let images = result.images, !images.isEmpty else { throw AIServiceError.parsingFailed }
-            let messages = buildVisionMessages(images: images, targetCards: targetCards)
-            return try await sendRequest(messages: messages, model: visionModel)
+            return try await dispatchVision(images, targetCards: targetCards, options: options)
+        }
+    }
+
+    private func routeStream(
+        result: ExtractionResult,
+        targetCards: Int,
+        options: AIGenerationOptions,
+        continuation: AsyncThrowingStream<[AIFlashcard], Error>.Continuation
+    ) async throws {
+        switch result.method {
+        case .pdfKit, .visionOCR:
+            guard let text = result.text, !text.isEmpty else { throw AIServiceError.parsingFailed }
+            try await dispatchTextStream(
+                text,
+                targetCards: targetCards,
+                needsOCRCorrection: result.needsOCRCorrection,
+                options: options,
+                continuation: continuation
+            )
+        case .rawImages:
+            guard let images = result.images, !images.isEmpty else { throw AIServiceError.parsingFailed }
+            try await dispatchVisionStream(images, targetCards: targetCards, options: options, continuation: continuation)
         }
     }
 
@@ -140,66 +431,442 @@ public final class AIFlashcardService {
     private func dispatchText(
         _ text: String,
         targetCards: Int,
-        needsOCRCorrection: Bool
+        needsOCRCorrection: Bool,
+        options: AIGenerationOptions
     ) async throws -> [AIFlashcard] {
-        let chunks = splitIntoChunks(text)
-
-        if chunks.count == 1 {
-            let messages = buildTextMessages(
-                text: text,
-                targetCards: targetCards,
-                needsOCRCorrection: needsOCRCorrection
-            )
-            return try await sendRequest(messages: messages, model: textModel)
+        var allCards: [AIFlashcard] = []
+        try await performTextRequests(
+            text,
+            targetCards: targetCards,
+            needsOCRCorrection: needsOCRCorrection,
+            options: options
+        ) { cards in
+            allCards.append(contentsOf: cards)
         }
+        return allCards
+    }
 
-        let distribution = distributeCards(targetCards, across: chunks.count)
-
-        return try await withThrowingTaskGroup(of: [AIFlashcard].self) { group in
-            for (i, chunk) in chunks.enumerated() {
-                let cardsForChunk = distribution[i]
-                guard cardsForChunk > 0 else { continue }
-                group.addTask {
-                    let messages = self.buildTextMessages(
-                        text: chunk,
-                        targetCards: cardsForChunk,
-                        needsOCRCorrection: needsOCRCorrection
-                    )
-                    return try await self.sendRequest(messages: messages, model: self.textModel)
-                }
-            }
-            var all: [AIFlashcard] = []
-            for try await cards in group { all.append(contentsOf: cards) }
-            return all
+    private func dispatchTextStream(
+        _ text: String,
+        targetCards: Int,
+        needsOCRCorrection: Bool,
+        options: AIGenerationOptions,
+        continuation: AsyncThrowingStream<[AIFlashcard], Error>.Continuation
+    ) async throws {
+        try await performTextRequests(
+            text,
+            targetCards: targetCards,
+            needsOCRCorrection: needsOCRCorrection,
+            options: options
+        ) { cards in
+            continuation.yield(cards)
+            await Task.yield()
         }
+    }
+
+    private func dispatchVision(
+        _ images: [UIImage],
+        targetCards: Int,
+        options: AIGenerationOptions
+    ) async throws -> [AIFlashcard] {
+        var allCards: [AIFlashcard] = []
+        try await performVisionRequests(images, targetCards: targetCards, options: options) { cards in
+            allCards.append(contentsOf: cards)
+        }
+        return allCards
+    }
+
+    private func dispatchVisionStream(
+        _ images: [UIImage],
+        targetCards: Int,
+        options: AIGenerationOptions,
+        continuation: AsyncThrowingStream<[AIFlashcard], Error>.Continuation
+    ) async throws {
+        try await performVisionRequests(images, targetCards: targetCards, options: options) { cards in
+            continuation.yield(cards)
+            await Task.yield()
+        }
+    }
+
+    private func performTextRequests(
+        _ text: String,
+        targetCards: Int,
+        needsOCRCorrection: Bool,
+        options: AIGenerationOptions,
+        onBatch: @escaping ([AIFlashcard]) async throws -> Void
+    ) async throws {
+        let plans = buildTextBatchPlans(text: text, targetCards: targetCards, options: options)
+        try await performTextRequests(
+            plans: plans,
+            needsOCRCorrection: needsOCRCorrection,
+            options: options,
+            onBatch: onBatch
+        )
+    }
+
+    private func performTextRequests(
+        plans: [TextBatchPlan],
+        needsOCRCorrection: Bool,
+        options: AIGenerationOptions,
+        onBatch: @escaping ([AIFlashcard]) async throws -> Void
+    ) async throws {
+        try await performPlanQueue(
+            plans: plans,
+            maxConcurrent: maxConcurrentTextPlanRequests,
+            execute: { [self] plan, coveredPrompts in
+                let messages = buildTextMessages(
+                    text: plan.text,
+                    targetCards: plan.targetCards,
+                    needsOCRCorrection: needsOCRCorrection,
+                    options: options,
+                    sourceLabel: plan.sourceLabel,
+                    batchIndex: plan.batchIndex,
+                    totalBatches: plan.totalBatches,
+                    passIndex: plan.passIndex,
+                    coveredPrompts: coveredPrompts
+                )
+
+                return try await sendRequest(messages: messages, model: textModel)
+            },
+            onBatch: onBatch
+        )
+    }
+
+    private func performVisionRequests(
+        _ images: [UIImage],
+        targetCards: Int,
+        options: AIGenerationOptions,
+        onBatch: @escaping ([AIFlashcard]) async throws -> Void
+    ) async throws {
+        let plans = buildVisionBatchPlans(images: images, targetCards: targetCards, options: options)
+        try await performVisionRequests(
+            plans: plans,
+            options: options,
+            onBatch: onBatch
+        )
+    }
+
+    private func performVisionRequests(
+        plans: [VisionBatchPlan],
+        options: AIGenerationOptions,
+        onBatch: @escaping ([AIFlashcard]) async throws -> Void
+    ) async throws {
+        try await performPlanQueue(
+            plans: plans,
+            maxConcurrent: maxConcurrentVisionPlanRequests,
+            execute: { [self] plan, coveredPrompts in
+                let messages = buildVisionMessages(
+                    images: plan.images,
+                    targetCards: plan.targetCards,
+                    options: options,
+                    sourceLabel: plan.sourceLabel,
+                    batchIndex: plan.batchIndex,
+                    totalBatches: plan.totalBatches,
+                    passIndex: plan.passIndex,
+                    coveredPrompts: coveredPrompts
+                )
+
+                return try await sendRequest(messages: messages, model: visionModel)
+            },
+            onBatch: onBatch
+        )
+    }
+
+    private func collectFlashcards(
+        from stream: AsyncThrowingStream<[AIFlashcard], Error>
+    ) async throws -> [AIFlashcard] {
+        var allCards: [AIFlashcard] = []
+        for try await chunk in stream {
+            allCards.append(contentsOf: chunk)
+        }
+        return allCards
     }
 
     // -------------------------------------------------------------------------
     // MARK: - Chunking Helpers
     // -------------------------------------------------------------------------
 
-    private func splitIntoChunks(_ text: String) -> [String] {
-        guard text.count > maxCharsPerChunk else { return [text] }
-        let pageSeparator = "\n\n--- Next page ---\n\n"
-        let pages = text.components(separatedBy: pageSeparator)
-            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private func buildTextBatchPlans(
+        text: String,
+        targetCards: Int,
+        options: AIGenerationOptions
+    ) -> [TextBatchPlan] {
+        let batchSizes = makeCardBatchSizes(totalCards: targetCards, batchSize: options.resolvedCardsPerBatch(for: targetCards))
+        guard !batchSizes.isEmpty else { return [] }
 
-        guard pages.count > 1 else { return splitBySize(text) }
+        var units = makeTextUnits(from: text)
+        units = expandTextUnits(units, toReach: batchSizes.count)
 
-        var chunks: [String] = []
-        var current = ""
-        for page in pages {
-            if current.isEmpty {
-                current = page
-            } else if current.count + page.count + pageSeparator.count > maxCharsPerChunk {
-                chunks.append(current)
-                current = page
-            } else {
-                current += pageSeparator + page
+        let groupedUnits = distributeElementsEvenly(units, into: batchSizes.count)
+
+        return groupedUnits.enumerated().compactMap { index, group in
+            guard !group.isEmpty else { return nil }
+
+            let content = group
+                .map(\.content)
+                .joined(separator: DocumentTextExtractor.pageSeparator)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !content.isEmpty else { return nil }
+
+            let passIndex = group.compactMap { unit -> Int? in
+                if let start = unit.label.range(of: "(focus pass "),
+                   let end = unit.label.range(of: ")", range: start.upperBound..<unit.label.endIndex) {
+                    return Int(unit.label[start.upperBound..<end.lowerBound])
+                }
+                return nil
+            }.max() ?? 1
+
+            return TextBatchPlan(
+                text: content,
+                sourceLabel: group.map(\.label).joined(separator: ", "),
+                targetCards: batchSizes[index],
+                batchIndex: index + 1,
+                totalBatches: batchSizes.count,
+                passIndex: passIndex
+            )
+        }
+    }
+
+    private func buildVisionBatchPlans(
+        images: [UIImage],
+        targetCards: Int,
+        options: AIGenerationOptions
+    ) -> [VisionBatchPlan] {
+        let batchSizes = makeCardBatchSizes(totalCards: targetCards, batchSize: options.resolvedCardsPerBatch(for: targetCards))
+        guard !batchSizes.isEmpty else { return [] }
+
+        let units = images.enumerated().map { index, image in
+            TextSourceUnit(content: "", label: "Page \(index + 1)")
+        }
+
+        let selectedImages = units.compactMap { unit -> UIImage? in
+            guard let pageIndex = Int(unit.label.replacingOccurrences(of: "Page ", with: "")),
+                  images.indices.contains(pageIndex - 1) else { return nil }
+            return images[pageIndex - 1]
+        }
+        guard !selectedImages.isEmpty else { return [] }
+
+        let selectedLabels = units.map(\.label)
+        let baseGroupCount = min(max(1, selectedImages.count), batchSizes.count)
+        let groupedImages = distributeElementsEvenly(selectedImages, into: baseGroupCount)
+        let groupedLabels = distributeElementsEvenly(selectedLabels, into: baseGroupCount)
+
+        var plans: [VisionBatchPlan] = []
+
+        for (index, batchSize) in batchSizes.enumerated() {
+            let groupIndex = index % baseGroupCount
+            let passIndex = (index / baseGroupCount) + 1
+            let imagesForBatch = groupedImages[groupIndex]
+            guard !imagesForBatch.isEmpty else { continue }
+
+            let sourceLabel = groupedLabels[groupIndex].joined(separator: ", ")
+            plans.append(
+                VisionBatchPlan(
+                    images: imagesForBatch,
+                    sourceLabel: sourceLabel,
+                    targetCards: batchSize,
+                    batchIndex: index + 1,
+                    totalBatches: batchSizes.count,
+                    passIndex: passIndex
+                )
+            )
+        }
+
+        return plans
+    }
+
+    private func buildTextBatchPlans(
+        segments: [AITextSourceSegment],
+        allocations: [AISourceRangeAllocation],
+        options: AIGenerationOptions
+    ) -> [TextBatchPlan] {
+        guard !segments.isEmpty else { return [] }
+
+        var plans: [TextBatchPlan] = []
+        let deliveryBatchSize = options.resolvedCardsPerBatch(
+            for: allocations.reduce(0) { $0 + $1.cardCount }
+        )
+
+        for allocation in normalizedAllocations(allocations, segmentCount: segments.count) {
+            let selectedSegments = Array(segments[(allocation.startIndex - 1)..<allocation.endIndex])
+            let text = selectedSegments
+                .map(\.text)
+                .joined(separator: DocumentTextExtractor.pageSeparator)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !text.isEmpty else { continue }
+
+            let batchSizes = makeCardBatchSizes(
+                totalCards: allocation.cardCount,
+                batchSize: min(deliveryBatchSize, allocation.cardCount)
+            )
+            let sourceLabel = sourceLabel(for: selectedSegments.map(\.label))
+
+            for (passIndex, batchSize) in batchSizes.enumerated() {
+                plans.append(
+                    TextBatchPlan(
+                        text: text,
+                        sourceLabel: sourceLabel,
+                        targetCards: batchSize,
+                        batchIndex: 0,
+                        totalBatches: 0,
+                        passIndex: passIndex + 1
+                    )
+                )
             }
         }
-        if !current.isEmpty { chunks.append(current) }
-        return chunks
+
+        return indexed(plans)
+    }
+
+    private func buildVisionBatchPlans(
+        images: [UIImage],
+        labels: [String],
+        allocations: [AISourceRangeAllocation],
+        options: AIGenerationOptions
+    ) -> [VisionBatchPlan] {
+        guard !images.isEmpty else { return [] }
+
+        let resolvedLabels: [String]
+        if labels.count == images.count {
+            resolvedLabels = labels
+        } else {
+            resolvedLabels = images.indices.map { "Page \($0 + 1)" }
+        }
+
+        var plans: [VisionBatchPlan] = []
+        let deliveryBatchSize = options.resolvedCardsPerBatch(
+            for: allocations.reduce(0) { $0 + $1.cardCount }
+        )
+
+        for allocation in normalizedAllocations(allocations, segmentCount: images.count) {
+            let range = (allocation.startIndex - 1)..<allocation.endIndex
+            let selectedImages = Array(images[range])
+            guard !selectedImages.isEmpty else { continue }
+
+            let sourceLabel = sourceLabel(for: Array(resolvedLabels[range]))
+            let batchSizes = makeCardBatchSizes(
+                totalCards: allocation.cardCount,
+                batchSize: min(deliveryBatchSize, allocation.cardCount)
+            )
+
+            for (passIndex, batchSize) in batchSizes.enumerated() {
+                plans.append(
+                    VisionBatchPlan(
+                        images: selectedImages,
+                        sourceLabel: sourceLabel,
+                        targetCards: batchSize,
+                        batchIndex: 0,
+                        totalBatches: 0,
+                        passIndex: passIndex + 1
+                    )
+                )
+            }
+        }
+
+        return indexed(plans)
+    }
+
+    private func makeTextUnits(from text: String) -> [TextSourceUnit] {
+        let pages = text.components(separatedBy: DocumentTextExtractor.pageSeparator)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if pages.count > 1 {
+            return pages.enumerated().map { index, page in
+                TextSourceUnit(content: page, label: "Page \(index + 1)")
+            }
+        }
+
+        let chunks = splitBySize(text)
+        return chunks.enumerated().map { index, chunk in
+            TextSourceUnit(content: chunk, label: "Section \(index + 1)")
+        }
+    }
+
+    private func sampleTextUnitsEvenly(_ units: [TextSourceUnit], limit: Int?) -> [TextSourceUnit] {
+        guard let limit, limit > 0, units.count > limit else { return units }
+        let indices = evenlySampledIndices(totalCount: units.count, sampleCount: limit)
+        return indices.map { units[$0] }
+    }
+
+    private func expandTextUnits(_ units: [TextSourceUnit], toReach targetCount: Int) -> [TextSourceUnit] {
+        guard !units.isEmpty, targetCount > units.count else { return units }
+
+        var expanded = units
+
+        while expanded.count < targetCount {
+            guard let longestIndex = expanded.indices.max(by: {
+                expanded[$0].content.count < expanded[$1].content.count
+            }) else {
+                break
+            }
+
+            let current = expanded[longestIndex]
+            guard let splitUnits = splitTextUnit(current), splitUnits.count > 1 else {
+                break
+            }
+
+            expanded.remove(at: longestIndex)
+            expanded.insert(contentsOf: splitUnits.reversed(), at: longestIndex)
+        }
+
+        if expanded.count >= targetCount {
+            return expanded
+        }
+
+        let baseUnits = expanded
+        var passIndex = 2
+        var cursor = 0
+
+        while expanded.count < targetCount {
+            let base = baseUnits[cursor % baseUnits.count]
+            expanded.append(
+                TextSourceUnit(
+                    content: base.content,
+                    label: "\(base.label) (focus pass \(passIndex))"
+                )
+            )
+            cursor += 1
+            if cursor % baseUnits.count == 0 {
+                passIndex += 1
+            }
+        }
+
+        return expanded
+    }
+
+    private func splitTextUnit(_ unit: TextSourceUnit) -> [TextSourceUnit]? {
+        let paragraphs = unit.content.components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if paragraphs.count >= 2 {
+            let splitIndex = max(1, paragraphs.count / 2)
+            return [
+                TextSourceUnit(content: paragraphs[..<splitIndex].joined(separator: "\n\n"), label: "\(unit.label) A"),
+                TextSourceUnit(content: paragraphs[splitIndex...].joined(separator: "\n\n"), label: "\(unit.label) B")
+            ]
+        }
+
+        let lines = unit.content.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if lines.count >= 8 {
+            let splitIndex = max(1, lines.count / 2)
+            return [
+                TextSourceUnit(content: lines[..<splitIndex].joined(separator: "\n"), label: "\(unit.label) A"),
+                TextSourceUnit(content: lines[splitIndex...].joined(separator: "\n"), label: "\(unit.label) B")
+            ]
+        }
+
+        let chunks = splitBySize(unit.content)
+        guard chunks.count >= 2 else { return nil }
+        return chunks.enumerated().map { index, chunk in
+            TextSourceUnit(content: chunk, label: "\(unit.label) \(Character(UnicodeScalar(65 + index)!))")
+        }
     }
 
     private func splitBySize(_ text: String) -> [String] {
@@ -227,6 +894,181 @@ public final class AIFlashcardService {
         return result
     }
 
+    private func makeCardBatchSizes(totalCards: Int, batchSize: Int) -> [Int] {
+        guard totalCards > 0 else { return [] }
+
+        var remaining = totalCards
+        var batches: [Int] = []
+
+        while remaining > 0 {
+            let next = min(batchSize, remaining)
+            batches.append(next)
+            remaining -= next
+        }
+
+        return batches
+    }
+
+    private func evenlySampledIndices(totalCount: Int, sampleCount: Int) -> [Int] {
+        guard totalCount > 0 else { return [] }
+        guard sampleCount < totalCount else { return Array(0..<totalCount) }
+
+        let stride = Double(totalCount - 1) / Double(max(sampleCount - 1, 1))
+        var indices = (0..<sampleCount).map { sampleIndex in
+            Int((Double(sampleIndex) * stride).rounded())
+        }
+
+        indices = Array(Set(indices)).sorted()
+
+        var nextIndex = 0
+        while indices.count < sampleCount, nextIndex < totalCount {
+            if !indices.contains(nextIndex) {
+                indices.append(nextIndex)
+            }
+            nextIndex += 1
+        }
+
+        return indices.sorted()
+    }
+
+    private func distributeElementsEvenly<T>(_ elements: [T], into groupCount: Int) -> [[T]] {
+        guard groupCount > 0 else { return [] }
+        guard !elements.isEmpty else { return Array(repeating: [], count: groupCount) }
+
+        let distribution = distributeCards(elements.count, across: groupCount)
+        var cursor = 0
+
+        return distribution.map { groupSize in
+            guard groupSize > 0 else { return [] }
+            let end = min(cursor + groupSize, elements.count)
+            let slice = Array(elements[cursor..<end])
+            cursor = end
+            return slice
+        }
+    }
+
+    private func performPlanQueue<Plan: Sendable>(
+        plans: [Plan],
+        maxConcurrent: Int,
+        execute: @escaping @Sendable (Plan, [String]) async throws -> [AIFlashcard],
+        onBatch: @escaping ([AIFlashcard]) async throws -> Void
+    ) async throws {
+        guard !plans.isEmpty else { return }
+
+        let concurrency = min(max(maxConcurrent, 1), plans.count)
+        var coveredPrompts: [String] = []
+        var nextPlanIndex = 0
+
+        try await withThrowingTaskGroup(of: [AIFlashcard].self) { group in
+            for _ in 0..<concurrency {
+                let plan = plans[nextPlanIndex]
+                let promptSnapshot = coveredPrompts
+                nextPlanIndex += 1
+
+                group.addTask {
+                    try Task.checkCancellation()
+                    return try await execute(plan, promptSnapshot)
+                }
+            }
+
+            while let cards = try await group.next() {
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
+
+                if !cards.isEmpty {
+                    try await onBatch(cards)
+                    coveredPrompts = updateCoveredPrompts(existing: coveredPrompts, with: cards)
+                }
+
+                guard nextPlanIndex < plans.count else { continue }
+
+                let plan = plans[nextPlanIndex]
+                let promptSnapshot = coveredPrompts
+                nextPlanIndex += 1
+
+                group.addTask {
+                    try Task.checkCancellation()
+                    return try await execute(plan, promptSnapshot)
+                }
+            }
+        }
+    }
+
+    private func normalizedAllocations(
+        _ allocations: [AISourceRangeAllocation],
+        segmentCount: Int
+    ) -> [AISourceRangeAllocation] {
+        guard segmentCount > 0 else { return [] }
+
+        return allocations
+            .sorted {
+                if $0.startIndex == $1.startIndex {
+                    return $0.endIndex < $1.endIndex
+                }
+                return $0.startIndex < $1.startIndex
+            }
+            .compactMap { allocation in
+                let start = min(max(allocation.startIndex, 1), segmentCount)
+                let end = min(max(max(allocation.endIndex, start), 1), segmentCount)
+                let cardCount = max(allocation.cardCount, 1)
+
+                return AISourceRangeAllocation(
+                    id: allocation.id,
+                    startIndex: start,
+                    endIndex: end,
+                    cardCount: cardCount
+                )
+            }
+    }
+
+    private func sourceLabel(for labels: [String]) -> String {
+        guard let first = labels.first else { return "Selected source" }
+        guard let last = labels.last, last != first else { return first }
+        return "\(first) - \(last)"
+    }
+
+    private func indexed(_ plans: [TextBatchPlan]) -> [TextBatchPlan] {
+        let total = plans.count
+        return plans.enumerated().map { index, plan in
+            TextBatchPlan(
+                text: plan.text,
+                sourceLabel: plan.sourceLabel,
+                targetCards: plan.targetCards,
+                batchIndex: index + 1,
+                totalBatches: total,
+                passIndex: plan.passIndex
+            )
+        }
+    }
+
+    private func indexed(_ plans: [VisionBatchPlan]) -> [VisionBatchPlan] {
+        let total = plans.count
+        return plans.enumerated().map { index, plan in
+            VisionBatchPlan(
+                images: plan.images,
+                sourceLabel: plan.sourceLabel,
+                targetCards: plan.targetCards,
+                batchIndex: index + 1,
+                totalBatches: total,
+                passIndex: plan.passIndex
+            )
+        }
+    }
+
+    private func updateCoveredPrompts(existing: [String], with cards: [AIFlashcard]) -> [String] {
+        let additions = cards.map(promptHint(from:))
+        let merged = (existing + additions).filter { !$0.isEmpty }
+        return Array(merged.suffix(12))
+    }
+
+    private func promptHint(from card: AIFlashcard) -> String {
+        card.question
+            .replacingOccurrences(of: AIZoneParser.zoneDelimiter, with: " / ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     // -------------------------------------------------------------------------
     // MARK: - Message Builders
     // -------------------------------------------------------------------------
@@ -234,17 +1076,47 @@ public final class AIFlashcardService {
     nonisolated private func buildTextMessages(
         text: String,
         targetCards: Int,
-        needsOCRCorrection: Bool
+        needsOCRCorrection: Bool,
+        options: AIGenerationOptions,
+        sourceLabel: String,
+        batchIndex: Int,
+        totalBatches: Int,
+        passIndex: Int,
+        coveredPrompts: [String]
     ) -> [[String: Any]] {
         [
-            ["role": "system", "content": systemPrompt(targetCards: targetCards, isOCR: needsOCRCorrection)],
-            ["role": "user", "content": "SOURCE TEXT:\n\n\(text)"]
+            ["role": "system", "content": systemPrompt(targetCards: targetCards, isOCR: needsOCRCorrection, options: options)],
+            ["role": "user", "content": buildTextUserMessage(
+                text: text,
+                targetCards: targetCards,
+                sourceLabel: sourceLabel,
+                batchIndex: batchIndex,
+                totalBatches: totalBatches,
+                passIndex: passIndex,
+                coveredPrompts: coveredPrompts
+            )]
         ]
     }
 
-    nonisolated private func buildVisionMessages(images: [UIImage], targetCards: Int) -> [[String: Any]] {
+    nonisolated private func buildVisionMessages(
+        images: [UIImage],
+        targetCards: Int,
+        options: AIGenerationOptions,
+        sourceLabel: String,
+        batchIndex: Int,
+        totalBatches: Int,
+        passIndex: Int,
+        coveredPrompts: [String]
+    ) -> [[String: Any]] {
         var userContent: [[String: Any]] = [
-            ["type": "text", "text": "Analyze all pages carefully and generate flashcards based on their content."]
+            ["type": "text", "text": buildVisionUserMessage(
+                targetCards: targetCards,
+                sourceLabel: sourceLabel,
+                batchIndex: batchIndex,
+                totalBatches: totalBatches,
+                passIndex: passIndex,
+                coveredPrompts: coveredPrompts
+            )]
         ]
         for image in images {
             guard let data = image.jpegData(compressionQuality: 0.7) else { continue }
@@ -254,9 +1126,78 @@ public final class AIFlashcardService {
             ])
         }
         return [
-            ["role": "system", "content": systemPrompt(targetCards: targetCards, isOCR: false)],
+            ["role": "system", "content": systemPrompt(targetCards: targetCards, isOCR: false, options: options)],
             ["role": "user", "content": userContent]
         ]
+    }
+
+    nonisolated private func buildDeckTitleMessages(fromText text: String) -> [[String: Any]] {
+        [
+            ["role": "system", "content": deckTitleSystemPrompt()],
+            ["role": "user", "content": deckTitleUserMessage(fromText: text)]
+        ]
+    }
+
+    nonisolated private func buildTextUserMessage(
+        text: String,
+        targetCards: Int,
+        sourceLabel: String,
+        batchIndex: Int,
+        totalBatches: Int,
+        passIndex: Int,
+        coveredPrompts: [String]
+    ) -> String {
+        var message = """
+        GENERATION CONTEXT
+        - Batch \(batchIndex) of \(totalBatches)
+        - Source coverage: \(sourceLabel)
+        - Generate EXACTLY \(targetCards) cards from this source segment only.
+        - Focus on distinct concepts from this segment. Avoid vague overview cards.
+        - Avoid repeating the same wording or concept inside this batch.
+        """
+
+        if passIndex > 1 {
+            message += "\n- This source has already been used before. Cover NEW concepts or a noticeably different angle."
+        }
+
+        if !coveredPrompts.isEmpty {
+            message += "\n- Avoid overlapping these already-covered prompts when possible:"
+            for covered in coveredPrompts.prefix(6) {
+                message += "\n  • \(covered)"
+            }
+        }
+
+        message += "\n\nSOURCE TEXT:\n\n\(text)"
+        return message
+    }
+
+    nonisolated private func buildVisionUserMessage(
+        targetCards: Int,
+        sourceLabel: String,
+        batchIndex: Int,
+        totalBatches: Int,
+        passIndex: Int,
+        coveredPrompts: [String]
+    ) -> String {
+        var message = """
+        Analyze only the attached source pages/images and generate EXACTLY \(targetCards) cards.
+        Batch \(batchIndex) of \(totalBatches).
+        Source coverage: \(sourceLabel).
+        Focus on distinct concepts from these specific pages/images.
+        """
+
+        if passIndex > 1 {
+            message += "\nThis source group has already been used in an earlier pass. Cover new concepts or a clearly different angle."
+        }
+
+        if !coveredPrompts.isEmpty {
+            message += "\nAvoid overlapping these already-covered prompts when possible:"
+            for covered in coveredPrompts.prefix(6) {
+                message += "\n- \(covered)"
+            }
+        }
+
+        return message
     }
 
     // =========================================================================
@@ -274,7 +1215,11 @@ public final class AIFlashcardService {
     //
     // =========================================================================
 
-    nonisolated private func systemPrompt(targetCards: Int, isOCR: Bool) -> String {
+    nonisolated private func systemPrompt(
+        targetCards: Int,
+        isOCR: Bool,
+        options: AIGenerationOptions
+    ) -> String {
         var prompt = #"""
         You are a rigorous University Professor AI specialized in generating elite, in-depth "Active Recall" flashcards.
         Your absolute priority is TECHNICAL DEPTH, ACCURACY, and HIGH READABILITY.
@@ -299,6 +1244,10 @@ public final class AIFlashcardService {
         LANGUAGE RULE (CRITICAL)
         ═══════════════════════════════════════════════════════
         You MUST EXACTLY match the language of the source text. If the source text is in language X, the flashcards MUST be written in language X. Do not translate concepts to English.
+        Detect the dominant language from the actual teaching material before writing.
+        NEVER mix languages across cards unless the source itself explicitly mixes them.
+        NEVER default to English because of model preference or technical terminology.
+        If the source is X language, the flashcards MUST be fully in X language.
         
         ═══════════════════════════════════════════════════════
         ZONE SPLITTING & READABILITY
@@ -375,7 +1324,119 @@ public final class AIFlashcardService {
         """
         }
 
+        prompt += cardTypePromptAddition(for: options.cardType)
+        prompt += cardLevelPromptAddition(for: options.cardLevel)
+
         return prompt
+    }
+
+    nonisolated private func deckTitleSystemPrompt() -> String {
+        #"""
+        You are a precise academic assistant that creates short deck titles.
+
+        Output STRICTLY valid JSON matching EXACTLY this schema:
+        {
+          "deck_title": "string"
+        }
+
+        RULES:
+        - The title MUST be in the same dominant language as the source text.
+        - Never translate the title to English unless the source is actually in English.
+        - Keep it short: ideally 2 to 5 words.
+        - Make it specific to the topic, not generic.
+        - Do not add quotes, emojis, subtitles, colons, or extra commentary.
+        - Return ONLY the JSON object.
+        """#
+    }
+
+    nonisolated private func deckTitleUserMessage(fromText text: String) -> String {
+        """
+        Read the sampled source text below and infer a short deck title.
+
+        SAMPLE SOURCE:
+        \(text)
+        """
+    }
+
+    nonisolated private func cardTypePromptAddition(for type: AICardGenerationType) -> String {
+        switch type {
+        case .flashcards:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        CARD TYPE PROFILE — FLASH CARDS
+        ═══════════════════════════════════════════════════════
+        Generate classic active-recall cards with a strong question on the front and a high-signal answer on the back.
+        Prefer one core concept, mechanism, theorem, or tightly related cluster per card.
+        """
+        case .match:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        CARD TYPE PROFILE — MATCH CARDS
+        ═══════════════════════════════════════════════════════
+        These cards must remain easy to pair in match mode.
+        The front should usually be a short term, prompt, event, notation, formula name, or compact cue.
+        The back should be the direct counterpart only: concise definition, association, mapping, or result.
+        Avoid essay-style answers unless the source makes that unavoidable.
+        """
+        case .quiz:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        CARD TYPE PROFILE — QUIZ CARDS
+        ═══════════════════════════════════════════════════════
+        Each question must behave like a multiple-choice quiz item while still using the required JSON schema.
+        question_zones MUST contain:
+        1. the quiz stem
+        2. exactly four answer options as separate readable zones
+        Exactly one option must be correct.
+        answer_zones MUST begin with the exact correct option, then add a short explanation. Distractors must be plausible.
+        """
+        case .write:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        CARD TYPE PROFILE — WRITE CARDS
+        ═══════════════════════════════════════════════════════
+        These cards are intended for typed recall.
+        question_zones should ask for an exact answer, derivation step, definition, formula, or short structured response.
+        answer_zones MUST begin with the canonical expected answer.
+        When useful, add one extra zone for accepted variants, precision notes, or grading cues.
+        """
+        }
+    }
+
+    nonisolated private func cardLevelPromptAddition(for level: AICardGenerationLevel) -> String {
+        switch level {
+        case .simple:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        CARD LEVEL PROFILE — SIMPLE
+        ═══════════════════════════════════════════════════════
+        Keep the wording accessible and direct.
+        Focus on the clearest core facts, definitions, and cause-effect relations.
+        Avoid overly layered answers unless absolutely necessary.
+        """
+        case .balanced:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        CARD LEVEL PROFILE — BALANCED
+        ═══════════════════════════════════════════════════════
+        Keep the current prompt style balance: clear, technically correct, and moderately detailed.
+        """
+        case .advanced:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        CARD LEVEL PROFILE — ADVANCED
+        ═══════════════════════════════════════════════════════
+        Prefer deeper reasoning, nuance, caveats, mechanisms, proofs, and higher-order distinctions whenever the source supports them.
+        Questions should test understanding, not just memorized wording.
+        """
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -406,6 +1467,42 @@ public final class AIFlashcardService {
             }
             let content = try parseResponseContent(from: data)
             return try decodeFlashcards(from: content)
+        } catch let e as AIServiceError {
+            throw e
+        } catch {
+            throw AIServiceError.networkError
+        }
+    }
+
+    private func sendDeckTitleRequest(
+        messages: [[String: Any]],
+        model: String
+    ) async throws -> String? {
+        guard let url = URL(string: apiEndpoint) else { throw AIServiceError.networkError }
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "model": model,
+            "messages": messages,
+            "response_format": ["type": "json_object"],
+            "temperature": 0.2
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        do {
+            let (data, response) = try await session.data(for: req)
+            guard let http = response as? HTTPURLResponse else { throw AIServiceError.invalidResponse }
+            guard (200...299).contains(http.statusCode) else {
+                throw AIServiceError.unknown("OpenAI HTTP \(http.statusCode)")
+            }
+
+            let content = try parseResponseContent(from: data)
+            let decoded = try JSONDecoder().decode(DeckTitleResponseDTO.self, from: Data(content.utf8))
+            return decoded.deck_title?.trimmingCharacters(in: .whitespacesAndNewlines)
         } catch let e as AIServiceError {
             throw e
         } catch {

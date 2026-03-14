@@ -111,6 +111,12 @@ struct MathTextSanitizer {
             ?? false
     }
 
+    /// Returns true when the text contains display math that may overflow the
+    /// available width and should opt into local horizontal scrolling.
+    nonisolated static func containsDisplayMath(_ text: String) -> Bool {
+        text.contains("$$") || text.contains("\\[") || text.contains("\\begin{")
+    }
+
     // -------------------------------------------------------------------------
     // MARK: - Preview Flattening
     // -------------------------------------------------------------------------

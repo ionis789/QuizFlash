@@ -97,6 +97,9 @@ actor DocumentTextExtractor {
     
     /// Minimum average characters per page required to consider OCR acceptable.
     private static let minimumOCRCharsPerPage = 30
+
+    /// Stable page delimiter reused by the AI chunking layer.
+    static let pageSeparator = "\n\n--- Next Page ---\n\n"
     
     // MARK: - Public Entry Points
     
@@ -179,20 +182,31 @@ actor DocumentTextExtractor {
     /// - Parameter url: The PDF file URL.
     /// - Returns: Cleaned text if available, otherwise `nil`.
     static func extractWithPDFKit(from url: URL) -> String? {
-        
-        guard let pdf = PDFDocument(url: url),
-              let rawText = pdf.string else {
-            return nil
+        let pages = extractPDFKitPages(from: url)
+        guard pages.contains(where: { !$0.isEmpty }) else { return nil }
+        return pages.joined(separator: pageSeparator)
+    }
+
+    /// Extracts one cleaned text payload for each PDF page using `PDFKit`.
+    ///
+    /// Empty pages are preserved as empty strings so page indices remain stable.
+    static func extractPDFKitPages(from url: URL) -> [String] {
+        guard let pdf = PDFDocument(url: url) else {
+            return []
         }
-        
-        let cleaned = rawText
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
-        
-        return cleaned.isEmpty ? nil : cleaned
+
+        return (0..<pdf.pageCount).map { index -> String in
+            guard let rawText = pdf.page(at: index)?.string else { return "" }
+
+            let cleaned = rawText
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+
+            return cleaned
+        }
     }
     
     /// Computes a normalized quality score for PDFKit extraction.
@@ -214,7 +228,7 @@ actor DocumentTextExtractor {
         }
     }
     
-    private static func pdfPageCount(url: URL) -> Int {
+    static func pdfPageCount(url: URL) -> Int {
         PDFDocument(url: url)?.pageCount ?? 0
     }
     
@@ -222,18 +236,33 @@ actor DocumentTextExtractor {
     
     /// Performs OCR on a collection of images using Vision.
     static func extractWithVision(from images: [UIImage]) async -> String {
-        
+        let pages = await extractVisionTexts(from: images)
+        return pages
+            .filter { !$0.isEmpty }
+            .joined(separator: pageSeparator)
+    }
+
+    /// Performs OCR on each image independently and preserves source order.
+    static func extractVisionTexts(from images: [UIImage]) async -> [String] {
+
         var results: [String] = []
-        
+
         for image in images {
             guard let cgImage = image.cgImage else { continue }
             let text = await ocrPage(cgImage: cgImage)
-            if !text.isEmpty {
-                results.append(text)
-            }
+            results.append(text)
         }
-        
-        return results.joined(separator: "\n\n--- Next Page ---\n\n")
+
+        return results
+    }
+
+    /// Returns `true` when the OCR text density is good enough to drive the
+    /// cheaper text-generation path without falling back to Vision requests.
+    static func isUsableOCRText(_ texts: [String]) -> Bool {
+        guard !texts.isEmpty else { return false }
+        let totalCharacters = texts.reduce(0) { $0 + $1.count }
+        let averageChars = totalCharacters / max(texts.count, 1)
+        return averageChars >= minimumOCRCharsPerPage
     }
     
     private static func ocrPage(cgImage: CGImage) async -> String {
@@ -270,6 +299,42 @@ actor DocumentTextExtractor {
     }
     
     // MARK: - PDF Rendering
+
+    /// Renders compact PDF page thumbnails for the source picker and preview UI.
+    ///
+    /// The output is intentionally small because previews are displayed inside
+    /// narrow cards and lightweight modal previews.
+    static func renderPDFPreviewThumbnails(
+        from url: URL,
+        maxDimension: CGFloat = 220
+    ) async -> [UIImage] {
+
+        guard let pdf = PDFDocument(url: url) else { return [] }
+
+        return await withTaskGroup(of: (Int, UIImage?).self) { group in
+
+            for index in 0..<pdf.pageCount {
+                group.addTask {
+                    guard let page = pdf.page(at: index) else {
+                        return (index, nil)
+                    }
+                    return (index, renderPreviewThumbnail(for: page, maxDimension: maxDimension))
+                }
+            }
+
+            var rendered: [(Int, UIImage)] = []
+
+            for await (index, image) in group {
+                if let image = image {
+                    rendered.append((index, image))
+                }
+            }
+
+            return rendered
+                .sorted { $0.0 < $1.0 }
+                .map { $0.1 }
+        }
+    }
     
     /// Renders PDF pages into `UIImage` representations.
     static func renderPDFPages(from url: URL, dpi: CGFloat = 150) async -> [UIImage] {
@@ -322,6 +387,22 @@ actor DocumentTextExtractor {
             
             page.draw(with: .mediaBox, to: context.cgContext)
         }
+    }
+
+    private static func renderPreviewThumbnail(
+        for page: PDFPage,
+        maxDimension: CGFloat
+    ) -> UIImage? {
+        let pageRect = page.bounds(for: .mediaBox)
+        guard pageRect.width > 0, pageRect.height > 0 else { return nil }
+
+        let scale = min(maxDimension / pageRect.width, maxDimension / pageRect.height)
+        let targetSize = CGSize(
+            width: max(pageRect.width * scale, 1),
+            height: max(pageRect.height * scale, 1)
+        )
+
+        return page.thumbnail(of: targetSize, for: .mediaBox)
     }
 }
 

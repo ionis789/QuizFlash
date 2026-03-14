@@ -33,20 +33,32 @@ struct MixedMathTextView: View {
     let alignment: HorizontalAlignment
     var isBold: Bool = false
     var isItalic: Bool = false
-    /// When `false` the underlying WKWebView disables all its gesture recognisers
-    /// so that taps and swipes pass through to the parent SwiftUI view.
+    /// When `false` the underlying WKWebView stops participating in hit-testing
+    /// so taps and swipes pass through to the parent SwiftUI view.
     /// Set to `false` in read-only contexts (card playback, preview).
     /// Set to `true` in editable contexts (CreateCardView, ZoneContentView).
     var isInteractive: Bool = true
+    /// Re-enables interaction in read-only mode for overflowing display-math
+    /// blocks that need local horizontal panning.
+    var allowsReadOnlyOverflowScrolling: Bool = false
     var lineLimit: Int? = nil
     var renderStyle: MixedMathRenderStyle = .standard
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var webHeight: CGFloat = 50
+    @State private var horizontalOverflowState = HorizontalOverflowState()
 
     var body: some View {
         let clean = MathTextSanitizer.heal(text)
         let signature = renderSignature(for: clean)
+        let shouldAllowWebInteraction = isInteractive || (
+            allowsReadOnlyOverflowScrolling && MathTextSanitizer.containsDisplayMath(clean)
+        )
+        let shouldShowHorizontalOverflowHint = (
+            !isInteractive
+            && allowsReadOnlyOverflowScrolling
+            && horizontalOverflowState.hasOverflow
+        )
 
         if MathTextSanitizer.containsMath(clean) || MathTextSanitizer.containsInlineCode(clean) {
             MathWebView(
@@ -60,13 +72,26 @@ struct MixedMathTextView: View {
                 renderStyle: renderStyle,
                 renderSignature: signature,
                 contentHeight: $webHeight,
-                isInteractive: isInteractive
+                horizontalOverflowState: $horizontalOverflowState,
+                isInteractive: isInteractive,
+                allowsReadOnlyOverflowScrolling: shouldAllowWebInteraction && !isInteractive
             )
             .frame(height: webHeight)
             .frame(maxWidth: .infinity)
-            // When non-interactive, disable SwiftUI hit-testing too so the
-            // WKWebView layer never becomes the first responder for a tap.
-            .allowsHitTesting(isInteractive)
+            // Keep hit-testing disabled for standard read-only previews, but
+            // allow block-math overflow areas to receive horizontal pans.
+            .allowsHitTesting(shouldAllowWebInteraction)
+            .overlay {
+                if shouldShowHorizontalOverflowHint {
+                    HorizontalOverflowIndicator(
+                        canScrollLeft: horizontalOverflowState.canScrollLeft,
+                        canScrollRight: horizontalOverflowState.canScrollRight
+                    )
+                        .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                        .allowsHitTesting(false)
+                }
+            }
+            .animation(.easeInOut(duration: UIConstants.Animation.instant), value: shouldShowHorizontalOverflowHint)
         } else {
             Text(LocalizedStringKey(clean))
                 .font(swiftUIFont)
@@ -293,11 +318,19 @@ struct MathWebView: UIViewRepresentable {
     let renderStyle: MixedMathRenderStyle
     let renderSignature: String
     @Binding var contentHeight: CGFloat
-    /// When `false`, disables all UIKit gesture recognisers on the WKWebView
-    /// so that taps and drags pass through to the parent SwiftUI view unobstructed.
+    @Binding var horizontalOverflowState: HorizontalOverflowState
+    /// When `false`, the WKWebView becomes non-interactive so taps and drags
+    /// continue to the parent SwiftUI surface unobstructed.
     var isInteractive: Bool = true
+    /// Keeps display-math blocks pannable in otherwise read-only contexts.
+    var allowsReadOnlyOverflowScrolling: Bool = false
 
-    func makeCoordinator() -> Coordinator { Coordinator(contentHeight: $contentHeight) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            contentHeight: $contentHeight,
+            horizontalOverflowState: $horizontalOverflowState
+        )
+    }
 
     // Called automatically by SwiftUI when the view is removed from the hierarchy.
     // Breaks the retain cycle and returns the WKWebView to the shared pool.
@@ -307,6 +340,7 @@ struct MathWebView: UIViewRepresentable {
 
         // 2. Remove the script message handler to break the JS context retain cycle
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
+        uiView.configuration.userContentController.removeScriptMessageHandler(forName: "overflowUpdate")
 
         // 3. Return to pool (or discard if full)
         MathWebViewPool.shared.enqueue(uiView)
@@ -316,15 +350,16 @@ struct MathWebView: UIViewRepresentable {
         let webView = MathWebViewPool.shared.dequeue()
 
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "overflowUpdate")
         let scriptHandlerWrapper = WeakScriptMessageHandler(delegate: context.coordinator)
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "heightUpdate")
+        webView.configuration.userContentController.add(scriptHandlerWrapper, name: "overflowUpdate")
 
         context.coordinator.webView = webView
         context.coordinator.lastRenderedSignature = renderSignature
 
-        // In read-only contexts (playback, preview), disable all UIKit interaction
-        // on the WKWebView. This prevents WebKit's internal gesture recognisers
-        // from consuming taps and drags that must reach the SwiftUI layer above.
+        // In read-only contexts (playback, preview), disable UIKit interaction
+        // unless this view contains display math that needs local horizontal panning.
         applyInteractivity(to: webView)
 
         loadContent(in: webView, context: context)
@@ -339,19 +374,15 @@ struct MathWebView: UIViewRepresentable {
         loadContent(in: webView, context: context)
     }
 
-    /// Enables or disables all UIKit interaction on the WKWebView.
-    /// Affects the view itself, its internal UIScrollView, and every
-    /// subview gesture recogniser in the WebKit hierarchy.
+    /// Enables or disables UIKit interaction on the WKWebView surface while
+    /// keeping the page scroll itself locked in place.
     private func applyInteractivity(to webView: WKWebView) {
-        webView.isUserInteractionEnabled = isInteractive
-        webView.scrollView.isUserInteractionEnabled = isInteractive
-        // Explicitly remove all gesture recognizers when non-interactive
-        // so WebKit's internal recognizers cannot override UIKit hit-testing.
-        if !isInteractive {
-            webView.scrollView.gestureRecognizers?.forEach {
-                webView.scrollView.removeGestureRecognizer($0)
-            }
-        }
+        let shouldAllowWebInteraction = isInteractive || allowsReadOnlyOverflowScrolling
+        webView.isUserInteractionEnabled = shouldAllowWebInteraction
+        webView.scrollView.isUserInteractionEnabled = shouldAllowWebInteraction
+        // Keep the page itself locked; overflowing math uses the DOM container's
+        // own horizontal overflow instead of scrolling the WKWebView page.
+        webView.scrollView.isScrollEnabled = false
     }
 
     private func loadContent(in webView: WKWebView, context: Context) {
@@ -373,7 +404,8 @@ struct MathWebView: UIViewRepresentable {
         // Base64 encoding cleanly passes arbitrary UTF-8 characters across the JS payload boundary
         guard let b64 = finalText.data(using: .utf8)?.base64EncodedString() else { return }
         
-        let js = "updateMathContent('\(b64)', '\(cssColor)', \(fontSize), '\(cssAlign)', '\(weight)', '\(fontStyle)');"
+        let allowDisplayMathOverflowScrolling = allowsReadOnlyOverflowScrolling ? "true" : "false"
+        let js = "updateMathContent('\(b64)', '\(cssColor)', \(fontSize), '\(cssAlign)', '\(weight)', '\(fontStyle)', \(allowDisplayMathOverflowScrolling));"
         context.coordinator.applyUpdate(js: js)
     }
 
@@ -424,6 +456,8 @@ struct MathWebView: UIViewRepresentable {
                 padding: 6px 0;
                 -webkit-overflow-scrolling: touch;
                 scrollbar-width: none;
+                touch-action: pan-x;
+                overscroll-behavior-x: contain;
             }
             .katex-display::-webkit-scrollbar { display: none; }
             .katex { font-size: 1.08em !important; }
@@ -473,18 +507,21 @@ struct MathWebView: UIViewRepresentable {
             "\\\\Z":  "\\\\mathbb{Z}",
             "\\\\Q":  "\\\\mathbb{Q}",
             "\\\\C":  "\\\\mathbb{C}",
+            "\\\\neq": "\\\\mathrel{\\\\not=}",
+            "\\\\ne":  "\\\\mathrel{\\\\not=}",
             "\\\\eps":      "\\\\varepsilon",
             "\\\\epsilon":  "\\\\varepsilon"
         };
         
         let updateTimeout;
 
-        function updateMathContent(b64, color, fontSize, align, weight, fontStyle) {
+        function updateMathContent(b64, color, fontSize, align, weight, fontStyle, allowDisplayMathOverflowScrolling) {
             document.body.style.color = color;
             document.body.style.fontSize = fontSize + 'px';
             document.body.style.textAlign = align;
             document.body.style.fontWeight = weight;
             document.body.style.fontStyle = fontStyle;
+            document.body.dataset.allowDisplayMathOverflowScrolling = allowDisplayMathOverflowScrolling ? '1' : '0';
 
             let bin = window.atob(b64);
             let bytes = new Uint8Array(bin.length);
@@ -512,8 +549,13 @@ struct MathWebView: UIViewRepresentable {
             } catch(e) { console.error(e); }
 
             clearTimeout(updateTimeout);
+            Array.from(document.querySelectorAll('.katex-display')).forEach(block => {
+                block.onscroll = reportOverflow;
+            });
             reportHeight();
+            reportOverflow();
             updateTimeout = setTimeout(reportHeight, 50);
+            setTimeout(reportOverflow, 50);
         }
 
         function reportHeight() {
@@ -524,8 +566,39 @@ struct MathWebView: UIViewRepresentable {
             }
         }
 
+        function reportOverflow() {
+            const allowOverflow = document.body.dataset.allowDisplayMathOverflowScrolling === '1';
+            if (!window.webkit || !window.webkit.messageHandlers.overflowUpdate) { return; }
+            if (!allowOverflow) {
+                window.webkit.messageHandlers.overflowUpdate.postMessage(false);
+                return;
+            }
+
+            const displays = Array.from(document.querySelectorAll('.katex-display'));
+            const overflowState = displays.reduce(
+                (state, block) => {
+                    const hasOverflow = (block.scrollWidth - block.clientWidth) > 1;
+                    if (!hasOverflow) { return state; }
+
+                    const maxScrollLeft = Math.max(0, block.scrollWidth - block.clientWidth);
+                    if (block.scrollLeft > 1) {
+                        state.canScrollLeft = true;
+                    }
+                    if (block.scrollLeft < maxScrollLeft - 1) {
+                        state.canScrollRight = true;
+                    }
+                    return state;
+                },
+                { canScrollLeft: false, canScrollRight: false }
+            );
+            window.webkit.messageHandlers.overflowUpdate.postMessage(overflowState);
+        }
+
         if (window.ResizeObserver) {
-            new ResizeObserver(reportHeight).observe(document.getElementById('content'));
+            new ResizeObserver(() => {
+                reportHeight();
+                reportOverflow();
+            }).observe(document.getElementById('content'));
         }
         </script>
         </body>
@@ -585,21 +658,52 @@ struct MathWebView: UIViewRepresentable {
 
     class Coordinator: NSObject, WKScriptMessageHandler {
         @Binding var contentHeight: CGFloat
+        @Binding var horizontalOverflowState: HorizontalOverflowState
         weak var webView: WKWebView? // WEAK reference to break the retain cycle
         var lastRenderedSignature: String = ""
 
-        init(contentHeight: Binding<CGFloat>) {
+        init(
+            contentHeight: Binding<CGFloat>,
+            horizontalOverflowState: Binding<HorizontalOverflowState>
+        ) {
             _contentHeight = contentHeight
+            _horizontalOverflowState = horizontalOverflowState
         }
 
         func userContentController(
             _ userContentController: WKUserContentController,
             didReceive message: WKScriptMessage
         ) {
-            guard message.name == "heightUpdate",
-                  let h = message.body as? Double, h > 0
-            else { return }
-            DispatchQueue.main.async { self.contentHeight = CGFloat(h) }
+            switch message.name {
+            case "heightUpdate":
+                guard let h = message.body as? Double, h > 0 else { return }
+                Task { @MainActor in
+                    self.contentHeight = CGFloat(h)
+                }
+
+            case "overflowUpdate":
+                if let overflowPayload = message.body as? [String: Any] {
+                    let canScrollLeft = overflowPayload["canScrollLeft"] as? Bool ?? false
+                    let canScrollRight = overflowPayload["canScrollRight"] as? Bool ?? false
+                    Task { @MainActor in
+                        self.horizontalOverflowState = HorizontalOverflowState(
+                            canScrollLeft: canScrollLeft,
+                            canScrollRight: canScrollRight
+                        )
+                    }
+                    return
+                }
+
+                guard let hasOverflow = message.body as? Bool else { return }
+                Task { @MainActor in
+                    self.horizontalOverflowState = hasOverflow
+                        ? HorizontalOverflowState(canScrollLeft: false, canScrollRight: true)
+                        : .init()
+                }
+
+            default:
+                return
+            }
         }
 
         /// Safely evaluates JS once the `updateMathContent` function exists.
@@ -617,6 +721,62 @@ struct MathWebView: UIViewRepresentable {
             }
         }
     }
+}
+
+// =============================================================================
+// MARK: - HorizontalOverflowIndicator
+// =============================================================================
+
+struct HorizontalOverflowState: Equatable {
+    var canScrollLeft: Bool = false
+    var canScrollRight: Bool = false
+
+    var hasOverflow: Bool {
+        canScrollLeft || canScrollRight
+    }
+}
+
+private struct HorizontalOverflowIndicator: View {
+    let canScrollLeft: Bool
+    let canScrollRight: Bool
+
+    var body: some View {
+        ZStack {
+            if canScrollLeft {
+                edgeCue(direction: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            }
+            if canScrollRight {
+                edgeCue(direction: .trailing)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+            }
+        }
+        .padding(.vertical, UIConstants.Spacing.medium)
+        .accessibilityHidden(true)
+    }
+
+    private func edgeCue(direction: OverflowEdgeDirection) -> some View {
+        ZStack(alignment: direction == .leading ? .leading : .trailing) {
+            LinearGradient(
+                colors: direction == .leading
+                    ? [Color.black.opacity(0.18), .clear]
+                    : [.clear, Color.black.opacity(0.18)],
+                startPoint: direction == .leading ? .leading : .trailing,
+                endPoint: direction == .leading ? .trailing : .leading
+            )
+            .frame(width: 18)
+
+            Image(systemName: direction == .leading ? "chevron.left" : "chevron.right")
+                .font(.system(size: 7, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.28))
+                .padding(.horizontal, 2)
+        }
+    }
+}
+
+private enum OverflowEdgeDirection {
+    case leading
+    case trailing
 }
 
 // =============================================================================
