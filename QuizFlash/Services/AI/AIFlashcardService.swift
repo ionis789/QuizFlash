@@ -53,6 +53,17 @@ private struct DeckTitleResponseDTO: Codable {
     let deck_title: String?
 }
 
+private struct AIProviderErrorEnvelope: Decodable {
+    struct APIError: Decodable {
+        let message: String?
+        let type: String?
+        let param: String?
+        let code: String?
+    }
+
+    let error: APIError?
+}
+
 // =============================================================================
 // MARK: - AI Flashcard Service
 // =============================================================================
@@ -63,47 +74,99 @@ public final class AIFlashcardService: @unchecked Sendable {
     // MARK: - Configuration
     // -------------------------------------------------------------------------
 
-    private let apiKey: String
-    private let apiEndpoint = "https://api.deepseek.com/chat/completions"
-    private let textModel = "deepseek-chat"
-    private let visionModel = "deepseek-chat"
+    private let provider: AIProviderProfile
     private let session: URLSession
     private let maxCharsPerChunk = 12_000
     private let maxConcurrentTextPlanRequests = 6
     private let maxConcurrentVisionPlanRequests = 4
+    private let timeoutIntervalForRequest: TimeInterval = 360
+    private let timeoutIntervalForResource: TimeInterval = 1_800
+    private let maxRequestRetryCount = 4
+    private let baseRetryDelayNanoseconds: UInt64 = 1_200_000_000
+    private let maxRetryDelayNanoseconds: UInt64 = 12_000_000_000
+
+    private var apiEndpoint: URL? { provider.resolvedRequestURL }
+    private var textModel: String { provider.trimmedTextModel }
+    private var visionModel: String { provider.trimmedVisionModel }
+
+    private struct RetriableRequestError: Error {
+        let serviceError: AIServiceError
+        let retryAfter: TimeInterval?
+    }
 
     private struct TextSourceUnit {
         let content: String
         let label: String
     }
 
-    private struct TextBatchPlan: Sendable {
+    private protocol RecoverableBatchPlan: Sendable {
+        var targetCards: Int { get }
+        var sourceLabel: String { get }
+        func splitForRecovery() -> [Self]?
+    }
+
+    private struct TextBatchPlan: RecoverableBatchPlan {
         let text: String
         let sourceLabel: String
         let targetCards: Int
         let batchIndex: Int
         let totalBatches: Int
         let passIndex: Int
+
+        func splitForRecovery() -> [TextBatchPlan]? {
+            guard targetCards > 1 else { return nil }
+            let left = max(1, targetCards / 2)
+            let right = targetCards - left
+            let splitCounts = right > 0 ? [left, right] : [left]
+            return splitCounts.map { count in
+                TextBatchPlan(
+                    text: text,
+                    sourceLabel: sourceLabel,
+                    targetCards: count,
+                    batchIndex: batchIndex,
+                    totalBatches: totalBatches,
+                    passIndex: passIndex
+                )
+            }
+        }
     }
 
-    private struct VisionBatchPlan: @unchecked Sendable {
+    private struct VisionBatchPlan: RecoverableBatchPlan, @unchecked Sendable {
         let images: [UIImage]
         let sourceLabel: String
         let targetCards: Int
         let batchIndex: Int
         let totalBatches: Int
         let passIndex: Int
+
+        func splitForRecovery() -> [VisionBatchPlan]? {
+            guard targetCards > 1 else { return nil }
+            let left = max(1, targetCards / 2)
+            let right = targetCards - left
+            let splitCounts = right > 0 ? [left, right] : [left]
+            return splitCounts.map { count in
+                VisionBatchPlan(
+                    images: images,
+                    sourceLabel: sourceLabel,
+                    targetCards: count,
+                    batchIndex: batchIndex,
+                    totalBatches: totalBatches,
+                    passIndex: passIndex
+                )
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
     // MARK: - Init
     // -------------------------------------------------------------------------
 
-    public init(apiKey: String) {
-        self.apiKey = apiKey
+    init(provider: AIProviderProfile) {
+        self.provider = provider
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 180
-        config.timeoutIntervalForResource = 300
+        config.timeoutIntervalForRequest = timeoutIntervalForRequest
+        config.timeoutIntervalForResource = timeoutIntervalForResource
+        config.waitsForConnectivity = true
         session = URLSession(configuration: config)
     }
 
@@ -947,7 +1010,7 @@ public final class AIFlashcardService: @unchecked Sendable {
         }
     }
 
-    private func performPlanQueue<Plan: Sendable>(
+    private func performPlanQueue<Plan: RecoverableBatchPlan>(
         plans: [Plan],
         maxConcurrent: Int,
         execute: @escaping @Sendable (Plan, [String]) async throws -> [AIFlashcard],
@@ -955,43 +1018,80 @@ public final class AIFlashcardService: @unchecked Sendable {
     ) async throws {
         guard !plans.isEmpty else { return }
 
-        let concurrency = min(max(maxConcurrent, 1), plans.count)
+        var pendingPlans = plans
         var coveredPrompts: [String] = []
-        var nextPlanIndex = 0
+        var activeTaskCount = 0
+        var activeConcurrency = min(max(maxConcurrent, 1), plans.count)
+        var consecutiveSuccesses = 0
+        var terminalFailures: [String] = []
 
-        try await withThrowingTaskGroup(of: [AIFlashcard].self) { group in
-            for _ in 0..<concurrency {
-                let plan = plans[nextPlanIndex]
-                let promptSnapshot = coveredPrompts
-                nextPlanIndex += 1
+        try await withThrowingTaskGroup(of: (Plan, Result<[AIFlashcard], Error>).self) { group in
+            func scheduleAvailableTasks() {
+                while activeTaskCount < activeConcurrency, !pendingPlans.isEmpty {
+                    let plan = pendingPlans.removeFirst()
+                    let promptSnapshot = coveredPrompts
+                    activeTaskCount += 1
 
-                group.addTask {
-                    try Task.checkCancellation()
-                    return try await execute(plan, promptSnapshot)
+                    group.addTask {
+                        do {
+                            try Task.checkCancellation()
+                            let cards = try await execute(plan, promptSnapshot)
+                            return (plan, .success(cards))
+                        } catch {
+                            return (plan, .failure(error))
+                        }
+                    }
                 }
             }
 
-            while let cards = try await group.next() {
-                if Task.isCancelled {
-                    throw CancellationError()
+            scheduleAvailableTasks()
+
+            while activeTaskCount > 0 {
+                try Task.checkCancellation()
+
+                guard let (plan, result) = try await group.next() else {
+                    break
                 }
 
-                if !cards.isEmpty {
-                    try await onBatch(cards)
-                    coveredPrompts = updateCoveredPrompts(existing: coveredPrompts, with: cards)
+                activeTaskCount -= 1
+
+                switch result {
+                case .success(let cards):
+                    consecutiveSuccesses += 1
+
+                    if !cards.isEmpty {
+                        try await onBatch(cards)
+                        coveredPrompts = updateCoveredPrompts(existing: coveredPrompts, with: cards)
+                    }
+
+                    if consecutiveSuccesses >= max(activeConcurrency, 1), activeConcurrency < maxConcurrent {
+                        activeConcurrency += 1
+                        consecutiveSuccesses = 0
+                    }
+
+                case .failure(let error):
+                    consecutiveSuccesses = 0
+                    activeConcurrency = max(1, activeConcurrency / 2)
+
+                    if shouldAttemptPlanSplit(after: error), let splitPlans = plan.splitForRecovery() {
+                        pendingPlans.append(contentsOf: splitPlans)
+                    } else {
+                        terminalFailures.append(batchFailureDescription(for: plan, error: error))
+                    }
                 }
 
-                guard nextPlanIndex < plans.count else { continue }
-
-                let plan = plans[nextPlanIndex]
-                let promptSnapshot = coveredPrompts
-                nextPlanIndex += 1
-
-                group.addTask {
-                    try Task.checkCancellation()
-                    return try await execute(plan, promptSnapshot)
-                }
+                scheduleAvailableTasks()
             }
+        }
+
+        if !terminalFailures.isEmpty {
+            let preview = terminalFailures.prefix(3).joined(separator: "\n")
+            throw AIServiceError.unknown(
+                """
+                AI generation completed only partially. Some request fragments still failed after retries.
+                \(preview)
+                """
+            )
         }
     }
 
@@ -1444,33 +1544,9 @@ public final class AIFlashcardService: @unchecked Sendable {
     // -------------------------------------------------------------------------
 
     private func sendRequest(messages: [[String: Any]], model: String) async throws -> [AIFlashcard] {
-        guard let url = URL(string: apiEndpoint) else { throw AIServiceError.networkError }
-
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body: [String: Any] = [
-            "model": model,
-            "messages": messages,
-            "response_format": ["type": "json_object"],
-            "temperature": 0.2
-        ]
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        do {
-            let (data, response) = try await session.data(for: req)
-            guard let http = response as? HTTPURLResponse else { throw AIServiceError.invalidResponse }
-            guard (200...299).contains(http.statusCode) else {
-                throw AIServiceError.unknown("OpenAI HTTP \(http.statusCode)")
-            }
-            let content = try parseResponseContent(from: data)
-            return try decodeFlashcards(from: content)
-        } catch let e as AIServiceError {
-            throw e
-        } catch {
-            throw AIServiceError.networkError
+        try await performRetriableJSONRequest(messages: messages, model: model) { [self] data in
+            let content = try self.parseResponseContent(from: data)
+            return try self.decodeFlashcards(from: content)
         }
     }
 
@@ -1478,36 +1554,228 @@ public final class AIFlashcardService: @unchecked Sendable {
         messages: [[String: Any]],
         model: String
     ) async throws -> String? {
-        guard let url = URL(string: apiEndpoint) else { throw AIServiceError.networkError }
-
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body: [String: Any] = [
-            "model": model,
-            "messages": messages,
-            "response_format": ["type": "json_object"],
-            "temperature": 0.2
-        ]
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        do {
-            let (data, response) = try await session.data(for: req)
-            guard let http = response as? HTTPURLResponse else { throw AIServiceError.invalidResponse }
-            guard (200...299).contains(http.statusCode) else {
-                throw AIServiceError.unknown("OpenAI HTTP \(http.statusCode)")
-            }
-
-            let content = try parseResponseContent(from: data)
+        return try await performRetriableJSONRequest(messages: messages, model: model) { [self] data in
+            let content = try self.parseResponseContent(from: data)
             let decoded = try JSONDecoder().decode(DeckTitleResponseDTO.self, from: Data(content.utf8))
             return decoded.deck_title?.trimmingCharacters(in: .whitespacesAndNewlines)
-        } catch let e as AIServiceError {
-            throw e
-        } catch {
-            throw AIServiceError.networkError
         }
+    }
+
+    private func performRetriableJSONRequest<T>(
+        messages: [[String: Any]],
+        model: String,
+        parser: @escaping (Data) throws -> T
+    ) async throws -> T {
+        guard let url = apiEndpoint else { throw AIServiceError.networkError }
+        let apiKey = try resolvedAPIKey()
+
+        var lastServiceError: AIServiceError?
+
+        for attempt in 0...maxRequestRetryCount {
+            try Task.checkCancellation()
+
+            do {
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                applyStandardHeaders(to: &request, apiKey: apiKey)
+
+                let body = requestBody(messages: messages, model: model)
+                request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+                let (data, response) = try await session.data(for: request)
+                guard let http = response as? HTTPURLResponse else {
+                    throw AIServiceError.invalidResponse
+                }
+                guard (200...299).contains(http.statusCode) else {
+                    throw httpError(from: http, data: data)
+                }
+
+                return try parser(data)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as RetriableRequestError {
+                lastServiceError = error.serviceError
+                guard attempt < maxRequestRetryCount else {
+                    throw error.serviceError
+                }
+                try await sleepBeforeRetry(attempt: attempt, retryAfter: error.retryAfter)
+            } catch let error as AIServiceError {
+                lastServiceError = error
+                guard attempt < maxRequestRetryCount, shouldRetry(error) else {
+                    throw error
+                }
+                try await sleepBeforeRetry(attempt: attempt, retryAfter: nil)
+            } catch let error as URLError {
+                let serviceError = mapURLSessionError(error)
+                lastServiceError = serviceError
+                guard attempt < maxRequestRetryCount, shouldRetry(serviceError) else {
+                    throw serviceError
+                }
+                try await sleepBeforeRetry(attempt: attempt, retryAfter: nil)
+            } catch {
+                lastServiceError = .networkError
+                guard attempt < maxRequestRetryCount else {
+                    throw AIServiceError.networkError
+                }
+                try await sleepBeforeRetry(attempt: attempt, retryAfter: nil)
+            }
+        }
+
+        throw lastServiceError ?? .networkError
+    }
+
+    private func resolvedAPIKey() throws -> String {
+        let trimmedAPIKey = provider.trimmedAPIKey
+        guard !trimmedAPIKey.isEmpty else { throw AIServiceError.invalidAPIKey }
+        return trimmedAPIKey
+    }
+
+    private func applyStandardHeaders(to request: inout URLRequest, apiKey: String) {
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if let referer = provider.httpRefererURL?.absoluteString, !referer.isEmpty {
+            request.setValue(referer, forHTTPHeaderField: "HTTP-Referer")
+        }
+
+        let title = provider.trimmedXTitle
+        if !title.isEmpty {
+            request.setValue(title, forHTTPHeaderField: "X-Title")
+        }
+    }
+
+    private func requestBody(messages: [[String: Any]], model: String) -> [String: Any] {
+        switch provider.requestStyle {
+        case .openAICompatible:
+            var body: [String: Any] = [
+                "model": model,
+                "messages": messages,
+                "response_format": ["type": "json_object"]
+            ]
+
+            if supportsTemperatureParameter(for: model) {
+                body["temperature"] = 0.2
+            }
+
+            if let extraBody = provider.extraBodyObject {
+                body.merge(extraBody) { _, new in new }
+            }
+
+            return body
+        }
+    }
+
+    private func shouldRetry(_ error: AIServiceError) -> Bool {
+        switch error {
+        case .networkError, .invalidResponse, .parsingFailed, .rateLimitExceeded, .timeout:
+            return true
+        case .invalidAPIKey:
+            return false
+        case .unknown(let message):
+            if message.contains("HTTP 408") || message.contains("HTTP 409") || message.contains("HTTP 425") ||
+                message.contains("HTTP 429") || message.contains("HTTP 500") || message.contains("HTTP 502") ||
+                message.contains("HTTP 503") || message.contains("HTTP 504") {
+                return true
+            }
+            return false
+        }
+    }
+
+    private func shouldAttemptPlanSplit(after error: Error) -> Bool {
+        if let retriable = error as? RetriableRequestError {
+            return shouldRetry(retriable.serviceError)
+        }
+
+        if let serviceError = error as? AIServiceError {
+            return shouldRetry(serviceError)
+        }
+
+        if error is URLError {
+            return true
+        }
+
+        return false
+    }
+
+    private func mapURLSessionError(_ error: URLError) -> AIServiceError {
+        switch error.code {
+        case .timedOut:
+            return .timeout
+        case .cannotFindHost, .cannotConnectToHost, .networkConnectionLost, .dnsLookupFailed, .notConnectedToInternet, .internationalRoamingOff, .callIsActive, .dataNotAllowed:
+            return .networkError
+        default:
+            return .networkError
+        }
+    }
+
+    private func httpError(from response: HTTPURLResponse, data: Data) -> Error {
+        let message = apiErrorMessage(from: data, statusCode: response.statusCode)
+        let retryAfter = retryAfterInterval(from: response)
+
+        switch response.statusCode {
+        case 401, 403:
+            return AIServiceError.invalidAPIKey
+        case 408:
+            return RetriableRequestError(serviceError: .timeout, retryAfter: retryAfter)
+        case 429:
+            return RetriableRequestError(serviceError: .rateLimitExceeded, retryAfter: retryAfter)
+        case 500, 502, 503, 504:
+            return RetriableRequestError(serviceError: .unknown(message), retryAfter: retryAfter)
+        default:
+            return AIServiceError.unknown(message)
+        }
+    }
+
+    private func retryAfterInterval(from response: HTTPURLResponse) -> TimeInterval? {
+        guard let rawValue = response.value(forHTTPHeaderField: "Retry-After") else {
+            return nil
+        }
+
+        if let seconds = TimeInterval(rawValue), seconds > 0 {
+            return seconds
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
+
+        guard let date = formatter.date(from: rawValue) else {
+            return nil
+        }
+
+        return max(date.timeIntervalSinceNow, 0)
+    }
+
+    private func sleepBeforeRetry(attempt: Int, retryAfter: TimeInterval?) async throws {
+        let delayNanoseconds: UInt64
+
+        if let retryAfter, retryAfter > 0 {
+            delayNanoseconds = UInt64(retryAfter * 1_000_000_000)
+        } else {
+            let exponentialMultiplier = pow(2.0, Double(attempt))
+            let exponentialDelay = UInt64(Double(baseRetryDelayNanoseconds) * exponentialMultiplier)
+            let jitter = UInt64.random(in: 0...400_000_000)
+            delayNanoseconds = min(exponentialDelay + jitter, maxRetryDelayNanoseconds)
+        }
+
+        try await Task.sleep(nanoseconds: delayNanoseconds)
+    }
+
+    private func batchFailureDescription<Plan: RecoverableBatchPlan>(for plan: Plan, error: Error) -> String {
+        let baseDescription: String
+
+        if let serviceError = error as? AIServiceError {
+            baseDescription = serviceError.localizedDescription
+        } else if let retriable = error as? RetriableRequestError {
+            baseDescription = retriable.serviceError.localizedDescription
+        } else if let urlError = error as? URLError {
+            baseDescription = mapURLSessionError(urlError).localizedDescription
+        } else {
+            baseDescription = error.localizedDescription
+        }
+
+        return "• \(plan.sourceLabel) — \(plan.targetCards) cards: \(baseDescription)"
     }
 
     // -------------------------------------------------------------------------
@@ -1519,12 +1787,62 @@ public final class AIFlashcardService: @unchecked Sendable {
             let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let choices = json["choices"] as? [[String: Any]],
             let first = choices.first,
-            let message = first["message"] as? [String: Any],
-            let content = message["content"] as? String
-            else {
+            let message = first["message"] as? [String: Any]
+        else {
             throw AIServiceError.parsingFailed
         }
-        return content
+
+        if let content = message["content"] as? String {
+            return content
+        }
+
+        if let contentParts = message["content"] as? [[String: Any]] {
+            let text = contentParts.compactMap { part -> String? in
+                if let text = part["text"] as? String { return text }
+                return nil
+            }
+            .joined(separator: "\n")
+
+            if !text.isEmpty {
+                return text
+            }
+        }
+
+        throw AIServiceError.parsingFailed
+    }
+
+    private func supportsTemperatureParameter(for model: String) -> Bool {
+        let normalized = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return !normalized.hasPrefix("gpt-5")
+    }
+
+    private func apiErrorMessage(from data: Data, statusCode: Int) -> String {
+        if
+            let decoded = try? JSONDecoder().decode(AIProviderErrorEnvelope.self, from: data),
+            let message = decoded.error?.message?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !message.isEmpty
+        {
+            return "\(provider.trimmedName) HTTP \(statusCode): \(message)"
+        }
+
+        if
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let error = object["error"] as? [String: Any],
+            let message = error["message"] as? String,
+            !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            return "\(provider.trimmedName) HTTP \(statusCode): \(message)"
+        }
+
+        if
+            let raw = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            !raw.isEmpty
+        {
+            return "\(provider.trimmedName) HTTP \(statusCode): \(raw)"
+        }
+
+        return "\(provider.trimmedName) HTTP \(statusCode)"
     }
 
     private func decodeFlashcards(from jsonString: String) throws -> [AIFlashcard] {

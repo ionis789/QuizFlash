@@ -329,16 +329,16 @@ struct DeckContentView: View {
         }
             .fullScreenSheet(
                 ignoresSafeArea: true,
-                isPresented: $isPresentingEdit,
-                dragDismissActivationHeight: 180
-            ) { _ in
-                NavigationStack { CreateDeckView(deckToEdit: deck) }
+                isPresented: $isPresentingEdit
+            ) { safeArea in
+                CreateDeckView(deckToEdit: deck, safeAreaInsets: safeArea)
             } background: {
-                Color(uiColor: .systemGroupedBackground)
+                CreateDeckSheetBackground()
             }
             .fullScreenSheet(
                 ignoresSafeArea: true,
-                item: $selectedPlayMode
+                item: $selectedPlayMode,
+                backgroundReceivesDragProgress: true
             ) { mode, safeArea in
                 mode.playSheetView(for: deck, safeAreaInsets: safeArea)
             } background: {
@@ -359,6 +359,7 @@ struct DeckContentView: View {
             .fullScreenSheet(
                 ignoresSafeArea: true,
                 item: $previewedCard,
+                backgroundReceivesDragProgress: true,
                 dragDismissActivationHeight: 180
             ) { card, safeArea in
                 DeckCardPreviewSheetView(card: card, safeAreaInsets: safeArea)

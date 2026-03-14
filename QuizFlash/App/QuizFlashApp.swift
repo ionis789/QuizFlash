@@ -13,6 +13,7 @@ struct QuizFlashApp: App {
 
     @State var authManager = AuthManager.shared
     @State private var themeManager = ThemeManager.shared
+    @State private var aiProviderStore = AIProviderStore.shared
 
     init() {
         //
@@ -23,6 +24,7 @@ struct QuizFlashApp: App {
         WindowGroup {
             RootView()
                 .environment(authManager)
+                .environment(aiProviderStore)
                 .tint(themeManager.accentColor.color)
                 .preferredColorScheme(.dark)
                 .onAppear {
@@ -32,4 +34,3 @@ struct QuizFlashApp: App {
             .modelContainer(for: [FolderModel.self, DeckModel.self, CardModel.self, ReviewEvent.self, UserProfile.self, DailyActivityLog.self])
     }
 }
-

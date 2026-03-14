@@ -302,47 +302,50 @@ struct FlashCardsPlayModeView: View {
     }
 
     private var liveScoreChrome: some View {
-        HStack(spacing: UIConstants.Spacing.standard) {
-            leftScoreMetric(value: viewModel.wrongCards.count, symbol: "chevron.compact.left", tint: .red)
-            Divider().frame(width: 3, height: 20).foregroundStyle(.primary)
-            rightScoreMetric(value: viewModel.correctCount, symbol: "chevron.compact.right", tint: .green)
+        HStack(spacing: UIConstants.Spacing.medium) {
+            scoreMetric(
+                value: viewModel.wrongCards.count,
+                symbol: "chevron.compact.left",
+                tint: .red,
+                arrowLeading: true
+            )
+            scoreMetric(
+                value: viewModel.correctCount,
+                symbol: "chevron.compact.right",
+                tint: .green,
+                arrowLeading: false
+            )
         }
     }
 
-    private func leftScoreMetric(value: Int, symbol: String, tint: Color) -> some View {
+    private func scoreMetric(
+        value: Int,
+        symbol: String,
+        tint: Color,
+        arrowLeading: Bool
+    ) -> some View {
         HStack(spacing: 4) {
-
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .bold, design: .rounded))
-                .foregroundStyle(tint)
+            if arrowLeading {
+                scoreArrow(symbol: symbol, tint: tint)
+            }
 
             Text("\(value)")
-                .font(.system(size: 17, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(.primary.opacity(0.94))
                 .monospacedDigit()
                 .contentTransition(.numericText(value: Double(value)))
 
-
+            if !arrowLeading {
+                scoreArrow(symbol: symbol, tint: tint)
+            }
         }
-            .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .combine)
     }
 
-    private func rightScoreMetric(value: Int, symbol: String, tint: Color) -> some View {
-        HStack(spacing: 4) {
-
-            Text("\(value)")
-                .font(.system(size: 17, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .monospacedDigit()
-                .contentTransition(.numericText(value: Double(value)))
-            
-
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .bold, design: .rounded))
-                .foregroundStyle(tint)
-
-        }
-            .accessibilityElement(children: .combine)
+    private func scoreArrow(symbol: String, tint: Color) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 16, weight: .bold, design: .rounded))
+            .foregroundStyle(tint.opacity(0.95))
     }
 
 

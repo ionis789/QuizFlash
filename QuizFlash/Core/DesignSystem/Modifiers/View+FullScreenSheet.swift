@@ -66,6 +66,7 @@ extension View {
     func fullScreenSheet<Content: View, Background: View>(
         ignoresSafeArea: Bool = false,
         isPresented: Binding<Bool>,
+        backgroundReceivesDragProgress: Bool = false,
         dragDismissActivationHeight: CGFloat? = nil,
         @ViewBuilder content: @escaping (UIEdgeInsets) -> Content,
         @ViewBuilder background: @escaping () -> Background
@@ -73,6 +74,7 @@ extension View {
         fullScreenCover(isPresented: isPresented) {
             FullScreenSheetContainer(
                 ignoresSafeArea: ignoresSafeArea,
+                backgroundReceivesDragProgress: backgroundReceivesDragProgress,
                 dragDismissActivationHeight: dragDismissActivationHeight,
                 content: content,
                 background: background
@@ -84,6 +86,7 @@ extension View {
     func fullScreenSheet<Item: Identifiable, Content: View, Background: View>(
         ignoresSafeArea: Bool = false,
         item: Binding<Item?>,
+        backgroundReceivesDragProgress: Bool = false,
         dragDismissActivationHeight: CGFloat? = nil,
         @ViewBuilder content: @escaping (Item, UIEdgeInsets) -> Content,
         @ViewBuilder background: @escaping () -> Background
@@ -91,6 +94,7 @@ extension View {
         fullScreenCover(item: item) { wrappedItem in
             FullScreenSheetContainer(
                 ignoresSafeArea: ignoresSafeArea,
+                backgroundReceivesDragProgress: backgroundReceivesDragProgress,
                 dragDismissActivationHeight: dragDismissActivationHeight,
                 content: { insets in content(wrappedItem, insets) },
                 background: background
@@ -107,6 +111,7 @@ extension View {
 
 private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     let ignoresSafeArea: Bool
+    let backgroundReceivesDragProgress: Bool
     let dragDismissActivationHeight: CGFloat?
     @ViewBuilder var content: (UIEdgeInsets) -> Content
     @ViewBuilder var background: Background
@@ -147,15 +152,15 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         let baseView = ZStack {
             // Background only is clipped — content frame never changes so
             // text/cards never reflow during drag. Shadow removed entirely.
-            background
-                .environment(\.fullScreenSheetDragProgress, dragProgress)
+            backgroundView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipShape(sheetShape)
 
-            content(safeAreaInsets)
-                .scrollDisabled(scrollDisabled)
+            StableHostedSheetContent(
+                interactionDisabled: scrollDisabled,
+                makeRootView: { content(safeAreaInsets) }
+            )
         }
-            .geometryGroup()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(.rect)
             .offset(y: offset)
@@ -241,6 +246,16 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         }
     }
 
+    @ViewBuilder
+    private var backgroundView: some View {
+        if backgroundReceivesDragProgress {
+            background
+                .environment(\.fullScreenSheetDragProgress, dragProgress)
+        } else {
+            background
+        }
+    }
+
     // MARK: - Dismiss Logic
 
     private func finalizeDrag(
@@ -317,6 +332,110 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 
     private var animationDurationMilliseconds: Int {
         Int(UIConstants.Animation.medium * 1_000)
+    }
+}
+
+// MARK: - Stable Hosted Sheet Content
+
+/// Hosts the heavy SwiftUI sheet content inside a persistent `UIHostingController`
+/// so drag offset updates on the outer container do not force the entire content
+/// tree to be rebuilt every frame.
+private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentable {
+    let interactionDisabled: Bool
+    let makeRootView: () -> Root
+
+    func makeUIViewController(context: Context) -> SheetHostingController {
+        let controller = SheetHostingController(rootView: hostedRootView)
+        controller.view.backgroundColor = .clear
+        controller.view.isOpaque = false
+        controller.view.clipsToBounds = false
+        controller.view.insetsLayoutMarginsFromSafeArea = false
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: SheetHostingController, context: Context) {
+        uiViewController.setSheetInteractionDisabled(interactionDisabled)
+    }
+
+    private var hostedRootView: AnyView {
+        AnyView(
+            makeRootView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .ignoresSafeArea(.container, edges: .all)
+        )
+    }
+}
+
+private final class SheetHostingController: UIHostingController<AnyView> {
+    private struct ScrollState {
+        let bounces: Bool
+        let alwaysBounceVertical: Bool
+    }
+
+    private var preservedScrollStates: [ObjectIdentifier: ScrollState] = [:]
+    private var isSheetInteractionDisabled = false
+
+    func setSheetInteractionDisabled(_ disabled: Bool) {
+        guard disabled != isSheetInteractionDisabled else { return }
+        isSheetInteractionDisabled = disabled
+        view.isUserInteractionEnabled = !disabled
+
+        if disabled {
+            freezeNestedScrollViews()
+        } else {
+            restoreNestedScrollViews()
+        }
+    }
+
+    private func freezeNestedScrollViews() {
+        for scrollView in nestedVerticalScrollViews(in: view) {
+            let id = ObjectIdentifier(scrollView)
+            if preservedScrollStates[id] == nil {
+                preservedScrollStates[id] = ScrollState(
+                    bounces: scrollView.bounces,
+                    alwaysBounceVertical: scrollView.alwaysBounceVertical
+                )
+            }
+
+            scrollView.layer.removeAllAnimations()
+            let topOffset = -scrollView.adjustedContentInset.top
+            if scrollView.contentOffset.y < topOffset {
+                scrollView.setContentOffset(
+                    CGPoint(x: scrollView.contentOffset.x, y: topOffset),
+                    animated: false
+                )
+            }
+
+            scrollView.bounces = false
+            scrollView.alwaysBounceVertical = false
+        }
+    }
+
+    private func restoreNestedScrollViews() {
+        for scrollView in nestedVerticalScrollViews(in: view) {
+            let id = ObjectIdentifier(scrollView)
+            guard let state = preservedScrollStates[id] else { continue }
+            scrollView.bounces = state.bounces
+            scrollView.alwaysBounceVertical = state.alwaysBounceVertical
+        }
+        preservedScrollStates.removeAll()
+    }
+
+    private func nestedVerticalScrollViews(in root: UIView) -> [UIScrollView] {
+        var result: [UIScrollView] = []
+
+        func walk(_ view: UIView) {
+            if let scrollView = view as? UIScrollView,
+               scrollView.contentSize.height > scrollView.bounds.height + 1 || scrollView.alwaysBounceVertical {
+                result.append(scrollView)
+            }
+            for subview in view.subviews {
+                walk(subview)
+            }
+        }
+
+        walk(root)
+        return result
     }
 }
 

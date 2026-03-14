@@ -257,8 +257,12 @@ public struct AIGenerationOptions: Equatable, Codable {
             adaptiveBatchSize = 8
         case 51...90:
             adaptiveBatchSize = 10
-        default:
+        case 91...180:
             adaptiveBatchSize = 12
+        case 181...320:
+            adaptiveBatchSize = 14
+        default:
+            adaptiveBatchSize = 16
         }
 
         return min(adaptiveBatchSize, safeTarget)

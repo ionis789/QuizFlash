@@ -13,6 +13,8 @@ import SwiftData
 import PhotosUI
 import UniformTypeIdentifiers
 
+private let kCreateDeckChromeSpace = "CreateDeckChromeSpace"
+
 struct CreateDeckView: View {
     // MARK: - Environment
     @Environment(\.modelContext) private var context
@@ -29,12 +31,16 @@ struct CreateDeckView: View {
     @State private var scrollState = CreateDeckScrollState()
     @State private var leadingControlWidth: CGFloat = UIConstants.Size.actionButton
     @State private var trailingControlWidth: CGFloat = (UIConstants.Size.actionButton * 2) + UIConstants.Spacing.small
+    @State private var navigationBarHeight: CGFloat = UIConstants.Size.actionButton
     @State private var showUnsavedChangesDialog = false
     @State private var allowDismissWithoutConfirmation = false
 
     /// Tracks the focus state of the deck title text field.
     /// Drives the tab bar visibility rule reactively.
     @FocusState private var isTitleFocused: Bool
+
+    // MARK: - Input
+    private let presentedSafeAreaInsets: UIEdgeInsets?
 
     // MARK: - Computed Properties
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -108,19 +114,34 @@ struct CreateDeckView: View {
     }
 
     // MARK: - Initialization
-    init(deckToEdit: DeckModel? = nil) {
+    init(deckToEdit: DeckModel? = nil, safeAreaInsets: UIEdgeInsets? = nil) {
+        self.presentedSafeAreaInsets = safeAreaInsets
         _viewModel = State(initialValue: CreateDeckViewModel(deckToEdit: deckToEdit))
     }
 
     var body: some View {
         GeometryReader { outer in
+            let resolvedSafeTopInset = max(presentedSafeAreaInsets?.top ?? 0, outer.safeAreaInsets.top)
+            let resolvedSafeBottomInset = max(presentedSafeAreaInsets?.bottom ?? 0, outer.safeAreaInsets.bottom)
+            let estimatedSheetChromeHeight = resolvedSafeTopInset
+                + UIConstants.Spacing.tiny
+                + 5
+                + UIConstants.Spacing.small
+                + UIConstants.Size.capsuleHeight
+            let sheetHeroTopPadding = max(navigationBarHeight, estimatedSheetChromeHeight) + UIConstants.Spacing.large
+            let standardHeroTopPadding = UIConstants.Layout.createDeckPinnedToolbarTopInset
+                + UIConstants.Layout.createDeckHeroTopPadding
+            let heroTopPadding = fullScreenSheetDismiss != nil ? sheetHeroTopPadding : standardHeroTopPadding
+
             ZStack {
-                Color(uiColor: .systemGroupedBackground)
-                    .ignoresSafeArea()
+                if fullScreenSheetDismiss == nil {
+                    Color(uiColor: .systemGroupedBackground)
+                        .ignoresSafeArea()
+                }
 
                 ScrollView {
                     VStack(spacing: 0) {
-                        heroHeader
+                        heroHeader(topPadding: heroTopPadding)
 
                         cardsListContent
                             .padding(.top, UIConstants.Spacing.large)
@@ -139,11 +160,15 @@ struct CreateDeckView: View {
                 }
             }
             .overlay(alignment: .top) {
-                navigationBar(containerWidth: outer.size.width)
+                navigationChrome(
+                    containerWidth: outer.size.width,
+                    safeTopInset: resolvedSafeTopInset
+                )
             }
             .overlay(alignment: .bottomTrailing) {
-                floatingGenerateAction(bottomInset: outer.safeAreaInsets.bottom)
+                floatingGenerateAction(bottomInset: resolvedSafeBottomInset)
             }
+            .coordinateSpace(name: kCreateDeckChromeSpace)
         }
         .environment(scrollState)
         .toolbar(.hidden, for: .navigationBar)
@@ -228,6 +253,9 @@ struct CreateDeckView: View {
         .swipeBack(enabled: canUseInteractiveDismiss) {
             requestDismiss()
         }
+        .fullScreenSheetDragActivationHeight(
+            fullScreenSheetDismiss != nil ? navigationBarHeight : nil
+        )
         .onAppear {
             fullScreenSheetDismissCoordinator?.shouldAllowDismiss = {
                 attemptInteractiveDismissValidation()
@@ -237,6 +265,10 @@ struct CreateDeckView: View {
             if fullScreenSheetDismissCoordinator?.shouldAllowDismiss != nil {
                 fullScreenSheetDismissCoordinator?.shouldAllowDismiss = nil
             }
+            guard viewModel.aiSheetDestination == nil,
+                  !viewModel.isCreatingNewCard,
+                  viewModel.cardToEdit == nil else { return }
+            ImageCache.shared.clearCache()
         }
         // Apply the reactive visibility rule to the global tab bar.
         .customTabBarVisibility(tabRule)
@@ -247,7 +279,7 @@ struct CreateDeckView: View {
 private extension CreateDeckView {
 
     // MARK: 1. Header Chrome
-    var heroHeader: some View {
+    func heroHeader(topPadding: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
             TextField("Untitled Deck", text: $viewModel.deckTitle, axis: .vertical)
                 .font(.system(size: 42, weight: .heavy, design: .rounded))
@@ -263,11 +295,37 @@ private extension CreateDeckView {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
-        .padding(.top, UIConstants.Layout.createDeckPinnedToolbarTopInset + UIConstants.Layout.createDeckHeroTopPadding)
+        .padding(.top, topPadding)
         .padding(.bottom, UIConstants.Spacing.extraLarge)
     }
 
-    private func navigationBar(containerWidth: CGFloat) -> some View {
+    @ViewBuilder
+    private func navigationChrome(
+        containerWidth: CGFloat,
+        safeTopInset: CGFloat
+    ) -> some View {
+        let horizontalInset = UIConstants.Layout.compactScreenEdgeInset
+
+        if fullScreenSheetDismiss != nil {
+            VStack(spacing: UIConstants.Spacing.small) {
+                Capsule()
+                    .fill(Color.white.opacity(0.2))
+                    .frame(width: 56, height: 5)
+                    .accessibilityHidden(true)
+
+                navigationBarContent(containerWidth: containerWidth)
+            }
+            .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
+            .padding(.horizontal, horizontalInset)
+            .background(navigationBarHeightReader)
+        } else {
+            navigationBarContent(containerWidth: containerWidth)
+                .topNavigationChrome(horizontalInset: horizontalInset)
+                .background(navigationBarHeightReader)
+        }
+    }
+
+    private func navigationBarContent(containerWidth: CGFloat) -> some View {
         let horizontalInset = UIConstants.Layout.compactScreenEdgeInset
         let availableChromeWidth = max(0, containerWidth - (horizontalInset * 2))
         let sideClearance = max(leadingControlWidth, trailingControlWidth)
@@ -309,7 +367,17 @@ private extension CreateDeckView {
                 }
             }
         }
-        .topNavigationChrome(horizontalInset: horizontalInset)
+    }
+
+    private var navigationBarHeightReader: some View {
+        Color.clear
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { newHeight in
+                if abs(navigationBarHeight - newHeight) > 0.5 {
+                    navigationBarHeight = newHeight
+                }
+            }
     }
 
     private var headerMetadataRow: some View {
@@ -327,7 +395,7 @@ private extension CreateDeckView {
         .background {
             Color.clear
                 .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.frame(in: .global).maxY
+                    proxy.frame(in: .named(kCreateDeckChromeSpace)).maxY
                 } action: { maxY in
                     let isAbove = maxY < 0
                     if scrollState.pillVisible != isAbove {
@@ -718,6 +786,33 @@ private extension CreateDeckView {
         } else {
             dismiss()
         }
+    }
+}
+
+// MARK: - Create Deck Sheet Background
+
+struct CreateDeckSheetBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            if colorScheme == .dark {
+                Color.black
+            } else {
+                Color(uiColor: .systemGroupedBackground)
+            }
+
+            LinearGradient(
+                stops: [
+                    .init(color: Color(white: colorScheme == .dark ? 0.08 : 0.76), location: 0.00),
+                    .init(color: Color(white: colorScheme == .dark ? 0.08 : 0.76), location: 0.05),
+                    .init(color: .clear, location: 0.24)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .ignoresSafeArea()
     }
 }
 

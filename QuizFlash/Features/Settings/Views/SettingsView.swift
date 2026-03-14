@@ -12,6 +12,7 @@ import SwiftData
 struct SettingsView: View {
     // MARK: - Environment & State
     @Environment(AuthManager.self) var authManager
+    @Environment(AIProviderStore.self) private var aiProviderStore
     /// Enables view dismissal triggered purely by the custom edge swipe gesture.
     @Environment(\.dismiss) private var dismiss
     
@@ -95,6 +96,25 @@ struct SettingsView: View {
                 } label: {
                     Label("Data & Storage", systemImage: "externaldrive.fill")
                 }
+
+                #if DEBUG
+                NavigationLink {
+                    AIProviderSettingsView()
+                } label: {
+                    HStack {
+                        Label("Developer AI", systemImage: "sparkles.rectangle.stack")
+
+                        Spacer()
+
+                        if let activeProfile = aiProviderStore.activeProfile {
+                            Text(activeProfile.trimmedName)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                #endif
             } header: {
                 Text("Preferences")
             }
@@ -252,5 +272,6 @@ struct AccentColorPickerView: View {
 #Preview {
     SettingsView()
         .environment(AuthManager.shared)
+        .environment(AIProviderStore.shared)
         .modelContainer(for: [DeckModel.self, CardModel.self], inMemory: true)
 }

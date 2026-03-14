@@ -133,9 +133,8 @@ actor CardFetchActor {
     /// Fetches a lightweight snapshot of all cards in the specified deck.
     ///
     /// This method:
-    /// 1. Fetches `CardModel` objects directly from SQLite using a predicate,
-    ///    bypassing the `deck.cards` relationship array (which is unreliable on iOS 17
-    ///    across different `ModelContext` instances).
+    /// 1. Resolves the parent `DeckModel` inside the actor's own `ModelContext`.
+    /// 2. Reads the `deck.cards` relationship from that same context.
     /// 2. Projects each card into a ``GridCardInfo`` value type.
     /// 3. Accumulates deck statistics via ``StatsAccumulator``.
     /// 4. Flushes the context immediately after projection to reclaim memory.
@@ -147,39 +146,47 @@ actor CardFetchActor {
             return CardDataSnapshot(gridCards: [], stats: .empty)
         }
 
-        // Suppress "unused variable" warning — deck is fetched to verify the ID resolves.
-        _ = deck
-
         let now        = Date()
         let todayStart = Calendar.current.startOfDay(for: now)
         var gridCards  = [GridCardInfo]()
         var accum      = StatsAccumulator()
 
-        // Fetch directly from the SQLite store using a predicate. This bypasses
-        // the `deck.cards` relationship array, which is prone to caching bugs on iOS 17
-        // where it fails to reflect newly inserted cards across different contexts.
-        let descriptor = FetchDescriptor<CardModel>(
-            predicate: #Predicate { $0.deck?.persistentModelID == deckID }
-        )
-        let cards = (try? activeContext.fetch(descriptor)) ?? []
+        // Important iOS 17 rule:
+        // Avoid predicates that walk optional relationships such as
+        // `$0.deck?.persistentModelID == deckID`. They are known to behave
+        // pathologically on iOS 17, including runaway memory growth and empty
+        // result sets for otherwise valid decks. Once the deck is resolved in
+        // this same context, reading `deck.cards` is the stable path.
+        let deckCards = resolvedCards(for: deck, deckID: deckID)
+        let cards = deckCards.sorted { lhs, rhs in
+            if lhs.isPinned != rhs.isPinned {
+                return lhs.isPinned && !rhs.isPinned
+            }
+            if lhs.cardNumber != rhs.cardNumber {
+                return lhs.cardNumber < rhs.cardNumber
+            }
+            return lhs.createdAt < rhs.createdAt
+        }
 
         for card in cards {
-            let frontText = card.frontText
-            let backText = card.backText
-            gridCards.append(GridCardInfo(
-                id:                   card.persistentModelID,
-                cardNumber:           card.cardNumber,
-                interval:             card.interval,
-                reviewHistoryIsEmpty: card.reviewHistory.isEmpty,
-                isPinned:             card.isPinned,
-                frontText:            frontText,
-                backText:             backText,
-                frontPreviewText:     MathTextSanitizer.normalizedPreview(frontText),
-                backPreviewText:      MathTextSanitizer.normalizedPreview(backText),
-                createdAt:            card.createdAt,
-                editedAt:             card.editedAt
-            ))
-            accum.accumulate(card: card, now: now, todayStart: todayStart)
+            autoreleasepool {
+                let frontText = card.frontText
+                let backText = card.backText
+                gridCards.append(GridCardInfo(
+                    id:                   card.persistentModelID,
+                    cardNumber:           card.cardNumber,
+                    interval:             card.interval,
+                    reviewHistoryIsEmpty: card.reviewHistory.isEmpty,
+                    isPinned:             card.isPinned,
+                    frontText:            frontText,
+                    backText:             backText,
+                    frontPreviewText:     lightweightPreviewText(from: frontText),
+                    backPreviewText:      lightweightPreviewText(from: backText),
+                    createdAt:            card.createdAt,
+                    editedAt:             card.editedAt
+                ))
+                accum.accumulate(card: card, now: now, todayStart: todayStart)
+            }
         }
 
         // Flush heavy CardModel objects from RAM immediately after projecting
@@ -190,6 +197,44 @@ actor CardFetchActor {
             gridCards: gridCards,
             stats:     accum.build(count: gridCards.count)
         )
+    }
+
+    /// Resolves cards for the deck using the direct relationship first, then
+    /// falls back to a whole-store scan when SwiftData returns an empty
+    /// relationship for a deck that still reports a non-zero denormalized
+    /// `cardCount`. This guards pathological iOS 17 cases without using an
+    /// optional-relationship predicate on a hot path.
+    private func resolvedCards(for deck: DeckModel, deckID: PersistentIdentifier) -> [CardModel] {
+        let directCards = deck.cards
+        if !directCards.isEmpty || deck.cardCount == 0 {
+            return directCards
+        }
+
+        let descriptor = FetchDescriptor<CardModel>()
+        guard let allCards = try? activeContext.fetch(descriptor) else {
+            return directCards
+        }
+
+        return allCards.filter { card in
+            card.deck?.persistentModelID == deckID
+        }
+    }
+
+    /// Produces a very cheap deck-grid preview string. This intentionally avoids
+    /// the richer math sanitizer path, because some AI-generated LaTeX-heavy
+    /// cards can trigger pathological memory spikes during snapshot loading on
+    /// iOS 17.
+    private func lightweightPreviewText(from text: String) -> String {
+        let normalizedLineBreaks = text.replacingOccurrences(of: "\r\n", with: "\n")
+        let collapsedWhitespace = normalizedLineBreaks
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if collapsedWhitespace.caseInsensitiveCompare("empty") == .orderedSame {
+            return ""
+        }
+
+        return String(collapsedWhitespace.prefix(200))
     }
 
     // MARK: - Thumbnail Generation

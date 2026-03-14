@@ -739,16 +739,19 @@ struct HorizontalOverflowState: Equatable {
 private struct HorizontalOverflowIndicator: View {
     let canScrollLeft: Bool
     let canScrollRight: Bool
+    private let horizontalOffset: CGFloat = 14
 
     var body: some View {
         ZStack {
             if canScrollLeft {
                 edgeCue(direction: .leading)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    .offset(x: -horizontalOffset)
             }
             if canScrollRight {
                 edgeCue(direction: .trailing)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                    .offset(x: horizontalOffset)
             }
         }
         .padding(.vertical, UIConstants.Spacing.medium)
@@ -756,21 +759,9 @@ private struct HorizontalOverflowIndicator: View {
     }
 
     private func edgeCue(direction: OverflowEdgeDirection) -> some View {
-        ZStack(alignment: direction == .leading ? .leading : .trailing) {
-            LinearGradient(
-                colors: direction == .leading
-                    ? [Color.black.opacity(0.18), .clear]
-                    : [.clear, Color.black.opacity(0.18)],
-                startPoint: direction == .leading ? .leading : .trailing,
-                endPoint: direction == .leading ? .trailing : .leading
-            )
-            .frame(width: 18)
-
-            Image(systemName: direction == .leading ? "chevron.left" : "chevron.right")
-                .font(.system(size: 7, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.28))
-                .padding(.horizontal, 2)
-        }
+        Image(systemName: direction == .leading ? "chevron.compact.left" : "chevron.compact.right")
+            .font(.system(size: 18, weight: .bold, design: .rounded))
+            .foregroundStyle(Color.white.opacity(0.38))
     }
 }
 

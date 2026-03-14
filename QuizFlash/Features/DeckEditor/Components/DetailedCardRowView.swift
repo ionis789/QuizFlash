@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+private let kDraftCardThumbnailSize = CGSize(width: 46, height: 46)
+
 struct DetailedCardRowView: View {
     let card: DraftCard
     var index: Int
@@ -86,14 +88,7 @@ struct DetailedCardRowView: View {
             if !allThumbnailData.isEmpty {
                 HStack(spacing: 10) {
                     ForEach(Array(allThumbnailData.enumerated()), id: \.offset) { _, data in
-                        if let img = UIImage(data: data) {
-                            Image(uiImage: img)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 46, height: 46)
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
-                        }
+                        DraftCardThumbnailView(data: data)
                     }
                 }
                     .padding(.top, 4)
@@ -151,5 +146,36 @@ struct DetailedCardRowView: View {
             return (zone.contentType == .sketch && zone.hasContent) ? 1 : 0
         }
         return zone.children?.reduce(0) { $0 + sketchCount(in: $1) } ?? 0
+    }
+}
+
+private struct DraftCardThumbnailView: View {
+    let data: Data
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.white.opacity(0.05))
+            }
+        }
+        .frame(width: 46, height: 46)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+        .onAppear {
+            guard image == nil else { return }
+            let cacheID = "draft-card-thumb-\(data.hashValue)"
+            image = ImageCache.shared.image(
+                for: data,
+                id: cacheID,
+                targetSize: kDraftCardThumbnailSize
+            )
+        }
     }
 }

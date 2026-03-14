@@ -181,7 +181,7 @@ final class CreateDeckViewModel {
 
     // MARK: - Services
 
-    private let aiService = AIFlashcardService(apiKey: "sk-a40ab294a6ea4efa91c003e8c1fccba2")
+    @ObservationIgnored private let aiProviderStore: AIProviderStore
     @ObservationIgnored private var aiGenerationTask: Task<Void, Never>?
     @ObservationIgnored private var aiSourcePreparationTask: Task<Void, Never>?
     @ObservationIgnored private var aiRevealTask: Task<Void, Error>?
@@ -204,7 +204,15 @@ final class CreateDeckViewModel {
         currentSnapshot != initialSnapshot
     }
 
-    init(deckToEdit: DeckModel? = nil) {
+    convenience init(deckToEdit: DeckModel? = nil) {
+        self.init(deckToEdit: deckToEdit, aiProviderStore: AIProviderStore.shared)
+    }
+
+    init(
+        deckToEdit: DeckModel?,
+        aiProviderStore: AIProviderStore
+    ) {
+        self.aiProviderStore = aiProviderStore
         self.deckToEdit = deckToEdit
         let initialTitle: String
         let initialFolder: FolderModel?
@@ -255,21 +263,24 @@ final class CreateDeckViewModel {
         let allocations = resolvedAISourceAllocations
         let targetCardCount = targetCardCount(for: allocations)
         guard targetCardCount > 0 else { return }
+        guard let aiService = makeAIService() else { return }
 
         beginAIGenerationSession(targetCardCount: targetCardCount)
-        requestAIDeckTitleIfNeeded(from: source)
+        requestAIDeckTitleIfNeeded(from: source, aiService: aiService)
         switch source.kind {
         case .photos:
             processPhotosForAI(
                 source,
                 allocations: allocations,
-                targetCardCount: targetCardCount
+                targetCardCount: targetCardCount,
+                aiService: aiService
             )
         case .pdf:
             processPDFForAI(
                 source,
                 allocations: allocations,
-                targetCardCount: targetCardCount
+                targetCardCount: targetCardCount,
+                aiService: aiService
             )
         }
     }
@@ -331,7 +342,8 @@ final class CreateDeckViewModel {
     private func processPhotosForAI(
         _ source: AIPreparedGenerationSource,
         allocations: [AISourceRangeAllocation],
-        targetCardCount: Int
+        targetCardCount: Int,
+        aiService: AIFlashcardService
     ) {
         aiState = .extractingText
         let options = effectiveAIGenerationOptions()
@@ -391,7 +403,8 @@ final class CreateDeckViewModel {
     private func processPDFForAI(
         _ source: AIPreparedGenerationSource,
         allocations: [AISourceRangeAllocation],
-        targetCardCount: Int
+        targetCardCount: Int,
+        aiService: AIFlashcardService
     ) {
         guard let url = source.pdfURL else {
             aiState = .error("Could not access the PDF file.")
@@ -1134,7 +1147,24 @@ final class CreateDeckViewModel {
         aiGenerationOptions
     }
 
-    private func requestAIDeckTitleIfNeeded(from source: AIPreparedGenerationSource) {
+    private func makeAIService() -> AIFlashcardService? {
+        guard let activeProfile = aiProviderStore.activeProfile else {
+            aiState = .error("No AI provider is configured. Open Settings > AI Providers.")
+            return nil
+        }
+
+        if let validationMessage = activeProfile.generationValidationMessage {
+            aiState = .error(validationMessage)
+            return nil
+        }
+
+        return AIFlashcardService(provider: activeProfile)
+    }
+
+    private func requestAIDeckTitleIfNeeded(
+        from source: AIPreparedGenerationSource,
+        aiService: AIFlashcardService
+    ) {
         let currentTitle = deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard currentTitle.isEmpty else {
             aiDeckTitleTask?.cancel()
@@ -1393,9 +1423,12 @@ final class CreateDeckViewModel {
                     let existing = deck.cards.first(where: { $0.id == originalID }) {
                     let frontChanged = existing.frontZone != draft.frontZone
                     let backChanged = existing.backZone != draft.backZone
-                    if frontChanged || backChanged {
+                    let typeChanged = existing.frontType != draft.frontType || existing.backType != draft.backType
+                    if frontChanged || backChanged || typeChanged {
                         existing.frontZone = draft.frontZone
                         existing.backZone = draft.backZone
+                        existing.frontType = draft.frontType
+                        existing.backType = draft.backType
                         existing.editedAt = Date()
                         cardsChanged = true
                     }
@@ -1404,8 +1437,16 @@ final class CreateDeckViewModel {
                     let newCard = CardModel(
                         frontZone: draft.frontZone,
                         backZone: draft.backZone,
+                        frontType: draft.frontType,
+                        backType: draft.backType,
                         cardNumber: deck.lastAssignedCardNumber
                     )
+                    if let createdAt = draft.createdAt {
+                        newCard.createdAt = createdAt
+                    }
+                    if let editedAt = draft.editedAt {
+                        newCard.editedAt = editedAt
+                    }
                     newCard.deck = deck
                     deck.cards.append(newCard)
                     context.insert(newCard)
@@ -1413,7 +1454,7 @@ final class CreateDeckViewModel {
                 }
             }
             if titleChanged || cardsChanged { deck.editedAt = Date() }
-            deck.cardCount = deck.cards.count
+            deck.cardCount = draftCards.count
 
         } else {
             // ── CREATE NEW DECK ───────────────────────────────────────────────
@@ -1427,13 +1468,21 @@ final class CreateDeckViewModel {
                 let newCard = CardModel(
                     frontZone: draft.frontZone,
                     backZone: draft.backZone,
+                    frontType: draft.frontType,
+                    backType: draft.backType,
                     cardNumber: newDeck.lastAssignedCardNumber
                 )
+                if let createdAt = draft.createdAt {
+                    newCard.createdAt = createdAt
+                }
+                if let editedAt = draft.editedAt {
+                    newCard.editedAt = editedAt
+                }
                 newCard.deck = newDeck
                 context.insert(newCard)
                 newDeck.cards.append(newCard)
             }
-            newDeck.cardCount = newDeck.cards.count
+            newDeck.cardCount = draftCards.count
         }
 
         do {

@@ -108,6 +108,7 @@ struct CreateCardView: View {
                 .fullScreenSheet(
                     ignoresSafeArea: true,
                     isPresented: $showPreview,
+                    backgroundReceivesDragProgress: true,
                     dragDismissActivationHeight: 180
                 ) { safeArea in
                     CardPreviewModeView(
