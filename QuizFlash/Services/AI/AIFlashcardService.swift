@@ -1066,9 +1066,18 @@ public final class AIFlashcardService: @unchecked Sendable {
 
         var remaining = totalCards
         var batches: [Int] = []
+        let normalizedBatchSize = max(batchSize, 1)
+
+        // Front-load a smaller preview batch so the first cards land sooner and
+        // the generation screen feels responsive even for large targets.
+        if totalCards > normalizedBatchSize, normalizedBatchSize >= 4 {
+            let previewBatchSize = min(remaining, min(3, max(2, normalizedBatchSize / 2)))
+            batches.append(previewBatchSize)
+            remaining -= previewBatchSize
+        }
 
         while remaining > 0 {
-            let next = min(batchSize, remaining)
+            let next = min(normalizedBatchSize, remaining)
             batches.append(next)
             remaining -= next
         }

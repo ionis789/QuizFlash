@@ -53,12 +53,13 @@ final class AIGenerationBackgroundCoordinator {
             self.activeSessionID = nil
             self.backgroundTaskID = .invalid
 
-            if taskID != .invalid {
-                UIApplication.shared.endBackgroundTask(taskID)
-            }
-
+            // Notify the main actor first to let it do quick cleanup
             Task { @MainActor in
                 onExpiration()
+            }
+            
+            if taskID != .invalid {
+                UIApplication.shared.endBackgroundTask(taskID)
             }
         }
     }

@@ -87,8 +87,8 @@ final class CreateDeckViewModel {
     var showAIPDFPicker = false
     var aiSheetDestination: AIGenerationSheetDestination? = nil
     var showAICancelDialog = false
-    var showAIPausedResumeDialog = false
-    var isGenerating: Bool { aiState != .idle }
+
+    var isGenerating: Bool { aiState != .idle || hasPausedAIGeneration }
     var selectedFolder: FolderModel? = nil
 
     // MARK: - PDF Analysis
@@ -115,6 +115,10 @@ final class CreateDeckViewModel {
     }
 
     private var hasIncompleteAIGenerationSession: Bool {
+        if isAIGenerationPaused || isAIGenerationPausedForBackground {
+            return true
+        }
+
         guard preparedAISource != nil else { return false }
         guard aiGenerationTask == nil else { return false }
         guard aiTargetCardCount > 0 else { return false }
@@ -123,16 +127,16 @@ final class CreateDeckViewModel {
         if case .idle = aiState {
             return false
         }
-
-        if case .error = aiState {
-            return false
-        }
+        if case .error = aiState { return false }
 
         return true
     }
 
     var hasPausedAIGeneration: Bool {
-        hasIncompleteAIGenerationSession
+        let hasRemainingTarget = aiTargetCardCount > 0 || !remainingAIAllocations.isEmpty
+        return (isAIGenerationPaused || isAIGenerationPausedForBackground)
+            && aiGenerationTask == nil
+            && hasRemainingTarget
     }
 
     var pausedRemainingCardCount: Int {
@@ -215,14 +219,18 @@ final class CreateDeckViewModel {
     @ObservationIgnored private var aiSourcePreparationTask: Task<Void, Never>?
     @ObservationIgnored private var aiRevealTask: Task<Void, Error>?
     @ObservationIgnored private var aiDeckTitleTask: Task<Void, Never>?
-    @ObservationIgnored private var aiResumePromptTask: Task<Void, Never>?
+    @ObservationIgnored private var aiSessionPersistenceTask: Task<Void, Never>?
+
     @ObservationIgnored private var pendingAIDeckTitleRequestID: UUID?
     @ObservationIgnored private var pendingAIGeneratedCards: [AIFlashcard] = []
     @ObservationIgnored private var aiDidFinishReceivingGeneratedCards = false
     @ObservationIgnored private var clearsPendingAISourceOnSheetDismiss = false
     @ObservationIgnored private var aiGenerationSessionID: UUID?
-    @ObservationIgnored private var remainingAIAllocations: [AISourceRangeAllocation] = []
-    @ObservationIgnored private var isAIGenerationPausedForBackground = false
+    private var remainingAIAllocations: [AISourceRangeAllocation] = []
+    private var aiRevealedGeneratedCardIDs: Set<UUID> = []
+    private var isAIGenerationPausedForBackground = false
+    private var isAIGenerationPaused = false
+    private var isManualPauseInProgress = false
 
     // MARK: - Deck / Cards State
     var deckTitle: String = ""
@@ -275,6 +283,10 @@ final class CreateDeckViewModel {
             selectedFolderID: initialFolder?.persistentModelID,
             draftCards: initialDrafts.map(DraftCardChangeSnapshot.init)
         )
+        
+        Task { [weak self] in
+            await self?.checkForPausedSession()
+        }
     }
 
     // MARK: - PDF Selection and Auto-Analysis
@@ -963,11 +975,12 @@ final class CreateDeckViewModel {
     ) {
         cancelAIGenerationTask()
         resetAIGenerationRevealPipeline()
+        clearAIGenerationPauseState()
         let sessionID = UUID()
         aiGenerationSessionID = sessionID
-        isAIGenerationPausedForBackground = false
 
         if shouldResetProgress {
+            aiRevealedGeneratedCardIDs.removeAll()
             aiGenerationBaseCardCount = draftCards.count
             aiTargetCardCount = targetCardCount
             aiGeneratedCardCount = 0
@@ -976,7 +989,7 @@ final class CreateDeckViewModel {
         }
 
         aiBackgroundCoordinator.beginSession(id: sessionID) { [weak self] in
-            self?.handleAIGenerationBackgroundExpiration(for: sessionID)
+            self?.pauseAIGeneration(isBackgroundTimeout: true)
         }
         Task { [aiBackgroundCoordinator] in
             _ = await aiBackgroundCoordinator.requestNotificationAuthorizationIfNeeded()
@@ -1000,6 +1013,7 @@ final class CreateDeckViewModel {
 
         do {
             for try await batch in stream {
+                try Task.checkCancellation()
                 guard !batch.isEmpty else { continue }
                 pendingAIGeneratedCards.append(contentsOf: batch)
                 await Task.yield()
@@ -1007,6 +1021,7 @@ final class CreateDeckViewModel {
 
             aiDidFinishReceivingGeneratedCards = true
             try await aiRevealTask?.value
+            try Task.checkCancellation()
             completeAIGeneration()
         } catch {
             aiDidFinishReceivingGeneratedCards = true
@@ -1032,6 +1047,7 @@ final class CreateDeckViewModel {
 
         do {
             for try await chunk in stream {
+                try Task.checkCancellation()
                 registerGeneratedBatchChunk(chunk)
                 guard !chunk.cards.isEmpty else { continue }
                 pendingAIGeneratedCards.append(contentsOf: chunk.cards)
@@ -1040,6 +1056,7 @@ final class CreateDeckViewModel {
 
             aiDidFinishReceivingGeneratedCards = true
             try await aiRevealTask?.value
+            try Task.checkCancellation()
             completeAIGeneration()
         } catch {
             aiDidFinishReceivingGeneratedCards = true
@@ -1119,7 +1136,10 @@ final class CreateDeckViewModel {
         return UInt64(Double(base) * multiplier)
     }
 
-    private func appendGeneratedCard(_ generatedCard: AIFlashcard) {
+    private func appendGeneratedCard(
+        _ generatedCard: AIFlashcard,
+        markRevealAsCompleted: Bool = false
+    ) {
         let draft = DraftCard(
             frontZone: AIZoneParser.parse(text: generatedCard.question),
             backZone: AIZoneParser.parse(text: generatedCard.answer),
@@ -1133,6 +1153,9 @@ final class CreateDeckViewModel {
         let progress = min(1.0, Double(updatedCount) / Double(max(aiTargetCardCount, 1)))
 
         draftCards.append(draft)
+        if markRevealAsCompleted {
+            aiRevealedGeneratedCardIDs.insert(draft.id)
+        }
         aiGeneratedCardCount = updatedCount
         aiState = .generatingCards(progress: progress, foundCount: updatedCount)
     }
@@ -1184,11 +1207,15 @@ final class CreateDeckViewModel {
         aiGenerationTask = nil
         resetAIGenerationRevealPipeline()
         showAICancelDialog = false
-        showAIPausedResumeDialog = false
-        aiResumePromptTask?.cancel()
-        aiResumePromptTask = nil
+
+
+
         aiState = .idle
         pdfAnalysis = nil
+        
+        Task {
+            try? await AIGenerationSessionStore.shared.clearSession()
+        }
         preparedAISource = nil
         manualAISourceAllocations = []
         aiGenerationBaseCardCount = 0
@@ -1196,11 +1223,24 @@ final class CreateDeckViewModel {
         aiTargetCardCount = 0
         aiGenerationSessionID = nil
         remainingAIAllocations = []
-        isAIGenerationPausedForBackground = false
+        aiRevealedGeneratedCardIDs.removeAll()
+        clearAIGenerationPauseState()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     private func handleAIGenerationFailure(_ error: Error) {
+        print("AI_RESUME_DEBUG: handleAIGenerationFailure called with error: \(error.localizedDescription)")
+        
+        let nsError = error as NSError
+        let isNetworkError = nsError.domain == NSURLErrorDomain || nsError.domain == kCFErrorDomainCFNetwork as String
+        let isBackground = UIApplication.shared.applicationState != .active
+        
+        if isBackground && isNetworkError {
+            print("AI_RESUME_DEBUG: Intercepted background network error. Forcing a background pause instead of fatal error.")
+            pauseAIGeneration(isBackgroundTimeout: true)
+            return
+        }
+
         if let sessionID = aiGenerationSessionID {
             aiBackgroundCoordinator.endSession(id: sessionID)
         }
@@ -1210,9 +1250,9 @@ final class CreateDeckViewModel {
         pendingAIDeckTitleRequestID = nil
         resetAIGenerationRevealPipeline()
         showAICancelDialog = false
-        showAIPausedResumeDialog = false
-        aiResumePromptTask?.cancel()
-        aiResumePromptTask = nil
+
+
+
         pdfAnalysis = nil
         preparedAISource = nil
         manualAISourceAllocations = []
@@ -1221,7 +1261,8 @@ final class CreateDeckViewModel {
         aiTargetCardCount = 0
         aiGenerationSessionID = nil
         remainingAIAllocations = []
-        isAIGenerationPausedForBackground = false
+        aiRevealedGeneratedCardIDs.removeAll()
+        clearAIGenerationPauseState()
         aiState = .error(error.localizedDescription)
     }
 
@@ -1233,9 +1274,9 @@ final class CreateDeckViewModel {
         aiGenerationTask = nil
         aiDeckTitleTask?.cancel()
         aiDeckTitleTask = nil
-        aiResumePromptTask?.cancel()
-        aiResumePromptTask = nil
         pendingAIDeckTitleRequestID = nil
+        aiSessionPersistenceTask?.cancel()
+        aiSessionPersistenceTask = nil
         resetAIGenerationRevealPipeline()
     }
 
@@ -1245,9 +1286,9 @@ final class CreateDeckViewModel {
 
     func cancelAIGeneration(keepingGeneratedCards: Bool) {
         showAICancelDialog = false
-        showAIPausedResumeDialog = false
-        aiResumePromptTask?.cancel()
-        aiResumePromptTask = nil
+
+
+
         cancelAIGenerationTask()
 
         if !keepingGeneratedCards {
@@ -1263,13 +1304,22 @@ final class CreateDeckViewModel {
         aiTargetCardCount = 0
         aiGenerationSessionID = nil
         remainingAIAllocations = []
-        isAIGenerationPausedForBackground = false
+        aiRevealedGeneratedCardIDs.removeAll()
+        clearAIGenerationPauseState()
         aiState = .idle
+
+        // Ensure any persisted paused session is removed so it won't be
+        // resurrected after app relaunch / rebuild.
+        Task {
+            try? await AIGenerationSessionStore.shared.clearSession()
+        }
     }
 
-    private func handleAIGenerationBackgroundExpiration(for sessionID: UUID) {
-        guard aiGenerationSessionID == sessionID else { return }
+    func pauseAIGeneration(isBackgroundTimeout: Bool = false) {
+        guard let sessionID = aiGenerationSessionID else { return }
+        print("AI_RESUME_DEBUG: pauseAIGeneration called. isBackgroundTimeout: \(isBackgroundTimeout)")
         flushPendingGeneratedCards()
+        markCurrentGeneratedCardsAsRevealed()
         aiBackgroundCoordinator.endSession(id: sessionID)
         aiGenerationSessionID = nil
         aiGenerationTask?.cancel()
@@ -1279,25 +1329,145 @@ final class CreateDeckViewModel {
         pendingAIDeckTitleRequestID = nil
         resetAIGenerationRevealPipeline()
         showAICancelDialog = false
-        showAIPausedResumeDialog = false
-        aiResumePromptTask?.cancel()
-        aiResumePromptTask = nil
-        isAIGenerationPausedForBackground = true
-
-        switch aiState {
-        case .extractingText:
-            break
-        case .generatingCards:
-            aiState = .generatingCards(
-                progress: min(1.0, Double(aiGeneratedCardCount) / Double(max(aiTargetCardCount, 1))),
-                foundCount: aiGeneratedCardCount
-            )
-        default:
-            aiState = .generatingCards(
-                progress: min(1.0, Double(aiGeneratedCardCount) / Double(max(aiTargetCardCount, 1))),
-                foundCount: aiGeneratedCardCount
-            )
+        print("AI_RESUME_DEBUG: pauseAIGeneration called (isBackgroundTimeout: \(isBackgroundTimeout))")
+        isAIGenerationPaused = true
+        isManualPauseInProgress = isBackgroundTimeout
+        
+        aiState = .generatingCards(
+            progress: min(1.0, Double(aiGeneratedCardCount) / Double(max(aiTargetCardCount, 1))),
+            foundCount: aiGeneratedCardCount
+        )
+        
+        if isBackgroundTimeout {
+            aiSessionPersistenceTask = Task.detached(priority: .background) { [weak self] in
+                guard let self else { return }
+                print("AI_RESUME_DEBUG: Starting detached persistence task (background timeout)")
+                await self.persistAIPausedSession()
+                await MainActor.run { [weak self] in
+                    print("AI_RESUME_DEBUG: Persistence complete, clearing in-progress flag")
+                    self?.isManualPauseInProgress = false
+                }
+            }
+        } else {
+            // Manual pause: keep everything in-memory only, avoid heavy disk I/O
+            // so the rest of the app stays responsive.
+            aiSessionPersistenceTask?.cancel()
+            aiSessionPersistenceTask = nil
         }
+    }
+    
+    // MARK: - Paused Session Disk Persistence
+    
+    private func persistAIPausedSession() async {
+        print("AI_RESUME_DEBUG: persistAIPausedSession called")
+        guard hasPausedAIGeneration else {
+            print("AI_RESUME_DEBUG: hasPausedAIGeneration is false, aborting save")
+            return
+        }
+        guard let source = preparedAISource else {
+            print("AI_RESUME_DEBUG: preparedAISource is nil, aborting save")
+            return
+        }
+        
+        let remainingAllocations = resumeAllocations(for: source)
+        guard !remainingAllocations.isEmpty else {
+            print("AI_RESUME_DEBUG: No remaining allocations, aborting save")
+            return
+        }
+        
+        print("AI_RESUME_DEBUG: Saving session with \(remainingAllocations.count) allocations")
+        
+        let sourceMode: AIPausedSession.SourceMode
+        do {
+            if source.isPDF, let url = source.pdfURL {
+                let bookmark = try await AIGenerationSessionStore.shared.createBookmark(for: url)
+                sourceMode = .pdf(bookmarkData: bookmark, analysis: pdfAnalysis)
+            } else {
+                let fileURLs = try await AIGenerationSessionStore.shared.saveImagesToDisk(source.images)
+                sourceMode = .photos(fileURLs: fileURLs)
+            }
+        } catch {
+            print("Failed to save paused AI session artifacts: \(error)")
+            return
+        }
+
+        let session = AIPausedSession(
+            sessionID: UUID(),
+            deckTitle: deckTitle,
+            folderID: selectedFolder?.persistentModelID.hashValue.description, // Can be improved
+            deckID: deckToEdit?.persistentModelID.hashValue.description, // Can be improved
+            targetCardCount: aiTargetCardCount,
+            generatedCardCount: aiGeneratedCardCount,
+            baseCardCount: aiGenerationBaseCardCount,
+            options: aiGenerationOptions,
+            remainingAllocations: remainingAllocations,
+            sourceMode: sourceMode,
+            draftCards: draftCards,
+            providerProfileID: aiProviderStore.activeProfile?.id
+        )
+        
+        try? await AIGenerationSessionStore.shared.saveSession(session)
+        print("AI_RESUME_DEBUG: persistAIPausedSession successfully issued save request")
+    }
+    
+    func checkForPausedSession() async {
+        print("AI_RESUME_DEBUG: checkForPausedSession called")
+        guard let session = await AIGenerationSessionStore.shared.loadSession() else {
+            print("AI_RESUME_DEBUG: No paused session found on disk")
+            return
+        }
+        
+        print("AI_RESUME_DEBUG: Paused session loaded from disk, targetCardCount: \(session.targetCardCount)")
+        
+        // Restore essential state so the user sees the pause prompt & can resume
+        self.aiTargetCardCount = session.targetCardCount
+        self.aiGeneratedCardCount = session.generatedCardCount
+        self.aiGenerationBaseCardCount = session.baseCardCount
+        self.aiGenerationOptions = session.options
+        self.remainingAIAllocations = session.remainingAllocations
+        self.draftCards = session.draftCards
+        self.deckTitle = session.deckTitle
+        markCurrentGeneratedCardsAsRevealed()
+
+        switch session.sourceMode {
+        case .pdf(let bookmarkData, let analysis):
+            do {
+                let url = try await AIGenerationSessionStore.shared.resolveBookmark(data: bookmarkData)
+                await preparePDFSource(from: url)
+                self.pdfAnalysis = analysis
+            } catch {
+                print("Failed to resolve paused PDF bookmark: \(error)")
+                try? await AIGenerationSessionStore.shared.clearSession()
+                return
+            }
+        case .photos(let fileURLs):
+            let images = await AIGenerationSessionStore.shared.loadImagesFromDisk(at: fileURLs)
+            guard !images.isEmpty else {
+                try? await AIGenerationSessionStore.shared.clearSession()
+                return
+            }
+            
+            let texts = await DocumentTextExtractor.extractVisionTexts(from: images)
+            let source = AIPreparedGenerationSource(
+                kind: .photos,
+                previewItems: makePhotoPreviewItems(images: images, texts: texts),
+                textSegments: makeTextSegments(from: texts, labelPrefix: "Image"),
+                images: images,
+                pdfURL: nil
+            )
+            prepareSheetState(for: source, pdfAnalysis: nil)
+        }
+        
+        // Dismiss the sheet if it was presented during restoration
+        self.dismissAISheet(clearPendingSourceSelection: false)
+        
+        self.isAIGenerationPausedForBackground = true
+        self.aiState = .generatingCards(
+            progress: min(1.0, Double(aiGeneratedCardCount) / Double(max(aiTargetCardCount, 1))),
+            foundCount: aiGeneratedCardCount
+        )
+        
+
     }
 
     private func resetAIGenerationRevealPipeline() {
@@ -1307,6 +1477,25 @@ final class CreateDeckViewModel {
         aiDidFinishReceivingGeneratedCards = false
     }
 
+    /// Resets pause-only flags so a completed or cancelled session cannot leak
+    /// stale paused UI into the next generation run.
+    private func clearAIGenerationPauseState() {
+        isAIGenerationPaused = false
+        isAIGenerationPausedForBackground = false
+        isManualPauseInProgress = false
+    }
+
+    /// Returns `true` once a generated card already completed its first reveal.
+    func hasCompletedAIGeneratedCardReveal(id: UUID) -> Bool {
+        aiRevealedGeneratedCardIDs.contains(id)
+    }
+
+    /// Marks a generated card as already materialized so it is shown statically
+    /// if the generation UI is rebuilt during pause/resume.
+    func markAIGeneratedCardRevealCompleted(id: UUID) {
+        aiRevealedGeneratedCardIDs.insert(id)
+    }
+
     func confirmAIGenerationFromSheet() {
         guard canConfirmAIGeneration else { return }
         clearsPendingAISourceOnSheetDismiss = false
@@ -1314,29 +1503,11 @@ final class CreateDeckViewModel {
         startAIGeneration()
     }
 
-    func promptToResumeAIGenerationIfNeeded() {
-        aiResumePromptTask?.cancel()
-        aiResumePromptTask = nil
-        guard hasPausedAIGeneration else { return }
-        guard !showAIPausedResumeDialog else { return }
-        guard aiSheetDestination == nil else { return }
-
-        aiResumePromptTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            try? await Task.sleep(nanoseconds: 320_000_000)
-            guard hasPausedAIGeneration else { return }
-            guard aiGenerationTask == nil else { return }
-            guard aiSheetDestination == nil else { return }
-            showAIPausedResumeDialog = true
-            aiResumePromptTask = nil
-        }
-    }
-
     func resumePausedAIGeneration() {
-        aiResumePromptTask?.cancel()
-        aiResumePromptTask = nil
-        showAIPausedResumeDialog = false
-        guard aiGenerationTask == nil else { return }
+        isAIGenerationPaused = false
+        isAIGenerationPausedForBackground = false
+        isManualPauseInProgress = false
+        
         guard let source = preparedAISource else { return }
         guard let aiService = makeAIService() else { return }
 
@@ -1357,9 +1528,9 @@ final class CreateDeckViewModel {
     }
 
     func keepAIGenerationPaused() {
-        aiResumePromptTask?.cancel()
-        aiResumePromptTask = nil
-        showAIPausedResumeDialog = false
+
+
+
     }
 
     private func resumeAllocations(
@@ -1603,17 +1774,18 @@ final class CreateDeckViewModel {
     func resetAIState() {
         cancelAIGenerationTask()
         aiSourcePreparationTask?.cancel()
-        aiResumePromptTask?.cancel()
-        aiResumePromptTask = nil
+
+
         showAICancelDialog = false
-        showAIPausedResumeDialog = false
+
         aiGenerationBaseCardCount = 0
         aiGeneratedCardCount = 0
         aiTargetCardCount = 0
         remainingAIAllocations = []
-        isAIGenerationPausedForBackground = false
+        clearAIGenerationPauseState()
         preparedAISource = nil
         manualAISourceAllocations = []
+        aiRevealedGeneratedCardIDs.removeAll()
         pdfAnalysis = nil
         withAnimation { aiState = .idle }
     }
@@ -1660,8 +1832,16 @@ final class CreateDeckViewModel {
         pendingAIGeneratedCards.removeAll()
 
         for card in queuedCards {
-            appendGeneratedCard(card)
+            appendGeneratedCard(card, markRevealAsCompleted: true)
         }
+    }
+
+    /// Freezes the current streamed cards in their final visual state before a
+    /// pause/resume transition rebuilds the list.
+    private func markCurrentGeneratedCardsAsRevealed() {
+        let cappedBaseCount = min(aiGenerationBaseCardCount, draftCards.count)
+        let generatedCards = draftCards.dropFirst(cappedBaseCount)
+        aiRevealedGeneratedCardIDs.formUnion(generatedCards.map(\.id))
     }
 
     // =========================================================================

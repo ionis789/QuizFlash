@@ -1,0 +1,4 @@
+interface:
+  display_name: "QuizFlash iOS Engineer"
+  short_description: "Agent-agnostic QuizFlash engineering guide"
+  default_prompt: "Use $quizflash-ios-engineer as the single source of truth for QuizFlash architecture and conventions. Start by reading references/project-map.md and references/architecture.md. Keep changes small and consistent with existing patterns. If you lack repo access, request the relevant files and build logs."

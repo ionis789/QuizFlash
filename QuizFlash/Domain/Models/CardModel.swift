@@ -219,7 +219,7 @@ class CardModel {
 ///
 /// `DraftCard` is intentionally a `struct` so it is cheap to copy and
 /// can be held in `@State` without triggering SwiftData observation.
-struct DraftCard: Identifiable {
+struct DraftCard: Identifiable, Codable, Equatable {
 
     // MARK: - Properties
 
@@ -227,6 +227,7 @@ struct DraftCard: Identifiable {
     let id = UUID()
 
     /// The `PersistentIdentifier` of the `CardModel` being edited, or `nil` for new cards.
+    /// Safely mapped to string for `Codable` via computed properties if needed, but for now we attempt default Codable on PersistentIdentifier since Swift 6.
     var originalCardID: PersistentIdentifier?
 
     /// The zone tree for the front face.
@@ -249,6 +250,45 @@ struct DraftCard: Identifiable {
 
     /// Convenience accessor returning the last edit date. Alias for `editedAt`.
     var lastEditDate: Date? { editedAt }
+    
+    // MARK: - Codable Conformance
+    
+    enum CodingKeys: String, CodingKey {
+        case id, originalCardID, frontZone, backZone, frontType, backType, createdAt, editedAt
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // UUID id is usually a let, so we can't decode it conventionally, but let's try reading or skipping
+        // since ID is a constant 'let id = UUID()', we can just decode the rest.
+        if let originalCardIDString = try container.decodeIfPresent(String.self, forKey: .originalCardID),
+           let data = originalCardIDString.data(using: .utf8),
+           let pid = try? JSONDecoder().decode(PersistentIdentifier.self, from: data) {
+            self.originalCardID = pid
+        } else {
+            self.originalCardID = nil
+        }
+        self.frontZone = try container.decode(ZoneModel.self, forKey: .frontZone)
+        self.backZone = try container.decode(ZoneModel.self, forKey: .backZone)
+        self.frontType = try container.decode(CardContentType.self, forKey: .frontType)
+        self.backType = try container.decode(CardContentType.self, forKey: .backType)
+        self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+        self.editedAt = try container.decodeIfPresent(Date.self, forKey: .editedAt)
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        if let originalCardID = originalCardID, let data = try? JSONEncoder().encode(originalCardID) {
+            try container.encode(String(data: data, encoding: .utf8), forKey: .originalCardID)
+        }
+        try container.encode(frontZone, forKey: .frontZone)
+        try container.encode(backZone, forKey: .backZone)
+        try container.encode(frontType, forKey: .frontType)
+        try container.encode(backType, forKey: .backType)
+        try container.encodeIfPresent(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(editedAt, forKey: .editedAt)
+    }
 
     // MARK: - Initializer
 

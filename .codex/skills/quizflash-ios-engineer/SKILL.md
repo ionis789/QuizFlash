@@ -57,3 +57,40 @@ Write and review code for QuizFlash using the repository's architecture rules in
 
 - `references/project-map.md`: Real repo layout, important files, and common starting points.
 - `references/architecture.md`: Project rules for architecture, concurrency, SwiftData safety, navigation, design tokens, code style, and review checks.
+- `references/universal_prompt.md`: Copy-paste prompt template for other agents/tools.
+
+## Using This Skill With Other Agents
+
+This skill is intentionally written to be mostly agent-agnostic:
+- `SKILL.md` + `references/` are the *core* rules (architecture + repo conventions).
+- `agents/*.yaml` are *adapters* (short, tool/platform-specific wrapper prompts).
+- `references/universal_prompt.md` is a copy-paste prompt template you can reuse in other AI tools.
+
+### What To Share With Another Agent
+
+When you use Claude/ChatGPT/Cursor/etc. outside Codex, paste or attach:
+- `SKILL.md`
+- `references/architecture.md`
+- `references/project-map.md`
+
+If the agent cannot access your repo directly, also paste:
+- the exact file paths involved
+- the repro steps and expected behavior
+- any console logs / screenshots
+
+### Tool Capability Adaptation
+
+- Agents *with* a terminal + repo access:
+  ask for a patch (file edits) + a build (`xcodebuild`) verification.
+- Agents *without* a terminal:
+  require they propose changes with exact file + symbol targets and ask you to run `xcodebuild` and paste the failure output for iteration.
+
+### Adapter Files
+
+If you want this skill to show up in multiple agent runtimes, add more small adapter files:
+- `agents/openai.yaml` (already present)
+- `agents/anthropic.yaml` (Claude)
+- `agents/cursor.yaml`
+- `agents/generic.yaml`
+
+Each adapter should keep the `default_prompt` short and reference this skill as the canonical source of truth.

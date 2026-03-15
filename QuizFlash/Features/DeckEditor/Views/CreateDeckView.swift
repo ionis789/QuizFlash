@@ -33,6 +33,8 @@ struct CreateDeckView: View {
     @State private var leadingControlWidth: CGFloat = UIConstants.Size.actionButton
     @State private var trailingControlWidth: CGFloat = (UIConstants.Size.actionButton * 2) + UIConstants.Spacing.small
     @State private var navigationBarHeight: CGFloat = UIConstants.Size.actionButton
+    @State private var viewSafeBottom: CGFloat = 0
+    @State private var physicalSafeBottom: CGFloat = 0
     @State private var showUnsavedChangesDialog = false
     @State private var allowDismissWithoutConfirmation = false
 
@@ -70,12 +72,16 @@ struct CreateDeckView: View {
         }
     }
     private var aiVisualStatusText: String? {
+        if viewModel.hasPausedAIGeneration {
+            return "Paused"
+        }
+
         switch viewModel.aiState {
         case .extractingText:
-            return "Reading Docs"
+            return "Reading"
         case .generatingCards(_, let foundCount):
             let target = max(viewModel.aiTargetCardCount, 1)
-            return foundCount > 0 ? "\(foundCount)/\(target) Ready" : "Generating"
+            return foundCount > 0 ? "\(foundCount)/\(target)" : "Generating"
         default:
             return nil
         }
@@ -84,7 +90,21 @@ struct CreateDeckView: View {
         if case .extractingText = viewModel.aiState {
             return .orange
         }
-        return .purple
+        return accent
+    }
+    private var aiToolbarCountText: String? {
+        guard !viewModel.hasPausedAIGeneration else { return nil }
+
+        switch viewModel.aiState {
+        case .generatingCards(_, let foundCount):
+            guard foundCount > 0 else { return nil }
+            return "\(foundCount)/\(max(viewModel.aiTargetCardCount, 1))"
+        default:
+            return nil
+        }
+    }
+    private var tabBarOffset: CGFloat {
+        max(0, viewSafeBottom - physicalSafeBottom)
     }
     private var shouldShowFloatingGenerate: Bool {
         scrollState.pillVisible
@@ -121,6 +141,59 @@ struct CreateDeckView: View {
     }
 
     var body: some View {
+        viewContent
+            .fullScreenSheet(
+                ignoresSafeArea: true,
+                item: $viewModel.aiSheetDestination,
+                dragDismissActivationHeight: 180
+            ) { _, safeArea in
+                AIGenerationSheetView(
+                    viewModel: viewModel,
+                    safeAreaInsets: safeArea,
+                    onPrimaryAction: {
+                        viewModel.confirmAIGenerationFromSheet()
+                    },
+                    onCancel: {
+                        viewModel.dismissAISheet(clearPendingSourceSelection: true)
+                    }
+                )
+            } background: {
+                AIGenerationSheetBackground()
+            }
+            .photosPicker(isPresented: $viewModel.showAIPhotoPicker, selection: $viewModel.selectedAIPhotos, matching: .images)
+            .fileImporter(isPresented: $viewModel.showAIPDFPicker, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
+                if case .success(let urls) = result, let url = urls.first { viewModel.pdfWasSelected(url) }
+            }
+            .onChange(of: viewModel.aiSheetDestination) { oldValue, newValue in
+                if oldValue != nil, newValue == nil {
+                    viewModel.handleAISheetDismissed()
+                }
+            }
+            .swipeBack(enabled: canUseInteractiveDismiss) {
+                requestDismiss()
+            }
+            .fullScreenSheetDragActivationHeight(
+                fullScreenSheetDismiss != nil ? navigationBarHeight : nil
+            )
+            .onAppear {
+                fullScreenSheetDismissCoordinator?.shouldAllowDismiss = {
+                    attemptInteractiveDismissValidation()
+                }
+            }
+            .onDisappear {
+                if fullScreenSheetDismissCoordinator?.shouldAllowDismiss != nil {
+                    fullScreenSheetDismissCoordinator?.shouldAllowDismiss = nil
+                }
+                guard viewModel.aiSheetDestination == nil,
+                      !viewModel.isCreatingNewCard,
+                      viewModel.cardToEdit == nil else { return }
+                ImageCache.shared.clearCache()
+            }
+            .customTabBarVisibility(tabRule)
+    }
+
+    @ViewBuilder
+    private var viewContent: some View {
         GeometryReader { outer in
             let resolvedSafeTopInset = max(presentedSafeAreaInsets?.top ?? 0, outer.safeAreaInsets.top)
             let resolvedSafeBottomInset = max(presentedSafeAreaInsets?.bottom ?? 0, outer.safeAreaInsets.bottom)
@@ -171,6 +244,17 @@ struct CreateDeckView: View {
             }
             .coordinateSpace(name: kCreateDeckChromeSpace)
         }
+        .background {
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear {
+                        updateBottomSafeArea(using: geo.safeAreaInsets.bottom)
+                    }
+                    .onChange(of: geo.safeAreaInsets.bottom) { _, newValue in
+                        updateBottomSafeArea(using: newValue)
+                    }
+            }
+        }
         .environment(scrollState)
         .toolbar(.hidden, for: .navigationBar)
         .confirmationDialog("Save changes before leaving?", isPresented: $showUnsavedChangesDialog, titleVisibility: .visible) {
@@ -179,11 +263,9 @@ struct CreateDeckView: View {
                     handleSave()
                 }
             }
-
             Button("Discard Changes", role: .destructive) {
                 discardChangesAndDismiss()
             }
-
             Button("Keep Editing", role: .cancel) { }
         } message: {
             Text("You have unsaved changes in this deck.")
@@ -214,16 +296,6 @@ struct CreateDeckView: View {
                 Text("The current AI generation will stop immediately.")
             }
         }
-        .alert("AI generation paused", isPresented: $viewModel.showAIPausedResumeDialog) {
-            Button("Later", role: .cancel) {
-                viewModel.keepAIGenerationPaused()
-            }
-            Button("Continue") {
-                viewModel.resumePausedAIGeneration()
-            }
-        } message: {
-            Text("QuizFlash paused AI generation in the background. Continue generating the remaining \(viewModel.pausedRemainingCardCount) cards?")
-        }
         .fullScreenCover(isPresented: $viewModel.isCreatingNewCard) {
             CreateCardView { frontZone, backZone in
                 viewModel.addCard(frontZone: frontZone, backZone: backZone)
@@ -234,63 +306,6 @@ struct CreateDeckView: View {
                 viewModel.updateCard(card, frontZone: f, backZone: b)
             }
         }
-        .fullScreenSheet(
-            ignoresSafeArea: true,
-            item: $viewModel.aiSheetDestination,
-            dragDismissActivationHeight: 180
-        ) { _, safeArea in
-            AIGenerationSheetView(
-                viewModel: viewModel,
-                safeAreaInsets: safeArea,
-                onPrimaryAction: {
-                    viewModel.confirmAIGenerationFromSheet()
-                },
-                onCancel: {
-                    viewModel.dismissAISheet(clearPendingSourceSelection: true)
-                }
-            )
-        } background: {
-            AIGenerationSheetBackground()
-        }
-        .photosPicker(isPresented: $viewModel.showAIPhotoPicker, selection: $viewModel.selectedAIPhotos, matching: .images)
-        .fileImporter(isPresented: $viewModel.showAIPDFPicker, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
-            if case .success(let urls) = result, let url = urls.first { viewModel.pdfWasSelected(url) }
-        }
-        .onChange(of: viewModel.aiSheetDestination) { oldValue, newValue in
-            if oldValue != nil, newValue == nil {
-                viewModel.handleAISheetDismissed()
-            }
-        }
-        .swipeBack(enabled: canUseInteractiveDismiss) {
-            requestDismiss()
-        }
-        .fullScreenSheetDragActivationHeight(
-            fullScreenSheetDismiss != nil ? navigationBarHeight : nil
-        )
-        .onAppear {
-            fullScreenSheetDismissCoordinator?.shouldAllowDismiss = {
-                attemptInteractiveDismissValidation()
-            }
-            viewModel.promptToResumeAIGenerationIfNeeded()
-        }
-        .onDisappear {
-            if fullScreenSheetDismissCoordinator?.shouldAllowDismiss != nil {
-                fullScreenSheetDismissCoordinator?.shouldAllowDismiss = nil
-            }
-            guard viewModel.aiSheetDestination == nil,
-                  !viewModel.isCreatingNewCard,
-                  viewModel.cardToEdit == nil else { return }
-            ImageCache.shared.clearCache()
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            guard newPhase == .active else { return }
-            viewModel.promptToResumeAIGenerationIfNeeded()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-            viewModel.promptToResumeAIGenerationIfNeeded()
-        }
-        // Apply the reactive visibility rule to the global tab bar.
-        .customTabBarVisibility(tabRule)
     }
 }
 
@@ -504,12 +519,33 @@ private extension CreateDeckView {
         if let statusText = aiVisualStatusText {
             CreateDeckCapsuleContainer {
                 HStack(spacing: UIConstants.Spacing.small) {
-                    ProgressView()
-                        .tint(aiToolbarTint)
-                    Text(statusText)
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
+                    if viewModel.hasPausedAIGeneration {
+                        Text(statusText)
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                    } else {
+                        CreateDeckAIStatusIndicator(
+                            countText: aiToolbarCountText,
+                            tint: aiToolbarTint
+                        )
+                    }
+
+                    Button {
+                        if viewModel.hasPausedAIGeneration {
+                            viewModel.resumePausedAIGeneration()
+                        } else {
+                            viewModel.pauseAIGeneration()
+                        }
+                    } label: {
+                        Image(systemName: viewModel.hasPausedAIGeneration ? "play.fill" : "pause.fill")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(aiToolbarTint)
+                        .frame(width: 24, height: 24)
+                        .background(Color(uiColor: .tertiarySystemFill), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(viewModel.hasPausedAIGeneration ? "Resume AI generation" : "Pause AI generation")
 
                     Button {
                         viewModel.requestAIGenerationCancel()
@@ -518,11 +554,12 @@ private extension CreateDeckView {
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundStyle(.secondary)
                             .frame(width: 22, height: 22)
-                            .background(Color.white.opacity(0.08), in: Circle())
+                            .background(Color(uiColor: .tertiarySystemFill), in: Circle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Cancel AI generation")
                 }
+                .fixedSize(horizontal: true, vertical: false)
             }
             .accessibilityLabel(aiToolbarStatusText ?? statusText)
         } else {
@@ -540,7 +577,7 @@ private extension CreateDeckView {
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .lineLimit(1)
                 }
-                .foregroundStyle(.purple)
+                .foregroundStyle(accent)
             }
         }
     }
@@ -558,11 +595,13 @@ private extension CreateDeckView {
     }
 
     private func floatingGenerateAction(bottomInset: CGFloat) -> some View {
-        generateActionControl
+        let adjustedBottomInset = max(bottomInset - tabBarOffset, UIConstants.Spacing.standard)
+
+        return generateActionControl
             .padding(.trailing, UIConstants.Layout.compactScreenEdgeInset)
             .padding(
                 .bottom,
-                max(bottomInset, UIConstants.Spacing.standard)
+                adjustedBottomInset
                     + UIConstants.Size.capsuleHeight
                     + UIConstants.Spacing.medium
             )
@@ -587,39 +626,61 @@ private extension CreateDeckView {
             CreateDeckChromeButtonLabel(symbol: "ellipsis", tint: accent)
                 .glassButton(shape: .circle)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("More actions")
+            .buttonStyle(.plain)
+            .accessibilityLabel("More actions")
+    }
+
+    private func updateBottomSafeArea(using viewInset: CGFloat) {
+        viewSafeBottom = viewInset
+        physicalSafeBottom = UIApplication.shared
+            .connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows
+            .first(where: { $0.isKeyWindow })?
+            .safeAreaInsets.bottom ?? 0
     }
 
     // MARK: 2. Cards List Content
     var cardsListContent: some View {
         Group {
-            if case .extractingText = viewModel.aiState {
+            if viewModel.hasPausedAIGeneration {
+                let progress = min(1.0, Double(viewModel.aiGeneratedCardCount) / Double(max(viewModel.aiTargetCardCount, 1)))
+                LazyVStack(spacing: 16) {
+                    AIPausedResumeCard(
+                        foundCount: viewModel.aiGeneratedCardCount,
+                        targetCount: max(viewModel.aiTargetCardCount, 1),
+                        remainingCount: max(viewModel.pausedRemainingCardCount, 0),
+                        progress: progress,
+                        onResume: {
+                            viewModel.resumePausedAIGeneration()
+                        }
+                    )
+                    .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
+
+                    if !existingDraftCardsDuringAIGeneration.isEmpty {
+                        ForEach(Array(existingDraftCardsDuringAIGeneration.enumerated()), id: \.element.id) { index, card in
+                            draftCardRow(card, index: index + 1)
+                        }
+                    }
+
+                    aiGenerationCardSlots()
+                }
+            } else if case .extractingText = viewModel.aiState {
                 AIExtractingLoadingView().transition(.asymmetric(insertion: .opacity, removal: .opacity))
             } else if case .generatingCards(let progress, let foundCount) = viewModel.aiState {
                 LazyVStack(spacing: 16) {
-                    if viewModel.hasPausedAIGeneration {
-                        AIPausedResumeCard(
-                            foundCount: foundCount,
-                            targetCount: max(viewModel.aiTargetCardCount, 1),
-                            remainingCount: max(viewModel.pausedRemainingCardCount, 0),
-                            progress: progress,
-                            onResume: {
-                                viewModel.resumePausedAIGeneration()
-                            }
-                        )
-                        .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
-                    } else {
-                        AIStreamingProgressCard(
-                            foundCount: foundCount,
-                            targetCount: max(viewModel.aiTargetCardCount, 1),
-                            progress: progress,
-                            onCancel: {
-                                viewModel.requestAIGenerationCancel()
-                            }
-                        )
-                        .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
-                    }
+                    AIStreamingProgressCard(
+                        foundCount: foundCount,
+                        targetCount: max(viewModel.aiTargetCardCount, 1),
+                        progress: progress,
+                        onCancel: {
+                            viewModel.requestAIGenerationCancel()
+                        },
+                        onPause: {
+                            viewModel.pauseAIGeneration()
+                        }
+                    )
+                    .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
 
                     if !existingDraftCardsDuringAIGeneration.isEmpty {
                         ForEach(Array(existingDraftCardsDuringAIGeneration.enumerated()), id: \.element.id) { index, card in
@@ -666,7 +727,11 @@ private extension CreateDeckView {
             AIStreamingCardSlot(
                 slotIndex: slotIndex,
                 isFilled: card != nil,
-                filledCardID: card?.id
+                filledCardID: card?.id,
+                shouldAnimateReveal: card.map { !viewModel.hasCompletedAIGeneratedCardReveal(id: $0.id) } ?? false,
+                onRevealFinished: { revealedCardID in
+                    viewModel.markAIGeneratedCardRevealCompleted(id: revealedCardID)
+                }
             ) {
                 if let card {
                     draftCardRow(card, index: baseCount + slotIndex + 1, appliesTransition: false)
@@ -895,6 +960,32 @@ private struct CreateDeckCapsuleContainer<Content: View>: View {
             .frame(minWidth: UIConstants.Size.capsuleHeight)
             .frame(height: UIConstants.Size.capsuleHeight)
             .glassButton(shape: .capsule)
+    }
+}
+
+private struct CreateDeckAIStatusIndicator: View {
+    let countText: String?
+    let tint: Color
+
+    var body: some View {
+        VStack(spacing: countText == nil ? 0 : 2) {
+            if let countText {
+                Text(countText)
+                    .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.primary)
+                    .contentTransition(.numericText())
+                    .transition(
+                        .move(edge: .bottom)
+                            .combined(with: .opacity)
+                            .combined(with: .scale(scale: 0.9, anchor: .bottom))
+                    )
+            }
+
+            AIGenerationActivityDots(color: tint)
+                .frame(minWidth: 22)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: countText)
     }
 }
 

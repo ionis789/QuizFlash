@@ -45,7 +45,7 @@ public enum AIGenerationState: Equatable {
 // MARK: - PDF Quality Info
 
 /// Diagnostic metadata returned after analysing a PDF document's text quality.
-struct PDFAnalysisInfo {
+struct PDFAnalysisInfo: Equatable {
     /// Normalised quality score in `[0.0, 1.0]`.
     let quality: Double
     /// Total number of pages in the document.
