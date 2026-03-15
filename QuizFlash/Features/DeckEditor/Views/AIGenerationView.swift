@@ -287,7 +287,7 @@ private struct AIGenerationCountBadge: View {
                 Capsule()
                     .stroke(Color.white.opacity(0.06), lineWidth: 1)
             }
-            .contentTransition(.numericText())
+            .statusTextMotion(trigger: text)
             .fixedSize(horizontal: true, vertical: false)
     }
 }

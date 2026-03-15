@@ -80,6 +80,19 @@ private struct TopNavigationChromeModifier: ViewModifier {
     }
 }
 
+// MARK: - StatusTextMotionModifier
+
+/// Applies the shared springy numeric text transition used by live status and counter labels.
+private struct StatusTextMotionModifier<Trigger: Equatable>: ViewModifier {
+    let trigger: Trigger
+
+    func body(content: Content) -> some View {
+        content
+            .contentTransition(.numericText())
+            .animation(.spring(response: 0.32, dampingFraction: 0.82), value: trigger)
+    }
+}
+
 // MARK: - View Extensions
 
 extension View {
@@ -106,5 +119,10 @@ extension View {
     /// Applies the standard top chrome positioning shared by navigation surfaces.
     func topNavigationChrome(horizontalInset: CGFloat = UIConstants.Layout.compactScreenEdgeInset) -> some View {
         modifier(TopNavigationChromeModifier(horizontalInset: horizontalInset))
+    }
+
+    /// Applies the shared animated status-label treatment for counters and short live state text.
+    func statusTextMotion<Trigger: Equatable>(trigger: Trigger) -> some View {
+        modifier(StatusTextMotionModifier(trigger: trigger))
     }
 }

@@ -18,6 +18,14 @@ enum CardContentType: String, Codable {
     case canvas
 }
 
+// MARK: - Card Creation Source
+
+/// Describes how a card entered the deck originally.
+enum CardCreationSource: String, Codable {
+    case manual
+    case ai
+}
+
 // MARK: - Card Model
 
 /// A SwiftData persistent model representing a single flashcard within a deck.
@@ -69,6 +77,9 @@ class CardModel {
     /// Keeps the card surfaced at the top of deck views regardless of the active sort order.
     var isPinned: Bool = false
 
+    /// Raw string backing `creationSource` for SwiftData persistence.
+    var creationSourceRaw: String = CardCreationSource.manual.rawValue
+
     // MARK: - Relationships
 
     /// The deck that owns this card. Nil if the card has been orphaned.
@@ -114,6 +125,12 @@ class CardModel {
     var backType: CardContentType {
         get { CardContentType(rawValue: backTypeRaw) ?? .text }
         set { backTypeRaw = newValue.rawValue }
+    }
+
+    /// The origin of the card, used for future deck-level creation-source stats.
+    var creationSource: CardCreationSource {
+        get { CardCreationSource(rawValue: creationSourceRaw) ?? .manual }
+        set { creationSourceRaw = newValue.rawValue }
     }
 
     /// The decoded `ZoneModel` tree for the front face.
@@ -187,7 +204,8 @@ class CardModel {
         frontType: CardContentType = .text,
         backType: CardContentType = .text,
         cardNumber: Int = 0,
-        isPinned: Bool = false
+        isPinned: Bool = false,
+        creationSource: CardCreationSource = .manual
     ) {
         self.frontTypeRaw = frontType.rawValue
         self.backTypeRaw = backType.rawValue
@@ -197,6 +215,7 @@ class CardModel {
 
         self.cardNumber = cardNumber
         self.isPinned = isPinned
+        self.creationSourceRaw = creationSource.rawValue
 
         self.frontText = frontZone.previewText(maxLength: 200)
         self.backText = backZone.previewText(maxLength: 200)
@@ -242,6 +261,12 @@ struct DraftCard: Identifiable, Codable, Equatable {
     /// The rendering mode for the back face.
     var backType: CardContentType
 
+    /// Whether this draft should be pinned in deck views once saved.
+    var isPinned: Bool
+
+    /// How this draft card was originally created.
+    var creationSource: CardCreationSource
+
     /// The date this draft was originally created (mirrors the source `CardModel`).
     var createdAt: Date?
 
@@ -254,7 +279,7 @@ struct DraftCard: Identifiable, Codable, Equatable {
     // MARK: - Codable Conformance
     
     enum CodingKeys: String, CodingKey {
-        case id, originalCardID, frontZone, backZone, frontType, backType, createdAt, editedAt
+        case id, originalCardID, frontZone, backZone, frontType, backType, isPinned, creationSource, createdAt, editedAt
     }
     
     init(from decoder: Decoder) throws {
@@ -272,6 +297,8 @@ struct DraftCard: Identifiable, Codable, Equatable {
         self.backZone = try container.decode(ZoneModel.self, forKey: .backZone)
         self.frontType = try container.decode(CardContentType.self, forKey: .frontType)
         self.backType = try container.decode(CardContentType.self, forKey: .backType)
+        self.isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
+        self.creationSource = try container.decodeIfPresent(CardCreationSource.self, forKey: .creationSource) ?? .manual
         self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         self.editedAt = try container.decodeIfPresent(Date.self, forKey: .editedAt)
     }
@@ -286,6 +313,8 @@ struct DraftCard: Identifiable, Codable, Equatable {
         try container.encode(backZone, forKey: .backZone)
         try container.encode(frontType, forKey: .frontType)
         try container.encode(backType, forKey: .backType)
+        try container.encode(isPinned, forKey: .isPinned)
+        try container.encode(creationSource, forKey: .creationSource)
         try container.encodeIfPresent(createdAt, forKey: .createdAt)
         try container.encodeIfPresent(editedAt, forKey: .editedAt)
     }
@@ -300,6 +329,8 @@ struct DraftCard: Identifiable, Codable, Equatable {
     ///   - backZone: Initial zone tree for the back face. Defaults to an empty text zone.
     ///   - frontType: Rendering mode for the front face. Defaults to `.text`.
     ///   - backType: Rendering mode for the back face. Defaults to `.text`.
+    ///   - isPinned: Whether the card should stay pinned. Defaults to `false`.
+    ///   - creationSource: How the card originated. Defaults to `.manual`.
     ///   - createdAt: Original creation date. Defaults to `nil`.
     ///   - editedAt: Original edit date. Defaults to `nil`.
     init(
@@ -308,6 +339,8 @@ struct DraftCard: Identifiable, Codable, Equatable {
         backZone: ZoneModel = .text(),
         frontType: CardContentType = .text,
         backType: CardContentType = .text,
+        isPinned: Bool = false,
+        creationSource: CardCreationSource = .manual,
         createdAt: Date? = nil,
         editedAt: Date? = nil
     ) {
@@ -316,6 +349,8 @@ struct DraftCard: Identifiable, Codable, Equatable {
         self.backZone = backZone
         self.frontType = frontType
         self.backType = backType
+        self.isPinned = isPinned
+        self.creationSource = creationSource
         self.createdAt = createdAt
         self.editedAt = editedAt
     }
@@ -334,6 +369,8 @@ struct DraftCard: Identifiable, Codable, Equatable {
             backZone: card.backZone,
             frontType: card.frontType,
             backType: card.backType,
+            isPinned: card.isPinned,
+            creationSource: card.creationSource,
             createdAt: card.createdAt,
             editedAt: card.editedAt
         )

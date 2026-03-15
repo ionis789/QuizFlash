@@ -54,6 +54,8 @@ private struct DraftCardChangeSnapshot: Equatable {
     let backZone: ZoneModel
     let frontType: CardContentType
     let backType: CardContentType
+    let isPinned: Bool
+    let creationSource: CardCreationSource
 
     init(card: DraftCard) {
         originalCardID = card.originalCardID
@@ -61,6 +63,8 @@ private struct DraftCardChangeSnapshot: Equatable {
         backZone = card.backZone
         frontType = card.frontType
         backType = card.backType
+        isPinned = card.isPinned
+        creationSource = card.creationSource
     }
 }
 
@@ -234,12 +238,27 @@ final class CreateDeckViewModel {
 
     // MARK: - Deck / Cards State
     var deckTitle: String = ""
-    var draftCards: [DraftCard] = []
+    var draftCards: [DraftCard] = [] {
+        didSet {
+            reconcileDraftSelectionState()
+        }
+    }
     var cardToEdit: DraftCard?
     var isCreatingNewCard = false
     var showSuccessOverlay = false
+    var isSelectingCards = false
+    var selectedDraftCardIDs: Set<UUID> = []
+    var showDeleteSelectedCardsConfirmation = false
     let deckToEdit: DeckModel?
     private let initialSnapshot: CreateDeckStateSnapshot
+
+    var selectedDraftCardCount: Int {
+        selectedDraftCardIDs.count
+    }
+
+    var areAllDraftCardsSelected: Bool {
+        !draftCards.isEmpty && selectedDraftCardIDs.count == draftCards.count
+    }
 
     var hasUnsavedChanges: Bool {
         currentSnapshot != initialSnapshot
@@ -1145,6 +1164,8 @@ final class CreateDeckViewModel {
             backZone: AIZoneParser.parse(text: generatedCard.answer),
             frontType: .text,
             backType: .text,
+            isPinned: false,
+            creationSource: .ai,
             createdAt: Date(),
             editedAt: Date()
         )
@@ -1855,6 +1876,8 @@ final class CreateDeckViewModel {
             backZone: backZone,
             frontType: .text,
             backType: .text,
+            isPinned: false,
+            creationSource: .manual,
             createdAt: Date(),
             editedAt: Date()
         )
@@ -1872,9 +1895,78 @@ final class CreateDeckViewModel {
         withAnimation { draftCards[index] = updated }
     }
 
+    /// Toggles whether a draft card should stay pinned once persisted.
+    func togglePinnedState(for draftCardID: UUID) {
+        guard let index = draftCards.firstIndex(where: { $0.id == draftCardID }) else { return }
+        var updated = draftCards[index]
+        updated.isPinned.toggle()
+        updated.editedAt = Date()
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
+            draftCards[index] = updated
+        }
+    }
+
     /// Removes the specified draft card from the list.
     func deleteCard(_ card: DraftCard) {
+        selectedDraftCardIDs.remove(card.id)
         withAnimation { draftCards.removeAll { $0.id == card.id } }
+    }
+
+    /// Enters multi-card selection mode for the current draft list.
+    func enterCardSelectionMode() {
+        guard !draftCards.isEmpty else { return }
+        isSelectingCards = true
+        selectedDraftCardIDs.removeAll()
+    }
+
+    /// Toggles the selection state for a draft card.
+    func toggleSelection(for draftCardID: UUID) {
+        if selectedDraftCardIDs.contains(draftCardID) {
+            selectedDraftCardIDs.remove(draftCardID)
+        } else {
+            selectedDraftCardIDs.insert(draftCardID)
+        }
+    }
+
+    /// Toggles between selecting every visible draft card and clearing the selection.
+    func toggleSelectAllDraftCards() {
+        if areAllDraftCardsSelected {
+            selectedDraftCardIDs.removeAll()
+        } else {
+            selectedDraftCardIDs = Set(draftCards.map(\.id))
+        }
+    }
+
+    /// Exits selection mode and clears the temporary draft-card selection.
+    func exitCardSelectionMode() {
+        isSelectingCards = false
+        selectedDraftCardIDs.removeAll()
+        showDeleteSelectedCardsConfirmation = false
+    }
+
+    /// Opens the confirmation prompt for removing the current selection.
+    func requestDeleteSelectedCards() {
+        guard !selectedDraftCardIDs.isEmpty else { return }
+        showDeleteSelectedCardsConfirmation = true
+    }
+
+    /// Removes all selected draft cards from the in-memory editor state.
+    ///
+    /// This deliberately does not touch SwiftData directly. Existing persisted cards
+    /// are removed later by `saveDeck` via the existing diff-based reconciliation.
+    func deleteSelectedCards() {
+        let idsToDelete = selectedDraftCardIDs
+        guard !idsToDelete.isEmpty else {
+            exitCardSelectionMode()
+            return
+        }
+
+        showDeleteSelectedCardsConfirmation = false
+        withAnimation {
+            draftCards.removeAll { idsToDelete.contains($0.id) }
+        }
+        isSelectingCards = false
+        selectedDraftCardIDs.removeAll()
     }
 
     // MARK: - Save Deck
@@ -1924,11 +2016,15 @@ final class CreateDeckViewModel {
                     let frontChanged = existing.frontZone != draft.frontZone
                     let backChanged = existing.backZone != draft.backZone
                     let typeChanged = existing.frontType != draft.frontType || existing.backType != draft.backType
-                    if frontChanged || backChanged || typeChanged {
+                    let pinChanged = existing.isPinned != draft.isPinned
+                    let sourceChanged = existing.creationSource != draft.creationSource
+                    if frontChanged || backChanged || typeChanged || pinChanged || sourceChanged {
                         existing.frontZone = draft.frontZone
                         existing.backZone = draft.backZone
                         existing.frontType = draft.frontType
                         existing.backType = draft.backType
+                        existing.isPinned = draft.isPinned
+                        existing.creationSource = draft.creationSource
                         existing.editedAt = Date()
                         cardsChanged = true
                     }
@@ -1939,7 +2035,9 @@ final class CreateDeckViewModel {
                         backZone: draft.backZone,
                         frontType: draft.frontType,
                         backType: draft.backType,
-                        cardNumber: deck.lastAssignedCardNumber
+                        cardNumber: deck.lastAssignedCardNumber,
+                        isPinned: draft.isPinned,
+                        creationSource: draft.creationSource
                     )
                     if let createdAt = draft.createdAt {
                         newCard.createdAt = createdAt
@@ -1970,7 +2068,9 @@ final class CreateDeckViewModel {
                     backZone: draft.backZone,
                     frontType: draft.frontType,
                     backType: draft.backType,
-                    cardNumber: newDeck.lastAssignedCardNumber
+                    cardNumber: newDeck.lastAssignedCardNumber,
+                    isPinned: draft.isPinned,
+                    creationSource: draft.creationSource
                 )
                 if let createdAt = draft.createdAt {
                     newCard.createdAt = createdAt
@@ -2013,6 +2113,9 @@ final class CreateDeckViewModel {
         draftCards = []
         cardToEdit = nil
         isCreatingNewCard = false
+        isSelectingCards = false
+        selectedDraftCardIDs.removeAll()
+        showDeleteSelectedCardsConfirmation = false
         preparedAISource = nil
         manualAISourceAllocations = []
         pdfAnalysis = nil
@@ -2024,6 +2127,21 @@ final class CreateDeckViewModel {
             selectedFolderID: selectedFolder?.persistentModelID,
             draftCards: draftCards.map(DraftCardChangeSnapshot.init)
         )
+    }
+
+    private func reconcileDraftSelectionState() {
+        let validIDs = Set(draftCards.map(\.id))
+        selectedDraftCardIDs.formIntersection(validIDs)
+
+        if draftCards.isEmpty {
+            isSelectingCards = false
+            showDeleteSelectedCardsConfirmation = false
+        }
+
+        if let cardToEdit,
+           !validIDs.contains(cardToEdit.id) {
+            self.cardToEdit = nil
+        }
     }
 }
 

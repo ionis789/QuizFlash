@@ -335,7 +335,7 @@ struct AIGenerationSheetView: View {
                     Text("\(viewModel.requestedCardCount)")
                         .font(.system(size: 34, weight: .heavy, design: .rounded).monospacedDigit())
                         .foregroundStyle(.primary)
-                        .contentTransition(.numericText())
+                        .statusTextMotion(trigger: viewModel.requestedCardCount)
 
                     Text("cards")
                         .font(.caption.weight(.bold))
@@ -890,7 +890,7 @@ private struct ManualAllocationCard: View {
                     Text("\(allocation.startIndex)-\(allocation.endIndex)")
                         .font(.subheadline.weight(.bold).monospacedDigit())
                         .foregroundStyle(.primary)
-                        .contentTransition(.numericText())
+                        .statusTextMotion(trigger: "\(allocation.startIndex)-\(allocation.endIndex)")
                 }
 
                 Text("Covers \(coveredItemCount) \(coveredItemCount == 1 ? sourceSingular : sourcePlural)")
@@ -925,7 +925,7 @@ private struct ManualAllocationCard: View {
                     Text("\(allocation.cardCount)")
                         .font(.subheadline.weight(.bold).monospacedDigit())
                         .foregroundStyle(.primary)
-                        .contentTransition(.numericText())
+                        .statusTextMotion(trigger: allocation.cardCount)
                 }
 
                 DiscreteValueSlider(
@@ -1178,7 +1178,7 @@ private struct SheetValueStepper: View {
                     .font(.subheadline.weight(.bold).monospacedDigit())
                     .foregroundStyle(.primary)
                     .frame(minWidth: 34)
-                    .contentTransition(.numericText())
+                    .statusTextMotion(trigger: value)
 
                 StepperButton(symbol: "plus") {
                     onChange(min(value + 1, range.upperBound))

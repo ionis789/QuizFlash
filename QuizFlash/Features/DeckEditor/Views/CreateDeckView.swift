@@ -56,9 +56,8 @@ struct CreateDeckView: View {
     private var destinationTitle: String {
         viewModel.selectedFolder?.title ?? "Library"
     }
-    private var cardCountText: String {
-        let count = viewModel.draftCards.count
-        return "\(count) card\(count == 1 ? "" : "s")"
+    private var draftDeckContentSummary: DraftDeckContentSummary {
+        DraftDeckContentSummary(cards: viewModel.draftCards)
     }
     private var aiToolbarStatusText: String? {
         switch viewModel.aiState {
@@ -92,6 +91,16 @@ struct CreateDeckView: View {
         }
         return accent
     }
+    private var successOverlayMaxWidth: CGFloat {
+        min(UIScreen.main.bounds.width - (UIConstants.Layout.screenEdgeInset * 2), 420)
+    }
+    private var savedDeckTitle: String {
+        let trimmedTitle = viewModel.deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedTitle.isEmpty ? "Untitled Deck" : trimmedTitle
+    }
+    private var successOverlayTopPadding: CGFloat {
+        navigationBarHeight + (fullScreenSheetDismiss == nil ? UIConstants.Spacing.large : UIConstants.Spacing.extraLarge)
+    }
     private var aiToolbarCountText: String? {
         guard !viewModel.hasPausedAIGeneration else { return nil }
 
@@ -109,6 +118,7 @@ struct CreateDeckView: View {
     private var shouldShowFloatingGenerate: Bool {
         scrollState.pillVisible
             && !viewModel.draftCards.isEmpty
+            && !viewModel.isSelectingCards
             && !isTitleFocused
             && viewModel.aiSheetDestination == nil
             && !viewModel.showSuccessOverlay
@@ -194,55 +204,60 @@ struct CreateDeckView: View {
 
     @ViewBuilder
     private var viewContent: some View {
-        GeometryReader { outer in
-            let resolvedSafeTopInset = max(presentedSafeAreaInsets?.top ?? 0, outer.safeAreaInsets.top)
-            let resolvedSafeBottomInset = max(presentedSafeAreaInsets?.bottom ?? 0, outer.safeAreaInsets.bottom)
-            let estimatedSheetChromeHeight = resolvedSafeTopInset
-                + UIConstants.Spacing.tiny
-                + 5
-                + UIConstants.Spacing.small
-                + UIConstants.Size.capsuleHeight
-            let sheetHeroTopPadding = max(navigationBarHeight, estimatedSheetChromeHeight) + UIConstants.Spacing.large
-            let standardHeroTopPadding = UIConstants.Layout.createDeckPinnedToolbarTopInset
-                + UIConstants.Layout.createDeckHeroTopPadding
-            let heroTopPadding = fullScreenSheetDismiss != nil ? sheetHeroTopPadding : standardHeroTopPadding
+        ScrollViewReader { scrollProxy in
+            GeometryReader { outer in
+                let resolvedSafeTopInset = max(presentedSafeAreaInsets?.top ?? 0, outer.safeAreaInsets.top)
+                let resolvedSafeBottomInset = max(presentedSafeAreaInsets?.bottom ?? 0, outer.safeAreaInsets.bottom)
+                let estimatedSheetChromeHeight = resolvedSafeTopInset
+                    + UIConstants.Spacing.tiny
+                    + 5
+                    + UIConstants.Spacing.small
+                    + UIConstants.Size.capsuleHeight
+                let sheetHeroTopPadding = max(navigationBarHeight, estimatedSheetChromeHeight) + UIConstants.Spacing.large
+                let standardHeroTopPadding = UIConstants.Layout.createDeckPinnedToolbarTopInset
+                    + UIConstants.Layout.createDeckHeroTopPadding
+                let heroTopPadding = fullScreenSheetDismiss != nil ? sheetHeroTopPadding : standardHeroTopPadding
 
-            ZStack {
-                if fullScreenSheetDismiss == nil {
-                    Color(uiColor: .systemGroupedBackground)
-                        .ignoresSafeArea()
-                }
-
-                ScrollView {
-                    VStack(spacing: 0) {
-                        heroHeader(topPadding: heroTopPadding)
-
-                        cardsListContent
-                            .padding(.top, UIConstants.Spacing.large)
-                            .padding(.bottom, 132)
+                ZStack {
+                    if fullScreenSheetDismiss == nil {
+                        Color(uiColor: .systemGroupedBackground)
+                            .ignoresSafeArea()
                     }
-                    .frame(minHeight: outer.size.height, alignment: .top)
-                }
-                .scrollIndicators(.hidden)
-                .scrollDismissesKeyboard(.interactively)
-                .onTapGesture {
-                    isTitleFocused = false
-                }
 
-                if viewModel.showSuccessOverlay {
-                    successOverlay.zIndex(100)
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            heroHeader(topPadding: heroTopPadding)
+
+                            cardsListContent(using: scrollProxy)
+                                .padding(.top, UIConstants.Spacing.large)
+                                .padding(.bottom, 132)
+                        }
+                        .frame(minHeight: outer.size.height, alignment: .top)
+                    }
+                    .scrollIndicators(.hidden)
+                    .scrollDismissesKeyboard(.interactively)
+                    .onTapGesture {
+                        isTitleFocused = false
+                    }
+
+                    if viewModel.showSuccessOverlay {
+                        successOverlay.zIndex(100)
+                    }
                 }
+                .overlay(alignment: .top) {
+                    navigationChrome(
+                        containerWidth: outer.size.width,
+                        safeTopInset: resolvedSafeTopInset
+                    )
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    floatingGenerateAction(bottomInset: resolvedSafeBottomInset)
+                }
+                .overlay(alignment: .bottom) {
+                    draftSelectionBottomBar
+                }
+                .coordinateSpace(name: kCreateDeckChromeSpace)
             }
-            .overlay(alignment: .top) {
-                navigationChrome(
-                    containerWidth: outer.size.width,
-                    safeTopInset: resolvedSafeTopInset
-                )
-            }
-            .overlay(alignment: .bottomTrailing) {
-                floatingGenerateAction(bottomInset: resolvedSafeBottomInset)
-            }
-            .coordinateSpace(name: kCreateDeckChromeSpace)
         }
         .background {
             GeometryReader { geo in
@@ -295,6 +310,17 @@ struct CreateDeckView: View {
             } else {
                 Text("The current AI generation will stop immediately.")
             }
+        }
+        .alert(
+            "Delete \(viewModel.selectedDraftCardCount) card\(viewModel.selectedDraftCardCount == 1 ? "" : "s")?",
+            isPresented: $viewModel.showDeleteSelectedCardsConfirmation
+        ) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                viewModel.deleteSelectedCards()
+            }
+        } message: {
+            Text("This removes the selected draft cards from the editor. Existing deck data changes only after you save.")
         }
         .fullScreenCover(isPresented: $viewModel.isCreatingNewCard) {
             CreateCardView { frontZone, backZone in
@@ -415,15 +441,24 @@ private extension CreateDeckView {
     }
 
     private var headerMetadataRow: some View {
-        HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
-            destinationMetadataControl
-                .layoutPriority(1)
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
+                destinationMetadataControl
+                    .layoutPriority(1)
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
 
-            HStack(spacing: UIConstants.Spacing.small) {
-                mockAIActionControl
-                generateActionControl
+                HStack(spacing: UIConstants.Spacing.small) {
+                    mockAIActionControl
+                    generateActionControl
+                }
+                .opacity(shouldShowInlineHeaderActions ? 1 : 0)
+                .allowsHitTesting(shouldShowInlineHeaderActions)
+                .accessibilityHidden(!shouldShowInlineHeaderActions)
+            }
+
+            if !viewModel.draftCards.isEmpty {
+                headerStatsStrip
             }
         }
         .background {
@@ -437,6 +472,10 @@ private extension CreateDeckView {
                     }
                 }
         }
+    }
+
+    private var shouldShowInlineHeaderActions: Bool {
+        !viewModel.isSelectingCards && !shouldShowFloatingGenerate
     }
 
     private var destinationMetadataControl: some View {
@@ -467,11 +506,6 @@ private extension CreateDeckView {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
-                Text(cardCountText)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
                 Image(systemName: "chevron.down.compact")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(.tertiary)
@@ -480,6 +514,25 @@ private extension CreateDeckView {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(viewModel.selectedFolder == nil ? "Choose destination folder, currently Library" : "Choose destination folder, currently \(viewModel.selectedFolder?.title ?? "Library")")
+    }
+
+    private var headerStatsStrip: some View {
+        let summary = draftDeckContentSummary
+
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: UIConstants.Spacing.small) {
+                CreateDeckHeaderStatChip(symbol: "rectangle.stack", text: "\(summary.cardCount) cards")
+                CreateDeckHeaderStatChip(symbol: "q.circle", text: "\(summary.questionZoneCount) Q zones")
+                CreateDeckHeaderStatChip(symbol: "a.circle", text: "\(summary.answerZoneCount) A zones")
+                CreateDeckHeaderStatChip(symbol: "textformat", text: "\(summary.characterCount) chars")
+                CreateDeckHeaderStatChip(symbol: "photo", text: "\(summary.photoCount) photos")
+                CreateDeckHeaderStatChip(symbol: "pencil.and.outline", text: "\(summary.sketchCount) sketches")
+                CreateDeckHeaderStatChip(symbol: "hand.tap", text: "\(summary.manualCardCount) manual")
+                CreateDeckHeaderStatChip(symbol: "sparkles", text: "\(summary.aiCardCount) AI", tint: accent)
+            }
+            .padding(.vertical, 2)
+        }
+        .scrollIndicators(.hidden)
     }
 
     private var doneButton: some View {
@@ -494,7 +547,7 @@ private extension CreateDeckView {
 
     @ViewBuilder
     private var mockAIActionControl: some View {
-        if !viewModel.isGenerating {
+        if !viewModel.isGenerating && !viewModel.isSelectingCards {
             CreateDeckCapsuleButton(
                 action: {
                     isTitleFocused = false
@@ -614,8 +667,15 @@ private extension CreateDeckView {
 
     private var moreMenuContents: some View {
         Group {
-            Button("Select Cards") { }
-                .disabled(true)
+            Button(viewModel.isSelectingCards ? "Done Selecting" : "Select Cards") {
+                isTitleFocused = false
+                if viewModel.isSelectingCards {
+                    viewModel.exitCardSelectionMode()
+                } else {
+                    viewModel.enterCardSelectionMode()
+                }
+            }
+            .disabled(!viewModel.isSelectingCards && (viewModel.isGenerating || viewModel.draftCards.isEmpty))
             Button("Delete Deck", role: .destructive) { }
                 .disabled(true)
         }
@@ -640,8 +700,44 @@ private extension CreateDeckView {
             .safeAreaInsets.bottom ?? 0
     }
 
+    private var selectionBottomBarBottomPadding: CGFloat {
+        if fullScreenSheetDismiss == nil {
+            return viewSafeBottom + UIConstants.Spacing.small
+        }
+        return physicalSafeBottom + UIConstants.Spacing.medium
+    }
+
+    @ViewBuilder
+    private var draftSelectionBottomBar: some View {
+        if viewModel.isSelectingCards && !viewModel.draftCards.isEmpty {
+            CreateDeckSelectionBottomBar(
+                selectedCount: viewModel.selectedDraftCardCount,
+                allSelected: viewModel.areAllDraftCardsSelected,
+                onDone: {
+                    viewModel.exitCardSelectionMode()
+                },
+                onToggleSelectAll: {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
+                        viewModel.toggleSelectAllDraftCards()
+                    }
+                },
+                onDelete: {
+                    viewModel.requestDeleteSelectedCards()
+                }
+            )
+            .padding(.bottom, selectionBottomBarBottomPadding)
+            .transition(
+                .move(edge: .bottom)
+                    .combined(with: .opacity)
+                    .combined(with: .scale(scale: 0.96, anchor: .bottom))
+            )
+            .zIndex(30)
+            .animation(.spring(response: 0.35, dampingFraction: 0.82), value: viewModel.isSelectingCards)
+        }
+    }
+
     // MARK: 2. Cards List Content
-    var cardsListContent: some View {
+    func cardsListContent(using scrollProxy: ScrollViewProxy) -> some View {
         Group {
             if viewModel.hasPausedAIGeneration {
                 let progress = min(1.0, Double(viewModel.aiGeneratedCardCount) / Double(max(viewModel.aiTargetCardCount, 1)))
@@ -659,11 +755,11 @@ private extension CreateDeckView {
 
                     if !existingDraftCardsDuringAIGeneration.isEmpty {
                         ForEach(Array(existingDraftCardsDuringAIGeneration.enumerated()), id: \.element.id) { index, card in
-                            draftCardRow(card, index: index + 1)
+                            draftCardRow(card, index: index + 1, scrollProxy: scrollProxy)
                         }
                     }
 
-                    aiGenerationCardSlots()
+                    aiGenerationCardSlots(using: scrollProxy)
                 }
             } else if case .extractingText = viewModel.aiState {
                 AIExtractingLoadingView().transition(.asymmetric(insertion: .opacity, removal: .opacity))
@@ -684,17 +780,17 @@ private extension CreateDeckView {
 
                     if !existingDraftCardsDuringAIGeneration.isEmpty {
                         ForEach(Array(existingDraftCardsDuringAIGeneration.enumerated()), id: \.element.id) { index, card in
-                            draftCardRow(card, index: index + 1)
+                            draftCardRow(card, index: index + 1, scrollProxy: scrollProxy)
                         }
                     }
 
-                    aiGenerationCardSlots()
+                    aiGenerationCardSlots(using: scrollProxy)
                 }
             } else if viewModel.draftCards.isEmpty {
                 emptyStateView.transition(.opacity)
             } else {
                 LazyVStack(spacing: 16) {
-                    draftCardRows()
+                    draftCardRows(scrollProxy: scrollProxy)
                 }
             }
         }
@@ -717,7 +813,7 @@ private extension CreateDeckView {
     }
 
     @ViewBuilder
-    private func aiGenerationCardSlots() -> some View {
+    private func aiGenerationCardSlots(using scrollProxy: ScrollViewProxy) -> some View {
         let generatedCards = Array(generatedDraftCardsDuringAIGeneration)
         let baseCount = existingDraftCardsDuringAIGeneration.count
         let slotCount = max(viewModel.aiTargetCardCount, generatedCards.count)
@@ -734,48 +830,47 @@ private extension CreateDeckView {
                 }
             ) {
                 if let card {
-                    draftCardRow(card, index: baseCount + slotIndex + 1, appliesTransition: false)
+                    draftCardRow(card, index: baseCount + slotIndex + 1, appliesTransition: false, scrollProxy: scrollProxy)
                 }
             }
         }
     }
 
     @ViewBuilder
-    private func draftCardRows() -> some View {
+    private func draftCardRows(scrollProxy: ScrollViewProxy) -> some View {
         ForEach(Array(viewModel.draftCards.enumerated()), id: \.element.id) { index, card in
-            draftCardRow(card, index: index + 1)
+            draftCardRow(card, index: index + 1, scrollProxy: scrollProxy)
         }
     }
 
+    @ViewBuilder
     private func draftCardRow(
         _ card: DraftCard,
         index: Int,
-        appliesTransition: Bool = true
+        appliesTransition: Bool = true,
+        scrollProxy: ScrollViewProxy
     ) -> some View {
-        DetailedCardRowView(
+        let row = DetailedCardRowView(
             card: card,
             index: index,
-            fixedHeight: appliesTransition ? nil : UIConstants.Size.draftCardRowHeight
-        )
-            .contentShape(Rectangle())
-            .onTapGesture {
+            fixedHeight: appliesTransition ? nil : UIConstants.Size.draftCardRowHeight,
+            isSelecting: viewModel.isSelectingCards,
+            isSelected: viewModel.selectedDraftCardIDs.contains(card.id),
+            onEdit: {
                 isTitleFocused = false
                 viewModel.cardToEdit = card
-            }
-            .contextMenu {
-                Button { viewModel.cardToEdit = card } label: {
-                    Label("Edit", systemImage: "pencil")
-                }
-                Button(role: .destructive) {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        viewModel.deleteCard(card)
-                    }
-                } label: {
-                    Label("Delete", systemImage: "trash")
+            },
+            onTogglePin: {
+                viewModel.togglePinnedState(for: card.id)
+            },
+            onDelete: {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    viewModel.deleteCard(card)
                 }
             }
+        )
             .transition(
-                appliesTransition
+                (appliesTransition && !viewModel.isSelectingCards)
                     ? .asymmetric(
                         insertion: .move(edge: .bottom)
                             .combined(with: .opacity)
@@ -784,6 +879,24 @@ private extension CreateDeckView {
                     )
                     : .identity
             )
+            .id(card.id)
+
+        if viewModel.isSelectingCards {
+            row
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+                        viewModel.toggleSelection(for: card.id)
+                    }
+                }
+        } else {
+            row
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    isTitleFocused = false
+                    viewModel.cardToEdit = card
+                }
+        }
     }
 
     var emptyStateView: some View {
@@ -811,37 +924,80 @@ private extension CreateDeckView {
     }
 
     var successOverlay: some View {
-        ZStack {
-            Color.clear.background(.ultraThinMaterial).ignoresSafeArea()
-            VStack {
-                Spacer(minLength: 60)
-                VStack(spacing: 16) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 64))
-                        .foregroundStyle(.green)
+        VStack {
+            HStack {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(accent.opacity(0.16))
+                                .frame(width: 52, height: 52)
+
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundStyle(accent)
+                        }
                         .symbolEffect(.bounce, value: viewModel.showSuccessOverlay)
-                    Text("Deck Saved!")
-                        .font(.title2.weight(.bold))
-                    Text("\(viewModel.draftCards.count) card\(viewModel.draftCards.count == 1 ? "" : "s")")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Deck Saved")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundStyle(.primary)
+
+                            Text(savedDeckTitle)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+
+                        Spacer(minLength: UIConstants.Spacing.small)
+
+                        VStack(alignment: .trailing, spacing: 3) {
+                            Text("\(viewModel.draftCards.count)")
+                                .font(.system(size: 22, weight: .bold, design: .rounded).monospacedDigit())
+                                .foregroundStyle(.primary)
+                                .statusTextMotion(trigger: viewModel.draftCards.count)
+
+                            Text(viewModel.draftCards.count == 1 ? "card" : "cards")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    HStack(spacing: UIConstants.Spacing.small) {
+                        Label(destinationTitle, systemImage: "folder.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        Spacer(minLength: UIConstants.Spacing.small)
+
+                        Label("Saved just now", systemImage: "sparkles")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                    .padding(.vertical, 32)
-                    .padding(.horizontal, 48)
-                    .background(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(Color(uiColor: .systemBackground))
-                        .shadow(color: .black.opacity(0.12), radius: 30, y: 15)
-                )
-                    .scaleEffect(viewModel.showSuccessOverlay ? 1 : 0.7, anchor: .top)
-                    .opacity(viewModel.showSuccessOverlay ? 1 : 0)
-                    .offset(y: viewModel.showSuccessOverlay ? 0 : -80)
-                    .animation(.spring(response: 0.7, dampingFraction: 0.8), value: viewModel.showSuccessOverlay)
-                Spacer()
+                .padding(22)
+                .frame(maxWidth: successOverlayMaxWidth, alignment: .leading)
+                .widgetStyle(cornerRadius: 32)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(0.2), radius: 18, y: 12)
+                .scaleEffect(viewModel.showSuccessOverlay ? 1 : 0.92, anchor: .top)
+                .opacity(viewModel.showSuccessOverlay ? 1 : 0)
+                .offset(y: viewModel.showSuccessOverlay ? 0 : -34)
+                .animation(.spring(response: 0.48, dampingFraction: 0.84), value: viewModel.showSuccessOverlay)
+
+                Spacer(minLength: 0)
             }
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .padding(.top, successOverlayTopPadding)
+
+            Spacer()
         }
-            .transition(.opacity)
-            .allowsHitTesting(false)
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .allowsHitTesting(false)
     }
 
     private func handleSave() {
@@ -913,6 +1069,139 @@ struct CreateDeckSheetBackground: View {
     }
 }
 
+private struct CreateDeckSelectionBottomBar: View {
+    let selectedCount: Int
+    let allSelected: Bool
+    let onDone: () -> Void
+    let onToggleSelectAll: () -> Void
+    let onDelete: () -> Void
+
+    private var hasSelection: Bool {
+        selectedCount > 0
+    }
+
+    private var selectionSummary: String {
+        if selectedCount == 0 {
+            return "Tap cards to select"
+        }
+        return "\(selectedCount) selected"
+    }
+
+    var body: some View {
+        HStack(spacing: UIConstants.Spacing.small) {
+            Button(action: onDone) {
+                Text("Done")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 14)
+                    .frame(height: 52)
+                    .glassButton(shape: .capsule)
+            }
+            .buttonStyle(.plain)
+            .layoutPriority(1)
+
+            Text(selectionSummary)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .statusTextMotion(trigger: selectedCount)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button(action: onToggleSelectAll) {
+                Text(allSelected ? "Clear" : "Select All")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(allSelected ? .primary : accent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                    .padding(.horizontal, 14)
+                    .frame(height: 52)
+                    .glassButton(shape: .capsule)
+            }
+            .buttonStyle(.plain)
+            .layoutPriority(1)
+            .accessibilityLabel(allSelected ? "Clear all selected cards" : "Select all cards")
+
+            CreateDeckSelectionCompactIconButton(
+                isEnabled: hasSelection,
+                accessibilityLabel: "Delete \(selectedCount) selected card\(selectedCount == 1 ? "" : "s")",
+                badgeCount: selectedCount,
+                action: onDelete
+            ) {
+                Image(systemName: "trash")
+                    .font(.system(size: 21, weight: .semibold))
+                    .foregroundStyle(hasSelection ? Color.red : Color.secondary)
+            }
+        }
+        .padding(.horizontal, UIConstants.Spacing.medium)
+        .padding(.vertical, 8)
+        .widgetStyle(cornerRadius: 28)
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        }
+        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+        .contentShape(Rectangle())
+        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: selectedCount)
+        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: allSelected)
+    }
+
+    private var accent: Color {
+        ThemeManager.shared.accentColor.color
+    }
+}
+
+private struct CreateDeckSelectionCompactIconButton<Label: View>: View {
+    let isEnabled: Bool
+    let accessibilityLabel: String
+    var badgeCount: Int? = nil
+    let action: () -> Void
+    @ViewBuilder let label: () -> Label
+
+    var body: some View {
+        Button(action: action) {
+            label()
+                .frame(width: 52, height: 52)
+                .glassButton(shape: .circle)
+        }
+        .overlay(alignment: .topTrailing) {
+            if let badgeCount {
+                SelectionCountBadge(count: badgeCount)
+                    .offset(x: 4, y: -4)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.5)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+private struct CreateDeckHeaderStatChip: View {
+    let symbol: String
+    let text: String
+    var tint: Color = .secondary
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .bold))
+
+            Text(text)
+                .lineLimit(1)
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(tint)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color.white.opacity(0.05), in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(Color.white.opacity(0.05), lineWidth: 0.75)
+        }
+    }
+}
+
 // MARK: - CreateDeckChromeButton
 
 private struct CreateDeckChromeButton<Label: View>: View {
@@ -973,7 +1262,7 @@ private struct CreateDeckAIStatusIndicator: View {
                 Text(countText)
                     .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundStyle(.primary)
-                    .contentTransition(.numericText())
+                    .statusTextMotion(trigger: countText)
                     .transition(
                         .move(edge: .bottom)
                             .combined(with: .opacity)
