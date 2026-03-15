@@ -286,6 +286,27 @@ public struct AIFlashcard: Identifiable, Codable, Sendable {
     }
 }
 
+/// One emitted AI batch together with enough metadata to support pause/resume
+/// without losing track of the source allocation it belongs to.
+public struct AIFlashcardBatchChunk: Sendable {
+    public let cards: [AIFlashcard]
+    public let allocationID: UUID?
+    public let plannedCardCount: Int
+    public let sourceLabel: String
+
+    public init(
+        cards: [AIFlashcard],
+        allocationID: UUID?,
+        plannedCardCount: Int,
+        sourceLabel: String
+    ) {
+        self.cards = cards
+        self.allocationID = allocationID
+        self.plannedCardCount = plannedCardCount
+        self.sourceLabel = sourceLabel
+    }
+}
+
 // MARK: - AI Generation Response
 
 /// The top-level wrapper decoded from the AI service JSON response.

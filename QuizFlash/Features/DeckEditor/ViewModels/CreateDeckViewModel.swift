@@ -87,6 +87,7 @@ final class CreateDeckViewModel {
     var showAIPDFPicker = false
     var aiSheetDestination: AIGenerationSheetDestination? = nil
     var showAICancelDialog = false
+    var showAIPausedResumeDialog = false
     var isGenerating: Bool { aiState != .idle }
     var selectedFolder: FolderModel? = nil
 
@@ -111,6 +112,33 @@ final class CreateDeckViewModel {
 
     var hasGeneratedCardsInCurrentAISession: Bool {
         aiGeneratedCardCount > 0
+    }
+
+    private var hasIncompleteAIGenerationSession: Bool {
+        guard preparedAISource != nil else { return false }
+        guard aiGenerationTask == nil else { return false }
+        guard aiTargetCardCount > 0 else { return false }
+        guard aiGeneratedCardCount < aiTargetCardCount else { return false }
+
+        if case .idle = aiState {
+            return false
+        }
+
+        if case .error = aiState {
+            return false
+        }
+
+        return true
+    }
+
+    var hasPausedAIGeneration: Bool {
+        hasIncompleteAIGenerationSession
+    }
+
+    var pausedRemainingCardCount: Int {
+        let remainingFromAllocations = targetCardCount(for: remainingAIAllocations.filter { $0.cardCount > 0 })
+        let remainingFromProgress = max(aiTargetCardCount - aiGeneratedCardCount, 0)
+        return max(remainingFromAllocations, remainingFromProgress)
     }
 
     var isPreparedSourcePDF: Bool {
@@ -182,14 +210,19 @@ final class CreateDeckViewModel {
     // MARK: - Services
 
     @ObservationIgnored private let aiProviderStore: AIProviderStore
+    @ObservationIgnored private let aiBackgroundCoordinator: AIGenerationBackgroundCoordinator
     @ObservationIgnored private var aiGenerationTask: Task<Void, Never>?
     @ObservationIgnored private var aiSourcePreparationTask: Task<Void, Never>?
     @ObservationIgnored private var aiRevealTask: Task<Void, Error>?
     @ObservationIgnored private var aiDeckTitleTask: Task<Void, Never>?
+    @ObservationIgnored private var aiResumePromptTask: Task<Void, Never>?
     @ObservationIgnored private var pendingAIDeckTitleRequestID: UUID?
     @ObservationIgnored private var pendingAIGeneratedCards: [AIFlashcard] = []
     @ObservationIgnored private var aiDidFinishReceivingGeneratedCards = false
     @ObservationIgnored private var clearsPendingAISourceOnSheetDismiss = false
+    @ObservationIgnored private var aiGenerationSessionID: UUID?
+    @ObservationIgnored private var remainingAIAllocations: [AISourceRangeAllocation] = []
+    @ObservationIgnored private var isAIGenerationPausedForBackground = false
 
     // MARK: - Deck / Cards State
     var deckTitle: String = ""
@@ -205,14 +238,20 @@ final class CreateDeckViewModel {
     }
 
     convenience init(deckToEdit: DeckModel? = nil) {
-        self.init(deckToEdit: deckToEdit, aiProviderStore: AIProviderStore.shared)
+        self.init(
+            deckToEdit: deckToEdit,
+            aiProviderStore: AIProviderStore.shared,
+            aiBackgroundCoordinator: .shared
+        )
     }
 
     init(
         deckToEdit: DeckModel?,
-        aiProviderStore: AIProviderStore
+        aiProviderStore: AIProviderStore,
+        aiBackgroundCoordinator: AIGenerationBackgroundCoordinator
     ) {
         self.aiProviderStore = aiProviderStore
+        self.aiBackgroundCoordinator = aiBackgroundCoordinator
         self.deckToEdit = deckToEdit
         let initialTitle: String
         let initialFolder: FolderModel?
@@ -261,28 +300,14 @@ final class CreateDeckViewModel {
     func startAIGeneration() {
         guard let source = preparedAISource else { return }
         let allocations = resolvedAISourceAllocations
-        let targetCardCount = targetCardCount(for: allocations)
-        guard targetCardCount > 0 else { return }
         guard let aiService = makeAIService() else { return }
 
-        beginAIGenerationSession(targetCardCount: targetCardCount)
-        requestAIDeckTitleIfNeeded(from: source, aiService: aiService)
-        switch source.kind {
-        case .photos:
-            processPhotosForAI(
-                source,
-                allocations: allocations,
-                targetCardCount: targetCardCount,
-                aiService: aiService
-            )
-        case .pdf:
-            processPDFForAI(
-                source,
-                allocations: allocations,
-                targetCardCount: targetCardCount,
-                aiService: aiService
-            )
-        }
+        startAIGeneration(
+            from: source,
+            allocations: allocations,
+            aiService: aiService,
+            shouldResetProgress: true
+        )
     }
 
     /// Streams a local mock payload through the same incremental UI path used
@@ -355,8 +380,8 @@ final class CreateDeckViewModel {
                 case .fast:
                     let texts = source.textSegments.map(\.text)
                     guard DocumentTextExtractor.isUsableOCRText(texts) else {
-                        try await consumeGeneratedCards(
-                            from: aiService.generateFlashcardsStream(
+                        try await consumeGeneratedBatchChunks(
+                            from: aiService.generateFlashcardBatchStream(
                                 from: source.images,
                                 itemLabels: source.itemLabels,
                                 targetCards: targetCardCount,
@@ -367,8 +392,8 @@ final class CreateDeckViewModel {
                         return
                     }
 
-                    try await consumeGeneratedCards(
-                        from: aiService.generateFlashcardsStream(
+                    try await consumeGeneratedBatchChunks(
+                        from: aiService.generateFlashcardBatchStream(
                             fromSegments: source.textSegments,
                             targetCards: targetCardCount,
                             allocations: allocations,
@@ -378,8 +403,8 @@ final class CreateDeckViewModel {
                     )
 
                 case .quality:
-                    try await consumeGeneratedCards(
-                        from: aiService.generateFlashcardsStream(
+                    try await consumeGeneratedBatchChunks(
+                        from: aiService.generateFlashcardBatchStream(
                             from: source.images,
                             itemLabels: source.itemLabels,
                             targetCards: targetCardCount,
@@ -430,8 +455,8 @@ final class CreateDeckViewModel {
                         && source.textSegments.contains(where: { !$0.text.isEmpty })
 
                     if directTextIsReliable {
-                        try await consumeGeneratedCards(
-                            from: aiService.generateFlashcardsStream(
+                        try await consumeGeneratedBatchChunks(
+                            from: aiService.generateFlashcardBatchStream(
                                 fromSegments: source.textSegments,
                                 targetCards: targetCardCount,
                                 allocations: allocations,
@@ -448,8 +473,8 @@ final class CreateDeckViewModel {
                     let pageTexts = await DocumentTextExtractor.extractVisionTexts(from: images)
                     if DocumentTextExtractor.isUsableOCRText(pageTexts) {
                         let ocrSegments = makeTextSegments(from: pageTexts, labelPrefix: "Page")
-                        try await consumeGeneratedCards(
-                            from: aiService.generateFlashcardsStream(
+                        try await consumeGeneratedBatchChunks(
+                            from: aiService.generateFlashcardBatchStream(
                                 fromSegments: ocrSegments,
                                 targetCards: targetCardCount,
                                 allocations: allocations,
@@ -460,8 +485,8 @@ final class CreateDeckViewModel {
                         return
                     }
 
-                    try await consumeGeneratedCards(
-                        from: aiService.generateFlashcardsStream(
+                    try await consumeGeneratedBatchChunks(
+                        from: aiService.generateFlashcardBatchStream(
                             from: images,
                             itemLabels: source.itemLabels,
                             targetCards: targetCardCount,
@@ -475,8 +500,8 @@ final class CreateDeckViewModel {
                     let images = await DocumentTextExtractor.renderPDFPages(from: url, dpi: 150)
                     guard !images.isEmpty else { throw AIServiceError.parsingFailed }
 
-                    try await consumeGeneratedCards(
-                        from: aiService.generateFlashcardsStream(
+                    try await consumeGeneratedBatchChunks(
+                        from: aiService.generateFlashcardBatchStream(
                             from: images,
                             itemLabels: source.itemLabels,
                             targetCards: targetCardCount,
@@ -929,11 +954,33 @@ final class CreateDeckViewModel {
     // =========================================================================
 
     private func beginAIGenerationSession(targetCardCount: Int) {
+        beginAIGenerationSession(targetCardCount: targetCardCount, shouldResetProgress: true)
+    }
+
+    private func beginAIGenerationSession(
+        targetCardCount: Int,
+        shouldResetProgress: Bool
+    ) {
         cancelAIGenerationTask()
         resetAIGenerationRevealPipeline()
-        aiGenerationBaseCardCount = draftCards.count
-        aiTargetCardCount = targetCardCount
-        aiGeneratedCardCount = 0
+        let sessionID = UUID()
+        aiGenerationSessionID = sessionID
+        isAIGenerationPausedForBackground = false
+
+        if shouldResetProgress {
+            aiGenerationBaseCardCount = draftCards.count
+            aiTargetCardCount = targetCardCount
+            aiGeneratedCardCount = 0
+        } else if aiTargetCardCount == 0 {
+            aiTargetCardCount = aiGeneratedCardCount + targetCardCount
+        }
+
+        aiBackgroundCoordinator.beginSession(id: sessionID) { [weak self] in
+            self?.handleAIGenerationBackgroundExpiration(for: sessionID)
+        }
+        Task { [aiBackgroundCoordinator] in
+            _ = await aiBackgroundCoordinator.requestNotificationAuthorizationIfNeeded()
+        }
     }
 
     private func targetCardCount(for allocations: [AISourceRangeAllocation]) -> Int {
@@ -955,6 +1002,39 @@ final class CreateDeckViewModel {
             for try await batch in stream {
                 guard !batch.isEmpty else { continue }
                 pendingAIGeneratedCards.append(contentsOf: batch)
+                await Task.yield()
+            }
+
+            aiDidFinishReceivingGeneratedCards = true
+            try await aiRevealTask?.value
+            completeAIGeneration()
+        } catch {
+            aiDidFinishReceivingGeneratedCards = true
+            aiRevealTask?.cancel()
+            aiRevealTask = nil
+            pendingAIGeneratedCards.removeAll()
+            throw error
+        }
+    }
+
+    private func consumeGeneratedBatchChunks(
+        from stream: AsyncThrowingStream<AIFlashcardBatchChunk, Error>
+    ) async throws {
+        aiState = .generatingCards(
+            progress: min(1.0, Double(aiGeneratedCardCount) / Double(max(aiTargetCardCount, 1))),
+            foundCount: aiGeneratedCardCount
+        )
+        resetAIGenerationRevealPipeline()
+        aiRevealTask = Task { [weak self] in
+            guard let self else { return }
+            try await self.drainGeneratedCardsContinuously()
+        }
+
+        do {
+            for try await chunk in stream {
+                registerGeneratedBatchChunk(chunk)
+                guard !chunk.cards.isEmpty else { continue }
+                pendingAIGeneratedCards.append(contentsOf: chunk.cards)
                 await Task.yield()
             }
 
@@ -1057,10 +1137,56 @@ final class CreateDeckViewModel {
         aiState = .generatingCards(progress: progress, foundCount: updatedCount)
     }
 
+    private func registerGeneratedBatchChunk(_ chunk: AIFlashcardBatchChunk) {
+        let decrement = max(chunk.cards.count, 0)
+        guard decrement > 0 else { return }
+
+        if let allocationID = chunk.allocationID,
+           let index = remainingAIAllocations.firstIndex(where: { $0.id == allocationID }) {
+            var allocation = remainingAIAllocations[index]
+            allocation.cardCount = max(allocation.cardCount - decrement, 0)
+
+            if allocation.cardCount == 0 {
+                remainingAIAllocations.remove(at: index)
+            } else {
+                remainingAIAllocations[index] = allocation
+            }
+            return
+        }
+
+        guard let index = remainingAIAllocations.firstIndex(where: { $0.cardCount > 0 }) else { return }
+        var allocation = remainingAIAllocations[index]
+        allocation.cardCount = max(allocation.cardCount - decrement, 0)
+
+        if allocation.cardCount == 0 {
+            remainingAIAllocations.remove(at: index)
+        } else {
+            remainingAIAllocations[index] = allocation
+        }
+    }
+
     private func completeAIGeneration() {
+        let generatedCardCount = aiGeneratedCardCount
+        let deckTitle = deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sessionID = aiGenerationSessionID
+
+        if let sessionID {
+            Task { [aiBackgroundCoordinator] in
+                await aiBackgroundCoordinator.notifyCompletionIfNeeded(
+                    sessionID: sessionID,
+                    deckTitle: deckTitle,
+                    generatedCardCount: generatedCardCount
+                )
+            }
+            aiBackgroundCoordinator.endSession(id: sessionID)
+        }
+
         aiGenerationTask = nil
         resetAIGenerationRevealPipeline()
         showAICancelDialog = false
+        showAIPausedResumeDialog = false
+        aiResumePromptTask?.cancel()
+        aiResumePromptTask = nil
         aiState = .idle
         pdfAnalysis = nil
         preparedAISource = nil
@@ -1068,30 +1194,47 @@ final class CreateDeckViewModel {
         aiGenerationBaseCardCount = 0
         aiGeneratedCardCount = 0
         aiTargetCardCount = 0
+        aiGenerationSessionID = nil
+        remainingAIAllocations = []
+        isAIGenerationPausedForBackground = false
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     private func handleAIGenerationFailure(_ error: Error) {
+        if let sessionID = aiGenerationSessionID {
+            aiBackgroundCoordinator.endSession(id: sessionID)
+        }
         aiGenerationTask = nil
         aiDeckTitleTask?.cancel()
         aiDeckTitleTask = nil
         pendingAIDeckTitleRequestID = nil
         resetAIGenerationRevealPipeline()
         showAICancelDialog = false
+        showAIPausedResumeDialog = false
+        aiResumePromptTask?.cancel()
+        aiResumePromptTask = nil
         pdfAnalysis = nil
         preparedAISource = nil
         manualAISourceAllocations = []
         aiGenerationBaseCardCount = 0
         aiGeneratedCardCount = 0
         aiTargetCardCount = 0
+        aiGenerationSessionID = nil
+        remainingAIAllocations = []
+        isAIGenerationPausedForBackground = false
         aiState = .error(error.localizedDescription)
     }
 
     private func cancelAIGenerationTask() {
+        if let sessionID = aiGenerationSessionID {
+            aiBackgroundCoordinator.endSession(id: sessionID)
+        }
         aiGenerationTask?.cancel()
         aiGenerationTask = nil
         aiDeckTitleTask?.cancel()
         aiDeckTitleTask = nil
+        aiResumePromptTask?.cancel()
+        aiResumePromptTask = nil
         pendingAIDeckTitleRequestID = nil
         resetAIGenerationRevealPipeline()
     }
@@ -1102,6 +1245,9 @@ final class CreateDeckViewModel {
 
     func cancelAIGeneration(keepingGeneratedCards: Bool) {
         showAICancelDialog = false
+        showAIPausedResumeDialog = false
+        aiResumePromptTask?.cancel()
+        aiResumePromptTask = nil
         cancelAIGenerationTask()
 
         if !keepingGeneratedCards {
@@ -1115,7 +1261,43 @@ final class CreateDeckViewModel {
         aiGenerationBaseCardCount = 0
         aiGeneratedCardCount = 0
         aiTargetCardCount = 0
+        aiGenerationSessionID = nil
+        remainingAIAllocations = []
+        isAIGenerationPausedForBackground = false
         aiState = .idle
+    }
+
+    private func handleAIGenerationBackgroundExpiration(for sessionID: UUID) {
+        guard aiGenerationSessionID == sessionID else { return }
+        flushPendingGeneratedCards()
+        aiBackgroundCoordinator.endSession(id: sessionID)
+        aiGenerationSessionID = nil
+        aiGenerationTask?.cancel()
+        aiGenerationTask = nil
+        aiDeckTitleTask?.cancel()
+        aiDeckTitleTask = nil
+        pendingAIDeckTitleRequestID = nil
+        resetAIGenerationRevealPipeline()
+        showAICancelDialog = false
+        showAIPausedResumeDialog = false
+        aiResumePromptTask?.cancel()
+        aiResumePromptTask = nil
+        isAIGenerationPausedForBackground = true
+
+        switch aiState {
+        case .extractingText:
+            break
+        case .generatingCards:
+            aiState = .generatingCards(
+                progress: min(1.0, Double(aiGeneratedCardCount) / Double(max(aiTargetCardCount, 1))),
+                foundCount: aiGeneratedCardCount
+            )
+        default:
+            aiState = .generatingCards(
+                progress: min(1.0, Double(aiGeneratedCardCount) / Double(max(aiTargetCardCount, 1))),
+                foundCount: aiGeneratedCardCount
+            )
+        }
     }
 
     private func resetAIGenerationRevealPipeline() {
@@ -1130,6 +1312,93 @@ final class CreateDeckViewModel {
         clearsPendingAISourceOnSheetDismiss = false
         aiSheetDestination = nil
         startAIGeneration()
+    }
+
+    func promptToResumeAIGenerationIfNeeded() {
+        aiResumePromptTask?.cancel()
+        aiResumePromptTask = nil
+        guard hasPausedAIGeneration else { return }
+        guard !showAIPausedResumeDialog else { return }
+        guard aiSheetDestination == nil else { return }
+
+        aiResumePromptTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: 320_000_000)
+            guard hasPausedAIGeneration else { return }
+            guard aiGenerationTask == nil else { return }
+            guard aiSheetDestination == nil else { return }
+            showAIPausedResumeDialog = true
+            aiResumePromptTask = nil
+        }
+    }
+
+    func resumePausedAIGeneration() {
+        aiResumePromptTask?.cancel()
+        aiResumePromptTask = nil
+        showAIPausedResumeDialog = false
+        guard aiGenerationTask == nil else { return }
+        guard let source = preparedAISource else { return }
+        guard let aiService = makeAIService() else { return }
+
+        let remainingAllocations = resumeAllocations(for: source)
+        let remainingTargetCardCount = targetCardCount(for: remainingAllocations)
+
+        guard remainingTargetCardCount > 0 else {
+            completeAIGeneration()
+            return
+        }
+
+        startAIGeneration(
+            from: source,
+            allocations: remainingAllocations,
+            aiService: aiService,
+            shouldResetProgress: false
+        )
+    }
+
+    func keepAIGenerationPaused() {
+        aiResumePromptTask?.cancel()
+        aiResumePromptTask = nil
+        showAIPausedResumeDialog = false
+    }
+
+    private func resumeAllocations(
+        for source: AIPreparedGenerationSource
+    ) -> [AISourceRangeAllocation] {
+        let explicitRemaining = remainingAIAllocations.filter { $0.cardCount > 0 }
+        if !explicitRemaining.isEmpty {
+            return explicitRemaining
+        }
+
+        let remainingCardCount = max(aiTargetCardCount - aiGeneratedCardCount, 0)
+        guard remainingCardCount > 0 else { return [] }
+
+        switch aiGenerationOptions.sourceDistributionMode {
+        case .auto:
+            return automaticAllocations(
+                for: source.previewItems.map(\.characterCount),
+                totalCards: remainingCardCount
+            )
+
+        case .manual:
+            let normalizedAllocations = normalizedManualAllocations(for: source.itemCount)
+            guard !normalizedAllocations.isEmpty else { return [] }
+
+            let redistributedCounts = distributedCardCounts(
+                totalCards: remainingCardCount,
+                across: normalizedAllocations.map { Double(max($0.cardCount, 1)) }
+            )
+
+            return zip(normalizedAllocations, redistributedCounts).compactMap { allocation, cardCount in
+                guard cardCount > 0 else { return nil }
+                return AISourceRangeAllocation(
+                    id: allocation.id,
+                    startIndex: allocation.startIndex,
+                    endIndex: allocation.endIndex,
+                    cardCount: cardCount
+                )
+            }
+        }
     }
 
     func dismissAISheet(clearPendingSourceSelection: Bool) {
@@ -1334,14 +1603,65 @@ final class CreateDeckViewModel {
     func resetAIState() {
         cancelAIGenerationTask()
         aiSourcePreparationTask?.cancel()
+        aiResumePromptTask?.cancel()
+        aiResumePromptTask = nil
         showAICancelDialog = false
+        showAIPausedResumeDialog = false
         aiGenerationBaseCardCount = 0
         aiGeneratedCardCount = 0
         aiTargetCardCount = 0
+        remainingAIAllocations = []
+        isAIGenerationPausedForBackground = false
         preparedAISource = nil
         manualAISourceAllocations = []
         pdfAnalysis = nil
         withAnimation { aiState = .idle }
+    }
+
+    private func startAIGeneration(
+        from source: AIPreparedGenerationSource,
+        allocations: [AISourceRangeAllocation],
+        aiService: AIFlashcardService,
+        shouldResetProgress: Bool
+    ) {
+        let targetCardCount = targetCardCount(for: allocations)
+        guard targetCardCount > 0 else { return }
+
+        remainingAIAllocations = allocations
+
+        beginAIGenerationSession(
+            targetCardCount: targetCardCount,
+            shouldResetProgress: shouldResetProgress
+        )
+        requestAIDeckTitleIfNeeded(from: source, aiService: aiService)
+
+        switch source.kind {
+        case .photos:
+            processPhotosForAI(
+                source,
+                allocations: allocations,
+                targetCardCount: targetCardCount,
+                aiService: aiService
+            )
+        case .pdf:
+            processPDFForAI(
+                source,
+                allocations: allocations,
+                targetCardCount: targetCardCount,
+                aiService: aiService
+            )
+        }
+    }
+
+    private func flushPendingGeneratedCards() {
+        guard !pendingAIGeneratedCards.isEmpty else { return }
+
+        let queuedCards = pendingAIGeneratedCards
+        pendingAIGeneratedCards.removeAll()
+
+        for card in queuedCards {
+            appendGeneratedCard(card)
+        }
     }
 
     // =========================================================================

@@ -108,6 +108,7 @@ public final class AIFlashcardService: @unchecked Sendable {
     private struct TextBatchPlan: RecoverableBatchPlan {
         let text: String
         let sourceLabel: String
+        let allocationID: UUID?
         let targetCards: Int
         let batchIndex: Int
         let totalBatches: Int
@@ -122,6 +123,7 @@ public final class AIFlashcardService: @unchecked Sendable {
                 TextBatchPlan(
                     text: text,
                     sourceLabel: sourceLabel,
+                    allocationID: allocationID,
                     targetCards: count,
                     batchIndex: batchIndex,
                     totalBatches: totalBatches,
@@ -134,6 +136,7 @@ public final class AIFlashcardService: @unchecked Sendable {
     private struct VisionBatchPlan: RecoverableBatchPlan, @unchecked Sendable {
         let images: [UIImage]
         let sourceLabel: String
+        let allocationID: UUID?
         let targetCards: Int
         let batchIndex: Int
         let totalBatches: Int
@@ -148,6 +151,7 @@ public final class AIFlashcardService: @unchecked Sendable {
                 VisionBatchPlan(
                     images: images,
                     sourceLabel: sourceLabel,
+                    allocationID: allocationID,
                     targetCards: count,
                     batchIndex: batchIndex,
                     totalBatches: totalBatches,
@@ -378,6 +382,40 @@ public final class AIFlashcardService: @unchecked Sendable {
         needsOCRCorrection: Bool = false,
         options: AIGenerationOptions
     ) -> AsyncThrowingStream<[AIFlashcard], Error> {
+        let batchStream = generateFlashcardBatchStream(
+            fromSegments: segments,
+            targetCards: targetCards,
+            allocations: allocations,
+            needsOCRCorrection: needsOCRCorrection,
+            options: options
+        )
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await chunk in batchStream {
+                        continuation.yield(chunk.cards)
+                        await Task.yield()
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+
+    public func generateFlashcardBatchStream(
+        fromSegments segments: [AITextSourceSegment],
+        targetCards: Int,
+        allocations: [AISourceRangeAllocation],
+        needsOCRCorrection: Bool = false,
+        options: AIGenerationOptions
+    ) -> AsyncThrowingStream<AIFlashcardBatchChunk, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -389,8 +427,8 @@ public final class AIFlashcardService: @unchecked Sendable {
                         ),
                         needsOCRCorrection: needsOCRCorrection,
                         options: options
-                    ) { cards in
-                        continuation.yield(cards)
+                    ) { chunk in
+                        continuation.yield(chunk)
                         await Task.yield()
                     }
                     continuation.finish()
@@ -414,6 +452,40 @@ public final class AIFlashcardService: @unchecked Sendable {
         allocations: [AISourceRangeAllocation],
         options: AIGenerationOptions
     ) -> AsyncThrowingStream<[AIFlashcard], Error> {
+        let batchStream = generateFlashcardBatchStream(
+            from: images,
+            itemLabels: itemLabels,
+            targetCards: targetCards,
+            allocations: allocations,
+            options: options
+        )
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await chunk in batchStream {
+                        continuation.yield(chunk.cards)
+                        await Task.yield()
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+
+    public func generateFlashcardBatchStream(
+        from images: [UIImage],
+        itemLabels: [String],
+        targetCards: Int,
+        allocations: [AISourceRangeAllocation],
+        options: AIGenerationOptions
+    ) -> AsyncThrowingStream<AIFlashcardBatchChunk, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -425,8 +497,8 @@ public final class AIFlashcardService: @unchecked Sendable {
                             options: options
                         ),
                         options: options
-                    ) { cards in
-                        continuation.yield(cards)
+                    ) { chunk in
+                        continuation.yield(chunk)
                         await Task.yield()
                     }
                     continuation.finish()
@@ -573,6 +645,21 @@ public final class AIFlashcardService: @unchecked Sendable {
         options: AIGenerationOptions,
         onBatch: @escaping ([AIFlashcard]) async throws -> Void
     ) async throws {
+        try await performTextRequests(
+            plans: plans,
+            needsOCRCorrection: needsOCRCorrection,
+            options: options
+        ) { chunk in
+            try await onBatch(chunk.cards)
+        }
+    }
+
+    private func performTextRequests(
+        plans: [TextBatchPlan],
+        needsOCRCorrection: Bool,
+        options: AIGenerationOptions,
+        onBatch: @escaping (AIFlashcardBatchChunk) async throws -> Void
+    ) async throws {
         try await performPlanQueue(
             plans: plans,
             maxConcurrent: maxConcurrentTextPlanRequests,
@@ -613,6 +700,19 @@ public final class AIFlashcardService: @unchecked Sendable {
         plans: [VisionBatchPlan],
         options: AIGenerationOptions,
         onBatch: @escaping ([AIFlashcard]) async throws -> Void
+    ) async throws {
+        try await performVisionRequests(
+            plans: plans,
+            options: options
+        ) { chunk in
+            try await onBatch(chunk.cards)
+        }
+    }
+
+    private func performVisionRequests(
+        plans: [VisionBatchPlan],
+        options: AIGenerationOptions,
+        onBatch: @escaping (AIFlashcardBatchChunk) async throws -> Void
     ) async throws {
         try await performPlanQueue(
             plans: plans,
@@ -683,6 +783,7 @@ public final class AIFlashcardService: @unchecked Sendable {
             return TextBatchPlan(
                 text: content,
                 sourceLabel: group.map(\.label).joined(separator: ", "),
+                allocationID: nil,
                 targetCards: batchSizes[index],
                 batchIndex: index + 1,
                 totalBatches: batchSizes.count,
@@ -728,6 +829,7 @@ public final class AIFlashcardService: @unchecked Sendable {
                 VisionBatchPlan(
                     images: imagesForBatch,
                     sourceLabel: sourceLabel,
+                    allocationID: nil,
                     targetCards: batchSize,
                     batchIndex: index + 1,
                     totalBatches: batchSizes.count,
@@ -771,6 +873,7 @@ public final class AIFlashcardService: @unchecked Sendable {
                     TextBatchPlan(
                         text: text,
                         sourceLabel: sourceLabel,
+                        allocationID: allocation.id,
                         targetCards: batchSize,
                         batchIndex: 0,
                         totalBatches: 0,
@@ -819,6 +922,7 @@ public final class AIFlashcardService: @unchecked Sendable {
                     VisionBatchPlan(
                         images: selectedImages,
                         sourceLabel: sourceLabel,
+                        allocationID: allocation.id,
                         targetCards: batchSize,
                         batchIndex: 0,
                         totalBatches: 0,
@@ -1014,7 +1118,7 @@ public final class AIFlashcardService: @unchecked Sendable {
         plans: [Plan],
         maxConcurrent: Int,
         execute: @escaping @Sendable (Plan, [String]) async throws -> [AIFlashcard],
-        onBatch: @escaping ([AIFlashcard]) async throws -> Void
+        onBatch: @escaping (AIFlashcardBatchChunk) async throws -> Void
     ) async throws {
         guard !plans.isEmpty else { return }
 
@@ -1060,7 +1164,14 @@ public final class AIFlashcardService: @unchecked Sendable {
                     consecutiveSuccesses += 1
 
                     if !cards.isEmpty {
-                        try await onBatch(cards)
+                        try await onBatch(
+                            AIFlashcardBatchChunk(
+                                cards: cards,
+                                allocationID: allocationID(for: plan),
+                                plannedCardCount: plan.targetCards,
+                                sourceLabel: plan.sourceLabel
+                            )
+                        )
                         coveredPrompts = updateCoveredPrompts(existing: coveredPrompts, with: cards)
                     }
 
@@ -1134,6 +1245,7 @@ public final class AIFlashcardService: @unchecked Sendable {
             TextBatchPlan(
                 text: plan.text,
                 sourceLabel: plan.sourceLabel,
+                allocationID: plan.allocationID,
                 targetCards: plan.targetCards,
                 batchIndex: index + 1,
                 totalBatches: total,
@@ -1148,6 +1260,7 @@ public final class AIFlashcardService: @unchecked Sendable {
             VisionBatchPlan(
                 images: plan.images,
                 sourceLabel: plan.sourceLabel,
+                allocationID: plan.allocationID,
                 targetCards: plan.targetCards,
                 batchIndex: index + 1,
                 totalBatches: total,
@@ -1167,6 +1280,16 @@ public final class AIFlashcardService: @unchecked Sendable {
             .replacingOccurrences(of: AIZoneParser.zoneDelimiter, with: " / ")
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func allocationID(for plan: some RecoverableBatchPlan) -> UUID? {
+        if let textPlan = plan as? TextBatchPlan {
+            return textPlan.allocationID
+        }
+        if let visionPlan = plan as? VisionBatchPlan {
+            return visionPlan.allocationID
+        }
+        return nil
     }
 
     // -------------------------------------------------------------------------

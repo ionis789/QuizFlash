@@ -21,6 +21,7 @@ struct CreateDeckView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Environment(\.fullScreenSheetDismissCoordinator) private var fullScreenSheetDismissCoordinator
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(NavigationManager.self) private var router
 
     /// Fetches all available folders to populate the destination picker.
@@ -213,6 +214,16 @@ struct CreateDeckView: View {
                 Text("The current AI generation will stop immediately.")
             }
         }
+        .alert("AI generation paused", isPresented: $viewModel.showAIPausedResumeDialog) {
+            Button("Later", role: .cancel) {
+                viewModel.keepAIGenerationPaused()
+            }
+            Button("Continue") {
+                viewModel.resumePausedAIGeneration()
+            }
+        } message: {
+            Text("QuizFlash paused AI generation in the background. Continue generating the remaining \(viewModel.pausedRemainingCardCount) cards?")
+        }
         .fullScreenCover(isPresented: $viewModel.isCreatingNewCard) {
             CreateCardView { frontZone, backZone in
                 viewModel.addCard(frontZone: frontZone, backZone: backZone)
@@ -260,6 +271,7 @@ struct CreateDeckView: View {
             fullScreenSheetDismissCoordinator?.shouldAllowDismiss = {
                 attemptInteractiveDismissValidation()
             }
+            viewModel.promptToResumeAIGenerationIfNeeded()
         }
         .onDisappear {
             if fullScreenSheetDismissCoordinator?.shouldAllowDismiss != nil {
@@ -269,6 +281,13 @@ struct CreateDeckView: View {
                   !viewModel.isCreatingNewCard,
                   viewModel.cardToEdit == nil else { return }
             ImageCache.shared.clearCache()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            viewModel.promptToResumeAIGenerationIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            viewModel.promptToResumeAIGenerationIfNeeded()
         }
         // Apply the reactive visibility rule to the global tab bar.
         .customTabBarVisibility(tabRule)
@@ -579,15 +598,28 @@ private extension CreateDeckView {
                 AIExtractingLoadingView().transition(.asymmetric(insertion: .opacity, removal: .opacity))
             } else if case .generatingCards(let progress, let foundCount) = viewModel.aiState {
                 LazyVStack(spacing: 16) {
-                    AIStreamingProgressCard(
-                        foundCount: foundCount,
-                        targetCount: max(viewModel.aiTargetCardCount, 1),
-                        progress: progress,
-                        onCancel: {
-                            viewModel.requestAIGenerationCancel()
-                        }
-                    )
-                    .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
+                    if viewModel.hasPausedAIGeneration {
+                        AIPausedResumeCard(
+                            foundCount: foundCount,
+                            targetCount: max(viewModel.aiTargetCardCount, 1),
+                            remainingCount: max(viewModel.pausedRemainingCardCount, 0),
+                            progress: progress,
+                            onResume: {
+                                viewModel.resumePausedAIGeneration()
+                            }
+                        )
+                        .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
+                    } else {
+                        AIStreamingProgressCard(
+                            foundCount: foundCount,
+                            targetCount: max(viewModel.aiTargetCardCount, 1),
+                            progress: progress,
+                            onCancel: {
+                                viewModel.requestAIGenerationCancel()
+                            }
+                        )
+                        .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
+                    }
 
                     if !existingDraftCardsDuringAIGeneration.isEmpty {
                         ForEach(Array(existingDraftCardsDuringAIGeneration.enumerated()), id: \.element.id) { index, card in

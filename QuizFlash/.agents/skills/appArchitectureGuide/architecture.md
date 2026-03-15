@@ -1,7 +1,3 @@
----
-trigger: always_on
----
-
 # QuizFlash Architecture Reference
 
 ## Contents
@@ -40,7 +36,9 @@ trigger: always_on
 - Default to `ModelContext.safeModel(for:as:)` from `Core/Extensions/ModelContext+SafeFetch.swift` when resolving models by identifier in app code.
 - Keep each actor on its own `ModelContext(container)` with `autosaveEnabled = false`.
 - Route card-content reads through `Domain/Repositories/CardFetchActor.swift` instead of loading `frontZoneData` or `backZoneData` on the main actor.
+- On iOS 17, avoid `#Predicate` filters that traverse optional relationships such as `$0.deck?.persistentModelID == deckID` for hot paths. Resolve the parent model in the same context and read the relationship there instead. `CardFetchActor.fetchSnapshot(deckID:)` and `FlashCardsPlayModeViewModel.PlaybackActor.loadPlayableCards(for:)` are the canonical safe patterns.
 - Flush actor-side contexts after heavy fetches so the row cache does not retain large model graphs longer than necessary.
+- Wrap large per-card projection loops in `autoreleasepool` when decoding or flattening many cards in one pass. This reduces transient spikes for pathological decks on iOS 17.
 - Call `card.clearZoneCache()` after background zone reads.
 - Save explicitly with `do { try context.save() } catch { ... }`. Do not silently discard failures.
 
@@ -100,6 +98,9 @@ trigger: always_on
 - Inside presented content, use `@Environment(\\.fullScreenSheetDismiss)` as the primary dismiss path and fall back to `dismiss()` only when the content is also used outside the custom sheet container.
 - Pass a shared background builder instead of re-implementing backdrop logic in each screen.
 - Use `dragDismissActivationHeight` or `.fullScreenSheetDragActivationHeight(...)` when drag-to-dismiss should only begin from the top chrome area.
+- For heavy iOS 17 sheets, keep drag state in the lightweight outer container and host the presented SwiftUI tree inside one persistent `UIHostingController`. Do not rebuild the sheet content on every `offset` update. `View+FullScreenSheet.swift` is the canonical implementation.
+- Do not pipe drag progress into static backgrounds or expensive chrome unless the effect is visually required. Route `fullScreenSheetDragProgress` only to backgrounds that actually animate from drag, otherwise keep the backdrop fully static.
+- Prevent simultaneous sheet-drag plus inner-scroll on iOS 17. Freeze nested vertical scroll views while the sheet drag is active so the content does not overscroll and recompose during the same gesture.
 - Do not replace these flows with `NavigationLink` or a plain system `sheet` when the existing product behavior depends on QuizFlash's custom full-screen sheet interaction model.
 - Canonical examples are `QuizFlash/Features/DeckDetails/Views/DeckView.swift`, `QuizFlash/Features/PlayMode/FlashCardsMode/Views/FlashCardsPlayModeView.swift`, and `QuizFlash/Features/DeckEditor/Views/CreateCardView.swift`.
 
@@ -124,3 +125,4 @@ trigger: always_on
 - Check that new images go through `ImageCache` and new web views go through `MathWebViewPool`.
 - Check that new long scroll surfaces use lazy stacks and stable chrome spacing instead of hard-coded overlay compensation.
 - Check that new immersive modal flows reuse `fullScreenSheet` when they need the app's custom drag-dismiss and backdrop behavior.
+

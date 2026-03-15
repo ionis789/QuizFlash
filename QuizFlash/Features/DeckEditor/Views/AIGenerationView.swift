@@ -248,6 +248,134 @@ struct AIStreamingProgressCard: View {
     }
 }
 
+struct AIPausedResumeCard: View {
+    let foundCount: Int
+    let targetCount: Int
+    let remainingCount: Int
+    let progress: Double
+    let onResume: () -> Void
+
+    private var clampedProgress: CGFloat {
+        CGFloat(min(max(progress, 0), 1))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label {
+                        Text("Generation paused")
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "pause.fill")
+                            .font(.system(size: 11, weight: .black))
+                            .foregroundStyle(.black.opacity(0.74))
+                            .frame(width: 22, height: 22)
+                            .background(Color.white.opacity(0.88), in: Circle())
+                    }
+
+                    Text("\(foundCount) ready, \(remainingCount) left to finish")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                }
+
+                Spacer(minLength: UIConstants.Spacing.small)
+
+                Text("\(foundCount)/\(targetCount)")
+                    .font(.system(size: 16, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.06), in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    }
+                    .contentTransition(.numericText())
+            }
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.08))
+
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.orange.opacity(0.9),
+                                    Color.orange.opacity(0.72),
+                                    Color.yellow.opacity(0.78)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(20, proxy.size.width * clampedProgress))
+                }
+                .clipShape(Capsule())
+            }
+            .frame(height: 12)
+
+            Text("QuizFlash paused AI while the app was in the background. Continue from where it stopped?")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+
+            Button(action: onResume) {
+                HStack(spacing: 8) {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 12, weight: .bold))
+                    Text("Continue")
+                        .font(.subheadline.weight(.bold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    LinearGradient(
+                        colors: [
+                            Color.blue.opacity(0.95),
+                            Color.purple.opacity(0.88)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    in: Capsule()
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, UIConstants.Spacing.large)
+        .padding(.vertical, 18)
+        .frame(minHeight: 168, alignment: .topLeading)
+        .background {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.libraryDeckRow)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.04),
+                                    Color.clear,
+                                    Color.orange.opacity(0.08)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+    }
+}
+
 // MARK: - AI Streaming Card Slot
 
 /// Replaces a skeleton placeholder in place with the real generated card.
