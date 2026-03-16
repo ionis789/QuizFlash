@@ -160,6 +160,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                 interactionDisabled: scrollDisabled,
                 makeRootView: { content(safeAreaInsets) }
             )
+            .environment(\.fullScreenSheetDragProgress, dragProgress)
         }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(.rect)

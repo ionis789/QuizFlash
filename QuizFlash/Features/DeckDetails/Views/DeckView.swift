@@ -36,11 +36,6 @@ struct DeckContentView: View {
     @State private var previewedCard: CardModel? = nil
     @State private var editingCard: CardModel? = nil
     @Bindable var viewModel: DeckViewModel
-    @State private var isMenuExpanded: Bool = false
-    @State private var menuPosition: CGRect = .zero
-    @State private var menuTracker = MenuPositionTracker()
-    @State private var activeCardMenu: GridCardInfo? = nil
-    @State private var cardMenuPosition: CGRect = .zero
     @State private var hasLoadedInitialSnapshot = false
     @State private var navigationBarHeight: CGFloat =
         UIConstants.Layout.deckNavigationTopPadding
@@ -69,10 +64,6 @@ struct DeckContentView: View {
     /// Reserved top spacing that keeps the hero content below the floating chrome.
     private var topContentInset: CGFloat {
         navigationBarHeight + UIConstants.Layout.deckHeroChromeClearance
-    }
-
-    private var isAnyFloatingMenuOpen: Bool {
-        isMenuExpanded || activeCardMenu != nil
     }
 
     /// Formats deck creation date and card count for display under the deck title.
@@ -138,16 +129,6 @@ struct DeckContentView: View {
                     container: context.container
                 )
             }
-            .onChange(of: viewModel.isSelecting) { _, isSelecting in
-                if isSelecting {
-                    closeCardMenu()
-                }
-            }
-            .onChange(of: isMenuExpanded) { _, expanded in
-                if expanded {
-                    closeCardMenu(animated: false)
-                }
-            }
             .onChange(of: selectedPlayMode) { old, new in
                 if old != nil && new == nil {
                     deck.lastOpenedAt = Date()
@@ -161,8 +142,6 @@ struct DeckContentView: View {
             }
             .onChange(of: isSuspended) { _, suspended in
                 if suspended {
-                    closeCardMenu(animated: false)
-                    isMenuExpanded = false
                     viewModel.suspendHeavyWork()
                     CardPreviewCache.shared.flush()
                 } else {
@@ -210,8 +189,6 @@ struct DeckContentView: View {
         }
             .coordinateSpace(name: kDeckChromeSpace)
             .overlay(alignment: .top) { measuredNavigationBar }
-            .overlay(alignment: .topLeading) { menuOverlay }
-            .overlay(alignment: .topLeading) { cardMenuOverlay }
             .swipeBack(
                 enabled: !viewModel.showShareSheet
                     && !isAddingCard
@@ -220,7 +197,6 @@ struct DeckContentView: View {
                     && selectedPlayModeSettings == nil
                     && previewedCard == nil
                     && editingCard == nil
-                    && activeCardMenu == nil
             ) { dismiss() }
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
             .environment(scrollState)
@@ -279,27 +255,8 @@ struct DeckContentView: View {
             backLabel: backLabel,
             searchQuery: searchQuery,
             isSelecting: viewModel.isSelecting,
-            isMenuExpanded: $isMenuExpanded,
-            menuPosition: $menuPosition,
-            menuTracker: menuTracker,
+            sortOrder: $viewModel.sortOrder,
             onBack: { dismiss() },
-            onAdd: { isAddingCard = true },
-            onStartSelection: {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    viewModel.isSelecting = true
-                }
-            },
-            onExport: { viewModel.exportDeck(deck) }
-        )
-    }
-
-    private var actionButtonsOverlay: some View {
-        DeckActionOverlay(
-            deck: deck,
-            isSelecting: viewModel.isSelecting,
-            isMenuExpanded: $isMenuExpanded,
-            menuPosition: $menuPosition,
-            menuTracker: menuTracker,
             onAdd: { isAddingCard = true },
             onStartSelection: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -314,22 +271,18 @@ struct DeckContentView: View {
         mainContent
             .fullScreenCover(isPresented: $isAddingCard) {
             CreateCardView(searchQuery: nil) { frontZone, backZone in
-                deck.lastAssignedCardNumber += 1
-                let newCard = CardModel(
+                viewModel.addCard(
                     frontZone: frontZone,
                     backZone: backZone,
-                    cardNumber: deck.lastAssignedCardNumber
+                    to: deck,
+                    context: context
                 )
-                newCard.deck = deck
-                context.insert(newCard)
-                deck.cardCount += 1
-                try? context.save()
-                deck.editedAt = Date()
             }
         }
             .fullScreenSheet(
                 ignoresSafeArea: true,
-                isPresented: $isPresentingEdit
+                isPresented: $isPresentingEdit,
+                backgroundReceivesDragProgress: true
             ) { safeArea in
                 CreateDeckView(deckToEdit: deck, safeAreaInsets: safeArea)
             } background: {
@@ -527,11 +480,17 @@ struct DeckContentView: View {
                             if let model = context.model(for: gridCard.id) as? CardModel { previewedCard = model }
                         }
                     },
-                    onOpenCardMenu: { gridCard, buttonFrame in
-                        isMenuExpanded = false
-                        cardMenuPosition = buttonFrame
-                        withAnimation(.snappy(duration: 0.3, extraBounce: 0)) {
-                            activeCardMenu = gridCard
+                    onEditCard: { gridCard in
+                        if let model = context.model(for: gridCard.id) as? CardModel {
+                            editingCard = model
+                        }
+                    },
+                    onTogglePinnedCard: { gridCard in
+                        viewModel.togglePinnedState(for: gridCard.id, context: context)
+                    },
+                    onDeleteCard: { gridCard in
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            viewModel.deleteSingleCard(id: gridCard.id, from: deck, context: context)
                         }
                     }
                 )
@@ -554,125 +513,7 @@ struct DeckContentView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Color.clear.frame(height: 120)
         }
-        .allowsHitTesting(!isAnyFloatingMenuOpen)
         .background(Color(.systemGroupedBackground))
-    }
-
-    // MARK: - Menu Overlay
-
-
-    @ViewBuilder
-    private var menuOverlay: some View {
-        GeometryReader { proxy in
-            let screenHeight = proxy.size.height
-            let spaceBelow = screenHeight - menuPosition.maxY
-            let placeAbove = spaceBelow < 340
-
-            ZStack(alignment: placeAbove ? .bottomTrailing : .topTrailing) {
-                Rectangle()
-                    .foregroundStyle(.clear)
-                    .contentShape(.rect)
-                    .onTapGesture {
-                    withAnimation(.snappy(duration: 0.3, extraBounce: 0)) {
-                        isMenuExpanded = false
-                    }
-                }
-                    .allowsHitTesting(isMenuExpanded)
-
-                if isMenuExpanded {
-                    VisionOSStyleView(cornerRadius: 24) {
-                        DeckMenuControls(
-                            deck: deck,
-                            isSelecting: viewModel.isSelecting,
-                            sortOrder: $viewModel.sortOrder,
-                            isExpanded: $isMenuExpanded,
-                            onStartSelection: {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                    viewModel.isSelecting = true
-                                }
-                            },
-                            onExport: { viewModel.exportDeck(deck) }
-                        )
-                            .frame(width: 240)
-                    }
-                        .transition(.blurReplace)
-                        .padding(placeAbove ? .bottom : .top, placeAbove ? (screenHeight - menuPosition.minY + 12) : (menuPosition.maxY + 12))
-                        .padding(.trailing, proxy.size.width - menuPosition.maxX)
-                }
-            }
-        }
-            .ignoresSafeArea()
-    }
-
-    @ViewBuilder
-    private var cardMenuOverlay: some View {
-        GeometryReader { proxy in
-            let screenHeight = proxy.size.height
-            let spaceBelow = screenHeight - cardMenuPosition.maxY
-            let placeAbove = spaceBelow < 340
-
-            ZStack(alignment: placeAbove ? .bottomTrailing : .topTrailing) {
-                Rectangle()
-                    .foregroundStyle(.clear)
-                    .contentShape(.rect)
-                    .onTapGesture {
-                        closeCardMenu()
-                    }
-                    .allowsHitTesting(activeCardMenu != nil)
-
-                if let card = activeCardMenu {
-                    DeckCardContextMenu(
-                        card: card,
-                        onEdit: {
-                            closeCardMenu()
-                            if let model = context.model(for: card.id) as? CardModel {
-                                editingCard = model
-                            }
-                        },
-                        onTogglePin: {
-                            closeCardMenu()
-                            viewModel.togglePinnedState(for: card.id, context: context)
-                        },
-                        onDelete: {
-                            closeCardMenu()
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                viewModel.deleteSingleCard(id: card.id, from: deck, context: context)
-                            }
-                        }
-                    )
-                    .transition(cardMenuTransition(placeAbove: placeAbove))
-                    .padding(
-                        placeAbove ? .bottom : .top,
-                        placeAbove ? (screenHeight - cardMenuPosition.minY + 12) : (cardMenuPosition.maxY + 12)
-                    )
-                    .padding(.trailing, proxy.size.width - cardMenuPosition.maxX)
-                }
-            }
-        }
-        .ignoresSafeArea()
-    }
-
-    private func closeCardMenu(animated: Bool = true) {
-        let reset = {
-            activeCardMenu = nil
-        }
-
-        if animated {
-            withAnimation(.snappy(duration: 0.3, extraBounce: 0)) {
-                reset()
-            }
-        } else {
-            reset()
-        }
-    }
-
-    private func cardMenuTransition(placeAbove: Bool) -> AnyTransition {
-        .opacity.combined(
-            with: .scale(
-                scale: 0.96,
-                anchor: placeAbove ? .bottomTrailing : .topTrailing
-            )
-        )
     }
 
     // MARK: - Subviews

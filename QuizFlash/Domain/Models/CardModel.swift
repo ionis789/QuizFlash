@@ -249,6 +249,9 @@ struct DraftCard: Identifiable, Codable, Equatable {
     /// Safely mapped to string for `Codable` via computed properties if needed, but for now we attempt default Codable on PersistentIdentifier since Swift 6.
     var originalCardID: PersistentIdentifier?
 
+    /// Stable display number mirrored from `CardModel.cardNumber`.
+    var cardNumber: Int
+
     /// The zone tree for the front face.
     var frontZone: ZoneModel
 
@@ -279,7 +282,7 @@ struct DraftCard: Identifiable, Codable, Equatable {
     // MARK: - Codable Conformance
     
     enum CodingKeys: String, CodingKey {
-        case id, originalCardID, frontZone, backZone, frontType, backType, isPinned, creationSource, createdAt, editedAt
+        case id, originalCardID, cardNumber, frontZone, backZone, frontType, backType, isPinned, creationSource, createdAt, editedAt
     }
     
     init(from decoder: Decoder) throws {
@@ -293,6 +296,7 @@ struct DraftCard: Identifiable, Codable, Equatable {
         } else {
             self.originalCardID = nil
         }
+        self.cardNumber = try container.decodeIfPresent(Int.self, forKey: .cardNumber) ?? 0
         self.frontZone = try container.decode(ZoneModel.self, forKey: .frontZone)
         self.backZone = try container.decode(ZoneModel.self, forKey: .backZone)
         self.frontType = try container.decode(CardContentType.self, forKey: .frontType)
@@ -309,6 +313,7 @@ struct DraftCard: Identifiable, Codable, Equatable {
         if let originalCardID = originalCardID, let data = try? JSONEncoder().encode(originalCardID) {
             try container.encode(String(data: data, encoding: .utf8), forKey: .originalCardID)
         }
+        try container.encode(cardNumber, forKey: .cardNumber)
         try container.encode(frontZone, forKey: .frontZone)
         try container.encode(backZone, forKey: .backZone)
         try container.encode(frontType, forKey: .frontType)
@@ -335,6 +340,7 @@ struct DraftCard: Identifiable, Codable, Equatable {
     ///   - editedAt: Original edit date. Defaults to `nil`.
     init(
         originalCardID: PersistentIdentifier? = nil,
+        cardNumber: Int = 0,
         frontZone: ZoneModel = .text(),
         backZone: ZoneModel = .text(),
         frontType: CardContentType = .text,
@@ -345,6 +351,7 @@ struct DraftCard: Identifiable, Codable, Equatable {
         editedAt: Date? = nil
     ) {
         self.originalCardID = originalCardID
+        self.cardNumber = cardNumber
         self.frontZone = frontZone
         self.backZone = backZone
         self.frontType = frontType
@@ -365,6 +372,7 @@ struct DraftCard: Identifiable, Codable, Equatable {
     static func from(_ card: CardModel) -> DraftCard {
         DraftCard(
             originalCardID: card.persistentModelID,
+            cardNumber: card.cardNumber,
             frontZone: card.frontZone,
             backZone: card.backZone,
             frontType: card.frontType,

@@ -173,7 +173,9 @@ struct DeckCardGridView: View {
 
     var onToggleSelection: (GridCardInfo) -> Void
     var onTapCard: (GridCardInfo) -> Void
-    var onOpenCardMenu: (GridCardInfo, CGRect) -> Void
+    var onEditCard: (GridCardInfo) -> Void
+    var onTogglePinnedCard: (GridCardInfo) -> Void
+    var onDeleteCard: (GridCardInfo) -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -222,7 +224,9 @@ struct DeckCardGridView: View {
             accent: accent,
             onToggleSelection: onToggleSelection,
             onTapCard: onTapCard,
-            onOpenCardMenu: onOpenCardMenu
+            onEditCard: onEditCard,
+            onTogglePinnedCard: onTogglePinnedCard,
+            onDeleteCard: onDeleteCard
         )
     }
 
@@ -329,7 +333,9 @@ private struct DeckGridCardCell: View {
     let accent: Color
     let onToggleSelection: (GridCardInfo) -> Void
     let onTapCard: (GridCardInfo) -> Void
-    let onOpenCardMenu: (GridCardInfo, CGRect) -> Void
+    let onEditCard: (GridCardInfo) -> Void
+    let onTogglePinnedCard: (GridCardInfo) -> Void
+    let onDeleteCard: (GridCardInfo) -> Void
 
     var body: some View {
         MiniCardPreview(
@@ -338,8 +344,12 @@ private struct DeckGridCardCell: View {
             isSelected: isSelecting && isSelected,
             isSelectionMode: isSelecting,
             isSuspended: isSuspended,
-            onOpenCardMenu: isSelecting ? nil : { frame in
-                onOpenCardMenu(card, frame)
+            onEdit: isSelecting ? nil : { onEditCard(card) },
+            onTogglePin: isSelecting ? nil : { onTogglePinnedCard(card) },
+            onDelete: isSelecting ? nil : { onDeleteCard(card) },
+            onPrimaryTap: {
+                if isSelecting { onToggleSelection(card) }
+                else { onTapCard(card) }
             }
         )
         .contentShape(RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
@@ -350,10 +360,6 @@ private struct DeckGridCardCell: View {
         }
         .scaleEffect(isSelecting && isSelected ? 0.9 : 1)
         .animation(.spring(response: UIConstants.Animation.medium, dampingFraction: 0.8), value: isSelected)
-        .onTapGesture {
-            if isSelecting { onToggleSelection(card) }
-            else { onTapCard(card) }
-        }
     }
 }
 
@@ -367,7 +373,10 @@ private struct MiniCardPreview: View {
     var isSelected: Bool = false
     var isSelectionMode: Bool = false
     var isSuspended: Bool = false
-    var onOpenCardMenu: ((CGRect) -> Void)? = nil
+    var onEdit: (() -> Void)? = nil
+    var onTogglePin: (() -> Void)? = nil
+    var onDelete: (() -> Void)? = nil
+    var onPrimaryTap: (() -> Void)? = nil
 
     @Environment(\.colorScheme)  private var colorScheme
     @Environment(\.modelContext) private var context
@@ -376,7 +385,8 @@ private struct MiniCardPreview: View {
     @State private var hasFrontImage:  Bool     = false
     @State private var hasFrontSketch: Bool     = false
     @State private var didLoad:        Bool     = false
-    @State private var menuAnchorResolver = DeckGridViewFrameResolver()
+    @State private var isShowingMenu = false
+    @State private var suppressPrimaryTapUntil = Date.distantPast
 
     init(
         card: GridCardInfo,
@@ -384,14 +394,20 @@ private struct MiniCardPreview: View {
         isSelected: Bool = false,
         isSelectionMode: Bool = false,
         isSuspended: Bool = false,
-        onOpenCardMenu: ((CGRect) -> Void)? = nil
+        onEdit: (() -> Void)? = nil,
+        onTogglePin: (() -> Void)? = nil,
+        onDelete: (() -> Void)? = nil,
+        onPrimaryTap: (() -> Void)? = nil
     ) {
         self.card = card
         self.accent = accent
         self.isSelected = isSelected
         self.isSelectionMode = isSelectionMode
         self.isSuspended = isSuspended
-        self.onOpenCardMenu = onOpenCardMenu
+        self.onEdit = onEdit
+        self.onTogglePin = onTogglePin
+        self.onDelete = onDelete
+        self.onPrimaryTap = onPrimaryTap
 
         let initialPayload = CardPreviewCache.shared.payload(for: card.id)
         _thumbnail = State(initialValue: initialPayload.flatMap { payload in
@@ -592,6 +608,31 @@ private struct MiniCardPreview: View {
         .onDisappear {
             thumbnail = nil
         }
+        .contentShape(RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+        .onTapGesture {
+            guard canHandlePrimaryTap else { return }
+            onPrimaryTap?()
+        }
+        .onChange(of: isShowingMenu) { oldValue, newValue in
+            if oldValue, !newValue {
+                suppressPrimaryTapUntil = Date().addingTimeInterval(0.35)
+            }
+        }
+    }
+
+    private var canHandlePrimaryTap: Bool {
+        !isShowingMenu && Date() >= suppressPrimaryTapUntil
+    }
+
+    private func dismissMenuThen(_ action: @escaping () -> Void) {
+        isShowingMenu = false
+        suppressPrimaryTapUntil = Date().addingTimeInterval(0.35)
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(160))
+            guard !Task.isCancelled else { return }
+            action()
+        }
     }
 
     private var topBar: some View {
@@ -601,7 +642,7 @@ private struct MiniCardPreview: View {
 
                 Spacer(minLength: UIConstants.Spacing.small)
 
-                if let _ = onOpenCardMenu, !isSelectionMode {
+                if onEdit != nil && onTogglePin != nil && onDelete != nil && !isSelectionMode {
                     headerMenuButton
                 } else {
                     Color.clear
@@ -651,8 +692,7 @@ private struct MiniCardPreview: View {
 
     private var headerMenuButton: some View {
         Button {
-            guard let onOpenCardMenu else { return }
-            onOpenCardMenu(menuAnchorResolver.globalFrame)
+            isShowingMenu = true
         } label: {
             ZStack {
                 Color.clear
@@ -671,11 +711,26 @@ private struct MiniCardPreview: View {
                 height: DeckGridCardMetrics.headerControlHitSize
             )
             .contentShape(Rectangle())
-            .background(
-                DeckGridFrameProbe(resolver: menuAnchorResolver)
-            )
         }
         .buttonStyle(.plain)
+        .popover(isPresented: $isShowingMenu, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
+            StandardCardContextMenu(
+                title: card.deckCardLabel,
+                summary: card.cardMenuSummary,
+                indicatorTint: card.deckStatusColor,
+                isPinned: card.isPinned,
+                onEdit: {
+                    dismissMenuThen { onEdit?() }
+                },
+                onTogglePin: {
+                    dismissMenuThen { onTogglePin?() }
+                },
+                onDelete: {
+                    dismissMenuThen { onDelete?() }
+                }
+            )
+            .presentationCompactAdaptation(.popover)
+        }
     }
 
     private var hasFooterVisual: Bool {
@@ -871,32 +926,6 @@ private struct MiniCardPreview: View {
 
     private var borderLineWidth: CGFloat {
         isSelected ? 1.5 : (isSelectionMode ? 0 : 0.75)
-    }
-}
-
-@MainActor
-private final class DeckGridViewFrameResolver {
-    weak var view: UIView?
-
-    var globalFrame: CGRect {
-        guard let view else { return .zero }
-        return view.convert(view.bounds, to: nil)
-    }
-}
-
-private struct DeckGridFrameProbe: UIViewRepresentable {
-    let resolver: DeckGridViewFrameResolver
-
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-        view.backgroundColor = .clear
-        view.isUserInteractionEnabled = false
-        resolver.view = view
-        return view
-    }
-
-    func updateUIView(_ uiView: UIView, context: Context) {
-        resolver.view = uiView
     }
 }
 

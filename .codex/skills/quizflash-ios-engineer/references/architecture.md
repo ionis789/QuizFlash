@@ -10,6 +10,9 @@
 - Navigation rules
 - Scroll and presentation rules
 - Code style and output rules
+- Naming conventions
+- Typography & color patterns
+- UI state management
 - Review checklist
 
 ## Project Baseline
@@ -97,12 +100,21 @@
 - Prefer item-based `fullScreenSheet(item:)` with an enum destination when one surface can open several modes. This keeps routing explicit and avoids a spread of booleans.
 - Inside presented content, use `@Environment(\\.fullScreenSheetDismiss)` as the primary dismiss path and fall back to `dismiss()` only when the content is also used outside the custom sheet container.
 - Pass a shared background builder instead of re-implementing backdrop logic in each screen.
+- For immersive dark sheets, reuse `StandardSheetTopStripBackground` so the drag-reactive gray top strip stays identical across screens. Do not fork the opacity stops locally.
+- Rounded top corners for these sheets are standardized in `Core/DesignSystem/Modifiers/View+FullScreenSheet.swift` via `activeSheetCornerRadius`; backgrounds should not introduce their own competing corner-radius treatment.
 - Use `dragDismissActivationHeight` or `.fullScreenSheetDragActivationHeight(...)` when drag-to-dismiss should only begin from the top chrome area.
 - For heavy iOS 17 sheets, keep drag state in the lightweight outer container and host the presented SwiftUI tree inside one persistent `UIHostingController`. Do not rebuild the sheet content on every `offset` update. `View+FullScreenSheet.swift` is the canonical implementation.
 - Do not pipe drag progress into static backgrounds or expensive chrome unless the effect is visually required. Route `fullScreenSheetDragProgress` only to backgrounds that actually animate from drag, otherwise keep the backdrop fully static.
 - Prevent simultaneous sheet-drag plus inner-scroll on iOS 17. Freeze nested vertical scroll views while the sheet drag is active so the content does not overscroll and recompose during the same gesture.
 - Do not replace these flows with `NavigationLink` or a plain system `sheet` when the existing product behavior depends on QuizFlash's custom full-screen sheet interaction model.
 - Canonical examples are `QuizFlash/Features/DeckDetails/Views/DeckView.swift`, `QuizFlash/Features/PlayMode/FlashCardsMode/Views/FlashCardsPlayModeView.swift`, and `QuizFlash/Features/DeckEditor/Views/CreateCardView.swift`.
+
+### Menu Standardization
+
+- Default to native `Menu` for screen-level overflow actions, sort controls, and other non-anchored action groups.
+- Keep only one custom menu family for card actions: `StandardCardContextMenu`.
+- Present `StandardCardContextMenu` from the source control with `.popover(...).presentationCompactAdaptation(.popover)` so scroll gestures continue to work and the menu dismisses naturally with content movement.
+- Do not introduce new glass/visionOS-style dropdown wrappers for menus. `VisionOSStyleView` is not a menu primitive in QuizFlash.
 
 ## Code Style And Output Rules
 
@@ -114,6 +126,128 @@
 - Prefer `Logger` or `os_log` over `print`.
 - Use static formatter instances instead of inline `DateFormatter()` allocation.
 - Do not emit `TODO:`, `FIXME:`, or commented-out dead code in generated output.
+
+## Naming Conventions
+
+### Files And Types
+
+| Area | Most common current pattern | Recommended for new code |
+|---|---|---|
+| Screen-owned view model | `Features/*/ViewModels/DeckViewModel.swift` → `DeckViewModel` | Keep `XViewModel.swift` → `XViewModel` |
+| Root screen view | `Features/*/Views/DeckView.swift` → `DeckView` | Keep `XView.swift` → `XView` |
+| Reusable component | `DeckHeaderView`, `LibrarySelectionBarView`, `HomeRecentDeckCardView` | Prefer noun + role suffix such as `CardView`, `RowView`, `BarView`, `Overlay`, `Sheet` |
+| Supporting value type | `DeckProgressStats`, `DraftDeckContentSummary`, `DeckSection` | Prefer descriptive nouns; use `Summary`, `Stats`, `State`, or `Destination` when they communicate ownership clearly |
+| Manager / singleton-like coordinator | `NavigationManager`, `ThemeManager`, `ScrollPositionRestorer` | Use `Manager`, `Coordinator`, `Cache`, or `Actor` only when that runtime role is real |
+| Route enum | `AppRoute`, `DeckSearchRoute`, `DeckNavigationValue` | Keep route-like enums explicit and noun-based; do not hide navigation in booleans |
+
+### Stored Property Naming
+
+| Wrapper / kind | Most common names in repo | Recommended for new code |
+|---|---|---|
+| `@State` view model | `@State private var viewModel = HomeViewModel()` or `@State private var viewModel: CreateDeckViewModel` | Use `viewModel` for screen-owned instances |
+| `@Environment(\.modelContext)` | `context` | Keep `context`, not `modelContext` in local properties |
+| `@Environment(NavigationManager.self)` | `router` | Use `router` for programmatic navigation |
+| `@Environment(\.dismiss)` | `dismiss` | Keep `dismiss` |
+| `@Bindable` local alias | `@Bindable var viewModel = sharedViewModel` | Use `viewModel` unless the scope already has a different owner |
+| `@Binding` booleans | `isMenuExpanded`, `isPresented`, `showActionMenu` | Start boolean bindings with `is`, `show`, `has`, or `can` |
+| Local booleans | `isSearching`, `isLoading`, `showDeleteConfirmation`, `hasCards`, `canSplit` | Keep boolean names semantic and state-shaped; avoid neutral names like `flag` |
+| Closures | `onEdit`, `onDelete`, `onOpenMode`, `onToggleSelection` | Start callback properties with `on...` |
+
+### Function Naming
+
+| Function scope | Most common current pattern | Recommended for new code |
+|---|---|---|
+| Public view-model actions | `load()`, `saveDeck()`, `exportSelectedDecks(from:)`, `clearSearch()` | Use verb-led names that match a user intent or lifecycle event |
+| Private view-model helpers | `applySnapshot(_:)`, `presentError(_:)`, `fetchSnapshot()` | Use effect-oriented helpers; hide implementation details in `Private` sections |
+| Gesture / UI helpers | `handleDragChange(_:)`, `handleDragEnd(_:)`, `beginEllipsisFadeIn()` | Prefix imperative UI helpers with `handle`, `update`, `begin`, or `finish` |
+
+### Preview Conventions
+
+| Current repo state | Recommended for new code |
+|---|---|
+| Most newer files use `#Preview { ... }`, but some older files still use `PreviewProvider`. | Prefer `#Preview` for all new files. |
+| Preview seed values are usually named after the domain (`sampleDeck`, `folder`, `card`) when they exist locally. | Use `sample...` or `preview...` prefixes for local preview fixtures. |
+
+## Typography & Color Patterns
+
+### Typography
+
+| Surface | Most common current pattern | Notes |
+|---|---|---|
+| Hero / screen title | `.font(.system(size: 42, weight: .heavy, design: .rounded))` | Used in major hero titles such as `DeckView` and `CreateDeckView` |
+| Secondary screen title | `.font(.system(size: 20, weight: .bold, design: .rounded))` | Common in floating chrome like `LibraryTopBarView` |
+| Card / deck title | `.font(.headline.weight(.semibold)).fontDesign(.rounded)` or `.font(.system(size: 24, weight: .heavy, design: .rounded))` | Heavier large titles appear in `DeckRowView`; smaller rounded headlines in Home cards |
+| Body text | `.font(.subheadline)` or `.font(.system(size: 19, weight: .medium, design: .rounded))` | Rich card previews often use the rounded custom size variant |
+| Section labels | `.font(.caption.weight(.heavy))` or `.font(.caption.weight(.bold))` | Usually paired with `.foregroundStyle(.tertiary)` or `.secondary` |
+| Metadata / chips | `.font(.caption.weight(.semibold))` or `.font(.caption2.weight(.bold))` | Used for badges, timestamps, count pills |
+
+### Color And Surface Patterns
+
+| Context | Most common current pattern | Notes |
+|---|---|---|
+| Root screen background | `Color(.systemBackground)` or `Color(uiColor: .systemGroupedBackground)` | Use semantic system surfaces first |
+| Cards / widgets | `.widgetStyle(...)` | This is the default card surface for rows, stat cards, and many panels |
+| Floating chrome / controls | `.glassButton(...)` plus `ultraThinMaterial` | Used by top chrome, pills, and selection toolbars |
+| Divider / subtle borders | `Color.primary.opacity(0.05...0.10)` or `.white.opacity(0.08...0.12)` | Prefer translucent overlays instead of solid custom grays |
+| Empty / loading overlays | `Color.black.opacity(0.35...0.40)` with material or blur-backed content | Used in `LibraryLoadingOverlay` and `AILoadingOverlay` |
+
+### Accent Usage
+
+| Pattern | Current repo usage | Recommended for new code |
+|---|---|---|
+| Global accent | `ThemeManager.shared.accentColor.color` appears throughout older UI | Prefer environment-based theme access when adding new UI |
+| Persisted deck/folder color | `Color(hex: model.colorHex) ?? ThemeManager.shared.accentColor.color` | Keep persisted entity colors driving deck/folder identity |
+| Semantic destructive / status colors | `.red`, `.orange`, `.teal`, `.green`, `.secondary` | Reuse semantic colors before inventing custom palettes |
+
+## UI State Management
+
+The codebase uses two dominant patterns. Choose the lighter one that matches the screen complexity.
+
+### 1. Simple screens: parallel booleans + payloads
+
+Most common in `LibraryViewModel` and other straightforward list flows.
+
+```swift
+@Observable
+@MainActor
+final class MyFeatureViewModel {
+    var isLoading = false
+    var showImportError = false
+    var importErrorMessage = ""
+    var showDeleteConfirmation = false
+}
+```
+
+- Use this when the screen has a few independent overlays, alerts, or dialogs.
+- Render loading with an overlay component such as `LibraryLoadingOverlay`.
+- Render empty states with a dedicated view such as `LibraryEmptyStateView`.
+- Surface errors through `alert`, `confirmationDialog`, or a local overlay depending on the UX.
+
+### 2. Complex async subflows: enum state + supporting flags
+
+Most common in `CreateDeckViewModel`, where AI generation has a dedicated `AIGenerationState` plus separate booleans for dialogs and success overlays.
+
+```swift
+enum AIGenerationState {
+    case idle
+    case analyzingDocument
+    case extractingText
+    case generatingCards
+    case error(String)
+}
+
+@Observable
+@MainActor
+final class MyFeatureViewModel {
+    var aiGenerationState: AIGenerationState = .idle
+    var showCancelConfirmation = false
+    var showSuccessOverlay = false
+}
+```
+
+- Use an enum when one async pipeline has mutually exclusive phases that drive large UI changes.
+- Keep alerts, confirmation dialogs, and transient overlays as separate booleans even when the main pipeline uses an enum.
+- Avoid giant root-level "everything state" enums when the screen still has independent modals, sheets, or menus.
 
 ## Review Checklist
 

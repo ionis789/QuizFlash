@@ -1,0 +1,117 @@
+//
+//  MyFeatureView.swift
+//  QuizFlash
+//
+
+import SwiftUI
+import SwiftData
+
+// MARK: - MyFeatureView
+
+/// Screen-owned SwiftUI view skeleton for a new QuizFlash feature.
+///
+/// Common ownership patterns in this repo:
+/// - use `@State private var viewModel` when the screen owns the view model instance
+/// - use `@Environment(MyFeatureViewModel.self)` when the view model is shared higher in the tree
+/// - reserve immersive flows for `fullScreenSheet`, not plain `sheet`, when the UX matches the app's custom container
+struct MyFeatureView: View {
+
+    // MARK: - Environment
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    @Environment(NavigationManager.self) private var router
+
+    // MARK: - State
+
+    @State private var viewModel: MyFeatureViewModel
+
+    // MARK: - Init
+
+    init(viewModel: MyFeatureViewModel) {
+        _viewModel = State(initialValue: viewModel)
+    }
+
+    // MARK: - Body
+
+    var body: some View {
+        @Bindable var viewModel = viewModel
+
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+                ForEach(viewModel.items) { item in
+                    MyFeatureCard(item: item) {
+                        viewModel.openSheet(.edit)
+                    }
+                }
+            }
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .padding(.bottom, UIConstants.Spacing.huge)
+        }
+        .background(Color(.systemBackground))
+        .safeAreaInset(edge: .top) {
+            topChrome
+        }
+        .task {
+            viewModel.load()
+        }
+        .alert("Something went wrong", isPresented: $viewModel.showError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(viewModel.errorMessage)
+        }
+        .fullScreenSheet(item: $viewModel.activeSheet) { destination, _ in
+            MyFeatureSheet(destination: destination)
+        } background: {
+            Color.black.opacity(0.35)
+        }
+    }
+
+    // MARK: - Private
+
+    private var topChrome: some View {
+        HStack(spacing: UIConstants.Spacing.medium) {
+            Button("Back") {
+                dismiss()
+            }
+            .glassButton(shape: .capsule)
+
+            Spacer()
+
+            Button("Create") {
+                viewModel.openSheet(.create)
+            }
+            .glassButton(shape: .capsule)
+        }
+        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+        .topNavigationChrome()
+    }
+}
+
+// MARK: - Example Components
+
+private struct MyFeatureCard: View {
+    let item: MyFeatureItem
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(item.title)
+                .font(.headline.weight(.semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(UIConstants.Spacing.standard)
+                .widgetStyle(cornerRadius: UIConstants.Radius.large)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct MyFeatureSheet: View {
+    let destination: SheetDestination
+
+    var body: some View {
+        Text(destination.rawValue.capitalized)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemBackground))
+    }
+}

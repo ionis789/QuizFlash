@@ -13,6 +13,7 @@ import SwiftData
 struct LibraryLayout: View {
 
     let decks: [DeckModel]
+    let folders: [FolderModel]
     @Bindable var viewModel: LibraryViewModel
     let router: NavigationManager
 
@@ -125,7 +126,8 @@ struct LibraryLayout: View {
                 LibrarySelectionBarView(
                     viewModel: viewModel,
                     decks: decks,
-                    onDeleteTap: { viewModel.showDeleteConfirmation = true }
+                    onDeleteTap: { viewModel.showDeleteConfirmation = true },
+                    onMoveTap: { viewModel.showMoveConfirmation = true }
                 )
                 // TabView inflates the ZStack's safe-area bottom by UITabBar height
                 // even when the bar is hidden. tabBarOffset = that extra inset.

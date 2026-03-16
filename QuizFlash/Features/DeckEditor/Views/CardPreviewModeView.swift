@@ -143,7 +143,7 @@ struct CardPreviewModeView: View {
 ///
 /// The overlay reaches full opacity at just 10 % of screen travel so the effect
 /// is visible within the very first pixels of a drag.
-struct CardPreviewModeBackground: View {
+struct StandardSheetTopStripBackground: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.fullScreenSheetDragProgress) private var dragProgress
 
@@ -173,5 +173,11 @@ struct CardPreviewModeBackground: View {
             )
             .opacity(overlayOpacity)
         }
+    }
+}
+
+struct CardPreviewModeBackground: View {
+    var body: some View {
+        StandardSheetTopStripBackground()
     }
 }

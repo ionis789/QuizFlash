@@ -13,7 +13,8 @@ Write and review code for QuizFlash using the repository's architecture rules in
 
 1. Read `references/project-map.md` to locate the feature or layer you are touching.
 2. Read `references/architecture.md` before any non-trivial implementation, refactor, or review.
-3. Reuse existing project primitives before introducing new abstractions:
+3. Verify `references/component-catalog.md` before creating any new UI component.
+4. Reuse existing project primitives before introducing new abstractions:
    - `NavigationManager`
    - `UIConstants`
    - `ThemeManager`
@@ -23,6 +24,7 @@ Write and review code for QuizFlash using the repository's architecture rules in
    - `MathWebViewPool`
    - `ScrollPositionRestorer`
    - `fullScreenSheet` from `Core/DesignSystem/Modifiers/View+FullScreenSheet.swift`
+   - `StandardSheetTopStripBackground` for immersive dark sheets that react to drag-dismiss progress
 
 ## Workflow
 
@@ -57,7 +59,21 @@ Write and review code for QuizFlash using the repository's architecture rules in
 
 - `references/project-map.md`: Real repo layout, important files, and common starting points.
 - `references/architecture.md`: Project rules for architecture, concurrency, SwiftData safety, navigation, design tokens, code style, and review checks.
+- `references/examples/ViewModel.swift.example`: Canonical QuizFlash-flavored view-model skeleton for new code.
+- `references/examples/View.swift.example`: Canonical QuizFlash-flavored root-view skeleton for new screens.
+- `references/component-catalog.md`: Reusable UI inventory; check this before creating a new component.
+- `references/antipatterns.md`: Concrete "before/after" guidance for patterns that still appear in older files.
+- `references/new-feature-template.md`: End-to-end feature scaffold and implementation order.
 - `references/universal_prompt.md`: Copy-paste prompt template for other agents/tools.
+
+## Before Writing Any New Feature
+
+1. Read `references/project-map.md` to confirm the ownership layer and target folder.
+2. Read `references/component-catalog.md` before creating any new card, row, toolbar, menu, overlay, or modal.
+3. Read `references/architecture.md` before touching navigation, concurrency, SwiftData, scroll behavior, or design-system-sensitive UI.
+4. Read `references/antipatterns.md` if the surrounding files are older or you need to avoid repeating legacy patterns.
+5. Read `references/examples/ViewModel.swift.example` and `references/examples/View.swift.example` when starting a new screen or refactoring one toward the current architecture.
+6. Read `references/new-feature-template.md` when building a feature end to end or wiring multiple new files together.
 
 ## Using This Skill With Other Agents
 

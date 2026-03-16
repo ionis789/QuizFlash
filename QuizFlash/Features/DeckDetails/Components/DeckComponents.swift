@@ -322,10 +322,6 @@ struct DeckSectionToolbar: View {
 /// Mirrors the visual style of the back-button overlay (top-leading):
 /// each button is a standalone capsule with `ultraThinMaterial` fill and an
 /// accent-tinted overlay, matching the exact padding and height of the back button.
-///
-/// The ellipsis button tracks its own frame via `onGeometryChange` so that
-/// `DeckContentView` can position the `DeckMenuControls` dropdown correctly
-/// relative to the button regardless of device size or orientation.
 struct DeckActionOverlay: View {
 
     // MARK: - Inputs
@@ -334,12 +330,8 @@ struct DeckActionOverlay: View {
     let deck: DeckModel
     /// `true` when the view is in multi-card selection mode.
     let isSelecting: Bool
-    /// Controls the expanded/collapsed state of the context menu.
-    @Binding var isMenuExpanded: Bool
-    /// The global-coordinate frame of the ellipsis button; used to anchor the dropdown.
-    @Binding var menuPosition: CGRect
-    /// Provides the live frame of the ellipsis button before the binding is written.
-    let menuTracker: MenuPositionTracker
+    /// Current deck sort order shown in the native overflow menu.
+    @Binding var sortOrder: SortOrder
     /// Called when the user taps the "+" button.
     let onAdd: () -> Void
     /// Called when the user taps "Select Cards" in the menu.
@@ -350,8 +342,6 @@ struct DeckActionOverlay: View {
     // MARK: - Computed Properties
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
-    /// `true` when the ellipsis button should render in its active (filled) state.
-    private var isMenuActive: Bool { isSelecting || isMenuExpanded }
 
     // MARK: - Body
 
@@ -359,7 +349,6 @@ struct DeckActionOverlay: View {
         HStack(spacing: 8) {
             addButton
             menuButton
-                .scaleEffect(isMenuActive ? 1.1 : 1.0)
         }
     }
 
@@ -378,32 +367,38 @@ struct DeckActionOverlay: View {
 
     // MARK: - Menu Button
 
-    /// Ellipsis button that opens the `DeckMenuControls` dropdown.
-    ///
-    /// `onGeometryChange` feeds `menuPosition` so the dropdown can be anchored
-    /// to this button's frame without hard-coded offsets.
     private var menuButton: some View {
-        Button {
-            menuPosition = menuTracker.rect
-            withAnimation(.snappy(duration: 0.3, extraBounce: 0)) {
-                isMenuExpanded.toggle()
+        Menu {
+            Button {
+                onStartSelection()
+            } label: {
+                Label("Select Cards", systemImage: "checkmark.circle")
+            }
+            .disabled(isSelecting)
+
+            Button {
+                onExport()
+            } label: {
+                Label("Export Deck", systemImage: "square.and.arrow.up")
+            }
+
+            Divider()
+
+            Picker("Sort By", selection: $sortOrder) {
+                ForEach(SortOrder.allCases, id: \.self) { order in
+                    Label(order.rawValue, systemImage: order.icon)
+                        .tag(order)
+                }
             }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
-            // Active: white icon on solid-accent fill.
-            // Inactive: accent icon on tinted-material fill.
-            .foregroundStyle(isMenuActive ? .white : accent)
+                .foregroundStyle(isSelecting ? .white : accent)
                 .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
                 .glassButton(shape: .circle)
-                .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isMenuActive)
         }
-            .buttonStyle(.plain)
-            .onGeometryChange(for: CGRect.self) { proxy in
-            proxy.frame(in: .global)
-        } action: { newValue in
-            menuTracker.rect = newValue
-        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("More actions")
     }
 }
 
@@ -459,134 +454,5 @@ struct DeckSelectionBottomBar: View {
             .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-    }
-}
-
-// MARK: - DeckCardContextMenu
-
-/// Anchored floating menu for card-level actions such as edit, pin, and delete.
-struct DeckCardContextMenu: View {
-    let card: GridCardInfo
-    let onEdit: () -> Void
-    let onTogglePin: () -> Void
-    let onDelete: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny + 2) {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    Circle()
-                        .fill(card.deckStatusColor)
-                        .frame(width: 8, height: 8)
-
-                    Text(card.deckCardLabel)
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-
-                    Spacer(minLength: UIConstants.Spacing.small)
-                }
-
-                Text(card.cardMenuSummary)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Divider()
-                .background(Color.primary.opacity(0.08))
-
-            VStack(spacing: UIConstants.Spacing.small) {
-                DeckCardContextMenuActionRow(
-                    title: "Edit Card",
-                    icon: "pencil",
-                    tint: .primary,
-                    iconBackground: Color.primary.opacity(0.07),
-                    accessibilityLabel: "Edit Card"
-                ) {
-                    onEdit()
-                }
-
-                DeckCardContextMenuActionRow(
-                    title: card.isPinned ? "Unpin Card" : "Pin Card",
-                    icon: card.isPinned ? "pin.slash.fill" : "pin.fill",
-                    tint: card.isPinned ? .orange : card.deckStatusColor,
-                    iconBackground: (card.isPinned ? Color.orange : card.deckStatusColor).opacity(card.isPinned ? 0.20 : 0.14),
-                    accessibilityLabel: card.isPinned ? "Unpin Card" : "Pin Card"
-                ) {
-                    onTogglePin()
-                }
-
-                DeckCardContextMenuActionRow(
-                    title: "Delete Card",
-                    icon: "trash",
-                    tint: .red,
-                    iconBackground: Color.red.opacity(0.16),
-                    isDestructive: true,
-                    accessibilityLabel: "Delete Card"
-                ) {
-                    onDelete()
-                }
-            }
-        }
-        .padding(UIConstants.Spacing.medium)
-        .frame(width: UIConstants.Size.floatingContextMenuWidth, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    Color.libraryDeckRow
-                        .shadow(.inner(color: Color.white.opacity(0.12), radius: 1, x: 0, y: 0))
-                )
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.white.opacity(0.10), lineWidth: 0.85)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: .black.opacity(0.35), radius: 22, y: 12)
-    }
-}
-
-private struct DeckCardContextMenuActionRow: View {
-    let title: String
-    let icon: String
-    let tint: Color
-    let iconBackground: Color
-    var isDestructive: Bool = false
-    let accessibilityLabel: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: UIConstants.Spacing.medium) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(iconBackground)
-
-                    Image(systemName: icon)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(tint)
-                }
-                .frame(width: 36, height: 36)
-
-                Text(title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(titleColor)
-
-                Spacer(minLength: UIConstants.Spacing.small)
-            }
-            .padding(.horizontal, UIConstants.Spacing.medium - 2)
-            .padding(.vertical, UIConstants.Spacing.small + 2)
-            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel)
-    }
-
-    private var titleColor: Color {
-        isDestructive ? .red : .primary
     }
 }

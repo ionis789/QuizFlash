@@ -244,16 +244,26 @@ actor DocumentTextExtractor {
 
     /// Performs OCR on each image independently and preserves source order.
     static func extractVisionTexts(from images: [UIImage]) async -> [String] {
+        await withTaskGroup(of: (Int, String).self) { group in
+            for (index, image) in images.enumerated() {
+                guard let cgImage = image.cgImage else { continue }
 
-        var results: [String] = []
+                group.addTask {
+                    let text = await ocrPage(cgImage: cgImage)
+                    return (index, text)
+                }
+            }
 
-        for image in images {
-            guard let cgImage = image.cgImage else { continue }
-            let text = await ocrPage(cgImage: cgImage)
-            results.append(text)
+            var collected: [(Int, String)] = []
+
+            for await result in group {
+                collected.append(result)
+            }
+
+            return collected
+                .sorted { $0.0 < $1.0 }
+                .map(\.1)
         }
-
-        return results
     }
 
     /// Returns `true` when the OCR text density is good enough to drive the
@@ -266,35 +276,35 @@ actor DocumentTextExtractor {
     }
     
     private static func ocrPage(cgImage: CGImage) async -> String {
-        
         await withCheckedContinuation { continuation in
-            
-            let request = VNRecognizeTextRequest { request, error in
-                guard error == nil else {
-                    continuation.resume(returning: "")
-                    return
-                }
-                
-                let text = (request.results as? [VNRecognizedTextObservation])?
-                    .compactMap { observation -> String? in
-                        guard let candidate = observation.topCandidates(1).first,
-                              candidate.confidence > 0.3 else {
-                            return nil
-                        }
-                        return candidate.string
+            DispatchQueue.global(qos: .userInitiated).async {
+                let request = VNRecognizeTextRequest { request, error in
+                    guard error == nil else {
+                        continuation.resume(returning: "")
+                        return
                     }
-                    .joined(separator: "\n") ?? ""
-                
-                continuation.resume(returning: text)
+
+                    let text = (request.results as? [VNRecognizedTextObservation])?
+                        .compactMap { observation -> String? in
+                            guard let candidate = observation.topCandidates(1).first,
+                                  candidate.confidence > 0.3 else {
+                                return nil
+                            }
+                            return candidate.string
+                        }
+                        .joined(separator: "\n") ?? ""
+
+                    continuation.resume(returning: text)
+                }
+
+                request.recognitionLevel = .accurate
+                request.usesLanguageCorrection = true
+                request.recognitionLanguages = ["ro-RO", "en-US", "fr-FR", "de-DE"]
+                request.automaticallyDetectsLanguage = true
+
+                let handler = VNImageRequestHandler(cgImage: cgImage)
+                try? handler.perform([request])
             }
-            
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = true
-            request.recognitionLanguages = ["ro-RO", "en-US", "fr-FR", "de-DE"]
-            request.automaticallyDetectsLanguage = true
-            
-            let handler = VNImageRequestHandler(cgImage: cgImage)
-            try? handler.perform([request])
         }
     }
     

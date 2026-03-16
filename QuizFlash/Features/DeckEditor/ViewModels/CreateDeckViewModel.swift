@@ -17,6 +17,16 @@ enum AIGenerationSheetDestination: String, Identifiable {
     var id: String { rawValue }
 }
 
+enum AISourcePreparationState: Equatable {
+    case photos(itemCount: Int)
+    case pdf
+}
+
+private enum PendingAISourceSelection {
+    case photos([PhotosPickerItem])
+    case pdf(URL)
+}
+
 // MARK: - AI Source Preparation
 
 /// One previewable source item shown inside the AI generation sheet.
@@ -50,6 +60,7 @@ struct AIPreparedGenerationSource {
 
 private struct DraftCardChangeSnapshot: Equatable {
     let originalCardID: PersistentIdentifier?
+    let cardNumber: Int
     let frontZone: ZoneModel
     let backZone: ZoneModel
     let frontType: CardContentType
@@ -59,6 +70,7 @@ private struct DraftCardChangeSnapshot: Equatable {
 
     init(card: DraftCard) {
         originalCardID = card.originalCardID
+        cardNumber = card.cardNumber
         frontZone = card.frontZone
         backZone = card.backZone
         frontType = card.frontType
@@ -91,8 +103,10 @@ final class CreateDeckViewModel {
     var showAIPDFPicker = false
     var aiSheetDestination: AIGenerationSheetDestination? = nil
     var showAICancelDialog = false
+    var aiSourcePreparationState: AISourcePreparationState? = nil
 
     var isGenerating: Bool { aiState != .idle || hasPausedAIGeneration }
+    var isPreparingAISource: Bool { aiSourcePreparationState != nil }
     var selectedFolder: FolderModel? = nil
 
     // MARK: - PDF Analysis
@@ -208,10 +222,11 @@ final class CreateDeckViewModel {
             let items = selectedAIPhotos
             selectedAIPhotos = []
             pdfAnalysis = nil
+            beginAISourcePreparation(.photos(itemCount: items.count))
+            scheduleAIGenerationSheetPresentation()
             aiSourcePreparationTask?.cancel()
-            aiSourcePreparationTask = Task { [weak self] in
-                await self?.preparePhotoSource(from: items)
-            }
+            aiSourcePreparationTask = nil
+            pendingAISourceSelection = .photos(items)
         }
     }
 
@@ -221,9 +236,11 @@ final class CreateDeckViewModel {
     @ObservationIgnored private let aiBackgroundCoordinator: AIGenerationBackgroundCoordinator
     @ObservationIgnored private var aiGenerationTask: Task<Void, Never>?
     @ObservationIgnored private var aiSourcePreparationTask: Task<Void, Never>?
+    @ObservationIgnored private var pendingAISourceSelection: PendingAISourceSelection?
     @ObservationIgnored private var aiRevealTask: Task<Void, Error>?
     @ObservationIgnored private var aiDeckTitleTask: Task<Void, Never>?
     @ObservationIgnored private var aiSessionPersistenceTask: Task<Void, Never>?
+    @ObservationIgnored private var saveOverlayTask: Task<Void, Never>?
 
     @ObservationIgnored private var pendingAIDeckTitleRequestID: UUID?
     @ObservationIgnored private var pendingAIGeneratedCards: [AIFlashcard] = []
@@ -251,6 +268,10 @@ final class CreateDeckViewModel {
     var showDeleteSelectedCardsConfirmation = false
     let deckToEdit: DeckModel?
     private let initialSnapshot: CreateDeckStateSnapshot
+    @ObservationIgnored private let initialDeckTitle: String
+    @ObservationIgnored private let initialDraftCards: [DraftCard]
+    @ObservationIgnored private let initialSelectedFolder: FolderModel?
+    @ObservationIgnored private var nextDraftCardNumber: Int
 
     var selectedDraftCardCount: Int {
         selectedDraftCardIDs.count
@@ -262,6 +283,18 @@ final class CreateDeckViewModel {
 
     var hasUnsavedChanges: Bool {
         currentSnapshot != initialSnapshot
+    }
+
+    var isEditingExistingDeck: Bool {
+        deckToEdit != nil
+    }
+
+    var canUndoChanges: Bool {
+        isEditingExistingDeck && hasUnsavedChanges && !isGenerating
+    }
+
+    var canDeleteDeck: Bool {
+        isEditingExistingDeck && !isGenerating
     }
 
     convenience init(deckToEdit: DeckModel? = nil) {
@@ -302,6 +335,13 @@ final class CreateDeckViewModel {
             selectedFolderID: initialFolder?.persistentModelID,
             draftCards: initialDrafts.map(DraftCardChangeSnapshot.init)
         )
+        initialDeckTitle = initialTitle
+        initialDraftCards = initialDrafts
+        initialSelectedFolder = initialFolder
+        nextDraftCardNumber = max(
+            deckToEdit?.lastAssignedCardNumber ?? 0,
+            initialDrafts.map(\.cardNumber).max() ?? 0
+        )
         
         Task { [weak self] in
             await self?.checkForPausedSession()
@@ -317,11 +357,11 @@ final class CreateDeckViewModel {
     func pdfWasSelected(_ url: URL) {
         preparedAISource = nil
         pdfAnalysis = nil
+        beginAISourcePreparation(.pdf)
+        scheduleAIGenerationSheetPresentation()
         aiSourcePreparationTask?.cancel()
-
-        aiSourcePreparationTask = Task { [weak self] in
-            await self?.preparePDFSource(from: url)
-        }
+        aiSourcePreparationTask = nil
+        pendingAISourceSelection = .pdf(url)
     }
 
     // MARK: - AI Generation
@@ -557,14 +597,16 @@ final class CreateDeckViewModel {
             for item in items {
                 try Task.checkCancellation()
                 if let data = try await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    images.append(image.resizedForAI(toMaxDimension: 1024))
+                   let image = await decodePreparedPhoto(from: data) {
+                    images.append(image)
                 }
+                await Task.yield()
             }
 
             guard !images.isEmpty else { return }
 
             let texts = await DocumentTextExtractor.extractVisionTexts(from: images)
+            await Task.yield()
             let source = AIPreparedGenerationSource(
                 kind: .photos,
                 previewItems: makePhotoPreviewItems(images: images, texts: texts),
@@ -575,22 +617,29 @@ final class CreateDeckViewModel {
 
             prepareSheetState(for: source, pdfAnalysis: nil)
         } catch is CancellationError {
+            clearAISourcePreparation()
             return
         } catch {
+            clearAISourcePreparation()
             aiState = .error(error.localizedDescription)
         }
     }
 
     private func preparePDFSource(from url: URL) async {
-        guard url.startAccessingSecurityScopedResource() else { return }
+        guard url.startAccessingSecurityScopedResource() else {
+            clearAISourcePreparation()
+            return
+        }
         defer { url.stopAccessingSecurityScopedResource() }
 
-        let pageTexts = DocumentTextExtractor.extractPDFKitPages(from: url)
+        let pageTexts = await extractPDFKitPageTexts(from: url)
+        await Task.yield()
         let thumbnails = await DocumentTextExtractor.renderPDFPreviewThumbnails(from: url)
-        let pageCount = max(pageTexts.count, await DocumentTextExtractor.pdfPageCount(url: url))
+        await Task.yield()
+        let pageCount = max(pageTexts.count, await extractPDFPageCount(from: url))
         let extractedChars = pageTexts.reduce(0) { $0 + $1.count }
         let info = PDFAnalysisInfo(
-            quality: DocumentTextExtractor.pdfKitQuality(for: url),
+            quality: await extractPDFQuality(from: url),
             pageCount: pageCount,
             extractedChars: extractedChars
         )
@@ -614,6 +663,7 @@ final class CreateDeckViewModel {
         for source: AIPreparedGenerationSource,
         pdfAnalysis: PDFAnalysisInfo?
     ) {
+        clearAISourcePreparation()
         self.pdfAnalysis = pdfAnalysis
         preparedAISource = source
         manualAISourceAllocations = defaultManualAllocations(
@@ -621,6 +671,41 @@ final class CreateDeckViewModel {
             requestedCards: requestedCardCount
         )
         presentAIGenerationSheet()
+    }
+
+    private func decodePreparedPhoto(from data: Data) async -> UIImage? {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let image = autoreleasepool {
+                    UIImage(data: data)?.resizedForAI(toMaxDimension: 1024)
+                }
+                continuation.resume(returning: image)
+            }
+        }
+    }
+
+    private func extractPDFKitPageTexts(from url: URL) async -> [String] {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: DocumentTextExtractor.extractPDFKitPages(from: url))
+            }
+        }
+    }
+
+    private func extractPDFPageCount(from url: URL) async -> Int {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: DocumentTextExtractor.pdfPageCount(url: url))
+            }
+        }
+    }
+
+    private func extractPDFQuality(from url: URL) async -> Double {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: DocumentTextExtractor.pdfKitQuality(for: url))
+            }
+        }
     }
 
     private func makePhotoPreviewItems(
@@ -1160,6 +1245,7 @@ final class CreateDeckViewModel {
         markRevealAsCompleted: Bool = false
     ) {
         let draft = DraftCard(
+            cardNumber: allocateNextDraftCardNumber(),
             frontZone: AIZoneParser.parse(text: generatedCard.question),
             backZone: AIZoneParser.parse(text: generatedCard.answer),
             frontType: .text,
@@ -1708,9 +1794,63 @@ final class CreateDeckViewModel {
         aiSheetDestination = .prepareGeneration
     }
 
+    func startPendingAISourcePreparationIfNeeded() {
+        guard aiSourcePreparationTask == nil,
+              preparedAISource == nil,
+              let pendingSource = pendingAISourceSelection else { return }
+
+        pendingAISourceSelection = nil
+        aiSourcePreparationTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.aiSourcePreparationTask = nil }
+
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(180))
+
+            switch pendingSource {
+            case .photos(let items):
+                await self.preparePhotoSource(from: items)
+            case .pdf(let url):
+                await self.preparePDFSource(from: url)
+            }
+        }
+    }
+
+    private func scheduleAIGenerationSheetPresentation() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            for _ in 0..<90 {
+                guard isPreparingAISource else { return }
+                if !showAIPhotoPicker && !showAIPDFPicker {
+                    break
+                }
+                try? await Task.sleep(for: .milliseconds(16))
+            }
+
+            guard isPreparingAISource, aiSheetDestination == nil else { return }
+            presentAIGenerationSheet()
+        }
+    }
+
+    private func beginAISourcePreparation(_ state: AISourcePreparationState) {
+        withAnimation(.easeInOut(duration: UIConstants.Animation.instant)) {
+            aiSourcePreparationState = state
+        }
+    }
+
+    private func clearAISourcePreparation() {
+        withAnimation(.easeInOut(duration: UIConstants.Animation.instant)) {
+            aiSourcePreparationState = nil
+        }
+    }
+
     private func clearPendingAISourceSelection() {
         aiSourcePreparationTask?.cancel()
+        aiSourcePreparationTask = nil
+        pendingAISourceSelection = nil
         selectedAIPhotos = []
+        clearAISourcePreparation()
         preparedAISource = nil
         manualAISourceAllocations = []
         pdfAnalysis = nil
@@ -1795,7 +1935,7 @@ final class CreateDeckViewModel {
     func resetAIState() {
         cancelAIGenerationTask()
         aiSourcePreparationTask?.cancel()
-
+        clearAISourcePreparation()
 
         showAICancelDialog = false
 
@@ -1872,6 +2012,7 @@ final class CreateDeckViewModel {
     /// Appends a new draft card with the given front and back zones.
     func addCard(frontZone: ZoneModel, backZone: ZoneModel) {
         let newCard = DraftCard(
+            cardNumber: allocateNextDraftCardNumber(),
             frontZone: frontZone,
             backZone: backZone,
             frontType: .text,
@@ -1969,6 +2110,36 @@ final class CreateDeckViewModel {
         selectedDraftCardIDs.removeAll()
     }
 
+    /// Restores the editor to the exact state captured when the screen opened.
+    ///
+    /// Used only while editing an existing deck. The reset is in-memory and
+    /// intentionally avoids touching SwiftData until the user saves again.
+    func revertToInitialState() {
+        guard isEditingExistingDeck else { return }
+
+        saveOverlayTask?.cancel()
+        showSuccessOverlay = false
+        resetAIState()
+        aiSheetDestination = nil
+        showAIPickerOptions = false
+        showAIPhotoPicker = false
+        showAIPDFPicker = false
+        selectedAIPhotos = []
+
+        deckTitle = initialDeckTitle
+        selectedFolder = initialSelectedFolder
+        draftCards = initialDraftCards
+        nextDraftCardNumber = max(
+            deckToEdit?.lastAssignedCardNumber ?? 0,
+            initialDraftCards.map(\.cardNumber).max() ?? 0
+        )
+        cardToEdit = nil
+        isCreatingNewCard = false
+        isSelectingCards = false
+        selectedDraftCardIDs.removeAll()
+        showDeleteSelectedCardsConfirmation = false
+    }
+
     // MARK: - Save Deck
 
     /// Persists the current draft state to SwiftData.
@@ -1982,6 +2153,9 @@ final class CreateDeckViewModel {
         router: NavigationManager,
         dismissAction: @escaping () -> Void
     ) -> Bool {
+        saveOverlayTask?.cancel()
+        showSuccessOverlay = false
+
         let trimmedTitle = deckTitle.trimmingCharacters(in: .whitespaces)
 
         if deckToEdit != nil && !hasUnsavedChanges {
@@ -2015,12 +2189,14 @@ final class CreateDeckViewModel {
                     let existing = deck.cards.first(where: { $0.id == originalID }) {
                     let frontChanged = existing.frontZone != draft.frontZone
                     let backChanged = existing.backZone != draft.backZone
+                    let numberChanged = existing.cardNumber != draft.cardNumber
                     let typeChanged = existing.frontType != draft.frontType || existing.backType != draft.backType
                     let pinChanged = existing.isPinned != draft.isPinned
                     let sourceChanged = existing.creationSource != draft.creationSource
-                    if frontChanged || backChanged || typeChanged || pinChanged || sourceChanged {
+                    if frontChanged || backChanged || numberChanged || typeChanged || pinChanged || sourceChanged {
                         existing.frontZone = draft.frontZone
                         existing.backZone = draft.backZone
+                        existing.cardNumber = draft.cardNumber
                         existing.frontType = draft.frontType
                         existing.backType = draft.backType
                         existing.isPinned = draft.isPinned
@@ -2029,13 +2205,12 @@ final class CreateDeckViewModel {
                         cardsChanged = true
                     }
                 } else {
-                    deck.lastAssignedCardNumber += 1
                     let newCard = CardModel(
                         frontZone: draft.frontZone,
                         backZone: draft.backZone,
                         frontType: draft.frontType,
                         backType: draft.backType,
-                        cardNumber: deck.lastAssignedCardNumber,
+                        cardNumber: draft.cardNumber,
                         isPinned: draft.isPinned,
                         creationSource: draft.creationSource
                     )
@@ -2051,6 +2226,10 @@ final class CreateDeckViewModel {
                     cardsChanged = true
                 }
             }
+            deck.lastAssignedCardNumber = max(
+                deck.lastAssignedCardNumber,
+                draftCards.map(\.cardNumber).max() ?? 0
+            )
             if titleChanged || cardsChanged { deck.editedAt = Date() }
             deck.cardCount = draftCards.count
 
@@ -2062,13 +2241,12 @@ final class CreateDeckViewModel {
             selectedFolder?.deckCount += 1
 
             for draft in draftCards {
-                newDeck.lastAssignedCardNumber += 1
                 let newCard = CardModel(
                     frontZone: draft.frontZone,
                     backZone: draft.backZone,
                     frontType: draft.frontType,
                     backType: draft.backType,
-                    cardNumber: newDeck.lastAssignedCardNumber,
+                    cardNumber: draft.cardNumber,
                     isPinned: draft.isPinned,
                     creationSource: draft.creationSource
                 )
@@ -2082,6 +2260,7 @@ final class CreateDeckViewModel {
                 context.insert(newCard)
                 newDeck.cards.append(newCard)
             }
+            newDeck.lastAssignedCardNumber = draftCards.map(\.cardNumber).max() ?? 0
             newDeck.cardCount = draftCards.count
         }
 
@@ -2091,31 +2270,77 @@ final class CreateDeckViewModel {
             return false
         }
 
-        // ── UI Triggers & Navigation ──────────────────────────────────────────
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+        withAnimation(.easeInOut(duration: UIConstants.Animation.medium)) {
             showSuccessOverlay = true
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.easeOut(duration: 0.25)) { self.showSuccessOverlay = false }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                if self.deckToEdit == nil {
-                    self.resetForm()
-                    router.popToRoot()
-                } else { dismissAction() }
+        saveOverlayTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            try? await Task.sleep(for: .milliseconds(880))
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.easeInOut(duration: UIConstants.Animation.medium)) {
+                self.showSuccessOverlay = false
+            }
+
+            try? await Task.sleep(for: .milliseconds(260))
+            guard !Task.isCancelled else { return }
+
+            if self.deckToEdit == nil {
+                self.resetForm()
+                router.popToRoot()
+            } else {
+                dismissAction()
             }
         }
+
+        return true
+    }
+
+    /// Permanently deletes the currently edited deck and its cards from SwiftData.
+    ///
+    /// The delete is committed immediately with an explicit `context.save()` so
+    /// the editor never leaves the database in an ambiguous state.
+    func deleteDeck(
+        context: ModelContext,
+        router: NavigationManager,
+        dismissAction: @escaping () -> Void
+    ) -> Bool {
+        guard let deck = deckToEdit else { return false }
+
+        saveOverlayTask?.cancel()
+        showSuccessOverlay = false
+        resetAIState()
+
+        deck.folder?.deckCount -= 1
+        context.delete(deck)
+
+        do {
+            try context.save()
+        } catch {
+            return false
+        }
+
+        Task { @MainActor in
+            dismissAction()
+            try? await Task.sleep(for: .milliseconds(240))
+            router.popToRoot()
+        }
+
         return true
     }
 
     private func resetForm() {
         deckTitle = ""
         draftCards = []
+        nextDraftCardNumber = 0
         cardToEdit = nil
         isCreatingNewCard = false
         isSelectingCards = false
         selectedDraftCardIDs.removeAll()
         showDeleteSelectedCardsConfirmation = false
+        clearAISourcePreparation()
         preparedAISource = nil
         manualAISourceAllocations = []
         pdfAnalysis = nil
@@ -2142,6 +2367,11 @@ final class CreateDeckViewModel {
            !validIDs.contains(cardToEdit.id) {
             self.cardToEdit = nil
         }
+    }
+
+    private func allocateNextDraftCardNumber() -> Int {
+        nextDraftCardNumber += 1
+        return nextDraftCardNumber
     }
 }
 

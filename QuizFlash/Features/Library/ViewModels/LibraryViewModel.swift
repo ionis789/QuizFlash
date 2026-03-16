@@ -55,6 +55,9 @@ final class LibraryViewModel {
     
     /// Indicates if the delete confirmation dialog should be shown.
     var showDeleteConfirmation = false
+    
+    /// Indicates if the move-to-folder confirmation dialog should be shown.
+    var showMoveConfirmation = false
 
     // MARK: - Action States
     
@@ -69,6 +72,12 @@ final class LibraryViewModel {
     
     /// The identifier of the deck whose action menu is currently open.
     var activeActionMenuDeckID: PersistentIdentifier?
+
+    /// Shows the move error alert.
+    var showMoveError = false
+
+    /// The localized move error message.
+    var moveErrorMessage = ""
 
     // MARK: - Search State
     
@@ -396,6 +405,66 @@ final class LibraryViewModel {
         deckToDelete = nil
     }
 
+    // MARK: - Move
+
+    func moveSelectedDecks(
+        from allDecks: [DeckModel],
+        to destinationFolder: FolderModel?,
+        context: ModelContext
+    ) {
+        showMoveConfirmation = false
+
+        let decksToMove = allDecks.filter { selectedDecks.contains($0.id) }
+        guard !decksToMove.isEmpty else { return }
+
+        let affectedFolders = uniqueFolders(
+            from: decksToMove.compactMap(\.folder) + (destinationFolder.map { [$0] } ?? [])
+        )
+        let originalFolderCounts = Dictionary(uniqueKeysWithValues: affectedFolders.map { ($0.persistentModelID, $0.deckCount) })
+        let originalDeckFolders = Dictionary(uniqueKeysWithValues: decksToMove.map { ($0.id, $0.folder) })
+        let originalEditedAt = Dictionary(uniqueKeysWithValues: decksToMove.map { ($0.id, $0.editedAt) })
+
+        var movedDecks: [DeckModel] = []
+
+        for deck in decksToMove {
+            if deck.folder?.persistentModelID == destinationFolder?.persistentModelID {
+                continue
+            }
+
+            deck.folder?.deckCount -= 1
+            destinationFolder?.deckCount += 1
+            deck.folder = destinationFolder
+            deck.editedAt = Date()
+            movedDecks.append(deck)
+        }
+
+        guard !movedDecks.isEmpty else {
+            exitSelectionMode()
+            return
+        }
+
+        do {
+            try context.save()
+            exitSelectionMode()
+        } catch {
+            for deck in movedDecks {
+                deck.folder = originalDeckFolders[deck.id] ?? nil
+                if let editedAt = originalEditedAt[deck.id] {
+                    deck.editedAt = editedAt
+                }
+            }
+
+            for folder in affectedFolders {
+                if let count = originalFolderCounts[folder.persistentModelID] {
+                    folder.deckCount = count
+                }
+            }
+
+            moveErrorMessage = "Couldn't move the selected decks right now."
+            showMoveError = true
+        }
+    }
+
     // MARK: - Import
 
     func handleFileImport(_ result: Result<[URL], Error>, context: ModelContext) {
@@ -437,6 +506,20 @@ final class LibraryViewModel {
             importErrorMessage = error.localizedDescription
             showImportError = true
         }
+    }
+
+    private func uniqueFolders(from folders: [FolderModel]) -> [FolderModel] {
+        var seen = Set<PersistentIdentifier>()
+        var unique: [FolderModel] = []
+
+        for folder in folders {
+            let id = folder.persistentModelID
+            if seen.insert(id).inserted {
+                unique.append(folder)
+            }
+        }
+
+        return unique
     }
 
     // MARK: - Export

@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+private let kAIGenerationStatusCardHeight: CGFloat = 212
+
 // MARK: - AI Extracting Loading View
 
 /// Minimal loading card shown while the source is read before cards start streaming.
@@ -120,7 +122,7 @@ struct AIStreamingProgressCard: View {
         AIGenerationSurface {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
                 HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: UIConstants.Spacing.small) {
                             Text("Generating cards")
                                 .font(.system(size: 20, weight: .bold, design: .rounded))
@@ -132,8 +134,10 @@ struct AIStreamingProgressCard: View {
                         Text(subtitle)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(3)
+                            .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     Spacer(minLength: UIConstants.Spacing.small)
 
@@ -175,8 +179,10 @@ struct AIStreamingProgressCard: View {
                     }
                     .foregroundStyle(.secondary)
                 }
+                .frame(height: 36)
             }
         }
+        .frame(height: kAIGenerationStatusCardHeight)
     }
 }
 
@@ -206,14 +212,16 @@ struct AIPausedResumeCard: View {
                 HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Generation paused")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
                             .foregroundStyle(.primary)
 
                         Text("Continue from the last completed batch when you're ready.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(3)
+                            .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     Spacer(minLength: UIConstants.Spacing.small)
 
@@ -225,32 +233,35 @@ struct AIPausedResumeCard: View {
                     color: accent
                 )
 
-                Label(
-                    "\(remainingCount) card\(remainingCount == 1 ? "" : "s") still pending",
-                    systemImage: "pause.circle.fill"
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Button(action: onResume) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
 
-                Button(action: onResume) {
-                    HStack(spacing: UIConstants.Spacing.small) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-
-                        Text("Continue")
-                            .font(.subheadline.weight(.bold))
+                            Text("Continue")
+                                .font(.subheadline.weight(.bold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .frame(height: 36)
+                        .background(accent, in: Capsule())
                     }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: UIConstants.Size.buttonHeight)
-                    .background(
-                        accent,
-                        in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
+                    .buttonStyle(.plain)
+
+                    Spacer(minLength: UIConstants.Spacing.small)
+
+                    Label(
+                        "\(remainingCount) card\(remainingCount == 1 ? "" : "s") still pending",
+                        systemImage: "pause.circle.fill"
                     )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
+                .frame(height: 36)
             }
         }
+        .frame(height: kAIGenerationStatusCardHeight)
     }
 }
 

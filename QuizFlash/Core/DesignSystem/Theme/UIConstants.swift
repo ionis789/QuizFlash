@@ -119,8 +119,8 @@ enum UIConstants {
         static let deckGridCardHeight: CGFloat = 184
         /// 192 pt — stable height for draft card rows during AI streaming and editor previews.
         static let draftCardRowHeight: CGFloat = 192
-        /// 228 pt — width for anchored visionOS-style floating menus.
-        static let floatingContextMenuWidth: CGFloat = 228
+        /// 208 pt — compact width for the standardized anchored card context menu.
+        static let floatingContextMenuWidth: CGFloat = 208
     }
 
     // MARK: - Layout

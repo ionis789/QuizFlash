@@ -24,6 +24,7 @@ struct LibraryModalsAndDialogs: ViewModifier {
     @Bindable var viewModel: LibraryViewModel
     var context: ModelContext
     var decks: [DeckModel]
+    var folders: [FolderModel]
 
     func body(content: Content) -> some View {
         content
@@ -97,6 +98,29 @@ struct LibraryModalsAndDialogs: ViewModifier {
         } message: {
             Text("This deck and all its cards will be deleted.")
         }
+            .confirmationDialog(
+            "Move \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")",
+            isPresented: $viewModel.showMoveConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Library (All Decks)") {
+                viewModel.moveSelectedDecks(from: decks, to: nil, context: context)
+            }
+
+            if !folders.isEmpty {
+                Divider()
+
+                ForEach(folders) { folder in
+                    Button(folder.title) {
+                        viewModel.moveSelectedDecks(from: decks, to: folder, context: context)
+                    }
+                }
+            }
+
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Choose where the selected decks should go.")
+        }
     }
 }
 
@@ -123,6 +147,11 @@ struct LibraryAlerts: ViewModifier {
             Button("OK", role: .cancel) { }
         } message: {
             Text(viewModel.exportErrorMessage)
+        }
+            .alert("Move Error", isPresented: $viewModel.showMoveError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(viewModel.moveErrorMessage)
         }
     }
 }

@@ -38,6 +38,7 @@ struct LibraryView: View {
     // MARK: - SwiftData Query
 
     @Query(sort: \DeckModel.createdAt, order: .reverse) private var decks: [DeckModel]
+    @Query(sort: \FolderModel.createdAt, order: .reverse) private var folders: [FolderModel]
 
     // MARK: - Tab Bar Visibility
 
@@ -62,7 +63,8 @@ struct LibraryView: View {
             .modifier(LibraryModalsAndDialogs(
                 viewModel: sharedViewModel,
                 context: context,
-                decks: decks
+                decks: decks,
+                folders: folders
             ))
             .modifier(LibraryAlerts(viewModel: sharedViewModel))
     }
@@ -75,6 +77,7 @@ struct LibraryView: View {
 
         return LibraryLayout(
             decks: decks,
+            folders: folders,
             viewModel: sharedViewModel,
             router: router,
             title: "Library",

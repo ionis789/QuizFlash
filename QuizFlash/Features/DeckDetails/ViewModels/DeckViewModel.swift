@@ -256,6 +256,62 @@ final class DeckViewModel {
         selectedCards.removeAll()
     }
 
+    // MARK: - Creation
+
+    /// Creates and persists a new manual card inside the current deck.
+    ///
+    /// The next `cardNumber` is derived from both the persisted deck counter and the
+    /// loaded snapshot, which heals legacy state where `lastAssignedCardNumber` may
+    /// lag behind the actual maximum card number already stored in the deck.
+    func addCard(
+        frontZone: ZoneModel,
+        backZone: ZoneModel,
+        to deck: DeckModel,
+        context: ModelContext
+    ) {
+        let originalLastAssigned = deck.lastAssignedCardNumber
+        let originalCardCount = deck.cardCount
+        let originalEditedAt = deck.editedAt
+        let nextCardNumber = max(
+            deck.lastAssignedCardNumber,
+            allCardInfos.map(\.cardNumber).max() ?? 0
+        ) + 1
+        let now = Date()
+
+        let newCard = CardModel(
+            frontZone: frontZone,
+            backZone: backZone,
+            cardNumber: nextCardNumber,
+            isPinned: false,
+            creationSource: .manual
+        )
+        newCard.deck = deck
+
+        deck.lastAssignedCardNumber = nextCardNumber
+        deck.cardCount = originalCardCount + 1
+        deck.editedAt = now
+        deck.cards.append(newCard)
+        context.insert(newCard)
+
+        do {
+            try context.save()
+        } catch {
+            deck.lastAssignedCardNumber = originalLastAssigned
+            deck.cardCount = originalCardCount
+            deck.editedAt = originalEditedAt
+            deck.cards.removeAll { $0.persistentModelID == newCard.persistentModelID }
+            context.delete(newCard)
+            logger.error("Failed to create card in deck: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+
+        let deckID = deck.persistentModelID
+        let container = context.container
+        Task { [weak self] in
+            await self?.loadSnapshot(deckID: deckID, container: container)
+        }
+    }
+
     // MARK: - Deletion
 
     /// Deletes a single card identified by its persistent identifier.
@@ -277,26 +333,31 @@ final class DeckViewModel {
         let descriptor = FetchDescriptor<CardModel>(
             predicate: #Predicate { $0.persistentModelID == id }
         )
-        if let card = (try? context.fetch(descriptor))?.first {
-            context.delete(card)
-            try? context.save()
-        }
+        do {
+            if let card = try context.fetch(descriptor).first {
+                context.delete(card)
+                deck.cards.removeAll { $0.persistentModelID == id }
+                deck.cardCount = max(0, deck.cardCount - 1)
+                deck.editedAt = Date()
+                try context.save()
 
-        deck.cardCount = max(0, deck.cardCount - 1)
-        deck.editedAt = Date()
-        selectedCards.remove(id)
+                selectedCards.remove(id)
 
-        // Instant in-memory grid update — no deck.cards relationship read required.
-        allCardInfos.removeAll { $0.id == id }
-        progressStats = computeProgressStats(from: allCardInfos, deckCardCount: nil)
-        performGrouping(on: allCardInfos)
+                // Instant in-memory grid update — no deck.cards relationship read required.
+                allCardInfos.removeAll { $0.id == id }
+                progressStats = computeProgressStats(from: allCardInfos, deckCardCount: nil)
+                performGrouping(on: allCardInfos)
 
-        // Async stats refresh — GridCardInfo does not carry full review history,
-        // so a full re-fetch is needed to produce accurate DeckStats after deletion.
-        let deckID = deck.persistentModelID
-        let container = context.container
-        Task { [weak self] in
-            await self?.loadSnapshot(deckID: deckID, container: container)
+                // Async stats refresh — GridCardInfo does not carry full review history,
+                // so a full re-fetch is needed to produce accurate DeckStats after deletion.
+                let deckID = deck.persistentModelID
+                let container = context.container
+                Task { [weak self] in
+                    await self?.loadSnapshot(deckID: deckID, container: container)
+                }
+            }
+        } catch {
+            logger.error("Failed to delete single card: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -315,24 +376,28 @@ final class DeckViewModel {
         let descriptor = FetchDescriptor<CardModel>(
             predicate: #Predicate { idsToDelete.contains($0.persistentModelID) }
         )
-        if let cards = try? context.fetch(descriptor) {
+        do {
+            let cards = try context.fetch(descriptor)
             for card in cards { context.delete(card) }
-            try? context.save()
-        }
+            deck.cards.removeAll { idsToDelete.contains($0.persistentModelID) }
+            deck.cardCount = max(0, deck.cardCount - idsToDelete.count)
+            deck.editedAt = Date()
+            try context.save()
 
-        deck.cardCount = max(0, deck.cardCount - idsToDelete.count)
-        deck.editedAt = Date()
-        isSelecting = false
-        selectedCards.removeAll()
+            isSelecting = false
+            selectedCards.removeAll()
 
-        allCardInfos.removeAll { idsToDelete.contains($0.id) }
-        progressStats = computeProgressStats(from: allCardInfos, deckCardCount: nil)
-        performGrouping(on: allCardInfos)
+            allCardInfos.removeAll { idsToDelete.contains($0.id) }
+            progressStats = computeProgressStats(from: allCardInfos, deckCardCount: nil)
+            performGrouping(on: allCardInfos)
 
-        let deckID = deck.persistentModelID
-        let container = context.container
-        Task { [weak self] in
-            await self?.loadSnapshot(deckID: deckID, container: container)
+            let deckID = deck.persistentModelID
+            let container = context.container
+            Task { [weak self] in
+                await self?.loadSnapshot(deckID: deckID, container: container)
+            }
+        } catch {
+            logger.error("Failed to delete selected cards: \(error.localizedDescription, privacy: .public)")
         }
     }
 

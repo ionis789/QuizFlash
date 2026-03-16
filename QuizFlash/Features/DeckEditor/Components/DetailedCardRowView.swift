@@ -17,11 +17,15 @@ struct DetailedCardRowView: View {
     var onEdit: (() -> Void)? = nil
     var onTogglePin: (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
+    var onPrimaryTap: (() -> Void)? = nil
 
     @State private var isShowingMenu = false
+    @State private var suppressPrimaryTapUntil = Date.distantPast
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var isCompactPreview: Bool { fixedHeight != nil }
+    private var trailingAccessorySize: CGFloat { 34 }
+    private var displayCardNumber: Int { card.cardNumber > 0 ? card.cardNumber : index }
     private var showsOverflowMenu: Bool {
         !isSelecting && onEdit != nil && onTogglePin != nil && onDelete != nil && !isCompactPreview
     }
@@ -44,8 +48,33 @@ struct DetailedCardRowView: View {
             }
         }
         .widgetStyle(cornerRadius: 30)
-        .scaleEffect(isSelected ? 0.9 : 1, anchor: .center)
-        .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isSelected)
+        .scaleEffect(isSelected ? 0.972 : 1, anchor: .center)
+        .animation(.easeInOut(duration: 0.18), value: isSelected)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard canHandlePrimaryTap else { return }
+            onPrimaryTap?()
+        }
+        .onChange(of: isShowingMenu) { oldValue, newValue in
+            if oldValue, !newValue {
+                suppressPrimaryTapUntil = Date().addingTimeInterval(0.35)
+            }
+        }
+    }
+
+    private var canHandlePrimaryTap: Bool {
+        !isShowingMenu && Date() >= suppressPrimaryTapUntil
+    }
+
+    private func dismissMenuThen(_ action: @escaping () -> Void) {
+        isShowingMenu = false
+        suppressPrimaryTapUntil = Date().addingTimeInterval(0.35)
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(160))
+            guard !Task.isCancelled else { return }
+            action()
+        }
     }
 
     private var cardContent: some View {
@@ -65,7 +94,7 @@ struct DetailedCardRowView: View {
 
     private func header(summary: DraftCardContentSummary) -> some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
-            Text("Card \(index)")
+            Text("Card \(displayCardNumber)")
                 .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundStyle(.primary.opacity(0.92))
 
@@ -77,12 +106,22 @@ struct DetailedCardRowView: View {
 
             Spacer(minLength: UIConstants.Spacing.small)
 
+            trailingAccessory(summary: summary)
+        }
+    }
+
+    @ViewBuilder
+    private func trailingAccessory(summary: DraftCardContentSummary) -> some View {
+        Group {
             if isSelecting {
                 selectionIndicator
             } else if showsOverflowMenu {
                 overflowMenuButton(summary: summary)
+            } else {
+                Color.clear
             }
         }
+        .frame(width: trailingAccessorySize, height: trailingAccessorySize)
     }
 
     private func metricsStrip(summary: DraftCardContentSummary) -> some View {
@@ -165,10 +204,25 @@ struct DetailedCardRowView: View {
     }
 
     private var selectionIndicator: some View {
-        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-            .font(.system(size: 22, weight: .semibold))
-            .foregroundStyle(isSelected ? .primary : .secondary)
-            .accessibilityHidden(true)
+        ZStack {
+            Circle()
+                .fill(Color.white.opacity(isSelected ? 0.08 : 0.05))
+
+            Circle()
+                .stroke(
+                    isSelected ? accent.opacity(0.85) : Color.white.opacity(0.22),
+                    lineWidth: isSelected ? 1.8 : 1.4
+                )
+
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(accent)
+                    .transition(.opacity)
+            }
+        }
+        .frame(width: trailingAccessorySize, height: trailingAccessorySize)
+        .accessibilityHidden(true)
     }
 
     private func overflowMenuButton(summary: DraftCardContentSummary) -> some View {
@@ -178,28 +232,25 @@ struct DetailedCardRowView: View {
             Image(systemName: "ellipsis")
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(.secondary)
-                .frame(width: 34, height: 34)
+                .frame(width: trailingAccessorySize, height: trailingAccessorySize)
                 .background(Color.white.opacity(0.05), in: Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Card actions")
         .popover(isPresented: $isShowingMenu, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
-            CreateDeckCardContextMenu(
+            StandardCardContextMenu(
                 title: "Card \(index)",
                 summary: menuSummary(summary: summary),
+                indicatorTint: menuTint,
                 isPinned: card.isPinned,
-                tint: menuTint,
                 onEdit: {
-                    isShowingMenu = false
-                    onEdit?()
+                    dismissMenuThen { onEdit?() }
                 },
                 onTogglePin: {
-                    isShowingMenu = false
-                    onTogglePin?()
+                    dismissMenuThen { onTogglePin?() }
                 },
                 onDelete: {
-                    isShowingMenu = false
-                    onDelete?()
+                    dismissMenuThen { onDelete?() }
                 }
             )
             .presentationCompactAdaptation(.popover)
@@ -221,6 +272,7 @@ struct DetailedCardRowView: View {
 
     private func menuSummary(summary: DraftCardContentSummary) -> String {
         var parts = [
+            "Card \(displayCardNumber)",
             card.creationSource == .ai ? "AI generated" : "Manual",
             "\(summary.front.displayZoneCount) Q",
             "\(summary.back.displayZoneCount) A",
@@ -292,127 +344,5 @@ struct DetailedCardRowView: View {
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-    }
-}
-
-private struct CreateDeckCardContextMenu: View {
-    let title: String
-    let summary: String
-    let isPinned: Bool
-    let tint: Color
-    let onEdit: () -> Void
-    let onTogglePin: () -> Void
-    let onDelete: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny + 2) {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    Circle()
-                        .fill(tint.opacity(0.9))
-                        .frame(width: 8, height: 8)
-
-                    Text(title)
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-
-                    Spacer(minLength: UIConstants.Spacing.small)
-                }
-
-                Text(summary)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Divider()
-                .background(Color.primary.opacity(0.08))
-
-            VStack(spacing: UIConstants.Spacing.small) {
-                CreateDeckCardContextMenuActionRow(
-                    title: "Edit Card",
-                    icon: "pencil",
-                    tint: .primary,
-                    iconBackground: Color.primary.opacity(0.07),
-                    accessibilityLabel: "Edit Card",
-                    action: onEdit
-                )
-
-                CreateDeckCardContextMenuActionRow(
-                    title: isPinned ? "Unpin Card" : "Pin Card",
-                    icon: isPinned ? "pin.slash.fill" : "pin.fill",
-                    tint: isPinned ? .orange : tint,
-                    iconBackground: (isPinned ? Color.orange : tint).opacity(isPinned ? 0.20 : 0.14),
-                    accessibilityLabel: isPinned ? "Unpin Card" : "Pin Card",
-                    action: onTogglePin
-                )
-
-                CreateDeckCardContextMenuActionRow(
-                    title: "Delete Card",
-                    icon: "trash",
-                    tint: .red,
-                    iconBackground: Color.red.opacity(0.16),
-                    isDestructive: true,
-                    accessibilityLabel: "Delete Card",
-                    action: onDelete
-                )
-            }
-        }
-        .padding(UIConstants.Spacing.medium)
-        .frame(width: UIConstants.Size.floatingContextMenuWidth, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    Color.libraryDeckRow
-                        .shadow(.inner(color: Color.white.opacity(0.12), radius: 1, x: 0, y: 0))
-                )
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.white.opacity(0.10), lineWidth: 0.85)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: .black.opacity(0.35), radius: 22, y: 12)
-    }
-}
-
-private struct CreateDeckCardContextMenuActionRow: View {
-    let title: String
-    let icon: String
-    let tint: Color
-    let iconBackground: Color
-    var isDestructive: Bool = false
-    let accessibilityLabel: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: UIConstants.Spacing.medium) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(iconBackground)
-
-                    Image(systemName: icon)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(tint)
-                }
-                .frame(width: 36, height: 36)
-
-                Text(title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(isDestructive ? .red : .primary)
-
-                Spacer(minLength: UIConstants.Spacing.small)
-            }
-            .padding(.horizontal, UIConstants.Spacing.medium - 2)
-            .padding(.vertical, UIConstants.Spacing.small + 2)
-            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel)
     }
 }

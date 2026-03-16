@@ -11,39 +11,8 @@ import SwiftUI
 
 struct AIGenerationSheetBackground: View {
     var body: some View {
-        ZStack {
-            Color(uiColor: .systemGroupedBackground)
-
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.28),
-                    Color.clear
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            RadialGradient(
-                colors: [
-                    .purple.opacity(0.18),
-                    .clear
-                ],
-                center: .topLeading,
-                startRadius: 40,
-                endRadius: 420
-            )
-
-            RadialGradient(
-                colors: [
-                    .blue.opacity(0.14),
-                    .clear
-                ],
-                center: .bottomTrailing,
-                startRadius: 30,
-                endRadius: 460
-            )
-        }
-        .ignoresSafeArea()
+        StandardSheetTopStripBackground()
+            .ignoresSafeArea()
     }
 }
 
@@ -60,8 +29,12 @@ struct AIGenerationSheetView: View {
     var onPrimaryAction: () -> Void
     var onCancel: () -> Void
 
-    @State private var expandedSection: AIGenerationSheetSection?
+    @State private var expandedSection: AIGenerationSheetSection? = .coverage
     @State private var selectedSourcePreview: AIGenerationSourcePreviewItem?
+
+    private var accent: Color {
+        ThemeManager.shared.accentColor.color
+    }
 
     private var maxContentWidth: CGFloat {
         UIConstants.isPad ? 760 : .infinity
@@ -79,107 +52,20 @@ struct AIGenerationSheetView: View {
         "\(viewModel.preparedAISource?.itemCount ?? 0) \(sourceNounPlural)"
     }
 
+    private var isPreparingSource: Bool {
+        viewModel.isPreparingAISource && viewModel.preparedAISource == nil
+    }
+
     var body: some View {
         ZStack {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                    header
-
-                    if let info = viewModel.pdfAnalysis {
-                        pdfQualityBadge(info: info)
-                    }
-
-                    section(
-                        .type,
-                        title: "Card Type",
-                        summary: viewModel.aiGenerationOptions.cardType.title,
-                        subtitle: "This changes the AI prompt structure."
-                    ) {
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: UIConstants.Spacing.small) {
-                            ForEach(AICardGenerationType.allCases) { type in
-                                GenerationChoiceCard(
-                                    title: type.title,
-                                    subtitle: type.subtitle,
-                                    icon: type.systemImage,
-                                    isSelected: viewModel.aiGenerationOptions.cardType == type
-                                ) {
-                                    viewModel.aiGenerationOptions.cardType = type
-                                }
-                            }
-                        }
-                    }
-
-                    section(
-                        .level,
-                        title: "Card Level",
-                        summary: viewModel.aiGenerationOptions.cardLevel.title,
-                        subtitle: "Tune depth without ambiguous short/long presets."
-                    ) {
-                        VStack(spacing: UIConstants.Spacing.small) {
-                            ForEach(AICardGenerationLevel.allCases) { level in
-                                GenerationRowButton(
-                                    title: level.title,
-                                    subtitle: level.subtitle,
-                                    isSelected: viewModel.aiGenerationOptions.cardLevel == level
-                                ) {
-                                    viewModel.aiGenerationOptions.cardLevel = level
-                                }
-                            }
-                        }
-                    }
-
-                    section(
-                        .extraction,
-                        title: "Extraction Mode",
-                        summary: viewModel.extractionMode == .fast ? "Fast" : "Quality",
-                        subtitle: "Choose how the source is interpreted before generation."
-                    ) {
-                        VStack(spacing: UIConstants.Spacing.small) {
-                            ModeButton(
-                                isSelected: viewModel.extractionMode == .fast,
-                                icon: "bolt.fill",
-                                iconColor: .yellow,
-                                title: "Fast (Free)",
-                                description: viewModel.isPreparedSourcePDF
-                                    ? "Uses PDF text when possible, then local OCR before Vision fallback."
-                                    : "Uses local OCR text first and keeps requests lighter.",
-                                onTap: { viewModel.extractionMode = .fast }
-                            )
-                            ModeButton(
-                                isSelected: viewModel.extractionMode == .quality,
-                                icon: "eye.fill",
-                                iconColor: .purple,
-                                title: "Quality (GPT Vision)",
-                                description: viewModel.isPreparedSourcePDF
-                                    ? "Sends selected PDF page ranges as page images."
-                                    : "Sends selected image ranges directly to Vision.",
-                                onTap: { viewModel.extractionMode = .quality }
-                            )
-                        }
-                    }
-
-                    section(
-                        .coverage,
-                        title: "Source Coverage",
-                        summary: coverageSummary,
-                        subtitle: "Control how the selected source is split and routed to the AI."
-                    ) {
-                        sourcePreviewStrip
-                        distributionModePicker
-
-                        if viewModel.aiGenerationOptions.sourceDistributionMode == .auto {
-                            cardsCountCard
-                            autoCoverageSummary
-                        } else {
-                            manualCoverageEditor
-                        }
-                    }
+            Group {
+                if isPreparingSource {
+                    preparingLayout
+                        .transition(.opacity)
+                } else {
+                    configurationLayout
+                        .transition(.opacity)
                 }
-                .frame(maxWidth: maxContentWidth)
-                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-                .padding(.top, safeAreaInsets.top + UIConstants.Spacing.extraLarge)
-                .padding(.bottom, UIConstants.Spacing.huge)
-                .frame(maxWidth: .infinity, alignment: .top)
             }
 
             if let preview = selectedSourcePreview,
@@ -198,29 +84,152 @@ struct AIGenerationSheetView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            actionBar
-                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-                .padding(.top, UIConstants.Spacing.small)
-                .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.large))
-                .background {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .overlay(alignment: .top) {
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.12),
-                                    Color.clear
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            .frame(height: 1)
-                        }
-                }
-                .opacity(selectedSourcePreview == nil ? 1 : 0)
-                .allowsHitTesting(selectedSourcePreview == nil)
+            if !isPreparingSource {
+                actionBar
+                    .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                    .padding(.top, UIConstants.Spacing.small)
+                    .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.large))
+                    .background {
+                        LinearGradient(
+                            colors: [
+                                Color.black.opacity(0.22),
+                                Color.clear
+                            ],
+                            startPoint: .bottom,
+                            endPoint: .top
+                        )
+                        .ignoresSafeArea()
+                    }
+                    .opacity(selectedSourcePreview == nil ? 1 : 0)
+                    .allowsHitTesting(selectedSourcePreview == nil)
+            }
+        }
+        .task(id: isPreparingSource) {
+            guard isPreparingSource else { return }
+            viewModel.startPendingAISourcePreparationIfNeeded()
         }
         .fullScreenSheetDragActivationHeight(safeAreaInsets.top + 120)
+    }
+
+    private var configurationLayout: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+                topBar
+
+                sourceStatusCard
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+
+                section(
+                    .coverage,
+                    title: "Source Coverage",
+                    summary: coverageSummary,
+                    subtitle: "Range planning"
+                ) {
+                    sourcePreviewStrip
+                    distributionModePicker
+
+                    if viewModel.aiGenerationOptions.sourceDistributionMode == .auto {
+                        cardsCountCard
+                        autoCoverageSummary
+                    } else {
+                        manualCoverageEditor
+                    }
+                }
+
+                section(
+                    .type,
+                    title: "Card Type",
+                    summary: viewModel.aiGenerationOptions.cardType.title,
+                    subtitle: "Prompt format"
+                ) {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: UIConstants.Spacing.small) {
+                        ForEach(AICardGenerationType.allCases) { type in
+                            GenerationChoiceCard(
+                                title: type.title,
+                                subtitle: type.subtitle,
+                                icon: type.systemImage,
+                                isSelected: viewModel.aiGenerationOptions.cardType == type
+                            ) {
+                                viewModel.aiGenerationOptions.cardType = type
+                            }
+                        }
+                    }
+                }
+
+                section(
+                    .level,
+                    title: "Card Level",
+                    summary: viewModel.aiGenerationOptions.cardLevel.title,
+                    subtitle: "Depth"
+                ) {
+                    VStack(spacing: UIConstants.Spacing.small) {
+                        ForEach(AICardGenerationLevel.allCases) { level in
+                            GenerationRowButton(
+                                title: level.title,
+                                subtitle: level.subtitle,
+                                isSelected: viewModel.aiGenerationOptions.cardLevel == level
+                            ) {
+                                viewModel.aiGenerationOptions.cardLevel = level
+                            }
+                        }
+                    }
+                }
+
+                section(
+                    .extraction,
+                    title: "Extraction Mode",
+                    summary: viewModel.extractionMode == .fast ? "Fast" : "Quality",
+                    subtitle: "Speed vs quality"
+                ) {
+                    VStack(spacing: UIConstants.Spacing.small) {
+                        ModeButton(
+                            isSelected: viewModel.extractionMode == .fast,
+                            icon: "bolt.fill",
+                            iconColor: .yellow,
+                            title: "Fast",
+                            description: viewModel.isPreparedSourcePDF
+                                ? "Uses embedded text first, then local OCR when needed."
+                                : "Starts from local OCR text and keeps requests lighter.",
+                            onTap: { viewModel.extractionMode = .fast }
+                        )
+                        ModeButton(
+                            isSelected: viewModel.extractionMode == .quality,
+                            icon: "eye.fill",
+                            iconColor: .purple,
+                            title: "Quality",
+                            description: viewModel.isPreparedSourcePDF
+                                ? "Sends selected pages as rendered images to Vision."
+                                : "Sends selected images directly to Vision.",
+                            onTap: { viewModel.extractionMode = .quality }
+                        )
+                    }
+                }
+
+            }
+            .frame(maxWidth: maxContentWidth)
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .padding(.top, safeAreaInsets.top + UIConstants.Spacing.small)
+            .padding(.bottom, UIConstants.Spacing.huge)
+            .frame(maxWidth: .infinity, alignment: .top)
+        }
+    }
+
+    private var preparingLayout: some View {
+        VStack(spacing: 0) {
+            topBar
+                .frame(maxWidth: maxContentWidth)
+                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                .padding(.top, safeAreaInsets.top + UIConstants.Spacing.small)
+
+            Spacer(minLength: UIConstants.Spacing.large)
+
+            SourcePreparationCenterStage(state: viewModel.aiSourcePreparationState)
+                .frame(maxWidth: 420)
+                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+
+            Spacer(minLength: UIConstants.Spacing.huge)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var coverageSummary: String {
@@ -234,84 +243,67 @@ struct AIGenerationSheetView: View {
         }
     }
 
-    @ViewBuilder
-    private var header: some View {
-        HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [.purple.opacity(0.92), .blue.opacity(0.82)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 64, height: 64)
-
-                Image(systemName: "wand.and.stars.inverse")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Generate AI Cards")
-                    .font(.system(size: 34, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-
-                Text("Saved options stay selected. Open only the section you want to change, then generate.")
-                    .font(.system(size: 18, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: UIConstants.Spacing.small)
+    private var topBar: some View {
+        HStack {
+            Spacer()
 
             Button(action: onCancel) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(.secondary)
                     .frame(width: 38, height: 38)
-                    .background(Color.secondary.opacity(0.12), in: Circle())
+                    .glassButton(shape: .circle)
             }
             .buttonStyle(.plain)
         }
     }
 
     @ViewBuilder
-    private func pdfQualityBadge(info: PDFAnalysisInfo) -> some View {
-        HStack(spacing: UIConstants.Spacing.medium) {
-            Image(systemName: info.qualityIcon)
-                .foregroundStyle(info.isGoodForFast ? .green : .orange)
-                .font(.title3)
+    private var sourcePreparationCard: some View {
+        EmptyView()
+    }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(info.qualityLabel)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
+    @ViewBuilder
+    private var sourceStatusCard: some View {
+        if let source = viewModel.preparedAISource {
+            HStack(spacing: UIConstants.Spacing.medium) {
+                ZStack {
+                    Circle()
+                        .fill((viewModel.pdfAnalysis?.isGoodForFast == false ? Color.orange : Color.green).opacity(0.16))
+                        .frame(width: 42, height: 42)
 
-                Text("\(info.pageCount) pages · ~\(info.extractedChars) chars")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    Image(systemName: viewModel.pdfAnalysis?.qualityIcon ?? "checkmark")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(viewModel.pdfAnalysis?.isGoodForFast == false ? .orange : .green)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(sourceStatusTitle)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+
+                    Text(sourceStatusSubtitle(source: source))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: UIConstants.Spacing.small)
+
+                if let badge = sourceRecommendationBadge {
+                    Text(badge.title)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(badge.tint)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(badge.tint.opacity(0.14), in: Capsule())
+                }
             }
-
-            Spacer()
-
-            Text(info.recommendation == .fast ? "Fast recommended" : "Quality recommended")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(info.isGoodForFast ? .green : .orange)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background((info.isGoodForFast ? Color.green : Color.orange).opacity(0.14), in: Capsule())
-        }
-        .padding(UIConstants.Spacing.standard)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            .padding(UIConstants.Spacing.large)
+            .widgetStyle(cornerRadius: 28)
+            .overlay {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            }
         }
     }
 
@@ -323,7 +315,7 @@ struct AIGenerationSheetView: View {
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
 
-                    Text("Used only in Auto mode to decide the total number of cards distributed across the selected source.")
+                    Text("Total cards for auto distribution.")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -480,7 +472,7 @@ struct AIGenerationSheetView: View {
         }
 
         return VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            Text("Auto covers the entire selected source first, then scales card density by text weight so large requests stay balanced across the full material.")
+            Text("Auto keeps the full source covered, then balances density by text weight.")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -604,35 +596,205 @@ struct AIGenerationSheetView: View {
 
     @ViewBuilder
     private var actionBar: some View {
-        HStack(spacing: UIConstants.Spacing.medium) {
-            Button("Cancel", action: onCancel)
-                .font(.headline)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(Color.secondary.opacity(0.14))
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        HStack(spacing: UIConstants.Spacing.small) {
+            Button(action: onCancel) {
+                Text("Cancel")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .glassButton(shape: .capsule)
+            }
+            .buttonStyle(.plain)
 
             Button(action: onPrimaryAction) {
                 Text("Generate")
-                    .font(.headline)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        LinearGradient(
-                            colors: [.purple, .blue],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .frame(height: 50)
+                    .background(accent, in: Capsule(style: .continuous))
             }
+            .buttonStyle(.plain)
             .disabled(!viewModel.canConfirmAIGeneration)
-            .opacity(viewModel.canConfirmAIGeneration ? 1 : 0.52)
+            .opacity(viewModel.canConfirmAIGeneration ? 1 : 0.48)
         }
         .frame(maxWidth: maxContentWidth)
         .frame(maxWidth: .infinity)
+    }
+
+    private var sourceStatusTitle: String {
+        if let info = viewModel.pdfAnalysis {
+            return info.qualityLabel
+        }
+        return viewModel.isPreparedSourcePDF ? "Document ready" : "Images ready"
+    }
+
+    private func sourceStatusSubtitle(source: AIPreparedGenerationSource) -> String {
+        if let info = viewModel.pdfAnalysis {
+            return "\(info.pageCount) pages · ~\(info.extractedChars) chars"
+        }
+        return "\(source.itemCount) \(sourceNounPlural) · \(source.totalCharacterCount) chars"
+    }
+
+    private var sourceRecommendationBadge: (title: String, tint: Color)? {
+        guard let info = viewModel.pdfAnalysis else { return nil }
+        return (
+            info.recommendation == .fast ? "Fast" : "Quality",
+            info.isGoodForFast ? .green : .orange
+        )
+    }
+}
+
+// MARK: - Source Preparation Center Stage
+
+private struct SourcePreparationCenterStage: View {
+    let state: AISourcePreparationState?
+
+    private var title: String {
+        switch state {
+        case .photos:
+            return "Extracting text from images"
+        case .pdf:
+            return "Reading document"
+        case .none:
+            return "Preparing source"
+        }
+    }
+
+    private var subtitle: String {
+        switch state {
+        case .photos(let itemCount):
+            return itemCount == 1
+                ? "OCR is analyzing 1 image."
+                : "OCR is analyzing \(itemCount) images."
+        case .pdf:
+            return "Pages, previews and text quality are being prepared."
+        case .none:
+            return "Preparing the selected source."
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: UIConstants.Spacing.large) {
+            PreparingSourceAnimation(state: state)
+
+            AIGenerationActivityDots(color: ThemeManager.shared.accentColor.color)
+                .scaleEffect(1.15)
+
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+
+                Text(subtitle)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct PreparingSourceAnimation: View {
+    let state: AISourcePreparationState?
+    @State private var isPrimaryAnimated = false
+    @State private var isSecondaryAnimated = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(ThemeManager.shared.accentColor.color.opacity(0.10))
+                .frame(width: 164, height: 164)
+                .blur(radius: 14)
+                .scaleEffect(isPrimaryAnimated ? 1.06 : 0.92)
+
+            Circle()
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                .frame(width: 138, height: 138)
+                .scaleEffect(isSecondaryAnimated ? 1.02 : 0.96)
+
+            switch state {
+            case .pdf:
+                pdfAnimation
+            default:
+                photosAnimation
+            }
+        }
+        .frame(height: 190)
+        .task {
+            guard !isPrimaryAnimated && !isSecondaryAnimated else { return }
+
+            withAnimation(.easeInOut(duration: 1.35).repeatForever(autoreverses: true)) {
+                isPrimaryAnimated = true
+            }
+
+            withAnimation(.easeInOut(duration: 1.85).repeatForever(autoreverses: true)) {
+                isSecondaryAnimated = true
+            }
+        }
+    }
+
+    private var photosAnimation: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(Color.white.opacity(0.05))
+                .frame(width: 88, height: 108)
+                .overlay {
+                    Image(systemName: "photo")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .offset(
+                    x: isSecondaryAnimated ? -16 : -8,
+                    y: isSecondaryAnimated ? -12 : -4
+                )
+                .rotationEffect(.degrees(isSecondaryAnimated ? -9 : -3))
+
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(ThemeManager.shared.accentColor.color.opacity(0.24))
+                .frame(width: 98, height: 118)
+                .overlay {
+                    Image(systemName: "text.viewfinder")
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .offset(x: isPrimaryAnimated ? 10 : 4, y: isPrimaryAnimated ? 10 : -2)
+                .shadow(color: ThemeManager.shared.accentColor.color.opacity(0.18), radius: 18, y: 8)
+        }
+    }
+
+    private var pdfAnimation: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+                .frame(width: 94, height: 118)
+                .offset(
+                    x: isSecondaryAnimated ? -10 : -4,
+                    y: isSecondaryAnimated ? -6 : 2
+                )
+
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(ThemeManager.shared.accentColor.color.opacity(0.22))
+                .frame(width: 102, height: 126)
+                .overlay(alignment: .top) {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(Color.white.opacity(0.88))
+                        .frame(width: 52, height: 4)
+                        .offset(y: isPrimaryAnimated ? 52 : 28)
+                        .blur(radius: 0.2)
+                }
+                .overlay {
+                    Image(systemName: "doc.text.viewfinder")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .offset(y: isPrimaryAnimated ? 8 : -4)
+                .shadow(color: ThemeManager.shared.accentColor.color.opacity(0.18), radius: 18, y: 8)
+        }
     }
 }
 
@@ -690,15 +852,12 @@ private struct ExpandableGenerationSection<Content: View>: View {
             }
         }
         .clipped()
-        .padding(UIConstants.Spacing.large)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        }
+            .padding(UIConstants.Spacing.large)
+            .widgetStyle(cornerRadius: 22)
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            }
     }
 }
 
@@ -800,39 +959,39 @@ private struct DistributionModeButton: View {
     let isSelected: Bool
     let action: () -> Void
 
+    private var accent: Color {
+        ThemeManager.shared.accentColor.color
+    }
+
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(title)
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(isSelected ? .white : .primary)
+                        .foregroundStyle(.primary)
 
                     Spacer()
 
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(isSelected ? .white : .secondary)
+                        .foregroundStyle(isSelected ? accent : .secondary)
                 }
 
                 Text(subtitle)
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(isSelected ? .white.opacity(0.82) : .secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(UIConstants.Spacing.standard)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(
-                        isSelected
-                            ? LinearGradient(colors: [.purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
-                            : LinearGradient(colors: [Color.white.opacity(0.04), Color.clear], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
+                    .fill(isSelected ? accent.opacity(0.12) : Color.white.opacity(0.04))
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(isSelected ? Color.white.opacity(0.26) : Color.white.opacity(0.06), lineWidth: 1)
+                    .stroke(isSelected ? accent.opacity(0.34) : Color.white.opacity(0.06), lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
@@ -978,13 +1137,7 @@ private struct DiscreteValueSlider: View {
                     .frame(height: trackHeight)
 
                 Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [.purple.opacity(0.95), .blue.opacity(0.9)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
+                    .fill(ThemeManager.shared.accentColor.color)
                     .frame(width: filledWidth, height: trackHeight)
 
                 SliderThumb()
@@ -1040,13 +1193,7 @@ private struct DiscreteRangeSlider: View {
                     .frame(height: trackHeight)
 
                 Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [.purple.opacity(0.92), .blue.opacity(0.86)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
+                    .fill(ThemeManager.shared.accentColor.color)
                     .frame(
                         width: selectedWidth,
                         height: trackHeight
@@ -1218,41 +1365,41 @@ private struct GenerationChoiceCard: View {
     let isSelected: Bool
     let action: () -> Void
 
+    private var accent: Color {
+        ThemeManager.shared.accentColor.color
+    }
+
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                 HStack {
                     Image(systemName: icon)
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(isSelected ? .white : .primary)
+                        .foregroundStyle(isSelected ? accent : .primary)
                     Spacer()
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(isSelected ? .white : .secondary)
+                        .foregroundStyle(isSelected ? accent : .secondary)
                 }
 
                 Text(title)
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(isSelected ? .white : .primary)
+                    .foregroundStyle(.primary)
 
                 Text(subtitle)
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(isSelected ? .white.opacity(0.82) : .secondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)
             }
             .frame(maxWidth: .infinity, minHeight: 122, alignment: .topLeading)
             .padding(UIConstants.Spacing.medium)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(
-                        isSelected
-                            ? LinearGradient(colors: [.purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
-                            : LinearGradient(colors: [Color.white.opacity(0.04), Color.clear], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
+                    .fill(isSelected ? accent.opacity(0.12) : Color.white.opacity(0.04))
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(isSelected ? Color.white.opacity(0.28) : Color.white.opacity(0.06), lineWidth: 1)
+                    .stroke(isSelected ? accent.opacity(0.34) : Color.white.opacity(0.06), lineWidth: 1)
             }
         }
         .buttonStyle(.plain)

@@ -33,12 +33,8 @@ struct DeckCustomNavigationBar: View {
     let searchQuery: String?
     /// `true` when the parent view is in multi-card selection mode.
     let isSelecting: Bool
-    /// Controls the expanded/collapsed state of the context menu.
-    @Binding var isMenuExpanded: Bool
-    /// The global-coordinate frame of the ellipsis button; used to anchor the dropdown.
-    @Binding var menuPosition: CGRect
-    /// Provides the live frame of the ellipsis button before the binding is written.
-    let menuTracker: MenuPositionTracker
+    /// Active sort order shown in the native overflow menu.
+    @Binding var sortOrder: SortOrder
 
     // MARK: - Callbacks
 
@@ -93,9 +89,7 @@ struct DeckCustomNavigationBar: View {
                 DeckActionOverlay(
                     deck: deck,
                     isSelecting: isSelecting,
-                    isMenuExpanded: $isMenuExpanded,
-                    menuPosition: $menuPosition,
-                    menuTracker: menuTracker,
+                    sortOrder: $sortOrder,
                     onAdd: onAdd,
                     onStartSelection: onStartSelection,
                     onExport: onExport

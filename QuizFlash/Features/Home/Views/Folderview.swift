@@ -64,6 +64,7 @@ struct FolderView: View {
     // context.fetch() calls on the Main Actor during view evaluation.
 
     @Query private var decks: [DeckModel]
+    @Query(sort: \FolderModel.createdAt, order: .reverse) private var folders: [FolderModel]
 
     // MARK: - View Model
 
@@ -111,7 +112,7 @@ struct FolderView: View {
 
     private var contentWithModifiers: some View {
         mainContent
-            .modifier(LibraryModalsAndDialogs(viewModel: viewModel, context: context, decks: decks))
+            .modifier(LibraryModalsAndDialogs(viewModel: viewModel, context: context, decks: decks, folders: folders))
             .modifier(LibraryAlerts(viewModel: viewModel))
     }
 
@@ -120,6 +121,7 @@ struct FolderView: View {
     private var mainContent: some View {
         LibraryLayout(
             decks: decks,
+            folders: folders,
             viewModel: viewModel,
             router: router,
             title: folder.title,
