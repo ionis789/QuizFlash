@@ -2036,23 +2036,6 @@ final class CreateDeckViewModel {
         withAnimation { draftCards[index] = updated }
     }
 
-    /// Toggles whether a draft card should stay pinned once persisted.
-    func togglePinnedState(for draftCardID: UUID) {
-        guard let index = draftCards.firstIndex(where: { $0.id == draftCardID }) else { return }
-        var updated = draftCards[index]
-        updated.isPinned.toggle()
-        updated.editedAt = Date()
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
-            draftCards[index] = updated
-        }
-    }
-
-    /// Removes the specified draft card from the list.
-    func deleteCard(_ card: DraftCard) {
-        selectedDraftCardIDs.remove(card.id)
-        withAnimation { draftCards.removeAll { $0.id == card.id } }
-    }
-
     /// Enters multi-card selection mode for the current draft list.
     func enterCardSelectionMode() {
         guard !draftCards.isEmpty else { return }

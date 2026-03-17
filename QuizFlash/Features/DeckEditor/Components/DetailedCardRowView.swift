@@ -14,21 +14,12 @@ struct DetailedCardRowView: View {
     var isSelecting: Bool = false
     var isSelected: Bool = false
 
-    var onEdit: (() -> Void)? = nil
-    var onTogglePin: (() -> Void)? = nil
-    var onDelete: (() -> Void)? = nil
     var onPrimaryTap: (() -> Void)? = nil
-
-    @State private var isShowingMenu = false
-    @State private var suppressPrimaryTapUntil = Date.distantPast
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var isCompactPreview: Bool { fixedHeight != nil }
     private var trailingAccessorySize: CGFloat { 34 }
     private var displayCardNumber: Int { card.cardNumber > 0 ? card.cardNumber : index }
-    private var showsOverflowMenu: Bool {
-        !isSelecting && onEdit != nil && onTogglePin != nil && onDelete != nil && !isCompactPreview
-    }
 
     var body: some View {
         Group {
@@ -48,32 +39,11 @@ struct DetailedCardRowView: View {
             }
         }
         .widgetStyle(cornerRadius: 30)
-        .scaleEffect(isSelected ? 0.972 : 1, anchor: .center)
+        .scaleEffect(isSelected ? 0.9 : 1, anchor: .center)
         .animation(.easeInOut(duration: 0.18), value: isSelected)
         .contentShape(Rectangle())
         .onTapGesture {
-            guard canHandlePrimaryTap else { return }
             onPrimaryTap?()
-        }
-        .onChange(of: isShowingMenu) { oldValue, newValue in
-            if oldValue, !newValue {
-                suppressPrimaryTapUntil = Date().addingTimeInterval(0.35)
-            }
-        }
-    }
-
-    private var canHandlePrimaryTap: Bool {
-        !isShowingMenu && Date() >= suppressPrimaryTapUntil
-    }
-
-    private func dismissMenuThen(_ action: @escaping () -> Void) {
-        isShowingMenu = false
-        suppressPrimaryTapUntil = Date().addingTimeInterval(0.35)
-
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(160))
-            guard !Task.isCancelled else { return }
-            action()
         }
     }
 
@@ -81,7 +51,7 @@ struct DetailedCardRowView: View {
         let summary = DraftCardContentSummary(card: card)
 
         return VStack(alignment: .leading, spacing: isCompactPreview ? 14 : 18) {
-            header(summary: summary)
+            header
 
             if !isCompactPreview {
                 metricsStrip(summary: summary)
@@ -92,7 +62,7 @@ struct DetailedCardRowView: View {
         }
     }
 
-    private func header(summary: DraftCardContentSummary) -> some View {
+    private var header: some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
             Text("Card \(displayCardNumber)")
                 .font(.system(size: 18, weight: .bold, design: .rounded))
@@ -106,22 +76,21 @@ struct DetailedCardRowView: View {
 
             Spacer(minLength: UIConstants.Spacing.small)
 
-            trailingAccessory(summary: summary)
+            trailingAccessory
         }
+        .frame(minHeight: trailingAccessorySize, alignment: .center)
     }
 
     @ViewBuilder
-    private func trailingAccessory(summary: DraftCardContentSummary) -> some View {
+    private var trailingAccessory: some View {
         Group {
             if isSelecting {
                 selectionIndicator
-            } else if showsOverflowMenu {
-                overflowMenuButton(summary: summary)
             } else {
                 Color.clear
             }
         }
-        .frame(width: trailingAccessorySize, height: trailingAccessorySize)
+        .frame(width: isSelecting ? trailingAccessorySize : 0, height: trailingAccessorySize)
     }
 
     private func metricsStrip(summary: DraftCardContentSummary) -> some View {
@@ -225,38 +194,6 @@ struct DetailedCardRowView: View {
         .accessibilityHidden(true)
     }
 
-    private func overflowMenuButton(summary: DraftCardContentSummary) -> some View {
-        Button {
-            isShowingMenu = true
-        } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-                .frame(width: trailingAccessorySize, height: trailingAccessorySize)
-                .background(Color.white.opacity(0.05), in: Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Card actions")
-        .popover(isPresented: $isShowingMenu, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
-            StandardCardContextMenu(
-                title: "Card \(index)",
-                summary: menuSummary(summary: summary),
-                indicatorTint: menuTint,
-                isPinned: card.isPinned,
-                onEdit: {
-                    dismissMenuThen { onEdit?() }
-                },
-                onTogglePin: {
-                    dismissMenuThen { onTogglePin?() }
-                },
-                onDelete: {
-                    dismissMenuThen { onDelete?() }
-                }
-            )
-            .presentationCompactAdaptation(.popover)
-        }
-    }
-
     @ViewBuilder
     private func chip(text: String, symbol: String, tint: Color = .secondary) -> some View {
         HStack(spacing: 4) {
@@ -268,29 +205,6 @@ struct DetailedCardRowView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .background(Color.white.opacity(0.05), in: Capsule())
-    }
-
-    private func menuSummary(summary: DraftCardContentSummary) -> String {
-        var parts = [
-            "Card \(displayCardNumber)",
-            card.creationSource == .ai ? "AI generated" : "Manual",
-            "\(summary.front.displayZoneCount) Q",
-            "\(summary.back.displayZoneCount) A",
-            "\(summary.total.textCharacterCount) chars"
-        ]
-
-        if card.isPinned {
-            parts.append("Pinned")
-        }
-
-        return parts.joined(separator: " • ")
-    }
-
-    private var menuTint: Color {
-        if card.isPinned {
-            return .orange
-        }
-        return card.creationSource == .ai ? accent : .secondary
     }
 
     private var shouldShowEditedDate: Bool {

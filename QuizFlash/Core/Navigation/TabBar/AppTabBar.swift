@@ -6,9 +6,9 @@
 import SwiftUI
 
 enum AppTabBar: String, CaseIterable, Identifiable {
-    case home = "Home"
-    case library = "Library"
-    case create = "Create"
+    case home = "HOME"
+    case library = "LIBRARY"
+    case create = "CREATE"
 
     var id: String { rawValue }
 

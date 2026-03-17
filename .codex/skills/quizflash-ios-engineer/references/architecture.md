@@ -65,6 +65,14 @@
   - Interactive change: `.spring(response: 0.35, dampingFraction: 0.85)`
   - Dismissal: `.spring(response: 0.35, dampingFraction: 0.8)`
   - Micro-interaction: `.easeInOut(duration: UIConstants.Animation.instant)`
+- Standardize floating bottom chrome motion through the shared design-system presets in `Core/DesignSystem/Modifiers/View+Styles.swift`.
+  - Reuse `BottomChromeContainer` from `Core/DesignSystem/Components/BottomChromeContainer.swift` for the shared surface, radius, horizontal inset, and bottom anchoring of `CustomTabBar` and selection bars.
+  - Persistent bottom chrome like `CustomTabBar` should use `.bottomChromeVisibility(...)`.
+  - Inserted selection bars should use `.transition(.bottomChrome)`.
+  - Bottom chrome swaps must use `.bottomChromeSpring`; compact count/state changes inside those bars must use `.selectionToolbarSpring`.
+  - Entry/exit into selection mode must use `withBottomChromeAnimation { ... }`. Do not rely on one screen mutating selection state without the shared transaction while another uses an explicit spring.
+  - Floating bottom chrome should anchor to stable physical safe-area metrics when system tab-bar visibility changes can mutate SwiftUI safe-area insets during the transition.
+- Do not fork separate spring values for tab bar vs selection bars vs other floating bottom bars unless the interaction model is genuinely different.
 
 ### UIConstants Tokens
 

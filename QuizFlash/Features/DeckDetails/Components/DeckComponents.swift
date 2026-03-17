@@ -352,15 +352,26 @@ struct DeckActionOverlay: View {
         }
     }
 
+    @ViewBuilder
+    private func actionChromeLabel(symbol: String, tint: Color) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
+            .foregroundStyle(tint)
+            .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+            .glassButton(shape: .circle)
+            .overlay {
+                Circle()
+                    .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
+            }
+            .clipShape(Circle())
+            .compositingGroup()
+    }
+
     // MARK: - Add Button
 
     private var addButton: some View {
         Button(action: onAdd) {
-            Image(systemName: "plus")
-                .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
-                .foregroundStyle(accent)
-                .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-                .glassButton(shape: .circle)
+            actionChromeLabel(symbol: "plus", tint: accent)
         }
             .buttonStyle(.plain)
     }
@@ -391,11 +402,7 @@ struct DeckActionOverlay: View {
                 }
             }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
-                .foregroundStyle(isSelecting ? .white : accent)
-                .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-                .glassButton(shape: .circle)
+            actionChromeLabel(symbol: "ellipsis", tint: isSelecting ? .white : accent)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("More actions")
@@ -417,31 +424,58 @@ struct DeckSelectionBottomBar: View {
     let selectedCount: Int
     /// Called when the user taps "Done" to exit selection mode.
     var onDone: () -> Void
+    /// Called when the user clears the current selection without leaving selection mode.
+    var onClearSelection: () -> Void
     /// Called when the user taps the delete button to confirm batch deletion.
     var onDelete: () -> Void
+
+    private var selectionSummary: String {
+        if selectedCount == 0 {
+            return "Tap cards"
+        }
+        return selectedCount == 1 ? "1 selected" : "\(selectedCount) selected"
+    }
+
+    private var summaryTint: Color {
+        selectedCount == 0 ? .secondary : .primary
+    }
 
     // MARK: - Body
 
     var body: some View {
-        HStack(spacing: UIConstants.Spacing.medium) {
-
-            // Done button
-            Button(action: onDone) {
+        HStack(spacing: UIConstants.Spacing.small) {
+            SelectionToolbarCapsuleButton(
+                action: onDone,
+                accessibilityLabel: "Done selecting cards"
+            ) {
                 Text("Done")
                     .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 16)
-                    .frame(height: UIConstants.Size.selectionToolbarControl)
-                    .glassButton(shape: .capsule)
+                    .foregroundStyle(.primary)
             }
-                .buttonStyle(.plain)
+            .layoutPriority(1)
 
-            Spacer()
+            Text(selectionSummary)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(summaryTint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+                .monospacedDigit()
+                .frame(width: 118, alignment: .leading)
 
-            // Delete button — disabled and dimmed when nothing is selected
+            if selectedCount > 0 {
+                SelectionToolbarTextButton(
+                    title: "Clear",
+                    accessibilityLabel: "Clear selected cards"
+                ) {
+                    onClearSelection()
+                }
+            }
+
+            Spacer(minLength: 0)
+
             SelectionToolbarIconButton(
                 isEnabled: selectedCount > 0,
                 accessibilityLabel: "Delete \(selectedCount) selected card\(selectedCount == 1 ? "" : "s")",
-                badgeCount: selectedCount,
                 action: onDelete
             ) {
                 Image(systemName: "trash")
@@ -449,10 +483,7 @@ struct DeckSelectionBottomBar: View {
                     .foregroundStyle(selectedCount > 0 ? Color.red : Color.secondary)
             }
         }
-            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-            .padding(.vertical, 10)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
     }
 }

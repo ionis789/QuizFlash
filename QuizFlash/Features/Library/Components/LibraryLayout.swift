@@ -52,15 +52,6 @@ struct LibraryLayout: View {
     /// Read directly from UIWindow so it is never inflated by TabView's layout.
     @State private var physicalSafeBottom: CGFloat = 0
 
-    /// Extra bottom offset introduced by TabView for its native UITabBar.
-    /// When the tab bar is hidden (selection / search mode), the SwiftUI layout
-    /// system still reserves this space. Applying a negative bottom padding equal
-    /// to tabBarOffset moves the selection bar down to the correct visual position.
-    private var tabBarOffset: CGFloat {
-        max(0, viewSafeBottom - physicalSafeBottom)
-    }
-
-    private var accent: Color { ThemeManager.shared.accentColor.color }
     private var backgroundTheme: Color { Color(uiColor: .systemBackground) }
     private var searchTransition: Animation {
             .spring(response: UIConstants.Animation.instant, dampingFraction: 0.92)
@@ -123,19 +114,19 @@ struct LibraryLayout: View {
 
 
             if viewModel.isSelecting && !isSearching {
-                LibrarySelectionBarView(
-                    viewModel: viewModel,
-                    decks: decks,
-                    onDeleteTap: { viewModel.showDeleteConfirmation = true },
-                    onMoveTap: { viewModel.showMoveConfirmation = true }
-                )
-                // TabView inflates the ZStack's safe-area bottom by UITabBar height
-                // even when the bar is hidden. tabBarOffset = that extra inset.
-                // A negative bottom padding shifts the bar down by exactly that
-                // amount so it sits above the home indicator, not above the tab bar.
-                .padding(.bottom, -tabBarOffset)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(10)
+                BottomChromeContainer(
+                    kind: .selection,
+                    bottomPadding: BottomChromeInsets.persistent
+                ) {
+                    LibrarySelectionBarView(
+                        viewModel: viewModel,
+                        decks: decks,
+                        onDeleteTap: { viewModel.showDeleteConfirmation = true },
+                        onMoveTap: { viewModel.showMoveConfirmation = true }
+                    )
+                }
+                .transition(.bottomChrome)
+                .zIndex(10)
             }
 
             if viewModel.isImporting || viewModel.isExporting {
@@ -148,7 +139,7 @@ struct LibraryLayout: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+            .animation(.bottomChromeSpring, value: viewModel.isSelecting)
             .background {
             GeometryReader { geo in
                 Color.clear
@@ -200,12 +191,12 @@ struct LibraryLayout: View {
                 .safeAreaInset(edge: .bottom) {
                 Color.clear
                     .frame(height: 100)
-                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+                    .animation(.bottomChromeSpring, value: viewModel.isSelecting)
             }
                 .safeAreaInset(edge: .top) {
                 Color.clear
                     .frame(height: 100)
-                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+                    .animation(.bottomChromeSpring, value: viewModel.isSelecting)
             }
         }
         // ── Selection mode dismiss on empty-space tap ─────────────────────
@@ -225,7 +216,7 @@ struct LibraryLayout: View {
         .gesture(
             TapGesture().onEnded {
                 guard viewModel.isSelecting && !isSearching else { return }
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                withBottomChromeAnimation {
                     viewModel.exitSelectionMode()
                 }
             }

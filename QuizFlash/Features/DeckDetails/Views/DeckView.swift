@@ -35,6 +35,8 @@ struct DeckContentView: View {
     @State private var selectedPlayModeSettings: DeckPlayModeDestination? = nil
     @State private var previewedCard: CardModel? = nil
     @State private var editingCard: CardModel? = nil
+    @State private var activeCardActionID: PersistentIdentifier? = nil
+    @State private var pendingDeleteCardID: PersistentIdentifier? = nil
     @Bindable var viewModel: DeckViewModel
     @State private var hasLoadedInitialSnapshot = false
     @State private var navigationBarHeight: CGFloat =
@@ -46,17 +48,6 @@ struct DeckContentView: View {
     /// Scroll-driven progress — updated by DeckScrollMonitor via KVO, never by SwiftUI state.
     @State private var scrollState = DeckScrollState()
 
-    /// View-level safe-area bottom inset.
-    @State private var viewSafeBottom: CGFloat = 0
-
-    /// Physical screen safe-area bottom inset.
-    @State private var physicalSafeBottom: CGFloat = 0
-
-    /// Extra height that TabView adds to the safe area for its native UITabBar.
-    private var tabBarOffset: CGFloat {
-        max(0, viewSafeBottom - physicalSafeBottom)
-    }
-
     private var isSuspended: Bool {
         router.activeTab != ownerTab
     }
@@ -64,6 +55,15 @@ struct DeckContentView: View {
     /// Reserved top spacing that keeps the hero content below the floating chrome.
     private var topContentInset: CGFloat {
         navigationBarHeight + UIConstants.Layout.deckHeroChromeClearance
+    }
+
+    /// Bottom scroll clearance reserved for floating chrome without creating a large dead zone.
+    private var bottomContentInset: CGFloat {
+        let baseInset = UIConstants.Spacing.small
+        guard viewModel.isSelecting else { return baseInset }
+        return UIConstants.Size.selectionToolbarBarHeight
+            + UIConstants.Layout.bottomChromeBottomPadding
+            + UIConstants.Spacing.standard
     }
 
     /// Formats deck creation date and card count for display under the deck title.
@@ -157,11 +157,30 @@ struct DeckContentView: View {
             ) {
                 Button("Cancel", role: .cancel) { }
                 Button("Delete", role: .destructive) {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withBottomChromeAnimation {
                         viewModel.deleteSelectedCards(from: deck, context: context)
                     }
                 }
             } message: { Text("This action cannot be undone.") }
+            .alert(
+                "Delete this card?",
+                isPresented: Binding(
+                    get: { pendingDeleteCardID != nil },
+                    set: { if !$0 { pendingDeleteCardID = nil } }
+                )
+            ) {
+                Button("Cancel", role: .cancel) {
+                    pendingDeleteCardID = nil
+                }
+                Button("Delete", role: .destructive) {
+                    guard let id = pendingDeleteCardID else { return }
+                    activeCardActionID = nil
+                    pendingDeleteCardID = nil
+                    viewModel.deleteCard(withID: id, from: deck, context: context)
+                }
+            } message: {
+                Text("This action cannot be undone.")
+            }
             .sheet(isPresented: $viewModel.showShareSheet) {
                 if let url = viewModel.exportedURL { ShareSheet(items: [url]) }
             }
@@ -177,13 +196,26 @@ struct DeckContentView: View {
         ZStack(alignment: .bottom) {
             mainContentWithCovers
             if viewModel.isSelecting {
-                DeckSelectionBottomBar(
-                    selectedCount: viewModel.selectedCards.count,
-                    onDone: viewModel.exitSelectionMode,
-                    onDelete: { viewModel.showDeleteConfirmation = true }
-                )
-                    .padding(.bottom, -tabBarOffset)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                BottomChromeContainer(
+                    kind: .selection,
+                    bottomPadding: BottomChromeInsets.persistent
+                ) {
+                    DeckSelectionBottomBar(
+                        selectedCount: viewModel.selectedCards.count,
+                        onDone: {
+                            withBottomChromeAnimation {
+                                viewModel.exitSelectionMode()
+                            }
+                        },
+                        onClearSelection: {
+                            withAnimation(.selectionToolbarSpring) {
+                                viewModel.clearSelection()
+                            }
+                        },
+                        onDelete: { viewModel.showDeleteConfirmation = true }
+                    )
+                }
+                    .transition(.bottomChrome)
                     .zIndex(10)
             }
         }
@@ -198,31 +230,8 @@ struct DeckContentView: View {
                     && previewedCard == nil
                     && editingCard == nil
             ) { dismiss() }
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.isSelecting)
+            .animation(.bottomChromeSpring, value: viewModel.isSelecting)
             .environment(scrollState)
-            .background {
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear {
-                    viewSafeBottom = geo.safeAreaInsets.bottom
-                    physicalSafeBottom = UIApplication.shared
-                        .connectedScenes
-                        .compactMap { $0 as? UIWindowScene }
-                        .first?.windows
-                        .first(where: { $0.isKeyWindow })?
-                        .safeAreaInsets.bottom ?? 0
-                }
-                    .onChange(of: geo.safeAreaInsets.bottom) { _, v in
-                    viewSafeBottom = v
-                    physicalSafeBottom = UIApplication.shared
-                        .connectedScenes
-                        .compactMap { $0 as? UIWindowScene }
-                        .first?.windows
-                        .first(where: { $0.isKeyWindow })?
-                        .safeAreaInsets.bottom ?? 0
-                }
-            }
-        }
     }
 
     // MARK: Navigation Bar
@@ -259,8 +268,9 @@ struct DeckContentView: View {
             onBack: { dismiss() },
             onAdd: { isAddingCard = true },
             onStartSelection: {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    viewModel.isSelecting = true
+                withBottomChromeAnimation {
+                    activeCardActionID = nil
+                    viewModel.enterSelectionMode()
                 }
             },
             onExport: { viewModel.exportDeck(deck) }
@@ -365,6 +375,11 @@ struct DeckContentView: View {
                     getOffset: { viewModel.savedScrollOffset },
                     onOffsetChange: { offset in
                         viewModel.savedScrollOffset = offset
+                        if activeCardActionID != nil {
+                            withAnimation(.easeOut(duration: 0.14)) {
+                                activeCardActionID = nil
+                            }
+                        }
                     }
                 )
                 .frame(width: 0, height: 0)
@@ -470,9 +485,12 @@ struct DeckContentView: View {
                     isSelecting: viewModel.isSelecting,
                     selectedCards: viewModel.selectedCards,
                     isSuspended: isSuspended,
+                    activeActionCardID: activeCardActionID,
                     onToggleSelection: { gridCard in viewModel.toggleSelection(for: gridCard.id) },
                     onTapCard: { gridCard in
-                        if viewModel.isSelecting {
+                        if activeCardActionID != nil {
+                            activeCardActionID = nil
+                        } else if viewModel.isSelecting {
                             viewModel.toggleSelection(for: gridCard.id)
                         } else if searchQuery != nil {
                             if let model = context.model(for: gridCard.id) as? CardModel { editingCard = model }
@@ -480,38 +498,65 @@ struct DeckContentView: View {
                             if let model = context.model(for: gridCard.id) as? CardModel { previewedCard = model }
                         }
                     },
+                    onLongPressCard: { gridCard in
+                        let haptic = UIImpactFeedbackGenerator(style: .light)
+                        haptic.prepare()
+                        haptic.impactOccurred(intensity: 0.72)
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            activeCardActionID = gridCard.id
+                        }
+                    },
+                    onDismissCardActions: {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            activeCardActionID = nil
+                        }
+                    },
                     onEditCard: { gridCard in
+                        activeCardActionID = nil
                         if let model = context.model(for: gridCard.id) as? CardModel {
                             editingCard = model
                         }
                     },
-                    onTogglePinnedCard: { gridCard in
-                        viewModel.togglePinnedState(for: gridCard.id, context: context)
+                    onTogglePinned: { gridCard in
+                        activeCardActionID = nil
+                        viewModel.togglePinnedState(for: gridCard.id, in: deck, context: context)
                     },
                     onDeleteCard: { gridCard in
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            viewModel.deleteSingleCard(id: gridCard.id, from: deck, context: context)
-                        }
+                        pendingDeleteCardID = gridCard.id
                     }
                 )
                 .padding(.top, 4)
             }
-        }
-        .coordinateSpace(name: kDeckScrollSpace)
-        .gesture(
-            TapGesture().onEnded {
-                guard viewModel.isSelecting else { return }
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    viewModel.exitSelectionMode()
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background {
+                Color(.systemGroupedBackground)
+
+                if activeCardActionID != nil {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.18)) {
+                                activeCardActionID = nil
+                            }
+                        }
+                } else if viewModel.isSelecting {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withBottomChromeAnimation {
+                                viewModel.exitSelectionMode()
+                            }
+                        }
                 }
             }
-        )
+        }
+        .coordinateSpace(name: kDeckScrollSpace)
         .scrollIndicators(.hidden)
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topContentInset)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Color.clear.frame(height: 120)
+            Color.clear.frame(height: bottomContentInset)
         }
         .background(Color(.systemGroupedBackground))
     }

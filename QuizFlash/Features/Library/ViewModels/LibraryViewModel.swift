@@ -380,6 +380,12 @@ final class LibraryViewModel {
         else { selectedDecks.insert(deck.id) }
     }
 
+    /// Enters multi-deck selection mode and clears any stale selection.
+    func enterSelectionMode() {
+        isSelecting = true
+        selectedDecks.removeAll()
+    }
+
     /// Clears selected decks and collapses the selection mode.
     func exitSelectionMode() {
         isSelecting = false

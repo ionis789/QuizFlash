@@ -78,6 +78,9 @@ struct CardPreviewModeView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .fullScreenSheetDragActivationHeight(cardTopInset)
         }
+        .swipeBack {
+            handleDone()
+        }
     }
 
     private func topChrome(safeTopInset: CGFloat, horizontalInset: CGFloat) -> some View {

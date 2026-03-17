@@ -293,14 +293,31 @@ struct LibraryTopBarView: View {
     private var moreSettingsButton: some View {
         Menu { menuContent } label: {
             ZStack {
+                Circle()
+                    .fill(.clear)
                 floatingCircleBackground
+                    .frame(
+                        width: UIConstants.Size.actionButton,
+                        height: UIConstants.Size.actionButton
+                    )
                 Image(systemName: "ellipsis")
                     .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
                     .foregroundStyle(accent)
             }
-            .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+            .frame(
+                width: searchButtonHitSize,
+                height: searchButtonHitSize
+            )
+            .overlay {
+                Circle()
+                    .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
+            }
+            .clipShape(Circle())
+            .compositingGroup()
             .contentShape(Circle())
         }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
     }
 
     @MainActor
@@ -389,8 +406,8 @@ struct LibraryTopBarView: View {
         }
 
         Button {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                viewModel.isSelecting = true
+            withBottomChromeAnimation {
+                viewModel.enterSelectionMode()
             }
         } label: {
             Label("Select", systemImage: "checkmark.circle")

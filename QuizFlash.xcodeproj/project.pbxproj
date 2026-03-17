@@ -71,6 +71,7 @@
 		CB23A3922F49065800BC2D1C /* KaTeX_Script-Regular.woff in Resources */ = {isa = PBXBuildFile; fileRef = CB23A3412F49065800BC2D1C /* KaTeX_Script-Regular.woff */; };
 		CB23A3932F49065800BC2D1C /* KaTeX_SansSerif-Italic.woff2 in Resources */ = {isa = PBXBuildFile; fileRef = CB23A33C2F49065800BC2D1C /* KaTeX_SansSerif-Italic.woff2 */; };
 		CB2BF63D2F5F6B790068EF3A /* PZCircularControl in Frameworks */ = {isa = PBXBuildFile; productRef = CB2BF63C2F5F6B790068EF3A /* PZCircularControl */; };
+		CB3A1CEA2F682D7700928B92 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = CB3A1CE92F682D7700928B92 /* Lottie */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -154,6 +155,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CB2BF63D2F5F6B790068EF3A /* PZCircularControl in Frameworks */,
+				CB3A1CEA2F682D7700928B92 /* Lottie in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -268,6 +270,7 @@
 			name = QuizFlash;
 			packageProductDependencies = (
 				CB2BF63C2F5F6B790068EF3A /* PZCircularControl */,
+				CB3A1CE92F682D7700928B92 /* Lottie */,
 			);
 			productName = QuizFlash;
 			productReference = CB5C2D742EF8A48400FB1D07 /* QuizFlash.app */;
@@ -299,6 +302,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				CB2BF63B2F5F6B790068EF3A /* XCRemoteSwiftPackageReference "PZCircularControl" */,
+				CB3A1CE82F682D7700928B92 /* XCRemoteSwiftPackageReference "lottie-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CB5C2D752EF8A48400FB1D07 /* Products */;
@@ -531,7 +535,7 @@
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDarkContent;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 17;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -569,7 +573,7 @@
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDarkContent;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 17;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -625,6 +629,14 @@
 				minimumVersion = 1.0.0;
 			};
 		};
+		CB3A1CE82F682D7700928B92 /* XCRemoteSwiftPackageReference "lottie-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/airbnb/lottie-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.6.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -632,6 +644,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CB2BF63B2F5F6B790068EF3A /* XCRemoteSwiftPackageReference "PZCircularControl" */;
 			productName = PZCircularControl;
+		};
+		CB3A1CE92F682D7700928B92 /* Lottie */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CB3A1CE82F682D7700928B92 /* XCRemoteSwiftPackageReference "lottie-ios" */;
+			productName = Lottie;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

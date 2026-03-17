@@ -42,13 +42,15 @@ private struct SwipeBackModifier: ViewModifier {
     @State private var isActive: Bool = false
     @State private var edge: Edge = .leading
     @State private var viewSize: CGSize = .zero // Replaced deprecated UIScreen.main
+    @State private var isFinishingGesture = false
+    @State private var didTriggerThresholdHaptic = false
 
     // MARK: - Constants
 
-    private let edgeActivationWidth: CGFloat = 120
     private let commitThreshold: CGFloat = 110
     private let jellyHeight: CGFloat = 200
     private let fingerVerticalOffset: CGFloat = 75
+    private let leadingActivationFraction: CGFloat = 0.76
 
     // MARK: - Computed Properties
     
@@ -73,8 +75,9 @@ private struct SwipeBackModifier: ViewModifier {
                     startY: $startY,
                     edge: $edge,
                     enabled: enabled,
+                    leadingActivationFraction: leadingActivationFraction,
                     commitThreshold: commitThreshold,
-                    edgeActivationWidth: edgeActivationWidth,
+                    onThresholdReached: handleThresholdReached,
                     onCommit: handleCommit,
                     onCancel: handleCancel
                 )
@@ -98,7 +101,11 @@ private struct SwipeBackModifier: ViewModifier {
     // MARK: - Handlers
     
     private func handleCommit() {
-        haptic(.success)
+        guard !isFinishingGesture else { return }
+        isFinishingGesture = true
+        if !didTriggerThresholdHaptic {
+            haptic()
+        }
         withAnimation(.spring(response: 0.18, dampingFraction: 0.9)) {
             dragOffset = edge == .leading ? viewSize.width : -viewSize.width
         }
@@ -109,7 +116,8 @@ private struct SwipeBackModifier: ViewModifier {
     }
     
     private func handleCancel() {
-        haptic(.error)
+        guard !isFinishingGesture else { return }
+        isFinishingGesture = true
         withAnimation(.spring(response: 0.22, dampingFraction: 0.65)) {
             dragOffset = 0
         }
@@ -118,14 +126,24 @@ private struct SwipeBackModifier: ViewModifier {
         }
     }
 
+    private func handleThresholdReached() {
+        guard !didTriggerThresholdHaptic else { return }
+        didTriggerThresholdHaptic = true
+        haptic()
+    }
+
     private func resetState() {
         isActive = false
         dragOffset = 0
         startY = 0
+        isFinishingGesture = false
+        didTriggerThresholdHaptic = false
     }
 
-    private func haptic(_ type: UINotificationFeedbackGenerator.FeedbackType) {
-        UINotificationFeedbackGenerator().notificationOccurred(type)
+    private func haptic() {
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.82)
     }
 }
 
@@ -140,8 +158,9 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
     @Binding var edge: Edge
 
     let enabled: Bool
+    let leadingActivationFraction: CGFloat
     let commitThreshold: CGFloat
-    let edgeActivationWidth: CGFloat
+    let onThresholdReached: () -> Void
     let onCommit: () -> Void
     let onCancel: () -> Void
 
@@ -164,7 +183,6 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var parent: NativeEdgeSwipeController
-        private var lastHapticBand: Int = 0
 
         init(parent: NativeEdgeSwipeController) {
             self.parent = parent
@@ -177,24 +195,17 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
 
             switch pan.state {
             case .began:
-                let isLeft = location.x <= parent.edgeActivationWidth
+                let isLeft = location.x <= (view.bounds.width * parent.leadingActivationFraction)
                 parent.edge = isLeft ? .leading : .trailing
                 parent.isActive = true
                 parent.startY = location.y
-                lastHapticBand = 0
 
             case .changed:
                 if parent.isActive {
                     let raw = translation.x
                     parent.dragOffset = parent.edge == .leading ? max(raw, 0) : min(raw, 0)
-
-                    let progress = min(abs(parent.dragOffset) / parent.commitThreshold, 1.0)
-                    let band = Int(progress * 5)
-                    
-                    if band > lastHapticBand {
-                        lastHapticBand = band
-                        let style: UIImpactFeedbackGenerator.FeedbackStyle = band >= 5 ? .heavy : (band >= 3 ? .medium : .light)
-                        UIImpactFeedbackGenerator(style: style).impactOccurred()
+                    if abs(parent.dragOffset) >= parent.commitThreshold {
+                        parent.onThresholdReached()
                     }
                 }
 
@@ -224,8 +235,9 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
             let loc = pan.location(in: view)
             let width = view.bounds.width
 
-            let isLeft = loc.x <= parent.edgeActivationWidth
-            let isRight = loc.x >= width - parent.edgeActivationWidth
+            let leadingBoundary = width * parent.leadingActivationFraction
+            let isLeft = loc.x <= leadingBoundary
+            let isRight = loc.x > leadingBoundary
 
             guard isLeft || isRight else { return false }
 

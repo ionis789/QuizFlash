@@ -103,10 +103,16 @@ enum UIConstants {
         static let buttonHeight: CGFloat = 50
         /// 50 pt — standard height for adaptive glass capsules.
         static let capsuleHeight: CGFloat = 50
-        /// 60 pt — unified control size used by selection toolbars.
-        static let selectionToolbarControl: CGFloat = 60
-        /// 24 pt — icon size used inside 60 pt selection toolbar controls.
-        static let selectionToolbarIcon: CGFloat = 24
+        /// 54 pt — shared control size used by the floating tab bar and selection toolbars.
+        static let bottomChromeControl: CGFloat = 54
+        /// 66 pt — shared outer height for floating bottom chrome surfaces.
+        static let bottomChromeBarHeight: CGFloat = 66
+        /// 48 pt — shared outer height for floating selection bars.
+        static let selectionToolbarBarHeight: CGFloat = 48
+        /// 40 pt — unified control size used by selection toolbars.
+        static let selectionToolbarControl: CGFloat = 40
+        /// 16 pt — icon size used inside shared selection toolbar controls.
+        static let selectionToolbarIcon: CGFloat = 16
         /// 120 pt — minimum card height in grid/list.
         static let cardMinHeight: CGFloat = 120
         /// 34 pt — compact width for the inline hero edit control.
@@ -135,9 +141,40 @@ enum UIConstants {
             UIConstants.isPad ? UIConstants.Spacing.large : UIConstants.Spacing.standard
         }
 
+        /// Shared outer horizontal inset for floating bottom chrome like tab bars and selection bars.
+        static var bottomChromeSideInset: CGFloat {
+            UIConstants.isPad ? 20 : 14
+        }
+
+        /// Shared inner horizontal padding for floating bottom chrome containers.
+        static let bottomChromeInnerHorizontalPadding: CGFloat = 12
+
+        /// Shared inner vertical padding for floating bottom chrome containers.
+        static let bottomChromeInnerVerticalPadding: CGFloat = 6
+
+        /// Shared inner horizontal padding for floating selection bars.
+        static let selectionToolbarInnerHorizontalPadding: CGFloat = 6
+
+        /// Shared inner vertical padding for floating selection bars.
+        static let selectionToolbarInnerVerticalPadding: CGFloat = 3
+
+        /// Shared bottom spacing above the home indicator for floating bottom chrome.
+        static var bottomChromeBottomPadding: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.small : 3
+        }
+
+        /// Shared corner radius for floating bottom chrome containers.
+        static let bottomChromeCornerRadius: CGFloat = 31
+
         /// Standard edge inset used by full-width screen content containers.
         static var screenEdgeInset: CGFloat {
             UIConstants.isPad ? UIConstants.Spacing.extraLarge : UIConstants.Spacing.large
+        }
+
+        /// Narrower edge inset used by dense card lists and grids so content
+        /// breathes more than the top chrome without feeling over-indented.
+        static var cardListEdgeInset: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.large : 4
         }
 
         /// Wider inset used by hero sections that benefit from extra breathing room.

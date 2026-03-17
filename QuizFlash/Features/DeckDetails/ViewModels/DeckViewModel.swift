@@ -251,9 +251,93 @@ final class DeckViewModel {
     }
 
     /// Exits selection mode and clears all selected cards.
+    func enterSelectionMode() {
+        isSelecting = true
+        selectedCards.removeAll()
+    }
+
+    /// Exits selection mode and clears all selected cards.
     func exitSelectionMode() {
         isSelecting = false
         selectedCards.removeAll()
+    }
+
+    /// Clears the current multi-card selection without leaving selection mode.
+    func clearSelection() {
+        selectedCards.removeAll()
+    }
+
+    // MARK: - Single Card Actions
+
+    /// Toggles the pinned state of a single card and refreshes the grouped grid.
+    func togglePinnedState(
+        for id: PersistentIdentifier,
+        in deck: DeckModel,
+        context: ModelContext
+    ) {
+        let descriptor = FetchDescriptor<CardModel>(
+            predicate: #Predicate { $0.persistentModelID == id }
+        )
+
+        do {
+            guard let card = try context.fetch(descriptor).first else { return }
+            let newPinnedState = !card.isPinned
+            let now = Date()
+
+            card.isPinned = newPinnedState
+            card.editedAt = now
+            deck.editedAt = now
+            try context.save()
+
+            if let index = allCardInfos.firstIndex(where: { $0.id == id }) {
+                allCardInfos[index] = allCardInfos[index].updating(
+                    isPinned: newPinnedState,
+                    editedAt: now
+                )
+                performGrouping(on: allCardInfos)
+            }
+
+            let deckID = deck.persistentModelID
+            let container = context.container
+            Task { [weak self] in
+                await self?.loadSnapshot(deckID: deckID, container: container)
+            }
+        } catch {
+            logger.error("Failed to toggle pin state: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Deletes a single card and keeps in-memory grid state in sync until the next snapshot refresh.
+    func deleteCard(
+        withID id: PersistentIdentifier,
+        from deck: DeckModel,
+        context: ModelContext
+    ) {
+        let descriptor = FetchDescriptor<CardModel>(
+            predicate: #Predicate { $0.persistentModelID == id }
+        )
+
+        do {
+            guard let card = try context.fetch(descriptor).first else { return }
+            context.delete(card)
+            deck.cards.removeAll { $0.persistentModelID == id }
+            deck.cardCount = max(0, deck.cardCount - 1)
+            deck.editedAt = Date()
+            try context.save()
+
+            allCardInfos.removeAll { $0.id == id }
+            progressStats = computeProgressStats(from: allCardInfos, deckCardCount: nil)
+            performGrouping(on: allCardInfos)
+            selectedCards.remove(id)
+
+            let deckID = deck.persistentModelID
+            let container = context.container
+            Task { [weak self] in
+                await self?.loadSnapshot(deckID: deckID, container: container)
+            }
+        } catch {
+            logger.error("Failed to delete card: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: - Creation
@@ -314,53 +398,6 @@ final class DeckViewModel {
 
     // MARK: - Deletion
 
-    /// Deletes a single card identified by its persistent identifier.
-    ///
-    /// **Two-phase update:**
-    /// - Phase 1 (sync): Removes the card from `allCardInfos` in-memory for instant UI feedback.
-    /// - Phase 2 (async): Re-fetches a full snapshot via `CardFetchActor` for accurate stats.
-    ///
-    /// The main `ModelContext` is used **only** for the delete + save mutation — never to read cards.
-    ///
-    /// - Note: Uses a `FetchDescriptor` lookup instead of `ModelContext.model(for:)` to avoid
-    ///   a potential runtime crash on iOS 17/26 when the identifier cannot be resolved.
-    ///
-    /// - Parameters:
-    ///   - id: The persistent identifier of the card to delete.
-    ///   - deck: The parent `DeckModel` whose `cardCount` will be decremented.
-    ///   - context: The main `ModelContext` used for the delete mutation.
-    func deleteSingleCard(id: PersistentIdentifier, from deck: DeckModel, context: ModelContext) {
-        let descriptor = FetchDescriptor<CardModel>(
-            predicate: #Predicate { $0.persistentModelID == id }
-        )
-        do {
-            if let card = try context.fetch(descriptor).first {
-                context.delete(card)
-                deck.cards.removeAll { $0.persistentModelID == id }
-                deck.cardCount = max(0, deck.cardCount - 1)
-                deck.editedAt = Date()
-                try context.save()
-
-                selectedCards.remove(id)
-
-                // Instant in-memory grid update — no deck.cards relationship read required.
-                allCardInfos.removeAll { $0.id == id }
-                progressStats = computeProgressStats(from: allCardInfos, deckCardCount: nil)
-                performGrouping(on: allCardInfos)
-
-                // Async stats refresh — GridCardInfo does not carry full review history,
-                // so a full re-fetch is needed to produce accurate DeckStats after deletion.
-                let deckID = deck.persistentModelID
-                let container = context.container
-                Task { [weak self] in
-                    await self?.loadSnapshot(deckID: deckID, container: container)
-                }
-            }
-        } catch {
-            logger.error("Failed to delete single card: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
     /// Deletes all currently selected cards in a single batch.
     ///
     /// Same two-phase approach as `deleteSingleCard`. Batch in-memory removal gives
@@ -398,42 +435,6 @@ final class DeckViewModel {
             }
         } catch {
             logger.error("Failed to delete selected cards: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// Toggles the persistent pinned state of a single card and immediately re-groups the grid.
-    ///
-    /// Pinning is a presentation preference rather than a spaced-repetition statistic,
-    /// so the ViewModel updates the in-memory snapshot directly instead of reloading the
-    /// entire deck from the background actor.
-    ///
-    /// - Parameters:
-    ///   - id: The persistent identifier of the card to pin or unpin.
-    ///   - context: The main `ModelContext` used for the mutation.
-    func togglePinnedState(for id: PersistentIdentifier, context: ModelContext) {
-        let descriptor = FetchDescriptor<CardModel>(
-            predicate: #Predicate { $0.persistentModelID == id }
-        )
-
-        do {
-            guard let card = try context.fetch(descriptor).first else { return }
-
-            let pinnedState = !card.isPinned
-            let editDate = Date()
-            card.isPinned = pinnedState
-            card.editedAt = editDate
-            card.deck?.editedAt = editDate
-            try context.save()
-
-            if let index = allCardInfos.firstIndex(where: { $0.id == id }) {
-                allCardInfos[index] = allCardInfos[index].updating(
-                    isPinned: pinnedState,
-                    editedAt: editDate
-                )
-                performGrouping(on: allCardInfos)
-            }
-        } catch {
-            logger.error("Failed to toggle pinned state for card: \(error.localizedDescription, privacy: .public)")
         }
     }
 

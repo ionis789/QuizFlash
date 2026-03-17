@@ -82,6 +82,18 @@ This catalog lists the reusable UI pieces that already exist in QuizFlash. Treat
 | `DeckSelectionBottomBar` | `QuizFlash/Features/DeckDetails/Components/DeckComponents.swift` | `selectedCount`, `onDone`, `onDelete` | Floating bottom toolbar during deck card selection |
 | `DeckCardContextMenu` | `QuizFlash/Features/DeckDetails/Components/DeckComponents.swift` | `card`, `onEdit`, `onTogglePin`, `onDelete` | Anchored card actions menu for deck rows/previews |
 
+### Floating Chrome Motion
+
+- `BottomChromeContainer` in `QuizFlash/Core/DesignSystem/Components/BottomChromeContainer.swift` is the shared surface for `CustomTabBar`, `DeckSelectionBottomBar`, `CreateDeckSelectionBottomBar`, and `LibrarySelectionBarView`.
+- Those controls belong to the same motion family.
+- Their appearance/disappearance should reuse:
+  - `.bottomChromeVisibility(...)` for persistent bars
+  - `.transition(.bottomChrome)` for inserted bars
+  - `.bottomChromeSpring` for visibility swaps
+  - `.selectionToolbarSpring` for compact count/toggle changes inside the bar
+- Selection-mode entry/exit should go through `withBottomChromeAnimation { ... }`.
+- Do not introduce separate local spring constants for these surfaces unless the bar is intentionally behaving unlike the standard bottom chrome family.
+
 ## Reguli de utilizare
 
 1. Reuse a DesignSystem or feature component when the new UI differs only by content, icon, tint, or callbacks.

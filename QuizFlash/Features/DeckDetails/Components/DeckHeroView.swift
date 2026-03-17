@@ -33,6 +33,9 @@ struct DeckHeroView: View {
     let deck: DeckModel
     /// Aggregate stats used to compute the mastery ring colour and fill.
     let stats: DeckStats
+    /// Maximum width available for the centered collapsed pill after leading and
+    /// trailing chrome reserve their footprint.
+    var maxWidth: CGFloat? = nil
 
     @Environment(DeckScrollState.self) private var scrollState
     @State private var measuredTextWidth: CGFloat = 0
@@ -45,7 +48,11 @@ struct DeckHeroView: View {
     }
     private var resolvedWidth: CGFloat {
         let intrinsicWidth = measuredTextWidth + (UIConstants.Spacing.standard * 2)
-        return min(220, max(UIConstants.Size.capsuleHeight, intrinsicWidth))
+        let unclampedWidth = min(220, max(UIConstants.Size.capsuleHeight, intrinsicWidth))
+        if let maxWidth {
+            return min(unclampedWidth, max(UIConstants.Size.capsuleHeight, maxWidth))
+        }
+        return unclampedWidth
     }
 
     var body: some View {

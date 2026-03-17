@@ -7,6 +7,40 @@
 
 import SwiftUI
 
+// MARK: - Shared Motion Presets
+
+extension Animation {
+    /// Shared spring used when bottom chrome swaps between the custom tab bar and selection bars.
+    static var bottomChromeSpring: Animation {
+        .spring(response: 0.36, dampingFraction: 0.92)
+    }
+
+    /// Shared spring used for compact selection-toolbar state changes.
+    static var selectionToolbarSpring: Animation {
+        .spring(response: 0.3, dampingFraction: 0.9)
+    }
+
+    /// Shared spring used by tab-item emphasis inside the floating tab bar.
+    static var tabItemSpring: Animation {
+        .spring(response: 0.32, dampingFraction: 0.9)
+    }
+}
+
+/// Wraps bottom-chrome state swaps in the shared animation transaction.
+@MainActor
+func withBottomChromeAnimation(_ updates: () -> Void) {
+    withAnimation(.bottomChromeSpring, updates)
+}
+
+extension AnyTransition {
+    /// Standard insertion/removal transition for floating bottom chrome.
+    static var bottomChrome: AnyTransition {
+        .move(edge: .bottom)
+            .combined(with: .opacity)
+            .combined(with: .scale(scale: 0.96, anchor: .bottom))
+    }
+}
+
 // MARK: - DesignShape
 
 /// Semantic shape options used by the shared glass chrome modifier.
@@ -89,7 +123,24 @@ private struct StatusTextMotionModifier<Trigger: Equatable>: ViewModifier {
     func body(content: Content) -> some View {
         content
             .contentTransition(.numericText())
-            .animation(.spring(response: 0.32, dampingFraction: 0.82), value: trigger)
+            .animation(.selectionToolbarSpring, value: trigger)
+    }
+}
+
+// MARK: - BottomChromeVisibilityModifier
+
+/// Applies the shared show/hide treatment for the floating tab bar and other persistent bottom chrome.
+private struct BottomChromeVisibilityModifier: ViewModifier {
+    let isVisible: Bool
+    let hiddenOffset: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isVisible ? 1 : 0)
+            .offset(y: isVisible ? 0 : hiddenOffset)
+            .scaleEffect(isVisible ? 1 : 0.98, anchor: .bottom)
+            .allowsHitTesting(isVisible)
+            .animation(.bottomChromeSpring, value: isVisible)
     }
 }
 
@@ -124,5 +175,10 @@ extension View {
     /// Applies the shared animated status-label treatment for counters and short live state text.
     func statusTextMotion<Trigger: Equatable>(trigger: Trigger) -> some View {
         modifier(StatusTextMotionModifier(trigger: trigger))
+    }
+
+    /// Applies the standard visibility motion used when bottom chrome appears or yields to selection bars.
+    func bottomChromeVisibility(_ isVisible: Bool, hiddenOffset: CGFloat = 80) -> some View {
+        modifier(BottomChromeVisibilityModifier(isVisible: isVisible, hiddenOffset: hiddenOffset))
     }
 }

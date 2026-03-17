@@ -106,9 +106,6 @@ struct MainAppView: View {
                         router.popToRoot()
                     }
                 } else {
-                    // Flush the image cache on tab switch to prevent stale
-                    // downsampled bitmaps from accumulating across sessions.
-                    ImageCache.shared.clearCache()
                     router.activeTab = tappedTab
                 }
             }
@@ -183,7 +180,7 @@ struct MainAppView: View {
             // would snap instead of spring.
             .onPreferenceChange(TabBarVisibilityKey.self) { rule in
                 DispatchQueue.main.async {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    withAnimation(.bottomChromeSpring) {
                         self.tabBarRule = rule
                     }
                 }
@@ -209,10 +206,7 @@ struct MainAppView: View {
             // Keeping the view alive and animating its properties avoids that
             // race entirely.
             CustomTabBar(activeTab: tabSelectionBinding)
-                .padding(.bottom, 10)
-                .opacity(isTabBarVisible ? 1 : 0)
-                .offset(y: isTabBarVisible ? 0 : 80)
-                .allowsHitTesting(isTabBarVisible)
+                .bottomChromeVisibility(isTabBarVisible)
                 .zIndex(1)
         }
         .environment(router)

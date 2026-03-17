@@ -149,7 +149,7 @@ struct CreateDeckView: View {
     /// Forces the tab bar to hide only while the keyboard is active.
     /// Materialization (card reveal animation) intentionally leaves the bar visible.
     private var tabRule: TabBarVisibilityRule {
-        if isTitleFocused || viewModel.aiSheetDestination != nil {
+        if isTitleFocused || viewModel.aiSheetDestination != nil || viewModel.isSelectingCards {
             return .hidden
         }
         return .implicit
@@ -342,7 +342,9 @@ struct CreateDeckView: View {
         ) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
-                viewModel.deleteSelectedCards()
+                withBottomChromeAnimation {
+                    viewModel.deleteSelectedCards()
+                }
             }
         } message: {
             Text("This removes the selected draft cards from the editor. Existing deck data changes only after you save.")
@@ -721,10 +723,12 @@ private extension CreateDeckView {
 
             Button(viewModel.isSelectingCards ? "Done Selecting" : "Select Cards") {
                 isTitleFocused = false
-                if viewModel.isSelectingCards {
-                    viewModel.exitCardSelectionMode()
-                } else {
-                    viewModel.enterCardSelectionMode()
+                withBottomChromeAnimation {
+                    if viewModel.isSelectingCards {
+                        viewModel.exitCardSelectionMode()
+                    } else {
+                        viewModel.enterCardSelectionMode()
+                    }
                 }
             }
             .disabled(!viewModel.isSelectingCards && (viewModel.isGenerating || viewModel.draftCards.isEmpty))
@@ -733,8 +737,9 @@ private extension CreateDeckView {
 
     private var moreActionsButton: some View {
         Menu(content: { moreMenuContents }) {
-            CreateDeckChromeButtonLabel(symbol: "ellipsis", tint: accent)
-                .glassButton(shape: .circle)
+            CreateDeckChromeCircleSurface {
+                CreateDeckChromeButtonLabel(symbol: "ellipsis", tint: accent)
+            }
         }
             .buttonStyle(.plain)
             .accessibilityLabel("More actions")
@@ -750,39 +755,40 @@ private extension CreateDeckView {
             .safeAreaInsets.bottom ?? 0
     }
 
-    private var selectionBottomBarBottomPadding: CGFloat {
-        if fullScreenSheetDismiss == nil {
-            return viewSafeBottom + UIConstants.Spacing.small
-        }
-        return physicalSafeBottom + UIConstants.Spacing.medium
-    }
-
     @ViewBuilder
     private var draftSelectionBottomBar: some View {
         if viewModel.isSelectingCards && !viewModel.draftCards.isEmpty {
-            CreateDeckSelectionBottomBar(
-                selectedCount: viewModel.selectedDraftCardCount,
-                allSelected: viewModel.areAllDraftCardsSelected,
-                onDone: {
-                    viewModel.exitCardSelectionMode()
-                },
-                onToggleSelectAll: {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
-                        viewModel.toggleSelectAllDraftCards()
+            let isPresentedInFullScreenSheet = fullScreenSheetDismiss != nil
+            BottomChromeContainer(
+                kind: .selection,
+                bottomPadding: BottomChromeInsets.selectionInEditor(
+                    viewSafeBottom: viewSafeBottom,
+                    physicalSafeBottom: physicalSafeBottom,
+                    isPresentedInFullScreenSheet: isPresentedInFullScreenSheet
+                ),
+                ignoresBottomSafeArea: isPresentedInFullScreenSheet
+            ) {
+                CreateDeckSelectionBottomBar(
+                    selectedCount: viewModel.selectedDraftCardCount,
+                    allSelected: viewModel.areAllDraftCardsSelected,
+                    onDone: {
+                        withBottomChromeAnimation {
+                            viewModel.exitCardSelectionMode()
+                        }
+                    },
+                    onToggleSelectAll: {
+                        withAnimation(.selectionToolbarSpring) {
+                            viewModel.toggleSelectAllDraftCards()
+                        }
+                    },
+                    onDelete: {
+                        viewModel.requestDeleteSelectedCards()
                     }
-                },
-                onDelete: {
-                    viewModel.requestDeleteSelectedCards()
-                }
-            )
-            .padding(.bottom, selectionBottomBarBottomPadding)
-            .transition(
-                .move(edge: .bottom)
-                    .combined(with: .opacity)
-                    .combined(with: .scale(scale: 0.96, anchor: .bottom))
-            )
+                )
+            }
+            .transition(.bottomChrome)
             .zIndex(30)
-            .animation(.spring(response: 0.35, dampingFraction: 0.82), value: viewModel.isSelectingCards)
+            .animation(.bottomChromeSpring, value: viewModel.isSelectingCards)
         }
     }
 
@@ -844,7 +850,7 @@ private extension CreateDeckView {
                 }
             }
         }
-            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
             .animation(
                 viewModel.isGenerating ? nil : .spring(response: 0.36, dampingFraction: 0.84),
                 value: viewModel.draftCards.map(\.id)
@@ -906,18 +912,6 @@ private extension CreateDeckView {
             fixedHeight: appliesTransition ? nil : UIConstants.Size.draftCardRowHeight,
             isSelecting: viewModel.isSelectingCards,
             isSelected: viewModel.selectedDraftCardIDs.contains(card.id),
-            onEdit: {
-                isTitleFocused = false
-                viewModel.cardToEdit = card
-            },
-            onTogglePin: {
-                viewModel.togglePinnedState(for: card.id)
-            },
-            onDelete: {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                    viewModel.deleteCard(card)
-                }
-            },
             onPrimaryTap: {
                 if viewModel.isSelectingCards {
                     withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
@@ -1255,98 +1249,60 @@ private struct CreateDeckSelectionBottomBar: View {
 
     private var selectionSummary: String {
         if selectedCount == 0 {
-            return "Tap cards to select"
+            return "Tap cards"
         }
-        return "\(selectedCount) selected"
+        return selectedCount == 1 ? "1 selected" : "\(selectedCount) selected"
     }
 
-    var body: some View {
-        HStack(spacing: UIConstants.Spacing.small) {
-            Button(action: onDone) {
-                Text("Done")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 14)
-                    .frame(height: 52)
-                    .glassButton(shape: .capsule)
-            }
-            .buttonStyle(.plain)
-            .layoutPriority(1)
-
-            Text(selectionSummary)
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-                .statusTextMotion(trigger: selectedCount)
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Button(action: onToggleSelectAll) {
-                Text(allSelected ? "Clear" : "Select All")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(allSelected ? .primary : accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                    .padding(.horizontal, 14)
-                    .frame(height: 52)
-                    .glassButton(shape: .capsule)
-            }
-            .buttonStyle(.plain)
-            .layoutPriority(1)
-            .accessibilityLabel(allSelected ? "Clear all selected cards" : "Select all cards")
-
-            CreateDeckSelectionCompactIconButton(
-                isEnabled: hasSelection,
-                accessibilityLabel: "Delete \(selectedCount) selected card\(selectedCount == 1 ? "" : "s")",
-                badgeCount: selectedCount,
-                action: onDelete
-            ) {
-                Image(systemName: "trash")
-                    .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(hasSelection ? Color.red : Color.secondary)
-            }
-        }
-        .padding(.horizontal, UIConstants.Spacing.medium)
-        .padding(.vertical, 8)
-        .widgetStyle(cornerRadius: 28)
-        .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        }
-        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-        .contentShape(Rectangle())
-        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: selectedCount)
-        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: allSelected)
+    private var summaryTint: Color {
+        selectedCount == 0 ? .secondary : .primary
     }
 
     private var accent: Color {
         ThemeManager.shared.accentColor.color
     }
-}
-
-private struct CreateDeckSelectionCompactIconButton<Label: View>: View {
-    let isEnabled: Bool
-    let accessibilityLabel: String
-    var badgeCount: Int? = nil
-    let action: () -> Void
-    @ViewBuilder let label: () -> Label
 
     var body: some View {
-        Button(action: action) {
-            label()
-                .frame(width: 52, height: 52)
-                .glassButton(shape: .circle)
-        }
-        .overlay(alignment: .topTrailing) {
-            if let badgeCount {
-                SelectionCountBadge(count: badgeCount)
-                    .offset(x: 4, y: -4)
+        HStack(spacing: UIConstants.Spacing.small) {
+            SelectionToolbarCapsuleButton(
+                action: onDone,
+                accessibilityLabel: "Done selecting draft cards"
+            ) {
+                Text("Done")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+            .layoutPriority(1)
+
+            Text(selectionSummary)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(summaryTint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+                .monospacedDigit()
+                .frame(width: 118, alignment: .leading)
+
+            SelectionToolbarTextButton(
+                title: allSelected ? "Clear" : "Select All",
+                accessibilityLabel: allSelected ? "Clear all selected cards" : "Select all cards",
+                tint: allSelected ? .primary : accent,
+                action: onToggleSelectAll
+            )
+
+            Spacer(minLength: 0)
+
+            SelectionToolbarIconButton(
+                isEnabled: hasSelection,
+                accessibilityLabel: "Delete \(selectedCount) selected card\(selectedCount == 1 ? "" : "s")",
+                action: onDelete
+            ) {
+                Image(systemName: "trash")
+                    .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
+                    .foregroundStyle(hasSelection ? Color.red : Color.secondary)
             }
         }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.5)
-        .accessibilityLabel(accessibilityLabel)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
     }
 }
 
@@ -1385,14 +1341,28 @@ private struct CreateDeckChromeButton<Label: View>: View {
 
     var body: some View {
         Button(action: action) {
-            label()
-                .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-                .glassButton(shape: .circle)
+            CreateDeckChromeCircleSurface(content: label)
         }
             .buttonStyle(.plain)
             .disabled(!isEnabled)
             .opacity(isEnabled ? 1 : 0.55)
             .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+private struct CreateDeckChromeCircleSurface<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+            .glassButton(shape: .circle)
+            .overlay {
+                Circle()
+                    .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
+            }
+            .clipShape(Circle())
+            .compositingGroup()
     }
 }
 

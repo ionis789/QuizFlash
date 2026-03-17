@@ -7,6 +7,56 @@
 
 import SwiftUI
 
+// MARK: - SelectionToolbarCapsuleButton
+
+/// A shared capsule action button used by selection toolbars.
+struct SelectionToolbarCapsuleButton<Label: View>: View {
+    let action: () -> Void
+    let accessibilityLabel: String
+    var isEnabled: Bool = true
+    @ViewBuilder let label: () -> Label
+
+    var body: some View {
+        Button(action: action) {
+            label()
+                .padding(.horizontal, 10)
+                .frame(height: UIConstants.Size.selectionToolbarControl)
+                .glassButton(shape: .capsule)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.55)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+// MARK: - SelectionToolbarTextButton
+
+/// A lightweight text action used by minimalist selection bars.
+struct SelectionToolbarTextButton: View {
+    let title: String
+    let accessibilityLabel: String
+    var isEnabled: Bool = true
+    var tint: Color = .primary
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+                .padding(.horizontal, 4)
+                .frame(height: UIConstants.Size.selectionToolbarControl)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.45)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
 // MARK: - SelectionToolbarIconButton
 
 /// A shared circular glass action button used inside selection toolbars.
@@ -27,9 +77,9 @@ struct SelectionToolbarIconButton<Label: View>: View {
                 .glassButton(shape: .circle)
         }
         .overlay(alignment: .topTrailing) {
-            if let badgeCount {
+            if let badgeCount, badgeCount > 0 {
                 SelectionCountBadge(count: badgeCount)
-                    .offset(x: 5, y: -5)
+                    .offset(x: 4, y: -4)
             }
         }
         .buttonStyle(.plain)
@@ -53,8 +103,8 @@ struct SelectionCountBadge: View {
         Text("\(count)")
             .font(.caption2.weight(.bold))
             .foregroundStyle(.white)
-            .padding(.horizontal, 7)
-            .frame(minWidth: 24, minHeight: 24)
+            .padding(.horizontal, 6)
+            .frame(minWidth: 20, minHeight: 20)
             .background(badgeColor, in: Capsule())
             .overlay {
                 Capsule()

@@ -95,7 +95,7 @@ struct LibraryView: View {
                 ))
             },
             onDeleteSelected: {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                withBottomChromeAnimation {
                     sharedViewModel.deleteSelectedDecks(from: decks, context: context)
                 }
             },

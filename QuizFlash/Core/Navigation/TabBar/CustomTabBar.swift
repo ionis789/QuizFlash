@@ -36,10 +36,10 @@ struct CustomTabBar: View {
                             .frame(width: tabItemWidth, height: tabItemHeight)
                             .scaleEffect(isActive ? 1.3 : 1)
                             .offset(x: dragOffset)
+                        
                     }
                         .padding(3)
                     // MARK: Tabbar Background
-//                    .background(Capsule().fill(.ultraThinMaterial))
                     .background {
                         Capsule()
                             .fill(.ultraThinMaterial)
@@ -60,6 +60,7 @@ struct CustomTabBar: View {
                 dragOffset = CGFloat(activeTab.index) * tabItemWidth
                 isInitialOffsetSet = true
             }
+                
         }
             .frame(height: 56)
             .padding(.horizontal, 25)
@@ -101,6 +102,7 @@ struct CustomTabBar: View {
                 if tabs.indices.contains(landingIndex) {
                     let newTab = tabs[landingIndex]
                     dragOffset = CGFloat(landingIndex) * width
+                        
                     if activeTab != newTab {
                         activeTab = newTab
                         tabTriggers[newTab, default: 0] += 1
@@ -110,6 +112,7 @@ struct CustomTabBar: View {
         )
             .simultaneousGesture(
             TapGesture().onEnded { _ in
+               
                 activeTab = tab
                 dragOffset = CGFloat(tab.index) * width
                 tabTriggers[tab, default: 0] += 1

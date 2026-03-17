@@ -24,19 +24,18 @@ struct LibrarySelectionBarView: View {
         HStack(spacing: UIConstants.Spacing.medium) {
 
             // ── Done ──────────────────────────────────────────────────────────
-            Button {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    viewModel.exitSelectionMode()
-                }
-            } label: {
+            SelectionToolbarCapsuleButton(
+                action: {
+                    withBottomChromeAnimation {
+                        viewModel.exitSelectionMode()
+                    }
+                },
+                accessibilityLabel: "Done selecting decks"
+            ) {
                 Text("Done")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
-                    .padding(.horizontal, 16)
-                    .frame(height: UIConstants.Size.selectionToolbarControl)
-                    .glassButton(shape: .capsule)
             }
-            .buttonStyle(.plain)
 
             Spacer()
 
@@ -80,14 +79,8 @@ struct LibrarySelectionBarView: View {
                     .foregroundStyle(hasSelection ? Color.red : Color.secondary)
             }
         }
-        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-        .padding(.bottom, 12)
-        .contentShape(Rectangle())  // Absorb all taps including padding — prevent fall-through to layers below.
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedCount)
+        .frame(maxWidth: .infinity)
+        .animation(.selectionToolbarSpring, value: selectedCount)
     }
 
     private var deleteAccessibilityLabel: String {
