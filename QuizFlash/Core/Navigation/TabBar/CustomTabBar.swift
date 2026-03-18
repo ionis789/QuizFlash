@@ -37,7 +37,9 @@ struct CustomTabBar: View {
             let size = proxy.size
             let tabs = AppTabBar.allCases
             let tabItemWidth = max(min(size.width / CGFloat(tabs.count), 90), 60)
-            let tabItemHeight: CGFloat = 56
+            let tabItemHeight = UIConstants.Size.bottomChromeControl
+            let chromeHorizontalPadding = UIConstants.Layout.bottomChromeInnerHorizontalPadding / 2
+            let chromeVerticalPadding = UIConstants.Layout.bottomChromeInnerVerticalPadding
 
             ZStack {
                 if isInitialOffsetSet {
@@ -54,7 +56,8 @@ struct CustomTabBar: View {
                             isInteracting: isActive
                         )
                     }
-                    .padding(3)
+                    .padding(.horizontal, chromeHorizontalPadding)
+                    .padding(.vertical, chromeVerticalPadding)
                     .background {
                         Capsule()
                             .fill(.ultraThinMaterial)
@@ -94,7 +97,7 @@ struct CustomTabBar: View {
                 pendingTargetTab = nil
             }
         }
-        .frame(height: 56)
+        .frame(height: UIConstants.Size.bottomChromeBarHeight)
         .padding(.horizontal, 25)
         .animation(.smooth, value: visualTab)
         .animation(.bouncy, value: isActive)
@@ -201,8 +204,8 @@ struct CustomTabBar: View {
     }
 
     private func emitSwitchHaptic() {
-        let feedback = UIImpactFeedbackGenerator(style: .light)
+        let feedback = UIImpactFeedbackGenerator(style: .soft)
         feedback.prepare()
-        feedback.impactOccurred(intensity: 0.72)
+        feedback.impactOccurred(intensity: 0.5)
     }
 }

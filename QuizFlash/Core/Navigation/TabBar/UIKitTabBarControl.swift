@@ -36,7 +36,6 @@ struct UIKitTabBarSelectionAnimator: UIViewRepresentable {
 
 final class SelectionAnimatorView: UIView {
     private let fillView = UIView()
-    private let borderView = UIView()
 
     private var didApplyInitialLayout = false
 
@@ -57,17 +56,13 @@ final class SelectionAnimatorView: UIView {
     ) {
         let frame = alignedCapsuleFrame(offset: offset, itemWidth: itemWidth, itemHeight: itemHeight)
 
-        fillView.layer.cornerRadius = itemHeight / 2
-        borderView.layer.cornerRadius = itemHeight / 2
+        fillView.layer.cornerRadius = frame.height / 2
 
         if !didApplyInitialLayout {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             fillView.frame = frame
-            borderView.frame = frame
-            borderView.alpha = isInteracting ? 1 : 0
             fillView.transform = .identity
-            borderView.transform = .identity
             CATransaction.commit()
             didApplyInitialLayout = true
             return
@@ -77,7 +72,6 @@ final class SelectionAnimatorView: UIView {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             fillView.frame = frame
-            borderView.frame = frame
             CATransaction.commit()
         } else {
             UIView.animate(
@@ -88,7 +82,6 @@ final class SelectionAnimatorView: UIView {
                 options: [.beginFromCurrentState, .allowUserInteraction]
             ) {
                 self.fillView.frame = frame
-                self.borderView.frame = frame
             }
         }
 
@@ -98,8 +91,6 @@ final class SelectionAnimatorView: UIView {
             options: [.beginFromCurrentState, .allowUserInteraction]
         ) {
             self.fillView.transform = .identity
-            self.borderView.transform = .identity
-            self.borderView.alpha = isInteracting ? 1 : 0
         }
     }
 
@@ -113,15 +104,8 @@ final class SelectionAnimatorView: UIView {
         fillView.backgroundColor = UIColor.white.withAlphaComponent(0.15)
         fillView.isUserInteractionEnabled = false
         fillView.layer.cornerCurve = .continuous
+        fillView.clipsToBounds = true
         addSubview(fillView)
-
-        borderView.backgroundColor = .clear
-        borderView.isUserInteractionEnabled = false
-        borderView.layer.cornerCurve = .continuous
-        borderView.layer.borderWidth = 1
-        borderView.layer.borderColor = UIColor.white.withAlphaComponent(0.3).cgColor
-        borderView.alpha = 0
-        addSubview(borderView)
     }
 
     private func alignedCapsuleFrame(offset: CGFloat, itemWidth: CGFloat, itemHeight: CGFloat) -> CGRect {
