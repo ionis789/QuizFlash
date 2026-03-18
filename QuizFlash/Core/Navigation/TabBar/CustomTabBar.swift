@@ -1,16 +1,36 @@
+//
+//  CustomTabBar.swift
+//  QuizFlash
+//
+//  SwiftUI-owned tab bar UI backed by a UIKit capsule animator.
+//
+
 import SwiftUI
 
+/// The floating app tab bar.
+///
+/// SwiftUI owns the visual layout so the bar can be restyled locally, while a
+/// UIKit-backed capsule animator keeps the selection motion smooth when the
+/// destination `TabView` screen is expensive to render.
 struct CustomTabBar: View {
-    @Binding var activeTab: AppTabBar
-    private var accent: Color { ThemeManager.shared.accentColor.color }
+    let activeTab: AppTabBar
+    var onTabSelection: (AppTabBar) -> Void
 
-    @GestureState private var isActive: Bool = false
-    @State private var isInitialOffsetSet: Bool = false
+    @GestureState private var isActive = false
+    @State private var isInitialOffsetSet = false
+    @State private var visualTab: AppTabBar = .home
     @State private var dragOffset: CGFloat = 0
     @State private var lastDragOffset: CGFloat?
-    @State private var tabTriggers: [AppTabBar: Int] = [.library: 0, .create: 0, .home: 0]
+    @State private var pendingTargetTab: AppTabBar?
+    @State private var pendingCommitTask: Task<Void, Never>?
 
-    private var isIPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private var accent: Color {
+        ThemeManager.shared.accentColor.color
+    }
+
+    private var isIPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -23,54 +43,65 @@ struct CustomTabBar: View {
                 if isInitialOffsetSet {
                     HStack(spacing: 0) {
                         ForEach(tabs, id: \.rawValue) { tab in
-                            TabItemView(tab, width: tabItemWidth, height: tabItemHeight)
+                            tabItemView(tab, width: tabItemWidth, height: tabItemHeight)
                         }
                     }
-                        .background(alignment: .leading) {
-                        ZStack {
-                            Capsule(style: .continuous).fill(Color.white.opacity(0.15))
-                            Capsule(style: .continuous).stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                .opacity(isActive ? 1 : 0)
-                        }
-                            .compositingGroup()
-                            .frame(width: tabItemWidth, height: tabItemHeight)
-                            .scaleEffect(isActive ? 1.3 : 1)
-                            .offset(x: dragOffset)
-                        
+                    .background(alignment: .leading) {
+                        UIKitTabBarSelectionAnimator(
+                            offset: dragOffset,
+                            itemWidth: tabItemWidth,
+                            itemHeight: tabItemHeight,
+                            isInteracting: isActive
+                        )
                     }
-                        .padding(3)
-                    // MARK: Tabbar Background
+                    .padding(3)
                     .background {
                         Capsule()
                             .fill(.ultraThinMaterial)
                             .overlay {
-                            Capsule()
-                                .fill(Color.white.opacity(0.35))
-                                .blur(radius: 10)
-                                .mask(Capsule().stroke(lineWidth: 4))
-                                .blendMode(.overlay)
-                        }
+                                Capsule()
+                                    .fill(Color.white.opacity(0.35))
+                                    .blur(radius: 10)
+                                    .mask(Capsule().stroke(lineWidth: 4))
+                                    .blendMode(.overlay)
+                            }
                     }
-                        .geometryGroup()
+                    .geometryGroup()
                 }
             }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isIPad ? .bottomTrailing : .bottom)
-                .onAppear {
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: .infinity,
+                alignment: isIPad ? .bottomTrailing : .bottom
+            )
+            .onAppear {
                 guard !isInitialOffsetSet else { return }
-                dragOffset = CGFloat(activeTab.index) * tabItemWidth
+                syncVisualState(to: activeTab, width: tabItemWidth)
                 isInitialOffsetSet = true
             }
-                
+            .onChange(of: activeTab) { _, newValue in
+                if pendingTargetTab == newValue {
+                    pendingCommitTask?.cancel()
+                    pendingCommitTask = nil
+                    pendingTargetTab = nil
+                }
+
+                syncVisualState(to: newValue, width: tabItemWidth)
+            }
+            .onDisappear {
+                pendingCommitTask?.cancel()
+                pendingCommitTask = nil
+                pendingTargetTab = nil
+            }
         }
-            .frame(height: 56)
-            .padding(.horizontal, 25)
-            .animation(.bouncy, value: dragOffset)
-            .animation(.bouncy, value: isActive)
-            .animation(.smooth, value: activeTab)
+        .frame(height: 56)
+        .padding(.horizontal, 25)
+        .animation(.smooth, value: visualTab)
+        .animation(.bouncy, value: isActive)
     }
 
     @ViewBuilder
-    private func TabItemView(_ tab: AppTabBar, width: CGFloat, height: CGFloat) -> some View {
+    private func tabItemView(_ tab: AppTabBar, width: CGFloat, height: CGFloat) -> some View {
         let tabs = AppTabBar.allCases
         let tabCount = tabs.count - 1
 
@@ -78,45 +109,100 @@ struct CustomTabBar: View {
             Image(systemName: tab.symbol)
                 .font(.title2)
                 .symbolVariant(.fill)
-                .symbolEffect(.bounce.up.byLayer, value: tabTriggers[tab, default: 0])
 
-            Text(tab.rawValue)
+            Text(tab.title)
                 .font(.caption2)
                 .lineLimit(1)
         }
-            .foregroundStyle(activeTab == tab ? accent : Color.primary)
-            .frame(width: width, height: height)
-            .contentShape(.capsule)
-            .simultaneousGesture(
+        .foregroundStyle(visualTab == tab ? accent : Color.primary)
+        .frame(width: width, height: height)
+        .contentShape(.capsule)
+        .simultaneousGesture(
             DragGesture(minimumDistance: 0)
                 .updating($isActive) { _, out, _ in out = true }
                 .onChanged { value in
-                let xOffset = value.translation.width
-                if let lastDragOffset {
-                    dragOffset = max(min(xOffset + lastDragOffset, CGFloat(tabCount) * width), 0)
-                } else { lastDragOffset = dragOffset }
-            }
-                .onEnded { value in
-                lastDragOffset = nil
-                let landingIndex = Int((dragOffset / width).rounded())
-                if tabs.indices.contains(landingIndex) {
-                    let newTab = tabs[landingIndex]
-                    dragOffset = CGFloat(landingIndex) * width
-                        
-                    if activeTab != newTab {
-                        activeTab = newTab
-                        tabTriggers[newTab, default: 0] += 1
+                    let xOffset = value.translation.width
+                    if let lastDragOffset {
+                        dragOffset = max(min(xOffset + lastDragOffset, CGFloat(tabCount) * width), 0)
+                    } else {
+                        lastDragOffset = dragOffset
+                    }
+
+                    let hoveredIndex = Int((dragOffset / width).rounded())
+                    if tabs.indices.contains(hoveredIndex) {
+                        visualTab = tabs[hoveredIndex]
                     }
                 }
-            }
+                .onEnded { _ in
+                    lastDragOffset = nil
+
+                    let landingIndex = Int((dragOffset / width).rounded())
+                    guard tabs.indices.contains(landingIndex) else { return }
+
+                    let newTab = tabs[landingIndex]
+                    dragOffset = CGFloat(landingIndex) * width
+                    visualTab = newTab
+
+                    if newTab == activeTab {
+                        pendingCommitTask?.cancel()
+                        pendingCommitTask = nil
+                        pendingTargetTab = nil
+                        return
+                    }
+
+                    scheduleCommit(for: newTab)
+                }
         )
-            .simultaneousGesture(
+        .simultaneousGesture(
             TapGesture().onEnded { _ in
-               
-                activeTab = tab
+                if pendingTargetTab != nil, tab == activeTab {
+                    pendingCommitTask?.cancel()
+                    pendingCommitTask = nil
+                    pendingTargetTab = nil
+                    syncVisualState(to: activeTab, width: width)
+                    return
+                }
+
+                visualTab = tab
                 dragOffset = CGFloat(tab.index) * width
-                tabTriggers[tab, default: 0] += 1
+
+                if tab == activeTab {
+                    pendingCommitTask?.cancel()
+                    pendingCommitTask = nil
+                    pendingTargetTab = nil
+                    onTabSelection(tab)
+                    return
+                }
+
+                scheduleCommit(for: tab)
             }
         )
+    }
+
+    private func syncVisualState(to tab: AppTabBar, width: CGFloat) {
+        visualTab = tab
+        dragOffset = CGFloat(tab.index) * width
+    }
+
+    private func scheduleCommit(for tab: AppTabBar) {
+        pendingCommitTask?.cancel()
+        pendingTargetTab = tab
+        emitSwitchHaptic()
+
+        pendingCommitTask = Task { @MainActor in
+            let delayNanoseconds = UInt64(UIConstants.Animation.tabBarCommitDelay * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: delayNanoseconds)
+            guard !Task.isCancelled else { return }
+
+            pendingCommitTask = nil
+            pendingTargetTab = nil
+            onTabSelection(tab)
+        }
+    }
+
+    private func emitSwitchHaptic() {
+        let feedback = UIImpactFeedbackGenerator(style: .light)
+        feedback.prepare()
+        feedback.impactOccurred(intensity: 0.72)
     }
 }

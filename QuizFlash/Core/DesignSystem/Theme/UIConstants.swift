@@ -281,6 +281,8 @@ enum UIConstants {
         static let standard: Double = 0.25
         /// 0.35 s — slightly slower transitions for larger elements.
         static let medium: Double = 0.35
+        /// 0.08 s — lead time that lets UIKit tab motion start before a heavy `TabView` switch commits.
+        static let tabBarCommitDelay: Double = 0.08
         /// 0.5  s — slow, deliberate transitions (sheet, modal).
         static let slow: Double = 0.5
     }

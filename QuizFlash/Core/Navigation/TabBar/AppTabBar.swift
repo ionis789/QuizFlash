@@ -12,6 +12,14 @@ enum AppTabBar: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var title: String {
+        switch self {
+        case .home: return "Home"
+        case .library: return "Library"
+        case .create: return "Create"
+        }
+    }
+
     var symbol: String {
         switch self {
         case .home: return "house"
