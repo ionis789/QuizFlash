@@ -80,6 +80,9 @@ final class FlashCardsPlayModeViewModel {
     /// Passed into detached tasks instead of capturing a `ModelContext` reference.
     private var container: ModelContainer?
 
+    /// Shared detached persistence service reused by all interactive play modes.
+    private var persistenceService: PlaySessionPersistenceService?
+
     // MARK: - Computed Properties
 
     /// Session accuracy expressed as an integer percentage (0–100).
@@ -136,6 +139,7 @@ final class FlashCardsPlayModeViewModel {
     func startSession(container: ModelContainer) async {
         guard !isSessionStarted else { return }
         self.container = container
+        self.persistenceService = PlaySessionPersistenceService(container: container)
 
         // Load cards via a background actor to keep the main ModelContext clean.
         // The actor decodes all zone data and returns pure Sendable value types,
@@ -163,6 +167,7 @@ final class FlashCardsPlayModeViewModel {
         cards = []
         wrongCards = []
         totalCardCount = 0
+        persistenceService = nil
         MathWebViewPool.shared.flush()
         ImageCache.shared.clearCache()
     }
@@ -185,9 +190,7 @@ final class FlashCardsPlayModeViewModel {
         let cardID        = playableCard.id
         let timeSpent     = Date().timeIntervalSince(currentCardStartTime)
         let difficulty: ReviewDifficulty = direction == .right ? .good : .again
-        let baseXP        = difficulty == .good ? 10 : 2
-        let speedBonus    = (timeSpent < 4.0 && difficulty == .good) ? 5 : 0
-        let totalXP       = baseXP + speedBonus
+        let totalXP       = PlaySessionXP.awarded(for: difficulty, timeSpent: timeSpent)
 
         // ── Phase 1: update lightweight in-memory state immediately ──────────
         // These writes only touch Swift value types — zero SwiftData overhead.
@@ -218,73 +221,16 @@ final class FlashCardsPlayModeViewModel {
         // avoids creating a @ModelActor per swipe, which carries an iOS 17
         // retain-cycle risk for short-lived actors.
         // Only value types are passed into the closure — no ModelContext capture.
-        let capturedContainer  = container
-        let capturedCardID     = cardID
-        let capturedTimeSpent  = timeSpent
-        let capturedTotalXP    = totalXP
-        let capturedDifficulty = difficulty
+        let reviewWrite = PlaySessionReviewWrite(
+            cardID: cardID,
+            difficulty: difficulty,
+            timeSpent: timeSpent,
+            xpAwarded: totalXP
+        )
+        let persistenceService = persistenceService
 
         Task.detached(priority: .utility) {
-            // A short-lived context scoped to this task.
-            // It is deallocated when the task exits — no leak risk.
-            let bgContext = ModelContext(capturedContainer!)
-
-            // ── SRS update ───────────────────────────────────────────────────
-            if let realCard = bgContext.safeModel(for: capturedCardID, as: CardModel.self) {
-                let review = ReviewEvent(
-                    timeSpent: capturedTimeSpent,
-                    difficulty: capturedDifficulty,
-                    xpAwarded: capturedTotalXP
-                )
-                realCard.reviewHistory.append(review)
-
-                if capturedDifficulty == .again {
-                    realCard.consecutiveCorrectAnswers = 0
-                    realCard.interval   = 1
-                    realCard.easeFactor = max(1.3, realCard.easeFactor - 0.2)
-                } else {
-                    realCard.consecutiveCorrectAnswers += 1
-                    switch realCard.consecutiveCorrectAnswers {
-                    case 1:  realCard.interval = 1
-                    case 2:  realCard.interval = 6
-                    default: realCard.interval = Int(round(Double(realCard.interval) * realCard.easeFactor))
-                    }
-                }
-                realCard.dueDate = Calendar.current.date(
-                    byAdding: .day, value: realCard.interval, to: Date()
-                ) ?? Date()
-            }
-
-            // ── Gamification counters ────────────────────────────────────────
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            let todayString = formatter.string(from: Date())
-
-            let dailyDesc = FetchDescriptor<DailyActivityLog>(
-                predicate: #Predicate { $0.dateString == todayString }
-            )
-            let todayLog: DailyActivityLog
-            if let existing = (try? bgContext.fetch(dailyDesc))?.first {
-                todayLog = existing
-            } else {
-                todayLog = DailyActivityLog(date: Date())
-                bgContext.insert(todayLog)
-            }
-            todayLog.cardsReviewed += 1
-            todayLog.xpEarnedToday += capturedTotalXP
-
-            let profileDesc = FetchDescriptor<UserProfile>()
-            let profile: UserProfile
-            if let existing = (try? bgContext.fetch(profileDesc))?.first {
-                profile = existing
-            } else {
-                profile = UserProfile()
-                bgContext.insert(profile)
-            }
-            profile.totalXP      += capturedTotalXP
-            profile.lastActiveDate = Date()
-
-            try? bgContext.save()
+            await persistenceService?.persistReviews([reviewWrite])
         }
     }
 

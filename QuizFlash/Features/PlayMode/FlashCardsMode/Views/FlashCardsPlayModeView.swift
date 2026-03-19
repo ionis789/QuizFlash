@@ -41,8 +41,6 @@ struct FlashCardsPlayModeView: View {
     @Bindable var viewModel: FlashCardsPlayModeViewModel
 
     @State private var headerHeight: CGFloat = 0
-    @State private var leadingChromeWidth: CGFloat = 68
-    @State private var trailingChromeWidth: CGFloat = (UIConstants.Size.capsuleHeight * 2) + UIConstants.Spacing.small
     @State private var editingCard: CardModel?
 
     // MARK: - Convenience
@@ -66,7 +64,6 @@ struct FlashCardsPlayModeView: View {
             let isScreenLandscape = geo.size.width > geo.size.height
             let resolvedSafeTopInset = max(safeAreaInsets.top, geo.safeAreaInsets.top)
             let resolvedSafeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
-            let headerTopPadding: CGFloat = resolvedSafeTopInset + UIConstants.Spacing.tiny
             let headerHorizontalPadding: CGFloat = isCompact ? 20 : 32
             let headerBottomPadding: CGFloat = isCompact ? 20 : 30
 
@@ -78,17 +75,11 @@ struct FlashCardsPlayModeView: View {
 
                 if !viewModel.isComplete {
                     VStack(spacing: 0) {
-                        header
-                            .padding(.top, headerTopPadding)
-                            .padding(.horizontal, headerHorizontalPadding)
+                        header(
+                            safeTopInset: resolvedSafeTopInset,
+                            horizontalPadding: headerHorizontalPadding
+                        )
                             .padding(.bottom, headerBottomPadding)
-                            .onGeometryChange(for: CGFloat.self) { proxy in
-                            proxy.size.height
-                        } action: { newHeight in
-                            if abs(headerHeight - newHeight) > 0.5 {
-                                headerHeight = newHeight
-                            }
-                        }
 
                         cardArea
                             .padding(.horizontal, isCompact ? 16 : (isScreenLandscape ? geo.size.width * 0.15 : 40))
@@ -169,67 +160,22 @@ struct FlashCardsPlayModeView: View {
 
     // MARK: - Header
 
-    private var header: some View {
-        VStack(spacing: UIConstants.Spacing.standard) {
-            Capsule()
-                .fill(Color.white.opacity(0.2))
-                .frame(width: 56, height: 5)
-                .accessibilityHidden(true)
-
-            GeometryReader { proxy in
-                let sideClearance = max(leadingChromeWidth, trailingChromeWidth)
-                let titleWidth = max(
-                    0,
-                    proxy.size.width - (sideClearance * 2) - (UIConstants.Spacing.standard * 2)
-                )
-
-                ZStack {
-                    VStack(spacing: 2) {
-                        Text(resolvedDeckTitle)
-                            .font(.system(size: isCompact ? 20 : 22, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .minimumScaleFactor(0.72)
-                            .allowsTightening(true)
-                            .frame(maxWidth: titleWidth)
-
-                        Text(viewModel.isFlipped ? "ANSWER" : "QUESTION")
-                            .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .animation(.spring(response: 0.3), value: viewModel.isFlipped)
-                    }
-
-                    HStack(spacing: UIConstants.Spacing.standard) {
-                        liveScoreChrome
-                            .onGeometryChange(for: CGFloat.self) { proxy in
-                            proxy.size.width
-                        } action: { newWidth in
-                            if abs(leadingChromeWidth - newWidth) > 0.5 {
-                                leadingChromeWidth = newWidth
-                            }
-                        }
-
-                        Spacer(minLength: 0)
-
-                        HStack(spacing: UIConstants.Spacing.small) {
-                            editCurrentCardButton
-                            dismissButton
-                        }
-                            .onGeometryChange(for: CGFloat.self) { proxy in
-                            proxy.size.width
-                        } action: { newWidth in
-                            if abs(trailingChromeWidth - newWidth) > 0.5 {
-                                trailingChromeWidth = newWidth
-                            }
-                        }
-                    }
-                }
+    private func header(safeTopInset: CGFloat, horizontalPadding: CGFloat) -> some View {
+        PlayModeSessionHeader(
+            deckTitle: resolvedDeckTitle,
+            subtitle: viewModel.isFlipped ? "ANSWER" : "QUESTION",
+            progressLabel: "\(viewModel.reviewedCardCount)/\(max(viewModel.totalCardCount, 1)) reviewed",
+            progressFraction: viewModel.progressFraction,
+            safeTopInset: safeTopInset,
+            horizontalPadding: horizontalPadding,
+            measuredHeight: $headerHeight
+        ) {
+            liveScoreChrome
+        } trailing: {
+            HStack(spacing: UIConstants.Spacing.small) {
+                editCurrentCardButton
+                dismissButton
             }
-                .frame(height: chromeButtonSize)
-
-            progressChrome
         }
     }
 
@@ -257,48 +203,6 @@ struct FlashCardsPlayModeView: View {
             .buttonStyle(.plain)
             .disabled(currentPlayableCard == nil)
             .opacity(currentPlayableCard == nil ? 0.45 : 1)
-    }
-
-    private var progressChrome: some View {
-        VStack(spacing: 8) {
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.10))
-
-                    Capsule()
-                        .fill(
-                        LinearGradient(
-                            colors: [accentColor.opacity(0.82), accentColor, Color.white.opacity(0.92)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                        .frame(
-                        width: max(
-                            0,
-                            min(
-                                proxy.size.width,
-                                proxy.size.width * viewModel.progressFraction
-                            )
-                        )
-                    )
-                }
-            }
-                .frame(height: 6)
-
-            HStack(spacing: 8) {
-                Text("\(viewModel.reviewedCardCount)/\(max(viewModel.totalCardCount, 1)) reviewed")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                Text("\(Int((viewModel.progressFraction * 100).rounded()))%")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.tertiary)
-            }
-        }
-            .frame(maxWidth: .infinity)
-            .animation(.spring(response: 0.3), value: viewModel.currentIndex)
     }
 
     private var liveScoreChrome: some View {
@@ -360,132 +264,56 @@ struct FlashCardsPlayModeView: View {
     // MARK: - Completion Overlay
 
     private var completionOverlay: some View {
-        ZStack {
-            // Blurred backdrop to focus attention on the summary card.
-            Color.black.opacity(0.5).ignoresSafeArea()
-                .background(.ultraThinMaterial)
-
-            VStack(spacing: 0) {
-
-                // ── Victory header ───────────────────────────────────────────
-                VStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.yellow.opacity(0.2))
-                            .frame(width: 120, height: 120)
-                        Image(systemName: "star.circle.fill")
-                            .font(.system(size: 80))
-                            .foregroundStyle(
-                                .linearGradient(
-                                colors: [.yellow, .orange],
-                                startPoint: .top, endPoint: .bottom
-                            )
-                        )
-                            .shadow(color: .orange.opacity(0.5), radius: 10, y: 5)
-                    }
-                        .padding(.bottom, 8)
-
-                    Text("Session Complete!")
-                        .font(isCompact ? .title : .largeTitle)
-                        .fontWeight(.black)
-
-                    // XP badge — value comes from the ViewModel.
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
-                        Text("+\(viewModel.sessionXP) XP")
-                            .fontWeight(.bold)
-                    }
-                        .font(.title2)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(
-                        Capsule().fill(
-                                .linearGradient(
-                                colors: [.orange, .red],
-                                startPoint: .leading, endPoint: .trailing
-                            )
-                        )
-                    )
-                        .shadow(color: .orange.opacity(0.3), radius: 8, y: 4)
-                }
-                    .padding(.top, 40)
-                    .padding(.bottom, 32)
-
-                // ── Statistics grid ──────────────────────────────────────────
-                // Accuracy and duration are computed by the ViewModel —
-                // the view simply reads and displays the result.
-                LazyVGrid(
-                    columns: [GridItem(.flexible()), GridItem(.flexible())],
-                    spacing: 16
-                ) {
-                    SessionStatBox(
-                        title: "Accuracy",
-                        value: "\(viewModel.sessionAccuracy)%", // Use ViewModel prop
-                        icon: "target",
-                        color: .green
-                    )
-                    SessionStatBox(
-                        title: "Time",
-                        value: viewModel.formattedSessionDuration, // Use ViewModel prop
-                        icon: "timer",
-                        color: .blue
-                    )
-                    SessionStatBox(
-                        title: "Correct",
-                        value: "\(viewModel.correctCount)",
-                        icon: "checkmark.circle.fill",
-                        color: .green
-                    )
-                    SessionStatBox(
-                        title: "Wrong",
-                        value: "\(viewModel.wrongCards.count)",
-                        icon: "xmark.circle.fill",
-                        color: .red
-                    )
-                }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
-
-                // ── Action buttons ───────────────────────────────────────────
-                VStack(spacing: 16) {
-                    if !viewModel.wrongCards.isEmpty {
-                        Button {
-                            viewModel.retryWrongCards()
-                        } label: {
-                            Label("Retry Wrong Cards", systemImage: "arrow.counterclockwise")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 16))
-                                .foregroundStyle(.orange)
-                                .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                            )
-                        }
-                    }
-
-                    Button(action: handleDismiss) {
-                        Text("Continue")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 16))
-                            .foregroundStyle(.white)
-                            .shadow(color: Color.accentColor.opacity(0.3), radius: 10, y: 5)
-                    }
-                }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
-            }
-                .background(
-                RoundedRectangle(cornerRadius: 32)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                    .shadow(color: .black.opacity(0.2), radius: 30, y: 15)
+        if viewModel.wrongCards.isEmpty {
+            return PlayModeCompletionOverlay(
+                headline: "Session Complete!",
+                xpEarned: viewModel.sessionXP,
+                stats: completionStats,
+                primaryActionTitle: "Continue",
+                primaryAction: { handleDismiss() },
+                secondaryActionTitle: nil,
+                secondaryAction: nil
             )
-                .padding(isCompact ? 24 : 60)
         }
+
+        return PlayModeCompletionOverlay(
+            headline: "Session Complete!",
+            xpEarned: viewModel.sessionXP,
+            stats: completionStats,
+            primaryActionTitle: "Retry Wrong Cards",
+            primaryAction: { viewModel.retryWrongCards() },
+            secondaryActionTitle: "Continue",
+            secondaryAction: { handleDismiss() }
+        )
+    }
+
+    private var completionStats: [PlayModeCompletionStat] {
+        [
+            PlayModeCompletionStat(
+                title: "Accuracy",
+                value: "\(viewModel.sessionAccuracy)%",
+                icon: "target",
+                color: .green
+            ),
+            PlayModeCompletionStat(
+                title: "Time",
+                value: viewModel.formattedSessionDuration,
+                icon: "timer",
+                color: .blue
+            ),
+            PlayModeCompletionStat(
+                title: "Correct",
+                value: "\(viewModel.correctCount)",
+                icon: "checkmark.circle.fill",
+                color: .green
+            ),
+            PlayModeCompletionStat(
+                title: "Wrong",
+                value: "\(viewModel.wrongCards.count)",
+                icon: "xmark.circle.fill",
+                color: .red
+            )
+        ]
     }
 
     // MARK: - Background
@@ -500,40 +328,6 @@ struct FlashCardsPlayModeView: View {
         } else {
             dismiss()
         }
-    }
-}
-
-// MARK: - SessionStatBox
-
-/// A single statistics tile used inside the completion overlay grid.
-private struct SessionStatBox: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(color)
-                .frame(width: 30)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                Text(value)
-                    .font(.headline.weight(.heavy))
-                    .foregroundStyle(.primary)
-            }
-            Spacer(minLength: 0)
-        }
-            .padding(16)
-            .background(Color(uiColor: .systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
     }
 }
 

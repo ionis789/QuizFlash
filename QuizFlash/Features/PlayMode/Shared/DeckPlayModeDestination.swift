@@ -87,10 +87,8 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         switch self {
         case .flashcards:
             return .gameplayReady
-        case .learn:
+        case .quiz, .learn, .match, .write:
             return .gameplayReady
-        case .quiz, .match, .write:
-            return .settingsPlaceholder
         }
     }
 
@@ -145,13 +143,13 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         case .flashcards:
             return "Set up the swipe session before you begin."
         case .quiz:
-            return "Prepare the multiple-choice flow before launch."
+            return "Quiz v1 runs with authored choice order and fixed validation rules."
         case .learn:
             return "Tune how the guided deck briefing should read."
         case .match:
-            return "Control how the matching board should behave."
+            return "Match v1 uses preview-text pairs, round chunking, and retry mini-rounds."
         case .write:
-            return "Define the manual answer session defaults."
+            return "Write v1 uses anchored blanks and strict normalized answer matching."
         }
     }
 
@@ -161,13 +159,13 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         case .flashcards:
             return "This screen will hold card order, retry rules, and other study-session controls for the flashcards mode."
         case .quiz:
-            return "Use this area to decide how choices, grading rules, and round pacing should work once quiz mode is implemented."
+            return "Quiz launches with single-answer instant checks, multi-answer submit flow, authored choice order, and one retry pass. This screen stays reserved for future configuration work."
         case .learn:
             return "Learn mode already builds a guided report from this deck. This screen is reserved for future layout, grouping, and reading preferences."
         case .match:
-            return "This area is reserved for grid size, pair generation, and pacing controls for match mode."
+            return "Match launches with fixed v1 behavior: 6-pair compact rounds, 8-pair regular or landscape rounds, preview-text tiles, and automatic retry mini-rounds. This screen stays reserved for future configuration work."
         case .write:
-            return "This area is reserved for answer checking, tolerance rules, and prompt flow for write mode."
+            return "Write launches with anchored blank rendering, strict normalized matching, answer reveal on check, and one retry pass. This screen stays reserved for future configuration work."
         }
     }
 

@@ -39,12 +39,13 @@ struct PlayableCard: Identifiable, Equatable, Sendable {
 
 // MARK: - Match Payload
 
-/// A derived prompt/answer pair sourced only from flashcards for future match gameplay.
-struct MatchPairCandidate: Identifiable, Equatable, Sendable {
+/// A validated prompt/answer pair sourced from a flashcard and reduced to preview text for match gameplay.
+struct MatchPlayablePair: Identifiable, Equatable, Sendable {
     let id: PersistentIdentifier
     let cardNumber: Int
-    let promptZone: ZoneModel
-    let answerZone: ZoneModel
+    let interval: Int
+    let promptPreview: String
+    let answerPreview: String
 }
 
 // MARK: - Quiz Payload
@@ -67,8 +68,9 @@ struct WritePlayableCard: Identifiable, Equatable, Sendable {
     let id: PersistentIdentifier
     let cardNumber: Int
     let interval: Int
-    let sourceZone: ZoneModel
-    let blankSelection: WriteBlankSelection
+    let sourceText: String
+    let blankedPrompt: String
+    let omittedText: String
 }
 
 // MARK: - Learn Payload
@@ -233,45 +235,100 @@ actor PlayModeCardRepository {
 
     // MARK: - Match
 
-    /// Builds future match-mode prompt/answer pairs from flashcards only.
-    func loadMatchPairs(for deckID: PersistentIdentifier) -> [MatchPairCandidate] {
-        guard let deck = activeContext.model(for: deckID) as? DeckModel else { return [] }
+    /// Builds validated match-mode pairs from flashcards and records invalid preview buckets.
+    func loadValidatedMatchPairs(for deckID: PersistentIdentifier) -> ValidatedPlayModeLoadResult<MatchPlayablePair> {
+        guard let deck = activeContext.model(for: deckID) as? DeckModel else {
+            return ValidatedPlayModeLoadResult(cards: [], diagnostics: .empty)
+        }
 
         let cards = sortedCards(resolvedCards(for: deck, deckID: deckID))
-        var results: [MatchPairCandidate] = []
+        var results: [MatchPlayablePair] = []
+        var invalidReasons: [PlayModeValidationReason: Int] = [:]
+        var compatibleCount = 0
 
         for card in cards {
             autoreleasepool {
                 guard case .flashcard(let content) = card.cardContent else { return }
+                compatibleCount += 1
+
+                guard let promptPreview = Self.validatedPreviewText(for: content.frontZone) else {
+                    Self.increment(.missingPromptPreview, in: &invalidReasons)
+                    card.clearZoneCache()
+                    return
+                }
+
+                guard let answerPreview = Self.validatedPreviewText(for: content.backZone) else {
+                    Self.increment(.missingAnswerPreview, in: &invalidReasons)
+                    card.clearZoneCache()
+                    return
+                }
 
                 results.append(
-                    MatchPairCandidate(
+                    MatchPlayablePair(
                         id: card.persistentModelID,
                         cardNumber: card.cardNumber,
-                        promptZone: content.frontZone,
-                        answerZone: content.backZone
+                        interval: card.interval,
+                        promptPreview: promptPreview,
+                        answerPreview: answerPreview
                     )
                 )
                 card.clearZoneCache()
             }
         }
 
+        let diagnostics = PlayModeValidationDiagnostics(
+            compatibleCount: compatibleCount,
+            playableCount: results.count,
+            invalidReasonCounts: invalidReasons
+        )
+
         flushContext()
-        return results
+        return ValidatedPlayModeLoadResult(cards: results, diagnostics: diagnostics)
     }
 
     // MARK: - Quiz
 
-    /// Loads quiz payloads for a deck, excluding flashcards and write cards.
-    func loadQuizCards(for deckID: PersistentIdentifier) -> [QuizPlayableCard] {
-        guard let deck = activeContext.model(for: deckID) as? DeckModel else { return [] }
+    /// Loads validated quiz payloads for a deck and records explicit invalid-content buckets.
+    func loadValidatedQuizCards(for deckID: PersistentIdentifier) -> ValidatedPlayModeLoadResult<QuizPlayableCard> {
+        guard let deck = activeContext.model(for: deckID) as? DeckModel else {
+            return ValidatedPlayModeLoadResult(cards: [], diagnostics: .empty)
+        }
 
         let cards = sortedCards(resolvedCards(for: deck, deckID: deckID))
         var results: [QuizPlayableCard] = []
+        var invalidReasons: [PlayModeValidationReason: Int] = [:]
+        var compatibleCount = 0
 
         for card in cards {
             autoreleasepool {
                 guard case .quiz(let content) = card.cardContent else { return }
+                compatibleCount += 1
+
+                guard content.questionZone.hasContent else {
+                    Self.increment(.missingQuestion, in: &invalidReasons)
+                    card.clearZoneCache()
+                    return
+                }
+
+                let nonEmptyChoices = content.choices.filter { $0.contentZone.hasContent }
+                guard nonEmptyChoices.count >= 2 else {
+                    Self.increment(.insufficientChoices, in: &invalidReasons)
+                    card.clearZoneCache()
+                    return
+                }
+
+                let correctChoices = nonEmptyChoices.filter(\.isCorrect)
+                guard !correctChoices.isEmpty else {
+                    Self.increment(.missingCorrectChoice, in: &invalidReasons)
+                    card.clearZoneCache()
+                    return
+                }
+
+                guard content.allowsMultipleCorrect || correctChoices.count == 1 else {
+                    Self.increment(.multipleCorrectChoicesDisallowed, in: &invalidReasons)
+                    card.clearZoneCache()
+                    return
+                }
 
                 results.append(
                     QuizPlayableCard(
@@ -279,8 +336,8 @@ actor PlayModeCardRepository {
                         cardNumber: card.cardNumber,
                         interval: card.interval,
                         questionZone: content.questionZone,
-                        choices: content.choices,
-                        explanationZone: content.explanationZone,
+                        choices: nonEmptyChoices,
+                        explanationZone: content.explanationZone?.hasContent == true ? content.explanationZone : nil,
                         allowsMultipleCorrect: content.allowsMultipleCorrect
                     )
                 )
@@ -288,38 +345,79 @@ actor PlayModeCardRepository {
             }
         }
 
+        let diagnostics = PlayModeValidationDiagnostics(
+            compatibleCount: compatibleCount,
+            playableCount: results.count,
+            invalidReasonCounts: invalidReasons
+        )
+
         flushContext()
-        return results
+        return ValidatedPlayModeLoadResult(cards: results, diagnostics: diagnostics)
     }
 
     // MARK: - Write
 
-    /// Loads write payloads for a deck, excluding flashcards and quiz cards.
-    func loadWriteCards(for deckID: PersistentIdentifier) -> [WritePlayableCard] {
-        guard let deck = activeContext.model(for: deckID) as? DeckModel else { return [] }
+    /// Loads validated write-mode payloads for a deck and records invalid blank-anchor buckets.
+    func loadValidatedWriteCards(for deckID: PersistentIdentifier) -> ValidatedPlayModeLoadResult<WritePlayableCard> {
+        guard let deck = activeContext.model(for: deckID) as? DeckModel else {
+            return ValidatedPlayModeLoadResult(cards: [], diagnostics: .empty)
+        }
 
         let cards = sortedCards(resolvedCards(for: deck, deckID: deckID))
         var results: [WritePlayableCard] = []
+        var invalidReasons: [PlayModeValidationReason: Int] = [:]
+        var compatibleCount = 0
 
         for card in cards {
             autoreleasepool {
                 guard case .write(let content) = card.cardContent else { return }
+                compatibleCount += 1
+
+                let sourceText = WriteBlankTextHelper.normalizedSourceText(from: content.sourceZone)
+                guard !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    Self.increment(.missingSourceText, in: &invalidReasons)
+                    card.clearZoneCache()
+                    return
+                }
+
+                guard !content.blankSelection.omittedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    Self.increment(.missingOmittedText, in: &invalidReasons)
+                    card.clearZoneCache()
+                    return
+                }
+
+                guard let validatedBlank = WriteBlankTextHelper.validatedBlankSelection(
+                    content.blankSelection,
+                    in: sourceText,
+                    fallbackZoneID: content.sourceZone.id
+                ), let blankedPrompt = WriteBlankTextHelper.applyingBlank(validatedBlank, to: sourceText) else {
+                    Self.increment(.invalidBlankAnchor, in: &invalidReasons)
+                    card.clearZoneCache()
+                    return
+                }
 
                 results.append(
                     WritePlayableCard(
                         id: card.persistentModelID,
                         cardNumber: card.cardNumber,
                         interval: card.interval,
-                        sourceZone: content.sourceZone,
-                        blankSelection: content.blankSelection
+                        sourceText: sourceText,
+                        blankedPrompt: blankedPrompt,
+                        omittedText: validatedBlank.omittedText
                     )
                 )
                 card.clearZoneCache()
             }
         }
 
+        let diagnostics = PlayModeValidationDiagnostics(
+            compatibleCount: compatibleCount,
+            playableCount: results.count,
+            invalidReasonCounts: invalidReasons
+        )
+
         flushContext()
-        return results
+        return ValidatedPlayModeLoadResult(cards: results, diagnostics: diagnostics)
     }
 
     // MARK: - Learn
@@ -523,6 +621,26 @@ actor PlayModeCardRepository {
         }
 
         return String(trimmed.prefix(140))
+    }
+
+    private static func validatedPreviewText(for zone: ZoneModel) -> String? {
+        let preview = zone.previewText(maxLength: 140)
+        let trimmed = preview
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmed.isEmpty, trimmed.caseInsensitiveCompare("empty") != .orderedSame else {
+            return nil
+        }
+
+        return trimmed
+    }
+
+    private static func increment(
+        _ reason: PlayModeValidationReason,
+        in counts: inout [PlayModeValidationReason: Int]
+    ) {
+        counts[reason, default: 0] += 1
     }
 
     private static func kindLabel(for kind: CardKind) -> String {

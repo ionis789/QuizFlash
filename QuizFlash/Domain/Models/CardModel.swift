@@ -13,7 +13,7 @@ import SwiftData
 // MARK: - Card Content Type
 
 /// Describes the rendering mode for one side of a flashcard.
-nonisolated enum CardContentType: String, Codable {
+nonisolated enum CardContentType: String, Codable, Sendable {
     case text
     case canvas
 }
@@ -21,7 +21,7 @@ nonisolated enum CardContentType: String, Codable {
 // MARK: - Card Creation Source
 
 /// Describes how a card entered the deck originally.
-nonisolated enum CardCreationSource: String, Codable {
+nonisolated enum CardCreationSource: String, Codable, Sendable {
     case manual
     case ai
 }
@@ -29,7 +29,7 @@ nonisolated enum CardCreationSource: String, Codable {
 // MARK: - Card Kind
 
 /// Identifies the persisted content kind for one deck card.
-nonisolated enum CardKind: String, Codable, CaseIterable {
+nonisolated enum CardKind: String, Codable, CaseIterable, Sendable {
     case flashcard
     case quiz
     case write
@@ -38,7 +38,7 @@ nonisolated enum CardKind: String, Codable, CaseIterable {
 // MARK: - Mixed Card Payloads
 
 /// Flashcard payload used as the backward-compatible baseline card content.
-nonisolated struct FlashcardCardContent: Codable, Equatable {
+nonisolated struct FlashcardCardContent: Codable, Equatable, Sendable {
     var frontZone: ZoneModel
     var backZone: ZoneModel
     var frontType: CardContentType
@@ -53,7 +53,7 @@ nonisolated struct FlashcardCardContent: Codable, Equatable {
 }
 
 /// One answer choice inside a quiz card draft or persisted quiz payload.
-nonisolated struct QuizChoiceDraft: Identifiable, Codable, Equatable {
+nonisolated struct QuizChoiceDraft: Identifiable, Codable, Equatable, Sendable {
     var id: UUID
     var contentZone: ZoneModel
     var isCorrect: Bool
@@ -70,7 +70,7 @@ nonisolated struct QuizChoiceDraft: Identifiable, Codable, Equatable {
 }
 
 /// Persisted content for a quiz card.
-nonisolated struct QuizCardContent: Codable, Equatable {
+nonisolated struct QuizCardContent: Codable, Equatable, Sendable {
     var questionZone: ZoneModel
     var choices: [QuizChoiceDraft]
     var explanationZone: ZoneModel?
@@ -85,7 +85,7 @@ nonisolated struct QuizCardContent: Codable, Equatable {
 }
 
 /// A persisted single blank selection inside a write card.
-nonisolated struct WriteBlankSelection: Codable, Equatable {
+nonisolated struct WriteBlankSelection: Codable, Equatable, Sendable {
     var zoneID: UUID
     var utf16Range: Range<Int>
     var omittedText: String
@@ -96,7 +96,7 @@ nonisolated struct WriteBlankSelection: Codable, Equatable {
 }
 
 /// Persisted content for a write card.
-nonisolated struct WriteCardContent: Codable, Equatable {
+nonisolated struct WriteCardContent: Codable, Equatable, Sendable {
     var sourceZone: ZoneModel
     var blankSelection: WriteBlankSelection
 
@@ -110,7 +110,7 @@ nonisolated struct WriteCardContent: Codable, Equatable {
 }
 
 /// Helper describing which play surfaces can consume a given card kind.
-nonisolated struct CardModeCompatibility: Equatable {
+nonisolated struct CardModeCompatibility: Equatable, Sendable {
     let supportsFlashcards: Bool
     let supportsMatch: Bool
     let supportsQuiz: Bool
@@ -140,7 +140,7 @@ nonisolated struct CardModeCompatibility: Equatable {
 // MARK: - Draft Card Content
 
 /// Heterogeneous card payload used by the editor, persistence bridges, and export/session layers.
-nonisolated enum DraftCardContent: Equatable {
+nonisolated enum DraftCardContent: Equatable, Sendable {
     case flashcard(FlashcardCardContent)
     case quiz(QuizCardContent)
     case write(WriteCardContent)

@@ -27,14 +27,16 @@ struct WriteCardEditorView: View {
         onSave: @escaping (WriteCardContent) -> Void
     ) {
         let normalizedZone = Self.normalizedSourceZone(from: initialContent.sourceZone)
-        let restoredBlank = Self.validatedBlankSelection(
+        let restoredBlank = WriteBlankTextHelper.validatedBlankSelection(
             initialContent.blankSelection,
             in: normalizedZone.text,
             fallbackZoneID: normalizedZone.id
         )
 
         _sourceZone = State(initialValue: normalizedZone)
-        _selectedRange = State(initialValue: restoredBlank.map(Self.nsRange(for:)) ?? NSRange(location: 0, length: 0))
+        _selectedRange = State(
+            initialValue: restoredBlank.map { WriteBlankTextHelper.nsRange(for: $0) } ?? NSRange(location: 0, length: 0)
+        )
         _blankSelection = State(initialValue: restoredBlank)
         self.onSave = onSave
     }
@@ -67,7 +69,11 @@ struct WriteCardEditorView: View {
 
     private var activeBlankSelection: WriteBlankSelection? {
         guard let blankSelection else { return nil }
-        return Self.validatedBlankSelection(blankSelection, in: sourceZone.text, fallbackZoneID: sourceZone.id)
+        return WriteBlankTextHelper.validatedBlankSelection(
+            blankSelection,
+            in: sourceZone.text,
+            fallbackZoneID: sourceZone.id
+        )
     }
 
     private var blankedPreviewText: String {
@@ -309,7 +315,7 @@ struct WriteCardEditorView: View {
         sourceZone.contentType = .text
 
         if let currentBlankSelection = blankSelection {
-            blankSelection = Self.validatedBlankSelection(
+            blankSelection = WriteBlankTextHelper.validatedBlankSelection(
                 currentBlankSelection,
                 in: newValue,
                 fallbackZoneID: sourceZone.id
@@ -352,15 +358,7 @@ struct WriteCardEditorView: View {
     }
 
     private func applyingBlank(_ blankSelection: WriteBlankSelection, to text: String) -> String {
-        let nsRange = Self.nsRange(for: blankSelection)
-        guard let stringRange = Range(nsRange, in: text),
-              String(text[stringRange]) == blankSelection.omittedText else {
-            return text
-        }
-
-        var blankedText = text
-        blankedText.replaceSubrange(stringRange, with: "____")
-        return blankedText
+        WriteBlankTextHelper.applyingBlank(blankSelection, to: text) ?? text
     }
 
     private var editorMeasurementText: String {
@@ -410,39 +408,6 @@ struct WriteCardEditorView: View {
             return normalizedZone
         }
 
-        return ZoneModel.text(zone.previewText(maxLength: 4_000) == "Empty" ? "" : zone.previewText(maxLength: 4_000))
-    }
-
-    private nonisolated static func validatedBlankSelection(
-        _ blankSelection: WriteBlankSelection,
-        in text: String,
-        fallbackZoneID: UUID
-    ) -> WriteBlankSelection? {
-        guard !blankSelection.omittedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return nil
-        }
-
-        let nsRange = NSRange(
-            location: blankSelection.utf16Range.lowerBound,
-            length: blankSelection.utf16Range.count
-        )
-
-        guard let stringRange = Range(nsRange, in: text),
-              String(text[stringRange]) == blankSelection.omittedText else {
-            return nil
-        }
-
-        return WriteBlankSelection(
-            zoneID: fallbackZoneID,
-            utf16Range: blankSelection.utf16Range,
-            omittedText: blankSelection.omittedText
-        )
-    }
-
-    private nonisolated static func nsRange(for blankSelection: WriteBlankSelection) -> NSRange {
-        NSRange(
-            location: blankSelection.utf16Range.lowerBound,
-            length: blankSelection.utf16Range.count
-        )
+        return ZoneModel.text(WriteBlankTextHelper.normalizedSourceText(from: zone))
     }
 }
