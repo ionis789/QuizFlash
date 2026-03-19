@@ -13,6 +13,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 private let kDeckScrollSpace = "DeckViewScrollSpace"
 private let kDeckChromeSpace = "DeckViewChromeSpace"
@@ -35,8 +36,8 @@ struct DeckContentView: View {
     @State private var selectedPlayModeSettings: DeckPlayModeDestination? = nil
     @State private var previewedCard: CardModel? = nil
     @State private var editingCard: CardModel? = nil
-    @State private var activeCardActionID: PersistentIdentifier? = nil
     @State private var pendingDeleteCardID: PersistentIdentifier? = nil
+    @State private var activeActionMenuCardID: PersistentIdentifier? = nil
     @Bindable var viewModel: DeckViewModel
     @State private var hasLoadedInitialSnapshot = false
     @State private var navigationBarHeight: CGFloat =
@@ -81,6 +82,17 @@ struct DeckContentView: View {
         f.timeStyle = .none
         return f
     }()
+    private let actionMenuTopClearance: CGFloat = 10
+    private let actionMenuBottomClearance: CGFloat = 10
+    private var activeActionMenuCard: GridCardInfo? {
+        guard let id = activeActionMenuCardID else { return nil }
+        for section in viewModel.cachedGroupedCards {
+            if let card = section.cards.first(where: { $0.id == id }) {
+                return card
+            }
+        }
+        return nil
+    }
 
     // MARK: - Body
 
@@ -174,7 +186,6 @@ struct DeckContentView: View {
                 }
                 Button("Delete", role: .destructive) {
                     guard let id = pendingDeleteCardID else { return }
-                    activeCardActionID = nil
                     pendingDeleteCardID = nil
                     viewModel.deleteCard(withID: id, from: deck, context: context)
                 }
@@ -221,6 +232,9 @@ struct DeckContentView: View {
         }
             .coordinateSpace(name: kDeckChromeSpace)
             .overlay(alignment: .top) { measuredNavigationBar }
+            .overlayPreferenceValue(DeckGridCardBoundsPreferenceKey.self) { preferences in
+                actionMenuOverlay(preferences: preferences)
+            }
             .swipeBack(
                 enabled: !viewModel.showShareSheet
                     && !isAddingCard
@@ -229,6 +243,7 @@ struct DeckContentView: View {
                     && selectedPlayModeSettings == nil
                     && previewedCard == nil
                     && editingCard == nil
+                    && activeActionMenuCardID == nil
             ) { dismiss() }
             .animation(.bottomChromeSpring, value: viewModel.isSelecting)
             .environment(scrollState)
@@ -269,7 +284,6 @@ struct DeckContentView: View {
             onAdd: { isAddingCard = true },
             onStartSelection: {
                 withBottomChromeAnimation {
-                    activeCardActionID = nil
                     viewModel.enterSelectionMode()
                 }
             },
@@ -375,11 +389,6 @@ struct DeckContentView: View {
                     getOffset: { viewModel.savedScrollOffset },
                     onOffsetChange: { offset in
                         viewModel.savedScrollOffset = offset
-                        if activeCardActionID != nil {
-                            withAnimation(.easeOut(duration: 0.14)) {
-                                activeCardActionID = nil
-                            }
-                        }
                     }
                 )
                 .frame(width: 0, height: 0)
@@ -485,45 +494,28 @@ struct DeckContentView: View {
                     isSelecting: viewModel.isSelecting,
                     selectedCards: viewModel.selectedCards,
                     isSuspended: isSuspended,
-                    activeActionCardID: activeCardActionID,
-                    onToggleSelection: { gridCard in viewModel.toggleSelection(for: gridCard.id) },
-                    onTapCard: { gridCard in
-                        if activeCardActionID != nil {
-                            activeCardActionID = nil
-                        } else if viewModel.isSelecting {
+                    activeActionMenuCardID: activeActionMenuCardID,
+                    onToggleSelection: { gridCard in
+                        withAnimation(.spring(response: 0.18, dampingFraction: 0.88)) {
                             viewModel.toggleSelection(for: gridCard.id)
+                        }
+                    },
+                    onTapCard: { gridCard in
+                        if viewModel.isSelecting {
+                            withAnimation(.spring(response: 0.18, dampingFraction: 0.88)) {
+                                viewModel.toggleSelection(for: gridCard.id)
+                            }
                         } else if searchQuery != nil {
                             if let model = context.model(for: gridCard.id) as? CardModel { editingCard = model }
                         } else {
                             if let model = context.model(for: gridCard.id) as? CardModel { previewedCard = model }
                         }
                     },
-                    onLongPressCard: { gridCard in
-                        let haptic = UIImpactFeedbackGenerator(style: .light)
-                        haptic.prepare()
-                        haptic.impactOccurred(intensity: 0.72)
-                        withAnimation(.easeInOut(duration: 0.16)) {
-                            activeCardActionID = gridCard.id
-                        }
-                    },
-                    onDismissCardActions: {
-                        withAnimation(.easeInOut(duration: 0.16)) {
-                            activeCardActionID = nil
-                        }
-                    },
-                    onEditCard: { gridCard in
-                        activeCardActionID = nil
-                        if let model = context.model(for: gridCard.id) as? CardModel {
-                            editingCard = model
-                        }
-                    },
-                    onTogglePinned: { gridCard in
-                        activeCardActionID = nil
-                        viewModel.togglePinnedState(for: gridCard.id, in: deck, context: context)
-                    },
-                    onDeleteCard: { gridCard in
-                        pendingDeleteCardID = gridCard.id
-                    }
+                    onEditCard: handleEditCard(_:),
+                    onTogglePinned: handleTogglePinned(_:),
+                    onDeleteCard: handleDeleteCard(_:),
+                    onPresentActionMenu: presentActionMenu(for:),
+                    onDismissActionMenu: dismissActiveActionMenu
                 )
                 .padding(.top, 4)
             }
@@ -531,15 +523,7 @@ struct DeckContentView: View {
             .background {
                 Color(.systemGroupedBackground)
 
-                if activeCardActionID != nil {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            withAnimation(.easeInOut(duration: 0.18)) {
-                                activeCardActionID = nil
-                            }
-                        }
-                } else if viewModel.isSelecting {
+                if viewModel.isSelecting {
                     Color.clear
                         .contentShape(Rectangle())
                         .onTapGesture {
@@ -559,9 +543,120 @@ struct DeckContentView: View {
             Color.clear.frame(height: bottomContentInset)
         }
         .background(Color(.systemGroupedBackground))
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 4)
+                .onChanged { _ in
+                    dismissActiveActionMenu()
+                }
+        )
     }
 
-    // MARK: - Subviews
+    private func handleEditCard(_ gridCard: GridCardInfo) {
+        dismissActiveActionMenu()
+        if let model = context.model(for: gridCard.id) as? CardModel {
+            editingCard = model
+        }
+    }
+
+    private func handleTogglePinned(_ gridCard: GridCardInfo) {
+        dismissActiveActionMenu()
+        viewModel.togglePinnedState(for: gridCard.id, in: deck, context: context)
+    }
+
+    private func handleDeleteCard(_ gridCard: GridCardInfo) {
+        dismissActiveActionMenu()
+        pendingDeleteCardID = gridCard.id
+    }
+
+    private func presentActionMenu(for id: PersistentIdentifier) {
+        let generator = UIImpactFeedbackGenerator(style: .soft)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.9)
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.82)) {
+            activeActionMenuCardID = id
+        }
+    }
+
+    private func dismissActiveActionMenu() {
+        guard activeActionMenuCardID != nil else { return }
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
+            activeActionMenuCardID = nil
+        }
+    }
+
+    @ViewBuilder
+    private func actionMenuOverlay(
+        preferences: [PersistentIdentifier: Anchor<CGRect>]
+    ) -> some View {
+        GeometryReader { proxy in
+            if let card = activeActionMenuCard,
+               let anchor = preferences[card.id],
+               !viewModel.isSelecting,
+               !isSuspended {
+                let rect = proxy[anchor]
+                let menuHeight = DeckGridCardMetrics.headerMenuHeight
+                let floatingGap = DeckGridCardMetrics.headerMenuFloatingGap
+                let topLimit = navigationBarBottomY + actionMenuTopClearance
+                let topY = rect.minY - menuHeight - floatingGap
+                let bottomY = rect.maxY + floatingGap
+                let prefersTopPlacement = topY >= topLimit
+                let placement = prefersTopPlacement ? ActionMenuPlacement.top : .bottom
+
+                Color.black.opacity(0.001)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        dismissActiveActionMenu()
+                    }
+                    .zIndex(199)
+
+                DeckGridHeaderActionMenu(
+                    isPinned: card.isPinned,
+                    accent: ThemeManager.shared.accentColor.color,
+                    onTogglePinned: {
+                        dismissActiveActionMenu()
+                        handleTogglePinned(card)
+                    },
+                    onEdit: {
+                        dismissActiveActionMenu()
+                        handleEditCard(card)
+                    },
+                    onDelete: {
+                        dismissActiveActionMenu()
+                        handleDeleteCard(card)
+                    }
+                )
+                .offset(
+                    x: rect.minX + DeckGridCardMetrics.sideInset,
+                    y: placement == .top ? topY : bottomY
+                )
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity
+                            .combined(
+                                with: .scale(
+                                    scale: 0.84,
+                                    anchor: placement == .top ? .bottomLeading : .topLeading
+                                )
+                            ),
+                        removal: .opacity
+                            .combined(
+                                with: .scale(
+                                    scale: 0.94,
+                                    anchor: placement == .top ? .bottomLeading : .topLeading
+                                )
+                            )
+                    )
+                )
+                .zIndex(200)
+            }
+        }
+    }
+
+    private enum ActionMenuPlacement {
+        case top
+        case bottom
+    }
 
     private struct DeckCardPreviewSheetView: View {
         let card: CardModel

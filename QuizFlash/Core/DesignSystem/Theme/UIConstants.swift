@@ -286,4 +286,14 @@ enum UIConstants {
         /// 0.5  s — slow, deliberate transitions (sheet, modal).
         static let slow: Double = 0.5
     }
+
+    // MARK: - Interaction
+
+    /// Standardized interaction dwell times.
+    enum Interaction {
+        /// 0.04 s — deck-card press preview using custom touch tracking.
+        static let deckCardActionPreviewDelay: Double = 0.04
+        /// 0.11 s — deck-card press commit that opens quick actions.
+        static let deckCardActionCommitDelay: Double = 0.11
+    }
 }

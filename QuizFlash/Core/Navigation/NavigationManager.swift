@@ -32,6 +32,9 @@ final class NavigationManager {
     /// The navigation stack for the **Create** tab.
     var createPath = NavigationPath()
 
+    /// The navigation stack for the **Settings** tab.
+    var settingsPath = NavigationPath()
+
     // MARK: - Active Tab
 
     /// The currently visible tab.
@@ -48,6 +51,7 @@ final class NavigationManager {
         case .home:    homePath    = NavigationPath()
         case .library: libraryPath = NavigationPath()
         case .create:  createPath  = NavigationPath()
+        case .settings: settingsPath = NavigationPath()
         }
     }
 
@@ -60,6 +64,7 @@ final class NavigationManager {
         case .home:    homePath.append(route)
         case .library: libraryPath.append(route)
         case .create:  createPath.append(route)
+        case .settings: settingsPath.append(route)
         }
     }
 }

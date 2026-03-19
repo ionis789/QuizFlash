@@ -171,6 +171,16 @@ struct MainAppView: View {
                         }
                 }
                 .tag(AppTabBar.create)
+
+                // SETTINGS TAB
+                NavigationStack(path: $router.settingsPath) {
+                    SettingsView()
+                        .toolbar(.hidden, for: .tabBar)
+                        .navigationDestination(for: AppRoute.self) { route in
+                            appRouteDestination(for: route)
+                        }
+                }
+                .tag(AppTabBar.settings)
             }
             .ignoresSafeArea(.keyboard, edges: .bottom)
             // Propagate tab bar visibility changes with an explicit spring so the

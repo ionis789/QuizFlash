@@ -9,6 +9,7 @@ enum AppTabBar: String, CaseIterable, Identifiable {
     case home = "HOME"
     case library = "LIBRARY"
     case create = "CREATE"
+    case settings = "SETTINGS"
 
     var id: String { rawValue }
 
@@ -17,6 +18,7 @@ enum AppTabBar: String, CaseIterable, Identifiable {
         case .home: return "Home"
         case .library: return "Library"
         case .create: return "Create"
+        case .settings: return "Settings"
         }
     }
 
@@ -25,6 +27,7 @@ enum AppTabBar: String, CaseIterable, Identifiable {
         case .home: return "house"
         case .library: return "rectangle.stack"
         case .create: return "book.and.wrench"
+        case .settings: return "gearshape"
         }
     }
 
