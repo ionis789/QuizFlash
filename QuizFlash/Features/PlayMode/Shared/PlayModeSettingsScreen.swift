@@ -22,6 +22,9 @@ struct PlayModeSettingsScreen: View {
     /// The mode currently being configured.
     let mode: DeckPlayModeDestination
 
+    /// Lightweight compatibility counts for the active deck.
+    let availability: PlayModeCardAvailability
+
     /// Safe-area values passed by the custom full-screen sheet container.
     let safeAreaInsets: UIEdgeInsets
 
@@ -35,6 +38,14 @@ struct PlayModeSettingsScreen: View {
 
     private var tintColor: Color {
         mode.tintColor(deckColor: deckColor, accentColor: accentColor)
+    }
+
+    private var compatibleCardCount: Int {
+        mode.compatibleCardCount(in: availability)
+    }
+
+    private var hasCompatibleCards: Bool {
+        mode.hasCompatibleCards(in: availability)
     }
 
     private var horizontalInset: CGFloat {
@@ -160,7 +171,7 @@ struct PlayModeSettingsScreen: View {
                 }
 
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    Text(mode.isGameplayAvailable ? "CONFIGURE & LAUNCH" : "SETTINGS PLACEHOLDER")
+                    Text(mode.isGameplayImplemented ? "CONFIGURE & LAUNCH" : "SETTINGS PLACEHOLDER")
                         .font(
                             .system(
                             size: UIConstants.Size.navigationChromeLabel,
@@ -184,15 +195,17 @@ struct PlayModeSettingsScreen: View {
 
             HStack(spacing: UIConstants.Spacing.small) {
                 settingsStatusChip(
-                    title: mode.isGameplayAvailable ? "Gameplay Ready" : "Gameplay Soon",
-                    icon: mode.isGameplayAvailable ? "play.fill" : "hourglass"
+                    title: mode.isGameplayImplemented ? "Gameplay Ready" : "Gameplay Soon",
+                    icon: mode.isGameplayImplemented ? "play.fill" : "hourglass"
                 )
 
                 Spacer(minLength: 0)
 
                 settingsStatusChip(
-                    title: deck.cardCount == 0 ? "No Cards Yet" : "\(deck.cardCount) Loaded",
-                    icon: "rectangle.stack.fill"
+                    title: hasCompatibleCards
+                        ? "\(compatibleCardCount) Compatible"
+                        : "No Compatible Cards",
+                    icon: hasCompatibleCards ? "checkmark.seal" : "exclamationmark.circle"
                 )
             }
         }
@@ -245,9 +258,7 @@ struct PlayModeSettingsScreen: View {
                 .foregroundStyle(.primary)
 
             Text(
-                mode.isGameplayAvailable
-                    ? "Use this surface for future controls like order, randomness, and retry behaviour before starting the session."
-                : "This surface is ready for future configuration controls even though the gameplay flow is not implemented yet."
+                readinessCopy
             )
                 .font(.body.weight(.medium))
                 .foregroundStyle(.secondary)
@@ -280,6 +291,22 @@ struct PlayModeSettingsScreen: View {
         } else {
             dismiss()
         }
+    }
+
+    private var readinessCopy: String {
+        if mode.isGameplayImplemented {
+            if hasCompatibleCards {
+                return "This deck has \(compatibleCardCount) compatible \(mode.compatibilityRequirementLabel), so the gameplay flow can launch without coercing other card kinds."
+            }
+
+            return "This gameplay flow exists, but this deck does not contain any compatible \(mode.compatibilityRequirementLabel) yet."
+        }
+
+        if hasCompatibleCards {
+            return "This deck already has \(compatibleCardCount) compatible \(mode.compatibilityRequirementLabel), and the mode contract is ready for future gameplay work."
+        }
+
+        return "This surface is ready for future configuration controls, and the deck will need compatible \(mode.compatibilityRequirementLabel) before launch."
     }
 }
 

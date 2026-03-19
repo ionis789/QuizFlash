@@ -126,6 +126,8 @@ struct DeckPlayModesView: View {
 
     /// The deck being played — used to disable tiles when it has no cards.
     let deck: DeckModel
+    /// Lightweight compatibility counts derived from the deck snapshot.
+    let availability: PlayModeCardAvailability
     /// Called when the user taps a play-mode card.
     let onOpenMode: (DeckPlayModeDestination) -> Void
     /// Called when the user taps the mode-specific options button.
@@ -135,9 +137,6 @@ struct DeckPlayModesView: View {
 
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
     private var deckColor: Color { Color(hex: deck.colorHex) ?? accentColor }
-    /// `true` when the deck has at least one card and flashcards can launch immediately.
-    private var hasCards: Bool { deck.cardCount > 0 }
-
     // MARK: - Body
 
     var body: some View {
@@ -161,8 +160,8 @@ struct DeckPlayModesView: View {
                                     deckColor: deckColor,
                                     accentColor: accentColor
                                 ),
-                                canPlay: hasCards && mode.isGameplayAvailable,
-                                hasCards: hasCards,
+                                compatibleCardCount: mode.compatibleCardCount(in: availability),
+                                canPlay: mode.canLaunch(with: availability),
                                 onOpenMode: onOpenMode,
                                 onOpenSettings: onOpenSettings
                             )
@@ -178,8 +177,13 @@ struct DeckPlayModesView: View {
             }
                 .frame(height: 148)
 
-            if !hasCards {
+            if availability.totalCards == 0 {
                 Text("Add cards to start a session. Settings stay available for every mode.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            } else {
+                Text("Each mode only activates when this deck has compatible cards for that mode.")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
@@ -197,8 +201,8 @@ private struct PlayModeCard: View {
 
     let mode: DeckPlayModeDestination
     let tintColor: Color
+    let compatibleCardCount: Int
     let canPlay: Bool
-    let hasCards: Bool
     let onOpenMode: (DeckPlayModeDestination) -> Void
     let onOpenSettings: (DeckPlayModeDestination) -> Void
 
@@ -233,13 +237,18 @@ private struct PlayModeCard: View {
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
 
-                            if !mode.isGameplayAvailable {
-                                Text("Gameplay coming soon")
+                            if compatibleCardCount > 0 {
+                                Text("\(compatibleCardCount) \(mode.compatibilityRequirementLabel) ready")
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
-                            } else if !hasCards {
-                                Text("Add cards to start")
+                            } else if mode.isGameplayImplemented {
+                                Text("No \(mode.compatibilityRequirementLabel) in this deck")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            } else {
+                                Text("No \(mode.compatibilityRequirementLabel) yet")
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)

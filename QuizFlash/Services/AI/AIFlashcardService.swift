@@ -31,8 +31,7 @@ public enum AIServiceError: LocalizedError {
 // MARK: - Response DTO
 // =============================================================================
 
-/// The structured JSON contract between GPT and the app.
-/// GPT returns zones as arrays — each element becomes one visual zone block.
+/// The structured JSON contract between GPT and the app for flashcard output.
 private struct FlashcardResponseDTO: Codable {
     struct CardDTO: Codable {
         let question_zones: [String]?
@@ -46,7 +45,34 @@ private struct FlashcardResponseDTO: Codable {
             return ["?"]
         }
     }
+    let cards: [CardDTO]?
     let flashcards: [CardDTO]?
+
+    var resolvedCards: [CardDTO] {
+        cards ?? flashcards ?? []
+    }
+}
+
+/// The structured JSON contract between GPT and the app for quiz output.
+private struct QuizResponseDTO: Codable {
+    struct CardDTO: Codable {
+        let question_zones: [String]
+        let choices: [String]
+        let correct_indexes: [Int]
+        let explanation_zones: [String]?
+    }
+
+    let cards: [CardDTO]
+}
+
+/// The structured JSON contract between GPT and the app for write output.
+private struct WriteResponseDTO: Codable {
+    struct CardDTO: Codable {
+        let source_text: String
+        let omitted_text: String
+    }
+
+    let cards: [CardDTO]
 }
 
 private struct DeckTitleResponseDTO: Codable {
@@ -676,7 +702,7 @@ public final class AIFlashcardService: @unchecked Sendable {
                     coveredPrompts: coveredPrompts
                 )
 
-                return try await sendRequest(messages: messages, model: textModel)
+                return try await sendRequest(messages: messages, model: textModel, options: options)
             },
             onBatch: onBatch
         )
@@ -729,7 +755,7 @@ public final class AIFlashcardService: @unchecked Sendable {
                     coveredPrompts: coveredPrompts
                 )
 
-                return try await sendRequest(messages: messages, model: visionModel)
+                return try await sendRequest(messages: messages, model: visionModel, options: options)
             },
             onBatch: onBatch
         )
@@ -1285,10 +1311,7 @@ public final class AIFlashcardService: @unchecked Sendable {
     }
 
     private func promptHint(from card: AIFlashcard) -> String {
-        card.question
-            .replacingOccurrences(of: AIZoneParser.zoneDelimiter, with: " / ")
-            .replacingOccurrences(of: "\n", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        card.promptHint
     }
 
     private func allocationID(for plan: some RecoverableBatchPlan) -> UUID? {
@@ -1452,25 +1475,12 @@ public final class AIFlashcardService: @unchecked Sendable {
         isOCR: Bool,
         options: AIGenerationOptions
     ) -> String {
+        let outputContract = options.cardType.outputContract
         var prompt = #"""
         You are a rigorous University Professor AI specialized in generating elite, in-depth "Active Recall" flashcards.
         Your absolute priority is TECHNICAL DEPTH, ACCURACY, and HIGH READABILITY.
         
-        Output STRICTLY valid JSON with EXACTLY \#(targetCards) flashcards.
-        
-        ═══════════════════════════════════════════════════════
-        REQUIRED JSON SCHEMA (CRITICAL - DO NOT ALTER)
-        ═══════════════════════════════════════════════════════
-        You MUST output valid JSON matching EXACTLY this schema:
-        {
-          "flashcards": [
-            {
-              "question_zones": ["string1", "string2"],
-              "answer_zones": ["string1", "string2", "string3"]
-            }
-          ]
-        }
-        STRICT RULE: NEVER use the key "question" or "answer". You MUST use EXACTLY "question_zones" and "answer_zones" as ARRAYS of strings.
+        Output STRICTLY valid JSON with EXACTLY \#(targetCards) cards.
         
         ═══════════════════════════════════════════════════════
         LANGUAGE RULE (CRITICAL)
@@ -1480,36 +1490,6 @@ public final class AIFlashcardService: @unchecked Sendable {
         NEVER mix languages across cards unless the source itself explicitly mixes them.
         NEVER default to English because of model preference or technical terminology.
         If the source is X language, the flashcards MUST be fully in X language.
-        
-        ═══════════════════════════════════════════════════════
-        ZONE SPLITTING & READABILITY
-        ═══════════════════════════════════════════════════════
-        You MUST break long content into multiple readable, atomic visual zones using the JSON arrays.
-        Do not create "walls of text". Instead of cramming everything into one long string, split the information logically into as many zones as needed:
-        
-        RULE: Code MUST ALWAYS be in its own standalone string.
-        RULE: Block equations ($$) MUST ALWAYS be in their own standalone string.
-        
-        ❌ BAD EXAMPLE (Wall of text, mixed code - DO NOT DO THIS):
-        "answer_zones": [
-          "The Singleton pattern restricts instantiation. Here is the code: public class Singleton { private static Singleton instance; }"
-        ]
-        
-        ✅ GOOD EXAMPLE (Split into logical, readable zones - DO THIS EXACTLY):
-        "answer_zones": [
-          "The **Singleton** pattern restricts instantiation by using a private constructor.",
-          "The instance is created lazily, meaning it is only instantiated when first requested.",
-          "```java\npublic class Singleton {\n    private static Singleton instance;\n    private Singleton() {}\n}\n```"
-        ]
-        
-        ═══════════════════════════════════════════════════════
-        FORMATTING RULES (STRICT)
-        ═══════════════════════════════════════════════════════
-        - TEXT HIGHLIGHTS: Highlight all crucial concepts using double asterisks (e.g., "**Encapsulation**").
-        - INLINE CODE: Use single backticks (`) for short syntax, class names, or technical terms (e.g., `new`, `String`).
-        - INLINE MATH: Wrap every math symbol, variable, and inline equation in single $. Example: "$v \in V$", "$\dim(V)$".
-        - BLOCK MATH: Wrap display equations in double $$. NEVER use ```math or ```latex fences for equations.
-        - BLOCK CODE: Triple-backtick code blocks MUST be in their own standalone string in the array.
         
         ═══════════════════════════════════════════════════════
         LATEX ESCAPING IN JSON — READ THIS VERY CAREFULLY
@@ -1546,6 +1526,9 @@ public final class AIFlashcardService: @unchecked Sendable {
         NEVER write four backslashes (\\\\) before a LaTeX command. Always exactly two (\\).
         """#
 
+        prompt += requiredJSONSchemaPrompt(for: outputContract)
+        prompt += formattingRulesPrompt(for: outputContract)
+
         if isOCR {
             prompt += """
         
@@ -1560,6 +1543,124 @@ public final class AIFlashcardService: @unchecked Sendable {
         prompt += cardLevelPromptAddition(for: options.cardLevel)
 
         return prompt
+    }
+
+    nonisolated private func requiredJSONSchemaPrompt(for contract: AIGeneratedCardContract) -> String {
+        switch contract {
+        case .flashcard:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        REQUIRED JSON SCHEMA (CRITICAL - DO NOT ALTER)
+        ═══════════════════════════════════════════════════════
+        You MUST output valid JSON matching EXACTLY this schema:
+        {
+          "cards": [
+            {
+              "question_zones": ["string1", "string2"],
+              "answer_zones": ["string1", "string2", "string3"]
+            }
+          ]
+        }
+        STRICT RULE: NEVER use the key "question" or "answer".
+        You MUST use EXACTLY "question_zones" and "answer_zones" as ARRAYS of strings.
+        """
+        case .quiz:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        REQUIRED JSON SCHEMA (CRITICAL - DO NOT ALTER)
+        ═══════════════════════════════════════════════════════
+        You MUST output valid JSON matching EXACTLY this schema:
+        {
+          "cards": [
+            {
+              "question_zones": ["string1", "string2"],
+              "choices": ["choice 1", "choice 2", "choice 3", "choice 4"],
+              "correct_indexes": [1],
+              "explanation_zones": ["string1", "string2"]
+            }
+          ]
+        }
+        STRICT RULES:
+        - "question_zones" MUST be an array of strings.
+        - "choices" MUST be an array of answer-choice strings.
+        - "correct_indexes" MUST be zero-based indexes into the "choices" array.
+        - "correct_indexes" may contain more than one index when multiple answers are correct.
+        - "explanation_zones" is optional, but if present it MUST be an array of strings.
+        """
+        case .write:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        REQUIRED JSON SCHEMA (CRITICAL - DO NOT ALTER)
+        ═══════════════════════════════════════════════════════
+        You MUST output valid JSON matching EXACTLY this schema:
+        {
+          "cards": [
+            {
+              "source_text": "string",
+              "omitted_text": "string"
+            }
+          ]
+        }
+        STRICT RULES:
+        - "source_text" MUST be one plain string, not an array.
+        - "omitted_text" MUST be the exact substring removed from source_text.
+        - source_text MUST contain omitted_text exactly once, verbatim.
+        """
+        }
+    }
+
+    nonisolated private func formattingRulesPrompt(for contract: AIGeneratedCardContract) -> String {
+        switch contract {
+        case .flashcard, .quiz:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        ZONE SPLITTING & READABILITY
+        ═══════════════════════════════════════════════════════
+        You MUST break long content into multiple readable, atomic visual zones using the JSON arrays.
+        Do not create "walls of text". Instead of cramming everything into one long string, split the information logically into as many zones as needed:
+
+        RULE: Code MUST ALWAYS be in its own standalone string.
+        RULE: Block equations ($$) MUST ALWAYS be in their own standalone string.
+
+        ❌ BAD EXAMPLE (Wall of text, mixed code - DO NOT DO THIS):
+        "answer_zones": [
+          "The Singleton pattern restricts instantiation. Here is the code: public class Singleton { private static Singleton instance; }"
+        ]
+
+        ✅ GOOD EXAMPLE (Split into logical, readable zones - DO THIS EXACTLY):
+        "answer_zones": [
+          "The **Singleton** pattern restricts instantiation by using a private constructor.",
+          "The instance is created lazily, meaning it is only instantiated when first requested.",
+          "```java\npublic class Singleton {\n    private static Singleton instance;\n    private Singleton() {}\n}\n```"
+        ]
+
+        ═══════════════════════════════════════════════════════
+        FORMATTING RULES (STRICT)
+        ═══════════════════════════════════════════════════════
+        - TEXT HIGHLIGHTS: Highlight all crucial concepts using double asterisks (e.g., "**Encapsulation**").
+        - INLINE CODE: Use single backticks (`) for short syntax, class names, or technical terms (e.g., `new`, `String`).
+        - INLINE MATH: Wrap every math symbol, variable, and inline equation in single $. Example: "$v \\in V$", "$\\dim(V)$".
+        - BLOCK MATH: Wrap display equations in double $$. NEVER use ```math or ```latex fences for equations.
+        - BLOCK CODE: Triple-backtick code blocks MUST be in their own standalone string in the array.
+        """
+        case .write:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        FORMATTING RULES (STRICT)
+        ═══════════════════════════════════════════════════════
+        - TEXT HIGHLIGHTS: Highlight crucial concepts using double asterisks only when it improves recall.
+        - INLINE CODE: Use single backticks (`) for short syntax, class names, or technical terms.
+        - INLINE MATH: Wrap every math symbol, variable, and inline equation in single $.
+        - BLOCK MATH: Wrap display equations in double $$ when needed.
+        - source_text should stay compact enough for a single fill-in-the-blank prompt.
+        - omitted_text should be the shortest exact answer span that still preserves a meaningful recall task.
+        """
+        }
     }
 
     nonisolated private func deckTitleSystemPrompt() -> String {
@@ -1618,12 +1719,12 @@ public final class AIFlashcardService: @unchecked Sendable {
         ═══════════════════════════════════════════════════════
         CARD TYPE PROFILE — QUIZ CARDS
         ═══════════════════════════════════════════════════════
-        Each question must behave like a multiple-choice quiz item while still using the required JSON schema.
-        question_zones MUST contain:
-        1. the quiz stem
-        2. exactly four answer options as separate readable zones
-        Exactly one option must be correct.
-        answer_zones MUST begin with the exact correct option, then add a short explanation. Distractors must be plausible.
+        Each card must behave like a multiple-choice quiz item.
+        question_zones should contain the quiz stem and any short setup needed to understand it.
+        choices MUST contain at least four plausible options.
+        correct_indexes MUST point to the exact correct options in the choices array.
+        Multiple correct answers are allowed when the source truly supports that.
+        explanation_zones, when present, should briefly justify the correct answer(s) without repeating the full stem.
         """
         case .write:
             return """
@@ -1632,9 +1733,10 @@ public final class AIFlashcardService: @unchecked Sendable {
         CARD TYPE PROFILE — WRITE CARDS
         ═══════════════════════════════════════════════════════
         These cards are intended for typed recall.
-        question_zones should ask for an exact answer, derivation step, definition, formula, or short structured response.
-        answer_zones MUST begin with the canonical expected answer.
-        When useful, add one extra zone for accepted variants, precision notes, or grading cues.
+        source_text MUST read like the final prompt shown to the learner before blanking.
+        omitted_text MUST be the exact phrase, symbol sequence, definition term, formula fragment, or short structured answer the learner should type.
+        Prefer one omission only.
+        The omitted_text must appear exactly once inside source_text.
         """
         }
     }
@@ -1675,10 +1777,17 @@ public final class AIFlashcardService: @unchecked Sendable {
     // MARK: - Network
     // -------------------------------------------------------------------------
 
-    private func sendRequest(messages: [[String: Any]], model: String) async throws -> [AIFlashcard] {
+    private func sendRequest(
+        messages: [[String: Any]],
+        model: String,
+        options: AIGenerationOptions
+    ) async throws -> [AIFlashcard] {
         try await performRetriableJSONRequest(messages: messages, model: model) { [self] data in
             let content = try self.parseResponseContent(from: data)
-            return try self.decodeFlashcards(from: content)
+            return try self.decodeGeneratedCards(
+                from: content,
+                contract: options.cardType.outputContract
+            )
         }
     }
 
@@ -1977,7 +2086,10 @@ public final class AIFlashcardService: @unchecked Sendable {
         return "\(provider.trimmedName) HTTP \(statusCode)"
     }
 
-    private func decodeFlashcards(from jsonString: String) throws -> [AIFlashcard] {
+    private func decodeGeneratedCards(
+        from jsonString: String,
+        contract: AIGeneratedCardContract
+    ) throws -> [AIFlashcard] {
         // Strip markdown code fences if present (shouldn't happen with json_object mode, but defensive)
         print("═══════════════════════════════════")
         print("📦 RAW GPT JSON:")
@@ -2002,35 +2114,95 @@ public final class AIFlashcardService: @unchecked Sendable {
         }
 
         do {
-            let dto = try JSONDecoder().decode(FlashcardResponseDTO.self, from: data)
-            guard let cards = dto.flashcards, !cards.isEmpty else {
-                throw AIServiceError.parsingFailed
-            }
+            switch contract {
+            case .flashcard:
+                let dto = try JSONDecoder().decode(FlashcardResponseDTO.self, from: data)
+                let cards = dto.resolvedCards
+                guard !cards.isEmpty else { throw AIServiceError.parsingFailed }
 
-            return cards.map { card in
-                // Use resolvedQuestionZones instead of question_zones for robust fallback handling
-                let questionZones = card.resolvedQuestionZones
-                    .map { AIZoneParser.sanitizeLatex($0) }
-                    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                return cards.map { card in
+                    let questionZones = sanitizedZoneStrings(card.resolvedQuestionZones)
+                    let answerZones = sanitizedZoneStrings(card.answer_zones)
 
-                let answerZones = card.answer_zones
-                    .map { AIZoneParser.sanitizeLatex($0) }
-                    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    return AIFlashcard(
+                        id: UUID(),
+                        content: .flashcard(
+                            AIFlashcardContent(
+                                questionZones: questionZones.isEmpty ? card.resolvedQuestionZones : questionZones,
+                                answerZones: answerZones.isEmpty ? card.answer_zones : answerZones
+                            )
+                        )
+                    )
+                }
+            case .quiz:
+                let dto = try JSONDecoder().decode(QuizResponseDTO.self, from: data)
+                guard !dto.cards.isEmpty else { throw AIServiceError.parsingFailed }
 
-                let question = questionZones.joined(separator: AIZoneParser.zoneDelimiter)
-                let answer = answerZones.joined(separator: AIZoneParser.zoneDelimiter)
+                return try dto.cards.map { card in
+                    let questionZones = sanitizedZoneStrings(card.question_zones)
+                    let choices = card.choices
+                        .map { AIZoneParser.sanitizeLatex($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { !$0.isEmpty }
+                    let correctIndexes = normalizedCorrectIndexes(card.correct_indexes, choiceCount: choices.count)
+                    let explanationZones = sanitizedZoneStrings(card.explanation_zones ?? [])
 
-                return AIFlashcard(
-                    id: UUID(),
-                    question: question.isEmpty ? card.resolvedQuestionZones.joined(separator: " ") : question,
-                    answer: answer.isEmpty ? card.answer_zones.joined(separator: " "): answer
-                )
+                    guard !questionZones.isEmpty, choices.count >= 2, !correctIndexes.isEmpty else {
+                        throw AIServiceError.parsingFailed
+                    }
+
+                    return AIFlashcard(
+                        id: UUID(),
+                        content: .quiz(
+                            AIQuizCardContent(
+                                questionZones: questionZones,
+                                choices: choices,
+                                correctIndexes: correctIndexes,
+                                explanationZones: explanationZones.isEmpty ? nil : explanationZones
+                            )
+                        )
+                    )
+                }
+            case .write:
+                let dto = try JSONDecoder().decode(WriteResponseDTO.self, from: data)
+                guard !dto.cards.isEmpty else { throw AIServiceError.parsingFailed }
+
+                return try dto.cards.map { card in
+                    let sourceText = AIZoneParser.sanitizeLatex(card.source_text)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let omittedText = AIZoneParser.sanitizeLatex(card.omitted_text)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                    guard !sourceText.isEmpty, !omittedText.isEmpty else {
+                        throw AIServiceError.parsingFailed
+                    }
+
+                    return AIFlashcard(
+                        id: UUID(),
+                        content: .write(
+                            AIWriteCardContent(
+                                sourceText: sourceText,
+                                omittedText: omittedText
+                            )
+                        )
+                    )
+                }
             }
         } catch {
             print("❌ JSON DECODE ERROR: \(error)")
             print("📦 RAW JSON FROM GPT:\n\(clean)")
             throw AIServiceError.parsingFailed
         }
+    }
+
+    private func sanitizedZoneStrings(_ values: [String]) -> [String] {
+        values
+            .map { AIZoneParser.sanitizeLatex($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func normalizedCorrectIndexes(_ indexes: [Int], choiceCount: Int) -> [Int] {
+        let validIndexes = indexes.filter { $0 >= 0 && $0 < choiceCount }
+        return Array(Set(validIndexes)).sorted()
     }
     // -------------------------------------------------------------------------
     // MARK: - LaTeX JSON Escape Fixer  (runs on RAW JSON string, before JSONDecoder)

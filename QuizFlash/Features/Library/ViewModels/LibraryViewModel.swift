@@ -67,8 +67,8 @@ final class LibraryViewModel {
     /// The specific deck marked for color editing.
     var deckToEditColor: DeckModel?
     
-    /// The specific card currently being edited from the search results.
-    var editingCardFromSearch: CardModel?
+    /// The card editor destination currently presented from the search results.
+    var editingCardFromSearch: CardEditorDestination?
     
     /// The identifier of the deck whose action menu is currently open.
     var activeActionMenuDeckID: PersistentIdentifier?

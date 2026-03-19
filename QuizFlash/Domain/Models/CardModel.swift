@@ -2,8 +2,8 @@
 //  CardModel.swift
 //  QuizFlash
 //
-//  A SwiftData model representing a single flashcard.
-//  This file must remain free of SwiftUI and UIKit imports —
+//  A SwiftData model representing a single mixed card.
+//  This file must remain free of SwiftUI and UIKit imports -
 //  it is a pure data layer that the entire app depends on.
 //
 
@@ -13,7 +13,7 @@ import SwiftData
 // MARK: - Card Content Type
 
 /// Describes the rendering mode for one side of a flashcard.
-enum CardContentType: String, Codable {
+nonisolated enum CardContentType: String, Codable {
     case text
     case canvas
 }
@@ -21,23 +21,321 @@ enum CardContentType: String, Codable {
 // MARK: - Card Creation Source
 
 /// Describes how a card entered the deck originally.
-enum CardCreationSource: String, Codable {
+nonisolated enum CardCreationSource: String, Codable {
     case manual
     case ai
 }
 
+// MARK: - Card Kind
+
+/// Identifies the persisted content kind for one deck card.
+nonisolated enum CardKind: String, Codable, CaseIterable {
+    case flashcard
+    case quiz
+    case write
+}
+
+// MARK: - Mixed Card Payloads
+
+/// Flashcard payload used as the backward-compatible baseline card content.
+nonisolated struct FlashcardCardContent: Codable, Equatable {
+    var frontZone: ZoneModel
+    var backZone: ZoneModel
+    var frontType: CardContentType
+    var backType: CardContentType
+
+    static let empty = FlashcardCardContent(
+        frontZone: .text(),
+        backZone: .text(),
+        frontType: .text,
+        backType: .text
+    )
+}
+
+/// One answer choice inside a quiz card draft or persisted quiz payload.
+nonisolated struct QuizChoiceDraft: Identifiable, Codable, Equatable {
+    var id: UUID
+    var contentZone: ZoneModel
+    var isCorrect: Bool
+
+    init(
+        id: UUID = UUID(),
+        contentZone: ZoneModel = .text(),
+        isCorrect: Bool = false
+    ) {
+        self.id = id
+        self.contentZone = contentZone
+        self.isCorrect = isCorrect
+    }
+}
+
+/// Persisted content for a quiz card.
+nonisolated struct QuizCardContent: Codable, Equatable {
+    var questionZone: ZoneModel
+    var choices: [QuizChoiceDraft]
+    var explanationZone: ZoneModel?
+    var allowsMultipleCorrect: Bool
+
+    static let empty = QuizCardContent(
+        questionZone: .text(),
+        choices: [],
+        explanationZone: nil,
+        allowsMultipleCorrect: false
+    )
+}
+
+/// A persisted single blank selection inside a write card.
+nonisolated struct WriteBlankSelection: Codable, Equatable {
+    var zoneID: UUID
+    var utf16Range: Range<Int>
+    var omittedText: String
+
+    static func empty(for zoneID: UUID) -> WriteBlankSelection {
+        WriteBlankSelection(zoneID: zoneID, utf16Range: 0..<0, omittedText: "")
+    }
+}
+
+/// Persisted content for a write card.
+nonisolated struct WriteCardContent: Codable, Equatable {
+    var sourceZone: ZoneModel
+    var blankSelection: WriteBlankSelection
+
+    static var empty: WriteCardContent {
+        let sourceZone = ZoneModel.text()
+        return WriteCardContent(
+            sourceZone: sourceZone,
+            blankSelection: .empty(for: sourceZone.id)
+        )
+    }
+}
+
+/// Helper describing which play surfaces can consume a given card kind.
+nonisolated struct CardModeCompatibility: Equatable {
+    let supportsFlashcards: Bool
+    let supportsMatch: Bool
+    let supportsQuiz: Bool
+    let supportsWrite: Bool
+
+    init(kind: CardKind) {
+        switch kind {
+        case .flashcard:
+            supportsFlashcards = true
+            supportsMatch = true
+            supportsQuiz = false
+            supportsWrite = false
+        case .quiz:
+            supportsFlashcards = false
+            supportsMatch = false
+            supportsQuiz = true
+            supportsWrite = false
+        case .write:
+            supportsFlashcards = false
+            supportsMatch = false
+            supportsQuiz = false
+            supportsWrite = true
+        }
+    }
+}
+
+// MARK: - Draft Card Content
+
+/// Heterogeneous card payload used by the editor, persistence bridges, and export/session layers.
+nonisolated enum DraftCardContent: Equatable {
+    case flashcard(FlashcardCardContent)
+    case quiz(QuizCardContent)
+    case write(WriteCardContent)
+}
+
+extension DraftCardContent: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case flashcard
+        case quiz
+        case write
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(CardKind.self, forKey: .kind)
+
+        switch kind {
+        case .flashcard:
+            let content = try container.decode(FlashcardCardContent.self, forKey: .flashcard)
+            self = .flashcard(content)
+        case .quiz:
+            let content = try container.decode(QuizCardContent.self, forKey: .quiz)
+            self = .quiz(content)
+        case .write:
+            let content = try container.decode(WriteCardContent.self, forKey: .write)
+            self = .write(content)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(kind, forKey: .kind)
+
+        switch self {
+        case .flashcard(let content):
+            try container.encode(content, forKey: .flashcard)
+        case .quiz(let content):
+            try container.encode(content, forKey: .quiz)
+        case .write(let content):
+            try container.encode(content, forKey: .write)
+        }
+    }
+}
+
+extension DraftCardContent {
+    /// The discriminant describing the stored content family.
+    nonisolated var kind: CardKind {
+        switch self {
+        case .flashcard:
+            return .flashcard
+        case .quiz:
+            return .quiz
+        case .write:
+            return .write
+        }
+    }
+
+    /// Compatibility projection used by legacy flashcard-only surfaces during the migration.
+    nonisolated var flashcardCompatibilityContent: FlashcardCardContent {
+        switch self {
+        case .flashcard(let content):
+            return content
+        case .quiz(let content):
+            let answers = content.choices.map(\.contentZone)
+            let answerZone: ZoneModel
+            switch answers.count {
+            case 0:
+                answerZone = .text()
+            case 1:
+                answerZone = answers[0]
+            default:
+                answerZone = .container(direction: .vertical, children: answers)
+            }
+
+            return FlashcardCardContent(
+                frontZone: content.questionZone,
+                backZone: answerZone,
+                frontType: .text,
+                backType: .text
+            )
+        case .write(let content):
+            return FlashcardCardContent(
+                frontZone: content.sourceZone,
+                backZone: .text(content.blankSelection.omittedText),
+                frontType: .text,
+                backType: .text
+            )
+        }
+    }
+
+    /// Canonical preview caches reused by rows, snapshots, search, and export.
+    nonisolated var previewCache: (front: String, back: String) {
+        switch self {
+        case .flashcard(let content):
+            return (
+                front: content.frontZone.previewText(maxLength: 200),
+                back: content.backZone.previewText(maxLength: 200)
+            )
+        case .quiz(let content):
+            let questionPreview = content.questionZone.previewText(maxLength: 200)
+            let correctChoicePreview = Self.joinedChoicePreview(
+                content.choices.filter(\.isCorrect).map(\.contentZone),
+                maxLength: 200
+            )
+
+            return (front: questionPreview, back: correctChoicePreview)
+        case .write(let content):
+            let sourcePreview = content.sourceZone.previewText(maxLength: 200)
+            let blankedPreview = Self.blankedSourcePreview(
+                sourcePreview: sourcePreview,
+                omittedText: content.blankSelection.omittedText
+            )
+
+            return (front: blankedPreview, back: content.blankSelection.omittedText)
+        }
+    }
+
+    /// Flattened plain text used by search and other lightweight scans.
+    nonisolated var searchDocumentText: String {
+        switch self {
+        case .flashcard(let content):
+            return [content.frontZone.previewText(maxLength: 800), content.backZone.previewText(maxLength: 800)]
+                .joined(separator: "\n")
+        case .quiz(let content):
+            let choiceText = content.choices
+                .map { $0.contentZone.previewText(maxLength: 300) }
+                .joined(separator: "\n")
+            let explanationText = content.explanationZone?.previewText(maxLength: 400) ?? ""
+            return [content.questionZone.previewText(maxLength: 800), choiceText, explanationText]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+        case .write(let content):
+            return [
+                content.sourceZone.previewText(maxLength: 800),
+                content.blankSelection.omittedText
+            ]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        }
+    }
+
+    /// Returns the zone roots that should contribute to editor metrics and compatibility previews.
+    nonisolated var metricZones: [ZoneModel] {
+        switch self {
+        case .flashcard(let content):
+            return [content.frontZone, content.backZone]
+        case .quiz(let content):
+            return [content.questionZone] + content.choices.map(\.contentZone) + [content.explanationZone].compactMap { $0 }
+        case .write(let content):
+            return [content.sourceZone]
+        }
+    }
+
+    /// Whether the content can participate in each play surface.
+    nonisolated var modeCompatibility: CardModeCompatibility {
+        CardModeCompatibility(kind: kind)
+    }
+
+    private nonisolated static func joinedChoicePreview(_ zones: [ZoneModel], maxLength: Int) -> String {
+        let joined = zones
+            .map { $0.previewText(maxLength: maxLength) }
+            .filter { !$0.isEmpty && $0 != "Empty" }
+            .joined(separator: " • ")
+
+        guard !joined.isEmpty else { return "Empty" }
+        guard joined.count > maxLength else { return joined }
+        return String(joined.prefix(maxLength)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+    }
+
+    private nonisolated static func blankedSourcePreview(sourcePreview: String, omittedText: String) -> String {
+        guard !omittedText.isEmpty else { return sourcePreview }
+
+        if let range = sourcePreview.range(of: omittedText) {
+            return sourcePreview.replacingCharacters(in: range, with: "____")
+        }
+
+        return sourcePreview
+    }
+}
+
 // MARK: - Card Model
 
-/// A SwiftData persistent model representing a single flashcard within a deck.
+/// A SwiftData persistent model representing a single mixed card within a deck.
 ///
 /// `CardModel` is a pure data entity. It must not import SwiftUI or UIKit,
 /// and must not contain any presentation logic or UI state.
-/// All UI-related behaviour (display formatting, colour, animations) belongs
-/// in the ViewModel or View layers.
+/// All UI-related behaviour belongs in the ViewModel or View layers.
 @Model
 class CardModel {
 
     // MARK: - Raw Content Storage
+
+    /// Raw string storing the `CardKind` discriminant for this card.
+    var kindRaw: String = CardKind.flashcard.rawValue
 
     /// Raw string storing the `CardContentType` for the front face.
     var frontTypeRaw: String = CardContentType.text.rawValue
@@ -45,22 +343,28 @@ class CardModel {
     /// Raw string storing the `CardContentType` for the back face.
     var backTypeRaw: String = CardContentType.text.rawValue
 
-    /// Serialised `ZoneModel` tree for the front face, stored externally for performance.
+    /// Serialised compatibility `ZoneModel` tree for the front face, stored externally.
     @Attribute(.externalStorage)
     var frontZoneData: Data?
 
-    /// Serialised `ZoneModel` tree for the back face, stored externally for performance.
+    /// Serialised compatibility `ZoneModel` tree for the back face, stored externally.
     @Attribute(.externalStorage)
     var backZoneData: Data?
 
+    /// Serialised quiz payload stored externally for memory efficiency.
+    @Attribute(.externalStorage)
+    var quizContentData: Data?
+
+    /// Serialised write payload stored externally for memory efficiency.
+    @Attribute(.externalStorage)
+    var writeContentData: Data?
+
     // MARK: - Text Preview Cache
 
-    /// Denormalised plain-text preview of the front face (max 200 characters).
-    /// Used for search indexing without decoding the full zone tree.
+    /// Denormalised plain-text preview of the primary prompt/question side.
     var frontText: String = ""
 
-    /// Denormalised plain-text preview of the back face (max 200 characters).
-    /// Used for search indexing without decoding the full zone tree.
+    /// Denormalised plain-text preview of the answer/response side.
     var backText: String = ""
 
     // MARK: - Metadata
@@ -103,17 +407,27 @@ class CardModel {
     /// Number of consecutive correct answers since the last lapse.
     var consecutiveCorrectAnswers: Int = 0
 
-    // MARK: - Zone Cache
+    // MARK: - Cache
 
-    /// In-memory cache for the decoded front `ZoneModel`.
-    /// Avoids redundant JSON decoding on every access within the same session.
+    /// In-memory cache for the decoded front compatibility `ZoneModel`.
     @Transient private var cachedFrontZone: ZoneModel?
 
-    /// In-memory cache for the decoded back `ZoneModel`.
-    /// Avoids redundant JSON decoding on every access within the same session.
+    /// In-memory cache for the decoded back compatibility `ZoneModel`.
     @Transient private var cachedBackZone: ZoneModel?
 
+    /// In-memory cache for the decoded quiz payload.
+    @Transient private var cachedQuizContent: QuizCardContent?
+
+    /// In-memory cache for the decoded write payload.
+    @Transient private var cachedWriteContent: WriteCardContent?
+
     // MARK: - Computed Properties
+
+    /// The mixed-card kind for this persisted card.
+    var kind: CardKind {
+        get { CardKind(rawValue: kindRaw) ?? .flashcard }
+        set { kindRaw = newValue.rawValue }
+    }
 
     /// The content type for the front face. Backed by `frontTypeRaw` for SwiftData compatibility.
     var frontType: CardContentType {
@@ -133,13 +447,13 @@ class CardModel {
         set { creationSourceRaw = newValue.rawValue }
     }
 
-    /// The decoded `ZoneModel` tree for the front face.
-    ///
-    /// Getting this property decodes `frontZoneData` from JSON on first access and
-    /// caches the result. Setting it encodes the new zone to JSON and updates the
-    /// `frontText` preview cache.
+    /// The decoded front compatibility `ZoneModel` tree.
     var frontZone: ZoneModel {
         get {
+            if kind != .flashcard {
+                return cardContent.flashcardCompatibilityContent.frontZone
+            }
+
             if let cached = cachedFrontZone { return cached }
             if let data = frontZoneData, let zone = ZoneModel.decode(from: data) {
                 cachedFrontZone = zone
@@ -148,19 +462,19 @@ class CardModel {
             return .text()
         }
         set {
-            cachedFrontZone = newValue
-            frontZoneData = newValue.encode()
-            frontText = newValue.previewText(maxLength: 200)
+            var compatibility = cardContent.flashcardCompatibilityContent
+            compatibility.frontZone = newValue
+            cardContent = .flashcard(compatibility)
         }
     }
 
-    /// The decoded `ZoneModel` tree for the back face.
-    ///
-    /// Getting this property decodes `backZoneData` from JSON on first access and
-    /// caches the result. Setting it encodes the new zone to JSON and updates the
-    /// `backText` preview cache.
+    /// The decoded back compatibility `ZoneModel` tree.
     var backZone: ZoneModel {
         get {
+            if kind != .flashcard {
+                return cardContent.flashcardCompatibilityContent.backZone
+            }
+
             if let cached = cachedBackZone { return cached }
             if let data = backZoneData, let zone = ZoneModel.decode(from: data) {
                 cachedBackZone = zone
@@ -169,35 +483,109 @@ class CardModel {
             return .text()
         }
         set {
-            cachedBackZone = newValue
-            backZoneData = newValue.encode()
-            backText = newValue.previewText(maxLength: 200)
+            var compatibility = cardContent.flashcardCompatibilityContent
+            compatibility.backZone = newValue
+            cardContent = .flashcard(compatibility)
         }
+    }
+
+    /// The decoded quiz payload for `.quiz` cards.
+    var quizContent: QuizCardContent? {
+        get {
+            guard kind == .quiz else { return nil }
+            if let cachedQuizContent { return cachedQuizContent }
+            if let data = quizContentData, let decoded = try? JSONDecoder().decode(QuizCardContent.self, from: data) {
+                cachedQuizContent = decoded
+                return decoded
+            }
+            return nil
+        }
+        set {
+            guard let newValue else {
+                cachedQuizContent = nil
+                quizContentData = nil
+                if kind == .quiz {
+                    cardContent = .quiz(.empty)
+                }
+                return
+            }
+
+            cardContent = .quiz(newValue)
+        }
+    }
+
+    /// The decoded write payload for `.write` cards.
+    var writeContent: WriteCardContent? {
+        get {
+            guard kind == .write else { return nil }
+            if let cachedWriteContent { return cachedWriteContent }
+            if let data = writeContentData, let decoded = try? JSONDecoder().decode(WriteCardContent.self, from: data) {
+                cachedWriteContent = decoded
+                return decoded
+            }
+            return nil
+        }
+        set {
+            guard let newValue else {
+                cachedWriteContent = nil
+                writeContentData = nil
+                if kind == .write {
+                    cardContent = .write(.empty)
+                }
+                return
+            }
+
+            cardContent = .write(newValue)
+        }
+    }
+
+    /// The canonical heterogeneous payload for this card.
+    var cardContent: DraftCardContent {
+        get {
+            switch kind {
+            case .flashcard:
+                return .flashcard(
+                    FlashcardCardContent(
+                        frontZone: decodeCompatibilityFrontZone(),
+                        backZone: decodeCompatibilityBackZone(),
+                        frontType: frontType,
+                        backType: backType
+                    )
+                )
+            case .quiz:
+                return .quiz(quizContent ?? .empty)
+            case .write:
+                return .write(writeContent ?? .empty)
+            }
+        }
+        set {
+            apply(content: newValue)
+        }
+    }
+
+    /// Flattened text suitable for search or other lightweight matching surfaces.
+    var searchDocumentText: String {
+        cardContent.searchDocumentText
+    }
+
+    /// Play-surface compatibility for this persisted card.
+    var modeCompatibility: CardModeCompatibility {
+        cardContent.modeCompatibility
     }
 
     // MARK: - Cache Management
 
-    /// Releases the decoded `ZoneModel` caches, immediately reclaiming memory.
-    ///
-    /// `ZoneModel` can contain image data (megabytes). Without clearing,
-    /// every card that has ever been displayed keeps its decoded zones
-    /// alive for the entire app session via the `ModelContext` row cache.
-    /// The zones will be re-decoded from `frontZoneData`/`backZoneData` on next access.
+    /// Releases decoded payload caches, immediately reclaiming memory.
     func clearZoneCache() {
         cachedFrontZone = nil
         cachedBackZone = nil
+        cachedQuizContent = nil
+        cachedWriteContent = nil
     }
 
-    // MARK: - Initializer
+    // MARK: - Initializers
 
-    /// Creates a new `CardModel` with the given zone content and metadata.
-    ///
-    /// - Parameters:
-    ///   - frontZone: The zone tree for the front face of the card.
-    ///   - backZone: The zone tree for the back face of the card.
-    ///   - frontType: The rendering mode for the front face. Defaults to `.text`.
-    ///   - backType: The rendering mode for the back face. Defaults to `.text`.
-    ///   - cardNumber: The sequential display number. Defaults to `0`.
+    /// Creates a new `CardModel` with flashcard content and metadata.
     init(
         frontZone: ZoneModel,
         backZone: ZoneModel,
@@ -207,62 +595,118 @@ class CardModel {
         isPinned: Bool = false,
         creationSource: CardCreationSource = .manual
     ) {
-        self.frontTypeRaw = frontType.rawValue
-        self.backTypeRaw = backType.rawValue
-
-        self.frontZoneData = frontZone.encode()
-        self.backZoneData = backZone.encode()
-
         self.cardNumber = cardNumber
         self.isPinned = isPinned
         self.creationSourceRaw = creationSource.rawValue
-
-        self.frontText = frontZone.previewText(maxLength: 200)
-        self.backText = backZone.previewText(maxLength: 200)
-
         self.createdAt = Date()
         self.editedAt = Date()
-
-        // SRS defaults — matches SM-2 algorithm starting state.
         self.dueDate = Date()
         self.easeFactor = 2.5
         self.interval = 0
         self.consecutiveCorrectAnswers = 0
+
+        self.cardContent = .flashcard(
+            FlashcardCardContent(
+                frontZone: frontZone,
+                backZone: backZone,
+                frontType: frontType,
+                backType: backType
+            )
+        )
+    }
+
+    /// Creates a new `CardModel` with heterogeneous payload content and metadata.
+    init(
+        content: DraftCardContent,
+        cardNumber: Int = 0,
+        isPinned: Bool = false,
+        creationSource: CardCreationSource = .manual
+    ) {
+        self.cardNumber = cardNumber
+        self.isPinned = isPinned
+        self.creationSourceRaw = creationSource.rawValue
+        self.createdAt = Date()
+        self.editedAt = Date()
+        self.dueDate = Date()
+        self.easeFactor = 2.5
+        self.interval = 0
+        self.consecutiveCorrectAnswers = 0
+
+        self.cardContent = content
+    }
+
+    // MARK: - Private Helpers
+
+    private func decodeCompatibilityFrontZone() -> ZoneModel {
+        if let cachedFrontZone { return cachedFrontZone }
+        if let data = frontZoneData, let zone = ZoneModel.decode(from: data) {
+            cachedFrontZone = zone
+            return zone
+        }
+        return .text()
+    }
+
+    private func decodeCompatibilityBackZone() -> ZoneModel {
+        if let cachedBackZone { return cachedBackZone }
+        if let data = backZoneData, let zone = ZoneModel.decode(from: data) {
+            cachedBackZone = zone
+            return zone
+        }
+        return .text()
+    }
+
+    private func apply(content: DraftCardContent) {
+        let compatibility = content.flashcardCompatibilityContent
+        let previewCache = content.previewCache
+
+        kind = content.kind
+        frontType = compatibility.frontType
+        backType = compatibility.backType
+        cachedFrontZone = compatibility.frontZone
+        cachedBackZone = compatibility.backZone
+        frontZoneData = compatibility.frontZone.encode()
+        backZoneData = compatibility.backZone.encode()
+        frontText = previewCache.front
+        backText = previewCache.back
+
+        switch content {
+        case .flashcard:
+            quizContentData = nil
+            writeContentData = nil
+            cachedQuizContent = nil
+            cachedWriteContent = nil
+        case .quiz(let quizContent):
+            cachedQuizContent = quizContent
+            quizContentData = try? JSONEncoder().encode(quizContent)
+            cachedWriteContent = nil
+            writeContentData = nil
+        case .write(let writeContent):
+            cachedWriteContent = writeContent
+            writeContentData = try? JSONEncoder().encode(writeContent)
+            cachedQuizContent = nil
+            quizContentData = nil
+        }
     }
 }
 
 // MARK: - Draft Card
 
-/// A transient, non-persistent value type used to buffer edits in the card creation or
-/// editing UI before they are committed to a `CardModel` in the SwiftData store.
-///
-/// `DraftCard` is intentionally a `struct` so it is cheap to copy and
-/// can be held in `@State` without triggering SwiftData observation.
-struct DraftCard: Identifiable, Codable, Equatable {
+/// A transient value type used to buffer edits before they are committed to SwiftData.
+nonisolated struct DraftCard: Identifiable, Codable, Equatable {
 
     // MARK: - Properties
 
     /// A stable unique identifier for this draft, used for SwiftUI list diffing.
-    let id = UUID()
+    var id: UUID = UUID()
 
     /// The `PersistentIdentifier` of the `CardModel` being edited, or `nil` for new cards.
-    /// Safely mapped to string for `Codable` via computed properties if needed, but for now we attempt default Codable on PersistentIdentifier since Swift 6.
     var originalCardID: PersistentIdentifier?
 
     /// Stable display number mirrored from `CardModel.cardNumber`.
     var cardNumber: Int
 
-    /// The zone tree for the front face.
-    var frontZone: ZoneModel
-
-    /// The zone tree for the back face.
-    var backZone: ZoneModel
-
-    /// The rendering mode for the front face.
-    var frontType: CardContentType
-
-    /// The rendering mode for the back face.
-    var backType: CardContentType
+    /// The heterogeneous draft content.
+    var content: DraftCardContent
 
     /// Whether this draft should be pinned in deck views once saved.
     var isPinned: Bool
@@ -278,66 +722,167 @@ struct DraftCard: Identifiable, Codable, Equatable {
 
     /// Convenience accessor returning the last edit date. Alias for `editedAt`.
     var lastEditDate: Date? { editedAt }
-    
-    // MARK: - Codable Conformance
-    
-    enum CodingKeys: String, CodingKey {
-        case id, originalCardID, cardNumber, frontZone, backZone, frontType, backType, isPinned, creationSource, createdAt, editedAt
+
+    /// The mixed-card discriminant for this draft.
+    var kind: CardKind { content.kind }
+
+    /// Compatibility accessor used by flashcard-only surfaces during the migration.
+    var frontZone: ZoneModel {
+        get { content.flashcardCompatibilityContent.frontZone }
+        set {
+            var compatibility = content.flashcardCompatibilityContent
+            compatibility.frontZone = newValue
+            content = .flashcard(compatibility)
+        }
     }
-    
+
+    /// Compatibility accessor used by flashcard-only surfaces during the migration.
+    var backZone: ZoneModel {
+        get { content.flashcardCompatibilityContent.backZone }
+        set {
+            var compatibility = content.flashcardCompatibilityContent
+            compatibility.backZone = newValue
+            content = .flashcard(compatibility)
+        }
+    }
+
+    /// Compatibility accessor used by flashcard-only surfaces during the migration.
+    var frontType: CardContentType {
+        get { content.flashcardCompatibilityContent.frontType }
+        set {
+            var compatibility = content.flashcardCompatibilityContent
+            compatibility.frontType = newValue
+            content = .flashcard(compatibility)
+        }
+    }
+
+    /// Compatibility accessor used by flashcard-only surfaces during the migration.
+    var backType: CardContentType {
+        get { content.flashcardCompatibilityContent.backType }
+        set {
+            var compatibility = content.flashcardCompatibilityContent
+            compatibility.backType = newValue
+            content = .flashcard(compatibility)
+        }
+    }
+
+    /// Flattened text suitable for search or other lightweight matching surfaces.
+    var searchDocumentText: String {
+        content.searchDocumentText
+    }
+
+    /// Play-surface compatibility for this draft.
+    var modeCompatibility: CardModeCompatibility {
+        content.modeCompatibility
+    }
+
+    // MARK: - Codable
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case originalCardID
+        case cardNumber
+        case kind
+        case content
+        case frontZone
+        case backZone
+        case frontType
+        case backType
+        case isPinned
+        case creationSource
+        case createdAt
+        case editedAt
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        // UUID id is usually a let, so we can't decode it conventionally, but let's try reading or skipping
-        // since ID is a constant 'let id = UUID()', we can just decode the rest.
+
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+
         if let originalCardIDString = try container.decodeIfPresent(String.self, forKey: .originalCardID),
            let data = originalCardIDString.data(using: .utf8),
-           let pid = try? JSONDecoder().decode(PersistentIdentifier.self, from: data) {
-            self.originalCardID = pid
+           let persistentIdentifier = try? JSONDecoder().decode(PersistentIdentifier.self, from: data) {
+            originalCardID = persistentIdentifier
         } else {
-            self.originalCardID = nil
+            originalCardID = nil
         }
-        self.cardNumber = try container.decodeIfPresent(Int.self, forKey: .cardNumber) ?? 0
-        self.frontZone = try container.decode(ZoneModel.self, forKey: .frontZone)
-        self.backZone = try container.decode(ZoneModel.self, forKey: .backZone)
-        self.frontType = try container.decode(CardContentType.self, forKey: .frontType)
-        self.backType = try container.decode(CardContentType.self, forKey: .backType)
-        self.isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
-        self.creationSource = try container.decodeIfPresent(CardCreationSource.self, forKey: .creationSource) ?? .manual
-        self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
-        self.editedAt = try container.decodeIfPresent(Date.self, forKey: .editedAt)
+
+        cardNumber = try container.decodeIfPresent(Int.self, forKey: .cardNumber) ?? 0
+
+        if let decodedContent = try container.decodeIfPresent(DraftCardContent.self, forKey: .content) {
+            content = decodedContent
+        } else {
+            let frontZone = try container.decodeIfPresent(ZoneModel.self, forKey: .frontZone) ?? .text()
+            let backZone = try container.decodeIfPresent(ZoneModel.self, forKey: .backZone) ?? .text()
+            let frontType = try container.decodeIfPresent(CardContentType.self, forKey: .frontType) ?? .text
+            let backType = try container.decodeIfPresent(CardContentType.self, forKey: .backType) ?? .text
+            content = .flashcard(
+                FlashcardCardContent(
+                    frontZone: frontZone,
+                    backZone: backZone,
+                    frontType: frontType,
+                    backType: backType
+                )
+            )
+        }
+
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
+        creationSource = try container.decodeIfPresent(CardCreationSource.self, forKey: .creationSource) ?? .manual
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+        editedAt = try container.decodeIfPresent(Date.self, forKey: .editedAt)
     }
-    
+
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+
         try container.encode(id, forKey: .id)
-        if let originalCardID = originalCardID, let data = try? JSONEncoder().encode(originalCardID) {
-            try container.encode(String(data: data, encoding: .utf8), forKey: .originalCardID)
+
+        if let originalCardID,
+           let data = try? JSONEncoder().encode(originalCardID),
+           let stringValue = String(data: data, encoding: .utf8) {
+            try container.encode(stringValue, forKey: .originalCardID)
         }
+
         try container.encode(cardNumber, forKey: .cardNumber)
-        try container.encode(frontZone, forKey: .frontZone)
-        try container.encode(backZone, forKey: .backZone)
-        try container.encode(frontType, forKey: .frontType)
-        try container.encode(backType, forKey: .backType)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(content, forKey: .content)
         try container.encode(isPinned, forKey: .isPinned)
         try container.encode(creationSource, forKey: .creationSource)
         try container.encodeIfPresent(createdAt, forKey: .createdAt)
         try container.encodeIfPresent(editedAt, forKey: .editedAt)
+
+        if case .flashcard(let flashcardContent) = content {
+            try container.encode(flashcardContent.frontZone, forKey: .frontZone)
+            try container.encode(flashcardContent.backZone, forKey: .backZone)
+            try container.encode(flashcardContent.frontType, forKey: .frontType)
+            try container.encode(flashcardContent.backType, forKey: .backType)
+        }
     }
 
-    // MARK: - Initializer
+    // MARK: - Initializers
 
-    /// Creates a new `DraftCard`, optionally pre-populated with content from an existing card.
-    ///
-    /// - Parameters:
-    ///   - originalCardID: The ID of the card being edited. Pass `nil` for a new card.
-    ///   - frontZone: Initial zone tree for the front face. Defaults to an empty text zone.
-    ///   - backZone: Initial zone tree for the back face. Defaults to an empty text zone.
-    ///   - frontType: Rendering mode for the front face. Defaults to `.text`.
-    ///   - backType: Rendering mode for the back face. Defaults to `.text`.
-    ///   - isPinned: Whether the card should stay pinned. Defaults to `false`.
-    ///   - creationSource: How the card originated. Defaults to `.manual`.
-    ///   - createdAt: Original creation date. Defaults to `nil`.
-    ///   - editedAt: Original edit date. Defaults to `nil`.
+    /// Creates a new heterogeneous draft card.
+    init(
+        id: UUID = UUID(),
+        originalCardID: PersistentIdentifier? = nil,
+        cardNumber: Int = 0,
+        content: DraftCardContent,
+        isPinned: Bool = false,
+        creationSource: CardCreationSource = .manual,
+        createdAt: Date? = nil,
+        editedAt: Date? = nil
+    ) {
+        self.id = id
+        self.originalCardID = originalCardID
+        self.cardNumber = cardNumber
+        self.content = content
+        self.isPinned = isPinned
+        self.creationSource = creationSource
+        self.createdAt = createdAt
+        self.editedAt = editedAt
+    }
+
+    /// Creates a new flashcard draft, preserving the existing call sites during migration.
     init(
         originalCardID: PersistentIdentifier? = nil,
         cardNumber: Int = 0,
@@ -350,33 +895,32 @@ struct DraftCard: Identifiable, Codable, Equatable {
         createdAt: Date? = nil,
         editedAt: Date? = nil
     ) {
-        self.originalCardID = originalCardID
-        self.cardNumber = cardNumber
-        self.frontZone = frontZone
-        self.backZone = backZone
-        self.frontType = frontType
-        self.backType = backType
-        self.isPinned = isPinned
-        self.creationSource = creationSource
-        self.createdAt = createdAt
-        self.editedAt = editedAt
+        self.init(
+            originalCardID: originalCardID,
+            cardNumber: cardNumber,
+            content: .flashcard(
+                FlashcardCardContent(
+                    frontZone: frontZone,
+                    backZone: backZone,
+                    frontType: frontType,
+                    backType: backType
+                )
+            ),
+            isPinned: isPinned,
+            creationSource: creationSource,
+            createdAt: createdAt,
+            editedAt: editedAt
+        )
     }
 
     // MARK: - Factory
 
     /// Creates a `DraftCard` pre-populated from an existing `CardModel`.
-    ///
-    /// Use this when opening the edit sheet for an existing card.
-    /// - Parameter card: The source `CardModel` to mirror.
-    /// - Returns: A `DraftCard` with all fields copied from `card`.
     static func from(_ card: CardModel) -> DraftCard {
         DraftCard(
             originalCardID: card.persistentModelID,
             cardNumber: card.cardNumber,
-            frontZone: card.frontZone,
-            backZone: card.backZone,
-            frontType: card.frontType,
-            backType: card.backType,
+            content: card.cardContent,
             isPinned: card.isPinned,
             creationSource: card.creationSource,
             createdAt: card.createdAt,

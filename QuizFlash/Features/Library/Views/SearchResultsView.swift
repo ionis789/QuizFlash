@@ -370,6 +370,7 @@ private struct CardSnippetRow: View {
         case .front: .blue
         case .back: .purple
         case .both: .orange
+        case .content: .teal
         }
     }
 }

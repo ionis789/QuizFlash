@@ -14,8 +14,14 @@ struct WriteModeView: View {
     /// The deck forwarded from `DeckView`.
     let deck: DeckModel
     let safeAreaInsets: UIEdgeInsets
+    let availability: PlayModeCardAvailability
 
     var body: some View {
-        PlayModeSettingsScreen(deck: deck, mode: .write, safeAreaInsets: safeAreaInsets)
+        PlayModeSettingsScreen(
+            deck: deck,
+            mode: .write,
+            availability: availability,
+            safeAreaInsets: safeAreaInsets
+        )
     }
 }

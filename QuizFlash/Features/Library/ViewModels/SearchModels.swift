@@ -31,9 +31,10 @@ enum SearchEngineConfig {
 
 /// Indicates which face(s) of a card matched the search query.
 enum CardSideMatch: String, Codable, Sendable {
-    case front = "FRONT"
-    case back  = "BACK"
-    case both  = "FRONT & BACK"
+    case front = "PROMPT"
+    case back  = "ANSWER"
+    case both  = "PROMPT & ANSWER"
+    case content = "CONTENT"
 }
 
 // MARK: - Search Input Payloads
@@ -56,6 +57,7 @@ struct CardSearchPayload: Sendable {
     let id: PersistentIdentifier
     let frontText: String
     let backText: String
+    let searchDocumentText: String
 }
 
 // MARK: - Search Result Models

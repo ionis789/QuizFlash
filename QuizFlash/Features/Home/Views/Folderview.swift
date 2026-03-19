@@ -127,7 +127,7 @@ struct FolderView: View {
             title: folder.title,
             onCardTap: { cardID in
                 if let card = context.safeModel(for: cardID, as: CardModel.self) {
-                    viewModel.editingCardFromSearch = card
+                    viewModel.editingCardFromSearch = .edit(DraftCard.from(card))
                 }
             },
             onDeckNavigate: { deck in

@@ -345,8 +345,8 @@ struct LibraryLayout: View {
                     subtitle: "Jump straight to a topic, subject, or collection by name."
                 )
                 SearchEntryBulletRow(
-                    title: "Question prompts",
-                    subtitle: "Look for a phrase from the front side of any flashcard."
+                    title: "Card prompts",
+                    subtitle: "Look for a phrase from the main prompt or question of any card."
                 )
                 SearchEntryBulletRow(
                     title: "Answers and explanations",

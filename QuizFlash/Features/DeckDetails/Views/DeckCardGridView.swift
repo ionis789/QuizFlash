@@ -647,6 +647,13 @@ private struct MiniCardPreview: View {
                 .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
                 .foregroundStyle(.secondary)
 
+            Text(card.kindDisplayTitle)
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .foregroundStyle(card.kindAccentColor)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(card.kindAccentColor.opacity(0.12), in: Capsule())
+
             Spacer(minLength: 0)
         }
     }
@@ -896,6 +903,28 @@ extension GridCardInfo {
         if interval == 0 { return .red }
         if interval >= 14 { return .teal }
         return .orange
+    }
+
+    var kindDisplayTitle: String {
+        switch kind {
+        case .flashcard:
+            return "FLASH"
+        case .quiz:
+            return "QUIZ"
+        case .write:
+            return "WRITE"
+        }
+    }
+
+    var kindAccentColor: Color {
+        switch kind {
+        case .flashcard:
+            return .blue
+        case .quiz:
+            return .orange
+        case .write:
+            return .green
+        }
     }
 }
 

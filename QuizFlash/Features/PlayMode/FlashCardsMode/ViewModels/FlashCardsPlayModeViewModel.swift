@@ -140,8 +140,8 @@ final class FlashCardsPlayModeViewModel {
         // Load cards via a background actor to keep the main ModelContext clean.
         // The actor decodes all zone data and returns pure Sendable value types,
         // which means the main context's row cache is never populated with card blobs.
-        let actor = PlaybackActor(modelContainer: container)
-        let loadedCards = await actor.loadPlayableCards(for: deck.persistentModelID)
+        let repository = PlayModeCardRepository(container: container)
+        let loadedCards = await repository.loadPlayableCards(for: deck.persistentModelID)
 
         // Study-order sort: new cards (interval == 0) first, then by shortest interval.
         self.cards = loadedCards.sorted {
@@ -318,8 +318,8 @@ final class FlashCardsPlayModeViewModel {
     func refreshCardSnapshot(for cardID: PersistentIdentifier) async {
         guard let container else { return }
 
-        let actor = PlaybackActor(modelContainer: container)
-        guard let refreshedCard = await actor.loadPlayableCard(for: cardID) else { return }
+        let repository = PlayModeCardRepository(container: container)
+        guard let refreshedCard = await repository.loadPlayableCard(for: cardID) else { return }
 
         if let currentCardIndex = cards.firstIndex(where: { $0.id == cardID }) {
             cards[currentCardIndex] = refreshedCard
@@ -328,82 +328,5 @@ final class FlashCardsPlayModeViewModel {
         if let wrongCardIndex = wrongCards.firstIndex(where: { $0.id == cardID }) {
             wrongCards[wrongCardIndex] = refreshedCard
         }
-    }
-}
-
-// MARK: - PlayableCard
-
-/// A lightweight, `Sendable` snapshot of a card's zone content used during playback.
-///
-/// Converting `CardModel` instances into `PlayableCard` structs on a background actor
-/// ensures the main `ModelContext` never reads external-storage blobs, bypassing the
-/// iOS 17 permanent row-cache memory leak.
-struct PlayableCard: Identifiable, Sendable {
-    /// The persistent identifier used to re-fetch the original `CardModel` for SRS writes.
-    let id: PersistentIdentifier
-    /// Decoded content for the front (question) face.
-    let frontZone: ZoneModel
-    /// Decoded content for the back (answer) face.
-    let backZone: ZoneModel
-    /// Current SRS interval in days. `0` means the card is new.
-    let interval: Int
-}
-
-// MARK: - PlaybackActor
-
-/// A short-lived `@ModelActor` whose sole purpose is to load `PlayableCard` snapshots
-/// for a single play session.
-///
-/// Because `PlaybackActor` is created once, used once, and immediately deallocated,
-/// the iOS 17 zombie-context risk associated with long-lived `@ModelActor` instances
-/// does not apply here.
-@ModelActor
-final actor PlaybackActor {
-
-    /// Loads one `PlayableCard` snapshot by persistent identifier.
-    func loadPlayableCard(for cardID: PersistentIdentifier) -> PlayableCard? {
-        guard let card = modelContext.model(for: cardID) as? CardModel else { return nil }
-
-        let frontZone = card.frontZoneData.flatMap { ZoneModel.decode(from: $0) } ?? ZoneModel(id: UUID())
-        let backZone = card.backZoneData.flatMap { ZoneModel.decode(from: $0) } ?? ZoneModel(id: UUID())
-
-        return PlayableCard(
-            id: card.persistentModelID,
-            frontZone: frontZone,
-            backZone: backZone,
-            interval: card.interval
-        )
-    }
-
-    /// Loads cards for the given deck ID, decodes zone data on the actor's background
-    /// context, and returns pure `Sendable` value types.
-    ///
-    /// - Parameter deckID: The `PersistentIdentifier` of the deck to load cards from.
-    /// - Returns: An array of `PlayableCard` snapshots, or an empty array on failure.
-    func loadPlayableCards(for deckID: PersistentIdentifier) -> [PlayableCard] {
-        // iOS 17 `#Predicate` silently crashes on optional nested properties such as
-        // `$0.deck?.persistentModelID`. Fetch the parent deck directly and access
-        // its `cards` relationship instead.
-        guard let deck = modelContext.model(for: deckID) as? DeckModel else { return [] }
-        let cards = deck.cards
-
-        var results: [PlayableCard] = []
-        for card in cards {
-            autoreleasepool {
-                let frontData = card.frontZoneData
-                let backData  = card.backZoneData
-
-                let frontZone = frontData.flatMap { ZoneModel.decode(from: $0) } ?? ZoneModel(id: UUID())
-                let backZone  = backData.flatMap  { ZoneModel.decode(from: $0) } ?? ZoneModel(id: UUID())
-
-                results.append(PlayableCard(
-                    id: card.persistentModelID,
-                    frontZone: frontZone,
-                    backZone:  backZone,
-                    interval:  card.interval
-                ))
-            }
-        }
-        return results
     }
 }

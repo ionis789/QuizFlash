@@ -64,13 +64,19 @@ actor SearchEngine {
                         var matchesFront    = true
                         var matchesBack     = true
                         var matchesCombined = true
+                        var matchesContent  = true
 
                         for token in tokens {
                             let inFront = card.frontText.range(of: token, options: options) != nil
                             let inBack  = card.backText.range(of: token, options: options) != nil
+                            let inDocument = card.searchDocumentText.range(of: token, options: options) != nil
                             if !inFront { matchesFront    = false }
                             if !inBack  { matchesBack     = false }
-                            if !inFront && !inBack { matchesCombined = false; break }
+                            if !inDocument { matchesContent = false }
+                            if !inFront && !inBack && !inDocument {
+                                matchesCombined = false
+                                break
+                            }
                         }
 
                         guard matchesCombined else { continue }
@@ -83,9 +89,19 @@ actor SearchEngine {
                             let side: CardSideMatch
                             if matchesFront && matchesBack { side = .both }
                             else if matchesFront           { side = .front }
-                            else                           { side = .back }
+                            else if matchesBack            { side = .back }
+                            else                           { side = .content }
 
-                            let snippetSource = matchesFront ? card.frontText : card.backText
+                            let snippetSource: String
+                            if matchesFront {
+                                snippetSource = card.frontText
+                            } else if matchesBack {
+                                snippetSource = card.backText
+                            } else if matchesContent {
+                                snippetSource = card.searchDocumentText
+                            } else {
+                                snippetSource = card.frontText
+                            }
                             let snippet = Self.extractSnippet(
                                 from: snippetSource, tokens: tokens, options: options
                             )

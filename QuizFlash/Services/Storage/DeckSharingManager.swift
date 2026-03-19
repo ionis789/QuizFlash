@@ -19,13 +19,85 @@ typealias ExportableZone = ZoneModel
 /// Exportable card structure
 struct ExportableCard: Codable {
     var id: UUID
-    var frontZone: ZoneModel
-    var backZone: ZoneModel
+    var content: DraftCardContent
     var createdAt: Date
     var editedAt: Date
 
     // Asset references (UUIDs of images stored in /assets folder)
     var assetReferences: [UUID]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case kind
+        case content
+        case frontZone
+        case backZone
+        case frontType
+        case backType
+        case createdAt
+        case editedAt
+        case assetReferences
+    }
+
+    init(
+        id: UUID,
+        content: DraftCardContent,
+        createdAt: Date,
+        editedAt: Date,
+        assetReferences: [UUID]
+    ) {
+        self.id = id
+        self.content = content
+        self.createdAt = createdAt
+        self.editedAt = editedAt
+        self.assetReferences = assetReferences
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        editedAt = try container.decode(Date.self, forKey: .editedAt)
+        assetReferences = try container.decodeIfPresent([UUID].self, forKey: .assetReferences) ?? []
+
+        if let decodedContent = try container.decodeIfPresent(DraftCardContent.self, forKey: .content) {
+            content = decodedContent
+            return
+        }
+
+        let frontZone = try container.decodeIfPresent(ZoneModel.self, forKey: .frontZone) ?? .text()
+        let backZone = try container.decodeIfPresent(ZoneModel.self, forKey: .backZone) ?? .text()
+        let frontType = try container.decodeIfPresent(CardContentType.self, forKey: .frontType) ?? .text
+        let backType = try container.decodeIfPresent(CardContentType.self, forKey: .backType) ?? .text
+
+        content = .flashcard(
+            FlashcardCardContent(
+                frontZone: frontZone,
+                backZone: backZone,
+                frontType: frontType,
+                backType: backType
+            )
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(id, forKey: .id)
+        try container.encode(content.kind, forKey: .kind)
+        try container.encode(content, forKey: .content)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(editedAt, forKey: .editedAt)
+        try container.encode(assetReferences, forKey: .assetReferences)
+
+        if case .flashcard(let flashcardContent) = content {
+            try container.encode(flashcardContent.frontZone, forKey: .frontZone)
+            try container.encode(flashcardContent.backZone, forKey: .backZone)
+            try container.encode(flashcardContent.frontType, forKey: .frontType)
+            try container.encode(flashcardContent.backType, forKey: .backType)
+        }
+    }
 }
 
 /// Exportable deck structure
@@ -39,7 +111,7 @@ struct ExportableDeck: Codable {
     var cards: [ExportableCard]
 
     // File format version for future compatibility
-    var formatVersion: Int = 1
+    var formatVersion: Int = 2
     var appVersion: String = "1.0"
 }
 
@@ -140,13 +212,9 @@ final class DeckSharingManager: ObservableObject {
             progress = 0.1 + (0.5 * Double(index) / Double(max(totalCards, 1)))
 
             // Copy zones directly - imageData will be encoded as Base64 by JSONEncoder
-            let frontZone = card.frontZone
-            let backZone = card.backZone
-
             let exportableCard = ExportableCard(
                 id: UUID(),
-                frontZone: frontZone,
-                backZone: backZone,
+                content: card.cardContent,
                 createdAt: card.createdAt,
                 editedAt: card.editedAt,
                 assetReferences: []
@@ -250,7 +318,7 @@ final class DeckSharingManager: ObservableObject {
         print("DEBUG: Decoded deck '\(exportedDeck.title)' with \(exportedDeck.cards.count) cards")
 
         // 5. Validate format version
-        if exportedDeck.formatVersion > 1 {
+        if exportedDeck.formatVersion > 2 {
             throw DeckSharingError.versionMismatch(exportedDeck.formatVersion)
         }
 
@@ -278,8 +346,7 @@ final class DeckSharingManager: ObservableObject {
 
             // Updated initializer to prevent `backingData` binding errors
             let newCard = CardModel(
-                frontZone: exportedCard.frontZone,
-                backZone: exportedCard.backZone
+                content: exportedCard.content
             )
             
             // Preserve original creation timestamps from the imported file

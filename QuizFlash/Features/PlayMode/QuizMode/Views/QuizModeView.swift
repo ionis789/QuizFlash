@@ -14,8 +14,14 @@ struct QuizModeView: View {
     /// The deck forwarded from `DeckView`.
     let deck: DeckModel
     let safeAreaInsets: UIEdgeInsets
+    let availability: PlayModeCardAvailability
 
     var body: some View {
-        PlayModeSettingsScreen(deck: deck, mode: .quiz, safeAreaInsets: safeAreaInsets)
+        PlayModeSettingsScreen(
+            deck: deck,
+            mode: .quiz,
+            availability: availability,
+            safeAreaInsets: safeAreaInsets
+        )
     }
 }

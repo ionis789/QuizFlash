@@ -28,6 +28,7 @@ import OSLog
 struct GridCardInfo: Identifiable, Equatable, Hashable, Sendable {
 
     let id: PersistentIdentifier
+    let kind: CardKind
     let cardNumber: Int
     let interval: Int
     let reviewHistoryIsEmpty: Bool
@@ -36,6 +37,7 @@ struct GridCardInfo: Identifiable, Equatable, Hashable, Sendable {
     let backText: String
     let frontPreviewText: String
     let backPreviewText: String
+    let searchDocumentText: String
     let createdAt: Date
     let editedAt: Date
 }
@@ -103,6 +105,9 @@ final class DeckViewModel {
 
     /// Pre-computed progress breakdown. Derived from `allCardInfos`; consumed by `DeckProgressView`.
     private(set) var progressStats: DeckProgressStats = .empty
+
+    /// Lightweight compatibility counts used by deck play-mode surfaces.
+    private(set) var playModeAvailability: PlayModeCardAvailability = .empty
 
     // MARK: - Scroll Restoration
 
@@ -210,7 +215,18 @@ final class DeckViewModel {
         allCardInfos = snapshot.gridCards
         currentStats = snapshot.stats
         progressStats = computeProgressStats(from: snapshot.gridCards, deckCardCount: nil)
+        playModeAvailability = buildPlayModeAvailability(from: snapshot.gridCards)
         performGrouping(on: snapshot.gridCards)
+    }
+
+    /// Derives mixed-card compatibility counts from the lightweight deck snapshot.
+    private func buildPlayModeAvailability(from cards: [GridCardInfo]) -> PlayModeCardAvailability {
+        PlayModeCardAvailability(
+            totalCards: cards.count,
+            flashcardCards: cards.filter { $0.kind == .flashcard }.count,
+            quizCards: cards.filter { $0.kind == .quiz }.count,
+            writeCards: cards.filter { $0.kind == .write }.count
+        )
     }
 
     // MARK: - Progress Stats Computation
@@ -348,8 +364,7 @@ final class DeckViewModel {
     /// loaded snapshot, which heals legacy state where `lastAssignedCardNumber` may
     /// lag behind the actual maximum card number already stored in the deck.
     func addCard(
-        frontZone: ZoneModel,
-        backZone: ZoneModel,
+        content: DraftCardContent,
         to deck: DeckModel,
         context: ModelContext
     ) {
@@ -363,8 +378,7 @@ final class DeckViewModel {
         let now = Date()
 
         let newCard = CardModel(
-            frontZone: frontZone,
-            backZone: backZone,
+            content: content,
             cardNumber: nextCardNumber,
             isPinned: false,
             creationSource: .manual
@@ -394,6 +408,27 @@ final class DeckViewModel {
         Task { [weak self] in
             await self?.loadSnapshot(deckID: deckID, container: container)
         }
+    }
+
+    /// Creates and persists a new manual flashcard inside the current deck.
+    func addCard(
+        frontZone: ZoneModel,
+        backZone: ZoneModel,
+        to deck: DeckModel,
+        context: ModelContext
+    ) {
+        addCard(
+            content: .flashcard(
+                FlashcardCardContent(
+                    frontZone: frontZone,
+                    backZone: backZone,
+                    frontType: .text,
+                    backType: .text
+                )
+            ),
+            to: deck,
+            context: context
+        )
     }
 
     // MARK: - Deletion
@@ -485,8 +520,7 @@ final class DeckViewModel {
             if !tokens.isEmpty {
                 let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
                 filtered = filtered.filter { card in
-                    let fullText = card.frontText + " \n " + card.backText
-                    return tokens.allSatisfy { fullText.range(of: $0, options: options) != nil }
+                    return tokens.allSatisfy { card.searchDocumentText.range(of: $0, options: options) != nil }
                 }
             }
         }
@@ -606,6 +640,7 @@ private extension GridCardInfo {
     func updating(isPinned: Bool, editedAt: Date) -> GridCardInfo {
         GridCardInfo(
             id: id,
+            kind: kind,
             cardNumber: cardNumber,
             interval: interval,
             reviewHistoryIsEmpty: reviewHistoryIsEmpty,
@@ -614,6 +649,7 @@ private extension GridCardInfo {
             backText: backText,
             frontPreviewText: frontPreviewText,
             backPreviewText: backPreviewText,
+            searchDocumentText: searchDocumentText,
             createdAt: createdAt,
             editedAt: editedAt
         )

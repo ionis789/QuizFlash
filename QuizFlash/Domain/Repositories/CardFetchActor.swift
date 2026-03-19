@@ -174,6 +174,7 @@ actor CardFetchActor {
                 let backText = card.backText
                 gridCards.append(GridCardInfo(
                     id:                   card.persistentModelID,
+                    kind:                 card.kind,
                     cardNumber:           card.cardNumber,
                     interval:             card.interval,
                     reviewHistoryIsEmpty: card.reviewHistory.isEmpty,
@@ -182,6 +183,7 @@ actor CardFetchActor {
                     backText:             backText,
                     frontPreviewText:     lightweightPreviewText(from: frontText),
                     backPreviewText:      lightweightPreviewText(from: backText),
+                    searchDocumentText:   card.searchDocumentText,
                     createdAt:            card.createdAt,
                     editedAt:             card.editedAt
                 ))

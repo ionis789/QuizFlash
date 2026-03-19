@@ -30,12 +30,12 @@ struct DeckContentView: View {
     // Never read from router state — immune to cross-tab mutation.
     let backLabel: String
 
-    @State private var isAddingCard = false
     @State private var isPresentingEdit = false
     @State private var selectedPlayMode: DeckPlayModeDestination? = nil
     @State private var selectedPlayModeSettings: DeckPlayModeDestination? = nil
     @State private var previewedCard: CardModel? = nil
-    @State private var editingCard: CardModel? = nil
+    @State private var cardEditorDestination: CardEditorDestination? = nil
+    @State private var showAddCardTypeDialog = false
     @State private var pendingDeleteCardID: PersistentIdentifier? = nil
     @State private var activeActionMenuCardID: PersistentIdentifier? = nil
     @Bindable var viewModel: DeckViewModel
@@ -111,12 +111,11 @@ struct DeckContentView: View {
                 )
             }
             .onDisappear {
-                guard !isAddingCard,
-                      !isPresentingEdit,
+                guard !isPresentingEdit,
                       selectedPlayMode == nil,
                       selectedPlayModeSettings == nil,
                       previewedCard == nil,
-                      editingCard == nil else { return }
+                      cardEditorDestination == nil else { return }
                 viewModel.tearDown()
                 ImageCache.shared.clearCache()
             }
@@ -198,6 +197,14 @@ struct DeckContentView: View {
             .alert("Export Error", isPresented: $viewModel.showExportError) {
                 Button("OK", role: .cancel) { }
             } message: { Text(viewModel.exportErrorMessage) }
+            .confirmationDialog("Choose Card Type", isPresented: $showAddCardTypeDialog, titleVisibility: .visible) {
+                Button("Flashcard") { presentCardEditor(for: .flashcard) }
+                Button("Quiz") { presentCardEditor(for: .quiz) }
+                Button("Write") { presentCardEditor(for: .write) }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Pick the type of card you want to add to this deck.")
+            }
             .overlay { exportingOverlay }
     }
 
@@ -237,12 +244,11 @@ struct DeckContentView: View {
             }
             .swipeBack(
                 enabled: !viewModel.showShareSheet
-                    && !isAddingCard
                     && !isPresentingEdit
                     && selectedPlayMode == nil
                     && selectedPlayModeSettings == nil
                     && previewedCard == nil
-                    && editingCard == nil
+                    && cardEditorDestination == nil
                     && activeActionMenuCardID == nil
             ) { dismiss() }
             .animation(.bottomChromeSpring, value: viewModel.isSelecting)
@@ -281,7 +287,7 @@ struct DeckContentView: View {
             isSelecting: viewModel.isSelecting,
             sortOrder: $viewModel.sortOrder,
             onBack: { dismiss() },
-            onAdd: { isAddingCard = true },
+            onAdd: { showAddCardTypeDialog = true },
             onStartSelection: {
                 withBottomChromeAnimation {
                     viewModel.enterSelectionMode()
@@ -293,16 +299,6 @@ struct DeckContentView: View {
 
     private var mainContentWithCovers: some View {
         mainContent
-            .fullScreenCover(isPresented: $isAddingCard) {
-            CreateCardView(searchQuery: nil) { frontZone, backZone in
-                viewModel.addCard(
-                    frontZone: frontZone,
-                    backZone: backZone,
-                    to: deck,
-                    context: context
-                )
-            }
-        }
             .fullScreenSheet(
                 ignoresSafeArea: true,
                 isPresented: $isPresentingEdit,
@@ -317,7 +313,11 @@ struct DeckContentView: View {
                 item: $selectedPlayMode,
                 backgroundReceivesDragProgress: true
             ) { mode, safeArea in
-                mode.playSheetView(for: deck, safeAreaInsets: safeArea)
+                mode.playSheetView(
+                    for: deck,
+                    safeAreaInsets: safeArea,
+                    availability: viewModel.playModeAvailability
+                )
             } background: {
                 CardPreviewModeBackground()
             }
@@ -325,7 +325,11 @@ struct DeckContentView: View {
                 ignoresSafeArea: true,
                 item: $selectedPlayModeSettings
             ) { mode, safeArea in
-                mode.settingsSheetView(for: deck, safeAreaInsets: safeArea)
+                mode.settingsSheetView(
+                    for: deck,
+                    safeAreaInsets: safeArea,
+                    availability: viewModel.playModeAvailability
+                )
             } background: {
                 if let mode = selectedPlayModeSettings {
                     PlayModeSettingsBackground(deck: deck, mode: mode)
@@ -343,28 +347,14 @@ struct DeckContentView: View {
             } background: {
                 CardPreviewModeBackground()
             }
-            .fullScreenCover(item: $editingCard) { card in
-            NavigationStack {
-                CreateCardView(
-                    frontZone: card.frontZone,
-                    backZone: card.backZone,
+            .fullScreenCover(item: $cardEditorDestination) { destination in
+                CardEditorView(
+                    destination: destination,
                     searchQuery: viewModel.searchQuery
-                ) { frontZone, backZone in
-                    if card.frontZone != frontZone || card.backZone != backZone {
-                        card.frontZone = frontZone
-                        card.backZone = backZone
-                        card.editedAt = Date()
-                        deck.editedAt = Date()
-                        try? context.save()
-                        viewModel.requestSnapshotLoad(
-                            deckID: deck.persistentModelID,
-                            container: context.container
-                        )
-                    }
-                    editingCard = nil
+                ) { content in
+                    handleCardEditorSave(destination: destination, content: content)
                 }
             }
-        }
     }
 
     @ViewBuilder
@@ -478,6 +468,7 @@ struct DeckContentView: View {
                         )
                         DeckPlayModesView(
                             deck: deck,
+                            availability: viewModel.playModeAvailability,
                             onOpenMode: { mode in
                                 selectedPlayMode = mode
                             },
@@ -506,7 +497,9 @@ struct DeckContentView: View {
                                 viewModel.toggleSelection(for: gridCard.id)
                             }
                         } else if searchQuery != nil {
-                            if let model = context.model(for: gridCard.id) as? CardModel { editingCard = model }
+                            if let model = context.model(for: gridCard.id) as? CardModel {
+                                presentCardEditor(for: model)
+                            }
                         } else {
                             if let model = context.model(for: gridCard.id) as? CardModel { previewedCard = model }
                         }
@@ -554,7 +547,7 @@ struct DeckContentView: View {
     private func handleEditCard(_ gridCard: GridCardInfo) {
         dismissActiveActionMenu()
         if let model = context.model(for: gridCard.id) as? CardModel {
-            editingCard = model
+            presentCardEditor(for: model)
         }
     }
 
@@ -566,6 +559,41 @@ struct DeckContentView: View {
     private func handleDeleteCard(_ gridCard: GridCardInfo) {
         dismissActiveActionMenu()
         pendingDeleteCardID = gridCard.id
+    }
+
+    private func presentCardEditor(for kind: CardKind) {
+        showAddCardTypeDialog = false
+        cardEditorDestination = .create(kind: kind)
+    }
+
+    private func presentCardEditor(for card: CardModel) {
+        cardEditorDestination = .edit(DraftCard.from(card))
+    }
+
+    private func handleCardEditorSave(destination: CardEditorDestination, content: DraftCardContent) {
+        switch destination {
+        case .create:
+            viewModel.addCard(content: content, to: deck, context: context)
+        case .edit(let draftCard):
+            guard let cardID = draftCard.originalCardID,
+                  let card = context.model(for: cardID) as? CardModel else {
+                cardEditorDestination = nil
+                return
+            }
+
+            if card.cardContent != content {
+                card.cardContent = content
+                card.editedAt = Date()
+                deck.editedAt = Date()
+                try? context.save()
+                viewModel.requestSnapshotLoad(
+                    deckID: deck.persistentModelID,
+                    container: context.container
+                )
+            }
+        }
+
+        cardEditorDestination = nil
     }
 
     private func presentActionMenu(for id: PersistentIdentifier) {

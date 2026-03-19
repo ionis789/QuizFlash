@@ -38,6 +38,7 @@ struct CreateDeckView: View {
     @State private var physicalSafeBottom: CGFloat = 0
     @State private var showUnsavedChangesDialog = false
     @State private var showDeleteDeckConfirmation = false
+    @State private var showAddCardTypeDialog = false
     @State private var allowDismissWithoutConfirmation = false
 
     /// Tracks the focus state of the deck title text field.
@@ -203,8 +204,7 @@ struct CreateDeckView: View {
                     fullScreenSheetDismissCoordinator?.shouldAllowDismiss = nil
                 }
                 guard viewModel.aiSheetDestination == nil,
-                      !viewModel.isCreatingNewCard,
-                      viewModel.cardToEdit == nil else { return }
+                      viewModel.cardEditorDestination == nil else { return }
                 ImageCache.shared.clearCache()
             }
             .customTabBarVisibility(tabRule)
@@ -315,6 +315,12 @@ struct CreateDeckView: View {
             Button("Choose PDF") { viewModel.showAIPDFPicker = true }
             Button("Cancel", role: .cancel) { }
         } message: { Text("Extract text from images or documents.") }
+        .confirmationDialog("Choose Card Type", isPresented: $showAddCardTypeDialog, titleVisibility: .visible) {
+            addCardTypeButtons
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Pick the type of card you want to add to this deck.")
+        }
         .confirmationDialog("Stop AI generation?", isPresented: $viewModel.showAICancelDialog, titleVisibility: .visible) {
             if viewModel.hasGeneratedCardsInCurrentAISession {
                 Button("Keep \(viewModel.aiGeneratedCardCount) received cards") {
@@ -361,14 +367,9 @@ struct CreateDeckView: View {
         } message: {
             Text("This permanently deletes the deck and all its cards.")
         }
-        .fullScreenCover(isPresented: $viewModel.isCreatingNewCard) {
-            CreateCardView { frontZone, backZone in
-                viewModel.addCard(frontZone: frontZone, backZone: backZone)
-            }
-        }
-        .fullScreenCover(item: $viewModel.cardToEdit) { card in
-            CreateCardView(frontZone: card.frontZone, backZone: card.backZone) { f, b in
-                viewModel.updateCard(card, frontZone: f, backZone: b)
+        .fullScreenCover(item: $viewModel.cardEditorDestination) { destination in
+            CardEditorView(destination: destination) { content in
+                handleCardEditorSave(destination: destination, content: content)
             }
         }
     }
@@ -561,8 +562,16 @@ private extension CreateDeckView {
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: UIConstants.Spacing.small) {
                 CreateDeckHeaderStatChip(symbol: "rectangle.stack", text: "\(summary.cardCount) cards")
-                CreateDeckHeaderStatChip(symbol: "q.circle", text: "zones(\(summary.questionZoneCount))")
-                CreateDeckHeaderStatChip(symbol: "a.circle", text: "zones(\(summary.answerZoneCount))")
+                CreateDeckHeaderStatChip(symbol: "square.grid.2x2", text: "zones(\(summary.filledContentBlockCount))")
+                if summary.flashcardCount > 0 {
+                    CreateDeckHeaderStatChip(symbol: "rectangle.on.rectangle", text: "\(summary.flashcardCount) flashcards")
+                }
+                if summary.quizCount > 0 {
+                    CreateDeckHeaderStatChip(symbol: "checklist", text: "\(summary.quizCount) quiz")
+                }
+                if summary.writeCount > 0 {
+                    CreateDeckHeaderStatChip(symbol: "pencil.line", text: "\(summary.writeCount) write")
+                }
                 CreateDeckHeaderStatChip(symbol: "textformat", text: "\(summary.characterCount) chars")
                 CreateDeckHeaderStatChip(symbol: "photo", text: "\(summary.photoCount) photos")
                 CreateDeckHeaderStatChip(symbol: "pencil.and.outline", text: "\(summary.sketchCount) sketches")
@@ -668,15 +677,15 @@ private extension CreateDeckView {
     }
 
     private var addCardButton: some View {
-        CreateDeckChromeButton(
-            action: {
-                isTitleFocused = false
-                viewModel.isCreatingNewCard = true
-            },
-            accessibilityLabel: "Add card"
-        ) {
-            CreateDeckChromeButtonLabel(symbol: "plus", tint: accent)
+        Menu {
+            addCardTypeButtons
+        } label: {
+            CreateDeckChromeCircleSurface {
+                CreateDeckChromeButtonLabel(symbol: "plus", tint: accent)
+            }
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Choose card type")
     }
 
     private func floatingGenerateAction(bottomInset: CGFloat) -> some View {
@@ -732,6 +741,28 @@ private extension CreateDeckView {
                 }
             }
             .disabled(!viewModel.isSelectingCards && (viewModel.isGenerating || viewModel.draftCards.isEmpty))
+        }
+    }
+
+    private var addCardTypeButtons: some View {
+        Group {
+            Button {
+                openCardEditor(for: .flashcard)
+            } label: {
+                Label("Flashcard", systemImage: "rectangle.on.rectangle")
+            }
+
+            Button {
+                openCardEditor(for: .quiz)
+            } label: {
+                Label("Quiz", systemImage: "checklist")
+            }
+
+            Button {
+                openCardEditor(for: .write)
+            } label: {
+                Label("Write", systemImage: "pencil.line")
+            }
         }
     }
 
@@ -919,7 +950,7 @@ private extension CreateDeckView {
                     }
                 } else {
                     isTitleFocused = false
-                    viewModel.cardToEdit = card
+                    viewModel.presentCardEditor(for: card)
                 }
             }
         )
@@ -946,7 +977,7 @@ private extension CreateDeckView {
             Text("No cards yet")
                 .font(.headline)
                 .foregroundStyle(.primary)
-            Text("Tap + to add your first card manually, or use Auto AI to generate them instantly.")
+            Text("Tap + to choose Flashcard, Quiz, or Write, or use Auto AI to generate cards instantly.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -957,9 +988,15 @@ private extension CreateDeckView {
             .background(Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .onTapGesture {
-            isTitleFocused = false
-            viewModel.isCreatingNewCard = true
+                isTitleFocused = false
+                showAddCardTypeDialog = true
         }
+    }
+
+    private func openCardEditor(for kind: CardKind) {
+        isTitleFocused = false
+        showAddCardTypeDialog = false
+        viewModel.presentCardEditor(for: kind)
     }
 
     var successOverlay: some View {
@@ -1039,6 +1076,17 @@ private extension CreateDeckView {
         if !didDelete {
             allowDismissWithoutConfirmation = false
         }
+    }
+
+    private func handleCardEditorSave(destination: CardEditorDestination, content: DraftCardContent) {
+        switch destination {
+        case .create:
+            viewModel.addCard(content: content)
+        case .edit(let draftCard):
+            viewModel.updateCard(draftCard, content: content)
+        }
+
+        viewModel.dismissCardEditor()
     }
 
     private func requestDismiss() {

@@ -85,14 +85,16 @@ final actor LibrarySearchActor {
 
         for info in deckInfos {
             autoreleasepool {
-                let id = info.id
-                let descriptor = FetchDescriptor<CardModel>(
-                    predicate: #Predicate { $0.deck?.persistentModelID == id }
-                )
-                guard let cards = try? self.context.fetch(descriptor) else { return }
+                guard let deck = self.context.model(for: info.id) as? DeckModel else { return }
+                let cards = self.resolvedCards(for: deck, deckID: info.id)
 
                 let searchCards = cards.map {
-                    CardSearchPayload(id: $0.id, frontText: $0.frontText, backText: $0.backText)
+                    CardSearchPayload(
+                        id: $0.persistentModelID,
+                        frontText: $0.frontText,
+                        backText: $0.backText,
+                        searchDocumentText: $0.searchDocumentText
+                    )
                 }
                 results.append(DeckSearchPayload(
                     id: info.id,
@@ -125,5 +127,23 @@ final actor LibrarySearchActor {
     /// freeing retained model objects from the iOS 17 row cache.
     private func flushRAM() {
         _context = nil
+    }
+
+    /// Resolves cards from the deck relationship first, then falls back to a whole-store scan
+    /// if SwiftData returns an unexpectedly empty relationship on iOS 17.
+    private func resolvedCards(for deck: DeckModel, deckID: PersistentIdentifier) -> [CardModel] {
+        let directCards = deck.cards
+        if !directCards.isEmpty || deck.cardCount == 0 {
+            return directCards
+        }
+
+        let descriptor = FetchDescriptor<CardModel>()
+        guard let allCards = try? context.fetch(descriptor) else {
+            return directCards
+        }
+
+        return allCards.filter { card in
+            card.deck?.persistentModelID == deckID
+        }
     }
 }

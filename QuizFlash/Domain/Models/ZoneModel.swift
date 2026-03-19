@@ -19,21 +19,21 @@ import Foundation
 // MARK: - Card Orientation
 
 /// Describes the preferred physical orientation for displaying a card layout.
-enum CardOrientation: String, Codable {
+nonisolated enum CardOrientation: String, Codable {
     case portrait, landscape, adaptive
 }
 
 // MARK: - Zone Direction
 
 /// Describes the axis along which child zones are arranged inside a container zone.
-enum ZoneDirection: String, Codable {
+nonisolated enum ZoneDirection: String, Codable {
     case horizontal, vertical
 }
 
 // MARK: - Zone Content Type
 
 /// Describes the kind of content stored in a leaf `ZoneModel`.
-enum ZoneContentType: String, Codable {
+nonisolated enum ZoneContentType: String, Codable {
     case empty, text, image, sketch, code
 }
 
@@ -48,7 +48,7 @@ enum ZoneContentType: String, Codable {
 ///
 /// The entire tree is serialised to JSON and stored in `CardModel.frontZoneData` /
 /// `CardModel.backZoneData` using `@Attribute(.externalStorage)`.
-struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
+nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
 
     // MARK: - Identity
 

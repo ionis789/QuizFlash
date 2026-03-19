@@ -27,6 +27,38 @@ private enum PendingAISourceSelection {
     case pdf(URL)
 }
 
+enum CardEditorDestination: Identifiable, Equatable {
+    case create(kind: CardKind)
+    case edit(DraftCard)
+
+    var id: String {
+        switch self {
+        case .create(let kind):
+            return "create-\(kind.rawValue)"
+        case .edit(let draftCard):
+            return "edit-\(draftCard.id.uuidString)"
+        }
+    }
+
+    var kind: CardKind {
+        switch self {
+        case .create(let kind):
+            return kind
+        case .edit(let draftCard):
+            return draftCard.kind
+        }
+    }
+
+    var draftCard: DraftCard? {
+        switch self {
+        case .create:
+            return nil
+        case .edit(let draftCard):
+            return draftCard
+        }
+    }
+}
+
 // MARK: - AI Source Preparation
 
 /// One previewable source item shown inside the AI generation sheet.
@@ -61,20 +93,14 @@ struct AIPreparedGenerationSource {
 private struct DraftCardChangeSnapshot: Equatable {
     let originalCardID: PersistentIdentifier?
     let cardNumber: Int
-    let frontZone: ZoneModel
-    let backZone: ZoneModel
-    let frontType: CardContentType
-    let backType: CardContentType
+    let content: DraftCardContent
     let isPinned: Bool
     let creationSource: CardCreationSource
 
     init(card: DraftCard) {
         originalCardID = card.originalCardID
         cardNumber = card.cardNumber
-        frontZone = card.frontZone
-        backZone = card.backZone
-        frontType = card.frontType
-        backType = card.backType
+        content = card.content
         isPinned = card.isPinned
         creationSource = card.creationSource
     }
@@ -260,8 +286,7 @@ final class CreateDeckViewModel {
             reconcileDraftSelectionState()
         }
     }
-    var cardToEdit: DraftCard?
-    var isCreatingNewCard = false
+    var cardEditorDestination: CardEditorDestination?
     var showSuccessOverlay = false
     var isSelectingCards = false
     var selectedDraftCardIDs: Set<UUID> = []
@@ -384,7 +409,7 @@ final class CreateDeckViewModel {
     /// Streams a local mock payload through the same incremental UI path used
     /// by the real AI generator so animation work can be tested deterministically.
     func startMockAIGeneration() {
-        let mockCards = Self.mockAIFlashcards
+        let mockCards = Self.mockAICards(for: aiGenerationOptions.cardType)
         guard !mockCards.isEmpty else { return }
 
         requestedCardCount = mockCards.count
@@ -1179,7 +1204,7 @@ final class CreateDeckViewModel {
 
             if let nextCard = pendingAIGeneratedCards.first {
                 pendingAIGeneratedCards.removeFirst()
-                appendGeneratedCard(nextCard)
+                try appendGeneratedCard(nextCard)
 
                 if !pendingAIGeneratedCards.isEmpty || !aiDidFinishReceivingGeneratedCards {
                     try await Task.sleep(
@@ -1243,13 +1268,11 @@ final class CreateDeckViewModel {
     private func appendGeneratedCard(
         _ generatedCard: AIFlashcard,
         markRevealAsCompleted: Bool = false
-    ) {
+    ) throws {
+        let draftContent = try makeDraftContent(from: generatedCard)
         let draft = DraftCard(
             cardNumber: allocateNextDraftCardNumber(),
-            frontZone: AIZoneParser.parse(text: generatedCard.question),
-            backZone: AIZoneParser.parse(text: generatedCard.answer),
-            frontType: .text,
-            backType: .text,
+            content: draftContent,
             isPinned: false,
             creationSource: .ai,
             createdAt: Date(),
@@ -1265,6 +1288,104 @@ final class CreateDeckViewModel {
         }
         aiGeneratedCardCount = updatedCount
         aiState = .generatingCards(progress: progress, foundCount: updatedCount)
+    }
+
+    private func makeDraftContent(from generatedCard: AIFlashcard) throws -> DraftCardContent {
+        switch generatedCard.content {
+        case .flashcard(let content):
+            return .flashcard(
+                FlashcardCardContent(
+                    frontZone: aiZone(from: content.questionZones),
+                    backZone: aiZone(from: content.answerZones),
+                    frontType: .text,
+                    backType: .text
+                )
+            )
+        case .quiz(let content):
+            let validCorrectIndexes = Set(content.correctIndexes)
+            let choices = content.choices.enumerated().map { index, choice in
+                QuizChoiceDraft(
+                    contentZone: AIZoneParser.parse(text: choice),
+                    isCorrect: validCorrectIndexes.contains(index)
+                )
+            }
+
+            guard !choices.isEmpty, choices.contains(where: \.isCorrect) else {
+                throw AIGeneratedCardMappingError.invalidQuizCard
+            }
+
+            let explanationZone: ZoneModel?
+            if let explanationZones = content.explanationZones, !explanationZones.isEmpty {
+                explanationZone = aiZone(from: explanationZones)
+            } else {
+                explanationZone = nil
+            }
+
+            return .quiz(
+                QuizCardContent(
+                    questionZone: aiZone(from: content.questionZones),
+                    choices: choices,
+                    explanationZone: explanationZone,
+                    allowsMultipleCorrect: content.allowsMultipleCorrect
+                )
+            )
+        case .write(let content):
+            let sourceText = content.sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let omittedText = content.omittedText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !sourceText.isEmpty, !omittedText.isEmpty else {
+                throw AIGeneratedCardMappingError.invalidWriteCard
+            }
+
+            let sourceZone = ZoneModel.text(sourceText)
+            let nsSource = sourceText as NSString
+            let range = nsSource.range(of: omittedText)
+
+            guard range.location != NSNotFound, range.length > 0 else {
+                throw AIGeneratedCardMappingError.invalidWriteCard
+            }
+
+            return .write(
+                WriteCardContent(
+                    sourceZone: sourceZone,
+                    blankSelection: WriteBlankSelection(
+                        zoneID: sourceZone.id,
+                        utf16Range: range.location..<(range.location + range.length),
+                        omittedText: omittedText
+                    )
+                )
+            )
+        }
+    }
+
+    private func aiZone(from strings: [String]) -> ZoneModel {
+        let parsedZones = strings
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map { AIZoneParser.parse(text: $0) }
+
+        switch parsedZones.count {
+        case 0:
+            return .text()
+        case 1:
+            return parsedZones[0]
+        default:
+            return .container(direction: .vertical, children: parsedZones)
+        }
+    }
+
+    private enum AIGeneratedCardMappingError: LocalizedError {
+        case invalidQuizCard
+        case invalidWriteCard
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidQuizCard:
+                return "The AI returned a quiz card without valid choices and correct answers."
+            case .invalidWriteCard:
+                return "The AI returned a write card whose omitted text could not be anchored in the source text."
+            }
+        }
     }
 
     private func registerGeneratedBatchChunk(_ chunk: AIFlashcardBatchChunk) {
@@ -1856,78 +1977,87 @@ final class CreateDeckViewModel {
         pdfAnalysis = nil
     }
 
-    private static let mockAIFlashcards: [AIFlashcard] = [
-        AIFlashcard(
-            question: "Care au fost principalele cauze si conditii care au determinat aparitia **Iluminismului** in secolul al XVIII-lea?",
-            answer: """
-            In secolele al XVII-lea si al XVIII-lea s-a produs o adevarata revolutie in gandire, cu descoperiri in matematica (Descartes, Leibniz), astronomie (Galileo Galilei) si mecanica (Newton).
+    private static func mockAICards(for type: AICardGenerationType) -> [AIFlashcard] {
+        switch type {
+        case .flashcards, .match:
+            return [
+                AIFlashcard(
+                    question: "Care au fost principalele cauze si conditii care au determinat aparitia **Iluminismului** in secolul al XVIII-lea?",
+                    answer: """
+                    In secolele al XVII-lea si al XVIII-lea s-a produs o adevarata revolutie in gandire, cu descoperiri in matematica (Descartes, Leibniz), astronomie (Galileo Galilei) si mecanica (Newton).
 
-            Noua perspectiva asupra lumii, vazuta ca fiind in continua transformare, pe baza unor **legi specifice** care o guverneaza.
+                    Noua perspectiva asupra lumii, vazuta ca fiind in continua transformare, pe baza unor **legi specifice** care o guverneaza.
 
-            Masurarea tot mai precisa a timpului si spatiului datorita instrumentelor precum barometrul lui Torricelli sau ceasornicul lui Huygens.
+                    Masurarea tot mai precisa a timpului si spatiului datorita instrumentelor precum barometrul lui Torricelli sau ceasornicul lui Huygens.
 
-            Aceste progrese stiintifice au determinat, treptat, afirmarea unui nou mod de gandire, percepere si explicare a lumii.
+                    In aceste conditii, in secolul al XVIII-lea, s-a nascut **Iluminismul**, un curent filosofic, ideologic si literar.
+                    """
+                ),
+                AIFlashcard(
+                    question: "Cum s-a realizat **propagarea ideilor iluministe** si care au fost mijloacele si locurile-cheie pentru raspandirea lor?",
+                    answer: """
+                    Propagarea s-a realizat prin cafenelele literare si saloanele de lectura, unde se citeau operele iluministe.
 
-            In aceste conditii, in secolul al XVIII-lea, s-a nascut **Iluminismul**, un curent filosofic, ideologic si literar.
-            """
-        ),
-        AIFlashcard(
-            question: "Cum se caracterizeaza **conceptia deista** si **conceptia ateista** in cadrul Iluminismului, si care au fost reprezentantii lor?",
-            answer: """
-            **Deistii**, precum Voltaire, interpretau realitatea pe baza conceptiei deiste: Dumnezeu a creat lumea, dar nu intervine in evolutia ei.
+                    Tiparul a contribuit prin publicatiile savante, presa cotidiana si brosuri.
 
-            Divinitatea nu mai era vazuta ca Fiinta Suprema, iar **dogmele religioase** erau respinse (de exemplu, revelatia divina sau minunile).
+                    Rolul cel mai insemnat l-a avut **Enciclopedia**, care a format opinia publica.
+                    """
+                ),
+                AIFlashcard(
+                    question: "Ce reprezenta **Iluminismul** din punct de vedere social?",
+                    answer: """
+                    Iluminismul reprezenta modul de gandire al **burgheziei**, clasa sociala activa, in plina afirmare.
 
-            Deistii criticau atitudinea clerului catolic si atotputernicia Bisericii Catolice, fiind **antidogmatici** si **anticlericali**.
-
-            **Ateii**, precum d'Holbach si Diderot, nu credeau in existenta Divinitatii.
-
-            Ca si deistii, ateii au fost antidogmatici si anticlericali, urmarind slabirea influentei Bisericii Catolice in societate.
-            """
-        ),
-        AIFlashcard(
-            question: "Care au fost principalele **idei social-politice** sustinute de filozofii iluministi si care au fost contributiile lor specifice?",
-            answer: """
-            Montesquieu a argumentat principiul **separarii puterilor** in stat.
-
-            Voltaire a fost preocupat de buna organizare a statului.
-
-            Jean-Jacques Rousseau a abordat problema relatiilor dintre **individ si stat**.
-
-            Pe plan economic, Francois Quesnay a subliniat importanta agriculturii, impunandu-se curentul **fiziocrat**.
-
-            Adam Smith, considerat parintele economiei moderne, a elaborat teorii economice fundamentale.
-            """
-        ),
-        AIFlashcard(
-            question: "Cum s-a realizat **propagarea ideilor iluministe** si care au fost mijloacele si locurile-cheie pentru raspandirea lor?",
-            answer: """
-            Propagarea s-a realizat prin cafenelele literare si saloanele de lectura, unde se citeau operele iluministe.
-
-            Cluburile erau frecventate de tot mai multe persoane care dezbateau problemele societatii.
-
-            Tiparul a contribuit prin publicatiile savante (ca `Journal des Savantes`), presa cotidiana si brosuri.
-
-            Rolul cel mai insemnat l-a avut **dictionarul Enciclopedia**, care a format opinia publica.
-
-            Din Franta, Iluminismul a patruns in Prusia, Austria, Rusia, Spania, Portugalia, Tarile Romane etc.
-            """
-        ),
-        AIFlashcard(
-            question: "Ce reprezenta **Iluminismul** din punct de vedere social si care au fost obiectivele sale principale in ceea ce priveste transformarea societatii?",
-            answer: """
-            Iluminismul reprezenta modul de gandire al **burgheziei**, clasa sociala activa, in plina afirmare.
-
-            Denumirea de Iluminism exprima increderea filozofilor secolului al XVIII-lea in **ratiune** si in puterea de a lumina omenirea prin stiinta si cultura.
-
-            Francmasonii urmareau rasturnarea ordinii social-politice nedrepte a **Vechiului Regim** si crearea unei societati in care indivizii sa fie egali in drepturi.
-
-            A aparut in Franta ca o reactie impotriva inegalitatii si nedreptatilor din timpul Vechiului Regim (regimul politic absolutist anterior anului 1789).
-
-            S-au impus o alta perspectiva asupra societatii, noi **principii si valori** in cadrul acesteia.
-            """
-        )
-    ]
+                    Curentul exprima increderea in **ratiune**, stiinta si cultura ca forte de transformare sociala.
+                    """
+                )
+            ]
+        case .quiz:
+            return [
+                AIFlashcard(
+                    questionZones: [
+                        "Ce a sustinut **Montesquieu** in plan politic in contextul Iluminismului?"
+                    ],
+                    choices: [
+                        "Principiul **separarii puterilor** in stat",
+                        "Suprematia exclusiva a monarhiei absolute",
+                        "Eliminarea completa a dreptului de proprietate",
+                        "Subordonarea economiei fata de cler"
+                    ],
+                    correctIndexes: [0],
+                    explanationZones: [
+                        "Montesquieu este asociat in mod clasic cu principiul **separarii puterilor**."
+                    ]
+                ),
+                AIFlashcard(
+                    questionZones: [
+                        "Care dintre urmatoarele trasaturi caracterizeaza curentul **Iluminist**?"
+                    ],
+                    choices: [
+                        "Incredere in **ratiune**",
+                        "Accent pe **stiinta** si educatie",
+                        "Respinge orice schimbare sociala",
+                        "Critica nedreptatile Vechiului Regim"
+                    ],
+                    correctIndexes: [0, 1, 3],
+                    explanationZones: [
+                        "Iluminismul valorizeaza ratiunea, stiinta si reforma sociala, nu conservarea oarba a vechilor structuri."
+                    ]
+                )
+            ]
+        case .write:
+            return [
+                AIFlashcard(
+                    sourceText: "Iluminismul exprima increderea filozofilor secolului al XVIII-lea in ratiune si in puterea de a lumina omenirea prin stiinta si cultura.",
+                    omittedText: "ratiune"
+                ),
+                AIFlashcard(
+                    sourceText: "Montesquieu a sustinut principiul separarii puterilor in stat.",
+                    omittedText: "separarii puterilor"
+                )
+            ]
+        }
+    }
 
     // MARK: - Reset AI State
 
@@ -1993,7 +2123,12 @@ final class CreateDeckViewModel {
         pendingAIGeneratedCards.removeAll()
 
         for card in queuedCards {
-            appendGeneratedCard(card, markRevealAsCompleted: true)
+            do {
+                try appendGeneratedCard(card, markRevealAsCompleted: true)
+            } catch {
+                aiState = .error(error.localizedDescription)
+                break
+            }
         }
     }
 
@@ -2010,15 +2145,12 @@ final class CreateDeckViewModel {
     // =========================================================================
 
     /// Appends a new draft card with the given front and back zones.
-    func addCard(frontZone: ZoneModel, backZone: ZoneModel) {
+    func addCard(content: DraftCardContent, creationSource: CardCreationSource = .manual) {
         let newCard = DraftCard(
             cardNumber: allocateNextDraftCardNumber(),
-            frontZone: frontZone,
-            backZone: backZone,
-            frontType: .text,
-            backType: .text,
+            content: content,
             isPinned: false,
-            creationSource: .manual,
+            creationSource: creationSource,
             createdAt: Date(),
             editedAt: Date()
         )
@@ -2026,14 +2158,28 @@ final class CreateDeckViewModel {
     }
 
     /// Updates the draft card's zone content and bumps `editedAt` if content changed.
-    func updateCard(_ card: DraftCard, frontZone: ZoneModel, backZone: ZoneModel) {
+    func updateCard(_ card: DraftCard, content: DraftCardContent) {
         guard let index = draftCards.firstIndex(where: { $0.id == card.id }) else { return }
         var updated = draftCards[index]
-        let changed = updated.frontZone != frontZone || updated.backZone != backZone
-        updated.frontZone = frontZone
-        updated.backZone = backZone
+        let changed = updated.content != content
+        updated.content = content
         if changed { updated.editedAt = Date() }
         withAnimation { draftCards[index] = updated }
+    }
+
+    /// Opens the editor in create mode for the requested card kind.
+    func presentCardEditor(for kind: CardKind = .flashcard) {
+        cardEditorDestination = .create(kind: kind)
+    }
+
+    /// Opens the editor in edit mode for the selected draft card.
+    func presentCardEditor(for draftCard: DraftCard) {
+        cardEditorDestination = .edit(draftCard)
+    }
+
+    /// Dismisses the currently presented card editor, if any.
+    func dismissCardEditor() {
+        cardEditorDestination = nil
     }
 
     /// Enters multi-card selection mode for the current draft list.
@@ -2116,8 +2262,7 @@ final class CreateDeckViewModel {
             deckToEdit?.lastAssignedCardNumber ?? 0,
             initialDraftCards.map(\.cardNumber).max() ?? 0
         )
-        cardToEdit = nil
-        isCreatingNewCard = false
+        cardEditorDestination = nil
         isSelectingCards = false
         selectedDraftCardIDs.removeAll()
         showDeleteSelectedCardsConfirmation = false
@@ -2170,18 +2315,13 @@ final class CreateDeckViewModel {
             for draft in draftCards {
                 if let originalID = draft.originalCardID,
                     let existing = deck.cards.first(where: { $0.id == originalID }) {
-                    let frontChanged = existing.frontZone != draft.frontZone
-                    let backChanged = existing.backZone != draft.backZone
+                    let contentChanged = existing.cardContent != draft.content
                     let numberChanged = existing.cardNumber != draft.cardNumber
-                    let typeChanged = existing.frontType != draft.frontType || existing.backType != draft.backType
                     let pinChanged = existing.isPinned != draft.isPinned
                     let sourceChanged = existing.creationSource != draft.creationSource
-                    if frontChanged || backChanged || numberChanged || typeChanged || pinChanged || sourceChanged {
-                        existing.frontZone = draft.frontZone
-                        existing.backZone = draft.backZone
+                    if contentChanged || numberChanged || pinChanged || sourceChanged {
+                        existing.cardContent = draft.content
                         existing.cardNumber = draft.cardNumber
-                        existing.frontType = draft.frontType
-                        existing.backType = draft.backType
                         existing.isPinned = draft.isPinned
                         existing.creationSource = draft.creationSource
                         existing.editedAt = Date()
@@ -2189,10 +2329,7 @@ final class CreateDeckViewModel {
                     }
                 } else {
                     let newCard = CardModel(
-                        frontZone: draft.frontZone,
-                        backZone: draft.backZone,
-                        frontType: draft.frontType,
-                        backType: draft.backType,
+                        content: draft.content,
                         cardNumber: draft.cardNumber,
                         isPinned: draft.isPinned,
                         creationSource: draft.creationSource
@@ -2225,10 +2362,7 @@ final class CreateDeckViewModel {
 
             for draft in draftCards {
                 let newCard = CardModel(
-                    frontZone: draft.frontZone,
-                    backZone: draft.backZone,
-                    frontType: draft.frontType,
-                    backType: draft.backType,
+                    content: draft.content,
                     cardNumber: draft.cardNumber,
                     isPinned: draft.isPinned,
                     creationSource: draft.creationSource
@@ -2318,8 +2452,7 @@ final class CreateDeckViewModel {
         deckTitle = ""
         draftCards = []
         nextDraftCardNumber = 0
-        cardToEdit = nil
-        isCreatingNewCard = false
+        cardEditorDestination = nil
         isSelectingCards = false
         selectedDraftCardIDs.removeAll()
         showDeleteSelectedCardsConfirmation = false
@@ -2346,9 +2479,9 @@ final class CreateDeckViewModel {
             showDeleteSelectedCardsConfirmation = false
         }
 
-        if let cardToEdit,
-           !validIDs.contains(cardToEdit.id) {
-            self.cardToEdit = nil
+        if case .edit(let draftCard) = cardEditorDestination,
+           !validIDs.contains(draftCard.id) {
+            cardEditorDestination = nil
         }
     }
 

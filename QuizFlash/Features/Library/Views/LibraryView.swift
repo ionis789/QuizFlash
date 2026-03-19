@@ -83,7 +83,7 @@ struct LibraryView: View {
             title: "Library",
             onCardTap: { cardID in
                 if let card = context.safeModel(for: cardID, as: CardModel.self) {
-                    sharedViewModel.editingCardFromSearch = card
+                    sharedViewModel.editingCardFromSearch = .edit(DraftCard.from(card))
                 }
             },
             onDeckNavigate: { deck in

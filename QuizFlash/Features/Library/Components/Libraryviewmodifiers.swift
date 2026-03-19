@@ -36,24 +36,28 @@ struct LibraryModalsAndDialogs: ViewModifier {
         // Wrapping in ZStack interposes a standard UIView between
         // UIHostingController.view and NavigationStack's internal
         // UINavigationController, preventing the reparenting attempt.
-        .fullScreenCover(item: $viewModel.editingCardFromSearch) { card in
+        .fullScreenCover(item: $viewModel.editingCardFromSearch) { destination in
             ZStack {
-                NavigationStack {
-                    CreateCardView(
-                        frontZone: card.frontZone,
-                        backZone: card.backZone,
-                        searchQuery: viewModel.searchText
-                    ) { frontZone, backZone in
-                        if card.frontZone != frontZone || card.backZone != backZone {
-                            card.frontZone = frontZone
-                            card.backZone = backZone
-                            card.editedAt = Date()
-                            card.deck?.editedAt = Date()
-                            try? context.save()
-                            viewModel.debounceSearchInput(viewModel.searchText)
-                        }
+                CardEditorView(
+                    destination: destination,
+                    searchQuery: viewModel.searchText
+                ) { content in
+                    guard case .edit(let draftCard) = destination,
+                          let cardID = draftCard.originalCardID,
+                          let card = context.model(for: cardID) as? CardModel else {
                         viewModel.editingCardFromSearch = nil
+                        return
                     }
+
+                    if card.cardContent != content {
+                        card.cardContent = content
+                        card.editedAt = Date()
+                        card.deck?.editedAt = Date()
+                        try? context.save()
+                        viewModel.debounceSearchInput(viewModel.searchText)
+                    }
+
+                    viewModel.editingCardFromSearch = nil
                 }
             }
         }
