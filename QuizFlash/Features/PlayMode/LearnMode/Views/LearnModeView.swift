@@ -48,6 +48,18 @@ struct LearnModeView: View {
         viewModel.report
     }
 
+    private var learnSettings: LearnModeSettings {
+        deck.playModeSettings?.learnSettings ?? LearnModeSettings()
+    }
+
+    private var insightLimit: Int {
+        switch learnSettings.density {
+        case .compact:  return 2
+        case .standard: return 4
+        case .detailed: return 6
+        }
+    }
+
     private var heroHeadline: String {
         if report.totalCards == 0 {
             return "This deck is still empty."
@@ -96,31 +108,7 @@ struct LearnModeView: View {
                         } else if viewModel.isLoading && report == .empty {
                             loadingCard
                         } else {
-                            if !report.focusCards.isEmpty {
-                                insightSection(
-                                    title: "Needs Attention",
-                                    subtitle: "These are the weakest or most overdue prompts in the deck right now.",
-                                    insights: report.focusCards
-                                )
-                            }
-
-                            if !report.newMaterialCards.isEmpty {
-                                insightSection(
-                                    title: "Fresh Material",
-                                    subtitle: "New prompts to read once before you push them into active recall.",
-                                    insights: report.newMaterialCards
-                                )
-                            }
-
-                            coverageSection
-
-                            if !report.stableHighlights.isEmpty {
-                                insightSection(
-                                    title: "Stable Highlights",
-                                    subtitle: "These cards look healthy enough to skim after the weaker material.",
-                                    insights: report.stableHighlights
-                                )
-                            }
+                            configuredSections
                         }
                     }
                     .padding(.horizontal, horizontalInset)
@@ -236,6 +224,63 @@ struct LearnModeView: View {
             radius: UIConstants.Shadow.heavyRadius,
             y: UIConstants.Shadow.yOffset
         )
+    }
+
+    @ViewBuilder
+    private var configuredSections: some View {
+        switch learnSettings.grouping {
+        case .readinessFirst:
+            needsAttentionSection
+            freshMaterialSection
+            coverageSection
+            stableHighlightsSection
+        case .byCardKind:
+            coverageSection
+            needsAttentionSection
+            stableHighlightsSection
+            freshMaterialSection
+        case .freshMaterialFirst:
+            freshMaterialSection
+            needsAttentionSection
+            coverageSection
+            stableHighlightsSection
+        }
+    }
+
+    @ViewBuilder
+    private var needsAttentionSection: some View {
+        let insights = Array(report.focusCards.prefix(insightLimit))
+        if !insights.isEmpty {
+            insightSection(
+                title: "Needs Attention",
+                subtitle: "These are the weakest or most overdue prompts in the deck right now.",
+                insights: insights
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var freshMaterialSection: some View {
+        let insights = Array(report.newMaterialCards.prefix(insightLimit))
+        if !insights.isEmpty {
+            insightSection(
+                title: "Fresh Material",
+                subtitle: "New prompts to read once before you push them into active recall.",
+                insights: insights
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var stableHighlightsSection: some View {
+        let insights = Array(report.stableHighlights.prefix(insightLimit))
+        if !insights.isEmpty {
+            insightSection(
+                title: "Stable Highlights",
+                subtitle: "These cards look healthy enough to skim after the weaker material.",
+                insights: insights
+            )
+        }
     }
 
     private var stageBreakdownCard: some View {
@@ -513,6 +558,9 @@ struct LearnModeView: View {
         case .flashcard:
             tint = accentColor
             label = "FLASH"
+        case .match:
+            tint = .teal
+            label = "MATCH"
         case .quiz:
             tint = deckColor
             label = "QUIZ"

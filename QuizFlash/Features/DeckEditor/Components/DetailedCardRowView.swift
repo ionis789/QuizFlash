@@ -15,6 +15,7 @@ struct DetailedCardRowView: View {
     var isSelected: Bool = false
 
     var onPrimaryTap: (() -> Void)? = nil
+    var onOpenRecommendedConversion: ((CardKind) -> Void)? = nil
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var isCompactPreview: Bool { fixedHeight != nil }
@@ -94,7 +95,9 @@ struct DetailedCardRowView: View {
     }
 
     private func metricsStrip(summary: DraftCardContentSummary) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        let readinessDiagnostics = CardReadinessDiagnostics.diagnostics(for: card.content)
+
+        return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 chip(text: card.kind.editorDisplayTitle, symbol: card.kind.editorSymbol, tint: accent)
                 ForEach(summary.sections) { section in
@@ -108,14 +111,19 @@ struct DetailedCardRowView: View {
                 chip(text: "\(summary.total.textCharacterCount) chars", symbol: "textformat")
                 chip(text: "\(summary.total.imageCount) photos", symbol: "photo")
                 chip(text: "\(summary.total.sketchCount) sketches", symbol: "pencil.and.outline")
+                if card.isConverted {
+                    chip(text: "Converted", symbol: "arrow.triangle.branch", tint: .teal)
+                }
                 chip(
                     text: card.creationSource == .ai ? "AI" : "Manual",
                     symbol: card.creationSource == .ai ? "sparkles" : "hand.tap",
                     tint: card.creationSource == .ai ? accent : .secondary
                 )
+                ForEach(readinessDiagnostics) { diagnostic in
+                    readinessChip(for: diagnostic)
+                }
             }
         }
-        .scrollIndicators(.hidden)
     }
 
     private func previewSurface(summary: DraftCardContentSummary) -> some View {
@@ -228,6 +236,33 @@ struct DetailedCardRowView: View {
         .background(Color.white.opacity(0.05), in: Capsule())
     }
 
+    @ViewBuilder
+    private func readinessChip(for diagnostic: CardReadinessDiagnostic) -> some View {
+        if let targetKind = diagnostic.recommendedConversionTargetKind,
+           let onOpenRecommendedConversion {
+            Button {
+                onOpenRecommendedConversion(targetKind)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: targetKind.conversionSystemImage)
+                    Text("To \(targetKind.displayTitle)")
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(targetKind == .match ? .orange : diagnostic.kind.tint)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color.white.opacity(0.07), in: Capsule())
+            }
+            .buttonStyle(.plain)
+        } else {
+            chip(
+                text: diagnostic.kind.shortTitle,
+                symbol: diagnostic.kind.symbol,
+                tint: diagnostic.kind.tint
+            )
+        }
+    }
+
     private var shouldShowEditedDate: Bool {
         guard let createdAt = card.createdAt, let editedAt = card.editedAt else { return false }
         return abs(editedAt.timeIntervalSince(createdAt)) > 1
@@ -250,6 +285,23 @@ struct DetailedCardRowView: View {
                     text: previewText(for: content.backZone, maxLength: isCompactPreview ? 180 : 460),
                     hasContent: summary.sections[safe: 1]?.metrics.hasContent ?? false,
                     lineLimit: isCompactPreview ? 3 : 7
+                )
+            ]
+        case .match(let content):
+            return [
+                PreviewPanel(
+                    title: "Prompt",
+                    symbol: "arrow.left.and.right.text.vertical",
+                    text: normalizedSingleLine(content.prompt, fallback: "No prompt added"),
+                    hasContent: !content.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    lineLimit: isCompactPreview ? 2 : 4
+                ),
+                PreviewPanel(
+                    title: "Answer",
+                    symbol: "rectangle.2.swap",
+                    text: normalizedSingleLine(content.answer, fallback: "No answer added"),
+                    hasContent: !content.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    lineLimit: isCompactPreview ? 2 : 4
                 )
             ]
         case .quiz(let content):
@@ -373,6 +425,15 @@ struct DetailedCardRowView: View {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
+
+    private func normalizedSingleLine(_ text: String, fallback: String) -> String {
+        let trimmed = text
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmed.isEmpty else { return fallback }
+        return String(trimmed.prefix(isCompactPreview ? 160 : 260))
+    }
 }
 
 private struct PreviewPanel {
@@ -388,6 +449,8 @@ private extension CardKind {
         switch self {
         case .flashcard:
             return "Flashcard"
+        case .match:
+            return "Match"
         case .quiz:
             return "Quiz"
         case .write:
@@ -399,6 +462,8 @@ private extension CardKind {
         switch self {
         case .flashcard:
             return "rectangle.on.rectangle"
+        case .match:
+            return "square.grid.2x2.fill"
         case .quiz:
             return "checklist"
         case .write:

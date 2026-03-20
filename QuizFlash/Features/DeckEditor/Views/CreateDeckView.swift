@@ -66,6 +66,13 @@ struct CreateDeckView: View {
     private var draftDeckContentSummary: DraftDeckContentSummary {
         DraftDeckContentSummary(cards: viewModel.draftCards)
     }
+
+    private var draftDeckReadinessSummary: DeckReadinessSummary {
+        CardReadinessDiagnostics.summary(for: viewModel.draftCards)
+    }
+    private var draftReadinessRecommendedTargets: [CardKind] {
+        draftDeckReadinessSummary.recommendedConversions.map(\.targetKind)
+    }
     private var aiToolbarStatusText: String? {
         switch viewModel.aiState {
         case .extractingText:
@@ -499,6 +506,9 @@ private extension CreateDeckView {
 
             if !viewModel.draftCards.isEmpty {
                 headerStatsStrip
+                if !draftReadinessRecommendedTargets.isEmpty {
+                    draftReadinessMenuStrip
+                }
             }
         }
         .background {
@@ -558,6 +568,7 @@ private extension CreateDeckView {
 
     private var headerStatsStrip: some View {
         let summary = draftDeckContentSummary
+        let readinessSummary = draftDeckReadinessSummary
 
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: UIConstants.Spacing.small) {
@@ -565,6 +576,9 @@ private extension CreateDeckView {
                 CreateDeckHeaderStatChip(symbol: "square.grid.2x2", text: "zones(\(summary.filledContentBlockCount))")
                 if summary.flashcardCount > 0 {
                     CreateDeckHeaderStatChip(symbol: "rectangle.on.rectangle", text: "\(summary.flashcardCount) flashcards")
+                }
+                if summary.matchCount > 0 {
+                    CreateDeckHeaderStatChip(symbol: "square.grid.2x2.fill", text: "\(summary.matchCount) match")
                 }
                 if summary.quizCount > 0 {
                     CreateDeckHeaderStatChip(symbol: "checklist", text: "\(summary.quizCount) quiz")
@@ -577,6 +591,46 @@ private extension CreateDeckView {
                 CreateDeckHeaderStatChip(symbol: "pencil.and.outline", text: "\(summary.sketchCount) sketches")
                 CreateDeckHeaderStatChip(symbol: "hand.tap", text: "\(summary.manualCardCount) manual")
                 CreateDeckHeaderStatChip(symbol: "sparkles", text: "\(summary.aiCardCount) AI", tint: accent)
+                ForEach(readinessSummary.items) { item in
+                    CreateDeckHeaderStatChip(
+                        symbol: item.kind.symbol,
+                        text: item.title,
+                        tint: item.kind.tint
+                    )
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var draftReadinessMenuStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: UIConstants.Spacing.small) {
+                ForEach(draftReadinessRecommendedTargets, id: \.self) { targetKind in
+                    let recommendedCards = recommendedDraftCards(for: targetKind)
+                    if !recommendedCards.isEmpty {
+                        Menu {
+                            ForEach(recommendedCards, id: \.id) { card in
+                                Button {
+                                    presentDraftRecommendedConversion(for: card, targetKind: targetKind)
+                                } label: {
+                                    Label(
+                                        "Card \(card.cardNumber > 0 ? card.cardNumber : 0)",
+                                        systemImage: targetKind.conversionSystemImage
+                                    )
+                                }
+                            }
+                        } label: {
+                            CreateDeckHeaderStatChip(
+                                symbol: targetKind.conversionSystemImage,
+                                text: "Convert \(recommendedCards.count) to \(targetKind.displayTitle)",
+                                tint: targetKind == .match ? .orange : accent
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
             .padding(.vertical, 2)
         }
@@ -756,6 +810,12 @@ private extension CreateDeckView {
                 openCardEditor(for: .quiz)
             } label: {
                 Label("Quiz", systemImage: "checklist")
+            }
+
+            Button {
+                openCardEditor(for: .match)
+            } label: {
+                Label("Match", systemImage: "square.grid.2x2.fill")
             }
 
             Button {
@@ -952,6 +1012,9 @@ private extension CreateDeckView {
                     isTitleFocused = false
                     viewModel.presentCardEditor(for: card)
                 }
+            },
+            onOpenRecommendedConversion: { targetKind in
+                presentDraftRecommendedConversion(for: card, targetKind: targetKind)
             }
         )
             .transition(
@@ -977,7 +1040,7 @@ private extension CreateDeckView {
             Text("No cards yet")
                 .font(.headline)
                 .foregroundStyle(.primary)
-            Text("Tap + to choose Flashcard, Quiz, or Write, or use Auto AI to generate cards instantly.")
+            Text("Tap + to choose Flashcard, Match, Quiz, or Write, or use Auto AI to generate cards instantly.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -997,6 +1060,18 @@ private extension CreateDeckView {
         isTitleFocused = false
         showAddCardTypeDialog = false
         viewModel.presentCardEditor(for: kind)
+    }
+
+    private func recommendedDraftCards(for targetKind: CardKind) -> [DraftCard] {
+        viewModel.draftCards.filter { draftCard in
+            CardReadinessDiagnostics.diagnostics(for: draftCard.content)
+                .contains(where: { $0.recommendedConversionTargetKind == targetKind })
+        }
+    }
+
+    private func presentDraftRecommendedConversion(for card: DraftCard, targetKind: CardKind) {
+        isTitleFocused = false
+        viewModel.presentCardConversionEditor(for: card, targetKind: targetKind)
     }
 
     var successOverlay: some View {
@@ -1080,7 +1155,7 @@ private extension CreateDeckView {
 
     private func handleCardEditorSave(destination: CardEditorDestination, content: DraftCardContent) {
         switch destination {
-        case .create:
+        case .create, .createFromDraft:
             viewModel.addCard(content: content)
         case .edit(let draftCard):
             viewModel.updateCard(draftCard, content: content)

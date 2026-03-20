@@ -38,6 +38,9 @@ struct HomeCalendarSectionView: View {
     /// O(1) lookup dictionary providing daily activity data keyed by `yyyy-MM-dd`.
     let logsCache: [String: DailyActivityLog]
 
+    /// O(1) lookup dictionary providing exam-goal markers keyed by `yyyy-MM-dd`.
+    let examGoalsCache: [String: [ExamGoalModel]]
+
     /// The global navigation router (passed to `HomeAvatarView`).
     let router: NavigationManager
 
@@ -196,7 +199,11 @@ struct HomeCalendarSectionView: View {
 
                 HStack(spacing: 0) {
                     ForEach(row) { day in
-                        CalendarDayCellView(day: day, log: logsCache[day.dateString])
+                        CalendarDayCellView(
+                            day: day,
+                            log: logsCache[day.dateString],
+                            examGoals: examGoalsCache[day.dateString] ?? []
+                        )
                             .onTapGesture {
                                 calendarVM.selectDate(day.date)
                             }
@@ -241,6 +248,7 @@ struct CalendarDayCellView: View {
 
     let day: Day
     let log: DailyActivityLog?
+    let examGoals: [ExamGoalModel]
 
     // MARK: - Computed States
 
@@ -258,6 +266,16 @@ struct CalendarDayCellView: View {
     /// The active theme accent colour, resolved from `ThemeManager`.
     private var accent: Color {
         ThemeManager.shared.accentColor.color
+    }
+
+    /// `true` when the calendar day contains at least one linked exam goal.
+    private var hasExamGoal: Bool {
+        !examGoals.isEmpty
+    }
+
+    /// `true` when at least one exam goal on this day includes note text.
+    private var hasGoalNote: Bool {
+        examGoals.contains { !$0.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 
     // MARK: - Styling
@@ -300,6 +318,22 @@ struct CalendarDayCellView: View {
                 Circle()
                     .fill(backgroundColor.opacity(backgroundOpacity))
                     .frame(width: 40, height: 40)
+            }
+            .overlay(alignment: .bottom) {
+                if hasExamGoal {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(accent)
+                            .frame(width: 5, height: 5)
+
+                        if hasGoalNote {
+                            Circle()
+                                .fill(Color.orange)
+                                .frame(width: 5, height: 5)
+                        }
+                    }
+                    .offset(y: -4)
+                }
             }
             .contentShape(Rectangle())
     }

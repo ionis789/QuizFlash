@@ -19,6 +19,7 @@ final class QuizModeViewModel {
     // MARK: - Session State
 
     let deck: DeckModel
+    let settings: QuizModeSettings
 
     var cards: [QuizPlayableCard] = []
     var currentIndex = 0
@@ -41,6 +42,7 @@ final class QuizModeViewModel {
     var wrongCount = 0
     var isShowingRetryPrompt = false
     var completionSnapshot: SessionOutcomeSnapshot?
+    var isExplanationRevealed = false
 
     // MARK: - Private
 
@@ -64,8 +66,9 @@ final class QuizModeViewModel {
 
     // MARK: - Init
 
-    init(deck: DeckModel) {
+    init(deck: DeckModel, settings: QuizModeSettings) {
         self.deck = deck
+        self.settings = settings
     }
 
     // MARK: - Derived State
@@ -103,11 +106,21 @@ final class QuizModeViewModel {
         retryEvaluationCount
     }
 
+    var shouldShowExplanation: Bool {
+        guard isEvaluated, currentCard?.explanationZone != nil else { return false }
+        return settings.explanationTiming == .afterCheck || isExplanationRevealed
+    }
+
+    var requiresSubmitAction: Bool {
+        guard let currentCard, !isEvaluated else { return false }
+        return currentCard.allowsMultipleCorrect || settings.answerValidation == .submit
+    }
+
     var primaryActionTitle: String {
         if isShowingRetryPrompt { return "Retry Wrong Questions" }
-        guard let currentCard else { return "Continue" }
+        guard currentCard != nil else { return "Continue" }
         if isEvaluated { return currentIndex == cards.count - 1 ? "Continue" : "Next" }
-        return currentCard.allowsMultipleCorrect ? "Submit" : "Next"
+        return "Submit"
     }
 
     var canSubmitAnswer: Bool {
@@ -136,9 +149,9 @@ final class QuizModeViewModel {
         let sortedCards = Self.studyOrdered(result.cards)
 
         diagnostics = result.diagnostics
-        cards = sortedCards
+        cards = settings.shuffleChoices ? shuffledChoices(in: sortedCards) : sortedCards
 
-        guard !sortedCards.isEmpty else {
+        guard !cards.isEmpty else {
             loadState = result.diagnostics.hasOnlyInvalidCards ? .invalid : .empty
             return
         }
@@ -173,7 +186,9 @@ final class QuizModeViewModel {
         }
 
         selectedChoiceIDs = [choiceID]
-        evaluateSelection()
+        if settings.answerValidation == .instantCheck {
+            evaluateSelection()
+        }
     }
 
     /// Evaluates the current answer selection for multi-answer quiz cards.
@@ -194,10 +209,11 @@ final class QuizModeViewModel {
         selectedChoiceIDs = []
         isEvaluated = false
         lastEvaluationWasCorrect = nil
+        isExplanationRevealed = false
         currentIndex += 1
 
         if currentIndex >= cards.count {
-            if !isRetryPass && !wrongCards.isEmpty {
+            if !isRetryPass && settings.retryIncorrectQuestions && !wrongCards.isEmpty {
                 isShowingRetryPrompt = true
             } else {
                 finishSession()
@@ -213,6 +229,7 @@ final class QuizModeViewModel {
         guard let currentCard else { return }
 
         isEvaluated = true
+        isExplanationRevealed = settings.explanationTiming == .afterCheck
         markReviewed(currentCard.id)
 
         let correctChoiceIDs = Set(currentCard.choices.filter(\.isCorrect).map(\.id))
@@ -265,13 +282,14 @@ final class QuizModeViewModel {
     private func startRetryPass() {
         let retryCards = Self.studyOrdered(wrongCards)
         wrongCards = []
-        cards = retryCards
+        cards = settings.shuffleChoices ? shuffledChoices(in: retryCards) : retryCards
         currentIndex = 0
         isRetryPass = true
         isShowingRetryPrompt = false
         isEvaluated = false
         selectedChoiceIDs = []
         lastEvaluationWasCorrect = nil
+        isExplanationRevealed = false
         currentQuestionStartTime = Date()
     }
 
@@ -303,12 +321,31 @@ final class QuizModeViewModel {
         }
     }
 
+    func revealExplanation() {
+        guard isEvaluated else { return }
+        isExplanationRevealed = true
+    }
+
     private static func studyOrdered(_ cards: [QuizPlayableCard]) -> [QuizPlayableCard] {
         cards.sorted { lhs, rhs in
             if lhs.interval == 0 && rhs.interval != 0 { return true }
             if lhs.interval != 0 && rhs.interval == 0 { return false }
             if lhs.interval != rhs.interval { return lhs.interval < rhs.interval }
             return lhs.cardNumber < rhs.cardNumber
+        }
+    }
+
+    private func shuffledChoices(in cards: [QuizPlayableCard]) -> [QuizPlayableCard] {
+        cards.map { card in
+            QuizPlayableCard(
+                id: card.id,
+                cardNumber: card.cardNumber,
+                interval: card.interval,
+                questionZone: card.questionZone,
+                choices: card.choices.shuffled(),
+                explanationZone: card.explanationZone,
+                allowsMultipleCorrect: card.allowsMultipleCorrect
+            )
         }
     }
 }

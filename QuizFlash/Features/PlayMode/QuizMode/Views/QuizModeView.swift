@@ -31,7 +31,10 @@ struct QuizModeView: View {
                 Color(uiColor: .systemBackground)
                     .onAppear {
                         if viewModel == nil {
-                            viewModel = QuizModeViewModel(deck: deck)
+                            viewModel = QuizModeViewModel(
+                                deck: deck,
+                                settings: deck.playModeSettings?.quizSettings ?? QuizModeSettings()
+                            )
                         }
                     }
             }
@@ -57,6 +60,7 @@ private struct QuizModeSessionView: View {
     @State private var headerHeight: CGFloat = 0
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
+    private var tintColor: Color { Color(hex: deck.colorHex) ?? ThemeManager.shared.accentColor.color }
 
     var body: some View {
         GeometryReader { geo in
@@ -178,7 +182,7 @@ private struct QuizModeSessionView: View {
                 }
 
                 PlayModeContentCard {
-                    Text(card.allowsMultipleCorrect ? "Select every correct answer, then submit." : "Tap one answer to lock it in.")
+                    Text(answerInstruction(for: card))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
 
@@ -195,7 +199,7 @@ private struct QuizModeSessionView: View {
                     }
                 }
 
-                if viewModel.isEvaluated, let explanationZone = card.explanationZone {
+                if viewModel.shouldShowExplanation, let explanationZone = card.explanationZone {
                     PlayModeContentCard {
                         Text("EXPLANATION")
                             .font(.caption.weight(.black))
@@ -203,6 +207,21 @@ private struct QuizModeSessionView: View {
 
                         CardFaceView(zone: explanationZone)
                     }
+                } else if viewModel.isEvaluated,
+                          card.explanationZone != nil,
+                          viewModel.settings.explanationTiming == .manualReveal {
+                    Button(action: viewModel.revealExplanation) {
+                        Label("Reveal Explanation", systemImage: "text.append")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(tintColor)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, UIConstants.Spacing.standard)
+                            .background(
+                                tintColor.opacity(0.12),
+                                in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
+                            )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.bottom, UIConstants.Spacing.large)
@@ -303,7 +322,7 @@ private struct QuizModeSessionView: View {
     private var showsBottomCTA: Bool {
         switch viewModel.loadState {
         case .ready:
-            return viewModel.currentCard != nil || viewModel.isShowingRetryPrompt
+            return viewModel.isShowingRetryPrompt || viewModel.isEvaluated || viewModel.requiresSubmitAction
         default:
             return false
         }
@@ -311,12 +330,8 @@ private struct QuizModeSessionView: View {
 
     private var isPrimaryActionDisabled: Bool {
         if viewModel.isShowingRetryPrompt { return false }
-        guard let currentCard = viewModel.currentCard else { return true }
         if viewModel.isEvaluated { return false }
-        if currentCard.allowsMultipleCorrect {
-            return !viewModel.canSubmitAnswer
-        }
-        return !viewModel.isEvaluated
+        return !viewModel.canSubmitAnswer
     }
 
     private var headerSubtitle: String {
@@ -365,13 +380,23 @@ private struct QuizModeSessionView: View {
             return
         }
 
-        guard let currentCard = viewModel.currentCard else { return }
+        guard viewModel.currentCard != nil else { return }
 
-        if currentCard.allowsMultipleCorrect, !viewModel.isEvaluated {
+        if !viewModel.isEvaluated {
             viewModel.submitAnswer()
-        } else if viewModel.isEvaluated {
+        } else {
             viewModel.advance()
         }
+    }
+
+    private func answerInstruction(for card: QuizPlayableCard) -> String {
+        if card.allowsMultipleCorrect {
+            return "Select every correct answer, then submit."
+        }
+
+        return viewModel.settings.answerValidation == .instantCheck
+            ? "Tap one answer to check it immediately."
+            : "Select one answer, then submit."
     }
 
     private func dismissSheet() {

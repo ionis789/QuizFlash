@@ -63,17 +63,24 @@ struct Day: Identifiable, Equatable {
 @Observable
 final class CalendarViewModel {
 
+    // MARK: - Dependencies
+
+    private let calendar = Calendar.current
+
     // MARK: - State
 
     /// The month currently displayed in the calendar grid.
     ///
     /// Setting this triggers a full grid recalculation via `calculateMonthData()`.
-    var selectedMonth: Date = Date() { didSet { calculateMonthData() } }
+    private(set) var selectedMonth: Date
 
     /// The date highlighted with the selection indicator.
     ///
     /// Setting this updates `isSelected` on all day cells via `calculateMonthData()`.
-    var selectedDate: Date = Date() { didSet { calculateMonthData() } }
+    private(set) var selectedDate: Date
+
+    /// Preserves the user's intended day-of-month while paging across shorter months.
+    private var preferredDayOfMonth: Int
 
     // MARK: - Cached Output (read-only outside this class)
 
@@ -98,7 +105,7 @@ final class CalendarViewModel {
     }()
 
     private static let yearFormatter: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "YYYY"; return f
+        let f = DateFormatter(); f.dateFormat = "yyyy"; return f
     }()
 
     private static let dayFormatter: DateFormatter = {
@@ -142,7 +149,12 @@ final class CalendarViewModel {
 
     // MARK: - Initializer
 
-    init() {}
+    init() {
+        let today = calendar.startOfDay(for: Date())
+        selectedDate = today
+        selectedMonth = CalendarViewModel.monthStart(for: today, calendar: calendar)
+        preferredDayOfMonth = calendar.component(.day, from: today)
+    }
 
     // MARK: - Setup
 
@@ -162,21 +174,24 @@ final class CalendarViewModel {
     ///
     /// - Parameter increment: `true` to advance forward, `false` to go back.
     func monthUpdate(increment: Bool) {
-        let calendar = Calendar.current
         let value = increment ? 1 : -1
         guard
             let month = calendar.date(byAdding: .month, value: value, to: selectedMonth),
-            let date  = calendar.date(byAdding: .month, value: value, to: selectedDate)
+            let date = clampedDate(
+                day: preferredDayOfMonth,
+                in: CalendarViewModel.monthStart(for: month, calendar: calendar)
+            )
         else { return }
-        selectedMonth = month
-        selectedDate  = date
+        updateSelection(date: date, visibleMonth: month)
     }
 
     /// Updates `selectedDate` and triggers a grid refresh to update `isSelected` flags.
     ///
     /// - Parameter date: The newly selected calendar date.
     func selectDate(_ date: Date) {
-        selectedDate = date
+        let normalizedDate = calendar.startOfDay(for: date)
+        preferredDayOfMonth = calendar.component(.day, from: normalizedDate)
+        updateSelection(date: normalizedDate, visibleMonth: normalizedDate)
     }
 
     // MARK: - Private: Grid Calculation
@@ -190,22 +205,26 @@ final class CalendarViewModel {
     /// 4. Chunk the flat array into rows of 7.
     /// 5. Record the row index of the selected date as `monthProgress` for the collapse animation.
     private func calculateMonthData() {
-        currentMonthString = Self.monthFormatter.string(from: selectedMonth)
-        yearString = Self.yearFormatter.string(from: selectedMonth)
+        let monthAnchor = CalendarViewModel.monthStart(for: selectedMonth, calendar: calendar)
+
+        currentMonthString = Self.monthFormatter.string(from: monthAnchor)
+        yearString = Self.yearFormatter.string(from: monthAnchor)
 
         var days: [Day] = []
-        let calendar = Calendar.current
 
-        guard let range = calendar.range(of: .day, in: .month, for: selectedMonth)?
-            .compactMap({ value -> Date? in
-                calendar.date(byAdding: .day, value: value - 1, to: selectedMonth)
-            })
+        guard let range = calendar.range(of: .day, in: .month, for: monthAnchor) else { return }
+
+        let monthDates = range.compactMap { value -> Date? in
+            calendar.date(byAdding: .day, value: value - 1, to: monthAnchor)
+        }
+
+        guard let firstDate = monthDates.first, let lastDate = monthDates.last
         else { return }
 
         // Prepend trailing days from the previous month.
-        let firstWeekday = calendar.component(.weekday, from: range.first!)
+        let firstWeekday = calendar.component(.weekday, from: firstDate)
         for index in Array(0..<firstWeekday - 1).reversed() {
-            if let date = calendar.date(byAdding: .day, value: -index - 1, to: range.first!) {
+            if let date = calendar.date(byAdding: .day, value: -index - 1, to: firstDate) {
                 days.append(Day(
                     shortSymbol: Self.dayFormatter.string(from: date),
                     date: date,
@@ -217,7 +236,7 @@ final class CalendarViewModel {
         }
 
         // Add all days within the current month.
-        for date in range {
+        for date in monthDates {
             days.append(Day(
                 shortSymbol: Self.dayFormatter.string(from: date),
                 date: date,
@@ -228,10 +247,10 @@ final class CalendarViewModel {
         }
 
         // Append leading days from the next month to complete the final row.
-        let lastWeekday = 7 - calendar.component(.weekday, from: range.last!)
+        let lastWeekday = 7 - calendar.component(.weekday, from: lastDate)
         if lastWeekday > 0 {
             for index in 0..<lastWeekday {
-                if let date = calendar.date(byAdding: .day, value: index + 1, to: range.last!) {
+                if let date = calendar.date(byAdding: .day, value: index + 1, to: lastDate) {
                     days.append(Day(
                         shortSymbol: Self.dayFormatter.string(from: date),
                         date: date,
@@ -256,5 +275,24 @@ final class CalendarViewModel {
         } else {
             self.monthProgress = 0
         }
+    }
+
+    private func updateSelection(date: Date, visibleMonth: Date) {
+        selectedDate = calendar.startOfDay(for: date)
+        selectedMonth = CalendarViewModel.monthStart(for: visibleMonth, calendar: calendar)
+        calculateMonthData()
+    }
+
+    private func clampedDate(day: Int, in month: Date) -> Date? {
+        guard let range = calendar.range(of: .day, in: .month, for: month) else { return nil }
+        var components = calendar.dateComponents([.year, .month], from: month)
+        components.day = min(day, range.count)
+        return calendar.date(from: components)
+    }
+
+    private static func monthStart(for date: Date, calendar: Calendar) -> Date {
+        let normalizedDate = calendar.startOfDay(for: date)
+        let components = calendar.dateComponents([.year, .month], from: normalizedDate)
+        return calendar.date(from: components) ?? normalizedDate
     }
 }

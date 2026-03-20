@@ -35,8 +35,10 @@ struct HomeView: View {
     // MARK: - SwiftData Queries
 
     @Query(sort: \FolderModel.createdAt) private var folders: [FolderModel]
+    @Query(sort: \DeckModel.title) private var allDecks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
     @Query private var dailyLogs: [DailyActivityLog]
+    @Query(sort: \ExamGoalModel.date) private var examGoals: [ExamGoalModel]
 
     /// Sorted by `lastOpenedAt` descending so we can slice the top 5 without
     /// sorting a second time in Swift — SwiftData handles this on the store side.
@@ -101,6 +103,7 @@ struct HomeView: View {
                         scrollDistance: scrollDistance,
                         safeAreaTop: safeAreaTop,
                         logsCache: viewModel.logsCache,
+                        examGoalsCache: viewModel.examGoalsCache,
                         router: router
                     )
                     .zIndex(100)
@@ -109,7 +112,9 @@ struct HomeView: View {
                         viewModel: viewModel,
                         folders: folders,
                         recentDecks: recentlyOpenedDecks,
+                        examGoals: examGoals,
                         userProfile: profile,
+                        dailyLogs: dailyLogs,
                         calendarVM: calendarVM,
                         router: router
                     )
@@ -136,16 +141,59 @@ struct HomeView: View {
 
             .onAppear {
                 calendarVM.setupIfNeeded()
-                // Only rebuild the cache when empty to prevent a forced re-render
-                // cycle on every tab return that would reset child @State variables.
-                if viewModel.logsCache.isEmpty {
-                    viewModel.updateLogsCache(logs: dailyLogs)
-                }
+                viewModel.updateLogsCache(logs: dailyLogs)
+                viewModel.updateExamGoalsCache(goals: examGoals)
+            }
+            .task(id: dailyLogsCacheSignature) {
+                viewModel.updateLogsCache(logs: dailyLogs)
+            }
+            .task(id: examGoalsCacheSignature) {
+                viewModel.updateExamGoalsCache(goals: examGoals)
             }
             .sheet(isPresented: $viewModel.showCreateFolder) {
                 CreateFolderSheet(viewModel: viewModel)
             }
+            .sheet(item: $viewModel.examGoalSheetPresentation, onDismiss: viewModel.resetExamGoalDraft) { presentation in
+                CreateExamGoalSheet(
+                    viewModel: viewModel,
+                    decks: allDecks,
+                    editingGoal: editingExamGoal(for: presentation)
+                )
+            }
         }
+    }
+
+    private func editingExamGoal(for presentation: ExamGoalSheetPresentation) -> ExamGoalModel? {
+        switch presentation {
+        case .create:
+            return nil
+        case .edit(let goalID):
+            return examGoals.first(where: { $0.persistentModelID == goalID })
+        }
+    }
+
+    /// Stable signature used to refresh the daily-log cache when Home data changes.
+    private var dailyLogsCacheSignature: [String] {
+        dailyLogs
+            .map { "\($0.dateString)-\($0.cardsReviewed)-\($0.xpEarnedToday)-\($0.newCardsLearned)-\($0.dailyGoal)" }
+            .sorted()
+    }
+
+    /// Stable signature used to refresh the exam-goal cache when goal data changes.
+    private var examGoalsCacheSignature: [String] {
+        examGoals
+            .map {
+                [
+                    "\($0.persistentModelID.hashValue)",
+                    HomeViewModel.dateKeyFormatter.string(from: $0.date),
+                    $0.statusRaw,
+                    $0.title,
+                    $0.note,
+                    "\($0.targetWorkload)",
+                    "\($0.linkedDecks.count)"
+                ].joined(separator: "|")
+            }
+            .sorted()
     }
 
     // MARK: - Scroll Behavior

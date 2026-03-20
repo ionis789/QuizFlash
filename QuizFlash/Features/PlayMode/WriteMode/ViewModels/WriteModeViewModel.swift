@@ -19,6 +19,7 @@ final class WriteModeViewModel {
     // MARK: - Session State
 
     let deck: DeckModel
+    let settings: WriteModeSettings
 
     var prompts: [WritePlayableCard] = []
     var currentIndex = 0
@@ -41,6 +42,7 @@ final class WriteModeViewModel {
     var isRetryPass = false
     var isShowingRetryPrompt = false
     var completionSnapshot: SessionOutcomeSnapshot?
+    var isAnswerRevealed = false
 
     // MARK: - Private
 
@@ -62,10 +64,14 @@ final class WriteModeViewModel {
     @ObservationIgnored
     private var currentPromptStartTime = Date()
 
+    @ObservationIgnored
+    private var builderTokenHistory: [String] = []
+
     // MARK: - Init
 
-    init(deck: DeckModel) {
+    init(deck: DeckModel, settings: WriteModeSettings) {
         self.deck = deck
+        self.settings = settings
     }
 
     // MARK: - Derived State
@@ -107,6 +113,10 @@ final class WriteModeViewModel {
         retryEvaluationCount
     }
 
+    var shouldShowCanonicalAnswer: Bool {
+        isEvaluated && isAnswerRevealed
+    }
+
     // MARK: - Lifecycle
 
     /// Loads and validates the deck's write payloads, then primes the first prompt.
@@ -131,6 +141,8 @@ final class WriteModeViewModel {
 
         currentIndex = 0
         currentPromptStartTime = Date()
+        isAnswerRevealed = false
+        builderTokenHistory = []
         loadState = .ready
     }
 
@@ -150,13 +162,14 @@ final class WriteModeViewModel {
         guard let currentPrompt, canCheckAnswer else { return }
 
         isEvaluated = true
+        isAnswerRevealed = settings.revealTiming == .afterCheck
         markReviewed(currentPrompt.id)
 
         if isRetryPass {
             retryEvaluationCount += 1
         }
 
-        let isCorrect = Self.normalizedAnswer(currentInput) == Self.normalizedAnswer(currentPrompt.omittedText)
+        let isCorrect = compareAnswer(currentInput, to: currentPrompt.omittedText)
         lastCheckWasCorrect = isCorrect
 
         let timeSpent = Date().timeIntervalSince(currentPromptStartTime)
@@ -210,10 +223,12 @@ final class WriteModeViewModel {
         currentInput = ""
         isEvaluated = false
         lastCheckWasCorrect = nil
+        isAnswerRevealed = false
+        builderTokenHistory = []
         currentIndex += 1
 
         if currentIndex >= prompts.count {
-            if !isRetryPass && !wrongCards.isEmpty {
+            if !isRetryPass && settings.retryIncorrectPrompts && !wrongCards.isEmpty {
                 isShowingRetryPrompt = true
             } else {
                 finishSession()
@@ -235,6 +250,8 @@ final class WriteModeViewModel {
         isShowingRetryPrompt = false
         isEvaluated = false
         lastCheckWasCorrect = nil
+        isAnswerRevealed = false
+        builderTokenHistory = []
         currentPromptStartTime = Date()
     }
 
@@ -266,12 +283,49 @@ final class WriteModeViewModel {
         }
     }
 
+    func resolvedInputMode(for prompt: WritePlayableCard) -> WriteAnswerInputMode {
+        guard settings.inputMode == .auto else { return settings.inputMode }
+        return WriteBlankTextHelper.isFormulaHeavy(
+            answer: prompt.omittedText,
+            sourceText: prompt.sourceText
+        ) ? .assistedBuilder : .freeText
+    }
+
+    func appendBuilderSegment(_ segment: String) {
+        currentInput.append(segment)
+        builderTokenHistory.append(segment)
+    }
+
+    func removeLastBuilderSegment() {
+        guard let lastSegment = builderTokenHistory.popLast() else { return }
+        currentInput.removeLast(lastSegment.count)
+    }
+
+    func clearBuilderInput() {
+        currentInput = ""
+        builderTokenHistory = []
+    }
+
+    func revealAnswer() {
+        guard isEvaluated else { return }
+        isAnswerRevealed = true
+    }
+
     private static func studyOrdered(_ prompts: [WritePlayableCard]) -> [WritePlayableCard] {
         prompts.sorted { lhs, rhs in
             if lhs.interval == 0 && rhs.interval != 0 { return true }
             if lhs.interval != 0 && rhs.interval == 0 { return false }
             if lhs.interval != rhs.interval { return lhs.interval < rhs.interval }
             return lhs.cardNumber < rhs.cardNumber
+        }
+    }
+
+    private func compareAnswer(_ answer: String, to canonicalAnswer: String) -> Bool {
+        switch settings.strictness {
+        case .normalized:
+            return Self.normalizedAnswer(answer) == Self.normalizedAnswer(canonicalAnswer)
+        case .exact:
+            return Self.exactAnswer(answer) == Self.exactAnswer(canonicalAnswer)
         }
     }
 
@@ -295,5 +349,11 @@ final class WriteModeViewModel {
         )
 
         return trimmedPunctuation.lowercased()
+    }
+
+    private static func exactAnswer(_ answer: String) -> String {
+        answer
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

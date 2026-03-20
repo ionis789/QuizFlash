@@ -128,8 +128,10 @@ public enum AICardGenerationType: String, CaseIterable, Identifiable, Codable {
     /// The concrete AI response contract selected by this generation mode.
     nonisolated var outputContract: AIGeneratedCardContract {
         switch self {
-        case .flashcards, .match:
+        case .flashcards:
             return .flashcard
+        case .match:
+            return .match
         case .quiz:
             return .quiz
         case .write:
@@ -286,6 +288,7 @@ public struct AIGenerationOptions: Equatable, Codable {
 /// The concrete response schema requested from the AI service.
 public enum AIGeneratedCardContract: String, Codable, Sendable {
     case flashcard
+    case match
     case quiz
     case write
 }
@@ -320,8 +323,19 @@ public struct AIQuizCardContent: Codable, Equatable, Sendable {
         self.explanationZones = explanationZones
     }
 
-    public var allowsMultipleCorrect: Bool {
+    public nonisolated var allowsMultipleCorrect: Bool {
         correctIndexes.count > 1
+    }
+}
+
+/// AI payload for one compact prompt-answer pair in match mode.
+public struct AIMatchCardContent: Codable, Equatable, Sendable {
+    public let prompt: String
+    public let answer: String
+
+    public init(prompt: String, answer: String) {
+        self.prompt = prompt
+        self.answer = answer
     }
 }
 
@@ -339,6 +353,7 @@ public struct AIWriteCardContent: Codable, Equatable, Sendable {
 /// Heterogeneous AI card payload mirroring the manual editor content families.
 public enum AIGeneratedCardContent: Equatable, Sendable {
     case flashcard(AIFlashcardContent)
+    case match(AIMatchCardContent)
     case quiz(AIQuizCardContent)
     case write(AIWriteCardContent)
 }
@@ -347,6 +362,7 @@ extension AIGeneratedCardContent: Codable {
     enum CodingKeys: String, CodingKey {
         case contract
         case flashcard
+        case match
         case quiz
         case write
     }
@@ -358,6 +374,8 @@ extension AIGeneratedCardContent: Codable {
         switch contract {
         case .flashcard:
             self = .flashcard(try container.decode(AIFlashcardContent.self, forKey: .flashcard))
+        case .match:
+            self = .match(try container.decode(AIMatchCardContent.self, forKey: .match))
         case .quiz:
             self = .quiz(try container.decode(AIQuizCardContent.self, forKey: .quiz))
         case .write:
@@ -372,6 +390,8 @@ extension AIGeneratedCardContent: Codable {
         switch self {
         case .flashcard(let content):
             try container.encode(content, forKey: .flashcard)
+        case .match(let content):
+            try container.encode(content, forKey: .match)
         case .quiz(let content):
             try container.encode(content, forKey: .quiz)
         case .write(let content):
@@ -386,6 +406,8 @@ extension AIGeneratedCardContent {
         switch self {
         case .flashcard:
             return .flashcard
+        case .match:
+            return .match
         case .quiz:
             return .quiz
         case .write:
@@ -398,6 +420,8 @@ extension AIGeneratedCardContent {
         switch self {
         case .flashcard(let content):
             return content.questionZones.joined(separator: " / ")
+        case .match(let content):
+            return content.prompt
         case .quiz(let content):
             return content.questionZones.joined(separator: " / ")
         case .write(let content):
@@ -446,6 +470,16 @@ public struct AIFlashcard: Identifiable, Codable, Sendable {
                     correctIndexes: correctIndexes,
                     explanationZones: explanationZones
                 )
+            )
+        )
+    }
+
+    /// Convenience initializer for dedicated match outputs.
+    public init(id: UUID = UUID(), matchPrompt: String, matchAnswer: String) {
+        self.init(
+            id: id,
+            content: .match(
+                AIMatchCardContent(prompt: matchPrompt, answer: matchAnswer)
             )
         )
     }

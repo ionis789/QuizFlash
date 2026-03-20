@@ -132,6 +132,8 @@ struct DeckPlayModesView: View {
     let onOpenMode: (DeckPlayModeDestination) -> Void
     /// Called when the user taps the mode-specific options button.
     let onOpenSettings: (DeckPlayModeDestination) -> Void
+    /// Called when the user opens a recommended conversion from a play-mode card.
+    let onOpenRecommendedConversion: (DeckPlayModeDestination) -> Void
 
     // MARK: - Computed Properties
 
@@ -160,10 +162,12 @@ struct DeckPlayModesView: View {
                                     deckColor: deckColor,
                                     accentColor: accentColor
                                 ),
+                                fallbackPrompt: mode.fallbackPrompt(in: availability),
                                 compatibleCardCount: mode.compatibleCardCount(in: availability),
                                 canPlay: mode.canLaunch(with: availability),
                                 onOpenMode: onOpenMode,
-                                onOpenSettings: onOpenSettings
+                                onOpenSettings: onOpenSettings,
+                                onOpenRecommendedConversion: onOpenRecommendedConversion
                             )
                                 .frame(width: cardWidth)
                         }
@@ -175,7 +179,7 @@ struct DeckPlayModesView: View {
                     .scrollIndicators(.hidden)
                     .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
             }
-                .frame(height: 148)
+                .frame(height: 188)
 
             if availability.totalCards == 0 {
                 Text("Add cards to start a session. Settings stay available for every mode.")
@@ -192,6 +196,108 @@ struct DeckPlayModesView: View {
     }
 }
 
+// MARK: - DeckReadinessDiagnosticsView
+
+/// Compact deck-level readiness summary for Match and Write authoring quality.
+struct DeckReadinessDiagnosticsView: View {
+    let summary: DeckReadinessSummary
+    var onOpenRecommendedConversion: ((CardKind) -> Void)? = nil
+
+    var body: some View {
+        guard summary.hasContent else { return AnyView(EmptyView()) }
+
+        return AnyView(
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                Text("READINESS")
+                    .font(.caption.weight(.heavy))
+                    .foregroundStyle(.tertiary)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: UIConstants.Spacing.small) {
+                        ForEach(summary.items) { item in
+                            readinessChip(for: item)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .scrollIndicators(.hidden)
+
+                Text("Match-ready and match-weak count both dedicated match cards and compact flashcard fallback pairs.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                if let onOpenRecommendedConversion,
+                   !summary.recommendedConversions.isEmpty {
+                    recommendedConversionButtons(onOpenRecommendedConversion)
+                }
+            }
+            .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
+        )
+    }
+
+    private func readinessChip(for item: DeckReadinessSummaryItem) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: item.kind.symbol)
+            Text(item.title)
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(item.kind.tint)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(item.kind.tint.opacity(0.12), in: Capsule())
+    }
+
+    private func recommendedConversionButtons(
+        _ onOpenRecommendedConversion: @escaping (CardKind) -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+            Text("Recommended conversions")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+
+            ForEach(summary.recommendedConversions) { recommendation in
+                Button {
+                    onOpenRecommendedConversion(recommendation.targetKind)
+                } label: {
+                    HStack(spacing: UIConstants.Spacing.small) {
+                        Image(systemName: recommendation.targetKind.conversionSystemImage)
+                            .font(.caption.weight(.bold))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(recommendation.title)
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.primary)
+
+                            Text(recommendation.detail)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Spacer(minLength: UIConstants.Spacing.small)
+
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(recommendation.targetKind == .match ? .orange : accent)
+                    }
+                    .padding(.horizontal, UIConstants.Spacing.standard)
+                    .padding(.vertical, UIConstants.Spacing.standard)
+                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var accent: Color {
+        ThemeManager.shared.accentColor.color
+    }
+}
+
 // MARK: - PlayModeCard (private)
 
 /// A single play-mode tile inside `DeckPlayModesView`.
@@ -201,20 +307,22 @@ private struct PlayModeCard: View {
 
     let mode: DeckPlayModeDestination
     let tintColor: Color
+    let fallbackPrompt: PlayModeFallbackPrompt?
     let compatibleCardCount: Int
     let canPlay: Bool
     let onOpenMode: (DeckPlayModeDestination) -> Void
     let onOpenSettings: (DeckPlayModeDestination) -> Void
+    let onOpenRecommendedConversion: (DeckPlayModeDestination) -> Void
 
     // MARK: - Body
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Button {
-                guard canPlay else { return }
-                onOpenMode(mode)
-            } label: {
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+                Button {
+                    guard canPlay else { return }
+                    onOpenMode(mode)
+                } label: {
                     HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -257,12 +365,17 @@ private struct PlayModeCard: View {
 
                         Spacer(minLength: UIConstants.Size.actionButton)
                     }
-                }
-                    .frame(maxWidth: .infinity, minHeight: 96, maxHeight: 96, alignment: .leading)
-                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-            }
+                }
                 .buttonStyle(.plain)
+
+                if let fallbackPrompt {
+                    fallbackPromptView(fallbackPrompt)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: fallbackPrompt == nil ? 96 : 132, alignment: .leading)
+            .padding(14)
 
             Button {
                 onOpenSettings(mode)
@@ -288,6 +401,43 @@ private struct PlayModeCard: View {
             .overlay {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
+        }
+    }
+
+    private func fallbackPromptView(_ prompt: PlayModeFallbackPrompt) -> some View {
+        HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(prompt.title.uppercased())
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(tintColor)
+                    .lineLimit(1)
+
+                Text(prompt.detail)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: UIConstants.Spacing.small)
+
+            Button {
+                onOpenRecommendedConversion(mode)
+            } label: {
+                Text(prompt.ctaTitle)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(tintColor)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(tintColor.opacity(0.12), in: Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, UIConstants.Spacing.small)
+        .padding(.vertical, UIConstants.Spacing.small)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
         }
     }
 }
@@ -341,10 +491,14 @@ struct DeckActionOverlay: View {
     let isSelecting: Bool
     /// Current deck sort order shown in the native overflow menu.
     @Binding var sortOrder: SortOrder
+    /// Current deck grouping mode shown in the native overflow menu.
+    @Binding var groupingMode: DeckCardGroupingMode
     /// Called when the user taps the "+" button.
     let onAdd: () -> Void
     /// Called when the user taps "Select Cards" in the menu.
     let onStartSelection: () -> Void
+    /// Called when the user opens the conversion flow from the deck menu.
+    let onConvert: () -> Void
     /// Called when the user taps "Export Deck" in the menu.
     let onExport: () -> Void
 
@@ -397,9 +551,22 @@ struct DeckActionOverlay: View {
             .disabled(isSelecting)
 
             Button {
+                onConvert()
+            } label: {
+                Label("Convert Cards", systemImage: "arrow.triangle.2.circlepath")
+            }
+            .disabled(deck.cardCount == 0)
+
+            Button {
                 onExport()
             } label: {
                 Label("Export Deck", systemImage: "square.and.arrow.up")
+            }
+
+            Divider()
+
+            Toggle(isOn: groupByTypeBinding) {
+                Label("Group by Card Type", systemImage: "square.grid.2x2")
             }
 
             Divider()
@@ -415,6 +582,15 @@ struct DeckActionOverlay: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("More actions")
+    }
+
+    private var groupByTypeBinding: Binding<Bool> {
+        Binding(
+            get: { groupingMode == .byCardType },
+            set: { newValue in
+                groupingMode = newValue ? .byCardType : .chronological
+            }
+        )
     }
 }
 
@@ -435,6 +611,8 @@ struct DeckSelectionBottomBar: View {
     var onDone: () -> Void
     /// Called when the user clears the current selection without leaving selection mode.
     var onClearSelection: () -> Void
+    /// Called when the user opens the conversion flow for the current selection.
+    var onConvert: () -> Void
     /// Called when the user taps the delete button to confirm batch deletion.
     var onDelete: () -> Void
 
@@ -472,6 +650,14 @@ struct DeckSelectionBottomBar: View {
                 .frame(width: 118, alignment: .leading)
 
             if selectedCount > 0 {
+                SelectionToolbarTextButton(
+                    title: "Convert",
+                    accessibilityLabel: "Convert selected cards",
+                    tint: ThemeManager.shared.accentColor.color
+                ) {
+                    onConvert()
+                }
+
                 SelectionToolbarTextButton(
                     title: "Clear",
                     accessibilityLabel: "Clear selected cards"

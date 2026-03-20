@@ -143,6 +143,7 @@ struct FlashCardsPlayModeView: View {
                         onSwipe: { direction in
                             viewModel.handleSwipe(direction)
                         },
+                        allowsTapToFlip: viewModel.settings.flipBehavior == .tapToFlip,
                         isFlipped: $bindableViewModel.isFlipped
                     )
                     // Unique ID forces SwiftUI to replace the visual when the card changes.
@@ -276,14 +277,26 @@ struct FlashCardsPlayModeView: View {
             )
         }
 
+        if viewModel.settings.retryWrongCards {
+            return PlayModeCompletionOverlay(
+                headline: "Session Complete!",
+                xpEarned: viewModel.sessionXP,
+                stats: completionStats,
+                primaryActionTitle: "Retry Wrong Cards",
+                primaryAction: { viewModel.retryWrongCards() },
+                secondaryActionTitle: "Continue",
+                secondaryAction: { handleDismiss() }
+            )
+        }
+
         return PlayModeCompletionOverlay(
             headline: "Session Complete!",
             xpEarned: viewModel.sessionXP,
             stats: completionStats,
-            primaryActionTitle: "Retry Wrong Cards",
-            primaryAction: { viewModel.retryWrongCards() },
-            secondaryActionTitle: "Continue",
-            secondaryAction: { handleDismiss() }
+            primaryActionTitle: "Continue",
+            primaryAction: { handleDismiss() },
+            secondaryActionTitle: nil,
+            secondaryAction: nil
         )
     }
 
@@ -358,7 +371,10 @@ struct DefaultModePlay: View {
                 Color(uiColor: .systemBackground)
                     .onAppear {
                     if self.viewModel == nil {
-                        self.viewModel = FlashCardsPlayModeViewModel(deck: deck)
+                        self.viewModel = FlashCardsPlayModeViewModel(
+                            deck: deck,
+                            settings: deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
+                        )
                     }
                 }
             }

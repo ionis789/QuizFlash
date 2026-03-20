@@ -31,7 +31,10 @@ struct WriteModeView: View {
                 Color(uiColor: .systemBackground)
                     .onAppear {
                         if viewModel == nil {
-                            viewModel = WriteModeViewModel(deck: deck)
+                            viewModel = WriteModeViewModel(
+                                deck: deck,
+                                settings: deck.playModeSettings?.writeSettings ?? WriteModeSettings()
+                            )
                         }
                     }
             }
@@ -58,6 +61,7 @@ private struct WriteModeSessionView: View {
     @FocusState private var isInputFocused: Bool
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
+    private var tintColor: Color { ThemeManager.shared.accentColor.color }
 
     var body: some View {
         GeometryReader { geo in
@@ -174,49 +178,61 @@ private struct WriteModeSessionView: View {
     }
 
     private func promptFlow(for prompt: WritePlayableCard) -> some View {
-        ScrollView(showsIndicators: false) {
+        let resolvedInputMode = viewModel.resolvedInputMode(for: prompt)
+
+        return ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
                 PlayModeContentCard(cornerRadius: UIConstants.Radius.maximum) {
                     Text("PROMPT")
                         .font(.caption.weight(.black))
                         .foregroundStyle(.secondary)
 
-                    MixedMathTextView(
-                        text: prompt.blankedPrompt,
-                        fontSize: 22,
-                        textColor: .primary,
-                        alignment: .leading,
-                        isInteractive: false,
-                        allowsReadOnlyOverflowScrolling: true
-                    )
+                    anchoredPromptView(for: prompt)
                 }
 
                 PlayModeContentCard {
-                    Text("TYPE THE MISSING TEXT")
+                    Text(answerEntryTitle(for: resolvedInputMode))
                         .font(.caption.weight(.black))
                         .foregroundStyle(.secondary)
 
-                    TextField("Enter the missing text", text: $viewModel.currentInput, axis: .vertical)
-                        .font(.system(size: 20, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .padding(UIConstants.Spacing.standard)
-                        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card))
-                        .focused($isInputFocused)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled(true)
-                        .submitLabel(.done)
-                        .disabled(viewModel.isEvaluated)
-                        .onSubmit {
-                            guard viewModel.canCheckAnswer else { return }
-                            isInputFocused = false
-                            viewModel.checkAnswer()
-                        }
+                    if resolvedInputMode == .assistedBuilder {
+                        assistedBuilderInput(for: prompt)
+                    } else {
+                        TextField("Enter the missing text", text: $viewModel.currentInput, axis: .vertical)
+                            .font(.system(size: 20, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .padding(UIConstants.Spacing.standard)
+                            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card))
+                            .focused($isInputFocused)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
+                            .submitLabel(.done)
+                            .disabled(viewModel.isEvaluated)
+                            .onSubmit {
+                                guard viewModel.canCheckAnswer else { return }
+                                isInputFocused = false
+                                viewModel.checkAnswer()
+                            }
+                    }
 
                     if viewModel.isEvaluated {
                         feedbackCard(isCorrect: viewModel.lastCheckWasCorrect == true)
-                        canonicalAnswerChip(prompt.omittedText)
+                        if !viewModel.shouldShowCanonicalAnswer {
+                            Button(action: viewModel.revealAnswer) {
+                                Label("Reveal Stored Answer", systemImage: "eye")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(tintColor)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, UIConstants.Spacing.standard)
+                                    .background(
+                                        tintColor.opacity(0.12),
+                                        in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
                     } else {
-                        Text("Write mode uses strict normalized matching in v1. Check becomes available once the input is not empty.")
+                        Text(inputFootnote(for: resolvedInputMode))
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
@@ -244,28 +260,13 @@ private struct WriteModeSessionView: View {
                 .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(isCorrect ? Color.green : Color.red)
 
-            Text(isCorrect ? "Correct. The typed answer matches the stored blank." : "Not a match. The canonical blank is shown below.")
+            Text(isCorrect ? "Correct. The typed answer matches the stored blank." : "Not a match. Reveal the stored answer to see it restored directly inside the prompt.")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, UIConstants.Spacing.standard)
         .padding(.vertical, UIConstants.Spacing.small)
         .background((isCorrect ? Color.green : Color.red).opacity(0.12), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card))
-    }
-
-    private func canonicalAnswerChip(_ answer: String) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            Text("CANONICAL ANSWER")
-                .font(.caption.weight(.black))
-                .foregroundStyle(.secondary)
-
-            Text(answer)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, UIConstants.Spacing.medium)
-                .padding(.vertical, UIConstants.Spacing.small)
-                .background(Color.orange.opacity(0.14), in: Capsule())
-        }
     }
 
     private func centeredMessageCard(
@@ -405,11 +406,12 @@ private struct WriteModeSessionView: View {
 
     private var focusToken: String {
         guard let prompt = viewModel.currentPrompt else { return "none" }
-        return "\(prompt.id)-\(viewModel.isEvaluated)"
+        return "\(prompt.id)-\(viewModel.isEvaluated)-\(viewModel.currentInput)"
     }
 
     private var shouldFocusInput: Bool {
-        viewModel.currentPrompt != nil &&
+        guard let prompt = viewModel.currentPrompt else { return false }
+        return viewModel.resolvedInputMode(for: prompt) == .freeText &&
         !viewModel.isEvaluated &&
         !viewModel.isShowingRetryPrompt &&
         viewModel.loadState == .ready
@@ -437,5 +439,115 @@ private struct WriteModeSessionView: View {
         } else {
             dismiss()
         }
+    }
+
+    private func answerEntryTitle(for inputMode: WriteAnswerInputMode) -> String {
+        switch inputMode {
+        case .auto, .freeText:
+            return "TYPE THE MISSING TEXT"
+        case .assistedBuilder:
+            return "BUILD THE MISSING TEXT"
+        }
+    }
+
+    private func inputFootnote(for inputMode: WriteAnswerInputMode) -> String {
+        switch inputMode {
+        case .auto, .freeText:
+            return viewModel.settings.strictness == .exact
+                ? "Exact matching is enabled for this deck. Check becomes available once the input is not empty."
+                : "Normalized matching is enabled for this deck. Check becomes available once the input is not empty."
+        case .assistedBuilder:
+            return "Tap segments in order to rebuild the omitted answer. Use Backspace or Clear to adjust the response."
+        }
+    }
+
+    private func assistedBuilderInput(for prompt: WritePlayableCard) -> some View {
+        let segments = WriteBlankTextHelper.assistedBuilderSegments(for: prompt.omittedText)
+
+        return VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                Text(viewModel.currentInput.isEmpty ? "Build the answer from the segments below." : viewModel.currentInput)
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .foregroundStyle(viewModel.currentInput.isEmpty ? .secondary : .primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(UIConstants.Spacing.standard)
+                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card))
+
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Button("Backspace") {
+                        viewModel.removeLastBuilderSegment()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.currentInput.isEmpty || viewModel.isEvaluated)
+
+                    Button("Clear") {
+                        viewModel.clearBuilderInput()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.currentInput.isEmpty || viewModel.isEvaluated)
+                }
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 70), spacing: UIConstants.Spacing.small)], spacing: UIConstants.Spacing.small) {
+                ForEach(Array(segments.enumerated()), id: \.offset) { item in
+                    let segment = item.element
+                    Button(action: {
+                        viewModel.appendBuilderSegment(segment)
+                    }) {
+                        Text(segmentLabel(for: segment))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, UIConstants.Spacing.standard)
+                            .padding(.vertical, UIConstants.Spacing.small)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.isEvaluated)
+                }
+            }
+        }
+    }
+
+    private func segmentLabel(for segment: String) -> String {
+        if segment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Space"
+        }
+        return segment
+    }
+
+    @ViewBuilder
+    private func anchoredPromptView(for prompt: WritePlayableCard) -> some View {
+        if MathTextSanitizer.needsRichPreview(prompt.sourceText) {
+            MixedMathTextView(
+                text: viewModel.shouldShowCanonicalAnswer ? prompt.sourceText : prompt.blankedPrompt,
+                fontSize: 22,
+                textColor: .primary,
+                alignment: .leading,
+                isInteractive: false,
+                allowsReadOnlyOverflowScrolling: true
+            )
+        } else {
+            inlineAnchoredPrompt(for: prompt)
+        }
+    }
+
+    private func inlineAnchoredPrompt(for prompt: WritePlayableCard) -> some View {
+        let blankDisplay = viewModel.shouldShowCanonicalAnswer ? prompt.omittedText : "____"
+        let blankTint = viewModel.shouldShowCanonicalAnswer ? tintColor : Color.primary
+        let underlineTint = viewModel.shouldShowCanonicalAnswer ? tintColor : Color.secondary
+
+        return (
+            Text(prompt.prefixText) +
+            Text(blankDisplay)
+                .fontWeight(.black)
+                .foregroundStyle(blankTint)
+                .underline(true, color: underlineTint) +
+            Text(prompt.suffixText)
+        )
+        .font(.system(size: 22, weight: .medium, design: .rounded))
+        .foregroundStyle(.primary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

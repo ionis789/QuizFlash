@@ -35,6 +35,8 @@ struct DeckCustomNavigationBar: View {
     let isSelecting: Bool
     /// Active sort order shown in the native overflow menu.
     @Binding var sortOrder: SortOrder
+    /// Active grouping mode shown beside the sort controls.
+    @Binding var groupingMode: DeckCardGroupingMode
 
     // MARK: - Callbacks
 
@@ -44,6 +46,8 @@ struct DeckCustomNavigationBar: View {
     let onAdd: () -> Void
     /// Called when the user taps "Select Cards" in the menu.
     let onStartSelection: () -> Void
+    /// Called when the user opens the conversion flow from the deck menu.
+    let onConvert: () -> Void
     /// Called when the user taps "Export Deck" in the menu.
     let onExport: () -> Void
 
@@ -108,8 +112,10 @@ struct DeckCustomNavigationBar: View {
                         deck: deck,
                         isSelecting: isSelecting,
                         sortOrder: $sortOrder,
+                        groupingMode: $groupingMode,
                         onAdd: onAdd,
                         onStartSelection: onStartSelection,
+                        onConvert: onConvert,
                         onExport: onExport
                     )
                     .onGeometryChange(for: CGFloat.self) { proxy in

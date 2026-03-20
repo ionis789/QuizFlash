@@ -34,6 +34,9 @@ struct GameplayCard: View {
     /// Called by `SwipeableCard` when the user completes a horizontal swipe.
     let onSwipe: (SwipeDirection) -> Void
 
+    /// `true` when tapping the card should toggle between question and answer.
+    let allowsTapToFlip: Bool
+
     /// Binding to the ViewModel's `isFlipped` property.
     ///
     /// When `true`, `FlipCard` shows the answer (back) face.
@@ -54,6 +57,7 @@ struct GameplayCard: View {
 
     /// Toggles the card between question and answer faces with a spring animation.
     private func handleTap() {
+        guard allowsTapToFlip else { return }
         withAnimation(.interactiveSpring(response: 0.45, dampingFraction: 0.85)) {
             isFlipped.toggle()
         }

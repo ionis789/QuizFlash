@@ -50,7 +50,6 @@ private struct SwipeBackModifier: ViewModifier {
     private let commitThreshold: CGFloat = 110
     private let jellyHeight: CGFloat = 200
     private let fingerVerticalOffset: CGFloat = 75
-    private let leadingActivationFraction: CGFloat = 0.76
 
     // MARK: - Computed Properties
     
@@ -75,7 +74,6 @@ private struct SwipeBackModifier: ViewModifier {
                     startY: $startY,
                     edge: $edge,
                     enabled: enabled,
-                    leadingActivationFraction: leadingActivationFraction,
                     commitThreshold: commitThreshold,
                     onThresholdReached: handleThresholdReached,
                     onCommit: handleCommit,
@@ -158,7 +156,6 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
     @Binding var edge: Edge
 
     let enabled: Bool
-    let leadingActivationFraction: CGFloat
     let commitThreshold: CGFloat
     let onThresholdReached: () -> Void
     let onCommit: () -> Void
@@ -195,8 +192,7 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
 
             switch pan.state {
             case .began:
-                let isLeft = location.x <= (view.bounds.width * parent.leadingActivationFraction)
-                parent.edge = isLeft ? .leading : .trailing
+                parent.edge = leadingScreenEdge(for: view) == .right ? .trailing : .leading
                 parent.isActive = true
                 parent.startY = location.y
 
@@ -232,20 +228,13 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
 
             guard !hasPresentedModal(in: view) else { return false }
 
-            let loc = pan.location(in: view)
-            let width = view.bounds.width
-
-            let leadingBoundary = width * parent.leadingActivationFraction
-            let isLeft = loc.x <= leadingBoundary
-            let isRight = loc.x > leadingBoundary
-
-            guard isLeft || isRight else { return false }
-
-            // Protect the right edge on iPad for Slide Over multitasking.
-            if UIDevice.current.userInterfaceIdiom == .pad && isRight { return false }
-
             let velocity = pan.velocity(in: view)
-            return abs(velocity.x) > abs(velocity.y)
+            guard abs(velocity.x) > abs(velocity.y) else { return false }
+
+            if leadingScreenEdge(for: view) == .right {
+                return velocity.x < 0
+            }
+            return velocity.x > 0
         }
 
         private func hasPresentedModal(in view: UIView) -> Bool {
@@ -288,9 +277,9 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
 /// A transparent UIView that attaches a gesture recognizer to its hosting window.
 private final class ControllerView: UIView {
     weak var coordinator: NativeEdgeSwipeController.Coordinator?
-    private weak var panGesture: UIPanGestureRecognizer?
+    private weak var panGesture: UIScreenEdgePanGestureRecognizer?
 
-    var panRecognizer: UIPanGestureRecognizer? { panGesture }
+    var panRecognizer: UIScreenEdgePanGestureRecognizer? { panGesture }
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
@@ -300,9 +289,13 @@ private final class ControllerView: UIView {
     private func setupGesture() {
         guard panGesture == nil, let coordinator = coordinator, let window = self.window else { return }
 
-        let pan = UIPanGestureRecognizer(target: coordinator, action: #selector(NativeEdgeSwipeController.Coordinator.handlePan(_:)))
+        let pan = UIScreenEdgePanGestureRecognizer(
+            target: coordinator,
+            action: #selector(NativeEdgeSwipeController.Coordinator.handlePan(_:))
+        )
         pan.delegate = coordinator
         pan.cancelsTouchesInView = true
+        pan.edges = leadingScreenEdge(for: window)
         
         window.addGestureRecognizer(pan)
         self.panGesture = pan
@@ -315,6 +308,11 @@ private final class ControllerView: UIView {
         }
         super.willMove(toWindow: newWindow)
     }
+}
+
+private func leadingScreenEdge(for view: UIView) -> UIRectEdge {
+    let direction = UIView.userInterfaceLayoutDirection(for: view.semanticContentAttribute)
+    return direction == .rightToLeft ? .right : .left
 }
 
 // MARK: - Jelly Indicator Views

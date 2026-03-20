@@ -31,6 +31,15 @@ struct QuizFlashApp: App {
                     print(URL.documentsDirectory.path())
                 }
         }
-            .modelContainer(for: [FolderModel.self, DeckModel.self, CardModel.self, ReviewEvent.self, UserProfile.self, DailyActivityLog.self])
+            .modelContainer(for: [
+                FolderModel.self,
+                DeckModel.self,
+                CardModel.self,
+                ReviewEvent.self,
+                UserProfile.self,
+                DailyActivityLog.self,
+                ExamGoalModel.self,
+                DeckPlayModeSettingsModel.self
+            ])
     }
 }

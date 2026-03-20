@@ -29,12 +29,15 @@ private enum PendingAISourceSelection {
 
 enum CardEditorDestination: Identifiable, Equatable {
     case create(kind: CardKind)
+    case createFromDraft(kind: CardKind, sourceCard: DraftCard)
     case edit(DraftCard)
 
     var id: String {
         switch self {
         case .create(let kind):
             return "create-\(kind.rawValue)"
+        case .createFromDraft(let kind, let sourceCard):
+            return "create-from-\(sourceCard.id.uuidString)-\(kind.rawValue)"
         case .edit(let draftCard):
             return "edit-\(draftCard.id.uuidString)"
         }
@@ -43,6 +46,8 @@ enum CardEditorDestination: Identifiable, Equatable {
     var kind: CardKind {
         switch self {
         case .create(let kind):
+            return kind
+        case .createFromDraft(let kind, _):
             return kind
         case .edit(let draftCard):
             return draftCard.kind
@@ -53,6 +58,8 @@ enum CardEditorDestination: Identifiable, Equatable {
         switch self {
         case .create:
             return nil
+        case .createFromDraft(_, let sourceCard):
+            return sourceCard
         case .edit(let draftCard):
             return draftCard
         }
@@ -1291,101 +1298,7 @@ final class CreateDeckViewModel {
     }
 
     private func makeDraftContent(from generatedCard: AIFlashcard) throws -> DraftCardContent {
-        switch generatedCard.content {
-        case .flashcard(let content):
-            return .flashcard(
-                FlashcardCardContent(
-                    frontZone: aiZone(from: content.questionZones),
-                    backZone: aiZone(from: content.answerZones),
-                    frontType: .text,
-                    backType: .text
-                )
-            )
-        case .quiz(let content):
-            let validCorrectIndexes = Set(content.correctIndexes)
-            let choices = content.choices.enumerated().map { index, choice in
-                QuizChoiceDraft(
-                    contentZone: AIZoneParser.parse(text: choice),
-                    isCorrect: validCorrectIndexes.contains(index)
-                )
-            }
-
-            guard !choices.isEmpty, choices.contains(where: \.isCorrect) else {
-                throw AIGeneratedCardMappingError.invalidQuizCard
-            }
-
-            let explanationZone: ZoneModel?
-            if let explanationZones = content.explanationZones, !explanationZones.isEmpty {
-                explanationZone = aiZone(from: explanationZones)
-            } else {
-                explanationZone = nil
-            }
-
-            return .quiz(
-                QuizCardContent(
-                    questionZone: aiZone(from: content.questionZones),
-                    choices: choices,
-                    explanationZone: explanationZone,
-                    allowsMultipleCorrect: content.allowsMultipleCorrect
-                )
-            )
-        case .write(let content):
-            let sourceText = content.sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
-            let omittedText = content.omittedText.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            guard !sourceText.isEmpty, !omittedText.isEmpty else {
-                throw AIGeneratedCardMappingError.invalidWriteCard
-            }
-
-            let sourceZone = ZoneModel.text(sourceText)
-            let nsSource = sourceText as NSString
-            let range = nsSource.range(of: omittedText)
-
-            guard range.location != NSNotFound, range.length > 0 else {
-                throw AIGeneratedCardMappingError.invalidWriteCard
-            }
-
-            return .write(
-                WriteCardContent(
-                    sourceZone: sourceZone,
-                    blankSelection: WriteBlankSelection(
-                        zoneID: sourceZone.id,
-                        utf16Range: range.location..<(range.location + range.length),
-                        omittedText: omittedText
-                    )
-                )
-            )
-        }
-    }
-
-    private func aiZone(from strings: [String]) -> ZoneModel {
-        let parsedZones = strings
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .map { AIZoneParser.parse(text: $0) }
-
-        switch parsedZones.count {
-        case 0:
-            return .text()
-        case 1:
-            return parsedZones[0]
-        default:
-            return .container(direction: .vertical, children: parsedZones)
-        }
-    }
-
-    private enum AIGeneratedCardMappingError: LocalizedError {
-        case invalidQuizCard
-        case invalidWriteCard
-
-        var errorDescription: String? {
-            switch self {
-            case .invalidQuizCard:
-                return "The AI returned a quiz card without valid choices and correct answers."
-            case .invalidWriteCard:
-                return "The AI returned a write card whose omitted text could not be anchored in the source text."
-            }
-        }
+        try AIGeneratedCardContentMapper.map(generatedCard)
     }
 
     private func registerGeneratedBatchChunk(_ chunk: AIFlashcardBatchChunk) {
@@ -1979,7 +1892,7 @@ final class CreateDeckViewModel {
 
     private static func mockAICards(for type: AICardGenerationType) -> [AIFlashcard] {
         switch type {
-        case .flashcards, .match:
+        case .flashcards:
             return [
                 AIFlashcard(
                     question: "Care au fost principalele cauze si conditii care au determinat aparitia **Iluminismului** in secolul al XVIII-lea?",
@@ -2011,6 +1924,12 @@ final class CreateDeckViewModel {
                     Curentul exprima increderea in **ratiune**, stiinta si cultura ca forte de transformare sociala.
                     """
                 )
+            ]
+        case .match:
+            return [
+                AIFlashcard(matchPrompt: "Autorul separarii puterilor", matchAnswer: "Montesquieu"),
+                AIFlashcard(matchPrompt: "Lucrare-cheie a Iluminismului", matchAnswer: "Enciclopedia"),
+                AIFlashcard(matchPrompt: "Clasa sociala a Iluminismului", matchAnswer: "Burghezia")
             ]
         case .quiz:
             return [
@@ -2172,6 +2091,11 @@ final class CreateDeckViewModel {
         cardEditorDestination = .create(kind: kind)
     }
 
+    /// Opens the editor in create mode prefilled from an existing draft card.
+    func presentCardConversionEditor(for draftCard: DraftCard, targetKind: CardKind) {
+        cardEditorDestination = .createFromDraft(kind: targetKind, sourceCard: draftCard)
+    }
+
     /// Opens the editor in edit mode for the selected draft card.
     func presentCardEditor(for draftCard: DraftCard) {
         cardEditorDestination = .edit(draftCard)
@@ -2319,11 +2243,13 @@ final class CreateDeckViewModel {
                     let numberChanged = existing.cardNumber != draft.cardNumber
                     let pinChanged = existing.isPinned != draft.isPinned
                     let sourceChanged = existing.creationSource != draft.creationSource
-                    if contentChanged || numberChanged || pinChanged || sourceChanged {
+                    let conversionChanged = existing.conversionMetadata != draft.conversionMetadata
+                    if contentChanged || numberChanged || pinChanged || sourceChanged || conversionChanged {
                         existing.cardContent = draft.content
                         existing.cardNumber = draft.cardNumber
                         existing.isPinned = draft.isPinned
                         existing.creationSource = draft.creationSource
+                        existing.conversionMetadata = draft.conversionMetadata
                         existing.editedAt = Date()
                         cardsChanged = true
                     }
@@ -2332,7 +2258,8 @@ final class CreateDeckViewModel {
                         content: draft.content,
                         cardNumber: draft.cardNumber,
                         isPinned: draft.isPinned,
-                        creationSource: draft.creationSource
+                        creationSource: draft.creationSource,
+                        conversionMetadata: draft.conversionMetadata
                     )
                     if let createdAt = draft.createdAt {
                         newCard.createdAt = createdAt
@@ -2365,7 +2292,8 @@ final class CreateDeckViewModel {
                     content: draft.content,
                     cardNumber: draft.cardNumber,
                     isPinned: draft.isPinned,
-                    creationSource: draft.creationSource
+                    creationSource: draft.creationSource,
+                    conversionMetadata: draft.conversionMetadata
                 )
                 if let createdAt = draft.createdAt {
                     newCard.createdAt = createdAt

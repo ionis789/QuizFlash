@@ -14,6 +14,7 @@ import SwiftData
 struct PlayModeCardAvailability: Equatable, Sendable {
     let totalCards: Int
     let flashcardCards: Int
+    let matchCards: Int
     let quizCards: Int
     let writeCards: Int
 
@@ -21,6 +22,7 @@ struct PlayModeCardAvailability: Equatable, Sendable {
     nonisolated static let empty = PlayModeCardAvailability(
         totalCards: 0,
         flashcardCards: 0,
+        matchCards: 0,
         quizCards: 0,
         writeCards: 0
     )
@@ -42,6 +44,7 @@ struct PlayableCard: Identifiable, Equatable, Sendable {
 /// A validated prompt/answer pair sourced from a flashcard and reduced to preview text for match gameplay.
 struct MatchPlayablePair: Identifiable, Equatable, Sendable {
     let id: PersistentIdentifier
+    let sourceKind: CardKind
     let cardNumber: Int
     let interval: Int
     let promptPreview: String
@@ -71,6 +74,8 @@ struct WritePlayableCard: Identifiable, Equatable, Sendable {
     let sourceText: String
     let blankedPrompt: String
     let omittedText: String
+    let prefixText: String
+    let suffixText: String
 }
 
 // MARK: - Learn Payload
@@ -85,6 +90,7 @@ struct LearnModeReport: Equatable, Sendable {
     let stableCards: Int
     let reviewAccuracy: Int
     let flashcardCards: Int
+    let matchCards: Int
     let quizCards: Int
     let writeCards: Int
     let focusCards: [LearnModeCardInsight]
@@ -102,6 +108,7 @@ struct LearnModeReport: Equatable, Sendable {
         stableCards: 0,
         reviewAccuracy: 0,
         flashcardCards: 0,
+        matchCards: 0,
         quizCards: 0,
         writeCards: 0,
         focusCards: [],
@@ -164,6 +171,7 @@ actor PlayModeCardRepository {
 
         let cards = sortedCards(resolvedCards(for: deck, deckID: deckID))
         var flashcardCards = 0
+        var matchCards = 0
         var quizCards = 0
         var writeCards = 0
 
@@ -171,6 +179,8 @@ actor PlayModeCardRepository {
             switch card.kind {
             case .flashcard:
                 flashcardCards += 1
+            case .match:
+                matchCards += 1
             case .quiz:
                 quizCards += 1
             case .write:
@@ -183,6 +193,7 @@ actor PlayModeCardRepository {
         return PlayModeCardAvailability(
             totalCards: cards.count,
             flashcardCards: flashcardCards,
+            matchCards: matchCards,
             quizCards: quizCards,
             writeCards: writeCards
         )
@@ -242,6 +253,67 @@ actor PlayModeCardRepository {
         }
 
         let cards = sortedCards(resolvedCards(for: deck, deckID: deckID))
+        let dedicatedResult = loadDedicatedMatchPairs(from: cards)
+        if dedicatedResult.diagnostics.compatibleCount > 0 {
+            flushContext()
+            return dedicatedResult
+        }
+
+        let fallbackResult = loadFlashcardFallbackMatchPairs(from: cards)
+        flushContext()
+        return fallbackResult
+    }
+
+    private func loadDedicatedMatchPairs(
+        from cards: [CardModel]
+    ) -> ValidatedPlayModeLoadResult<MatchPlayablePair> {
+        var results: [MatchPlayablePair] = []
+        var invalidReasons: [PlayModeValidationReason: Int] = [:]
+        var compatibleCount = 0
+
+        for card in cards {
+            autoreleasepool {
+                guard case .match(let content) = card.cardContent else { return }
+                compatibleCount += 1
+
+                guard let promptPreview = Self.validatedPreviewText(for: content.prompt) else {
+                    Self.increment(.missingPromptPreview, in: &invalidReasons)
+                    card.clearZoneCache()
+                    return
+                }
+
+                guard let answerPreview = Self.validatedPreviewText(for: content.answer) else {
+                    Self.increment(.missingAnswerPreview, in: &invalidReasons)
+                    card.clearZoneCache()
+                    return
+                }
+
+                results.append(
+                    MatchPlayablePair(
+                        id: card.persistentModelID,
+                        sourceKind: .match,
+                        cardNumber: card.cardNumber,
+                        interval: card.interval,
+                        promptPreview: promptPreview,
+                        answerPreview: answerPreview
+                    )
+                )
+                card.clearZoneCache()
+            }
+        }
+
+        let diagnostics = PlayModeValidationDiagnostics(
+            compatibleCount: compatibleCount,
+            playableCount: results.count,
+            invalidReasonCounts: invalidReasons
+        )
+
+        return ValidatedPlayModeLoadResult(cards: results, diagnostics: diagnostics)
+    }
+
+    private func loadFlashcardFallbackMatchPairs(
+        from cards: [CardModel]
+    ) -> ValidatedPlayModeLoadResult<MatchPlayablePair> {
         var results: [MatchPlayablePair] = []
         var invalidReasons: [PlayModeValidationReason: Int] = [:]
         var compatibleCount = 0
@@ -266,6 +338,7 @@ actor PlayModeCardRepository {
                 results.append(
                     MatchPlayablePair(
                         id: card.persistentModelID,
+                        sourceKind: .flashcard,
                         cardNumber: card.cardNumber,
                         interval: card.interval,
                         promptPreview: promptPreview,
@@ -282,7 +355,6 @@ actor PlayModeCardRepository {
             invalidReasonCounts: invalidReasons
         )
 
-        flushContext()
         return ValidatedPlayModeLoadResult(cards: results, diagnostics: diagnostics)
     }
 
@@ -390,7 +462,11 @@ actor PlayModeCardRepository {
                     content.blankSelection,
                     in: sourceText,
                     fallbackZoneID: content.sourceZone.id
-                ), let blankedPrompt = WriteBlankTextHelper.applyingBlank(validatedBlank, to: sourceText) else {
+                ), let blankedPrompt = WriteBlankTextHelper.applyingBlank(validatedBlank, to: sourceText),
+                  let inlineSegments = WriteBlankTextHelper.inlinePromptSegments(
+                    for: validatedBlank,
+                    in: sourceText
+                  ) else {
                     Self.increment(.invalidBlankAnchor, in: &invalidReasons)
                     card.clearZoneCache()
                     return
@@ -403,7 +479,9 @@ actor PlayModeCardRepository {
                         interval: card.interval,
                         sourceText: sourceText,
                         blankedPrompt: blankedPrompt,
-                        omittedText: validatedBlank.omittedText
+                        omittedText: validatedBlank.omittedText,
+                        prefixText: inlineSegments.prefixText,
+                        suffixText: inlineSegments.suffixText
                     )
                 )
                 card.clearZoneCache()
@@ -437,6 +515,7 @@ actor PlayModeCardRepository {
         var buildingCards = 0
         var stableCards = 0
         var flashcardCards = 0
+        var matchCards = 0
         var quizCards = 0
         var writeCards = 0
         var totalReviews = 0
@@ -452,6 +531,8 @@ actor PlayModeCardRepository {
                 switch card.kind {
                 case .flashcard:
                     flashcardCards += 1
+                case .match:
+                    matchCards += 1
                 case .quiz:
                     quizCards += 1
                 case .write:
@@ -544,6 +625,7 @@ actor PlayModeCardRepository {
             stableCards: stableCards,
             reviewAccuracy: reviewAccuracy,
             flashcardCards: flashcardCards,
+            matchCards: matchCards,
             quizCards: quizCards,
             writeCards: writeCards,
             focusCards: focusCandidates
@@ -563,6 +645,7 @@ actor PlayModeCardRepository {
                 .map(\.insight),
             coverageGroups: Self.coverageGroups(
                 flashcardCards: flashcardCards,
+                matchCards: matchCards,
                 quizCards: quizCards,
                 writeCards: writeCards,
                 coverageBuckets: coverageBuckets
@@ -625,6 +708,11 @@ actor PlayModeCardRepository {
 
     private static func validatedPreviewText(for zone: ZoneModel) -> String? {
         let preview = zone.previewText(maxLength: 140)
+        return validatedPreviewText(for: preview)
+    }
+
+    private static func validatedPreviewText(for text: String) -> String? {
+        let preview = String(text.prefix(140))
         let trimmed = preview
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -647,6 +735,8 @@ actor PlayModeCardRepository {
         switch kind {
         case .flashcard:
             return "flashcard"
+        case .match:
+            return "match card"
         case .quiz:
             return "quiz"
         case .write:
@@ -664,6 +754,8 @@ actor PlayModeCardRepository {
         switch kind {
         case .flashcard:
             kindSummary = "Flashcard"
+        case .match:
+            kindSummary = "Match"
         case .quiz:
             kindSummary = "Quiz"
         case .write:
@@ -757,6 +849,7 @@ actor PlayModeCardRepository {
 
     private static func coverageGroups(
         flashcardCards: Int,
+        matchCards: Int,
         quizCards: Int,
         writeCards: Int,
         coverageBuckets: [CardKind: [String]]
@@ -771,6 +864,10 @@ actor PlayModeCardRepository {
                 cardCount = flashcardCards
                 title = "Core Concepts"
                 detail = "Fast prompt-and-answer anchors for scanning definitions and facts."
+            case .match:
+                cardCount = matchCards
+                title = "Pair Drills"
+                detail = "Short prompt-and-answer pairs optimized for compact matching rounds."
             case .quiz:
                 cardCount = quizCards
                 title = "Knowledge Checks"

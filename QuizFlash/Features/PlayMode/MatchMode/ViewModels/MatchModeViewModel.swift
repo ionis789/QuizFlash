@@ -28,6 +28,7 @@ final class MatchModeViewModel {
     // MARK: - Session State
 
     let deck: DeckModel
+    let settings: MatchModeSettings
 
     var allPairs: [MatchPlayablePair] = []
     var activeRound: MatchRoundState?
@@ -89,8 +90,9 @@ final class MatchModeViewModel {
 
     // MARK: - Init
 
-    init(deck: DeckModel) {
+    init(deck: DeckModel, settings: MatchModeSettings) {
         self.deck = deck
+        self.settings = settings
     }
 
     deinit {
@@ -121,6 +123,39 @@ final class MatchModeViewModel {
         isRetryRound ? "RETRY ROUND" : "ROUND \(max(roundIndex, 1))"
     }
 
+    /// The single prompt currently focused on screen in the compact-friendly match flow.
+    var currentPromptPair: MatchPlayablePair? {
+        guard let activeRound else { return nil }
+
+        for promptID in activeRound.promptOrder where !matchedIDs.contains(promptID) {
+            if let pair = currentRoundPairLookup[promptID] {
+                return pair
+            }
+        }
+
+        return nil
+    }
+
+    /// The remaining answer choices visible for the current board.
+    var remainingAnswerPairs: [MatchPlayablePair] {
+        guard let activeRound else { return [] }
+
+        return activeRound.answerOrder.compactMap { answerID in
+            guard !matchedIDs.contains(answerID) else { return nil }
+            return currentRoundPairLookup[answerID]
+        }
+    }
+
+    /// The number of unresolved pairs still visible in the current board.
+    var remainingPairsInRound: Int {
+        currentRoundPairLookup.count - matchedIDs.count
+    }
+
+    /// Current implementation still sources match gameplay from flashcard previews only.
+    var isUsingFlashcardFallback: Bool {
+        !allPairs.isEmpty && allPairs.allSatisfy { $0.sourceKind == .flashcard }
+    }
+
     // MARK: - Lifecycle
 
     /// Loads and validates the deck's match payloads, then materializes the first round board.
@@ -131,6 +166,12 @@ final class MatchModeViewModel {
         self.sessionStartTime = Date()
         self.loadState = .loading
         self.persistenceService = PlaySessionPersistenceService(container: container)
+
+        guard settings.allowsFlashcardFallback else {
+            diagnostics = .empty
+            loadState = .empty
+            return
+        }
 
         let repository = PlayModeCardRepository(container: container)
         let result = await repository.loadValidatedMatchPairs(for: deck.persistentModelID)
@@ -172,10 +213,13 @@ final class MatchModeViewModel {
         evaluateSelectionIfReady()
     }
 
-    /// Selects one answer tile and evaluates if a prompt tile is already active.
+    /// Selects one answer tile against the currently focused prompt.
     func selectAnswer(_ id: PersistentIdentifier) {
         guard canSelectTile(id) else { return }
-        selectedAnswerID = selectedAnswerID == id ? nil : id
+        guard let promptID = currentPromptPair?.id else { return }
+
+        selectedPromptID = promptID
+        selectedAnswerID = id
         evaluateSelectionIfReady()
     }
 
@@ -259,7 +303,8 @@ final class MatchModeViewModel {
         feedbackTask?.cancel()
         feedbackTask = Task { [weak self] in
             guard let self else { return }
-            try? await Task.sleep(for: .milliseconds(420))
+            let delay = settings.feedbackIntensity == .subtle ? 240 : 420
+            try? await Task.sleep(for: .milliseconds(delay))
             guard !Task.isCancelled else { return }
             selectedPromptID = nil
             selectedAnswerID = nil
@@ -273,7 +318,7 @@ final class MatchModeViewModel {
             perfectRounds += 1
         }
 
-        if !missedIDs.isEmpty && !isRetryRound {
+        if !missedIDs.isEmpty && !isRetryRound && settings.retryMissedPairs {
             beginRetryRound()
             return
         }
@@ -319,6 +364,10 @@ final class MatchModeViewModel {
             promptOrder: pairs.map(\.id).shuffled(),
             answerOrder: pairs.map(\.id).shuffled()
         )
+
+        if pairs.isEmpty {
+            finishRoundIfNeeded()
+        }
     }
 
     private func finishSession() {

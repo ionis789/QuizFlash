@@ -1,5 +1,5 @@
 //
-//  ZonePreviewSheetView.swift
+//  CardPreviewModeView.swift
 //  QuizFlash
 //
 
@@ -8,10 +8,13 @@ import UIKit
 
 // MARK: - Card Preview Mode View
 
+/// Immersive preview surface for all persisted card kinds.
 struct CardPreviewModeView: View {
-    let front: ZoneCardContent
-    let back: ZoneCardContent
+    let content: DraftCardContent
     let safeAreaInsets: UIEdgeInsets
+    let showsLeadingAccessory: Bool
+    let leadingAccessory: AnyView
+    let onOpenRecommendedConversion: ((CardKind) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
@@ -24,30 +27,63 @@ struct CardPreviewModeView: View {
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var chromeButtonHeight: CGFloat { UIConstants.Size.capsuleHeight }
-    private var sideControlWidth: CGFloat { isCompact ? 88 : 104 }
+    private var leadingChromeWidth: CGFloat {
+        showsLeadingAccessory ? (isCompact ? 160 : 188) : (isCompact ? 88 : 104)
+    }
+    private var readinessDiagnostics: [CardReadinessDiagnostic] {
+        CardReadinessDiagnostics.diagnostics(for: content)
+    }
+    private var supportsFlip: Bool {
+        if case .flashcard = content {
+            return true
+        }
+        return false
+    }
+
+    init(
+        content: DraftCardContent,
+        safeAreaInsets: UIEdgeInsets = .zero,
+        showsLeadingAccessory: Bool = false,
+        leadingAccessory: AnyView = AnyView(EmptyView()),
+        onOpenRecommendedConversion: ((CardKind) -> Void)? = nil
+    ) {
+        self.content = content
+        self.safeAreaInsets = safeAreaInsets
+        self.showsLeadingAccessory = showsLeadingAccessory
+        self.leadingAccessory = leadingAccessory
+        self.onOpenRecommendedConversion = onOpenRecommendedConversion
+    }
 
     init(front: ZoneCardContent, back: ZoneCardContent, safeAreaInsets: UIEdgeInsets = .zero) {
-        self.front = front
-        self.back = back
-        self.safeAreaInsets = safeAreaInsets
+        self.init(
+            content: .flashcard(
+                FlashcardCardContent(
+                    frontZone: front.rootZone,
+                    backZone: back.rootZone,
+                    frontType: .text,
+                    backType: .text
+                )
+            ),
+            safeAreaInsets: safeAreaInsets
+        )
     }
 
     var body: some View {
         GeometryReader { geo in
             let isLandscape = geo.size.width > geo.size.height
-            let resolvedSafeTopInset    = max(safeAreaInsets.top,    geo.safeAreaInsets.top)
+            let resolvedSafeTopInset = max(safeAreaInsets.top, geo.safeAreaInsets.top)
             let resolvedSafeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
             let headerHorizontalInset = isCompact
                 ? UIConstants.Layout.compactScreenEdgeInset
                 : UIConstants.Layout.screenEdgeInset
-            let cardHorizontalInset = isCompact
+            let contentHorizontalInset = isCompact
                 ? UIConstants.Spacing.standard
                 : (isLandscape ? geo.size.width * 0.15 : 40)
-            let cardTopInset     = topChromeHeight + UIConstants.Spacing.medium
-            let cardBottomPadding = max(resolvedSafeBottomInset, UIConstants.Spacing.standard)
+            let contentTopInset = topChromeHeight + UIConstants.Spacing.medium
+            let contentBottomPadding = max(resolvedSafeBottomInset, UIConstants.Spacing.standard)
             let availableCardHeight = max(
                 UIConstants.Size.cardMinHeight,
-                geo.size.height - cardTopInset - cardBottomPadding
+                geo.size.height - contentTopInset - contentBottomPadding
             )
 
             ZStack(alignment: .top) {
@@ -55,9 +91,39 @@ struct CardPreviewModeView: View {
                     CardPreviewModeBackground().ignoresSafeArea()
                 }
 
+                previewSurface(
+                    availableCardHeight: availableCardHeight,
+                    contentTopInset: contentTopInset,
+                    horizontalInset: contentHorizontalInset,
+                    bottomPadding: contentBottomPadding
+                )
+
+                topChrome(
+                    safeTopInset: resolvedSafeTopInset,
+                    horizontalInset: headerHorizontalInset
+                )
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .fullScreenSheetDragActivationHeight(contentTopInset)
+        }
+        .swipeBack {
+            handleDone()
+        }
+    }
+
+    @ViewBuilder
+    private func previewSurface(
+        availableCardHeight: CGFloat,
+        contentTopInset: CGFloat,
+        horizontalInset: CGFloat,
+        bottomPadding: CGFloat
+    ) -> some View {
+        switch content {
+        case .flashcard(let flashcardContent):
+            ZStack(alignment: .bottom) {
                 FlipCard(
-                    frontZone: front.rootZone,
-                    backZone: back.rootZone,
+                    frontZone: flashcardContent.frontZone,
+                    backZone: flashcardContent.backZone,
                     isFlipped: $isFlipped
                 )
                 .frame(maxWidth: .infinity)
@@ -69,17 +135,38 @@ struct CardPreviewModeView: View {
                         isFlipped.toggle()
                     }
                 }
-                .padding(.top, cardTopInset)
-                .padding(.horizontal, cardHorizontalInset)
-                .padding(.bottom, cardBottomPadding)
+                .padding(.top, contentTopInset)
+                .padding(.horizontal, horizontalInset)
+                .padding(.bottom, bottomPadding)
 
-                topChrome(safeTopInset: resolvedSafeTopInset, horizontalInset: headerHorizontalInset)
+                if !readinessDiagnostics.isEmpty {
+                    CardPreviewReadinessPanel(
+                        diagnostics: readinessDiagnostics,
+                        onOpenRecommendedConversion: onOpenRecommendedConversion
+                    )
+                        .padding(.horizontal, horizontalInset + UIConstants.Spacing.small)
+                        .padding(.bottom, bottomPadding + UIConstants.Spacing.standard)
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .fullScreenSheetDragActivationHeight(cardTopInset)
-        }
-        .swipeBack {
-            handleDone()
+        default:
+            ScrollView {
+                VStack(spacing: UIConstants.Spacing.standard) {
+                    staticPreviewSurface
+
+                    if !readinessDiagnostics.isEmpty {
+                        CardPreviewReadinessPanel(
+                            diagnostics: readinessDiagnostics,
+                            onOpenRecommendedConversion: onOpenRecommendedConversion
+                        )
+                    }
+                }
+                .frame(maxWidth: 720)
+                .padding(.top, contentTopInset)
+                .padding(.horizontal, horizontalInset)
+                .padding(.bottom, bottomPadding + UIConstants.Spacing.huge)
+                .frame(maxWidth: .infinity)
+            }
+            .scrollIndicators(.hidden)
         }
     }
 
@@ -96,28 +183,54 @@ struct CardPreviewModeView: View {
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
+
                     faceLabel
                 }
+
                 HStack {
-                    Color.clear.frame(width: sideControlWidth, height: 1)
+                    if showsLeadingAccessory {
+                        leadingAccessory
+                            .frame(width: leadingChromeWidth, alignment: .leading)
+                    } else {
+                        Color.clear.frame(width: leadingChromeWidth, height: 1)
+                    }
+
                     Spacer(minLength: 0)
-                    doneButton.frame(width: sideControlWidth, alignment: .trailing)
+
+                    doneButton
+                        .frame(width: chromeButtonHeight, alignment: .trailing)
                 }
             }
             .frame(height: chromeButtonHeight)
         }
         .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
         .padding(.horizontal, horizontalInset)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { newH in
-            if abs(topChromeHeight - newH) > 0.5 { topChromeHeight = newH }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { newHeight in
+            if abs(topChromeHeight - newHeight) > 0.5 {
+                topChromeHeight = newHeight
+            }
         }
     }
 
     private var faceLabel: some View {
-        Text(isFlipped ? "ANSWER" : "QUESTION")
+        Text(statusLabel)
             .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold, design: .rounded))
             .foregroundStyle(.secondary)
             .lineLimit(1)
+    }
+
+    private var statusLabel: String {
+        switch content {
+        case .flashcard:
+            return isFlipped ? "ANSWER" : "QUESTION"
+        case .quiz(let content):
+            let correctCount = content.choices.filter(\.isCorrect).count
+            return correctCount == 1 ? "1 CORRECT CHOICE" : "\(correctCount) CORRECT CHOICES"
+        case .write:
+            return "WRITE PREVIEW"
+        case .match:
+            return "MATCH PREVIEW"
+        }
     }
 
     private var doneButton: some View {
@@ -131,8 +244,341 @@ struct CardPreviewModeView: View {
         .buttonStyle(.plain)
     }
 
+    @ViewBuilder
+    private var staticPreviewSurface: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+            switch content {
+            case .flashcard:
+                EmptyView()
+            case .quiz(let quizContent):
+                quizPreview(quizContent)
+            case .write(let writeContent):
+                writePreview(writeContent)
+            case .match(let matchContent):
+                matchPreview(matchContent)
+            }
+        }
+    }
+
+    private func quizPreview(_ content: QuizCardContent) -> some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+            previewSectionCard(title: "Question", symbol: "questionmark.bubble.fill") {
+                previewBodyText(
+                    zonePreviewText(content.questionZone, fallback: "No question added"),
+                    tint: .primary
+                )
+            }
+
+            previewSectionCard(
+                title: "Choices",
+                symbol: "checklist",
+                subtitle: content.allowsMultipleCorrect ? "Multiple correct answers enabled" : "Single correct answer"
+            ) {
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                    ForEach(Array(content.choices.enumerated()), id: \.element.id) { index, choice in
+                        HStack(alignment: .top, spacing: UIConstants.Spacing.small) {
+                            Image(systemName: choice.isCorrect ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundStyle(choice.isCorrect ? .green : .secondary)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Choice \(index + 1)")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(.secondary)
+
+                                previewBodyText(
+                                    zonePreviewText(choice.contentZone, fallback: "Empty choice"),
+                                    tint: choice.isCorrect ? .primary : .secondary
+                                )
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+
+            if let explanationZone = content.explanationZone,
+               zonePreviewText(explanationZone, fallback: "").isEmpty == false {
+                previewSectionCard(title: "Explanation", symbol: "text.bubble.fill") {
+                    previewBodyText(
+                        zonePreviewText(explanationZone, fallback: "No explanation added"),
+                        tint: .primary
+                    )
+                }
+            }
+        }
+    }
+
+    private func writePreview(_ content: WriteCardContent) -> some View {
+        let sourceText = WriteBlankTextHelper.normalizedSourceText(from: content.sourceZone)
+        let validatedBlank = WriteBlankTextHelper.validatedBlankSelection(
+            content.blankSelection,
+            in: sourceText,
+            fallbackZoneID: content.sourceZone.id
+        )
+        let inlineSegments = validatedBlank.flatMap {
+            WriteBlankTextHelper.inlinePromptSegments(for: $0, in: sourceText)
+        }
+        let blankedPrompt = validatedBlank.flatMap {
+            WriteBlankTextHelper.applyingBlank($0, to: sourceText)
+        }
+        let revealedAnswer = normalizedSingleLine(content.blankSelection.omittedText)
+
+        return VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+            previewSectionCard(title: "Prompt with Blank", symbol: "rectangle.and.pencil.and.ellipsis") {
+                if let inlineSegments {
+                    inlineWritePrompt(
+                        segments: inlineSegments,
+                        revealsAnswer: false
+                    )
+                } else {
+                    previewBodyText(
+                        blankedPrompt ?? zonePreviewText(content.sourceZone, fallback: "No prompt added"),
+                        tint: .primary
+                    )
+                }
+            }
+
+            previewSectionCard(title: "Answer Reveal", symbol: "text.cursor") {
+                if let inlineSegments {
+                    inlineWritePrompt(
+                        segments: inlineSegments,
+                        revealsAnswer: true
+                    )
+                } else {
+                    previewBodyText(
+                        revealedAnswer.isEmpty ? "No answer selected" : revealedAnswer,
+                        tint: revealedAnswer.isEmpty ? .secondary : .green
+                    )
+                }
+            }
+        }
+    }
+
+    private func matchPreview(_ content: MatchCardContent) -> some View {
+        let prompt = normalizedSingleLine(content.prompt)
+        let answer = normalizedSingleLine(content.answer)
+
+        return VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    compactMetricChip(title: "Prompt", value: "\(prompt.count) chars")
+                    compactMetricChip(title: "Answer", value: "\(answer.count) chars")
+                    compactMetricChip(
+                        title: "Shape",
+                        value: prompt.count + answer.count <= 110 ? "Compact" : "Verbose"
+                    )
+                }
+                .padding(.vertical, 2)
+            }
+            .scrollIndicators(.hidden)
+
+            previewSectionCard(title: "Prompt", symbol: "arrow.left.and.right.text.vertical") {
+                previewBodyText(prompt.isEmpty ? "No prompt added" : prompt, tint: prompt.isEmpty ? .secondary : .primary)
+            }
+
+            previewSectionCard(title: "Answer", symbol: "rectangle.2.swap") {
+                previewBodyText(answer.isEmpty ? "No answer added" : answer, tint: answer.isEmpty ? .secondary : .primary)
+            }
+        }
+    }
+
+    private func previewSectionCard<SectionContent: View>(
+        title: String,
+        symbol: String,
+        subtitle: String? = nil,
+        @ViewBuilder content: () -> SectionContent
+    ) -> some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+            HStack(alignment: .top, spacing: UIConstants.Spacing.small) {
+                Image(systemName: symbol)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(accent)
+                    .frame(width: 28, height: 28)
+                    .background(accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+
+                    if let subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            content()
+        }
+        .padding(UIConstants.Spacing.large)
+        .background(sectionBackground, in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
+                .stroke(sectionBorderColor, lineWidth: 1)
+        }
+    }
+
+    private func previewBodyText(_ text: String, tint: Color) -> some View {
+        Text(text)
+            .font(.system(size: 19, weight: .medium, design: .rounded))
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func inlineWritePrompt(
+        segments: WriteInlinePromptSegments,
+        revealsAnswer: Bool
+    ) -> some View {
+        let blankText = revealsAnswer ? segments.omittedText : "____"
+        let blankTint: Color = revealsAnswer ? .green : accent
+
+        return (
+            Text(segments.prefixText)
+            + Text(blankText).fontWeight(.heavy).foregroundStyle(blankTint)
+            + Text(segments.suffixText)
+        )
+        .font(.system(size: 19, weight: .medium, design: .rounded))
+        .foregroundStyle(.primary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .multilineTextAlignment(.leading)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func compactMetricChip(title: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Text(title.uppercased())
+                .foregroundStyle(.secondary)
+            Text(value)
+                .foregroundStyle(.primary)
+        }
+        .font(.caption.weight(.semibold))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(sectionBackground, in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(sectionBorderColor, lineWidth: 1)
+        }
+    }
+
+    private var sectionBackground: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.045)
+            : Color.white.opacity(0.82)
+    }
+
+    private var sectionBorderColor: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.08)
+            : Color.black.opacity(0.06)
+    }
+
+    private func zonePreviewText(_ zone: ZoneModel, fallback: String, maxLength: Int = 500) -> String {
+        let preview = zone.previewText(maxLength: maxLength)
+        return preview == "Empty" ? fallback : preview
+    }
+
+    private func normalizedSingleLine(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private func handleDone() {
-        if let fullScreenSheetDismiss { fullScreenSheetDismiss() } else { dismiss() }
+        if let fullScreenSheetDismiss {
+            fullScreenSheetDismiss()
+        } else {
+            dismiss()
+        }
+    }
+}
+
+// MARK: - CardPreviewReadinessPanel
+
+/// Compact readiness callouts shown inside preview mode.
+struct CardPreviewReadinessPanel: View {
+    let diagnostics: [CardReadinessDiagnostic]
+    var onOpenRecommendedConversion: ((CardKind) -> Void)? = nil
+
+    private var recommendedTargets: [CardKind] {
+        Array(Set(diagnostics.compactMap(\.recommendedConversionTargetKind)))
+            .sorted { $0.displayTitle < $1.displayTitle }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+            Text("READINESS")
+                .font(.caption.weight(.heavy))
+                .foregroundStyle(.tertiary)
+
+            ForEach(diagnostics) { diagnostic in
+                HStack(alignment: .top, spacing: UIConstants.Spacing.small) {
+                    Image(systemName: diagnostic.kind.symbol)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(diagnostic.kind.tint)
+                        .padding(.top, 2)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(diagnostic.kind.shortTitle)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.primary)
+
+                        Text(diagnostic.detail)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            if let onOpenRecommendedConversion,
+               !recommendedTargets.isEmpty {
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                    Text("Recommended conversion")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+
+                    ForEach(recommendedTargets, id: \.self) { targetKind in
+                        Button {
+                            onOpenRecommendedConversion(targetKind)
+                        } label: {
+                            HStack(spacing: UIConstants.Spacing.small) {
+                                Image(systemName: targetKind.conversionSystemImage)
+                                    .font(.caption.weight(.bold))
+
+                                Text("Convert this card to \(targetKind.displayTitle)")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(.primary)
+
+                                Spacer(minLength: UIConstants.Spacing.small)
+
+                                Image(systemName: "arrow.right.circle.fill")
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundStyle(targetKind == .match ? .orange : .teal)
+                            }
+                            .padding(.horizontal, UIConstants.Spacing.standard)
+                            .padding(.vertical, UIConstants.Spacing.standard)
+                            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(UIConstants.Spacing.large)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
+        }
     }
 }
 
@@ -140,36 +586,29 @@ struct CardPreviewModeView: View {
 
 /// At rest: pure black (dark) / systemGray6 (light).
 ///
-/// During drag a very dark charcoal gradient appears **only at the top** of the
-/// surface, fading to transparent at ~25 % of height.  This makes the rounded
-/// top corners clearly visible against the dark strip while the body stays black.
-///
-/// The overlay reaches full opacity at just 10 % of screen travel so the effect
-/// is visible within the very first pixels of a drag.
+/// During drag a very dark charcoal gradient appears only at the top of the
+/// surface, fading to transparent at roughly 25 percent of height.
 struct StandardSheetTopStripBackground: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.fullScreenSheetDragProgress) private var dragProgress
 
-    /// Reaches 1.0 after only 10 % of screen travel.
     private var overlayOpacity: Double {
         min(dragProgress / 0.10, 1.0)
     }
 
     var body: some View {
         ZStack {
-            // ── Base ────────────────────────────────────────────────────────
             if colorScheme == .dark {
                 Color.black
             } else {
                 Color(uiColor: .systemGray6)
             }
 
-            // ── Top-strip dark charcoal gradient ────────────────────────────
             LinearGradient(
                 stops: [
                     .init(color: Color(white: colorScheme == .dark ? 0.08 : 0.70), location: 0.00),
                     .init(color: Color(white: colorScheme == .dark ? 0.08 : 0.70), location: 0.04),
-                    .init(color: .clear,                                             location: 0.25)
+                    .init(color: .clear, location: 0.25)
                 ],
                 startPoint: .top,
                 endPoint: .bottom

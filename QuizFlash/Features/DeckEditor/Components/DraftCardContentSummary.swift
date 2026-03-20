@@ -66,6 +66,19 @@ nonisolated struct DraftCardContentSummary: Equatable {
                 Self.section(title: "Question", symbol: "q.circle", zones: [content.frontZone]),
                 Self.section(title: "Answer", symbol: "a.circle", zones: [content.backZone])
             ]
+        case .match(let content):
+            sections = [
+                Self.section(
+                    title: "Prompt",
+                    symbol: "arrow.left.and.right.text.vertical",
+                    metrics: Self.metrics(for: content.prompt)
+                ),
+                Self.section(
+                    title: "Answer",
+                    symbol: "rectangle.2.swap",
+                    metrics: Self.metrics(for: content.answer)
+                )
+            ]
         case .quiz(let content):
             var resolvedSections = [
                 Self.section(title: "Question", symbol: "questionmark.bubble", zones: [content.questionZone]),
@@ -150,6 +163,7 @@ nonisolated struct DraftCardContentSummary: Equatable {
 nonisolated struct DraftDeckContentSummary: Equatable {
     let cardCount: Int
     let flashcardCount: Int
+    let matchCount: Int
     let quizCount: Int
     let writeCount: Int
     let filledContentBlockCount: Int
@@ -161,6 +175,7 @@ nonisolated struct DraftDeckContentSummary: Equatable {
 
     init(cards: [DraftCard]) {
         var flashcardCount = 0
+        var matchCount = 0
         var quizCount = 0
         var writeCount = 0
         var filledContentBlockCount = 0
@@ -180,6 +195,8 @@ nonisolated struct DraftDeckContentSummary: Equatable {
             switch card.kind {
             case .flashcard:
                 flashcardCount += 1
+            case .match:
+                matchCount += 1
             case .quiz:
                 quizCount += 1
             case .write:
@@ -196,6 +213,7 @@ nonisolated struct DraftDeckContentSummary: Equatable {
 
         self.cardCount = cards.count
         self.flashcardCount = flashcardCount
+        self.matchCount = matchCount
         self.quizCount = quizCount
         self.writeCount = writeCount
         self.filledContentBlockCount = filledContentBlockCount

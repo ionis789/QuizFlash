@@ -176,6 +176,7 @@ struct DeckCardGridView: View {
     var onToggleSelection: (GridCardInfo) -> Void
     var onTapCard: (GridCardInfo) -> Void
     var onEditCard: (GridCardInfo) -> Void
+    var onConvertCard: (GridCardInfo) -> Void
     var onTogglePinned: (GridCardInfo) -> Void
     var onDeleteCard: (GridCardInfo) -> Void
     var onPresentActionMenu: (PersistentIdentifier) -> Void
@@ -237,6 +238,7 @@ struct DeckCardGridView: View {
             onToggleSelection: onToggleSelection,
             onTapCard: onTapCard,
             onEditCard: onEditCard,
+            onConvertCard: onConvertCard,
             onTogglePinned: onTogglePinned,
             onDeleteCard: onDeleteCard,
             onPresentActionMenu: { onPresentActionMenu(card.id) },
@@ -355,11 +357,13 @@ private struct DeckGridCardCell: View {
     let onToggleSelection: (GridCardInfo) -> Void
     let onTapCard: (GridCardInfo) -> Void
     let onEditCard: (GridCardInfo) -> Void
+    let onConvertCard: (GridCardInfo) -> Void
     let onTogglePinned: (GridCardInfo) -> Void
     let onDeleteCard: (GridCardInfo) -> Void
     let onPresentActionMenu: () -> Void
     let onDismissActionMenu: () -> Void
     @State private var isPressingForMenu = false
+    @State private var pendingMenuPressFeedback: DispatchWorkItem?
 
     var body: some View {
         cardBody
@@ -368,10 +372,12 @@ private struct DeckGridCardCell: View {
             handleTap()
         }
         .onLongPressGesture(
-            minimumDuration: 0.4,
-            maximumDistance: 12,
+            minimumDuration: 0.55,
+            maximumDistance: 10,
             perform: {
                 guard !(isSelecting || isSuspended) else { return }
+                cancelPendingPressFeedback()
+                resetPressFeedback()
                 onPresentActionMenu()
             },
             onPressingChanged: { pressing in
@@ -379,8 +385,10 @@ private struct DeckGridCardCell: View {
                     resetPressFeedback()
                     return
                 }
-                withAnimation(pressing ? menuPressAnimation : .easeOut(duration: 0.14)) {
-                    isPressingForMenu = pressing && !isActionMenuPresented
+                if pressing {
+                    schedulePressFeedbackIfNeeded()
+                } else {
+                    resetPressFeedback()
                 }
             }
         )
@@ -409,7 +417,7 @@ private struct DeckGridCardCell: View {
     }
 
     private var menuPressAnimation: Animation {
-        .timingCurve(0.18, 0.86, 0.24, 1.0, duration: 0.38)
+        .timingCurve(0.18, 0.86, 0.24, 1.0, duration: 0.3)
     }
 
     private var cardBody: some View {
@@ -454,6 +462,7 @@ private struct DeckGridCardCell: View {
     }
 
     private func resetPressFeedback() {
+        cancelPendingPressFeedback()
         if isPressingForMenu {
             withAnimation(.easeOut(duration: 0.14)) {
                 isPressingForMenu = false
@@ -461,6 +470,24 @@ private struct DeckGridCardCell: View {
         } else {
             isPressingForMenu = false
         }
+    }
+
+    private func schedulePressFeedbackIfNeeded() {
+        cancelPendingPressFeedback()
+        guard !isActionMenuPresented else { return }
+
+        let workItem = DispatchWorkItem {
+            withAnimation(menuPressAnimation) {
+                isPressingForMenu = true
+            }
+        }
+        pendingMenuPressFeedback = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
+    }
+
+    private func cancelPendingPressFeedback() {
+        pendingMenuPressFeedback?.cancel()
+        pendingMenuPressFeedback = nil
     }
 }
 
@@ -654,6 +681,22 @@ private struct MiniCardPreview: View {
                 .padding(.vertical, 3)
                 .background(card.kindAccentColor.opacity(0.12), in: Capsule())
 
+            if card.isConverted {
+                Text(card.conversionDisplayTitle)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(card.conversionAccentColor)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(card.conversionAccentColor.opacity(0.12), in: Capsule())
+            }
+
+            Text(card.creationSourceDisplayTitle)
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .foregroundStyle(card.creationSourceAccentColor)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(card.creationSourceAccentColor.opacity(0.12), in: Capsule())
+
             Spacer(minLength: 0)
         }
     }
@@ -797,6 +840,7 @@ struct DeckGridHeaderActionMenu: View {
     let accent: Color
     let onTogglePinned: () -> Void
     let onEdit: () -> Void
+    let onConvert: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
@@ -811,6 +855,12 @@ struct DeckGridHeaderActionMenu: View {
                 symbol: "pencil",
                 tint: accent,
                 action: onEdit
+            )
+
+            actionButton(
+                symbol: "arrow.triangle.2.circlepath",
+                tint: accent,
+                action: onConvert
             )
 
             actionButton(
@@ -909,6 +959,8 @@ extension GridCardInfo {
         switch kind {
         case .flashcard:
             return "FLASH"
+        case .match:
+            return "MATCH"
         case .quiz:
             return "QUIZ"
         case .write:
@@ -920,11 +972,39 @@ extension GridCardInfo {
         switch kind {
         case .flashcard:
             return .blue
+        case .match:
+            return .teal
         case .quiz:
             return .orange
         case .write:
             return .green
         }
+    }
+
+    var creationSourceDisplayTitle: String {
+        switch creationSource {
+        case .manual:
+            return "MANUAL"
+        case .ai:
+            return "AI"
+        }
+    }
+
+    var creationSourceAccentColor: Color {
+        switch creationSource {
+        case .manual:
+            return .secondary
+        case .ai:
+            return ThemeManager.shared.accentColor.color
+        }
+    }
+
+    var conversionDisplayTitle: String {
+        "CONVERTED"
+    }
+
+    var conversionAccentColor: Color {
+        .teal
     }
 }
 

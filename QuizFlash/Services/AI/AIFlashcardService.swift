@@ -65,6 +65,16 @@ private struct QuizResponseDTO: Codable {
     let cards: [CardDTO]
 }
 
+/// The structured JSON contract between GPT and the app for dedicated match output.
+private struct MatchResponseDTO: Codable {
+    struct CardDTO: Codable {
+        let prompt: String
+        let answer: String
+    }
+
+    let cards: [CardDTO]
+}
+
 /// The structured JSON contract between GPT and the app for write output.
 private struct WriteResponseDTO: Codable {
     struct CardDTO: Codable {
@@ -73,6 +83,52 @@ private struct WriteResponseDTO: Codable {
     }
 
     let cards: [CardDTO]
+}
+
+/// Structured conversion result for flashcard targets, keyed by source index.
+private struct FlashcardConversionResponseDTO: Codable {
+    struct ResultDTO: Codable {
+        let source_index: Int
+        let question_zones: [String]
+        let answer_zones: [String]
+    }
+
+    let results: [ResultDTO]
+}
+
+/// Structured conversion result for dedicated match targets, keyed by source index.
+private struct MatchConversionResponseDTO: Codable {
+    struct ResultDTO: Codable {
+        let source_index: Int
+        let prompt: String
+        let answer: String
+    }
+
+    let results: [ResultDTO]
+}
+
+/// Structured conversion result for quiz targets, keyed by source index.
+private struct QuizConversionResponseDTO: Codable {
+    struct ResultDTO: Codable {
+        let source_index: Int
+        let question_zones: [String]
+        let choices: [String]
+        let correct_indexes: [Int]
+        let explanation_zones: [String]?
+    }
+
+    let results: [ResultDTO]
+}
+
+/// Structured conversion result for write targets, keyed by source index.
+private struct WriteConversionResponseDTO: Codable {
+    struct ResultDTO: Codable {
+        let source_index: Int
+        let source_text: String
+        let omitted_text: String
+    }
+
+    let results: [ResultDTO]
 }
 
 private struct DeckTitleResponseDTO: Codable {
@@ -276,6 +332,32 @@ public final class AIFlashcardService: @unchecked Sendable {
         return try await sendDeckTitleRequest(
             messages: buildDeckTitleMessages(fromText: trimmedText),
             model: textModel
+        )
+    }
+
+    /// Converts existing persisted cards into a new target card kind while
+    /// preserving one output mapping per source card.
+    func convertCards(
+        _ sourceCards: [AICardConversionSource],
+        to targetType: AICardGenerationType,
+        level: AICardGenerationLevel = .balanced
+    ) async throws -> [AICardConversionOutput] {
+        let trimmedCards = sourceCards.filter {
+            !$0.content.searchDocumentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        guard !trimmedCards.isEmpty else { return [] }
+
+        let messages = buildConversionMessages(
+            sourceCards: trimmedCards,
+            targetType: targetType,
+            level: level
+        )
+
+        return try await sendConversionRequest(
+            messages: messages,
+            model: textModel,
+            sourceCards: trimmedCards,
+            targetType: targetType
         )
     }
 
@@ -1393,6 +1475,30 @@ public final class AIFlashcardService: @unchecked Sendable {
         ]
     }
 
+    nonisolated private func buildConversionMessages(
+        sourceCards: [AICardConversionSource],
+        targetType: AICardGenerationType,
+        level: AICardGenerationLevel
+    ) -> [[String: Any]] {
+        [
+            [
+                "role": "system",
+                "content": conversionSystemPrompt(
+                    sourceCount: sourceCards.count,
+                    targetType: targetType,
+                    level: level
+                )
+            ],
+            [
+                "role": "user",
+                "content": conversionUserMessage(
+                    sourceCards: sourceCards,
+                    targetType: targetType
+                )
+            ]
+        ]
+    }
+
     nonisolated private func buildTextUserMessage(
         text: String,
         targetCards: Int,
@@ -1453,6 +1559,31 @@ public final class AIFlashcardService: @unchecked Sendable {
         }
 
         return message
+    }
+
+    nonisolated private func conversionUserMessage(
+        sourceCards: [AICardConversionSource],
+        targetType: AICardGenerationType
+    ) -> String {
+        let body = sourceCards.enumerated().map { index, card in
+            """
+            SOURCE_INDEX: \(index)
+            SOURCE_KIND: \(card.kind.rawValue)
+            SOURCE_CARD:
+            \(conversionSourceBody(for: card.content))
+            """
+        }
+        .joined(separator: "\n\n---\n\n")
+
+        return """
+        Convert each source card below into ONE \(targetType.title) output.
+        Preserve the dominant language of each source card.
+        Keep the order stable and return one result for every SOURCE_INDEX.
+
+        SOURCE CARDS:
+
+        \(body)
+        """
     }
 
     // =========================================================================
@@ -1565,6 +1696,27 @@ public final class AIFlashcardService: @unchecked Sendable {
         STRICT RULE: NEVER use the key "question" or "answer".
         You MUST use EXACTLY "question_zones" and "answer_zones" as ARRAYS of strings.
         """
+        case .match:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        REQUIRED JSON SCHEMA (CRITICAL - DO NOT ALTER)
+        ═══════════════════════════════════════════════════════
+        You MUST output valid JSON matching EXACTLY this schema:
+        {
+          "cards": [
+            {
+              "prompt": "string",
+              "answer": "string"
+            }
+          ]
+        }
+        STRICT RULES:
+        - "prompt" MUST be one short plain string, not an array.
+        - "answer" MUST be one short plain string, not an array.
+        - Keep both values compact enough to stay readable in a small matching tile.
+        - Do not add explanations, numbering, prefixes, or extra commentary.
+        """
         case .quiz:
             return """
 
@@ -1660,6 +1812,18 @@ public final class AIFlashcardService: @unchecked Sendable {
         - source_text should stay compact enough for a single fill-in-the-blank prompt.
         - omitted_text should be the shortest exact answer span that still preserves a meaningful recall task.
         """
+        case .match:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        FORMATTING RULES (STRICT)
+        ═══════════════════════════════════════════════════════
+        - prompt and answer MUST stay plain, compact, and immediately scannable.
+        - Prefer a single line for each field. Avoid bullet points, numbering, and sentence fragments stacked across lines.
+        - Avoid markdown emphasis unless a math or code symbol is essential to the concept.
+        - Never include explanations, examples, or qualifiers beyond the direct pair itself.
+        - If the source concept is too broad for a compact pair, skip it and generate a tighter concept instead.
+        """
         }
     }
 
@@ -1689,6 +1853,132 @@ public final class AIFlashcardService: @unchecked Sendable {
         SAMPLE SOURCE:
         \(text)
         """
+    }
+
+    nonisolated private func conversionSystemPrompt(
+        sourceCount: Int,
+        targetType: AICardGenerationType,
+        level: AICardGenerationLevel
+    ) -> String {
+        var prompt = """
+        You are a rigorous study-card conversion engine.
+        Convert existing cards into a new target format without inventing unsupported facts.
+
+        Output STRICTLY valid JSON with EXACTLY \(sourceCount) results.
+
+        ═══════════════════════════════════════════════════════
+        CONVERSION RULES (CRITICAL)
+        ═══════════════════════════════════════════════════════
+        - Preserve the dominant language of each source card.
+        - Each result MUST map to one source card via its exact source_index.
+        - Keep the semantic core intact, but adapt the phrasing to the target card format.
+        - Do not merge multiple source cards into one output.
+        - Do not omit any source_index.
+        - When a source is verbose, compress it into the smallest faithful target representation.
+        - Do not add meta commentary such as "converted card", "answer", "prompt", or numbering inside the generated fields.
+
+        ═══════════════════════════════════════════════════════
+        LATEX ESCAPING IN JSON
+        ═══════════════════════════════════════════════════════
+        Every LaTeX command that starts with one backslash must be written with EXACTLY two backslashes in the JSON string.
+        Example: \\lambda in the final card must appear as \\\\lambda in the JSON output.
+        Never write four backslashes before a LaTeX command.
+        """
+
+        prompt += requiredConversionSchemaPrompt(for: targetType.outputContract)
+        prompt += formattingRulesPrompt(for: targetType.outputContract)
+        prompt += cardTypePromptAddition(for: targetType)
+        prompt += cardLevelPromptAddition(for: level)
+
+        return prompt
+    }
+
+    nonisolated private func requiredConversionSchemaPrompt(for contract: AIGeneratedCardContract) -> String {
+        switch contract {
+        case .flashcard:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        REQUIRED JSON SCHEMA (CRITICAL - DO NOT ALTER)
+        ═══════════════════════════════════════════════════════
+        {
+          "results": [
+            {
+              "source_index": 0,
+              "question_zones": ["string1", "string2"],
+              "answer_zones": ["string1", "string2"]
+            }
+          ]
+        }
+        STRICT RULES:
+        - "results" MUST contain EXACTLY one object per source card.
+        - "source_index" MUST exactly match the source card index provided in the prompt.
+        - "question_zones" and "answer_zones" MUST be arrays of strings.
+        """
+        case .match:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        REQUIRED JSON SCHEMA (CRITICAL - DO NOT ALTER)
+        ═══════════════════════════════════════════════════════
+        {
+          "results": [
+            {
+              "source_index": 0,
+              "prompt": "string",
+              "answer": "string"
+            }
+          ]
+        }
+        STRICT RULES:
+        - "results" MUST contain EXACTLY one object per source card.
+        - "source_index" MUST exactly match the source card index provided in the prompt.
+        - "prompt" and "answer" MUST be short plain strings.
+        """
+        case .quiz:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        REQUIRED JSON SCHEMA (CRITICAL - DO NOT ALTER)
+        ═══════════════════════════════════════════════════════
+        {
+          "results": [
+            {
+              "source_index": 0,
+              "question_zones": ["string1", "string2"],
+              "choices": ["choice 1", "choice 2", "choice 3", "choice 4"],
+              "correct_indexes": [1],
+              "explanation_zones": ["string1"]
+            }
+          ]
+        }
+        STRICT RULES:
+        - "results" MUST contain EXACTLY one object per source card.
+        - "source_index" MUST exactly match the source card index provided in the prompt.
+        - "correct_indexes" MUST be zero-based indexes into "choices".
+        - "choices" MUST contain at least four plausible options.
+        """
+        case .write:
+            return """
+
+        ═══════════════════════════════════════════════════════
+        REQUIRED JSON SCHEMA (CRITICAL - DO NOT ALTER)
+        ═══════════════════════════════════════════════════════
+        {
+          "results": [
+            {
+              "source_index": 0,
+              "source_text": "string",
+              "omitted_text": "string"
+            }
+          ]
+        }
+        STRICT RULES:
+        - "results" MUST contain EXACTLY one object per source card.
+        - "source_index" MUST exactly match the source card index provided in the prompt.
+        - "source_text" MUST contain "omitted_text" exactly once, verbatim.
+        """
+        }
     }
 
     nonisolated private func cardTypePromptAddition(for type: AICardGenerationType) -> String {
@@ -1799,6 +2089,22 @@ public final class AIFlashcardService: @unchecked Sendable {
             let content = try self.parseResponseContent(from: data)
             let decoded = try JSONDecoder().decode(DeckTitleResponseDTO.self, from: Data(content.utf8))
             return decoded.deck_title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    private func sendConversionRequest(
+        messages: [[String: Any]],
+        model: String,
+        sourceCards: [AICardConversionSource],
+        targetType: AICardGenerationType
+    ) async throws -> [AICardConversionOutput] {
+        try await performRetriableJSONRequest(messages: messages, model: model) { [self] data in
+            let content = try self.parseResponseContent(from: data)
+            return try self.decodeConvertedCards(
+                from: content,
+                sourceCards: sourceCards,
+                contract: targetType.outputContract
+            )
         }
     }
 
@@ -2134,6 +2440,28 @@ public final class AIFlashcardService: @unchecked Sendable {
                         )
                     )
                 }
+            case .match:
+                let dto = try JSONDecoder().decode(MatchResponseDTO.self, from: data)
+                guard !dto.cards.isEmpty else { throw AIServiceError.parsingFailed }
+
+                return try dto.cards.map { card in
+                    let prompt = normalizedMatchText(card.prompt)
+                    let answer = normalizedMatchText(card.answer)
+
+                    guard !prompt.isEmpty, !answer.isEmpty else {
+                        throw AIServiceError.parsingFailed
+                    }
+
+                    return AIFlashcard(
+                        id: UUID(),
+                        content: .match(
+                            AIMatchCardContent(
+                                prompt: prompt,
+                                answer: answer
+                            )
+                        )
+                    )
+                }
             case .quiz:
                 let dto = try JSONDecoder().decode(QuizResponseDTO.self, from: data)
                 guard !dto.cards.isEmpty else { throw AIServiceError.parsingFailed }
@@ -2194,10 +2522,203 @@ public final class AIFlashcardService: @unchecked Sendable {
         }
     }
 
+    private func decodeConvertedCards(
+        from jsonString: String,
+        sourceCards: [AICardConversionSource],
+        contract: AIGeneratedCardContract
+    ) throws -> [AICardConversionOutput] {
+        var clean = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if clean.hasPrefix("```json") {
+            clean = String(clean.dropFirst(7))
+        } else if clean.hasPrefix("```") {
+            clean = String(clean.dropFirst(3))
+        }
+        if clean.hasSuffix("```") {
+            clean = String(clean.dropLast(3))
+        }
+
+        clean = fixLatexEscaping(in: clean.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard let data = clean.data(using: .utf8) else {
+            throw AIServiceError.parsingFailed
+        }
+
+        func mappedOutputs<T>(
+            _ results: [T],
+            sourceIndex: (T) -> Int,
+            makeCard: (T) throws -> AIFlashcard
+        ) throws -> [AICardConversionOutput] {
+            guard results.count == sourceCards.count else {
+                throw AIServiceError.parsingFailed
+            }
+
+            let outputs = try results.map { result -> AICardConversionOutput in
+                let index = sourceIndex(result)
+                guard sourceCards.indices.contains(index) else {
+                    throw AIServiceError.parsingFailed
+                }
+                return AICardConversionOutput(
+                    sourceCardID: sourceCards[index].id,
+                    generatedCard: try makeCard(result)
+                )
+            }
+
+            let uniqueSourceIDs = Set(outputs.map(\.sourceCardID))
+            guard uniqueSourceIDs.count == sourceCards.count else {
+                throw AIServiceError.parsingFailed
+            }
+
+            return outputs
+        }
+
+        switch contract {
+        case .flashcard:
+            let dto = try JSONDecoder().decode(FlashcardConversionResponseDTO.self, from: data)
+            return try mappedOutputs(dto.results, sourceIndex: \.source_index) { result in
+                AIFlashcard(
+                    content: .flashcard(
+                        AIFlashcardContent(
+                            questionZones: sanitizedZoneStrings(result.question_zones),
+                            answerZones: sanitizedZoneStrings(result.answer_zones)
+                        )
+                    )
+                )
+            }
+        case .match:
+            let dto = try JSONDecoder().decode(MatchConversionResponseDTO.self, from: data)
+            return try mappedOutputs(dto.results, sourceIndex: \.source_index) { result in
+                AIFlashcard(
+                    content: .match(
+                        AIMatchCardContent(
+                            prompt: normalizedMatchText(result.prompt),
+                            answer: normalizedMatchText(result.answer)
+                        )
+                    )
+                )
+            }
+        case .quiz:
+            let dto = try JSONDecoder().decode(QuizConversionResponseDTO.self, from: data)
+            return try mappedOutputs(dto.results, sourceIndex: \.source_index) { result in
+                let questionZones = sanitizedZoneStrings(result.question_zones)
+                let choices = result.choices
+                    .map { AIZoneParser.sanitizeLatex($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                let correctIndexes = normalizedCorrectIndexes(result.correct_indexes, choiceCount: choices.count)
+                let explanationZones = sanitizedZoneStrings(result.explanation_zones ?? [])
+
+                guard !questionZones.isEmpty, choices.count >= 2, !correctIndexes.isEmpty else {
+                    throw AIServiceError.parsingFailed
+                }
+
+                return AIFlashcard(
+                    content: .quiz(
+                        AIQuizCardContent(
+                            questionZones: questionZones,
+                            choices: choices,
+                            correctIndexes: correctIndexes,
+                            explanationZones: explanationZones.isEmpty ? nil : explanationZones
+                        )
+                    )
+                )
+            }
+        case .write:
+            let dto = try JSONDecoder().decode(WriteConversionResponseDTO.self, from: data)
+            return try mappedOutputs(dto.results, sourceIndex: \.source_index) { result in
+                let sourceText = AIZoneParser.sanitizeLatex(result.source_text)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let omittedText = AIZoneParser.sanitizeLatex(result.omitted_text)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                guard !sourceText.isEmpty, !omittedText.isEmpty else {
+                    throw AIServiceError.parsingFailed
+                }
+
+                return AIFlashcard(
+                    content: .write(
+                        AIWriteCardContent(
+                            sourceText: sourceText,
+                            omittedText: omittedText
+                        )
+                    )
+                )
+            }
+        }
+    }
+
+    private nonisolated func conversionSourceBody(for content: DraftCardContent) -> String {
+        switch content {
+        case .flashcard(let content):
+            return """
+            FRONT:
+            \(sanitizedConversionBlock(content.frontZone.previewText(maxLength: 1_200)))
+
+            BACK:
+            \(sanitizedConversionBlock(content.backZone.previewText(maxLength: 1_200)))
+            """
+        case .match(let content):
+            return """
+            PROMPT:
+            \(sanitizedConversionLine(content.prompt))
+
+            ANSWER:
+            \(sanitizedConversionLine(content.answer))
+            """
+        case .quiz(let content):
+            let choices = content.choices.enumerated().map { index, choice in
+                let prefix = choice.isCorrect ? "[correct]" : "[option]"
+                return "\(index). \(prefix) \(sanitizedConversionLine(choice.contentZone.previewText(maxLength: 240)))"
+            }
+            .joined(separator: "\n")
+
+            let explanation = content.explanationZone?.previewText(maxLength: 800) ?? ""
+            let explanationSection = explanation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "EXPLANATION:\nNone"
+                : "EXPLANATION:\n\(sanitizedConversionBlock(explanation))"
+
+            return """
+            QUESTION:
+            \(sanitizedConversionBlock(content.questionZone.previewText(maxLength: 1_000)))
+
+            CHOICES:
+            \(choices)
+
+            \(explanationSection)
+            """
+        case .write(let content):
+            return """
+            SOURCE_TEXT:
+            \(sanitizedConversionBlock(content.sourceZone.previewText(maxLength: 1_200)))
+
+            OMITTED_TEXT:
+            \(sanitizedConversionLine(content.blankSelection.omittedText))
+            """
+        }
+    }
+
     private func sanitizedZoneStrings(_ values: [String]) -> [String] {
         values
             .map { AIZoneParser.sanitizeLatex($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    private nonisolated func sanitizedConversionBlock(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Empty" }
+        return trimmed
+    }
+
+    private nonisolated func sanitizedConversionLine(_ value: String) -> String {
+        let trimmed = value
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Empty" }
+        return trimmed
+    }
+
+    private func normalizedMatchText(_ value: String) -> String {
+        AIZoneParser.sanitizeLatex(value)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func normalizedCorrectIndexes(_ indexes: [Int], choiceCount: Int) -> [Int] {

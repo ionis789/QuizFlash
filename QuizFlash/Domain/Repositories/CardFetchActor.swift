@@ -69,6 +69,13 @@ struct CardDataSnapshot: Sendable {
     let stats: DeckStats
 }
 
+/// A sendable conversion-ready projection of a persisted card.
+struct CardConversionSourceSnapshot: Sendable {
+    let id: PersistentIdentifier
+    let kind: CardKind
+    let content: DraftCardContent
+}
+
 // MARK: - CardFetchActor
 
 /// A Swift actor that performs all card-related data fetches on a dedicated background context.
@@ -175,6 +182,8 @@ actor CardFetchActor {
                 gridCards.append(GridCardInfo(
                     id:                   card.persistentModelID,
                     kind:                 card.kind,
+                    creationSource:       card.creationSource,
+                    conversionMetadata:   card.conversionMetadata,
                     cardNumber:           card.cardNumber,
                     interval:             card.interval,
                     reviewHistoryIsEmpty: card.reviewHistory.isEmpty,
@@ -199,6 +208,44 @@ actor CardFetchActor {
             gridCards: gridCards,
             stats:     accum.build(count: gridCards.count)
         )
+    }
+
+    /// Fetches full heterogeneous card payloads for a conversion run without
+    /// exposing live `CardModel` instances to the main actor.
+    func fetchConversionSources(
+        deckID: PersistentIdentifier,
+        cardIDs: [PersistentIdentifier]? = nil
+    ) -> [CardConversionSourceSnapshot] {
+        guard let deck = activeContext.model(for: deckID) as? DeckModel else {
+            return []
+        }
+
+        let deckCards = resolvedCards(for: deck, deckID: deckID)
+        let filteredCards: [CardModel]
+        if let cardIDs, !cardIDs.isEmpty {
+            let allowedIDs = Set(cardIDs)
+            filteredCards = deckCards.filter { allowedIDs.contains($0.persistentModelID) }
+        } else {
+            filteredCards = deckCards
+        }
+
+        let orderedCards = filteredCards.sorted { lhs, rhs in
+            if lhs.cardNumber != rhs.cardNumber {
+                return lhs.cardNumber < rhs.cardNumber
+            }
+            return lhs.createdAt < rhs.createdAt
+        }
+
+        let projected = orderedCards.map { card in
+            CardConversionSourceSnapshot(
+                id: card.persistentModelID,
+                kind: card.kind,
+                content: card.cardContent
+            )
+        }
+
+        flushContext()
+        return projected
     }
 
     /// Resolves cards for the deck using the direct relationship first, then

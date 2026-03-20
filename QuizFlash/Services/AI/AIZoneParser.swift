@@ -12,17 +12,17 @@ import Foundation
 
 struct AIZoneParser {
 
-    static let zoneDelimiter = "|||ZONE|||"
+    nonisolated static let zoneDelimiter = "|||ZONE|||"
 
     // -------------------------------------------------------------------------
     // MARK: - Public API
     // -------------------------------------------------------------------------
 
-    static func parse(text: String) -> ZoneModel {
+    nonisolated static func parse(text: String) -> ZoneModel {
         parse(zones: extractZoneStrings(from: text))
     }
 
-    static func parse(zones: [String]) -> ZoneModel {
+    nonisolated static func parse(zones: [String]) -> ZoneModel {
         let cleaned = zones
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -33,7 +33,7 @@ struct AIZoneParser {
     // MARK: - Extraction
     // -------------------------------------------------------------------------
 
-    private static func extractZoneStrings(from text: String) -> [String] {
+    private nonisolated static func extractZoneStrings(from text: String) -> [String] {
         var raw = text.trimmingCharacters(in: .whitespacesAndNewlines)
         raw = fixLiteralNewlines(raw)
 
@@ -46,7 +46,7 @@ struct AIZoneParser {
             .filter { !$0.isEmpty }
     }
 
-    private static func mergeSplitCodeFenceZones(in zones: [String]) -> [String] {
+    private nonisolated static func mergeSplitCodeFenceZones(in zones: [String]) -> [String] {
         guard !zones.isEmpty else { return [] }
 
         var merged: [String] = []
@@ -89,7 +89,7 @@ struct AIZoneParser {
     // MARK: - Tree Builder  (NO recursion)
     // -------------------------------------------------------------------------
 
-    private static func buildTree(from zones: [String]) -> ZoneModel {
+    private nonisolated static func buildTree(from zones: [String]) -> ZoneModel {
         switch zones.count {
         case 0: return .empty()
         case 1: return makeLeaf(zones[0])
@@ -97,7 +97,7 @@ struct AIZoneParser {
         }
     }
 
-    private static func makeLeaf(_ content: String) -> ZoneModel {
+    private nonisolated static func makeLeaf(_ content: String) -> ZoneModel {
         let processed = fixLiteralNewlines(content)
         let trimmed = processed.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .empty() }
@@ -120,11 +120,11 @@ struct AIZoneParser {
         return .text(processed)
     }
 
-    private static func startsUnbalancedCodeFence(_ input: String) -> Bool {
+    private nonisolated static func startsUnbalancedCodeFence(_ input: String) -> Bool {
         input.hasPrefix("```") && !hasBalancedCodeFences(in: input)
     }
 
-    private static func hasBalancedCodeFences(in input: String) -> Bool {
+    private nonisolated static func hasBalancedCodeFences(in input: String) -> Bool {
         let fenceCount = input.components(separatedBy: "```").count - 1
         return fenceCount.isMultiple(of: 2)
     }
@@ -136,7 +136,7 @@ struct AIZoneParser {
     /// Replaces backslash-n sequences with real newlines, but only when they
     /// are clearly escaped newlines (followed by whitespace/digit), NOT when
     /// they are the start of a LaTeX command like \nabla or \nu.
-    static func fixLiteralNewlines(_ input: String) -> String {
+    nonisolated static func fixLiteralNewlines(_ input: String) -> String {
         guard let regex = try? NSRegularExpression(
             pattern: #"\\n(?=[ \t\r\d\$\-\*\•]|$)"#
         ) else { return input }
@@ -155,7 +155,7 @@ struct AIZoneParser {
     ///      before fixLiteralNewlines so we don't confuse \\n with \n.
     ///   2. Fix literal \n sequences → real newlines.
     ///   3. Fix unbalanced $$ delimiters.
-    static func sanitizeForStorage(_ input: String) -> String {
+    nonisolated static func sanitizeForStorage(_ input: String) -> String {
         var t = input.trimmingCharacters(in: .whitespacesAndNewlines)
         t = fixOverescapedLatex(t)   // ← NEW: handles GPT double-backslash hallucination
         t = fixLiteralNewlines(t)
@@ -164,7 +164,7 @@ struct AIZoneParser {
     }
 
     /// Backwards-compatible alias.
-    static func sanitizeLatex(_ input: String) -> String { sanitizeForStorage(input) }
+    nonisolated static func sanitizeLatex(_ input: String) -> String { sanitizeForStorage(input) }
 
     // -------------------------------------------------------------------------
     // MARK: - Over-escaping Fix  (post JSON-decode)
@@ -182,7 +182,7 @@ struct AIZoneParser {
     ///   • A lone \\ followed by whitespace or end-of-string (LaTeX line break)
     ///
     /// Must be called AFTER JSONDecoder, i.e. on the already-decoded Swift String.
-    static func fixOverescapedLatex(_ input: String) -> String {
+    nonisolated static func fixOverescapedLatex(_ input: String) -> String {
         // Match: exactly two backslashes followed by a LaTeX-significant char
         // (letter, {, }, |, comma, semicolon, backslash again only if it would
         //  create a triple — we stop at \\\\).
@@ -218,7 +218,7 @@ struct AIZoneParser {
     // MARK: - Helpers
     // -------------------------------------------------------------------------
 
-    private static func fixUnbalancedDoubleDollars(_ input: String) -> String {
+    private nonisolated static func fixUnbalancedDoubleDollars(_ input: String) -> String {
         var count = 0
         var searchRange = input.startIndex..<input.endIndex
         while let range = input.range(of: "$$", range: searchRange) {
@@ -234,6 +234,6 @@ struct AIZoneParser {
 // =============================================================================
 
 extension ZoneModel {
-    static func fromAIZones(_ zones: [String]) -> ZoneModel { AIZoneParser.parse(zones: zones) }
-    static func fromAIText(_ text: String) -> ZoneModel { AIZoneParser.parse(text: text) }
+    nonisolated static func fromAIZones(_ zones: [String]) -> ZoneModel { AIZoneParser.parse(zones: zones) }
+    nonisolated static func fromAIText(_ text: String) -> ZoneModel { AIZoneParser.parse(text: text) }
 }

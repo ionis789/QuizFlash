@@ -30,6 +30,9 @@ final class FlashCardsPlayModeViewModel {
     /// The deck that this session is playing through.
     let deck: DeckModel
 
+    /// The deck-scoped flashcard settings captured when the session starts.
+    let settings: FlashcardModeSettings
+
     /// Lightweight, `Sendable` snapshots of the deck's cards loaded for playback.
     var cards: [PlayableCard] = []
 
@@ -123,8 +126,9 @@ final class FlashCardsPlayModeViewModel {
 
     // MARK: - Init
 
-    init(deck: DeckModel) {
+    init(deck: DeckModel, settings: FlashcardModeSettings) {
         self.deck = deck
+        self.settings = settings
         self.currentCardStartTime = Date()
     }
 
@@ -148,14 +152,9 @@ final class FlashCardsPlayModeViewModel {
         let loadedCards = await repository.loadPlayableCards(for: deck.persistentModelID)
 
         // Study-order sort: new cards (interval == 0) first, then by shortest interval.
-        self.cards = loadedCards.sorted {
-            let i1 = $0.interval
-            let i2 = $1.interval
-            if i1 == 0 && i2 != 0 { return true }
-            if i1 != 0 && i2 == 0 { return false }
-            return i1 < i2
-        }
+        self.cards = orderedCards(loadedCards)
         self.totalCardCount = self.cards.count
+        self.isFlipped = settings.revealFlow == .answerFirst
 
         self.isSessionStarted = true
     }
@@ -205,7 +204,7 @@ final class FlashCardsPlayModeViewModel {
             wrongCards.append(playableCard)
         }
 
-        isFlipped            = false
+        isFlipped            = settings.revealFlow == .answerFirst
         currentIndex        += 1        // The next card appears here.
         currentCardStartTime = Date()
 
@@ -243,19 +242,13 @@ final class FlashCardsPlayModeViewModel {
         wrongCards = []
 
         // Maintain study order for the retry batch.
-        cards = retry.sorted {
-            let i1 = $0.interval
-            let i2 = $1.interval
-            if i1 == 0 && i2 != 0 { return true }
-            if i1 != 0 && i2 == 0 { return false }
-            return i1 < i2
-        }
+        cards = orderedCards(retry)
         totalCardCount = cards.count
 
         currentIndex = 0
         correctCount = 0
         isComplete   = false
-        isFlipped    = false
+        isFlipped    = settings.revealFlow == .answerFirst
         currentCardStartTime = Date()
     }
 
@@ -273,6 +266,38 @@ final class FlashCardsPlayModeViewModel {
 
         if let wrongCardIndex = wrongCards.firstIndex(where: { $0.id == cardID }) {
             wrongCards[wrongCardIndex] = refreshedCard
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func orderedCards(_ cards: [PlayableCard]) -> [PlayableCard] {
+        switch settings.order {
+        case .studyPriority:
+            return cards.sorted {
+                let i1 = $0.interval
+                let i2 = $1.interval
+                if i1 == 0 && i2 != 0 { return true }
+                if i1 != 0 && i2 == 0 { return false }
+                if i1 != i2 { return i1 < i2 }
+                return $0.cardNumber < $1.cardNumber
+            }
+        case .newestFirst:
+            return cards.sorted { lhs, rhs in
+                if lhs.cardNumber != rhs.cardNumber {
+                    return lhs.cardNumber > rhs.cardNumber
+                }
+                return lhs.interval < rhs.interval
+            }
+        case .oldestFirst:
+            return cards.sorted { lhs, rhs in
+                if lhs.cardNumber != rhs.cardNumber {
+                    return lhs.cardNumber < rhs.cardNumber
+                }
+                return lhs.interval < rhs.interval
+            }
+        case .shuffled:
+            return cards.shuffled()
         }
     }
 }

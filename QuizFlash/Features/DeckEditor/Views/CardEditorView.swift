@@ -18,6 +18,8 @@ struct CardEditorView: View {
         switch destination.kind {
         case .flashcard:
             flashcardEditor
+        case .match:
+            matchEditor
         case .quiz:
             quizEditor
         case .write:
@@ -82,6 +84,8 @@ struct CardEditorView: View {
         switch destination {
         case .create:
             return .empty
+        case .createFromDraft(_, let draftCard):
+            return draftCard.content.flashcardCompatibilityContent
         case .edit(let draftCard):
             return draftCard.content.flashcardCompatibilityContent
         }
@@ -96,9 +100,31 @@ struct CardEditorView: View {
         }
     }
 
+    private var matchEditor: some View {
+        MatchCardEditorView(initialContent: resolvedMatchContent) { content in
+            onSave(.match(content))
+        }
+    }
+
+    private var resolvedMatchContent: MatchCardContent {
+        switch destination {
+        case .create:
+            return .empty
+        case .createFromDraft(_, let draftCard):
+            return draftCard.content.matchCompatibilityContent
+        case .edit(let draftCard):
+            if case .match(let content) = draftCard.content {
+                return content
+            }
+            return .empty
+        }
+    }
+
     private var resolvedQuizContent: QuizCardContent {
         switch destination {
         case .create:
+            return .empty
+        case .createFromDraft:
             return .empty
         case .edit(let draftCard):
             if case .quiz(let content) = draftCard.content {
@@ -117,6 +143,8 @@ struct CardEditorView: View {
     private var resolvedWriteContent: WriteCardContent {
         switch destination {
         case .create:
+            return .empty
+        case .createFromDraft:
             return .empty
         case .edit(let draftCard):
             if case .write(let content) = draftCard.content {

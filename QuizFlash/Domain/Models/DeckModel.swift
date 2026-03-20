@@ -10,6 +10,24 @@
 import Foundation
 import SwiftData
 
+// MARK: - Deck Card Grouping Mode
+
+/// Controls how `DeckView` sections cards after the active sort order is applied.
+nonisolated enum DeckCardGroupingMode: String, Codable, CaseIterable, Sendable {
+    case chronological
+    case byCardType
+
+    /// Human-readable label shown in deck menus.
+    var title: String {
+        switch self {
+        case .chronological:
+            return "By Date"
+        case .byCardType:
+            return "By Card Type"
+        }
+    }
+}
+
 // MARK: - Deck Model
 
 /// A SwiftData persistent model representing a collection of `CardModel` objects.
@@ -50,6 +68,9 @@ class DeckModel {
     /// to read `.count`. Always keep this value in sync with `cards.count`.
     var cardCount: Int = 0
 
+    /// Raw string backing the persisted card grouping preference for this deck.
+    var cardGroupingModeRaw: String = DeckCardGroupingMode.chronological.rawValue
+
     // MARK: - Relationships
 
     /// The folder this deck belongs to. `nil` if the deck is in the root library.
@@ -58,6 +79,19 @@ class DeckModel {
     /// All cards contained in this deck.
     @Relationship(deleteRule: .cascade)
     var cards: [CardModel] = []
+
+    /// Persisted play-mode settings scoped to this specific deck.
+    @Relationship(deleteRule: .cascade, inverse: \DeckPlayModeSettingsModel.deck)
+    var playModeSettings: DeckPlayModeSettingsModel?
+
+    /// Exam goals that currently include this deck in their study scope.
+    var examGoals: [ExamGoalModel] = []
+
+    /// The persisted grouping preference used by `DeckView`.
+    var cardGroupingMode: DeckCardGroupingMode {
+        get { DeckCardGroupingMode(rawValue: cardGroupingModeRaw) ?? .chronological }
+        set { cardGroupingModeRaw = newValue.rawValue }
+    }
 
     // MARK: - Initializer
 
@@ -74,5 +108,8 @@ class DeckModel {
         self.createdAt = Date()
         self.editedAt = Date()
         self.lastAssignedCardNumber = 0
+        self.cardGroupingModeRaw = DeckCardGroupingMode.chronological.rawValue
+        self.playModeSettings = nil
+        self.examGoals = []
     }
 }

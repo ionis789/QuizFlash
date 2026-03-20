@@ -31,7 +31,10 @@ struct MatchModeView: View {
                 Color(uiColor: .systemBackground)
                     .onAppear {
                         if viewModel == nil {
-                            viewModel = MatchModeViewModel(deck: deck)
+                            viewModel = MatchModeViewModel(
+                                deck: deck,
+                                settings: deck.playModeSettings?.matchSettings ?? MatchModeSettings()
+                            )
                         }
                     }
             }
@@ -65,7 +68,8 @@ private struct MatchModeSessionView: View {
             let resolvedSafeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
             let headerHorizontalPadding: CGFloat = isCompact ? 20 : 32
             let headerBottomPadding: CGFloat = isCompact ? 18 : 28
-            let roundCapacity = isCompact && !isLandscape ? 6 : 8
+            let preferredRoundSize = viewModel.settings.roundSize.rawValue
+            let roundCapacity = min(preferredRoundSize, isCompact && !isLandscape ? 6 : 8)
 
             ZStack {
                 if fullScreenSheetDismiss == nil {
@@ -134,8 +138,10 @@ private struct MatchModeSessionView: View {
         case .empty:
             centeredStateCard(
                 icon: "rectangle.stack.badge.minus",
-                title: "No Match Cards Yet",
-                message: "This deck needs flashcards before Match can build prompt-and-answer pairs."
+                title: viewModel.settings.allowsFlashcardFallback ? "No Match Cards Yet" : "Flashcard Fallback Disabled",
+                message: viewModel.settings.allowsFlashcardFallback
+                    ? "This deck needs flashcards before Match can build prompt-and-answer pairs."
+                    : "Enable flashcard fallback in Match settings or add dedicated match-ready content before launching this mode."
             )
         case .invalid:
             centeredStateCard(
@@ -151,8 +157,8 @@ private struct MatchModeSessionView: View {
                 message: viewModel.errorMessage.isEmpty ? "The match session couldn't be prepared right now." : viewModel.errorMessage
             )
         case .ready:
-            if let activeRound = viewModel.activeRound {
-                matchBoard(for: activeRound, availableSize: geo.size)
+            if viewModel.activeRound != nil {
+                matchBoard(availableSize: geo.size)
             } else {
                 centeredStateCard(
                     icon: "square.grid.2x2.fill",
@@ -182,58 +188,54 @@ private struct MatchModeSessionView: View {
         }
     }
 
-    private func matchBoard(for round: MatchRoundState, availableSize: CGSize) -> some View {
-        let lookup = Dictionary(uniqueKeysWithValues: round.pairs.map { ($0.id, $0) })
-        let activePromptIDs = round.promptOrder.filter { !viewModel.matchedIDs.contains($0) }
-        let activeAnswerIDs = round.answerOrder.filter { !viewModel.matchedIDs.contains($0) }
-        let laneCount = max(activePromptIDs.count, 1)
-        let laneSpacing = UIConstants.Spacing.small
-        let totalSpacing = CGFloat(max(0, laneCount - 1)) * laneSpacing
-        let approximateHeader: CGFloat = viewModel.isRetryRound ? 70 : 42
-        let availableHeight = max(260, availableSize.height - headerHeight - approximateHeader - 40)
-        let tileHeight = max(54, min(92, (availableHeight - totalSpacing) / CGFloat(max(laneCount, 1))))
-
-        return VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+    private func matchBoard(availableSize: CGSize) -> some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             if viewModel.isRetryRound {
                 retryRoundBanner
             }
 
-            HStack(alignment: .top, spacing: UIConstants.Spacing.small) {
-                VStack(spacing: laneSpacing) {
-                    ForEach(activePromptIDs, id: \.self) { id in
-                        if let pair = lookup[id] {
-                            MatchTileButton(
-                                text: pair.promptPreview,
-                                tint: .blue,
-                                isSelected: viewModel.selectedPromptID == id,
-                                isMismatch: viewModel.mismatchPromptID == id,
-                                mismatchToken: viewModel.mismatchAnimationToken,
-                                height: tileHeight,
-                                action: { viewModel.selectPrompt(id) }
-                            )
-                        }
-                    }
-                }
+            if viewModel.isUsingFlashcardFallback {
+                fallbackWarningBanner
+            }
 
-                VStack(spacing: laneSpacing) {
-                    ForEach(activeAnswerIDs, id: \.self) { id in
-                        if let pair = lookup[id] {
+            if let prompt = viewModel.currentPromptPair {
+                activePromptCard(for: prompt)
+                    .id(prompt.id)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: UIConstants.Spacing.small) {
+                        ForEach(viewModel.remainingAnswerPairs) { pair in
                             MatchTileButton(
                                 text: pair.answerPreview,
                                 tint: .green,
-                                isSelected: viewModel.selectedAnswerID == id,
-                                isMismatch: viewModel.mismatchAnswerID == id,
+                                isSelected: viewModel.selectedAnswerID == pair.id,
+                                isMismatch: viewModel.mismatchAnswerID == pair.id,
                                 mismatchToken: viewModel.mismatchAnimationToken,
-                                height: tileHeight,
-                                action: { viewModel.selectAnswer(id) }
+                                density: viewModel.settings.contentDensity,
+                                minHeight: viewModel.settings.contentDensity == .compact ? 68 : 82,
+                                action: { viewModel.selectAnswer(pair.id) }
                             )
                         }
                     }
+                    .padding(.bottom, UIConstants.Spacing.small)
                 }
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: max(220, availableSize.height * 0.34),
+                    maxHeight: .infinity,
+                    alignment: .top
+                )
+            } else {
+                centeredStateCard(
+                    icon: "checkmark.circle.fill",
+                    title: "Round Cleared",
+                    message: "Preparing the next prompt."
+                )
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .animation(.spring(response: 0.3, dampingFraction: 0.86), value: viewModel.currentPromptPair?.id)
     }
 
     private var retryRoundBanner: some View {
@@ -243,6 +245,62 @@ private struct MatchModeSessionView: View {
             .padding(.horizontal, UIConstants.Spacing.medium)
             .padding(.vertical, UIConstants.Spacing.small)
             .background(Color.orange.opacity(0.14), in: Capsule())
+    }
+
+    private var fallbackWarningBanner: some View {
+        HStack(alignment: .top, spacing: UIConstants.Spacing.small) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 14, weight: .black))
+                .foregroundStyle(.orange)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Using Flashcard Fallback")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.primary)
+
+                Text("This build still prepares Match from short flashcard previews. Shorter front/back text works best on small screens.")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, UIConstants.Spacing.medium)
+        .padding(.vertical, UIConstants.Spacing.small)
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
+    }
+
+    private func activePromptCard(for pair: MatchPlayablePair) -> some View {
+        PlayModeContentCard(cornerRadius: UIConstants.Radius.maximum) {
+            HStack(alignment: .firstTextBaseline, spacing: UIConstants.Spacing.small) {
+                Text("CURRENT PROMPT")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
+
+                Text("\(viewModel.remainingPairsInRound) LEFT")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.blue)
+                    .padding(.horizontal, UIConstants.Spacing.small)
+                    .padding(.vertical, 6)
+                    .background(Color.blue.opacity(0.12), in: Capsule())
+            }
+
+            MixedMathTextView(
+                text: pair.promptPreview,
+                fontSize: viewModel.settings.contentDensity == .compact ? 24 : 27,
+                textColor: .primary,
+                alignment: .leading,
+                isBold: true,
+                isInteractive: false,
+                allowsReadOnlyOverflowScrolling: true
+            )
+
+            Text("Pick the matching answer from the list below. After a correct match, the next prompt slides in automatically.")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private func headerMetric(value: Int, symbol: String, tint: Color) -> some View {
@@ -325,18 +383,29 @@ private struct MatchTileButton: View {
     let isSelected: Bool
     let isMismatch: Bool
     let mismatchToken: Int
-    let height: CGFloat
+    let density: MatchContentDensity
+    let minHeight: CGFloat
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(text)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .lineLimit(3)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .leading)
-                .padding(.horizontal, UIConstants.Spacing.medium)
+            HStack(alignment: .top, spacing: UIConstants.Spacing.small) {
+                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(isMismatch ? Color.red : tint.opacity(isSelected ? 0.95 : 0.55))
+
+                Text(text)
+                    .font(.system(size: density == .compact ? 17 : 19, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(nil)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
+            .padding(.horizontal, UIConstants.Spacing.medium)
+            .padding(.vertical, UIConstants.Spacing.small)
                 .background(background)
                 .overlay {
                     RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)

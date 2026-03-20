@@ -35,6 +35,7 @@ struct DeckContentView: View {
     @State private var selectedPlayModeSettings: DeckPlayModeDestination? = nil
     @State private var previewedCard: CardModel? = nil
     @State private var cardEditorDestination: CardEditorDestination? = nil
+    @State private var showConversionSheet = false
     @State private var showAddCardTypeDialog = false
     @State private var pendingDeleteCardID: PersistentIdentifier? = nil
     @State private var activeActionMenuCardID: PersistentIdentifier? = nil
@@ -105,6 +106,7 @@ struct DeckContentView: View {
             .onAppear {
                 guard !hasLoadedInitialSnapshot, !isSuspended else { return }
                 hasLoadedInitialSnapshot = true
+                viewModel.configureGroupingMode(from: deck.cardGroupingMode)
                 viewModel.requestSnapshotLoad(
                     deckID: deck.persistentModelID,
                     container: context.container
@@ -115,7 +117,8 @@ struct DeckContentView: View {
                       selectedPlayMode == nil,
                       selectedPlayModeSettings == nil,
                       previewedCard == nil,
-                      cardEditorDestination == nil else { return }
+                      cardEditorDestination == nil,
+                      !showConversionSheet else { return }
                 viewModel.tearDown()
                 ImageCache.shared.clearCache()
             }
@@ -156,10 +159,16 @@ struct DeckContentView: View {
                     viewModel.suspendHeavyWork()
                     CardPreviewCache.shared.flush()
                 } else {
+                    viewModel.configureGroupingMode(from: deck.cardGroupingMode)
                     viewModel.requestSnapshotLoad(
                         deckID: deck.persistentModelID,
                         container: context.container
                     )
+                }
+            }
+            .onChange(of: showConversionSheet) { _, isPresented in
+                if !isPresented {
+                    viewModel.dismissConversionSheet()
                 }
             }
             .alert(
@@ -230,6 +239,9 @@ struct DeckContentView: View {
                                 viewModel.clearSelection()
                             }
                         },
+                        onConvert: {
+                            presentSelectionConversion()
+                        },
                         onDelete: { viewModel.showDeleteConfirmation = true }
                     )
                 }
@@ -249,6 +261,7 @@ struct DeckContentView: View {
                     && selectedPlayModeSettings == nil
                     && previewedCard == nil
                     && cardEditorDestination == nil
+                    && !showConversionSheet
                     && activeActionMenuCardID == nil
             ) { dismiss() }
             .animation(.bottomChromeSpring, value: viewModel.isSelecting)
@@ -286,6 +299,12 @@ struct DeckContentView: View {
             searchQuery: searchQuery,
             isSelecting: viewModel.isSelecting,
             sortOrder: $viewModel.sortOrder,
+            groupingMode: Binding(
+                get: { viewModel.groupingMode },
+                set: { newValue in
+                    viewModel.updateGroupingMode(newValue, for: deck, context: context)
+                }
+            ),
             onBack: { dismiss() },
             onAdd: { showAddCardTypeDialog = true },
             onStartSelection: {
@@ -293,6 +312,7 @@ struct DeckContentView: View {
                     viewModel.enterSelectionMode()
                 }
             },
+            onConvert: { presentDeckConversion() },
             onExport: { viewModel.exportDeck(deck) }
         )
     }
@@ -339,11 +359,36 @@ struct DeckContentView: View {
             }
             .fullScreenSheet(
                 ignoresSafeArea: true,
+                isPresented: $showConversionSheet,
+                backgroundReceivesDragProgress: true
+            ) { safeArea in
+                DeckCardConversionSheetView(
+                    viewModel: viewModel,
+                    deck: deck,
+                    safeAreaInsets: safeArea,
+                    onDismiss: {
+                        viewModel.dismissConversionSheet()
+                    },
+                    onOpenDestinationDeck: { destinationDeckID in
+                        openConvertedDeck(destinationDeckID)
+                    }
+                )
+            } background: {
+                CardPreviewModeBackground()
+            }
+            .fullScreenSheet(
+                ignoresSafeArea: true,
                 item: $previewedCard,
                 backgroundReceivesDragProgress: true,
                 dragDismissActivationHeight: 180
             ) { card, safeArea in
-                DeckCardPreviewSheetView(card: card, safeAreaInsets: safeArea)
+                DeckCardPreviewSheetView(
+                    card: card,
+                    safeAreaInsets: safeArea,
+                    onOpenRecommendedConversion: { targetKind in
+                        handlePreviewRecommendedConversion(for: card, targetKind: targetKind)
+                    }
+                )
             } background: {
                 CardPreviewModeBackground()
             }
@@ -466,6 +511,10 @@ struct DeckContentView: View {
                             stats: viewModel.currentStats,
                             deckCardCount: deck.cardCount
                         )
+                        DeckReadinessDiagnosticsView(
+                            summary: viewModel.readinessSummary,
+                            onOpenRecommendedConversion: handleReadinessConversion(_:)
+                        )
                         DeckPlayModesView(
                             deck: deck,
                             availability: viewModel.playModeAvailability,
@@ -474,6 +523,9 @@ struct DeckContentView: View {
                             },
                             onOpenSettings: { mode in
                                 selectedPlayModeSettings = mode
+                            },
+                            onOpenRecommendedConversion: { mode in
+                                handlePlayModeRecommendedConversion(mode)
                             }
                         )
                         .padding(.top, 16)
@@ -505,6 +557,7 @@ struct DeckContentView: View {
                         }
                     },
                     onEditCard: handleEditCard(_:),
+                    onConvertCard: handleConvertCard(_:),
                     onTogglePinned: handleTogglePinned(_:),
                     onDeleteCard: handleDeleteCard(_:),
                     onPresentActionMenu: presentActionMenu(for:),
@@ -556,6 +609,63 @@ struct DeckContentView: View {
         viewModel.togglePinnedState(for: gridCard.id, in: deck, context: context)
     }
 
+    private func handleConvertCard(_ gridCard: GridCardInfo) {
+        dismissActiveActionMenu()
+        viewModel.presentSingleCardConversion(for: gridCard.id, in: deck)
+        showConversionSheet = viewModel.conversionRequest != nil
+    }
+
+    private func handleReadinessConversion(_ targetKind: CardKind) {
+        dismissActiveActionMenu()
+        viewModel.presentReadinessConversion(for: targetKind, in: deck)
+        showConversionSheet = viewModel.conversionRequest != nil
+    }
+
+    private func handlePreviewRecommendedConversion(
+        for card: CardModel,
+        targetKind: CardKind
+    ) {
+        previewedCard = nil
+        viewModel.presentSingleCardConversion(
+            for: card.persistentModelID,
+            in: deck,
+            preferredTargetKind: targetKind
+        )
+        Task { @MainActor in
+            await Task.yield()
+            showConversionSheet = viewModel.conversionRequest != nil
+        }
+    }
+
+    private func handlePlayModeRecommendedConversion(_ mode: DeckPlayModeDestination) {
+        dismissActiveActionMenu()
+
+        switch mode {
+        case .match:
+            if viewModel.readinessSummary.recommendedConversions.contains(where: { $0.targetKind == .match }) {
+                viewModel.presentReadinessConversion(for: .match, in: deck)
+            } else {
+                viewModel.presentDeckConversion(for: deck, preferredTargetKind: .match)
+            }
+        case .flashcards, .quiz, .learn, .write:
+            return
+        }
+
+        showConversionSheet = viewModel.conversionRequest != nil
+    }
+
+    private func openConvertedDeck(_ destinationDeckID: PersistentIdentifier) {
+        showConversionSheet = false
+        viewModel.dismissConversionSheet()
+        router.activeTab = ownerTab
+        router.append(
+            DeckNavigationValue(
+                deckID: destinationDeckID,
+                backLabel: deck.title
+            )
+        )
+    }
+
     private func handleDeleteCard(_ gridCard: GridCardInfo) {
         dismissActiveActionMenu()
         pendingDeleteCardID = gridCard.id
@@ -572,7 +682,7 @@ struct DeckContentView: View {
 
     private func handleCardEditorSave(destination: CardEditorDestination, content: DraftCardContent) {
         switch destination {
-        case .create:
+        case .create, .createFromDraft:
             viewModel.addCard(content: content, to: deck, context: context)
         case .edit(let draftCard):
             guard let cardID = draftCard.originalCardID,
@@ -594,6 +704,18 @@ struct DeckContentView: View {
         }
 
         cardEditorDestination = nil
+    }
+
+    private func presentDeckConversion() {
+        dismissActiveActionMenu()
+        viewModel.presentDeckConversion(for: deck)
+        showConversionSheet = viewModel.conversionRequest != nil
+    }
+
+    private func presentSelectionConversion() {
+        dismissActiveActionMenu()
+        viewModel.presentSelectionConversion(for: deck)
+        showConversionSheet = viewModel.conversionRequest != nil
     }
 
     private func presentActionMenu(for id: PersistentIdentifier) {
@@ -649,6 +771,10 @@ struct DeckContentView: View {
                         dismissActiveActionMenu()
                         handleEditCard(card)
                     },
+                    onConvert: {
+                        dismissActiveActionMenu()
+                        handleConvertCard(card)
+                    },
                     onDelete: {
                         dismissActiveActionMenu()
                         handleDeleteCard(card)
@@ -689,140 +815,46 @@ struct DeckContentView: View {
     private struct DeckCardPreviewSheetView: View {
         let card: CardModel
         let safeAreaInsets: UIEdgeInsets
+        let onOpenRecommendedConversion: (CardKind) -> Void
 
-        @Environment(\.dismiss) private var dismiss
-        @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
         @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-        @Environment(\.colorScheme) private var colorScheme
 
-        @State private var isFlipped = false
-        @State private var topChromeHeight: CGFloat = 0
         @State private var showStats = false
         @Namespace private var statsTransition
 
         private var isCompact: Bool { horizontalSizeClass == .compact }
-        private var accent: Color { ThemeManager.shared.accentColor.color }
-        private var chromeButtonHeight: CGFloat {
-            UIConstants.Size.capsuleHeight
-        }
-        private var leadingChromeWidth: CGFloat {
-            isCompact ? 160 : 188
-        }
 
         var body: some View {
             GeometryReader { geo in
-                let isLandscape = geo.size.width > geo.size.height
-                let resolvedSafeTopInset = max(safeAreaInsets.top, geo.safeAreaInsets.top)
                 let resolvedSafeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
                 let horizontalInset = isCompact
                     ? UIConstants.Layout.compactScreenEdgeInset
                     : UIConstants.Layout.screenEdgeInset
-                let cardHorizontalInset = isCompact
-                    ? UIConstants.Spacing.standard
-                    : (isLandscape ? geo.size.width * 0.15 : 40)
-                let cardTopInset = topChromeHeight + UIConstants.Spacing.medium
-                let cardBottomInset = max(resolvedSafeBottomInset, UIConstants.Spacing.standard)
-                let availableCardHeight = max(
-                    UIConstants.Size.cardMinHeight,
-                    geo.size.height - cardTopInset - cardBottomInset
-                )
                 let panelWidth = min(
                     max(280, geo.size.width * (UIConstants.isPad ? 0.34 : 0.7)),
                     UIConstants.isPad ? 420 : 336
                 )
 
                 ZStack {
-                    if fullScreenSheetDismiss == nil {
-                        CardPreviewModeBackground()
-                            .ignoresSafeArea()
-                    }
-
-                    FlipCard(
-                        frontZone: card.frontZone,
-                        backZone: card.backZone,
-                        isFlipped: $isFlipped
+                    CardPreviewModeView(
+                        content: card.cardContent,
+                        safeAreaInsets: safeAreaInsets,
+                        showsLeadingAccessory: true,
+                        leadingAccessory: AnyView(statsButton),
+                        onOpenRecommendedConversion: onOpenRecommendedConversion
                     )
-                    .frame(maxWidth: .infinity)
-                    .frame(height: availableCardHeight)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        withAnimation(.interactiveSpring(response: 0.45, dampingFraction: 0.85)) {
-                            isFlipped.toggle()
-                        }
-                    }
-                    .padding(.top, cardTopInset)
-                    .padding(.horizontal, cardHorizontalInset)
-                    .padding(.bottom, cardBottomInset)
 
                     if showStats {
                         Color.black.opacity(0.16)
                             .ignoresSafeArea()
                             .onTapGesture { closeStats() }
-                    }
-                }
-                .overlay(alignment: .top) {
-                    previewChrome(
-                        safeTopInset: resolvedSafeTopInset,
-                        horizontalInset: horizontalInset
-                    )
-                }
-                .overlay(alignment: .bottomTrailing) {
-                    if showStats {
                         statsSurface(width: panelWidth)
                             .padding(.trailing, horizontalInset)
                             .padding(.bottom, resolvedSafeBottomInset + UIConstants.Spacing.large)
                     }
                 }
-                .fullScreenSheetDragActivationHeight(cardTopInset)
                 .animation(.spring(response: 0.38, dampingFraction: 0.86), value: showStats)
             }
-        }
-
-        private func previewChrome(safeTopInset: CGFloat, horizontalInset: CGFloat) -> some View {
-            VStack(spacing: UIConstants.Spacing.small) {
-                Capsule()
-                    .fill(Color.white.opacity(colorScheme == .dark ? 0.2 : 0.35))
-                    .frame(width: 56, height: 5)
-                    .accessibilityHidden(true)
-
-                ZStack {
-                    VStack(spacing: 2) {
-                        Text("Preview Mode")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-
-                        faceLabel
-                    }
-
-                    HStack {
-                        statsButton
-                            .frame(width: leadingChromeWidth, alignment: .leading)
-
-                        Spacer(minLength: 0)
-
-                        doneButton
-                            .frame(width: chromeButtonHeight, alignment: .trailing)
-                    }
-                }
-                .frame(height: chromeButtonHeight)
-            }
-            .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
-            .padding(.horizontal, horizontalInset)
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.size.height
-            } action: { newHeight in
-                if abs(topChromeHeight - newHeight) > 0.5 {
-                    topChromeHeight = newHeight
-                }
-            }
-        }
-
-        private var faceLabel: some View {
-            Text(isFlipped ? "ANSWER" : "QUESTION")
-                .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
         }
 
         private var statsButton: some View {
@@ -842,17 +874,6 @@ struct DeckContentView: View {
             .buttonStyle(.plain)
         }
 
-        private var doneButton: some View {
-            Button(action: closePreview) {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(accent)
-                    .frame(width: chromeButtonHeight, height: chromeButtonHeight)
-                    .glassButton(shape: .circle)
-            }
-            .buttonStyle(.plain)
-        }
-
         @ViewBuilder
         private func statsSurface(width: CGFloat) -> some View {
             CardStatsView(card: card, onClose: closeStats)
@@ -865,14 +886,6 @@ struct DeckContentView: View {
         private func closeStats() {
             withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
                 showStats = false
-            }
-        }
-
-        private func closePreview() {
-            if let fullScreenSheetDismiss {
-                fullScreenSheetDismiss()
-            } else {
-                dismiss()
             }
         }
     }

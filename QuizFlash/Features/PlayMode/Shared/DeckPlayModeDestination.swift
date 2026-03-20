@@ -18,6 +18,13 @@ struct PlayModeSettingPreset: Identifiable, Hashable {
     var id: String { title }
 }
 
+/// Compact deck-card callout shown when a play mode is still relying on fallback content.
+struct PlayModeFallbackPrompt: Equatable {
+    let title: String
+    let detail: String
+    let ctaTitle: String
+}
+
 /// Static implementation status for one mode's dedicated gameplay flow.
 enum PlayModeImplementationStatus {
     case gameplayReady
@@ -100,8 +107,10 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
     /// Number of compatible cards for this mode inside the current deck.
     func compatibleCardCount(in availability: PlayModeCardAvailability) -> Int {
         switch self {
-        case .flashcards, .match:
+        case .flashcards:
             return availability.flashcardCards
+        case .match:
+            return availability.matchCards > 0 ? availability.matchCards : availability.flashcardCards
         case .quiz:
             return availability.quizCards
         case .write:
@@ -119,6 +128,21 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
     /// `true` when the gameplay view exists and the deck can actually launch it.
     func canLaunch(with availability: PlayModeCardAvailability) -> Bool {
         isGameplayImplemented && hasCompatibleCards(in: availability)
+    }
+
+    /// Optional fallback warning shown when the mode can launch, but is still using less ideal source content.
+    func fallbackPrompt(in availability: PlayModeCardAvailability) -> PlayModeFallbackPrompt? {
+        switch self {
+        case .match:
+            guard availability.matchCards == 0, availability.flashcardCards > 0 else { return nil }
+            return PlayModeFallbackPrompt(
+                title: "Using flashcard fallback",
+                detail: "Dedicated Match cards will read cleaner than front/back preview pairs on small screens.",
+                ctaTitle: "Convert to Match"
+            )
+        case .flashcards, .quiz, .learn, .write:
+            return nil
+        }
     }
 
     /// Human-readable label for the compatible-card requirement of this mode.
@@ -141,15 +165,15 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
     var settingsHeadline: String {
         switch self {
         case .flashcards:
-            return "Set up the swipe session before you begin."
+            return "Set up how this deck should behave before the session begins."
         case .quiz:
-            return "Quiz v1 runs with authored choice order and fixed validation rules."
+            return "Tune how quiz checks, explanations, and retry passes should behave."
         case .learn:
-            return "Tune how the guided deck briefing should read."
+            return "Tune how the guided deck briefing should read for this deck."
         case .match:
-            return "Match v1 uses preview-text pairs, round chunking, and retry mini-rounds."
+            return "Tune board size, fallback rules, and retry pressure for this deck."
         case .write:
-            return "Write v1 uses anchored blanks and strict normalized answer matching."
+            return "Tune answer entry, matching strictness, reveal timing, and retries."
         }
     }
 
@@ -157,15 +181,15 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
     var settingsSupportingCopy: String {
         switch self {
         case .flashcards:
-            return "This screen will hold card order, retry rules, and other study-session controls for the flashcards mode."
+            return "These controls are stored per deck, so one deck can launch a tighter flashcard flow while another keeps a more forgiving session."
         case .quiz:
-            return "Quiz launches with single-answer instant checks, multi-answer submit flow, authored choice order, and one retry pass. This screen stays reserved for future configuration work."
+            return "Shuffle choices when the deck needs pressure, switch between instant checks and submit flow, and decide when explanations become visible."
         case .learn:
-            return "Learn mode already builds a guided report from this deck. This screen is reserved for future layout, grouping, and reading preferences."
+            return "Learn stays report-only, but the grouping and density can now be tailored to the deck you are reviewing."
         case .match:
-            return "Match launches with fixed v1 behavior: 6-pair compact rounds, 8-pair regular or landscape rounds, preview-text tiles, and automatic retry mini-rounds. This screen stays reserved for future configuration work."
+            return "Match can keep using flashcard-preview fallback for mixed decks, or you can tighten the rules and chunk size for this specific deck."
         case .write:
-            return "Write launches with anchored blank rendering, strict normalized matching, answer reveal on check, and one retry pass. This screen stays reserved for future configuration work."
+            return "Write can stay loose and text-first, or switch into a stricter assisted flow when the deck contains formula-heavy prompts."
         }
     }
 
@@ -233,22 +257,11 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         safeAreaInsets: UIEdgeInsets,
         availability: PlayModeCardAvailability
     ) -> some View {
-        switch self {
-        case .flashcards:
-            FlashCardsModeSettingsView(deck: deck, safeAreaInsets: safeAreaInsets, availability: availability)
-        case .quiz:
-            QuizModeView(deck: deck, safeAreaInsets: safeAreaInsets, availability: availability)
-        case .learn:
-            PlayModeSettingsScreen(
-                deck: deck,
-                mode: .learn,
-                availability: availability,
-                safeAreaInsets: safeAreaInsets
-            )
-        case .match:
-            MatchModeView(deck: deck, safeAreaInsets: safeAreaInsets, availability: availability)
-        case .write:
-            WriteModeView(deck: deck, safeAreaInsets: safeAreaInsets, availability: availability)
-        }
+        PlayModeSettingsScreen(
+            deck: deck,
+            mode: self,
+            availability: availability,
+            safeAreaInsets: safeAreaInsets
+        )
     }
 }
