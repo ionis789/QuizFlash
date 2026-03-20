@@ -105,6 +105,9 @@ struct WriteCardEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbar { toolbarContent }
+            .swipeBack {
+                dismiss()
+            }
             .task {
                 try? await Task.sleep(for: .milliseconds(350))
                 focusManager.requestFocus(for: sourceZone.id)

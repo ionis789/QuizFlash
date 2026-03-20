@@ -10,7 +10,7 @@ import Foundation
 /// Represents the current phase of an AI flashcard generation pipeline.
 ///
 /// Observe this value inside your ViewModel/View to drive progress UI.
-public enum AIGenerationState: Equatable {
+public enum AIGenerationState: Equatable, Sendable {
     /// No operation in progress.
     case idle
     /// The document is being analysed for its type and quality.
@@ -45,7 +45,7 @@ public enum AIGenerationState: Equatable {
 // MARK: - PDF Quality Info
 
 /// Diagnostic metadata returned after analysing a PDF document's text quality.
-struct PDFAnalysisInfo: Equatable {
+nonisolated struct PDFAnalysisInfo: Equatable, Sendable {
     /// Normalised quality score in `[0.0, 1.0]`.
     let quality: Double
     /// Total number of pages in the document.
@@ -80,7 +80,7 @@ struct PDFAnalysisInfo: Equatable {
 }
 
 /// The extraction strategy to use for a given document.
-enum ExtractionMode: String {
+enum ExtractionMode: String, Sendable {
     /// Direct PDFKit text extraction – fast and free.
     case fast = "fast"
     /// On-device Vision OCR or GPT Vision – higher quality, higher cost.
@@ -90,7 +90,7 @@ enum ExtractionMode: String {
 // MARK: - AI Generation Options
 
 /// Card-shape profile requested by the user for AI generation.
-public enum AICardGenerationType: String, CaseIterable, Identifiable, Codable {
+public enum AICardGenerationType: String, CaseIterable, Identifiable, Codable, Sendable {
     case flashcards
     case match
     case quiz
@@ -141,7 +141,7 @@ public enum AICardGenerationType: String, CaseIterable, Identifiable, Codable {
 }
 
 /// Depth and density profile requested by the user for generated cards.
-public enum AICardGenerationLevel: String, CaseIterable, Identifiable, Codable {
+public enum AICardGenerationLevel: String, CaseIterable, Identifiable, Codable, Sendable {
     case simple
     case balanced
     case advanced
@@ -166,7 +166,7 @@ public enum AICardGenerationLevel: String, CaseIterable, Identifiable, Codable {
 }
 
 /// Distribution mode used to decide how much of each source segment is sent to AI.
-public enum AISourceDistributionMode: String, CaseIterable, Identifiable, Codable {
+public enum AISourceDistributionMode: String, CaseIterable, Identifiable, Codable, Sendable {
     case auto
     case manual
 
@@ -188,7 +188,7 @@ public enum AISourceDistributionMode: String, CaseIterable, Identifiable, Codabl
 }
 
 /// One source range assigned to a target number of cards.
-public struct AISourceRangeAllocation: Identifiable, Equatable, Codable {
+public nonisolated struct AISourceRangeAllocation: Identifiable, Equatable, Codable, Sendable {
     public var id: UUID
     public var startIndex: Int
     public var endIndex: Int
@@ -209,7 +209,7 @@ public struct AISourceRangeAllocation: Identifiable, Equatable, Codable {
 
 /// One logical text segment that can be routed independently through the AI
 /// chunk planner (for example one OCR image or one PDF page).
-public struct AITextSourceSegment: Identifiable, Equatable, Codable {
+public struct AITextSourceSegment: Identifiable, Equatable, Codable, Sendable {
     public let id: UUID
     public let index: Int
     public let label: String
@@ -234,7 +234,7 @@ public struct AITextSourceSegment: Identifiable, Equatable, Codable {
 
 /// User-controlled AI generation settings that shape both prompt behavior and
 /// how the source document is chunked into real-time batches.
-public struct AIGenerationOptions: Equatable, Codable {
+public nonisolated struct AIGenerationOptions: Equatable, Codable, Sendable {
     public var cardType: AICardGenerationType = .flashcards
     public var cardLevel: AICardGenerationLevel = .balanced
     /// Legacy persisted field kept for backward compatibility. Delivery is

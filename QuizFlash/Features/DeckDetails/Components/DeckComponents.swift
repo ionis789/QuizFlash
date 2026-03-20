@@ -128,17 +128,54 @@ struct DeckPlayModesView: View {
     let deck: DeckModel
     /// Lightweight compatibility counts derived from the deck snapshot.
     let availability: PlayModeCardAvailability
+    /// Frozen recent-usage dates for the current deck-view session.
+    let recentUsageSnapshot: [DeckPlayModeDestination: Date]
     /// Called when the user taps a play-mode card.
     let onOpenMode: (DeckPlayModeDestination) -> Void
     /// Called when the user taps the mode-specific options button.
     let onOpenSettings: (DeckPlayModeDestination) -> Void
     /// Called when the user opens a recommended conversion from a play-mode card.
     let onOpenRecommendedConversion: (DeckPlayModeDestination) -> Void
+    /// Called when the user taps a mode tile that is currently unavailable.
+    let onRequestUnavailableMode: (DeckPlayModeDestination) -> Void
 
     // MARK: - Computed Properties
 
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
     private var deckColor: Color { Color(hex: deck.colorHex) ?? accentColor }
+    private var orderedModes: [DeckPlayModeDestination] {
+        let visibleModes = DeckPlayModeDestination.allCases.filter { $0 != .learn }
+        let defaultOrder = Dictionary(
+            uniqueKeysWithValues: visibleModes.enumerated().map { ($1, $0) }
+        )
+
+        return visibleModes.sorted { lhs, rhs in
+            let lhsCanLaunch = lhs.canLaunch(with: availability)
+            let rhsCanLaunch = rhs.canLaunch(with: availability)
+
+            if lhsCanLaunch != rhsCanLaunch {
+                return lhsCanLaunch && !rhsCanLaunch
+            }
+
+            let lhsRecentUsage = recentUsageSnapshot[lhs]
+            let rhsRecentUsage = recentUsageSnapshot[rhs]
+
+            switch (lhsRecentUsage, rhsRecentUsage) {
+            case let (lhsDate?, rhsDate?):
+                if lhsDate != rhsDate {
+                    return lhsDate > rhsDate
+                }
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            case (nil, nil):
+                break
+            }
+
+            return (defaultOrder[lhs] ?? 0) < (defaultOrder[rhs] ?? 0)
+        }
+    }
     // MARK: - Body
 
     var body: some View {
@@ -155,7 +192,7 @@ struct DeckPlayModesView: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: UIConstants.Spacing.standard) {
-                        ForEach(DeckPlayModeDestination.allCases) { mode in
+                        ForEach(orderedModes) { mode in
                             PlayModeCard(
                                 mode: mode,
                                 tintColor: mode.tintColor(
@@ -167,7 +204,8 @@ struct DeckPlayModesView: View {
                                 canPlay: mode.canLaunch(with: availability),
                                 onOpenMode: onOpenMode,
                                 onOpenSettings: onOpenSettings,
-                                onOpenRecommendedConversion: onOpenRecommendedConversion
+                                onOpenRecommendedConversion: onOpenRecommendedConversion,
+                                onRequestUnavailableMode: onRequestUnavailableMode
                             )
                                 .frame(width: cardWidth)
                         }
@@ -313,6 +351,7 @@ private struct PlayModeCard: View {
     let onOpenMode: (DeckPlayModeDestination) -> Void
     let onOpenSettings: (DeckPlayModeDestination) -> Void
     let onOpenRecommendedConversion: (DeckPlayModeDestination) -> Void
+    let onRequestUnavailableMode: (DeckPlayModeDestination) -> Void
 
     // MARK: - Body
 
@@ -320,8 +359,11 @@ private struct PlayModeCard: View {
         ZStack(alignment: .topTrailing) {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
                 Button {
-                    guard canPlay else { return }
-                    onOpenMode(mode)
+                    if canPlay {
+                        onOpenMode(mode)
+                    } else {
+                        onRequestUnavailableMode(mode)
+                    }
                 } label: {
                     HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
                         ZStack {
@@ -397,6 +439,7 @@ private struct PlayModeCard: View {
                 .buttonStyle(.plain)
                 .padding(12)
         }
+            .opacity(canPlay ? 1 : 0.56)
             .widgetStyle(cornerRadius: 28)
             .overlay {
             RoundedRectangle(cornerRadius: 28, style: .continuous)

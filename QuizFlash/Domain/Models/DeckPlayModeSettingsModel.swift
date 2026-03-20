@@ -297,6 +297,21 @@ final class DeckPlayModeSettingsModel {
     /// The date these settings were last changed.
     var updatedAt: Date
 
+    /// The most recent time this deck launched Flashcards.
+    var flashcardsLastUsedAt: Date?
+
+    /// The most recent time this deck launched Quiz.
+    var quizLastUsedAt: Date?
+
+    /// The most recent time this deck launched Learn.
+    var learnLastUsedAt: Date?
+
+    /// The most recent time this deck launched Match.
+    var matchLastUsedAt: Date?
+
+    /// The most recent time this deck launched Write.
+    var writeLastUsedAt: Date?
+
     // MARK: - Relationships
 
     /// The deck that owns this settings bucket.
@@ -388,6 +403,11 @@ final class DeckPlayModeSettingsModel {
         self.writeSettingsData = Self.encode(WriteModeSettings())
         self.learnSettingsData = Self.encode(LearnModeSettings())
         self.updatedAt = Date()
+        self.flashcardsLastUsedAt = nil
+        self.quizLastUsedAt = nil
+        self.learnLastUsedAt = nil
+        self.matchLastUsedAt = nil
+        self.writeLastUsedAt = nil
         self.deck = deck
     }
 

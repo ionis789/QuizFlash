@@ -74,6 +74,16 @@
 		CB3A1CEA2F682D7700928B92 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = CB3A1CE92F682D7700928B92 /* Lottie */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		D0A1000A2F70000100TEST00 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CB5C2D6C2EF8A48400FB1D07 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CB5C2D732EF8A48400FB1D07;
+			remoteInfo = QuizFlash;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		CB23A3152F49065800BC2D1C /* auto-render.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "auto-render.min.js"; sourceTree = "<group>"; };
 		CB23A3162F49065800BC2D1C /* KaTeX_AMS-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "KaTeX_AMS-Regular.ttf"; sourceTree = "<group>"; };
@@ -139,12 +149,18 @@
 		CB23A3532F49065800BC2D1C /* katex.min.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = katex.min.css; sourceTree = "<group>"; };
 		CB23A3542F49065800BC2D1C /* katex.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = katex.min.js; sourceTree = "<group>"; };
 		CB5C2D742EF8A48400FB1D07 /* QuizFlash.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QuizFlash.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D0A100012F70000100TEST00 /* QuizFlashTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = QuizFlashTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CB5C2D762EF8A48400FB1D07 /* QuizFlash */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = QuizFlash;
+			sourceTree = "<group>";
+		};
+		D0A100022F70000100TEST00 /* QuizFlashTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = QuizFlashTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -156,6 +172,13 @@
 			files = (
 				CB2BF63D2F5F6B790068EF3A /* PZCircularControl in Frameworks */,
 				CB3A1CEA2F682D7700928B92 /* Lottie in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D0A100032F70000100TEST00 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -237,6 +260,7 @@
 				CB23A3532F49065800BC2D1C /* katex.min.css */,
 				CB23A3542F49065800BC2D1C /* katex.min.js */,
 				CB5C2D762EF8A48400FB1D07 /* QuizFlash */,
+				D0A100022F70000100TEST00 /* QuizFlashTests */,
 				CB5C2D752EF8A48400FB1D07 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -245,6 +269,7 @@
 			isa = PBXGroup;
 			children = (
 				CB5C2D742EF8A48400FB1D07 /* QuizFlash.app */,
+				D0A100012F70000100TEST00 /* QuizFlashTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -276,6 +301,29 @@
 			productReference = CB5C2D742EF8A48400FB1D07 /* QuizFlash.app */;
 			productType = "com.apple.product-type.application";
 		};
+		D0A100082F70000100TEST00 /* QuizFlashTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D0A100112F70000100TEST00 /* Build configuration list for PBXNativeTarget "QuizFlashTests" */;
+			buildPhases = (
+				D0A100042F70000100TEST00 /* Sources */,
+				D0A100032F70000100TEST00 /* Frameworks */,
+				D0A100052F70000100TEST00 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D0A1000B2F70000100TEST00 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D0A100022F70000100TEST00 /* QuizFlashTests */,
+			);
+			name = QuizFlashTests;
+			packageProductDependencies = (
+			);
+			productName = QuizFlashTests;
+			productReference = D0A100012F70000100TEST00 /* QuizFlashTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -288,6 +336,10 @@
 				TargetAttributes = {
 					CB5C2D732EF8A48400FB1D07 = {
 						CreatedOnToolsVersion = 26.0;
+					};
+					D0A100082F70000100TEST00 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = CB5C2D732EF8A48400FB1D07;
 					};
 				};
 			};
@@ -310,6 +362,7 @@
 			projectRoot = "";
 			targets = (
 				CB5C2D732EF8A48400FB1D07 /* QuizFlash */,
+				D0A100082F70000100TEST00 /* QuizFlashTests */,
 			);
 		};
 /* End PBXProject section */
@@ -385,6 +438,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D0A100052F70000100TEST00 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -395,7 +455,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D0A100042F70000100TEST00 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D0A1000B2F70000100TEST00 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CB5C2D732EF8A48400FB1D07 /* QuizFlash */;
+			targetProxy = D0A1000A2F70000100TEST00 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		CB5C2D7D2EF8A48600FB1D07 /* Debug */ = {
@@ -597,6 +672,66 @@
 			};
 			name = Release;
 		};
+		D0A1000F2F70000100TEST00 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5GWQWWY8TR;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sion.QuizFlashTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/QuizFlash.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/QuizFlash";
+				TEST_TARGET_NAME = QuizFlash;
+			};
+			name = Debug;
+		};
+		D0A100102F70000100TEST00 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5GWQWWY8TR;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sion.QuizFlashTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/QuizFlash.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/QuizFlash";
+				TEST_TARGET_NAME = QuizFlash;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -614,6 +749,15 @@
 			buildConfigurations = (
 				CB5C2D802EF8A48600FB1D07 /* Debug */,
 				CB5C2D812EF8A48600FB1D07 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D0A100112F70000100TEST00 /* Build configuration list for PBXNativeTarget "QuizFlashTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D0A1000F2F70000100TEST00 /* Debug */,
+				D0A100102F70000100TEST00 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

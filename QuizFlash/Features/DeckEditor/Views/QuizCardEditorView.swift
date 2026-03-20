@@ -130,6 +130,9 @@ struct QuizCardEditorView: View {
     private var canSave: Bool {
         validationMessage == nil
     }
+    private var canUseInteractiveDismiss: Bool {
+        !showSketchModal && !isPhotoPickerPresented
+    }
 
     var body: some View {
         NavigationStack {
@@ -174,6 +177,9 @@ struct QuizCardEditorView: View {
             }
             .animation(.spring(response: 0.3, dampingFraction: 0.82), value: currentSelectedPath)
             .animation(.spring(response: 0.25, dampingFraction: 0.8), value: previewDirection)
+            .swipeBack(enabled: canUseInteractiveDismiss) {
+                dismiss()
+            }
             .task {
                 if questionSelectedPath == nil {
                     questionSelectedPath = .root

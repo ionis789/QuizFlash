@@ -29,13 +29,11 @@ import UIKit
 // MARK: - NativeTabBarConfigurator
 
 /// A zero-size UIViewRepresentable that finds the live UITabBar in the window
-/// hierarchy and synchronises its hidden state with the custom tab bar's visibility.
+/// hierarchy and keeps it suppressed while the custom bar owns the UI.
 struct NativeTabBarConfigurator: UIViewRepresentable {
 
-    /// Mirrors `isTabBarVisible` from MainAppView.
-    /// When `false`: UITabBar is hidden and non-interactive.
-    /// When `true`:  UITabBar stays hidden visually (custom bar renders instead)
-    ///               but is also non-interactive — we never want native bar taps.
+    /// Mirrors `isTabBarVisible` from MainAppView so updates still flow through
+    /// the representable whenever the root chrome changes.
     var isVisible: Bool
 
     func makeUIView(context: Context) -> ConfiguratorView {
@@ -64,12 +62,18 @@ struct NativeTabBarConfigurator: UIViewRepresentable {
             // from firing even when the bar is technically in the view hierarchy.
             tabBar.isUserInteractionEnabled = false
 
-            // Hide/show: direct isHidden mutation triggers an immediate safe area
-            // recalculation, unlike the appearance proxy which only affects new
-            // instances. This removes the phantom 49 pt bottom inset that pushed
-            // LibrarySelectionBarView upward during selection mode.
-            if tabBar.isHidden != !visible {
-                tabBar.isHidden = !visible
+            // The native UITabBar should remain hidden in both states:
+            // when the custom bar is visible we never want UIKit's adaptive tab
+            // presentation or layout influence, and when the custom bar is hidden
+            // we still want the root safe area to stay free of the system tab bar.
+            if !tabBar.isHidden {
+                tabBar.isHidden = true
+            }
+
+            // Keep the live bar visually inert even if UIKit reuses the instance
+            // across trait-collection changes.
+            if tabBar.alpha != 0 {
+                tabBar.alpha = 0
             }
         }
 
@@ -99,8 +103,7 @@ struct NativeTabBarConfigurator: UIViewRepresentable {
 // MARK: - View Extension
 
 extension View {
-    /// Synchronises the native UITabBar's hidden state and interaction with the
-    /// custom tab bar's visibility. Apply once on the root ZStack in MainAppView.
+    /// Keeps the native UITabBar suppressed and non-interactive on the live TabView host.
     func configureNativeTabBar(visible: Bool) -> some View {
         background(
             NativeTabBarConfigurator(isVisible: visible)

@@ -68,10 +68,6 @@ struct MainAppView: View {
 
     // MARK: - Computed Properties
 
-    private var isPad: Bool {
-        UIDevice.current.userInterfaceIdiom == .pad
-    }
-
     /// Resolves the active tab bar visibility rule to a Bool.
     ///
     /// Decision table:
@@ -120,68 +116,10 @@ struct MainAppView: View {
         // of NavigationStack's internal view hierarchy. This allows pushed destinations
         // (e.g. FolderView) to opt in to bar visibility without
         // the bar being clipped or re-laid out by navigation transitions.
-        ZStack(alignment: isPad ? .bottomTrailing : .bottom) {
+        ZStack(alignment: .bottom) {
 
             // ── Navigation Layer ─────────────────────────────────────────────
-            TabView(selection: tabViewSelection) {
-                // HOME TAB
-                NavigationStack(path: $router.homePath) {
-                    HomeView()
-                        .toolbar(.hidden, for: .tabBar)
-                        .navigationDestination(for: DeckNavigationValue.self) { value in
-                            if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
-                                DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .home)
-                                    .toolbar(.hidden, for: .navigationBar)
-                            }
-                        }
-                        .navigationDestination(for: AppRoute.self) { route in
-                            appRouteDestination(for: route)
-                        }
-                }
-                .tag(AppTabBar.home)
-
-                // LIBRARY TAB
-                NavigationStack(path: $router.libraryPath) {
-                    LibraryView()
-                        .toolbar(.hidden, for: .tabBar)
-                        .navigationDestination(for: DeckNavigationValue.self) { value in
-                            if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
-                                DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .library)
-                                    .toolbar(.hidden, for: .navigationBar)
-                            }
-                        }
-                        .navigationDestination(for: AppRoute.self) { route in
-                            appRouteDestination(for: route)
-                        }
-                }
-                .tag(AppTabBar.library)
-
-                // CREATE TAB
-                NavigationStack(path: $router.createPath) {
-                    CreateDeckView()
-                        .toolbar(.hidden, for: .tabBar)
-                        .navigationDestination(for: DeckNavigationValue.self) { value in
-                            if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
-                                DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .create)
-                                    .toolbar(.hidden, for: .navigationBar)
-                            }
-                        }
-                        .navigationDestination(for: AppRoute.self) { route in
-                            appRouteDestination(for: route)
-                        }
-                }
-                .tag(AppTabBar.create)
-
-                // SETTINGS TAB
-                NavigationStack(path: $router.settingsPath) {
-                    SettingsView()
-                        .toolbar(.hidden, for: .tabBar)
-                        .navigationDestination(for: AppRoute.self) { route in
-                            appRouteDestination(for: route)
-                        }
-                }
-                .tag(AppTabBar.settings)
-            }
+            rootTabView
             .ignoresSafeArea(.keyboard, edges: .bottom)
             // Propagate tab bar visibility changes with an explicit spring so the
             // animation context is preserved regardless of where the preference
@@ -234,12 +172,81 @@ struct MainAppView: View {
     // MARK: - Route Destinations
 
     @ViewBuilder
+    private var rootTabView: some View {
+        let baseTabView = TabView(selection: tabViewSelection) {
+            // HOME TAB
+            NavigationStack(path: $router.homePath) {
+                HomeView()
+                    .toolbar(.hidden, for: .tabBar)
+                    .navigationDestination(for: DeckNavigationValue.self) { value in
+                        if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
+                            DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .home)
+                                .toolbar(.hidden, for: .navigationBar)
+                        }
+                    }
+                    .navigationDestination(for: AppRoute.self) { route in
+                        appRouteDestination(for: route)
+                    }
+            }
+            .tag(AppTabBar.home)
+
+            // LIBRARY TAB
+            NavigationStack(path: $router.libraryPath) {
+                LibraryView()
+                    .toolbar(.hidden, for: .tabBar)
+                    .navigationDestination(for: DeckNavigationValue.self) { value in
+                        if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
+                            DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .library)
+                                .toolbar(.hidden, for: .navigationBar)
+                        }
+                    }
+                    .navigationDestination(for: AppRoute.self) { route in
+                        appRouteDestination(for: route)
+                    }
+            }
+            .tag(AppTabBar.library)
+
+            // CREATE TAB
+            NavigationStack(path: $router.createPath) {
+                CreateDeckView()
+                    .toolbar(.hidden, for: .tabBar)
+                    .navigationDestination(for: DeckNavigationValue.self) { value in
+                        if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
+                            DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .create)
+                                .toolbar(.hidden, for: .navigationBar)
+                        }
+                    }
+                    .navigationDestination(for: AppRoute.self) { route in
+                        appRouteDestination(for: route)
+                    }
+            }
+            .tag(AppTabBar.create)
+
+            // SETTINGS TAB
+            NavigationStack(path: $router.settingsPath) {
+                SettingsView(allowsSwipeBack: false)
+                    .toolbar(.hidden, for: .tabBar)
+                    .navigationDestination(for: AppRoute.self) { route in
+                        appRouteDestination(for: route)
+                    }
+            }
+            .tag(AppTabBar.settings)
+        }
+
+        if #available(iOS 18.0, *) {
+            baseTabView.tabViewStyle(.tabBarOnly)
+        } else {
+            baseTabView
+        }
+    }
+
+    @ViewBuilder
     private func appRouteDestination(for route: AppRoute) -> some View {
         switch route {
         case .createDeck:
             CreateDeckView()
         case .settings:
-            SettingsView()
+            SettingsView(allowsSwipeBack: true)
         case .folder(let folder, let backLabel):
             // backLabel was frozen at push time by the call site (e.g. HomeDashboardView).
             // FolderView stores it as a constant — never reads router.activeTab reactively.

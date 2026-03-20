@@ -8,6 +8,11 @@ import UIKit
 
 // MARK: - Public API
 
+public enum SwipeBackAttachment {
+    case window
+    case localHost
+}
+
 public extension View {
     /// Adds a fluid, native edge-swipe-back gesture to the view.
     ///
@@ -18,10 +23,17 @@ public extension View {
     ///
     /// - Parameters:
     ///   - enabled: Determines if the gesture is active. Defaults to `true`.
+    ///   - attachment: Selects whether the recognizer attaches to the app window
+    ///     or to the highest local host view. Sheet-hosted surfaces should prefer
+    ///     `.localHost` so the gesture stays scoped to that presentation.
     ///   - action: The closure to execute when the swipe gesture successfully commits.
     /// - Returns: A view modified to support the edge swipe gesture.
-    func swipeBack(enabled: Bool = true, action: @escaping () -> Void) -> some View {
-        modifier(SwipeBackModifier(enabled: enabled, action: action))
+    func swipeBack(
+        enabled: Bool = true,
+        attachment: SwipeBackAttachment = .window,
+        action: @escaping () -> Void
+    ) -> some View {
+        modifier(SwipeBackModifier(enabled: enabled, attachment: attachment, action: action))
     }
 }
 
@@ -33,6 +45,7 @@ private struct SwipeBackModifier: ViewModifier {
     // MARK: - Properties
     
     let enabled: Bool
+    let attachment: SwipeBackAttachment
     let action: () -> Void
 
     // MARK: - State
@@ -50,6 +63,8 @@ private struct SwipeBackModifier: ViewModifier {
     private let commitThreshold: CGFloat = 110
     private let jellyHeight: CGFloat = 200
     private let fingerVerticalOffset: CGFloat = 75
+    private let leadingActivationFraction: CGFloat = 0.7
+    private let trailingActivationFraction: CGFloat = 0.3
 
     // MARK: - Computed Properties
     
@@ -68,13 +83,16 @@ private struct SwipeBackModifier: ViewModifier {
                 }
             )
             .background(
-                NativeEdgeSwipeController(
+                NativeSwipeBackController(
                     dragOffset: $dragOffset,
                     isActive: $isActive,
                     startY: $startY,
                     edge: $edge,
                     enabled: enabled,
+                    attachment: attachment,
                     commitThreshold: commitThreshold,
+                    leadingActivationFraction: leadingActivationFraction,
+                    trailingActivationFraction: trailingActivationFraction,
                     onThresholdReached: handleThresholdReached,
                     onCommit: handleCommit,
                     onCancel: handleCancel
@@ -148,7 +166,7 @@ private struct SwipeBackModifier: ViewModifier {
 // MARK: - Native iOS Gesture Integrator
 
 /// A bridge to `UIPanGestureRecognizer` to circumvent SwiftUI gesture conflicts.
-private struct NativeEdgeSwipeController: UIViewRepresentable {
+private struct NativeSwipeBackController: UIViewRepresentable {
     
     @Binding var dragOffset: CGFloat
     @Binding var isActive: Bool
@@ -156,7 +174,10 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
     @Binding var edge: Edge
 
     let enabled: Bool
+    let attachment: SwipeBackAttachment
     let commitThreshold: CGFloat
+    let leadingActivationFraction: CGFloat
+    let trailingActivationFraction: CGFloat
     let onThresholdReached: () -> Void
     let onCommit: () -> Void
     let onCancel: () -> Void
@@ -168,9 +189,10 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: ControllerView, context: Context) {
-        // CRITICAL FIX: Ensure coordinator has the latest parent state
         context.coordinator.parent = self
         uiView.coordinator = context.coordinator
+        uiView.attachment = attachment
+        uiView.refreshGestureAttachmentIfNeeded()
         uiView.panRecognizer?.isEnabled = enabled
     }
 
@@ -179,9 +201,13 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        var parent: NativeEdgeSwipeController
+        var parent: NativeSwipeBackController
+        private var pendingEdge: Edge?
 
-        init(parent: NativeEdgeSwipeController) {
+        private let leadingHorizontalDominanceRatio: CGFloat = 1.15
+        private let trailingHorizontalDominanceRatio: CGFloat = 0.75
+
+        init(parent: NativeSwipeBackController) {
             self.parent = parent
         }
 
@@ -192,7 +218,8 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
 
             switch pan.state {
             case .began:
-                parent.edge = leadingScreenEdge(for: view) == .right ? .trailing : .leading
+                guard let pendingEdge else { return }
+                parent.edge = pendingEdge
                 parent.isActive = true
                 parent.startY = location.y
 
@@ -208,7 +235,7 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
             case .ended, .cancelled, .failed:
                 if parent.isActive {
                     let velocity = pan.velocity(in: view).x
-                    let isFlick = abs(velocity) > 800
+                    let isFlick = abs(velocity) > 800 && velocitySupportsCommit(velocity)
                     let commit = abs(parent.dragOffset) >= parent.commitThreshold || isFlick
 
                     if commit {
@@ -217,6 +244,7 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
                         parent.onCancel()
                     }
                 }
+                pendingEdge = nil
             default: break
             }
         }
@@ -226,93 +254,148 @@ private struct NativeEdgeSwipeController: UIViewRepresentable {
                   let pan = gestureRecognizer as? UIPanGestureRecognizer,
                   let view = pan.view else { return false }
 
-            guard !hasPresentedModal(in: view) else { return false }
-
+            let location = pan.location(in: view)
+            let viewWidth = max(view.bounds.width, 1)
+            let leadingZoneMaxX = viewWidth * parent.leadingActivationFraction
+            let trailingZoneMinX = viewWidth * (1 - parent.trailingActivationFraction)
             let velocity = pan.velocity(in: view)
-            guard abs(velocity.x) > abs(velocity.y) else { return false }
 
-            if leadingScreenEdge(for: view) == .right {
-                return velocity.x < 0
-            }
-            return velocity.x > 0
-        }
-
-        private func hasPresentedModal(in view: UIView) -> Bool {
-            guard let root = view.window?.rootViewController else { return false }
-            return controllerTreeHasPresentedModal(root)
-        }
-
-        private func controllerTreeHasPresentedModal(_ controller: UIViewController) -> Bool {
-            if controller.presentedViewController != nil {
+            if location.x <= leadingZoneMaxX {
+                guard gestureShowsHorizontalIntent(
+                    velocity,
+                    minimumRatio: leadingHorizontalDominanceRatio
+                ) else {
+                    pendingEdge = nil
+                    return false
+                }
+                if velocity != .zero, velocity.x < 0 {
+                    pendingEdge = nil
+                    return false
+                }
+                pendingEdge = .leading
                 return true
             }
 
-            if let navigationController = controller as? UINavigationController,
-               let visible = navigationController.visibleViewController,
-               controllerTreeHasPresentedModal(visible) {
+            if location.x >= trailingZoneMinX {
+                if UIDevice.current.userInterfaceIdiom == .pad {
+                    pendingEdge = nil
+                    return false
+                }
+                guard gestureShowsHorizontalIntent(
+                    velocity,
+                    minimumRatio: trailingHorizontalDominanceRatio
+                ) else {
+                    pendingEdge = nil
+                    return false
+                }
+                pendingEdge = .trailing
                 return true
             }
 
-            if let tabBarController = controller as? UITabBarController,
-               let selected = tabBarController.selectedViewController,
-               controllerTreeHasPresentedModal(selected) {
-                return true
-            }
-
-            if let splitViewController = controller as? UISplitViewController,
-               let trailing = splitViewController.viewControllers.last,
-               controllerTreeHasPresentedModal(trailing) {
-                return true
-            }
-
-            return controller.children.contains(where: controllerTreeHasPresentedModal)
+            pendingEdge = nil
+            return false
         }
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
             return false
+        }
+
+        private func velocitySupportsCommit(_ velocity: CGFloat) -> Bool {
+            switch parent.edge {
+            case .leading:
+                velocity > 0
+            case .trailing:
+                velocity < 0
+            default:
+                false
+            }
+        }
+
+        private func gestureShowsHorizontalIntent(_ velocity: CGPoint, minimumRatio: CGFloat) -> Bool {
+            guard velocity != .zero else { return true }
+            return abs(velocity.x) > abs(velocity.y) * minimumRatio
         }
     }
 }
 
 /// A transparent UIView that attaches a gesture recognizer to its hosting window.
 private final class ControllerView: UIView {
-    weak var coordinator: NativeEdgeSwipeController.Coordinator?
-    private weak var panGesture: UIScreenEdgePanGestureRecognizer?
+    weak var coordinator: NativeSwipeBackController.Coordinator?
+    var attachment: SwipeBackAttachment = .window
+    private var panGesture: UIPanGestureRecognizer?
+    private weak var gestureHostView: UIView?
 
-    var panRecognizer: UIScreenEdgePanGestureRecognizer? { panGesture }
+    var panRecognizer: UIPanGestureRecognizer? { panGesture }
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
-        setupGesture()
+        refreshGestureAttachmentIfNeeded()
     }
 
-    private func setupGesture() {
-        guard panGesture == nil, let coordinator = coordinator, let window = self.window else { return }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        refreshGestureAttachmentIfNeeded()
+    }
 
-        let pan = UIScreenEdgePanGestureRecognizer(
-            target: coordinator,
-            action: #selector(NativeEdgeSwipeController.Coordinator.handlePan(_:))
-        )
-        pan.delegate = coordinator
-        pan.cancelsTouchesInView = true
-        pan.edges = leadingScreenEdge(for: window)
-        
-        window.addGestureRecognizer(pan)
-        self.panGesture = pan
+    func refreshGestureAttachmentIfNeeded() {
+        guard let coordinator else { return }
+        guard let target = gestureTargetView() else {
+            detachGesture()
+            return
+        }
+
+        if panGesture == nil {
+            let pan = UIPanGestureRecognizer(
+                target: coordinator,
+                action: #selector(NativeSwipeBackController.Coordinator.handlePan(_:))
+            )
+            pan.delegate = coordinator
+            pan.cancelsTouchesInView = true
+            pan.maximumNumberOfTouches = 1
+            panGesture = pan
+        }
+
+        guard let panGesture else { return }
+        if gestureHostView !== target {
+            detachGesture()
+            target.addGestureRecognizer(panGesture)
+            gestureHostView = target
+        }
+    }
+
+    private func gestureTargetView() -> UIView? {
+        switch attachment {
+        case .window:
+            return window
+        case .localHost:
+            return highestLocalHostView()
+        }
+    }
+
+    private func highestLocalHostView() -> UIView? {
+        var candidate: UIView? = superview
+        var highest: UIView?
+        while let view = candidate, !(view is UIWindow) {
+            highest = view
+            candidate = view.superview
+        }
+        return highest
+    }
+
+    private func detachGesture() {
+        if let panGesture {
+            panGesture.view?.removeGestureRecognizer(panGesture)
+        }
+        gestureHostView = nil
     }
 
     override func willMove(toWindow newWindow: UIWindow?) {
-        if newWindow == nil, let pan = panGesture {
-            pan.view?.removeGestureRecognizer(pan)
+        if newWindow == nil {
+            detachGesture()
             panGesture = nil
         }
         super.willMove(toWindow: newWindow)
     }
-}
-
-private func leadingScreenEdge(for view: UIView) -> UIRectEdge {
-    let direction = UIView.userInterfaceLayoutDirection(for: view.semanticContentAttribute)
-    return direction == .rightToLeft ? .right : .left
 }
 
 // MARK: - Jelly Indicator Views

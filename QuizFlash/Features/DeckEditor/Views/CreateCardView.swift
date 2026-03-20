@@ -39,6 +39,9 @@ struct CreateCardView: View {
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var currentContent: ZoneCardContent { activeSide == 0 ? frontZoneContent : backZoneContent }
     private var canSave: Bool { frontZoneContent.hasContent || backZoneContent.hasContent }
+    private var canUseInteractiveDismiss: Bool {
+        !showSketchModal && !showPreview && !isPhotoPickerPresented
+    }
 
     private var focusManager = ZoneFocusManager.shared
     private var zoneController = ZoneController.shared
@@ -121,6 +124,9 @@ struct CreateCardView: View {
                 }
                 .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedPath)
                 .animation(.spring(response: 0.2, dampingFraction: 0.7), value: previewDirection)
+                .swipeBack(enabled: canUseInteractiveDismiss) {
+                    dismiss()
+                }
                 .onAppear {
                 if selectedPath == nil {
                     selectedPath = .root

@@ -171,7 +171,6 @@ struct DeckCardGridView: View {
     let isSelecting: Bool
     let selectedCards: Set<PersistentIdentifier>
     let isSuspended: Bool
-    let activeActionMenuCardID: PersistentIdentifier?
 
     var onToggleSelection: (GridCardInfo) -> Void
     var onTapCard: (GridCardInfo) -> Void
@@ -233,7 +232,6 @@ struct DeckCardGridView: View {
             isSelecting: isSelecting,
             isSelected: selectedCards.contains(card.id),
             isSuspended: isSuspended,
-            isActionMenuPresented: activeActionMenuCardID == card.id,
             accent: accent,
             onToggleSelection: onToggleSelection,
             onTapCard: onTapCard,
@@ -241,8 +239,7 @@ struct DeckCardGridView: View {
             onConvertCard: onConvertCard,
             onTogglePinned: onTogglePinned,
             onDeleteCard: onDeleteCard,
-            onPresentActionMenu: { onPresentActionMenu(card.id) },
-            onDismissActionMenu: onDismissActionMenu
+            onPresentActionMenu: { onPresentActionMenu(card.id) }
         )
         .anchorPreference(key: DeckGridCardBoundsPreferenceKey.self, value: .bounds) {
             [card.id: $0]
@@ -341,10 +338,17 @@ enum DeckGridCardMetrics {
     static let mediaInsetCompensation: CGFloat = 42
     static let statusDotSize: CGFloat = 6
     static let selectionIndicatorSize: CGFloat = 30
+    static let headerMenuButtonSize: CGFloat = 32
     static let headerMenuHeight: CGFloat = 48
     static let headerMenuSpacing: CGFloat = 12
+    static let headerMenuHorizontalPadding: CGFloat = 14
     static let headerMenuFloatingGap: CGFloat = 8
+    static let headerMenuHorizontalClearance: CGFloat = 10
     static let overflowIndicatorBottomInset: CGFloat = 2
+    static let headerMenuWidth: CGFloat =
+        (headerMenuButtonSize * 4)
+        + (headerMenuSpacing * 3)
+        + (headerMenuHorizontalPadding * 2)
 }
 
 private struct DeckGridCardCell: View {
@@ -352,7 +356,6 @@ private struct DeckGridCardCell: View {
     let isSelecting: Bool
     let isSelected: Bool
     let isSuspended: Bool
-    let isActionMenuPresented: Bool
     let accent: Color
     let onToggleSelection: (GridCardInfo) -> Void
     let onTapCard: (GridCardInfo) -> Void
@@ -361,7 +364,6 @@ private struct DeckGridCardCell: View {
     let onTogglePinned: (GridCardInfo) -> Void
     let onDeleteCard: (GridCardInfo) -> Void
     let onPresentActionMenu: () -> Void
-    let onDismissActionMenu: () -> Void
     @State private var isPressingForMenu = false
     @State private var pendingMenuPressFeedback: DispatchWorkItem?
 
@@ -392,11 +394,6 @@ private struct DeckGridCardCell: View {
                 }
             }
         )
-        .onChange(of: isActionMenuPresented) { _, presented in
-            if presented {
-                resetPressFeedback()
-            }
-        }
         .onDisappear {
             resetPressFeedback()
         }
@@ -404,7 +401,6 @@ private struct DeckGridCardCell: View {
 
     private var cardScale: CGFloat {
         if isSelecting && isSelected { return 0.9 }
-        if isActionMenuPresented { return 0.89 }
         if isPressingForMenu { return 0.89 }
         return 1
     }
@@ -426,8 +422,7 @@ private struct DeckGridCardCell: View {
             accent: accent,
             isSelected: isSelecting && isSelected,
             isSelectionMode: isSelecting,
-            isSuspended: isSuspended,
-            isActionMenuPresented: isActionMenuPresented
+            isSuspended: isSuspended
         )
         .contentShape(RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
         .overlay(alignment: .topTrailing) {
@@ -445,15 +440,10 @@ private struct DeckGridCardCell: View {
         .scaleEffect(cardScale)
         .animation(cardAnimation, value: isSelected)
         .animation(cardAnimation, value: isPressingForMenu)
-        .animation(.spring(response: 0.24, dampingFraction: 0.82), value: isActionMenuPresented)
     }
 
     private func handleTap() {
         resetPressFeedback()
-        if isActionMenuPresented {
-            onDismissActionMenu()
-            return
-        }
         if isSelecting {
             onToggleSelection(card)
         } else {
@@ -474,7 +464,6 @@ private struct DeckGridCardCell: View {
 
     private func schedulePressFeedbackIfNeeded() {
         cancelPendingPressFeedback()
-        guard !isActionMenuPresented else { return }
 
         let workItem = DispatchWorkItem {
             withAnimation(menuPressAnimation) {
@@ -501,7 +490,6 @@ private struct MiniCardPreview: View {
     var isSelected: Bool = false
     var isSelectionMode: Bool = false
     var isSuspended: Bool = false
-    var isActionMenuPresented: Bool = false
 
     @Environment(\.colorScheme)  private var colorScheme
     @Environment(\.modelContext) private var context
@@ -516,15 +504,13 @@ private struct MiniCardPreview: View {
         accent: Color,
         isSelected: Bool = false,
         isSelectionMode: Bool = false,
-        isSuspended: Bool = false,
-        isActionMenuPresented: Bool = false
+        isSuspended: Bool = false
     ) {
         self.card = card
         self.accent = accent
         self.isSelected = isSelected
         self.isSelectionMode = isSelectionMode
         self.isSuspended = isSuspended
-        self.isActionMenuPresented = isActionMenuPresented
 
         let initialPayload = CardPreviewCache.shared.payload(for: card.id)
         _thumbnail = State(initialValue: initialPayload.flatMap { payload in
@@ -617,8 +603,8 @@ private struct MiniCardPreview: View {
         }
         .shadow(
             color: Color.black.opacity(colorScheme == .dark ? 0.24 : 0.08),
-            radius: isActionMenuPresented ? 14 : (isSelected ? 6 : 4),
-            y: isActionMenuPresented ? 8 : (isSelected ? 5 : 3)
+            radius: isSelected ? 6 : 4,
+            y: isSelected ? 5 : 3
         )
         .task(id: "\(card.id.hashValue)-\(isSuspended ? 1 : 0)") {
             guard !isSuspended else {
@@ -869,7 +855,8 @@ struct DeckGridHeaderActionMenu: View {
                 action: onDelete
             )
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, DeckGridCardMetrics.headerMenuHorizontalPadding)
+        .frame(width: DeckGridCardMetrics.headerMenuWidth)
         .frame(height: DeckGridCardMetrics.headerMenuHeight)
         .glassButton(shape: .capsule)
     }
@@ -883,7 +870,10 @@ struct DeckGridHeaderActionMenu: View {
             Image(systemName: symbol)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(tint)
-                .frame(width: 32, height: 32)
+                .frame(
+                    width: DeckGridCardMetrics.headerMenuButtonSize,
+                    height: DeckGridCardMetrics.headerMenuButtonSize
+                )
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

@@ -10,7 +10,7 @@ import UIKit
 import SwiftData
 
 /// Represents a paused AI generation session mapped to Codable primitives.
-struct AIPausedSession: Codable, Equatable {
+nonisolated struct AIPausedSession: Codable, Equatable {
     public let sessionID: UUID
     public let deckTitle: String
     public let folderID: String? // Stringified PersistentIdentifier if needed, or simply none since deck is drafted
@@ -96,13 +96,14 @@ extension PDFAnalysisInfo: Codable {
 actor AIGenerationSessionStore {
     static let shared = AIGenerationSessionStore()
     
-    private let fileManager = FileManager.default
+    private let fileManager: FileManager
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
+    private let rootDirectoryURL: URL
+    private let currentDate: @Sendable () -> Date
     
     private var applicationSupportDirectory: URL {
-        let urls = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        let dir = urls[0].appendingPathComponent("QuizFlash", isDirectory: true)
+        let dir = rootDirectoryURL
         if !fileManager.fileExists(atPath: dir.path) {
             try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
         }
@@ -121,8 +122,20 @@ actor AIGenerationSessionStore {
         return dir
     }
     
-    private init() {
-        // Private initialization for singleton
+    init(
+        fileManager: FileManager = .default,
+        rootDirectoryURL: URL? = nil,
+        currentDate: @escaping @Sendable () -> Date = Date.init
+    ) {
+        self.fileManager = fileManager
+        self.currentDate = currentDate
+
+        if let rootDirectoryURL {
+            self.rootDirectoryURL = rootDirectoryURL
+        } else {
+            let urls = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            self.rootDirectoryURL = urls[0].appendingPathComponent("QuizFlash", isDirectory: true)
+        }
     }
     
     /// Persists the active session to disk securely.
@@ -144,7 +157,7 @@ actor AIGenerationSessionStore {
             let session = try decoder.decode(AIPausedSession.self, from: data)
             
             // Validate the session hasn't expired completely (e.g. older than 24 hours, optional but good practice)
-            let age = Date().timeIntervalSince(session.timestamp)
+            let age = currentDate().timeIntervalSince(session.timestamp)
             guard age < 86400 * 7 else { // 7 days max
                 try? clearSession()
                 return nil

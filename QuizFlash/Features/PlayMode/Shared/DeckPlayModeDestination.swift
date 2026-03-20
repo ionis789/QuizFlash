@@ -25,6 +25,13 @@ struct PlayModeFallbackPrompt: Equatable {
     let ctaTitle: String
 }
 
+/// Compact deck-level explanation shown when a mode tile is tapped while unavailable.
+struct PlayModeUnavailablePrompt: Equatable {
+    let title: String
+    let detail: String
+    let actionTitle: String?
+}
+
 /// Static implementation status for one mode's dedicated gameplay flow.
 enum PlayModeImplementationStatus {
     case gameplayReady
@@ -142,6 +149,68 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
             )
         case .flashcards, .quiz, .learn, .write:
             return nil
+        }
+    }
+
+    /// Card kind that the deck can convert into to unlock this mode, when applicable.
+    var unavailableConversionTargetKind: CardKind? {
+        switch self {
+        case .flashcards:
+            return .flashcard
+        case .quiz:
+            return .quiz
+        case .match:
+            return .match
+        case .write:
+            return .write
+        case .learn:
+            return nil
+        }
+    }
+
+    /// Minimal explanation used by the deck screen when the tile is tapped while unavailable.
+    func unavailablePrompt(in availability: PlayModeCardAvailability) -> PlayModeUnavailablePrompt {
+        let deckHasAnyCards = availability.totalCards > 0
+
+        switch self {
+        case .flashcards:
+            return PlayModeUnavailablePrompt(
+                title: "Flashcards isn't available yet",
+                detail: deckHasAnyCards
+                    ? "This deck has no flashcards right now. Convert the current cards into Flashcards to launch swipe review."
+                    : "This deck needs cards before Flashcards can start.",
+                actionTitle: deckHasAnyCards ? "Convert Current Cards" : nil
+            )
+        case .quiz:
+            return PlayModeUnavailablePrompt(
+                title: "Quiz isn't available yet",
+                detail: deckHasAnyCards
+                    ? "This deck has no quiz cards right now. Convert the current cards into Quiz cards to unlock multiple-choice practice."
+                    : "This deck needs cards before Quiz can start.",
+                actionTitle: deckHasAnyCards ? "Convert Current Cards" : nil
+            )
+        case .learn:
+            return PlayModeUnavailablePrompt(
+                title: "Learn isn't available yet",
+                detail: "Learn needs cards in this deck first. Add or generate cards, then come back.",
+                actionTitle: nil
+            )
+        case .match:
+            return PlayModeUnavailablePrompt(
+                title: "Match isn't available yet",
+                detail: deckHasAnyCards
+                    ? "This deck has no Match-compatible pairs right now. Convert the current cards into Match cards to unlock it."
+                    : "This deck needs cards before Match can start.",
+                actionTitle: deckHasAnyCards ? "Convert Current Cards" : nil
+            )
+        case .write:
+            return PlayModeUnavailablePrompt(
+                title: "Write isn't available yet",
+                detail: deckHasAnyCards
+                    ? "This deck has no Write cards right now. Convert the current cards into Write cards to unlock manual input mode."
+                    : "This deck needs cards before Write can start.",
+                actionTitle: deckHasAnyCards ? "Convert Current Cards" : nil
+            )
         }
     }
 
@@ -263,5 +332,39 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
             availability: availability,
             safeAreaInsets: safeAreaInsets
         )
+    }
+}
+
+extension DeckPlayModeSettingsModel {
+    /// Returns the persisted recent-usage timestamp for one deck-scoped play mode.
+    func recentUsageDate(for mode: DeckPlayModeDestination) -> Date? {
+        switch mode {
+        case .flashcards:
+            return flashcardsLastUsedAt
+        case .quiz:
+            return quizLastUsedAt
+        case .learn:
+            return learnLastUsedAt
+        case .match:
+            return matchLastUsedAt
+        case .write:
+            return writeLastUsedAt
+        }
+    }
+
+    /// Persists the last-used timestamp for one deck-scoped play mode without mutating the settings payloads.
+    func markRecentlyUsed(_ mode: DeckPlayModeDestination, at date: Date = Date()) {
+        switch mode {
+        case .flashcards:
+            flashcardsLastUsedAt = date
+        case .quiz:
+            quizLastUsedAt = date
+        case .learn:
+            learnLastUsedAt = date
+        case .match:
+            matchLastUsedAt = date
+        case .write:
+            writeLastUsedAt = date
+        }
     }
 }

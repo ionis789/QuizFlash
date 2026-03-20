@@ -36,9 +36,11 @@ struct DeckContentView: View {
     @State private var previewedCard: CardModel? = nil
     @State private var cardEditorDestination: CardEditorDestination? = nil
     @State private var showConversionSheet = false
+    @State private var unavailablePlayMode: DeckPlayModeDestination? = nil
     @State private var showAddCardTypeDialog = false
     @State private var pendingDeleteCardID: PersistentIdentifier? = nil
     @State private var activeActionMenuCardID: PersistentIdentifier? = nil
+    @State private var playModeRecentUsageSnapshot: [DeckPlayModeDestination: Date] = [:]
     @Bindable var viewModel: DeckViewModel
     @State private var hasLoadedInitialSnapshot = false
     @State private var navigationBarHeight: CGFloat =
@@ -106,6 +108,7 @@ struct DeckContentView: View {
             .onAppear {
                 guard !hasLoadedInitialSnapshot, !isSuspended else { return }
                 hasLoadedInitialSnapshot = true
+                refreshPlayModeRecentUsageSnapshot()
                 viewModel.configureGroupingMode(from: deck.cardGroupingMode)
                 viewModel.requestSnapshotLoad(
                     deckID: deck.persistentModelID,
@@ -144,7 +147,8 @@ struct DeckContentView: View {
                 )
             }
             .onChange(of: selectedPlayMode) { old, new in
-                if old != nil && new == nil {
+                if let completedMode = old, new == nil {
+                    recordCompletedPlayModeSession(completedMode)
                     deck.lastOpenedAt = Date()
                     try? context.save()
                     guard !isSuspended else { return }
@@ -262,10 +266,12 @@ struct DeckContentView: View {
                     && previewedCard == nil
                     && cardEditorDestination == nil
                     && !showConversionSheet
+                    && unavailablePlayMode == nil
                     && activeActionMenuCardID == nil
             ) { dismiss() }
             .animation(.bottomChromeSpring, value: viewModel.isSelecting)
             .environment(scrollState)
+            .overlay { unavailablePlayModeOverlay }
     }
 
     // MARK: Navigation Bar
@@ -418,7 +424,7 @@ struct DeckContentView: View {
     }
 
     private var mainContent: some View {
-        ScrollView {
+        let scrollView = ScrollView {
             VStack(spacing: 0) {
                 ScrollPositionRestorer(
                     getOffset: { viewModel.savedScrollOffset },
@@ -518,14 +524,18 @@ struct DeckContentView: View {
                         DeckPlayModesView(
                             deck: deck,
                             availability: viewModel.playModeAvailability,
+                            recentUsageSnapshot: playModeRecentUsageSnapshot,
                             onOpenMode: { mode in
-                                selectedPlayMode = mode
+                                openPlayMode(mode)
                             },
                             onOpenSettings: { mode in
                                 selectedPlayModeSettings = mode
                             },
                             onOpenRecommendedConversion: { mode in
                                 handlePlayModeRecommendedConversion(mode)
+                            },
+                            onRequestUnavailableMode: { mode in
+                                presentUnavailablePlayMode(mode)
                             }
                         )
                         .padding(.top, 16)
@@ -537,7 +547,6 @@ struct DeckContentView: View {
                     isSelecting: viewModel.isSelecting,
                     selectedCards: viewModel.selectedCards,
                     isSuspended: isSuspended,
-                    activeActionMenuCardID: activeActionMenuCardID,
                     onToggleSelection: { gridCard in
                         withAnimation(.spring(response: 0.18, dampingFraction: 0.88)) {
                             viewModel.toggleSelection(for: gridCard.id)
@@ -589,12 +598,8 @@ struct DeckContentView: View {
             Color.clear.frame(height: bottomContentInset)
         }
         .background(Color(.systemGroupedBackground))
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 4)
-                .onChanged { _ in
-                    dismissActiveActionMenu()
-                }
-        )
+
+        return scrollView
     }
 
     private func handleEditCard(_ gridCard: GridCardInfo) {
@@ -652,6 +657,46 @@ struct DeckContentView: View {
         }
 
         showConversionSheet = viewModel.conversionRequest != nil
+    }
+
+    private func openPlayMode(_ mode: DeckPlayModeDestination) {
+        dismissUnavailablePlayMode()
+        selectedPlayMode = mode
+    }
+
+    private func presentUnavailablePlayMode(_ mode: DeckPlayModeDestination) {
+        dismissActiveActionMenu()
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
+            unavailablePlayMode = mode
+        }
+    }
+
+    private func dismissUnavailablePlayMode() {
+        guard unavailablePlayMode != nil else { return }
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.92)) {
+            unavailablePlayMode = nil
+        }
+    }
+
+    private func convertUnavailablePlayMode(_ mode: DeckPlayModeDestination) {
+        dismissUnavailablePlayMode()
+        guard let targetKind = mode.unavailableConversionTargetKind else { return }
+        viewModel.presentDeckConversion(for: deck, preferredTargetKind: targetKind)
+        showConversionSheet = viewModel.conversionRequest != nil
+    }
+
+    private func recordCompletedPlayModeSession(_ mode: DeckPlayModeDestination) {
+        let settings = DeckPlayModeSettingsStore.resolve(for: deck, in: context)
+        settings.markRecentlyUsed(mode)
+    }
+
+    private func refreshPlayModeRecentUsageSnapshot() {
+        let settings = deck.playModeSettings
+        playModeRecentUsageSnapshot = DeckPlayModeDestination.allCases.reduce(into: [:]) { result, mode in
+            if let date = settings?.recentUsageDate(for: mode) {
+                result[mode] = date
+            }
+        }
     }
 
     private func openConvertedDeck(_ destinationDeckID: PersistentIdentifier) {
@@ -744,13 +789,30 @@ struct DeckContentView: View {
                !viewModel.isSelecting,
                !isSuspended {
                 let rect = proxy[anchor]
+                let menuWidth = DeckGridCardMetrics.headerMenuWidth
                 let menuHeight = DeckGridCardMetrics.headerMenuHeight
                 let floatingGap = DeckGridCardMetrics.headerMenuFloatingGap
+                let horizontalClearance = DeckGridCardMetrics.headerMenuHorizontalClearance
                 let topLimit = navigationBarBottomY + actionMenuTopClearance
+                let bottomLimit = proxy.size.height - actionMenuBottomClearance
+                let preferredX = rect.minX + DeckGridCardMetrics.sideInset
+                let clampedX = min(
+                    max(preferredX, horizontalClearance),
+                    max(horizontalClearance, proxy.size.width - horizontalClearance - menuWidth)
+                )
                 let topY = rect.minY - menuHeight - floatingGap
                 let bottomY = rect.maxY + floatingGap
-                let prefersTopPlacement = topY >= topLimit
-                let placement = prefersTopPlacement ? ActionMenuPlacement.top : .bottom
+                let topSpace = rect.minY - topLimit - floatingGap
+                let bottomSpace = bottomLimit - rect.maxY - floatingGap
+                let placement: ActionMenuPlacement =
+                    (topSpace >= menuHeight || topSpace >= bottomSpace) ? .top : .bottom
+                let clampedY = placement == .top
+                    ? max(topLimit, topY)
+                    : min(bottomY, max(topLimit, bottomLimit - menuHeight))
+                let transitionAnchor = UnitPoint(
+                    x: clampedX > preferredX ? 1 : 0,
+                    y: placement == .top ? 1 : 0
+                )
 
                 Color.black.opacity(0.001)
                     .ignoresSafeArea()
@@ -758,6 +820,12 @@ struct DeckContentView: View {
                     .onTapGesture {
                         dismissActiveActionMenu()
                     }
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 4)
+                            .onChanged { _ in
+                                dismissActiveActionMenu()
+                            }
+                    )
                     .zIndex(199)
 
                 DeckGridHeaderActionMenu(
@@ -781,8 +849,8 @@ struct DeckContentView: View {
                     }
                 )
                 .offset(
-                    x: rect.minX + DeckGridCardMetrics.sideInset,
-                    y: placement == .top ? topY : bottomY
+                    x: clampedX,
+                    y: clampedY
                 )
                 .transition(
                     .asymmetric(
@@ -790,14 +858,14 @@ struct DeckContentView: View {
                             .combined(
                                 with: .scale(
                                     scale: 0.84,
-                                    anchor: placement == .top ? .bottomLeading : .topLeading
+                                    anchor: transitionAnchor
                                 )
                             ),
                         removal: .opacity
                             .combined(
                                 with: .scale(
                                     scale: 0.94,
-                                    anchor: placement == .top ? .bottomLeading : .topLeading
+                                    anchor: transitionAnchor
                                 )
                             )
                     )
@@ -807,9 +875,114 @@ struct DeckContentView: View {
         }
     }
 
+    @ViewBuilder
+    private var unavailablePlayModeOverlay: some View {
+        if let unavailablePlayMode {
+            let prompt = unavailablePlayMode.unavailablePrompt(in: viewModel.playModeAvailability)
+
+            ZStack(alignment: .bottom) {
+                Color.black.opacity(0.22)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        dismissUnavailablePlayMode()
+                    }
+                    .transition(.opacity)
+
+                PlayModeUnavailableCard(
+                    mode: unavailablePlayMode,
+                    prompt: prompt,
+                    tintColor: unavailablePlayMode.tintColor(
+                        deckColor: Color(hex: deck.colorHex) ?? ThemeManager.shared.accentColor.color,
+                        accentColor: ThemeManager.shared.accentColor.color
+                    ),
+                    onConvert: prompt.actionTitle == nil
+                        ? nil
+                        : { convertUnavailablePlayMode(unavailablePlayMode) },
+                    onDismiss: dismissUnavailablePlayMode
+                )
+                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                .padding(
+                    .bottom,
+                    UIConstants.Size.bottomChromeBarHeight
+                        + UIConstants.Layout.bottomChromeBottomPadding
+                        + UIConstants.Spacing.medium
+                )
+                .transition(
+                    .opacity
+                        .combined(with: .scale(scale: 0.94, anchor: .bottom))
+                )
+            }
+            .zIndex(260)
+        }
+    }
+
     private enum ActionMenuPlacement {
         case top
         case bottom
+    }
+
+    private struct PlayModeUnavailableCard: View {
+        let mode: DeckPlayModeDestination
+        let prompt: PlayModeUnavailablePrompt
+        let tintColor: Color
+        let onConvert: (() -> Void)?
+        let onDismiss: () -> Void
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+                HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(tintColor.opacity(0.16))
+                        .frame(width: 54, height: 54)
+                        .overlay {
+                            Image(systemName: mode.systemImage)
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(tintColor)
+                        }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(prompt.title)
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(prompt.detail)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Button("Not now", action: onDismiss)
+                        .buttonStyle(.plain)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIConstants.Size.capsuleHeight)
+                        .background(Color.white.opacity(0.05), in: Capsule())
+
+                    if let onConvert, let actionTitle = prompt.actionTitle {
+                        Button(actionTitle, action: onConvert)
+                            .buttonStyle(.plain)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(tintColor)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: UIConstants.Size.capsuleHeight)
+                            .background(tintColor.opacity(0.12), in: Capsule())
+                    }
+                }
+            }
+            .padding(UIConstants.Spacing.large)
+            .widgetStyle(cornerRadius: 30)
+            .overlay {
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
+            }
+        }
     }
 
     private struct DeckCardPreviewSheetView: View {

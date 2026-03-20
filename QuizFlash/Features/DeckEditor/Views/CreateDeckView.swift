@@ -21,7 +21,6 @@ struct CreateDeckView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Environment(\.fullScreenSheetDismissCoordinator) private var fullScreenSheetDismissCoordinator
-    @Environment(\.fullScreenSheetDragProgress) private var fullScreenSheetDragProgress
     @Environment(\.scenePhase) private var scenePhase
     @Environment(NavigationManager.self) private var router
 
@@ -31,8 +30,7 @@ struct CreateDeckView: View {
     // MARK: - State
     @State private var viewModel: CreateDeckViewModel
     @State private var scrollState = CreateDeckScrollState()
-    @State private var leadingControlWidth: CGFloat = UIConstants.Size.actionButton
-    @State private var trailingControlWidth: CGFloat = (UIConstants.Size.actionButton * 2) + UIConstants.Spacing.small
+    @State private var derivedDeckState = CreateDeckDerivedState.empty
     @State private var navigationBarHeight: CGFloat = UIConstants.Size.actionButton
     @State private var viewSafeBottom: CGFloat = 0
     @State private var physicalSafeBottom: CGFloat = 0
@@ -40,6 +38,7 @@ struct CreateDeckView: View {
     @State private var showDeleteDeckConfirmation = false
     @State private var showAddCardTypeDialog = false
     @State private var allowDismissWithoutConfirmation = false
+    @State private var hasCapturedPhysicalSafeBottom = false
 
     /// Tracks the focus state of the deck title text field.
     /// Drives the tab bar visibility rule reactively.
@@ -64,11 +63,11 @@ struct CreateDeckView: View {
         viewModel.selectedFolder?.title ?? "Library"
     }
     private var draftDeckContentSummary: DraftDeckContentSummary {
-        DraftDeckContentSummary(cards: viewModel.draftCards)
+        derivedDeckState.contentSummary
     }
 
     private var draftDeckReadinessSummary: DeckReadinessSummary {
-        CardReadinessDiagnostics.summary(for: viewModel.draftCards)
+        derivedDeckState.readinessSummary
     }
     private var draftReadinessRecommendedTargets: [CardKind] {
         draftDeckReadinessSummary.recommendedConversions.map(\.targetKind)
@@ -130,10 +129,6 @@ struct CreateDeckView: View {
     private var tabBarOffset: CGFloat {
         max(0, viewSafeBottom - physicalSafeBottom)
     }
-    private var sheetEdgeShadowOpacity: Double {
-        guard fullScreenSheetDismiss != nil else { return 0 }
-        return 1 - min(fullScreenSheetDragProgress / 0.025, 1.0)
-    }
     private var shouldShowFloatingGenerate: Bool {
         scrollState.pillVisible
             && !viewModel.draftCards.isEmpty
@@ -150,6 +145,12 @@ struct CreateDeckView: View {
             && viewModel.aiSheetDestination == nil
             && !viewModel.showSuccessOverlay
             && !isTitleFocused
+    }
+    private var swipeBackEnabled: Bool {
+        fullScreenSheetDismiss != nil ? canUseInteractiveDismiss : true
+    }
+    private var swipeBackAttachment: SwipeBackAttachment {
+        fullScreenSheetDismiss != nil ? .localHost : .window
     }
 
     /// Contextual rule for tab bar visibility.
@@ -198,13 +199,20 @@ struct CreateDeckView: View {
                     viewModel.handleAISheetDismissed()
                 }
             }
-            .swipeBack(enabled: canUseInteractiveDismiss) {
+            .swipeBack(
+                enabled: swipeBackEnabled,
+                attachment: swipeBackAttachment
+            ) {
                 requestDismiss()
             }
             .onAppear {
+                refreshDerivedDeckState()
                 fullScreenSheetDismissCoordinator?.shouldAllowDismiss = {
                     attemptInteractiveDismissValidation()
                 }
+            }
+            .onChange(of: viewModel.draftCards) { _, _ in
+                refreshDerivedDeckState()
             }
             .onDisappear {
                 if fullScreenSheetDismissCoordinator?.shouldAllowDismiss != nil {
@@ -265,13 +273,9 @@ struct CreateDeckView: View {
                 }
                 .overlay {
                     if fullScreenSheetDismiss != nil {
-                        EdgeShadowOverlay(
-                            topHeight: resolvedSafeTopInset + navigationBarHeight + 28,
-                            bottomHeight: 0,
-                            kMaxAlphaTop: 0.68,
-                            kMaxAlphaBottom: 0
+                        CreateDeckSheetEdgeShadow(
+                            topHeight: resolvedSafeTopInset + navigationBarHeight + 28
                         )
-                        .opacity(sheetEdgeShadowOpacity)
                         .allowsHitTesting(false)
                     }
                 }
@@ -295,10 +299,11 @@ struct CreateDeckView: View {
             GeometryReader { geo in
                 Color.clear
                     .onAppear {
-                        updateBottomSafeArea(using: geo.safeAreaInsets.bottom)
+                        capturePhysicalSafeBottomIfNeeded()
+                        updateViewSafeBottom(using: geo.safeAreaInsets.bottom)
                     }
                     .onChange(of: geo.safeAreaInsets.bottom) { _, newValue in
-                        updateBottomSafeArea(using: newValue)
+                        updateViewSafeBottom(using: newValue)
                     }
             }
         }
@@ -435,6 +440,8 @@ private extension CreateDeckView {
     private func navigationBarContent(containerWidth: CGFloat) -> some View {
         let horizontalInset = UIConstants.Layout.compactScreenEdgeInset
         let availableChromeWidth = max(0, containerWidth - (horizontalInset * 2))
+        let leadingControlWidth = UIConstants.Size.actionButton
+        let trailingControlWidth = (UIConstants.Size.actionButton * 2) + UIConstants.Spacing.small
         let sideClearance = max(leadingControlWidth, trailingControlWidth)
         let maxTitleWidth = max(
             UIConstants.Size.buttonHeight,
@@ -451,26 +458,12 @@ private extension CreateDeckView {
 
             HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
                 doneButton
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.size.width
-                    } action: { newWidth in
-                        if abs(leadingControlWidth - newWidth) > 0.5 {
-                            leadingControlWidth = newWidth
-                        }
-                    }
 
                 Spacer(minLength: 0)
 
                 HStack(spacing: UIConstants.Spacing.small) {
                     addCardButton
                     moreActionsButton
-                }
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.width
-                } action: { newWidth in
-                    if abs(trailingControlWidth - newWidth) > 0.5 {
-                        trailingControlWidth = newWidth
-                    }
                 }
             }
         }
@@ -836,8 +829,20 @@ private extension CreateDeckView {
             .accessibilityLabel("More actions")
     }
 
-    private func updateBottomSafeArea(using viewInset: CGFloat) {
+    private func updateViewSafeBottom(using viewInset: CGFloat) {
+        guard abs(viewSafeBottom - viewInset) > 0.5 else { return }
         viewSafeBottom = viewInset
+    }
+
+    private func capturePhysicalSafeBottomIfNeeded() {
+        guard !hasCapturedPhysicalSafeBottom else { return }
+        hasCapturedPhysicalSafeBottom = true
+
+        if let presentedBottomInset = presentedSafeAreaInsets?.bottom, presentedBottomInset > 0 {
+            physicalSafeBottom = presentedBottomInset
+            return
+        }
+
         physicalSafeBottom = UIApplication.shared
             .connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -1017,6 +1022,7 @@ private extension CreateDeckView {
                 presentDraftRecommendedConversion(for: card, targetKind: targetKind)
             }
         )
+        .equatable()
             .transition(
                 (appliesTransition && !viewModel.isSelectingCards)
                     ? .asymmetric(
@@ -1063,10 +1069,7 @@ private extension CreateDeckView {
     }
 
     private func recommendedDraftCards(for targetKind: CardKind) -> [DraftCard] {
-        viewModel.draftCards.filter { draftCard in
-            CardReadinessDiagnostics.diagnostics(for: draftCard.content)
-                .contains(where: { $0.recommendedConversionTargetKind == targetKind })
-        }
+        derivedDeckState.recommendedCards[targetKind] ?? []
     }
 
     private func presentDraftRecommendedConversion(for card: DraftCard, targetKind: CardKind) {
@@ -1190,6 +1193,55 @@ private extension CreateDeckView {
         } else {
             dismiss()
         }
+    }
+
+    private func refreshDerivedDeckState() {
+        derivedDeckState = CreateDeckDerivedState(cards: viewModel.draftCards)
+    }
+}
+
+private struct CreateDeckDerivedState: Equatable {
+    let contentSummary: DraftDeckContentSummary
+    let readinessSummary: DeckReadinessSummary
+    let recommendedCards: [CardKind: [DraftCard]]
+
+    static let empty = CreateDeckDerivedState(cards: [])
+
+    init(cards: [DraftCard]) {
+        contentSummary = DraftDeckContentSummary(cards: cards)
+        readinessSummary = CardReadinessDiagnostics.summary(for: cards)
+
+        var recommendedCards: [CardKind: [DraftCard]] = [:]
+        for card in cards {
+            let targets = Set(
+                CardReadinessDiagnostics.diagnostics(for: card.content)
+                    .compactMap(\.recommendedConversionTargetKind)
+            )
+            for targetKind in targets {
+                recommendedCards[targetKind, default: []].append(card)
+            }
+        }
+        self.recommendedCards = recommendedCards
+    }
+}
+
+private struct CreateDeckSheetEdgeShadow: View {
+    let topHeight: CGFloat
+
+    @Environment(\.fullScreenSheetDragProgress) private var fullScreenSheetDragProgress
+
+    private var opacity: Double {
+        1 - min(fullScreenSheetDragProgress / 0.025, 1.0)
+    }
+
+    var body: some View {
+        EdgeShadowOverlay(
+            topHeight: topHeight,
+            bottomHeight: 0,
+            kMaxAlphaTop: 0.68,
+            kMaxAlphaBottom: 0
+        )
+        .opacity(opacity)
     }
 }
 

@@ -18,6 +18,11 @@ struct SettingsView: View {
     
     @State private var themeManager = ThemeManager.shared
     @Query private var decks: [DeckModel]
+    let allowsSwipeBack: Bool
+
+    init(allowsSwipeBack: Bool = false) {
+        self.allowsSwipeBack = allowsSwipeBack
+    }
 
     var body: some View {
         // We render the List directly as the root view for a completely clean layout.
@@ -154,8 +159,8 @@ struct SettingsView: View {
         }
         // Force hide the native navigation bar to keep the screen entirely clean
         .toolbar(.hidden, for: .navigationBar)
-        // Bind the custom fluid gesture directly to the view's dismiss action
-        .swipeBack {
+        // Only route the custom fluid gesture when Settings is pushed from another screen.
+        .swipeBack(enabled: allowsSwipeBack) {
             dismiss()
         }
     }

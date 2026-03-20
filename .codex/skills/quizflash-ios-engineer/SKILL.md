@@ -41,11 +41,30 @@ Write and review code for QuizFlash using the repository's architecture rules in
    - Prefer semantic colors and existing theme plumbing.
    - Keep navigation programmatic through `NavigationManager`.
    - Treat long scrolling surfaces and immersive modal flows as architecture-sensitive code paths, not local view tweaks.
+   - On drag-heavy or scroll-heavy surfaces, do not leave expensive collection-wide work in view `computed` properties.
+   - If a value walks many cards, zones, diagnostics, or summaries, cache it in local state or move it out of the hot render path, then recompute only when the source collection actually changes.
+   - Prefer `Equatable` row views and other diff-friendly techniques for large editor/deck lists so parent refreshes do not rebuild every row.
 4. Preserve the repo's file hygiene when generating or rewriting files.
    - Keep Apple-style file headers.
    - Keep `// MARK: -` sections.
    - Keep DocC comments on new internal and public declarations.
    - Remove `TODO:`, `FIXME:`, and commented-out code from generated output.
+
+## Testing Expectations
+
+1. Treat data-flow regressions as testable by default.
+   - When a change creates, edits, deletes, imports, exports, converts, or otherwise mutates persisted app data, add or update automated tests unless the user explicitly says not to.
+2. Prefer logic and persistence tests over UI automation.
+   - Use `XCTest` suites in `QuizFlashTests/` to validate models, view models, stores, import/export, and detached persistence flows.
+   - Leave UI validation to manual verification unless the task explicitly asks for UI tests.
+3. Use deterministic in-memory fixtures for SwiftData.
+   - Prefer a dedicated in-memory `ModelContainer` test helper over production storage.
+   - Seed relationships in the direction the production code actually reads (`deck.cards`, `deck.folder`, etc.) to avoid SwiftData registration traps.
+4. Verify tests conservatively on one simulator at a time.
+   - Prefer `build-for-testing` once, then `test-without-building` per suite or class.
+   - Disable parallel testing for local verification unless the user explicitly wants parallel runs.
+5. Extend the regression net when fixing a bug.
+   - If a data-flow bug is discovered while testing, fix the fixture or production code at the root cause and keep the new test as a permanent guardrail.
 
 ## Decision Points
 

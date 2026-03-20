@@ -28,10 +28,6 @@ struct CustomTabBar: View {
         ThemeManager.shared.accentColor.color
     }
 
-    private var isIPad: Bool {
-        UIDevice.current.userInterfaceIdiom == .pad
-    }
-
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
@@ -75,7 +71,7 @@ struct CustomTabBar: View {
             .frame(
                 maxWidth: .infinity,
                 maxHeight: .infinity,
-                alignment: isIPad ? .bottomTrailing : .bottom
+                alignment: .bottom
             )
             .onAppear {
                 guard !isInitialOffsetSet else { return }
@@ -99,6 +95,7 @@ struct CustomTabBar: View {
         }
         .frame(height: UIConstants.Size.bottomChromeBarHeight)
         .padding(.horizontal, 25)
+        .ignoresSafeArea(.container, edges: .bottom)
         .animation(.smooth, value: visualTab)
         .animation(.bouncy, value: isActive)
     }

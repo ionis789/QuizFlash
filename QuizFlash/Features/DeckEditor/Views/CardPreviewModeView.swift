@@ -39,6 +39,9 @@ struct CardPreviewModeView: View {
         }
         return false
     }
+    private var swipeBackAttachment: SwipeBackAttachment {
+        fullScreenSheetDismiss == nil ? .window : .localHost
+    }
 
     init(
         content: DraftCardContent,
@@ -106,7 +109,7 @@ struct CardPreviewModeView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .fullScreenSheetDragActivationHeight(contentTopInset)
         }
-        .swipeBack {
+        .swipeBack(attachment: swipeBackAttachment) {
             handleDone()
         }
     }

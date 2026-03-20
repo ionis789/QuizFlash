@@ -319,6 +319,7 @@ final class AIProviderStore {
         category: "AIProviderStore"
     )
 
+    @ObservationIgnored private let fileManager: FileManager
     @ObservationIgnored private let fileURL: URL
 
     private(set) var profiles: [AIProviderProfile]
@@ -329,10 +330,14 @@ final class AIProviderStore {
         return profiles.first(where: { $0.id == activeProfileID }) ?? profiles.first
     }
 
-    private init() {
-        fileURL = Self.makeStorageURL()
+    init(
+        fileURL: URL = AIProviderStore.makeStorageURL(),
+        fileManager: FileManager = .default
+    ) {
+        self.fileManager = fileManager
+        self.fileURL = fileURL
 
-        if let payload = Self.loadPayload(from: fileURL) {
+        if let payload = Self.loadPayload(from: fileURL, fileManager: fileManager) {
             profiles = payload.profiles.isEmpty ? Self.defaultProfiles() : payload.profiles
             activeProfileID = payload.activeProfileID ?? profiles.first?.id
         } else {
@@ -395,7 +400,7 @@ final class AIProviderStore {
 
         do {
             let directoryURL = fileURL.deletingLastPathComponent()
-            try FileManager.default.createDirectory(
+            try fileManager.createDirectory(
                 at: directoryURL,
                 withIntermediateDirectories: true,
                 attributes: nil
@@ -407,7 +412,7 @@ final class AIProviderStore {
 
             try data.write(to: fileURL, options: [.atomic])
 
-            try FileManager.default.setAttributes(
+            try fileManager.setAttributes(
                 [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
                 ofItemAtPath: fileURL.path
             )
@@ -429,8 +434,8 @@ final class AIProviderStore {
         ]
     }
 
-    private static func makeStorageURL() -> URL {
-        let applicationSupportURL = FileManager.default.urls(
+    nonisolated static func makeStorageURL(fileManager: FileManager = .default) -> URL {
+        let applicationSupportURL = fileManager.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
         ).first ?? URL.documentsDirectory
@@ -440,8 +445,11 @@ final class AIProviderStore {
             .appendingPathComponent("provider_profiles.json", isDirectory: false)
     }
 
-    private static func loadPayload(from fileURL: URL) -> StoragePayload? {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
+    private static func loadPayload(
+        from fileURL: URL,
+        fileManager: FileManager
+    ) -> StoragePayload? {
+        guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
 
         do {
             let data = try Data(contentsOf: fileURL)

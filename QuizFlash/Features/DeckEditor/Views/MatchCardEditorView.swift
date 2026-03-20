@@ -96,6 +96,9 @@ struct MatchCardEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbar { toolbarContent }
+            .swipeBack {
+                dismiss()
+            }
             .task {
                 focusedField = .prompt
             }

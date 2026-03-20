@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct DetailedCardRowView: View {
+struct DetailedCardRowView: View, Equatable {
     let card: DraftCard
     var index: Int
     var fixedHeight: CGFloat? = nil
@@ -21,6 +21,14 @@ struct DetailedCardRowView: View {
     private var isCompactPreview: Bool { fixedHeight != nil }
     private var trailingAccessorySize: CGFloat { 34 }
     private var displayCardNumber: Int { card.cardNumber > 0 ? card.cardNumber : index }
+
+    static func == (lhs: DetailedCardRowView, rhs: DetailedCardRowView) -> Bool {
+        lhs.card == rhs.card
+            && lhs.index == rhs.index
+            && lhs.fixedHeight == rhs.fixedHeight
+            && lhs.isSelecting == rhs.isSelecting
+            && lhs.isSelected == rhs.isSelected
+    }
 
     var body: some View {
         Group {
