@@ -14,6 +14,7 @@ struct QuizFlashApp: App {
     @State var authManager = AuthManager.shared
     @State private var themeManager = ThemeManager.shared
     @State private var aiProviderStore = AIProviderStore.shared
+    @State private var appPreferences = AppPreferences.shared
 
     init() {
         //
@@ -25,6 +26,7 @@ struct QuizFlashApp: App {
             RootView()
                 .environment(authManager)
                 .environment(aiProviderStore)
+                .environment(appPreferences)
                 .tint(themeManager.accentColor.color)
                 .preferredColorScheme(.dark)
                 .onAppear {

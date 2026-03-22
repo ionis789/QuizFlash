@@ -32,10 +32,11 @@ struct CustomTabBar: View {
         GeometryReader { proxy in
             let size = proxy.size
             let tabs = AppTabBar.allCases
-            let tabItemWidth = max(min(size.width / CGFloat(tabs.count), 90), 60)
             let tabItemHeight = UIConstants.Size.bottomChromeControl
             let chromeHorizontalPadding = UIConstants.Layout.bottomChromeInnerHorizontalPadding / 2
             let chromeVerticalPadding = UIConstants.Layout.bottomChromeInnerVerticalPadding
+            let availableTabRowWidth = max(0, size.width - (chromeHorizontalPadding * 2))
+            let tabItemWidth = max(min(availableTabRowWidth / CGFloat(tabs.count), 90), 60)
 
             ZStack {
                 if isInitialOffsetSet {

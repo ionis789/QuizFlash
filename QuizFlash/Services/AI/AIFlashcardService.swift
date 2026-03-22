@@ -1,5 +1,6 @@
 import Foundation
 import UIKit // Required for UIImage – image pipeline only, no UI components used
+import SwiftData
 
 // =============================================================================
 // MARK: - AI Service Errors
@@ -161,9 +162,12 @@ public final class AIFlashcardService: @unchecked Sendable {
     private let maxCharsPerChunk = 12_000
     private let maxConcurrentTextPlanRequests = 6
     private let maxConcurrentVisionPlanRequests = 4
+    private let maxConcurrentConversionRequests = 6
     private let timeoutIntervalForRequest: TimeInterval = 360
     private let timeoutIntervalForResource: TimeInterval = 1_800
+    private let conversionBatchExecutionTimeoutNanoseconds: UInt64 = 120_000_000_000
     private let maxRequestRetryCount = 4
+    private let maxMatchQualityAttempts = 3
     private let baseRetryDelayNanoseconds: UInt64 = 1_200_000_000
     private let maxRetryDelayNanoseconds: UInt64 = 12_000_000_000
 
@@ -241,6 +245,72 @@ public final class AIFlashcardService: @unchecked Sendable {
                 )
             }
         }
+    }
+
+    private struct ConversionBatchPlan: RecoverableBatchPlan {
+        let sourceCards: [AICardConversionSource]
+        let sourceLabel: String
+        let targetCards: Int
+        let batchIndex: Int
+        let totalBatches: Int
+
+        func splitForRecovery() -> [ConversionBatchPlan]? {
+            guard sourceCards.count > 1 else { return nil }
+
+            let midpoint = max(1, sourceCards.count / 2)
+            let leftCards = Array(sourceCards[..<midpoint])
+            let rightCards = Array(sourceCards[midpoint...])
+
+            return [
+                ConversionBatchPlan(
+                    sourceCards: leftCards,
+                    sourceLabel: "\(sourceLabel) A",
+                    targetCards: leftCards.count,
+                    batchIndex: batchIndex,
+                    totalBatches: totalBatches
+                ),
+                ConversionBatchPlan(
+                    sourceCards: rightCards,
+                    sourceLabel: "\(sourceLabel) B",
+                    targetCards: rightCards.count,
+                    batchIndex: batchIndex,
+                    totalBatches: totalBatches
+                )
+            ]
+            .filter { !$0.sourceCards.isEmpty }
+        }
+    }
+
+    private struct MatchGenerationQualityResult {
+        let cards: [AIFlashcard]
+        let shortfallCount: Int
+    }
+
+    private struct MatchConversionQualityResult {
+        let outputs: [AICardConversionOutput]
+        let shortfallCount: Int
+    }
+
+    private struct WriteConversionQualityResult {
+        let outputs: [AICardConversionOutput]
+        let shortfallCount: Int
+    }
+
+    struct MatchConversionFilterResult {
+        let outputs: [AICardConversionOutput]
+        let rejectedSourceIDs: Set<PersistentIdentifier>
+        let retryHints: [String]
+    }
+
+    struct WriteConversionFilterResult {
+        let outputs: [AICardConversionOutput]
+        let rejectedSourceIDs: Set<PersistentIdentifier>
+        let retryHints: [String]
+    }
+
+    private struct GeneratedBatchExecutionResult {
+        let cards: [AIFlashcard]
+        let shortfallCount: Int
     }
 
     // -------------------------------------------------------------------------
@@ -342,23 +412,62 @@ public final class AIFlashcardService: @unchecked Sendable {
         to targetType: AICardGenerationType,
         level: AICardGenerationLevel = .balanced
     ) async throws -> [AICardConversionOutput] {
-        let trimmedCards = sourceCards.filter {
-            !$0.content.searchDocumentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
-        guard !trimmedCards.isEmpty else { return [] }
-
-        let messages = buildConversionMessages(
-            sourceCards: trimmedCards,
-            targetType: targetType,
+        let stream = convertCardsStream(
+            sourceCards,
+            to: targetType,
             level: level
         )
 
-        return try await sendConversionRequest(
-            messages: messages,
-            model: textModel,
-            sourceCards: trimmedCards,
-            targetType: targetType
+        var allOutputs: [AICardConversionOutput] = []
+        for try await chunk in stream {
+            allOutputs.append(contentsOf: chunk.outputs)
+        }
+        return allOutputs
+    }
+
+    /// Streams converted card batches using the same adaptive planner used by
+    /// AI generation so conversions no longer stall behind a fixed serial loop.
+    func convertCardsStream(
+        _ sourceCards: [AICardConversionSource],
+        to targetType: AICardGenerationType,
+        level: AICardGenerationLevel = .balanced
+    ) -> AsyncThrowingStream<AIConversionBatchChunk, Error> {
+        let trimmedCards = sourceCards.filter {
+            !$0.content.searchDocumentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+
+        let options = AIGenerationOptions(
+            cardType: targetType,
+            cardLevel: level
         )
+        let plans = buildConversionBatchPlans(
+            sourceCards: trimmedCards,
+            options: options
+        )
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    try await performConversionPlanQueue(
+                        plans: plans,
+                        targetType: targetType,
+                        level: level
+                    ) { chunk in
+                        continuation.yield(chunk)
+                        await Task.yield()
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
+            }
+        }
     }
 
     /// Streams flashcard batches from a PDF file as soon as each AI chunk finishes.
@@ -772,6 +881,30 @@ public final class AIFlashcardService: @unchecked Sendable {
             plans: plans,
             maxConcurrent: maxConcurrentTextPlanRequests,
             execute: { [self] plan, coveredPrompts in
+                if options.cardType == .match {
+                    let result = try await sendQualityFirstMatchGenerationRequest(
+                        targetCards: plan.targetCards,
+                        model: textModel,
+                        options: options
+                    ) { requestedCards, retryHints in
+                        buildTextMessages(
+                            text: plan.text,
+                            targetCards: requestedCards,
+                            needsOCRCorrection: needsOCRCorrection,
+                            options: options,
+                            sourceLabel: plan.sourceLabel,
+                            batchIndex: plan.batchIndex,
+                            totalBatches: plan.totalBatches,
+                            passIndex: plan.passIndex,
+                            coveredPrompts: coveredPrompts + retryHints
+                        )
+                    }
+                    return GeneratedBatchExecutionResult(
+                        cards: result.cards,
+                        shortfallCount: result.shortfallCount
+                    )
+                }
+
                 let messages = buildTextMessages(
                     text: plan.text,
                     targetCards: plan.targetCards,
@@ -784,7 +917,10 @@ public final class AIFlashcardService: @unchecked Sendable {
                     coveredPrompts: coveredPrompts
                 )
 
-                return try await sendRequest(messages: messages, model: textModel, options: options)
+                return GeneratedBatchExecutionResult(
+                    cards: try await sendRequest(messages: messages, model: textModel, options: options),
+                    shortfallCount: 0
+                )
             },
             onBatch: onBatch
         )
@@ -826,6 +962,29 @@ public final class AIFlashcardService: @unchecked Sendable {
             plans: plans,
             maxConcurrent: maxConcurrentVisionPlanRequests,
             execute: { [self] plan, coveredPrompts in
+                if options.cardType == .match {
+                    let result = try await sendQualityFirstMatchGenerationRequest(
+                        targetCards: plan.targetCards,
+                        model: visionModel,
+                        options: options
+                    ) { requestedCards, retryHints in
+                        buildVisionMessages(
+                            images: plan.images,
+                            targetCards: requestedCards,
+                            options: options,
+                            sourceLabel: plan.sourceLabel,
+                            batchIndex: plan.batchIndex,
+                            totalBatches: plan.totalBatches,
+                            passIndex: plan.passIndex,
+                            coveredPrompts: coveredPrompts + retryHints
+                        )
+                    }
+                    return GeneratedBatchExecutionResult(
+                        cards: result.cards,
+                        shortfallCount: result.shortfallCount
+                    )
+                }
+
                 let messages = buildVisionMessages(
                     images: plan.images,
                     targetCards: plan.targetCards,
@@ -837,7 +996,10 @@ public final class AIFlashcardService: @unchecked Sendable {
                     coveredPrompts: coveredPrompts
                 )
 
-                return try await sendRequest(messages: messages, model: visionModel, options: options)
+                return GeneratedBatchExecutionResult(
+                    cards: try await sendRequest(messages: messages, model: visionModel, options: options),
+                    shortfallCount: 0
+                )
             },
             onBatch: onBatch
         )
@@ -1043,6 +1205,35 @@ public final class AIFlashcardService: @unchecked Sendable {
         return indexed(plans)
     }
 
+    private func buildConversionBatchPlans(
+        sourceCards: [AICardConversionSource],
+        options: AIGenerationOptions
+    ) -> [ConversionBatchPlan] {
+        guard !sourceCards.isEmpty else { return [] }
+
+        let batchSizes = makeCardBatchSizes(
+            totalCards: sourceCards.count,
+            batchSize: options.resolvedCardsPerBatch(for: sourceCards.count)
+        )
+        guard !batchSizes.isEmpty else { return [] }
+
+        var cursor = 0
+        return batchSizes.enumerated().compactMap { index, batchSize in
+            guard cursor < sourceCards.count else { return nil }
+            let end = min(cursor + batchSize, sourceCards.count)
+            let batchSources = Array(sourceCards[cursor..<end])
+            cursor = end
+
+            return ConversionBatchPlan(
+                sourceCards: batchSources,
+                sourceLabel: "Cards \(index == 0 ? 1 : max(1, end - batchSources.count + 1))-\(end)",
+                targetCards: batchSources.count,
+                batchIndex: index + 1,
+                totalBatches: batchSizes.count
+            )
+        }
+    }
+
     private func makeTextUnits(from text: String) -> [TextSourceUnit] {
         let pages = text.components(separatedBy: DocumentTextExtractor.pageSeparator)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -1234,7 +1425,7 @@ public final class AIFlashcardService: @unchecked Sendable {
     private func performPlanQueue<Plan: RecoverableBatchPlan>(
         plans: [Plan],
         maxConcurrent: Int,
-        execute: @escaping @Sendable (Plan, [String]) async throws -> [AIFlashcard],
+        execute: @escaping @Sendable (Plan, [String]) async throws -> GeneratedBatchExecutionResult,
         onBatch: @escaping (AIFlashcardBatchChunk) async throws -> Void
     ) async throws {
         guard !plans.isEmpty else { return }
@@ -1246,7 +1437,7 @@ public final class AIFlashcardService: @unchecked Sendable {
         var consecutiveSuccesses = 0
         var terminalFailures: [String] = []
 
-        try await withThrowingTaskGroup(of: (Plan, Result<[AIFlashcard], Error>).self) { group in
+        try await withThrowingTaskGroup(of: (Plan, Result<GeneratedBatchExecutionResult, Error>).self) { group in
             func scheduleAvailableTasks() {
                 while activeTaskCount < activeConcurrency, !pendingPlans.isEmpty {
                     let plan = pendingPlans.removeFirst()
@@ -1256,8 +1447,8 @@ public final class AIFlashcardService: @unchecked Sendable {
                     group.addTask {
                         do {
                             try Task.checkCancellation()
-                            let cards = try await execute(plan, promptSnapshot)
-                            return (plan, .success(cards))
+                            let result = try await execute(plan, promptSnapshot)
+                            return (plan, .success(result))
                         } catch {
                             return (plan, .failure(error))
                         }
@@ -1277,19 +1468,20 @@ public final class AIFlashcardService: @unchecked Sendable {
                 activeTaskCount -= 1
 
                 switch result {
-                case .success(let cards):
+                case .success(let result):
                     consecutiveSuccesses += 1
 
-                    if !cards.isEmpty {
+                    if !result.cards.isEmpty || result.shortfallCount > 0 {
                         try await onBatch(
                             AIFlashcardBatchChunk(
-                                cards: cards,
+                                cards: result.cards,
                                 allocationID: allocationID(for: plan),
                                 plannedCardCount: plan.targetCards,
+                                shortfallCount: result.shortfallCount,
                                 sourceLabel: plan.sourceLabel
                             )
                         )
-                        coveredPrompts = updateCoveredPrompts(existing: coveredPrompts, with: cards)
+                        coveredPrompts = updateCoveredPrompts(existing: coveredPrompts, with: result.cards)
                     }
 
                     if consecutiveSuccesses >= max(activeConcurrency, 1), activeConcurrency < maxConcurrent {
@@ -1317,6 +1509,139 @@ public final class AIFlashcardService: @unchecked Sendable {
             throw AIServiceError.unknown(
                 """
                 AI generation completed only partially. Some request fragments still failed after retries.
+                \(preview)
+                """
+            )
+        }
+    }
+
+    private func performConversionPlanQueue(
+        plans: [ConversionBatchPlan],
+        targetType: AICardGenerationType,
+        level: AICardGenerationLevel,
+        onBatch: @escaping (AIConversionBatchChunk) async throws -> Void
+    ) async throws {
+        guard !plans.isEmpty else { return }
+
+        var pendingPlans = plans
+        var activeTaskCount = 0
+        var activeConcurrency = min(max(maxConcurrentConversionRequests, 1), plans.count)
+        var consecutiveSuccesses = 0
+        var terminalFailures: [String] = []
+
+        try await withThrowingTaskGroup(of: (ConversionBatchPlan, Result<AIConversionBatchChunk, Error>).self) { group in
+            func scheduleAvailableTasks() {
+                while activeTaskCount < activeConcurrency, !pendingPlans.isEmpty {
+                    let plan = pendingPlans.removeFirst()
+                    let sourceCards = plan.sourceCards
+                    let plannedCardCount = plan.targetCards
+                    let sourceLabel = plan.sourceLabel
+                    activeTaskCount += 1
+
+                    group.addTask { [self] in
+                        do {
+                            try Task.checkCancellation()
+
+                            let chunk = try await withExecutionTimeout(
+                                nanoseconds: conversionBatchExecutionTimeoutNanoseconds
+                            ) {
+                                if targetType == .match {
+                                    let qualityResult = try await self.sendQualityFirstMatchConversionRequest(
+                                        sourceCards: sourceCards,
+                                        level: level
+                                    )
+                                    return AIConversionBatchChunk(
+                                        outputs: qualityResult.outputs,
+                                        plannedSourceIDs: sourceCards.map(\.id),
+                                        plannedCardCount: plannedCardCount,
+                                        shortfallCount: qualityResult.shortfallCount,
+                                        sourceLabel: sourceLabel
+                                    )
+                                }
+
+                                if targetType == .write {
+                                    let qualityResult = try await self.sendQualityFirstWriteConversionRequest(
+                                        sourceCards: sourceCards,
+                                        level: level
+                                    )
+                                    return AIConversionBatchChunk(
+                                        outputs: qualityResult.outputs,
+                                        plannedSourceIDs: sourceCards.map(\.id),
+                                        plannedCardCount: plannedCardCount,
+                                        shortfallCount: qualityResult.shortfallCount,
+                                        sourceLabel: sourceLabel
+                                    )
+                                }
+
+                                let messages = self.buildConversionMessages(
+                                    sourceCards: sourceCards,
+                                    targetType: targetType,
+                                    level: level
+                                )
+                                let outputs = try await self.sendConversionRequest(
+                                    messages: messages,
+                                    model: self.textModel,
+                                    sourceCards: sourceCards,
+                                    targetType: targetType
+                                )
+                                return AIConversionBatchChunk(
+                                    outputs: outputs,
+                                    plannedSourceIDs: sourceCards.map(\.id),
+                                    plannedCardCount: plannedCardCount,
+                                    shortfallCount: max(0, plannedCardCount - outputs.count),
+                                    sourceLabel: sourceLabel
+                                )
+                            }
+
+                            return (plan, .success(chunk))
+                        } catch {
+                            return (plan, .failure(error))
+                        }
+                    }
+                }
+            }
+
+            scheduleAvailableTasks()
+
+            while activeTaskCount > 0 {
+                try Task.checkCancellation()
+
+                guard let (plan, result) = try await group.next() else {
+                    break
+                }
+
+                activeTaskCount -= 1
+
+                switch result {
+                case .success(let chunk):
+                    consecutiveSuccesses += 1
+                    try await onBatch(chunk)
+
+                    if consecutiveSuccesses >= max(activeConcurrency, 1), activeConcurrency < maxConcurrentConversionRequests {
+                        activeConcurrency += 1
+                        consecutiveSuccesses = 0
+                    }
+
+                case .failure(let error):
+                    consecutiveSuccesses = 0
+                    activeConcurrency = max(1, activeConcurrency / 2)
+
+                    if shouldAttemptPlanSplit(after: error), let splitPlans = plan.splitForRecovery() {
+                        pendingPlans.append(contentsOf: splitPlans)
+                    } else {
+                        terminalFailures.append(batchFailureDescription(for: plan, error: error))
+                    }
+                }
+
+                scheduleAvailableTasks()
+            }
+        }
+
+        if !terminalFailures.isEmpty {
+            let preview = terminalFailures.prefix(3).joined(separator: "\n")
+            throw AIServiceError.unknown(
+                """
+                AI conversion completed only partially. Some request fragments still failed after retries.
                 \(preview)
                 """
             )
@@ -1591,7 +1916,7 @@ public final class AIFlashcardService: @unchecked Sendable {
     // =========================================================================
     //
     // DESIGN PRINCIPLES:
-    //   • GPT returns zones as string arrays, not a single block of text
+    //   • AI returns zones as string arrays, not a single block of text
     //   • Each array element = one visual zone block in the app
     //   • Clear splitting rules: when to use 1 zone vs multiple
     //   • Explicit LaTeX escaping rules with CONCRETE before/after examples
@@ -1820,8 +2145,11 @@ public final class AIFlashcardService: @unchecked Sendable {
         ═══════════════════════════════════════════════════════
         - prompt and answer MUST stay plain, compact, and immediately scannable.
         - Prefer a single line for each field. Avoid bullet points, numbering, and sentence fragments stacked across lines.
+        - Think in compact pairs only: term -> definition, notation -> meaning, event -> outcome, structure -> property.
+        - Each field should feel readable in under one second.
         - Avoid markdown emphasis unless a math or code symbol is essential to the concept.
         - Never include explanations, examples, or qualifiers beyond the direct pair itself.
+        - Never output lists, semicolon chains, or mini paragraphs.
         - If the source concept is too broad for a compact pair, skip it and generate a tighter concept instead.
         """
         }
@@ -2001,7 +2329,9 @@ public final class AIFlashcardService: @unchecked Sendable {
         These cards must remain easy to pair in match mode.
         The front should usually be a short term, prompt, event, notation, formula name, or compact cue.
         The back should be the direct counterpart only: concise definition, association, mapping, or result.
-        Avoid essay-style answers unless the source makes that unavoidable.
+        Prefer the tightest faithful pair, not the most complete explanation.
+        Skip broad concepts that would require multiple clauses to explain.
+        Do not turn one source concept into a mini flashcard answer. Match needs compact pairs, not explanations.
         """
         case .quiz:
             return """
@@ -2106,6 +2436,362 @@ public final class AIFlashcardService: @unchecked Sendable {
                 contract: targetType.outputContract
             )
         }
+    }
+
+    private func sendQualityFirstMatchGenerationRequest(
+        targetCards: Int,
+        model: String,
+        options: AIGenerationOptions,
+        messageBuilder: (_ targetCards: Int, _ retryHints: [String]) -> [[String: Any]]
+    ) async throws -> MatchGenerationQualityResult {
+        guard targetCards > 0 else {
+            return MatchGenerationQualityResult(cards: [], shortfallCount: 0)
+        }
+
+        var acceptedCards: [AIFlashcard] = []
+        var acceptedHints: Set<String> = []
+        var retryHints: [String] = []
+        var remainingCards = targetCards
+
+        for attempt in 0..<maxMatchQualityAttempts where remainingCards > 0 {
+            var messages = messageBuilder(remainingCards, retryHints)
+            if attempt > 0 {
+                messages = appendingMatchQualityRetryInstruction(
+                    to: messages,
+                    targetCount: remainingCards,
+                    retryHints: retryHints
+                )
+            }
+
+            let cards = try await sendRequest(
+                messages: messages,
+                model: model,
+                options: options
+            )
+
+            for card in cards {
+                let retryHint = matchQualityRetryHint(from: card)
+
+                if let acceptedCard = acceptedMatchCard(from: card),
+                   acceptedCards.count < targetCards,
+                   acceptedHints.insert(retryHint).inserted {
+                    acceptedCards.append(acceptedCard)
+                } else {
+                    retryHints.append(retryHint)
+                }
+            }
+
+            retryHints = Array(Set(retryHints)).sorted()
+            remainingCards = max(0, targetCards - acceptedCards.count)
+        }
+
+        return MatchGenerationQualityResult(
+            cards: acceptedCards,
+            shortfallCount: max(0, targetCards - acceptedCards.count)
+        )
+    }
+
+    private func sendQualityFirstMatchConversionRequest(
+        sourceCards: [AICardConversionSource],
+        level: AICardGenerationLevel
+    ) async throws -> MatchConversionQualityResult {
+        guard !sourceCards.isEmpty else {
+            return MatchConversionQualityResult(outputs: [], shortfallCount: 0)
+        }
+
+        var acceptedOutputs: [AICardConversionOutput] = []
+        var pendingSources = sourceCards
+        var retryHints: [String] = []
+
+        for attempt in 0..<maxMatchQualityAttempts where !pendingSources.isEmpty {
+            var messages = buildConversionMessages(
+                sourceCards: pendingSources,
+                targetType: .match,
+                level: level
+            )
+            if attempt > 0 {
+                messages = appendingMatchQualityRetryInstruction(
+                    to: messages,
+                    targetCount: pendingSources.count,
+                    retryHints: retryHints
+                )
+            }
+
+            let outputs = try await sendConversionRequest(
+                messages: messages,
+                model: textModel,
+                sourceCards: pendingSources,
+                targetType: .match
+            )
+
+            let filterResult = filterAcceptedMatchConversionOutputs(outputs)
+            acceptedOutputs.append(contentsOf: filterResult.outputs)
+            retryHints.append(contentsOf: filterResult.retryHints)
+            retryHints = Array(Set(retryHints)).sorted()
+            pendingSources = pendingSources.filter { filterResult.rejectedSourceIDs.contains($0.id) }
+        }
+
+        return MatchConversionQualityResult(
+            outputs: acceptedOutputs,
+            shortfallCount: pendingSources.count
+        )
+    }
+
+    private func sendQualityFirstWriteConversionRequest(
+        sourceCards: [AICardConversionSource],
+        level: AICardGenerationLevel
+    ) async throws -> WriteConversionQualityResult {
+        guard !sourceCards.isEmpty else {
+            return WriteConversionQualityResult(outputs: [], shortfallCount: 0)
+        }
+
+        var acceptedOutputs: [AICardConversionOutput] = []
+        var pendingSources = sourceCards
+        var retryHints: [String] = []
+
+        for attempt in 0..<maxMatchQualityAttempts where !pendingSources.isEmpty {
+            var messages = buildConversionMessages(
+                sourceCards: pendingSources,
+                targetType: .write,
+                level: level
+            )
+            if attempt > 0 {
+                messages = appendingWriteQualityRetryInstruction(
+                    to: messages,
+                    targetCount: pendingSources.count,
+                    retryHints: retryHints
+                )
+            }
+
+            let outputs = try await sendConversionRequest(
+                messages: messages,
+                model: textModel,
+                sourceCards: pendingSources,
+                targetType: .write
+            )
+
+            let filterResult = filterAcceptedWriteConversionOutputs(outputs)
+            acceptedOutputs.append(contentsOf: filterResult.outputs)
+            retryHints.append(contentsOf: filterResult.retryHints)
+            retryHints = Array(Set(retryHints)).sorted()
+            pendingSources = pendingSources.filter { filterResult.rejectedSourceIDs.contains($0.id) }
+        }
+
+        return WriteConversionQualityResult(
+            outputs: acceptedOutputs,
+            shortfallCount: pendingSources.count
+        )
+    }
+
+    func filterAcceptedMatchConversionOutputs(
+        _ outputs: [AICardConversionOutput]
+    ) -> MatchConversionFilterResult {
+        var acceptedOutputs: [AICardConversionOutput] = []
+        var rejectedSourceIDs: Set<PersistentIdentifier> = []
+        var retryHints: [String] = []
+
+        for output in outputs {
+            if let acceptedCard = acceptedMatchCard(from: output.generatedCard) {
+                acceptedOutputs.append(
+                    AICardConversionOutput(
+                        sourceCardID: output.sourceCardID,
+                        generatedCard: acceptedCard
+                    )
+                )
+            } else {
+                rejectedSourceIDs.insert(output.sourceCardID)
+                retryHints.append(matchQualityRetryHint(from: output.generatedCard))
+            }
+        }
+
+        return MatchConversionFilterResult(
+            outputs: acceptedOutputs,
+            rejectedSourceIDs: rejectedSourceIDs,
+            retryHints: Array(Set(retryHints)).sorted()
+        )
+    }
+
+    func filterAcceptedWriteConversionOutputs(
+        _ outputs: [AICardConversionOutput]
+    ) -> WriteConversionFilterResult {
+        var acceptedOutputs: [AICardConversionOutput] = []
+        var rejectedSourceIDs: Set<PersistentIdentifier> = []
+        var retryHints: [String] = []
+
+        for output in outputs {
+            if let acceptedCard = acceptedWriteCard(from: output.generatedCard) {
+                acceptedOutputs.append(
+                    AICardConversionOutput(
+                        sourceCardID: output.sourceCardID,
+                        generatedCard: acceptedCard
+                    )
+                )
+            } else {
+                rejectedSourceIDs.insert(output.sourceCardID)
+                retryHints.append(writeQualityRetryHint(from: output.generatedCard))
+            }
+        }
+
+        return WriteConversionFilterResult(
+            outputs: acceptedOutputs,
+            rejectedSourceIDs: rejectedSourceIDs,
+            retryHints: Array(Set(retryHints)).sorted()
+        )
+    }
+
+    func acceptedMatchCard(from card: AIFlashcard) -> AIFlashcard? {
+        guard case .match(let content) = card.content else { return nil }
+
+        let evaluation = MatchCardQualityPolicy.evaluate(
+            prompt: content.prompt,
+            answer: content.answer
+        )
+        guard evaluation.isCompact else { return nil }
+
+        return AIFlashcard(
+            id: card.id,
+            content: .match(
+                AIMatchCardContent(
+                    prompt: evaluation.prompt,
+                    answer: evaluation.answer
+                )
+            )
+        )
+    }
+
+    func matchQualityRetryHint(from card: AIFlashcard) -> String {
+        guard case .match(let content) = card.content else {
+            return card.promptHint
+        }
+
+        return MatchCardQualityPolicy.evaluate(
+            prompt: content.prompt,
+            answer: content.answer
+        ).retryHint
+    }
+
+    func acceptedWriteCard(from card: AIFlashcard) -> AIFlashcard? {
+        guard case .write(let content) = card.content else { return nil }
+
+        let sourceText = content.sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let omittedText = content.omittedText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !sourceText.isEmpty, !omittedText.isEmpty else { return nil }
+        guard anchoredWriteOmissionCount(sourceText: sourceText, omittedText: omittedText) == 1 else {
+            return nil
+        }
+
+        return AIFlashcard(
+            id: card.id,
+            content: .write(
+                AIWriteCardContent(
+                    sourceText: sourceText,
+                    omittedText: omittedText
+                )
+            )
+        )
+    }
+
+    func writeQualityRetryHint(from card: AIFlashcard) -> String {
+        guard case .write(let content) = card.content else {
+            return card.promptHint
+        }
+
+        let sourcePreview = String(content.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).prefix(72))
+        let omittedPreview = content.omittedText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if omittedPreview.isEmpty {
+            return "The omitted_text field was empty."
+        }
+
+        let occurrenceCount = anchoredWriteOmissionCount(
+            sourceText: content.sourceText,
+            omittedText: omittedPreview
+        )
+
+        if occurrenceCount == 0 {
+            return "The omitted text \"\(omittedPreview)\" was not present verbatim inside source_text. Source preview: \(sourcePreview)"
+        }
+
+        return "The omitted text \"\(omittedPreview)\" appeared \(occurrenceCount)x in source_text. It must appear exactly once."
+    }
+
+    private func appendingMatchQualityRetryInstruction(
+        to messages: [[String: Any]],
+        targetCount: Int,
+        retryHints: [String]
+    ) -> [[String: Any]] {
+        let rejectedPreview = retryHints
+            .prefix(6)
+            .map { "- \($0)" }
+            .joined(separator: "\n")
+
+        let retryInstruction = """
+        The previous Match attempt produced prompt-answer pairs that were too verbose for fast matching rounds.
+        Regenerate EXACTLY \(targetCount) new Match cards that are tighter and more scannable.
+        Prefer term -> definition, notation -> meaning, structure -> property, or cue -> direct counterpart.
+        Avoid repeating or paraphrasing these rejected weak pairs:
+        \(rejectedPreview.isEmpty ? "- No rejected pairs listed." : rejectedPreview)
+        """
+
+        var updatedMessages = messages
+        updatedMessages.append([
+            "role": "user",
+            "content": retryInstruction
+        ])
+        return updatedMessages
+    }
+
+    private func appendingWriteQualityRetryInstruction(
+        to messages: [[String: Any]],
+        targetCount: Int,
+        retryHints: [String]
+    ) -> [[String: Any]] {
+        let rejectedPreview = retryHints
+            .prefix(6)
+            .map { "- \($0)" }
+            .joined(separator: "\n")
+
+        let retryInstruction = """
+        The previous Write attempt produced cards whose omitted_text was not anchored correctly.
+        Regenerate EXACTLY \(targetCount) new Write cards.
+        CRITICAL:
+        - omitted_text MUST appear inside source_text as an exact verbatim substring
+        - omitted_text MUST appear exactly once
+        - keep the blank compact and directly typeable
+        Avoid repeating these rejected patterns:
+        \(rejectedPreview.isEmpty ? "- No rejected patterns listed." : rejectedPreview)
+        """
+
+        var updatedMessages = messages
+        updatedMessages.append([
+            "role": "user",
+            "content": retryInstruction
+        ])
+        return updatedMessages
+    }
+
+    private func anchoredWriteOmissionCount(sourceText: String, omittedText: String) -> Int {
+        let trimmedSource = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOmitted = omittedText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedSource.isEmpty, !trimmedOmitted.isEmpty else { return 0 }
+
+        let nsSource = trimmedSource as NSString
+        var searchRange = NSRange(location: 0, length: nsSource.length)
+        var count = 0
+
+        while searchRange.length > 0 {
+            let foundRange = nsSource.range(of: trimmedOmitted, options: [], range: searchRange)
+            guard foundRange.location != NSNotFound, foundRange.length > 0 else { break }
+
+            count += 1
+            let nextLocation = foundRange.location + foundRange.length
+            guard nextLocation < nsSource.length else { break }
+            searchRange = NSRange(location: nextLocation, length: nsSource.length - nextLocation)
+        }
+
+        return count
     }
 
     private func performRetriableJSONRequest<T>(
@@ -2309,6 +2995,30 @@ public final class AIFlashcardService: @unchecked Sendable {
         try await Task.sleep(nanoseconds: delayNanoseconds)
     }
 
+    private func withExecutionTimeout<T: Sendable>(
+        nanoseconds: UInt64,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+
+            group.addTask {
+                try await Task.sleep(nanoseconds: nanoseconds)
+                throw RetriableRequestError(serviceError: .timeout, retryAfter: nil)
+            }
+
+            defer { group.cancelAll() }
+
+            guard let result = try await group.next() else {
+                throw AIServiceError.timeout
+            }
+
+            return result
+        }
+    }
+
     private func batchFailureDescription<Plan: RecoverableBatchPlan>(for plan: Plan, error: Error) -> String {
         let baseDescription: String
 
@@ -2397,10 +3107,6 @@ public final class AIFlashcardService: @unchecked Sendable {
         contract: AIGeneratedCardContract
     ) throws -> [AIFlashcard] {
         // Strip markdown code fences if present (shouldn't happen with json_object mode, but defensive)
-        print("═══════════════════════════════════")
-        print("📦 RAW GPT JSON:")
-        print(jsonString)
-        print("═══════════════════════════════════")
         var clean = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if clean.hasPrefix("```json") {
@@ -2516,8 +3222,6 @@ public final class AIFlashcardService: @unchecked Sendable {
                 }
             }
         } catch {
-            print("❌ JSON DECODE ERROR: \(error)")
-            print("📦 RAW JSON FROM GPT:\n\(clean)")
             throw AIServiceError.parsingFailed
         }
     }

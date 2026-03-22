@@ -144,19 +144,15 @@ enum CardReadinessDiagnostics {
     /// - Returns: Zero or more readiness notes that should be surfaced to the user.
     nonisolated static func diagnostics(for content: DraftCardContent) -> [CardReadinessDiagnostic] {
         switch content {
-        case .flashcard(let content):
-            let prompt = normalizedSingleLine(content.frontZone.previewText(maxLength: 240))
-            let answer = normalizedSingleLine(content.backZone.previewText(maxLength: 240))
-            return matchDiagnostic(prompt: prompt, answer: answer, isFallback: true).map { [$0] } ?? []
+        case .flashcard:
+            return []
         case .match(let content):
-            let prompt = normalizedSingleLine(content.prompt)
-            let answer = normalizedSingleLine(content.answer)
-            return matchDiagnostic(prompt: prompt, answer: answer, isFallback: false).map { [$0] } ?? []
+            return matchDiagnostic(prompt: content.prompt, answer: content.answer).map { [$0] } ?? []
         case .quiz:
             return []
         case .write(let content):
             let sourceText = WriteBlankTextHelper.normalizedSourceText(from: content.sourceZone)
-            let answer = normalizedSingleLine(content.blankSelection.omittedText)
+            let answer = MatchCardQualityPolicy.normalizedText(content.blankSelection.omittedText)
             guard !answer.isEmpty,
                   WriteBlankTextHelper.isFormulaHeavy(answer: answer, sourceText: sourceText) else {
                 return []
@@ -178,21 +174,16 @@ enum CardReadinessDiagnostics {
     nonisolated static func diagnostics(for card: GridCardInfo) -> [CardReadinessDiagnostic] {
         switch card.kind {
         case .flashcard:
-            return matchDiagnostic(
-                prompt: normalizedSingleLine(card.frontText),
-                answer: normalizedSingleLine(card.backText),
-                isFallback: true
-            ).map { [$0] } ?? []
+            return []
         case .match:
             return matchDiagnostic(
-                prompt: normalizedSingleLine(card.frontText),
-                answer: normalizedSingleLine(card.backText),
-                isFallback: false
+                prompt: card.frontText,
+                answer: card.backText
             ).map { [$0] } ?? []
         case .quiz:
             return []
         case .write:
-            guard !normalizedSingleLine(card.backText).isEmpty,
+            guard !MatchCardQualityPolicy.normalizedText(card.backText).isEmpty,
                   WriteBlankTextHelper.isFormulaHeavy(
                     answer: card.backText,
                     sourceText: card.frontText
@@ -242,6 +233,15 @@ enum CardReadinessDiagnostics {
         return buildSummary(from: diagnostics)
     }
 
+    /// Aggregates only the subset of diagnostics that should stay visible on
+    /// deck-detail surfaces. Match readiness stays editor-only.
+    nonisolated static func deckSurfaceSummary(for cards: [GridCardInfo]) -> DeckReadinessSummary {
+        let diagnostics = cards
+            .flatMap(diagnostics(for:))
+            .filter { $0.kind == .writeMathHeavy }
+        return buildSummary(from: diagnostics)
+    }
+
     // MARK: - Private Helpers
 
     private nonisolated static func buildSummary(
@@ -271,49 +271,26 @@ enum CardReadinessDiagnostics {
 
     private nonisolated static func matchDiagnostic(
         prompt: String,
-        answer: String,
-        isFallback: Bool
+        answer: String
     ) -> CardReadinessDiagnostic? {
-        guard !prompt.isEmpty, !answer.isEmpty else { return nil }
+        let evaluation = MatchCardQualityPolicy.evaluate(
+            prompt: prompt,
+            answer: answer
+        )
+        guard !evaluation.prompt.isEmpty, !evaluation.answer.isEmpty else { return nil }
 
-        let promptWords = prompt.split(whereSeparator: \.isWhitespace).count
-        let answerWords = answer.split(whereSeparator: \.isWhitespace).count
-        let totalCharacters = prompt.count + answer.count
-        let punctuationCharacters = CharacterSet(charactersIn: ".,;:!?")
-        let punctuationCount = (prompt + answer).unicodeScalars.filter {
-            punctuationCharacters.contains($0)
-        }.count
-        let containsLineBreaks = prompt.contains("\n") || answer.contains("\n")
-        let isCompact = !containsLineBreaks
-            && prompt.count <= 72
-            && answer.count <= 56
-            && promptWords <= 12
-            && answerWords <= 10
-            && totalCharacters <= 110
-            && punctuationCount <= 2
-
-        if isCompact {
+        if evaluation.isCompact {
             return CardReadinessDiagnostic(
                 kind: .matchReady,
-                detail: isFallback
-                    ? "This prompt-answer pair is compact enough to survive the flashcard fallback used by Match."
-                    : "This dedicated prompt-answer pair is compact enough for Match on smaller screens.",
-                recommendedConversionTargetKind: isFallback ? .match : nil
+                detail: "This dedicated prompt-answer pair is compact enough for Match on smaller screens.",
+                recommendedConversionTargetKind: nil
             )
         }
 
         return CardReadinessDiagnostic(
             kind: .matchWeak,
-            detail: isFallback
-                ? "This fallback prompt-answer text is too verbose for Match. A dedicated match card would read more clearly."
-                : "This match card is still too verbose for fast rounds. Tighten the prompt or answer.",
-            recommendedConversionTargetKind: isFallback ? .match : nil
+            detail: "This match card is still too verbose for fast rounds. Tighten the prompt or answer.",
+            recommendedConversionTargetKind: nil
         )
-    }
-
-    private nonisolated static func normalizedSingleLine(_ text: String) -> String {
-        text
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

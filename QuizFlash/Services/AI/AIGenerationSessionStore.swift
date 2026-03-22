@@ -92,139 +92,60 @@ extension PDFAnalysisInfo: Codable {
 }
 
 
-/// Persists `AIPausedSession` to Application Support.
+/// Backward-compatible generation-specific facade over ``AIJobSessionStore``.
 actor AIGenerationSessionStore {
     static let shared = AIGenerationSessionStore()
-    
-    private let fileManager: FileManager
-    private let decoder = JSONDecoder()
-    private let encoder = JSONEncoder()
-    private let rootDirectoryURL: URL
-    private let currentDate: @Sendable () -> Date
-    
-    private var applicationSupportDirectory: URL {
-        let dir = rootDirectoryURL
-        if !fileManager.fileExists(atPath: dir.path) {
-            try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
-        }
-        return dir
-    }
-    
-    private var sessionFileURL: URL {
-        applicationSupportDirectory.appendingPathComponent("paused_ai_session.json")
-    }
-    
-    private var imagesDirectoryURL: URL {
-        let dir = applicationSupportDirectory.appendingPathComponent("ai_session_images", isDirectory: true)
-        if !fileManager.fileExists(atPath: dir.path) {
-            try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
-        }
-        return dir
-    }
-    
+
+    private let jobStore: AIJobSessionStore
+
     init(
         fileManager: FileManager = .default,
         rootDirectoryURL: URL? = nil,
         currentDate: @escaping @Sendable () -> Date = Date.init
     ) {
-        self.fileManager = fileManager
-        self.currentDate = currentDate
+        self.jobStore = AIJobSessionStore(
+            fileManager: fileManager,
+            rootDirectoryURL: rootDirectoryURL,
+            currentDate: currentDate
+        )
+    }
 
-        if let rootDirectoryURL {
-            self.rootDirectoryURL = rootDirectoryURL
-        } else {
-            let urls = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            self.rootDirectoryURL = urls[0].appendingPathComponent("QuizFlash", isDirectory: true)
-        }
-    }
-    
     /// Persists the active session to disk securely.
-    func saveSession(_ session: AIPausedSession) throws {
-        try clearSession() // Clean up any old files/images first
-        
-        let data = try encoder.encode(session)
-        
-        // Write atomically with file protection to keep memory/storage clean 
-        try data.write(to: sessionFileURL, options: [.atomic, .completeFileProtection])
+    func saveSession(_ session: AIPausedSession) async throws {
+        try await jobStore.saveSession(.generation(session))
     }
-    
+
     /// Loads the persisted session from disk, if one exists and is valid.
-    func loadSession() -> AIPausedSession? {
-        guard fileManager.fileExists(atPath: sessionFileURL.path) else { return nil }
-        
-        do {
-            let data = try Foundation.Data(contentsOf: sessionFileURL)
-            let session = try decoder.decode(AIPausedSession.self, from: data)
-            
-            // Validate the session hasn't expired completely (e.g. older than 24 hours, optional but good practice)
-            let age = currentDate().timeIntervalSince(session.timestamp)
-            guard age < 86400 * 7 else { // 7 days max
-                try? clearSession()
-                return nil
-            }
-            
-            return session
-        } catch {
-            print("Failed to load paused AI session: \(error)")
-            try? clearSession()
+    func loadSession() async -> AIPausedSession? {
+        guard let session = await jobStore.loadSession() else { return nil }
+        guard case .generation(let generationSession) = session else {
             return nil
         }
+        return generationSession
     }
-    
+
     /// Deletes the session state and any temporary files associated with it.
-    func clearSession() throws {
-        if fileManager.fileExists(atPath: sessionFileURL.path) {
-            try fileManager.removeItem(at: sessionFileURL)
-        }
-        
-        if fileManager.fileExists(atPath: imagesDirectoryURL.path) {
-            try fileManager.removeItem(at: imagesDirectoryURL)
-            try fileManager.createDirectory(at: imagesDirectoryURL, withIntermediateDirectories: true, attributes: nil)
-        }
+    func clearSession() async throws {
+        try await jobStore.clearSession()
     }
-    
+
     /// Helper to save array of `UIImage` into the application support directory and return their new URLs.
-    func saveImagesToDisk(_ images: [UIImage]) throws -> [URL] {
-        var fileURLs: [URL] = []
-        for (index, image) in images.enumerated() {
-            guard let data = image.jpegData(compressionQuality: 0.8) else { continue }
-            let url = imagesDirectoryURL.appendingPathComponent("image_\(index).jpg")
-            try data.write(to: url, options: [.atomic, .completeFileProtection])
-            fileURLs.append(url)
-        }
-        return fileURLs
+    func saveImagesToDisk(_ images: [UIImage]) async throws -> [URL] {
+        try await jobStore.saveImagesToDisk(images)
     }
-    
+
     /// Helper to convert saved image URLs back into `UIImage` instances.
-    func loadImagesFromDisk(at urls: [URL]) -> [UIImage] {
-        var images: [UIImage] = []
-        for url in urls {
-            guard fileManager.fileExists(atPath: url.path),
-                  let data = try? Foundation.Data(contentsOf: url),
-                  let image = UIImage(data: data) else { continue }
-            images.append(image)
-        }
-        return images
+    func loadImagesFromDisk(at urls: [URL]) async -> [UIImage] {
+        await jobStore.loadImagesFromDisk(at: urls)
     }
-    
+
     /// Helper to create a Security-Scoped Bookmark for a PDF URL so it can be re-accessed later.
-    func createBookmark(for url: URL) throws -> Data {
-        guard url.startAccessingSecurityScopedResource() else {
-            throw NSError(domain: "QuizFlashSessionStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Cannot access URL to create bookmark."])
-        }
-        defer { url.stopAccessingSecurityScopedResource() }
-        
-        let bookmarkData = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil)
-        return bookmarkData
+    func createBookmark(for url: URL) async throws -> Data {
+        try await jobStore.createBookmark(for: url)
     }
-    
+
     /// Helper to resolve a Security-Scoped Bookmark into a usable URL.
-    func resolveBookmark(data: Data) throws -> URL {
-        var isStale = false
-        let url = try URL(resolvingBookmarkData: data, options: .withoutUI, relativeTo: nil, bookmarkDataIsStale: &isStale)
-        if isStale {
-            // Re-bookmark if stale (best effort)
-        }
-        return url
+    func resolveBookmark(data: Data) async throws -> URL {
+        try await jobStore.resolveBookmark(data: data)
     }
 }

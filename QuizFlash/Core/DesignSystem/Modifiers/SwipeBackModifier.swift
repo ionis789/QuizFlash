@@ -43,7 +43,7 @@ public extension View {
 private struct SwipeBackModifier: ViewModifier {
 
     // MARK: - Properties
-    
+    @State private var keyboardMonitor = KeyboardMonitor.shared
     let enabled: Bool
     let attachment: SwipeBackAttachment
     let action: () -> Void
@@ -70,6 +70,7 @@ private struct SwipeBackModifier: ViewModifier {
     
     private var progress: CGFloat { min(abs(dragOffset) / commitThreshold, 1.0) }
     private var committed: Bool { progress >= 1.0 }
+    private var effectiveEnabled: Bool { enabled && !keyboardMonitor.isVisible }
 
     // MARK: - Body
     
@@ -88,7 +89,7 @@ private struct SwipeBackModifier: ViewModifier {
                     isActive: $isActive,
                     startY: $startY,
                     edge: $edge,
-                    enabled: enabled,
+                    enabled: effectiveEnabled,
                     attachment: attachment,
                     commitThreshold: commitThreshold,
                     leadingActivationFraction: leadingActivationFraction,

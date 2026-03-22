@@ -21,6 +21,7 @@ private let kDeckChromeSpace = "DeckViewChromeSpace"
 struct DeckContentView: View {
     @Environment(\.modelContext) var context
     @Environment(NavigationManager.self) private var router
+    @Environment(AIWorkspaceCoordinator.self) private var aiWorkspaceCoordinator
     @Environment(\.dismiss) private var dismiss
     @Bindable var deck: DeckModel
     let searchQuery: String?
@@ -35,7 +36,6 @@ struct DeckContentView: View {
     @State private var selectedPlayModeSettings: DeckPlayModeDestination? = nil
     @State private var previewedCard: CardModel? = nil
     @State private var cardEditorDestination: CardEditorDestination? = nil
-    @State private var showConversionSheet = false
     @State private var unavailablePlayMode: DeckPlayModeDestination? = nil
     @State private var showAddCardTypeDialog = false
     @State private var pendingDeleteCardID: PersistentIdentifier? = nil
@@ -120,8 +120,7 @@ struct DeckContentView: View {
                       selectedPlayMode == nil,
                       selectedPlayModeSettings == nil,
                       previewedCard == nil,
-                      cardEditorDestination == nil,
-                      !showConversionSheet else { return }
+                      cardEditorDestination == nil else { return }
                 viewModel.tearDown()
                 ImageCache.shared.clearCache()
             }
@@ -168,11 +167,6 @@ struct DeckContentView: View {
                         deckID: deck.persistentModelID,
                         container: context.container
                     )
-                }
-            }
-            .onChange(of: showConversionSheet) { _, isPresented in
-                if !isPresented {
-                    viewModel.dismissConversionSheet()
                 }
             }
             .alert(
@@ -265,13 +259,14 @@ struct DeckContentView: View {
                     && selectedPlayModeSettings == nil
                     && previewedCard == nil
                     && cardEditorDestination == nil
-                    && !showConversionSheet
                     && unavailablePlayMode == nil
+                    && viewModel.conversionRequest == nil
                     && activeActionMenuCardID == nil
             ) { dismiss() }
             .animation(.bottomChromeSpring, value: viewModel.isSelecting)
             .environment(scrollState)
             .overlay { unavailablePlayModeOverlay }
+            .overlay { deckConversionConfigurationOverlay }
     }
 
     // MARK: Navigation Bar
@@ -311,15 +306,24 @@ struct DeckContentView: View {
                     viewModel.updateGroupingMode(newValue, for: deck, context: context)
                 }
             ),
-            onBack: { dismiss() },
-            onAdd: { showAddCardTypeDialog = true },
+            onBack: {
+                exitSelectionModeForExternalAction()
+                dismiss()
+            },
+            onAdd: {
+                exitSelectionModeForExternalAction()
+                showAddCardTypeDialog = true
+            },
             onStartSelection: {
                 withBottomChromeAnimation {
                     viewModel.enterSelectionMode()
                 }
             },
             onConvert: { presentDeckConversion() },
-            onExport: { viewModel.exportDeck(deck) }
+            onExport: {
+                exitSelectionModeForExternalAction()
+                viewModel.exportDeck(deck)
+            }
         )
     }
 
@@ -362,25 +366,6 @@ struct DeckContentView: View {
                 } else {
                     CardPreviewModeBackground()
                 }
-            }
-            .fullScreenSheet(
-                ignoresSafeArea: true,
-                isPresented: $showConversionSheet,
-                backgroundReceivesDragProgress: true
-            ) { safeArea in
-                DeckCardConversionSheetView(
-                    viewModel: viewModel,
-                    deck: deck,
-                    safeAreaInsets: safeArea,
-                    onDismiss: {
-                        viewModel.dismissConversionSheet()
-                    },
-                    onOpenDestinationDeck: { destinationDeckID in
-                        openConvertedDeck(destinationDeckID)
-                    }
-                )
-            } background: {
-                CardPreviewModeBackground()
             }
             .fullScreenSheet(
                 ignoresSafeArea: true,
@@ -518,8 +503,7 @@ struct DeckContentView: View {
                             deckCardCount: deck.cardCount
                         )
                         DeckReadinessDiagnosticsView(
-                            summary: viewModel.readinessSummary,
-                            onOpenRecommendedConversion: handleReadinessConversion(_:)
+                            summary: viewModel.readinessSummary
                         )
                         DeckPlayModesView(
                             deck: deck,
@@ -530,9 +514,6 @@ struct DeckContentView: View {
                             },
                             onOpenSettings: { mode in
                                 selectedPlayModeSettings = mode
-                            },
-                            onOpenRecommendedConversion: { mode in
-                                handlePlayModeRecommendedConversion(mode)
                             },
                             onRequestUnavailableMode: { mode in
                                 presentUnavailablePlayMode(mode)
@@ -617,13 +598,6 @@ struct DeckContentView: View {
     private func handleConvertCard(_ gridCard: GridCardInfo) {
         dismissActiveActionMenu()
         viewModel.presentSingleCardConversion(for: gridCard.id, in: deck)
-        showConversionSheet = viewModel.conversionRequest != nil
-    }
-
-    private func handleReadinessConversion(_ targetKind: CardKind) {
-        dismissActiveActionMenu()
-        viewModel.presentReadinessConversion(for: targetKind, in: deck)
-        showConversionSheet = viewModel.conversionRequest != nil
     }
 
     private func handlePreviewRecommendedConversion(
@@ -636,27 +610,6 @@ struct DeckContentView: View {
             in: deck,
             preferredTargetKind: targetKind
         )
-        Task { @MainActor in
-            await Task.yield()
-            showConversionSheet = viewModel.conversionRequest != nil
-        }
-    }
-
-    private func handlePlayModeRecommendedConversion(_ mode: DeckPlayModeDestination) {
-        dismissActiveActionMenu()
-
-        switch mode {
-        case .match:
-            if viewModel.readinessSummary.recommendedConversions.contains(where: { $0.targetKind == .match }) {
-                viewModel.presentReadinessConversion(for: .match, in: deck)
-            } else {
-                viewModel.presentDeckConversion(for: deck, preferredTargetKind: .match)
-            }
-        case .flashcards, .quiz, .learn, .write:
-            return
-        }
-
-        showConversionSheet = viewModel.conversionRequest != nil
     }
 
     private func openPlayMode(_ mode: DeckPlayModeDestination) {
@@ -682,7 +635,6 @@ struct DeckContentView: View {
         dismissUnavailablePlayMode()
         guard let targetKind = mode.unavailableConversionTargetKind else { return }
         viewModel.presentDeckConversion(for: deck, preferredTargetKind: targetKind)
-        showConversionSheet = viewModel.conversionRequest != nil
     }
 
     private func recordCompletedPlayModeSession(_ mode: DeckPlayModeDestination) {
@@ -699,29 +651,26 @@ struct DeckContentView: View {
         }
     }
 
-    private func openConvertedDeck(_ destinationDeckID: PersistentIdentifier) {
-        showConversionSheet = false
-        viewModel.dismissConversionSheet()
-        router.activeTab = ownerTab
-        router.append(
-            DeckNavigationValue(
-                deckID: destinationDeckID,
-                backLabel: deck.title
-            )
-        )
-    }
-
     private func handleDeleteCard(_ gridCard: GridCardInfo) {
         dismissActiveActionMenu()
         pendingDeleteCardID = gridCard.id
     }
 
+    private func exitSelectionModeForExternalAction() {
+        guard viewModel.isSelecting else { return }
+        withBottomChromeAnimation {
+            viewModel.exitSelectionMode()
+        }
+    }
+
     private func presentCardEditor(for kind: CardKind) {
+        exitSelectionModeForExternalAction()
         showAddCardTypeDialog = false
         cardEditorDestination = .create(kind: kind)
     }
 
     private func presentCardEditor(for card: CardModel) {
+        exitSelectionModeForExternalAction()
         cardEditorDestination = .edit(DraftCard.from(card))
     }
 
@@ -753,14 +702,28 @@ struct DeckContentView: View {
 
     private func presentDeckConversion() {
         dismissActiveActionMenu()
+        exitSelectionModeForExternalAction()
         viewModel.presentDeckConversion(for: deck)
-        showConversionSheet = viewModel.conversionRequest != nil
     }
 
     private func presentSelectionConversion() {
         dismissActiveActionMenu()
         viewModel.presentSelectionConversion(for: deck)
-        showConversionSheet = viewModel.conversionRequest != nil
+    }
+
+    private func startDeckSeededConversion() {
+        guard let request = viewModel.conversionRequest else { return }
+        exitSelectionModeForExternalAction()
+        _ = aiWorkspaceCoordinator.seedConversion(
+            request: request,
+            sourceDeck: deck,
+            ownerTab: ownerTab,
+            backLabel: backLabel,
+            showsConfiguration: false
+        )
+        viewModel.dismissConversionSheet()
+        aiWorkspaceCoordinator.openWorkspace(router: router)
+        aiWorkspaceCoordinator.startConversion(context: context)
     }
 
     private func presentActionMenu(for id: PersistentIdentifier) {
@@ -878,7 +841,10 @@ struct DeckContentView: View {
     @ViewBuilder
     private var unavailablePlayModeOverlay: some View {
         if let unavailablePlayMode {
-            let prompt = unavailablePlayMode.unavailablePrompt(in: viewModel.playModeAvailability)
+            let prompt = unavailablePlayMode.unavailablePrompt(
+                in: viewModel.playModeAvailability,
+                deck: deck
+            )
 
             ZStack(alignment: .bottom) {
                 Color.black.opacity(0.22)
@@ -914,6 +880,56 @@ struct DeckContentView: View {
                 )
             }
             .zIndex(260)
+        }
+    }
+
+    @ViewBuilder
+    private var deckConversionConfigurationOverlay: some View {
+        if let request = viewModel.conversionRequest, !isSuspended {
+            ZStack {
+                Color.black.opacity(0.28)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        viewModel.dismissConversionSheet()
+                    }
+
+                VStack(spacing: 0) {
+                    Spacer(minLength: navigationBarHeight + UIConstants.Spacing.large)
+
+                    DeckInlineConversionConfigurationCard(
+                        sourceDeckTitle: deck.title,
+                        sourceDeckCardCount: deck.cardCount,
+                        request: request,
+                        onDismiss: {
+                            viewModel.dismissConversionSheet()
+                        },
+                        onUpdateScope: { scope in
+                            viewModel.conversionRequest?.updateScope(scope)
+                        },
+                        onToggleSourceKind: { kind in
+                            viewModel.conversionRequest?.toggleSourceKind(kind)
+                        },
+                        onUpdateTargetKind: { kind in
+                            viewModel.conversionRequest?.updateTargetKind(kind)
+                        },
+                        onUpdateDestination: { option in
+                            viewModel.conversionRequest?.destination = option
+                        },
+                        onUpdateNewDeckTitle: { title in
+                            viewModel.conversionRequest?.newDeckTitle = title
+                        },
+                        onStart: {
+                            startDeckSeededConversion()
+                        }
+                    )
+                    .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+
+                    Spacer(minLength: UIConstants.Size.bottomChromeBarHeight + UIConstants.Layout.bottomChromeBottomPadding + UIConstants.Spacing.large)
+                }
+            }
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            .zIndex(280)
         }
     }
 

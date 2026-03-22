@@ -20,6 +20,7 @@ import SwiftUI
 /// - All colours are sourced from `ThemeManager` or semantic SwiftUI tokens — no
 ///   hardcoded values.
 struct HomeCalendarSectionView: View {
+    @Environment(AppPreferences.self) private var appPreferences
 
     // MARK: - Dependencies
 
@@ -35,11 +36,8 @@ struct HomeCalendarSectionView: View {
     /// Top safe-area inset used to compute absolute anchor points.
     let safeAreaTop: CGFloat
 
-    /// O(1) lookup dictionary providing daily activity data keyed by `yyyy-MM-dd`.
-    let logsCache: [String: DailyActivityLog]
-
-    /// O(1) lookup dictionary providing exam-goal markers keyed by `yyyy-MM-dd`.
-    let examGoalsCache: [String: [ExamGoalModel]]
+    /// O(1) lookup dictionary providing per-day progress and marker insights.
+    let calendarInsightsCache: [String: HomeCalendarDayInsight]
 
     /// The global navigation router (passed to `HomeAvatarView`).
     let router: NavigationManager
@@ -176,7 +174,7 @@ struct HomeCalendarSectionView: View {
     /// A horizontal row displaying abbreviated weekday symbols (e.g., Sun, Mon).
     private var weekdayLabels: some View {
         HStack(spacing: 0) {
-            ForEach(Calendar.current.shortWeekdaySymbols, id: \.self) { symbol in
+            ForEach(weekdaySymbols, id: \.self) { symbol in
                 Text(symbol)
                     .font(.system(size: 12, weight: .bold))
                     .frame(maxWidth: .infinity)
@@ -184,6 +182,13 @@ struct HomeCalendarSectionView: View {
             }
         }
         .frame(height: calendarVM.weekLabelHeight, alignment: .center)
+    }
+
+    private var weekdaySymbols: [String] {
+        let calendar = appPreferences.resolvedCalendar
+        let symbols = calendar.shortWeekdaySymbols
+        let startIndex = max(calendar.firstWeekday - 1, 0)
+        return Array(symbols[startIndex...]) + Array(symbols[..<startIndex])
     }
 
     /// The full month grid.
@@ -201,8 +206,8 @@ struct HomeCalendarSectionView: View {
                     ForEach(row) { day in
                         CalendarDayCellView(
                             day: day,
-                            log: logsCache[day.dateString],
-                            examGoals: examGoalsCache[day.dateString] ?? []
+                            insight: calendarInsightsCache[day.dateString],
+                            collapseProgress: progress
                         )
                             .onTapGesture {
                                 calendarVM.selectDate(day.date)
@@ -247,8 +252,8 @@ struct CalendarDayCellView: View {
     // MARK: - Input
 
     let day: Day
-    let log: DailyActivityLog?
-    let examGoals: [ExamGoalModel]
+    let insight: HomeCalendarDayInsight?
+    let collapseProgress: CGFloat
 
     // MARK: - Computed States
 
@@ -256,51 +261,99 @@ struct CalendarDayCellView: View {
         Calendar.current.isDateInToday(day.date)
     }
 
-    /// `true` when the day had study activity.
-    ///
-    /// Excludes today to prevent premature productivity styling before the session ends.
-    private var isProductiveDay: Bool {
-        !isToday && (log?.cardsReviewed ?? 0) > 0
-    }
-
     /// The active theme accent colour, resolved from `ThemeManager`.
     private var accent: Color {
         ThemeManager.shared.accentColor.color
     }
 
-    /// `true` when the calendar day contains at least one linked exam goal.
-    private var hasExamGoal: Bool {
-        !examGoals.isEmpty
+    private var didStudy: Bool {
+        insight?.didStudy ?? false
     }
 
-    /// `true` when at least one exam goal on this day includes note text.
+    private var isPerfectDay: Bool {
+        insight?.isPerfectDay ?? false
+    }
+
+    private var isStreakDay: Bool {
+        insight?.isStreakDay ?? false
+    }
+
+    private var hasExamGoal: Bool {
+        insight?.hasExamGoal ?? false
+    }
+
     private var hasGoalNote: Bool {
-        examGoals.contains { !$0.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        insight?.hasGoalNote ?? false
+    }
+
+    private var examGoalCount: Int {
+        insight?.examGoalCount ?? 0
+    }
+
+    private var activityFraction: Double {
+        insight?.activityFraction ?? 0
+    }
+
+    private var shouldShowInnerHighlight: Bool {
+        day.isSelected || isToday || didStudy
+    }
+
+    private var metrics: HomeCalendarDayMetrics {
+        HomeCalendarDayMetrics(
+            collapseProgress: collapseProgress,
+            hasGoalNote: hasGoalNote,
+            hasExamGoalCount: examGoalCount > 1,
+            isHighlighted: shouldShowInnerHighlight
+        )
     }
 
     // MARK: - Styling
 
-    private var backgroundColor: Color {
-        if isToday          { return accent }
-        if isProductiveDay  { return .green }
-        if day.isSelected   { return .primary }
+    private var highlightFillColor: Color {
+        if day.isSelected { return .primary }
+        if isToday { return accent }
+        if isPerfectDay { return .green }
+        if didStudy { return accent }
         return .clear
     }
 
-    private var backgroundOpacity: Double {
-        if day.isSelected   { return 1.0 }
-        if isToday          { return 0.15 }
-        if isProductiveDay  { return 0.15 }
+    private var highlightOpacity: Double {
+        if day.isSelected { return 1.0 }
+        if isToday { return didStudy ? 0.28 : 0.18 }
+        if isPerfectDay { return 0.22 + (activityFraction * 0.18) }
+        if didStudy { return 0.10 + (activityFraction * 0.18) }
         return 0
     }
 
     private var textColor: Color {
-        if day.isSelected && (isProductiveDay || isToday) { return .white }
-        if day.isSelected   { return Color(uiColor: .systemBackground) }
-        if isToday          { return accent }
-        if isProductiveDay  { return .green }
-        if day.ignored      { return .secondary.opacity(0.3) }
+        if day.isSelected && (didStudy || isToday) { return .white }
+        if day.isSelected { return Color(uiColor: .systemBackground) }
+        if isToday { return accent }
+        if isPerfectDay { return .green }
+        if didStudy { return accent.opacity(0.92) }
+        if day.ignored { return .secondary.opacity(0.3) }
         return .primary
+    }
+
+    private var streakStrokeColor: Color {
+        if day.isSelected { return .white.opacity(0.28) }
+        if isPerfectDay { return .green.opacity(0.85) }
+        return accent.opacity(0.55)
+    }
+
+    private var shouldShowStreakRing: Bool {
+        isStreakDay && !day.ignored && !isToday
+    }
+
+    private var examMarkerColor: Color {
+        if examGoalCount > 1 {
+            return accent.opacity(0.95)
+        }
+        return accent
+    }
+
+    private var noteMarkerColor: Color {
+        .orange
     }
 
     // MARK: - Body
@@ -308,33 +361,96 @@ struct CalendarDayCellView: View {
     var body: some View {
         Text(day.shortSymbol)
             .font(.system(
-                size: 16,
+                size: metrics.fontSize,
                 weight: (day.isSelected || isToday) ? .bold : .medium,
                 design: .rounded
             ))
             .foregroundStyle(textColor)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
-                Circle()
-                    .fill(backgroundColor.opacity(backgroundOpacity))
-                    .frame(width: 40, height: 40)
+                ZStack {
+                    if shouldShowStreakRing {
+                        Circle()
+                            .stroke(streakStrokeColor, lineWidth: metrics.streakRingLineWidth)
+                            .frame(width: metrics.streakRingDiameter, height: metrics.streakRingDiameter)
+                    }
+
+                    Circle()
+                        .fill(highlightFillColor.opacity(highlightOpacity))
+                        .frame(width: metrics.highlightDiameter, height: metrics.highlightDiameter)
+                }
             }
             .overlay(alignment: .bottom) {
                 if hasExamGoal {
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(accent)
-                            .frame(width: 5, height: 5)
+                    HStack(spacing: metrics.markerSpacing) {
+                        markerShape(color: examMarkerColor)
 
-                        if hasGoalNote {
-                            Circle()
-                                .fill(Color.orange)
-                                .frame(width: 5, height: 5)
+                        if metrics.showsSecondaryNoteMarker {
+                            markerShape(color: noteMarkerColor)
                         }
                     }
-                    .offset(y: -4)
+                    .offset(y: metrics.markerOffsetY)
                 }
             }
             .contentShape(Rectangle())
+            .zIndex(day.isSelected ? 1 : 0)
+    }
+
+    @ViewBuilder
+    private func markerShape(color: Color) -> some View {
+        if metrics.usesMarkerCapsule {
+            Capsule()
+                .fill(color)
+                .frame(width: metrics.markerCapsuleWidth, height: metrics.markerDotSize)
+        } else {
+            Circle()
+                .fill(color)
+                .frame(width: metrics.markerDotSize, height: metrics.markerDotSize)
+        }
+    }
+}
+
+// MARK: - Calendar Day Metrics
+
+/// Visual metrics for one Home calendar day cell across expanded and compact states.
+struct HomeCalendarDayMetrics: Equatable {
+    let highlightDiameter: CGFloat
+    let streakRingDiameter: CGFloat
+    let streakRingLineWidth: CGFloat
+    let fontSize: CGFloat
+    let markerDotSize: CGFloat
+    let markerCapsuleWidth: CGFloat
+    let markerSpacing: CGFloat
+    let markerOffsetY: CGFloat
+    let usesMarkerCapsule: Bool
+    let showsSecondaryNoteMarker: Bool
+
+    init(
+        collapseProgress: CGFloat,
+        hasGoalNote: Bool,
+        hasExamGoalCount: Bool,
+        isHighlighted: Bool
+    ) {
+        let clampedProgress = min(max(collapseProgress, 0), 1)
+        let compactHighlightDiameter = isHighlighted ? 34.0 : 32.0
+
+        highlightDiameter = Self.interpolate(
+            from: 40,
+            to: compactHighlightDiameter,
+            progress: clampedProgress
+        )
+        streakRingDiameter = highlightDiameter + Self.interpolate(from: 8, to: 5, progress: clampedProgress)
+        streakRingLineWidth = Self.interpolate(from: 1.8, to: 1.2, progress: clampedProgress)
+        fontSize = Self.interpolate(from: 16, to: 15, progress: clampedProgress)
+        markerDotSize = Self.interpolate(from: 5, to: 4, progress: clampedProgress)
+        markerCapsuleWidth = Self.interpolate(from: 10, to: 7, progress: clampedProgress)
+        markerSpacing = Self.interpolate(from: 4, to: 3, progress: clampedProgress)
+        markerOffsetY = Self.interpolate(from: -4, to: -2, progress: clampedProgress)
+        showsSecondaryNoteMarker = hasGoalNote && clampedProgress < 0.72
+        usesMarkerCapsule = hasExamGoalCount && clampedProgress < 0.82
+    }
+
+    private static func interpolate(from start: CGFloat, to end: CGFloat, progress: CGFloat) -> CGFloat {
+        start + ((end - start) * progress)
     }
 }

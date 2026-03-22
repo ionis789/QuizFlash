@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SwiftData
 
 // MARK: - AI Generation State
 
@@ -523,17 +524,44 @@ public struct AIFlashcardBatchChunk: Sendable {
     public let cards: [AIFlashcard]
     public let allocationID: UUID?
     public let plannedCardCount: Int
+    public let shortfallCount: Int
     public let sourceLabel: String
 
     public init(
         cards: [AIFlashcard],
         allocationID: UUID?,
         plannedCardCount: Int,
+        shortfallCount: Int = 0,
         sourceLabel: String
     ) {
         self.cards = cards
         self.allocationID = allocationID
         self.plannedCardCount = plannedCardCount
+        self.shortfallCount = shortfallCount
+        self.sourceLabel = sourceLabel
+    }
+}
+
+/// One emitted AI conversion batch with enough metadata to persist results
+/// progressively while still reporting shortfalls precisely.
+nonisolated struct AIConversionBatchChunk: Sendable {
+    let outputs: [AICardConversionOutput]
+    let plannedSourceIDs: [PersistentIdentifier]
+    let plannedCardCount: Int
+    let shortfallCount: Int
+    let sourceLabel: String
+
+    init(
+        outputs: [AICardConversionOutput],
+        plannedSourceIDs: [PersistentIdentifier],
+        plannedCardCount: Int,
+        shortfallCount: Int = 0,
+        sourceLabel: String
+    ) {
+        self.outputs = outputs
+        self.plannedSourceIDs = plannedSourceIDs
+        self.plannedCardCount = plannedCardCount
+        self.shortfallCount = shortfallCount
         self.sourceLabel = sourceLabel
     }
 }

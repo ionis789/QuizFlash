@@ -12,10 +12,12 @@ import SwiftData
 
 /// The scrollable body of the Home screen, rendered below the collapsible calendar header.
 ///
-/// Displays three sections in order:
+/// Displays Home's analytics and navigation surfaces in order:
 /// 1. **Daily Activity** — stats for the currently selected calendar day.
-/// 2. **Recent Decks** — a horizontal carousel of recently opened decks (shown only when non-empty).
-/// 3. **Folders** — a two-column grid of user folders.
+/// 2. **Exam Goals** — readiness and agenda around upcoming deadlines.
+/// 3. **Deck Health** — the decks that most need attention right now.
+/// 4. **Recent Decks** — a horizontal carousel of recently opened decks.
+/// 5. **Folders** — a two-column grid of user folders.
 ///
 /// `HomeDashboardView` is a **dumb view**: it holds no `@State`, makes no decisions,
 /// and contains no formatting logic. All data arrives as `let` constants from `HomeView`.
@@ -35,15 +37,6 @@ struct HomeDashboardView: View {
     /// Persisted exam goals fetched by `HomeView`.
     let examGoals: [ExamGoalModel]
 
-    /// The active user profile, used to display the current study streak.
-    let userProfile: UserProfile?
-
-    /// Daily activity logs used for Home narrative summaries.
-    let dailyLogs: [DailyActivityLog]
-
-    /// The calendar view model; provides the selected date for looking up the day's log.
-    let calendarVM: CalendarViewModel
-
     /// The global navigation router for pushing deck and folder destinations.
     let router: NavigationManager
 
@@ -51,30 +44,9 @@ struct HomeDashboardView: View {
 
     // MARK: - Derived Data
 
-    /// The activity log for the date currently selected in the calendar.
-    ///
-    /// Uses the O(1) cache lookup from `HomeViewModel` to avoid scanning the full log array.
-    private var selectedDayLog: DailyActivityLog? {
-        viewModel.getFastLog(for: calendarVM.selectedDate)
-    }
-
-    /// Exam goals that land on the currently selected Home calendar day.
-    private var selectedDayExamSummaries: [HomeExamGoalSummary] {
-        viewModel.selectedDayExamGoalSummaries(for: calendarVM.selectedDate)
-    }
-
-    /// The nearest upcoming exam goals shown in the main Home dashboard section.
-    private var upcomingExamSummaries: [HomeExamGoalSummary] {
-        viewModel.upcomingExamGoalSummaries(from: examGoals)
-    }
-
-    /// Short narrative lines derived from goals, recent momentum, and streak state.
-    private var examNarrative: HomeDashboardNarrative? {
-        viewModel.buildDashboardNarrative(
-            goals: examGoals,
-            dailyLogs: dailyLogs,
-            userProfile: userProfile
-        )
+    /// Cached analytics snapshot derived in `HomeViewModel`.
+    private var dashboardSnapshot: HomeDashboardSnapshot {
+        viewModel.dashboardSnapshot
     }
 
     // MARK: - Body
@@ -89,6 +61,12 @@ struct HomeDashboardView: View {
                 .padding(.top, UIConstants.Layout.sectionSpacing)
                 .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
 
+            if !viewModel.deckHealthSummaries.isEmpty {
+                deckHealthSection
+                    .padding(.top, UIConstants.Layout.sectionSpacing)
+                    .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            }
+
             if !recentDecks.isEmpty {
                 recentDecksSection
                     .padding(.top, UIConstants.Layout.sectionSpacing)
@@ -100,6 +78,23 @@ struct HomeDashboardView: View {
 
             Spacer(minLength: 150)
         }
+    }
+
+    // MARK: - Deck Health Section
+
+    /// Renders the highest-priority deck summaries so Home can steer the next study action.
+    private var deckHealthSection: some View {
+        HomeDeckHealthSection(
+            summaries: viewModel.deckHealthSummaries,
+            onOpenDeck: { deckID in
+                router.append(
+                    DeckNavigationValue(
+                        deckID: deckID,
+                        backLabel: router.activeTab.rawValue
+                    )
+                )
+            }
+        )
     }
 
     // MARK: - Exam Goals Section
@@ -132,17 +127,22 @@ struct HomeDashboardView: View {
                     viewModel.presentCreateExamGoal()
                 }
             } else {
-                if let examNarrative, !examNarrative.visibleLines.isEmpty {
+                if let examPressure = dashboardSnapshot.examPressure {
+                    HomeExamPressureCard(summary: examPressure)
+                }
+
+                if let examNarrative = dashboardSnapshot.examNarrative,
+                   !examNarrative.visibleLines.isEmpty {
                     HomeExamNarrativeCard(lines: examNarrative.visibleLines)
                 }
 
-                if !selectedDayExamSummaries.isEmpty {
+                if !dashboardSnapshot.selectedDayExamSummaries.isEmpty {
                     VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                         Text("Selected Day")
                             .font(.caption.weight(.black))
                             .foregroundStyle(.secondary)
 
-                        ForEach(selectedDayExamSummaries) { summary in
+                        ForEach(dashboardSnapshot.selectedDayExamSummaries) { summary in
                             HomeSelectedDayExamCard(
                                 summary: summary,
                                 onEdit: {
@@ -163,7 +163,7 @@ struct HomeDashboardView: View {
                         .font(.caption.weight(.black))
                         .foregroundStyle(.secondary)
 
-                    ForEach(upcomingExamSummaries) { summary in
+                    ForEach(dashboardSnapshot.upcomingExamSummaries) { summary in
                         HomeExamGoalSummaryCard(
                             summary: summary,
                             onEdit: {
@@ -190,35 +190,40 @@ struct HomeDashboardView: View {
     /// Renders the hero goal-progress card and three compact secondary stat cards.
     private var statsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Daily Activity")
-                .font(.system(.title3, design: .rounded, weight: .bold))
-                .foregroundStyle(.primary)
+            HomeAnalyticsHeroCard(
+                overview: dashboardSnapshot.selectedDayOverview,
+                weeklyMomentum: dashboardSnapshot.weeklyMomentum
+            )
+
+            HomeSelectedDayInsightsCard(summary: dashboardSnapshot.selectedDayInsight)
+
+            HomeWeeklyMomentumCard(summary: dashboardSnapshot.weeklyMomentum)
 
             // Hero card: daily cards reviewed vs. goal.
             DailyGoalProgressCard(
-                cardsReviewed: selectedDayLog?.cardsReviewed ?? 0,
-                dailyGoal: selectedDayLog?.dailyGoal ?? 50
+                cardsReviewed: dashboardSnapshot.selectedDayOverview.cardsReviewed,
+                dailyGoal: dashboardSnapshot.selectedDayOverview.dailyGoal
             )
 
             // Secondary stats: XP, Streak, Learned — compact horizontal grid.
             HStack(spacing: 12) {
                 MiniStatCardView(
                     title: "XP",
-                    value: "\(selectedDayLog?.xpEarnedToday ?? 0)",
+                    value: "\(dashboardSnapshot.selectedDayOverview.xpEarnedToday)",
                     icon: "star.fill",
                     color: .orange
                 )
 
                 MiniStatCardView(
                     title: "Streak",
-                    value: "\(userProfile?.currentStreak ?? 0)",
+                    value: "\(dashboardSnapshot.selectedDayOverview.streakCount)",
                     icon: "flame.fill",
                     color: .red
                 )
 
                 MiniStatCardView(
                     title: "Learned",
-                    value: "\(selectedDayLog?.newCardsLearned ?? 0)",
+                    value: "\(dashboardSnapshot.selectedDayOverview.newCardsLearned)",
                     icon: "brain.head.profile",
                     color: .purple
                 )

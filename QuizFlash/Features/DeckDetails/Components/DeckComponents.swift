@@ -134,8 +134,6 @@ struct DeckPlayModesView: View {
     let onOpenMode: (DeckPlayModeDestination) -> Void
     /// Called when the user taps the mode-specific options button.
     let onOpenSettings: (DeckPlayModeDestination) -> Void
-    /// Called when the user opens a recommended conversion from a play-mode card.
-    let onOpenRecommendedConversion: (DeckPlayModeDestination) -> Void
     /// Called when the user taps a mode tile that is currently unavailable.
     let onRequestUnavailableMode: (DeckPlayModeDestination) -> Void
 
@@ -145,13 +143,13 @@ struct DeckPlayModesView: View {
     private var deckColor: Color { Color(hex: deck.colorHex) ?? accentColor }
     private var orderedModes: [DeckPlayModeDestination] {
         let visibleModes = DeckPlayModeDestination.allCases.filter { $0 != .learn }
-        let defaultOrder = Dictionary(
+            let defaultOrder = Dictionary(
             uniqueKeysWithValues: visibleModes.enumerated().map { ($1, $0) }
         )
 
         return visibleModes.sorted { lhs, rhs in
-            let lhsCanLaunch = lhs.canLaunch(with: availability)
-            let rhsCanLaunch = rhs.canLaunch(with: availability)
+            let lhsCanLaunch = lhs.canLaunch(with: availability, deck: deck)
+            let rhsCanLaunch = rhs.canLaunch(with: availability, deck: deck)
 
             if lhsCanLaunch != rhsCanLaunch {
                 return lhsCanLaunch && !rhsCanLaunch
@@ -199,12 +197,10 @@ struct DeckPlayModesView: View {
                                     deckColor: deckColor,
                                     accentColor: accentColor
                                 ),
-                                fallbackPrompt: mode.fallbackPrompt(in: availability),
-                                compatibleCardCount: mode.compatibleCardCount(in: availability),
-                                canPlay: mode.canLaunch(with: availability),
+                                statusText: mode.statusText(in: availability, deck: deck),
+                                canPlay: mode.canLaunch(with: availability, deck: deck),
                                 onOpenMode: onOpenMode,
                                 onOpenSettings: onOpenSettings,
-                                onOpenRecommendedConversion: onOpenRecommendedConversion,
                                 onRequestUnavailableMode: onRequestUnavailableMode
                             )
                                 .frame(width: cardWidth)
@@ -225,7 +221,7 @@ struct DeckPlayModesView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
             } else {
-                Text("Each mode only activates when this deck has compatible cards for that mode.")
+                Text("Unavailable modes can be unlocked by converting the current cards.")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
@@ -239,7 +235,6 @@ struct DeckPlayModesView: View {
 /// Compact deck-level readiness summary for Match and Write authoring quality.
 struct DeckReadinessDiagnosticsView: View {
     let summary: DeckReadinessSummary
-    var onOpenRecommendedConversion: ((CardKind) -> Void)? = nil
 
     var body: some View {
         guard summary.hasContent else { return AnyView(EmptyView()) }
@@ -260,14 +255,9 @@ struct DeckReadinessDiagnosticsView: View {
                 }
                 .scrollIndicators(.hidden)
 
-                Text("Match-ready and match-weak count both dedicated match cards and compact flashcard fallback pairs.")
+                Text("These notes stay subtle and only flag cards that may need gentler answer entry or cleanup before practice.")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-
-                if let onOpenRecommendedConversion,
-                   !summary.recommendedConversions.isEmpty {
-                    recommendedConversionButtons(onOpenRecommendedConversion)
-                }
             }
             .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
         )
@@ -285,55 +275,6 @@ struct DeckReadinessDiagnosticsView: View {
         .background(item.kind.tint.opacity(0.12), in: Capsule())
     }
 
-    private func recommendedConversionButtons(
-        _ onOpenRecommendedConversion: @escaping (CardKind) -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            Text("Recommended conversions")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.secondary)
-
-            ForEach(summary.recommendedConversions) { recommendation in
-                Button {
-                    onOpenRecommendedConversion(recommendation.targetKind)
-                } label: {
-                    HStack(spacing: UIConstants.Spacing.small) {
-                        Image(systemName: recommendation.targetKind.conversionSystemImage)
-                            .font(.caption.weight(.bold))
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(recommendation.title)
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.primary)
-
-                            Text(recommendation.detail)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        Spacer(minLength: UIConstants.Spacing.small)
-
-                        Image(systemName: "arrow.right.circle.fill")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(recommendation.targetKind == .match ? .orange : accent)
-                    }
-                    .padding(.horizontal, UIConstants.Spacing.standard)
-                    .padding(.vertical, UIConstants.Spacing.standard)
-                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private var accent: Color {
-        ThemeManager.shared.accentColor.color
-    }
 }
 
 // MARK: - PlayModeCard (private)
@@ -345,12 +286,10 @@ private struct PlayModeCard: View {
 
     let mode: DeckPlayModeDestination
     let tintColor: Color
-    let fallbackPrompt: PlayModeFallbackPrompt?
-    let compatibleCardCount: Int
+    let statusText: String
     let canPlay: Bool
     let onOpenMode: (DeckPlayModeDestination) -> Void
     let onOpenSettings: (DeckPlayModeDestination) -> Void
-    let onOpenRecommendedConversion: (DeckPlayModeDestination) -> Void
     let onRequestUnavailableMode: (DeckPlayModeDestination) -> Void
 
     // MARK: - Body
@@ -387,22 +326,10 @@ private struct PlayModeCard: View {
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
 
-                            if compatibleCardCount > 0 {
-                                Text("\(compatibleCardCount) \(mode.compatibilityRequirementLabel) ready")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            } else if mode.isGameplayImplemented {
-                                Text("No \(mode.compatibilityRequirementLabel) in this deck")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            } else {
-                                Text("No \(mode.compatibilityRequirementLabel) yet")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
+                            Text(statusText)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
 
                         Spacer(minLength: UIConstants.Size.actionButton)
@@ -411,12 +338,8 @@ private struct PlayModeCard: View {
                     .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
                 }
                 .buttonStyle(.plain)
-
-                if let fallbackPrompt {
-                    fallbackPromptView(fallbackPrompt)
-                }
             }
-            .frame(maxWidth: .infinity, minHeight: fallbackPrompt == nil ? 96 : 132, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
             .padding(14)
 
             Button {
@@ -444,43 +367,6 @@ private struct PlayModeCard: View {
             .overlay {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
-        }
-    }
-
-    private func fallbackPromptView(_ prompt: PlayModeFallbackPrompt) -> some View {
-        HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(prompt.title.uppercased())
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(tintColor)
-                    .lineLimit(1)
-
-                Text(prompt.detail)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-
-            Spacer(minLength: UIConstants.Spacing.small)
-
-            Button {
-                onOpenRecommendedConversion(mode)
-            } label: {
-                Text(prompt.ctaTitle)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(tintColor)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(tintColor.opacity(0.12), in: Capsule())
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, UIConstants.Spacing.small)
-        .padding(.vertical, UIConstants.Spacing.small)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
         }
     }
 }

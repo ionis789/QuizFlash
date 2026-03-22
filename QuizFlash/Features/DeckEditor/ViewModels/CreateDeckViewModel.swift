@@ -278,6 +278,7 @@ final class CreateDeckViewModel {
     @ObservationIgnored private var pendingAIDeckTitleRequestID: UUID?
     @ObservationIgnored private var pendingAIGeneratedCards: [AIFlashcard] = []
     @ObservationIgnored private var aiDidFinishReceivingGeneratedCards = false
+    @ObservationIgnored private var aiGeneratedShortfallCount = 0
     @ObservationIgnored private var clearsPendingAISourceOnSheetDismiss = false
     @ObservationIgnored private var aiGenerationSessionID: UUID?
     private var remainingAIAllocations: [AISourceRangeAllocation] = []
@@ -291,19 +292,26 @@ final class CreateDeckViewModel {
     var draftCards: [DraftCard] = [] {
         didSet {
             reconcileDraftSelectionState()
+            reconcileDraftSessionState()
         }
     }
     var cardEditorDestination: CardEditorDestination?
     var showSuccessOverlay = false
+    var successOverlayDeckTitle = ""
     var isSelectingCards = false
     var selectedDraftCardIDs: Set<UUID> = []
     var showDeleteSelectedCardsConfirmation = false
     let deckToEdit: DeckModel?
-    private let initialSnapshot: CreateDeckStateSnapshot
-    @ObservationIgnored private let initialDeckTitle: String
-    @ObservationIgnored private let initialDraftCards: [DraftCard]
-    @ObservationIgnored private let initialSelectedFolder: FolderModel?
+    private var initialSnapshot: CreateDeckStateSnapshot
+    @ObservationIgnored private var initialDeckTitle: String
+    @ObservationIgnored private var initialDraftCards: [DraftCard]
+    @ObservationIgnored private var initialSelectedFolder: FolderModel?
     @ObservationIgnored private var nextDraftCardNumber: Int
+    @ObservationIgnored private var workspaceEditingDeckID: PersistentIdentifier?
+    private var isDetachedFromInitialDeck = false
+    private var baseDraftCardIDs: Set<UUID> = []
+    private(set) var sessionDraftCardIDs: Set<UUID> = []
+    private(set) var aiSessionDraftCardIDs: Set<UUID> = []
 
     var selectedDraftCardCount: Int {
         selectedDraftCardIDs.count
@@ -317,8 +325,32 @@ final class CreateDeckViewModel {
         currentSnapshot != initialSnapshot
     }
 
+    var sessionDraftCards: [DraftCard] {
+        draftCards.filter { sessionDraftCardIDs.contains($0.id) }
+    }
+
+    var baseDraftCards: [DraftCard] {
+        draftCards.filter { baseDraftCardIDs.contains($0.id) }
+    }
+
+    var aiSessionDraftCards: [DraftCard] {
+        draftCards.filter { aiSessionDraftCardIDs.contains($0.id) }
+    }
+
+    var hasAISessionDraftCards: Bool {
+        !aiSessionDraftCardIDs.isEmpty
+    }
+
+    private var resolvedEditingDeckID: PersistentIdentifier? {
+        if let workspaceEditingDeckID {
+            return workspaceEditingDeckID
+        }
+        guard !isDetachedFromInitialDeck else { return nil }
+        return deckToEdit?.persistentModelID
+    }
+
     var isEditingExistingDeck: Bool {
-        deckToEdit != nil
+        resolvedEditingDeckID != nil
     }
 
     var canUndoChanges: Bool {
@@ -326,7 +358,7 @@ final class CreateDeckViewModel {
     }
 
     var canDeleteDeck: Bool {
-        isEditingExistingDeck && !isGenerating
+        deckToEdit != nil && !isGenerating
     }
 
     convenience init(deckToEdit: DeckModel? = nil) {
@@ -352,10 +384,10 @@ final class CreateDeckViewModel {
         if let deck = deckToEdit {
             deckTitle = deck.title
             selectedFolder = deck.folder
-            draftCards = deck.cards.map { DraftCard.from($0) }
+            draftCards = Self.orderedPersistedDraftCards(from: deck)
             initialTitle = deck.title
             initialFolder = deck.folder
-            initialDrafts = deck.cards.map { DraftCard.from($0) }
+            initialDrafts = Self.orderedPersistedDraftCards(from: deck)
         } else {
             initialTitle = ""
             initialFolder = nil
@@ -370,6 +402,9 @@ final class CreateDeckViewModel {
         initialDeckTitle = initialTitle
         initialDraftCards = initialDrafts
         initialSelectedFolder = initialFolder
+        baseDraftCardIDs = Set(initialDrafts.map(\.id))
+        sessionDraftCardIDs = []
+        aiSessionDraftCardIDs = []
         nextDraftCardNumber = max(
             deckToEdit?.lastAssignedCardNumber ?? 0,
             initialDrafts.map(\.cardNumber).max() ?? 0
@@ -377,6 +412,96 @@ final class CreateDeckViewModel {
         
         Task { [weak self] in
             await self?.checkForPausedSession()
+        }
+    }
+
+    // MARK: - Workspace Seeding
+
+    /// Re-seeds the editor so the Create tab can behave like a normal deck
+    /// editor even when the flow was entered from conversion workspace routing.
+    func seedEditorState(
+        editingDeckID: PersistentIdentifier?,
+        title: String,
+        selectedFolder: FolderModel?,
+        draftCards: [DraftCard],
+        resetsBaseline: Bool
+    ) {
+        workspaceEditingDeckID = editingDeckID
+        isDetachedFromInitialDeck = editingDeckID == nil
+        deckTitle = title
+        self.selectedFolder = selectedFolder
+        self.draftCards = draftCards
+        nextDraftCardNumber = max(
+            editingDeckID == deckToEdit?.persistentModelID
+                ? (deckToEdit?.lastAssignedCardNumber ?? 0)
+                : 0,
+            draftCards.map(\.cardNumber).max() ?? 0
+        )
+
+        if resetsBaseline {
+            replaceInitialState(
+                title: title,
+                selectedFolder: selectedFolder,
+                draftCards: draftCards
+            )
+            return
+        }
+
+        if baseDraftCardIDs.isEmpty && sessionDraftCardIDs.isEmpty && aiSessionDraftCardIDs.isEmpty {
+            replaceDraftSessionBaseline(with: draftCards)
+        }
+    }
+
+    /// Merges the latest persisted deck state into the in-memory draft editor
+    /// without clobbering unsaved local draft-only cards or local edits.
+    func mergePersistedDeckState(
+        _ deck: DeckModel,
+        markNewCardsAsAISession: Bool = false
+    ) {
+        workspaceEditingDeckID = deck.persistentModelID
+        isDetachedFromInitialDeck = false
+
+        let localCardsByOriginalID = Dictionary(
+            uniqueKeysWithValues: draftCards.compactMap { draft in
+                draft.originalCardID.map { ($0, draft) }
+            }
+        )
+
+        let localDraftOnlyCards = draftCards.filter { $0.originalCardID == nil }
+        var appendedPersistedDraftIDs: [UUID] = []
+
+        let mergedPersistedCards = deck.cards
+            .sorted {
+                if $0.cardNumber == $1.cardNumber {
+                    return $0.createdAt < $1.createdAt
+                }
+                return $0.cardNumber < $1.cardNumber
+            }
+            .map { persistedCard in
+                if let localDraft = localCardsByOriginalID[persistedCard.persistentModelID] {
+                    return localDraft
+                }
+
+                let persistedDraft = Self.persistedDraftCard(from: persistedCard)
+                appendedPersistedDraftIDs.append(persistedDraft.id)
+                return persistedDraft
+            }
+
+        deckTitle = deckTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? deck.title : deckTitle
+        if self.selectedFolder == nil {
+            self.selectedFolder = deck.folder
+        }
+        draftCards = mergedPersistedCards + localDraftOnlyCards
+        nextDraftCardNumber = max(
+            nextDraftCardNumber,
+            deck.lastAssignedCardNumber,
+            draftCards.map(\.cardNumber).max() ?? 0
+        )
+
+        if markNewCardsAsAISession {
+            appendedPersistedDraftIDs.forEach { registerSessionDraftID($0, marksAsAI: true) }
+        } else {
+            baseDraftCardIDs.formUnion(appendedPersistedDraftIDs)
         }
     }
 
@@ -1112,6 +1237,7 @@ final class CreateDeckViewModel {
         cancelAIGenerationTask()
         resetAIGenerationRevealPipeline()
         clearAIGenerationPauseState()
+        aiSessionDraftCardIDs.removeAll()
         let sessionID = UUID()
         aiGenerationSessionID = sessionID
 
@@ -1185,6 +1311,7 @@ final class CreateDeckViewModel {
             for try await chunk in stream {
                 try Task.checkCancellation()
                 registerGeneratedBatchChunk(chunk)
+                aiGeneratedShortfallCount += chunk.shortfallCount
                 guard !chunk.cards.isEmpty else { continue }
                 pendingAIGeneratedCards.append(contentsOf: chunk.cards)
                 await Task.yield()
@@ -1193,6 +1320,11 @@ final class CreateDeckViewModel {
             aiDidFinishReceivingGeneratedCards = true
             try await aiRevealTask?.value
             try Task.checkCancellation()
+            if aiGeneratedShortfallCount > 0 {
+                throw AIServiceError.unknown(
+                    "Generated \(aiGeneratedCardCount) high-quality Match card\(aiGeneratedCardCount == 1 ? "" : "s"). \(aiGeneratedShortfallCount) requested card\(aiGeneratedShortfallCount == 1 ? "" : "s") were rejected as too verbose."
+                )
+            }
             completeAIGeneration()
         } catch {
             aiDidFinishReceivingGeneratedCards = true
@@ -1290,6 +1422,7 @@ final class CreateDeckViewModel {
         let progress = min(1.0, Double(updatedCount) / Double(max(aiTargetCardCount, 1)))
 
         draftCards.append(draft)
+        registerSessionDraftID(draft.id, marksAsAI: true)
         if markRevealAsCompleted {
             aiRevealedGeneratedCardIDs.insert(draft.id)
         }
@@ -1302,7 +1435,7 @@ final class CreateDeckViewModel {
     }
 
     private func registerGeneratedBatchChunk(_ chunk: AIFlashcardBatchChunk) {
-        let decrement = max(chunk.cards.count, 0)
+        let decrement = max(chunk.cards.count + chunk.shortfallCount, 0)
         guard decrement > 0 else { return }
 
         if let allocationID = chunk.allocationID,
@@ -1364,20 +1497,18 @@ final class CreateDeckViewModel {
         aiTargetCardCount = 0
         aiGenerationSessionID = nil
         remainingAIAllocations = []
+        aiGeneratedShortfallCount = 0
         aiRevealedGeneratedCardIDs.removeAll()
         clearAIGenerationPauseState()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     private func handleAIGenerationFailure(_ error: Error) {
-        print("AI_RESUME_DEBUG: handleAIGenerationFailure called with error: \(error.localizedDescription)")
-        
         let nsError = error as NSError
         let isNetworkError = nsError.domain == NSURLErrorDomain || nsError.domain == kCFErrorDomainCFNetwork as String
         let isBackground = UIApplication.shared.applicationState != .active
         
         if isBackground && isNetworkError {
-            print("AI_RESUME_DEBUG: Intercepted background network error. Forcing a background pause instead of fatal error.")
             pauseAIGeneration(isBackgroundTimeout: true)
             return
         }
@@ -1402,6 +1533,7 @@ final class CreateDeckViewModel {
         aiTargetCardCount = 0
         aiGenerationSessionID = nil
         remainingAIAllocations = []
+        aiGeneratedShortfallCount = 0
         aiRevealedGeneratedCardIDs.removeAll()
         clearAIGenerationPauseState()
         aiState = .error(error.localizedDescription)
@@ -1435,6 +1567,8 @@ final class CreateDeckViewModel {
         if !keepingGeneratedCards {
             let preservedCount = min(aiGenerationBaseCardCount, draftCards.count)
             draftCards = Array(draftCards.prefix(preservedCount))
+            let preservedIDs = Set(draftCards.map(\.id))
+            sessionDraftCardIDs.formIntersection(preservedIDs)
         }
 
         pdfAnalysis = nil
@@ -1445,7 +1579,9 @@ final class CreateDeckViewModel {
         aiTargetCardCount = 0
         aiGenerationSessionID = nil
         remainingAIAllocations = []
+        aiGeneratedShortfallCount = 0
         aiRevealedGeneratedCardIDs.removeAll()
+        aiSessionDraftCardIDs.removeAll()
         clearAIGenerationPauseState()
         aiState = .idle
 
@@ -1458,7 +1594,6 @@ final class CreateDeckViewModel {
 
     func pauseAIGeneration(isBackgroundTimeout: Bool = false) {
         guard let sessionID = aiGenerationSessionID else { return }
-        print("AI_RESUME_DEBUG: pauseAIGeneration called. isBackgroundTimeout: \(isBackgroundTimeout)")
         flushPendingGeneratedCards()
         markCurrentGeneratedCardsAsRevealed()
         aiBackgroundCoordinator.endSession(id: sessionID)
@@ -1470,7 +1605,6 @@ final class CreateDeckViewModel {
         pendingAIDeckTitleRequestID = nil
         resetAIGenerationRevealPipeline()
         showAICancelDialog = false
-        print("AI_RESUME_DEBUG: pauseAIGeneration called (isBackgroundTimeout: \(isBackgroundTimeout))")
         isAIGenerationPaused = true
         isManualPauseInProgress = isBackgroundTimeout
         
@@ -1482,10 +1616,8 @@ final class CreateDeckViewModel {
         if isBackgroundTimeout {
             aiSessionPersistenceTask = Task.detached(priority: .background) { [weak self] in
                 guard let self else { return }
-                print("AI_RESUME_DEBUG: Starting detached persistence task (background timeout)")
                 await self.persistAIPausedSession()
                 await MainActor.run { [weak self] in
-                    print("AI_RESUME_DEBUG: Persistence complete, clearing in-progress flag")
                     self?.isManualPauseInProgress = false
                 }
             }
@@ -1500,24 +1632,18 @@ final class CreateDeckViewModel {
     // MARK: - Paused Session Disk Persistence
     
     private func persistAIPausedSession() async {
-        print("AI_RESUME_DEBUG: persistAIPausedSession called")
         guard hasPausedAIGeneration else {
-            print("AI_RESUME_DEBUG: hasPausedAIGeneration is false, aborting save")
             return
         }
         guard let source = preparedAISource else {
-            print("AI_RESUME_DEBUG: preparedAISource is nil, aborting save")
             return
         }
         
         let remainingAllocations = resumeAllocations(for: source)
         guard !remainingAllocations.isEmpty else {
-            print("AI_RESUME_DEBUG: No remaining allocations, aborting save")
             return
         }
-        
-        print("AI_RESUME_DEBUG: Saving session with \(remainingAllocations.count) allocations")
-        
+
         let sourceMode: AIPausedSession.SourceMode
         do {
             if source.isPDF, let url = source.pdfURL {
@@ -1528,7 +1654,6 @@ final class CreateDeckViewModel {
                 sourceMode = .photos(fileURLs: fileURLs)
             }
         } catch {
-            print("Failed to save paused AI session artifacts: \(error)")
             return
         }
 
@@ -1548,18 +1673,13 @@ final class CreateDeckViewModel {
         )
         
         try? await AIGenerationSessionStore.shared.saveSession(session)
-        print("AI_RESUME_DEBUG: persistAIPausedSession successfully issued save request")
     }
     
     func checkForPausedSession() async {
-        print("AI_RESUME_DEBUG: checkForPausedSession called")
         guard let session = await AIGenerationSessionStore.shared.loadSession() else {
-            print("AI_RESUME_DEBUG: No paused session found on disk")
             return
         }
-        
-        print("AI_RESUME_DEBUG: Paused session loaded from disk, targetCardCount: \(session.targetCardCount)")
-        
+
         // Restore essential state so the user sees the pause prompt & can resume
         self.aiTargetCardCount = session.targetCardCount
         self.aiGeneratedCardCount = session.generatedCardCount
@@ -1568,6 +1688,11 @@ final class CreateDeckViewModel {
         self.remainingAIAllocations = session.remainingAllocations
         self.draftCards = session.draftCards
         self.deckTitle = session.deckTitle
+        let baseDraftIDs = Set(session.draftCards.prefix(session.baseCardCount).map(\.id))
+        let sessionDraftIDs = Set(session.draftCards.dropFirst(session.baseCardCount).map(\.id))
+        self.baseDraftCardIDs = baseDraftIDs
+        self.sessionDraftCardIDs = sessionDraftIDs
+        self.aiSessionDraftCardIDs = sessionDraftIDs
         markCurrentGeneratedCardsAsRevealed()
 
         switch session.sourceMode {
@@ -1577,7 +1702,6 @@ final class CreateDeckViewModel {
                 await preparePDFSource(from: url)
                 self.pdfAnalysis = analysis
             } catch {
-                print("Failed to resolve paused PDF bookmark: \(error)")
                 try? await AIGenerationSessionStore.shared.clearSession()
                 return
             }
@@ -1616,6 +1740,7 @@ final class CreateDeckViewModel {
         aiRevealTask = nil
         pendingAIGeneratedCards.removeAll()
         aiDidFinishReceivingGeneratedCards = false
+        aiGeneratedShortfallCount = 0
     }
 
     /// Resets pause-only flags so a completed or cancelled session cannot leak
@@ -1992,10 +2117,12 @@ final class CreateDeckViewModel {
         aiGeneratedCardCount = 0
         aiTargetCardCount = 0
         remainingAIAllocations = []
+        aiGeneratedShortfallCount = 0
         clearAIGenerationPauseState()
         preparedAISource = nil
         manualAISourceAllocations = []
         aiRevealedGeneratedCardIDs.removeAll()
+        aiSessionDraftCardIDs.removeAll()
         pdfAnalysis = nil
         withAnimation { aiState = .idle }
     }
@@ -2073,7 +2200,10 @@ final class CreateDeckViewModel {
             createdAt: Date(),
             editedAt: Date()
         )
-        withAnimation { draftCards.append(newCard) }
+        withAnimation {
+            draftCards.append(newCard)
+        }
+        registerSessionDraftID(newCard.id)
     }
 
     /// Updates the draft card's zone content and bumps `editedAt` if content changed.
@@ -2169,6 +2299,7 @@ final class CreateDeckViewModel {
     /// intentionally avoids touching SwiftData until the user saves again.
     func revertToInitialState() {
         guard isEditingExistingDeck else { return }
+        let editingDeckID = resolvedEditingDeckID
 
         saveOverlayTask?.cancel()
         showSuccessOverlay = false
@@ -2182,6 +2313,7 @@ final class CreateDeckViewModel {
         deckTitle = initialDeckTitle
         selectedFolder = initialSelectedFolder
         draftCards = initialDraftCards
+        replaceDraftSessionBaseline(with: initialDraftCards)
         nextDraftCardNumber = max(
             deckToEdit?.lastAssignedCardNumber ?? 0,
             initialDraftCards.map(\.cardNumber).max() ?? 0
@@ -2190,6 +2322,8 @@ final class CreateDeckViewModel {
         isSelectingCards = false
         selectedDraftCardIDs.removeAll()
         showDeleteSelectedCardsConfirmation = false
+        workspaceEditingDeckID = editingDeckID
+        isDetachedFromInitialDeck = false
     }
 
     // MARK: - Save Deck
@@ -2200,22 +2334,19 @@ final class CreateDeckViewModel {
     /// - Otherwise, creates a brand-new `DeckModel` and inserts all draft cards.
     ///
     /// Shows a brief success overlay before navigating away.
-    func saveDeck(
-        context: ModelContext,
-        router: NavigationManager,
-        dismissAction: @escaping () -> Void
-    ) -> Bool {
+    func saveDeck(context: ModelContext) -> Bool {
         saveOverlayTask?.cancel()
         showSuccessOverlay = false
 
         let trimmedTitle = deckTitle.trimmingCharacters(in: .whitespaces)
+        let resolvedSavedTitle = trimmedTitle.isEmpty ? "Untitled Deck" : trimmedTitle
+        successOverlayDeckTitle = resolvedSavedTitle
 
-        if deckToEdit != nil && !hasUnsavedChanges {
-            dismissAction()
-            return true
+        if resolvedEditingDeckID != nil && !hasUnsavedChanges {
+            return false
         }
 
-        if let deck = deckToEdit {
+        if let deck = deckToEdit ?? resolvedEditingDeckID.flatMap({ context.safeModel(for: $0, as: DeckModel.self) }) {
             // ── UPDATE EXISTING DECK ──────────────────────────────────────────
             let titleChanged = deck.title != trimmedTitle
             deck.title = trimmedTitle
@@ -2328,16 +2459,7 @@ final class CreateDeckViewModel {
             withAnimation(.easeInOut(duration: UIConstants.Animation.medium)) {
                 self.showSuccessOverlay = false
             }
-
-            try? await Task.sleep(for: .milliseconds(260))
-            guard !Task.isCancelled else { return }
-
-            if self.deckToEdit == nil {
-                self.resetForm()
-                router.popToRoot()
-            } else {
-                dismissAction()
-            }
+            self.resetWorkshopAfterSuccessfulSave()
         }
 
         return true
@@ -2352,7 +2474,9 @@ final class CreateDeckViewModel {
         router: NavigationManager,
         dismissAction: @escaping () -> Void
     ) -> Bool {
-        guard let deck = deckToEdit else { return false }
+        guard let deck = deckToEdit ?? resolvedEditingDeckID.flatMap({ context.safeModel(for: $0, as: DeckModel.self) }) else {
+            return false
+        }
 
         saveOverlayTask?.cancel()
         showSuccessOverlay = false
@@ -2378,8 +2502,11 @@ final class CreateDeckViewModel {
 
     private func resetForm() {
         deckTitle = ""
+        selectedFolder = nil
         draftCards = []
         nextDraftCardNumber = 0
+        workspaceEditingDeckID = nil
+        isDetachedFromInitialDeck = true
         cardEditorDestination = nil
         isSelectingCards = false
         selectedDraftCardIDs.removeAll()
@@ -2388,6 +2515,52 @@ final class CreateDeckViewModel {
         preparedAISource = nil
         manualAISourceAllocations = []
         pdfAnalysis = nil
+        successOverlayDeckTitle = ""
+        replaceDraftSessionBaseline(with: [])
+    }
+
+    private func resetWorkshopAfterSuccessfulSave() {
+        resetAIState()
+        aiSheetDestination = nil
+        showAIPickerOptions = false
+        showAIPhotoPicker = false
+        showAIPDFPicker = false
+        selectedAIPhotos = []
+        resetForm()
+        replaceInitialState(title: "", selectedFolder: nil, draftCards: [])
+    }
+
+    private func replaceInitialState(
+        title: String,
+        selectedFolder: FolderModel?,
+        draftCards: [DraftCard]
+    ) {
+        initialDeckTitle = title
+        initialDraftCards = draftCards
+        initialSelectedFolder = selectedFolder
+        initialSnapshot = CreateDeckStateSnapshot(
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            selectedFolderID: selectedFolder?.persistentModelID,
+            draftCards: draftCards.map(DraftCardChangeSnapshot.init)
+        )
+        replaceDraftSessionBaseline(with: draftCards)
+    }
+
+    private func replaceDraftSessionBaseline(with draftCards: [DraftCard]) {
+        baseDraftCardIDs = Set(draftCards.map(\.id))
+        sessionDraftCardIDs.removeAll()
+        aiSessionDraftCardIDs.removeAll()
+    }
+
+    private func registerSessionDraftID(
+        _ draftID: UUID,
+        marksAsAI: Bool = false
+    ) {
+        baseDraftCardIDs.remove(draftID)
+        sessionDraftCardIDs.insert(draftID)
+        if marksAsAI {
+            aiSessionDraftCardIDs.insert(draftID)
+        }
     }
 
     private var currentSnapshot: CreateDeckStateSnapshot {
@@ -2413,9 +2586,66 @@ final class CreateDeckViewModel {
         }
     }
 
+    private func reconcileDraftSessionState() {
+        let validIDs = Set(draftCards.map(\.id))
+        baseDraftCardIDs.formIntersection(validIDs)
+        sessionDraftCardIDs.formIntersection(validIDs)
+        aiSessionDraftCardIDs.formIntersection(validIDs)
+    }
+
     private func allocateNextDraftCardNumber() -> Int {
         nextDraftCardNumber += 1
         return nextDraftCardNumber
+    }
+
+    private static func orderedPersistedDraftCards(from deck: DeckModel) -> [DraftCard] {
+        deck.cards
+            .sorted {
+                if $0.cardNumber == $1.cardNumber {
+                    return $0.createdAt < $1.createdAt
+                }
+                return $0.cardNumber < $1.cardNumber
+            }
+            .map(persistedDraftCard(from:))
+    }
+
+    private static func persistedDraftCard(from card: CardModel) -> DraftCard {
+        DraftCard(
+            id: stableDraftID(for: card.persistentModelID),
+            originalCardID: card.persistentModelID,
+            cardNumber: card.cardNumber,
+            content: card.cardContent,
+            isPinned: card.isPinned,
+            creationSource: card.creationSource,
+            conversionMetadata: card.conversionMetadata,
+            createdAt: card.createdAt,
+            editedAt: card.editedAt
+        )
+    }
+
+    static func stableDraftID(for persistentIdentifier: PersistentIdentifier) -> UUID {
+        let data = (try? JSONEncoder().encode(persistentIdentifier)) ?? Data()
+
+        var firstHasher = Hasher()
+        firstHasher.combine("draft-stable-id-primary")
+        data.forEach { firstHasher.combine($0) }
+        let first = UInt64(bitPattern: Int64(firstHasher.finalize()))
+
+        var secondHasher = Hasher()
+        secondHasher.combine("draft-stable-id-secondary")
+        data.forEach { secondHasher.combine($0) }
+        let second = UInt64(bitPattern: Int64(secondHasher.finalize()))
+
+        let bytes: [UInt8] =
+            (0..<8).map { UInt8((first >> (UInt64($0) * 8)) & 0xFF) } +
+            (0..<8).map { UInt8((second >> (UInt64($0) * 8)) & 0xFF) }
+
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
     }
 }
 

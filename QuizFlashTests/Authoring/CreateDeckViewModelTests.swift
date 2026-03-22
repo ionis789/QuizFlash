@@ -23,8 +23,7 @@ final class CreateDeckViewModelTests: XCTestCase {
         viewModel.addCard(content: TestMutationFactory.flashcard(front: "Cell", back: "Basic unit"))
         viewModel.addCard(content: TestMutationFactory.match(prompt: "ATP", answer: "Energy"))
 
-        let router = NavigationManager()
-        let didSave = viewModel.saveDeck(context: context, router: router, dismissAction: {})
+        let didSave = viewModel.saveDeck(context: context)
 
         XCTAssertTrue(didSave)
 
@@ -95,7 +94,7 @@ final class CreateDeckViewModelTests: XCTestCase {
         viewModel.draftCards.removeAll { $0.cardNumber == 2 }
         viewModel.addCard(content: TestMutationFactory.write(prompt: "Water formula", answer: "H2O"))
 
-        let didSave = viewModel.saveDeck(context: context, router: NavigationManager(), dismissAction: {})
+        let didSave = viewModel.saveDeck(context: context)
         XCTAssertTrue(didSave)
 
         XCTAssertEqual(editableDeck.title, "Updated Deck")
@@ -193,5 +192,63 @@ final class CreateDeckViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isSelectingCards)
         XCTAssertTrue(viewModel.selectedDraftCardIDs.isEmpty)
         XCTAssertFalse(viewModel.showDeleteSelectedCardsConfirmation)
+    }
+
+    func testSaveDeckResetsWorkshopStateAfterSuccessfulCreate() async throws {
+        let context = try TestModelContainerFactory.makeContext()
+        let folder = FolderModel(title: "Reset", colorHex: "#445566")
+        context.insert(folder)
+        try context.save()
+
+        let viewModel = CreateDeckViewModel(deckToEdit: nil)
+        viewModel.deckTitle = "Physics"
+        viewModel.selectedFolder = folder
+        viewModel.addCard(content: TestMutationFactory.flashcard(front: "Mass", back: "Matter amount"))
+
+        XCTAssertTrue(viewModel.saveDeck(context: context))
+
+        try await Task.sleep(for: .milliseconds(1300))
+
+        XCTAssertEqual(viewModel.deckTitle, "")
+        XCTAssertNil(viewModel.selectedFolder)
+        XCTAssertTrue(viewModel.draftCards.isEmpty)
+        XCTAssertFalse(viewModel.showSuccessOverlay)
+        XCTAssertFalse(viewModel.isEditingExistingDeck)
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+    }
+
+    func testSaveDeckResetsWorkshopStateAfterSuccessfulEdit() async throws {
+        let context = try TestModelContainerFactory.makeContext()
+        let deck = DeckModel(title: "Original", icon: "book.closed.fill", colorHex: "#FFFFFF")
+        let card = TestMutationFactory.makePersistedCard(
+            content: TestMutationFactory.flashcard(front: "Prompt", back: "Answer"),
+            cardNumber: 1
+        )
+
+        context.insert(deck)
+        context.insert(card)
+        deck.cards = [card]
+        deck.cardCount = 1
+        deck.lastAssignedCardNumber = 1
+        try context.save()
+
+        let editableDeck = try XCTUnwrap(context.model(for: deck.persistentModelID) as? DeckModel)
+        let viewModel = CreateDeckViewModel(deckToEdit: editableDeck)
+        viewModel.deckTitle = "Updated"
+        let draft = try XCTUnwrap(viewModel.draftCards.first)
+        viewModel.updateCard(
+            draft,
+            content: TestMutationFactory.flashcard(front: "Edited", back: "Changed")
+        )
+
+        XCTAssertTrue(viewModel.saveDeck(context: context))
+        try await Task.sleep(for: .milliseconds(1300))
+
+        XCTAssertEqual(editableDeck.title, "Updated")
+        XCTAssertEqual(editableDeck.cards.first?.cardContent.previewCache.front, "Edited")
+        XCTAssertEqual(viewModel.deckTitle, "")
+        XCTAssertTrue(viewModel.draftCards.isEmpty)
+        XCTAssertFalse(viewModel.isEditingExistingDeck)
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
     }
 }

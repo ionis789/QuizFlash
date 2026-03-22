@@ -91,10 +91,14 @@ struct AIStreamingProgressCard: View {
     let foundCount: Int
     let targetCount: Int
     let progress: Double
+    var title: String = "Generating cards"
+    var subtitleOverride: String? = nil
+    var accentColor: Color? = nil
+    var footnote: String = "Cards appear in place as each batch finishes"
     var onCancel: (() -> Void)? = nil
     var onPause: (() -> Void)? = nil
 
-    private var accent: Color { ThemeManager.shared.accentColor.color }
+    private var accent: Color { accentColor ?? ThemeManager.shared.accentColor.color }
 
     private var clampedProgress: CGFloat {
         CGFloat(min(max(progress, 0), 1))
@@ -109,6 +113,9 @@ struct AIStreamingProgressCard: View {
     }
 
     private var subtitle: String {
+        if let subtitleOverride {
+            return subtitleOverride
+        }
         if foundCount == 0 {
             return "The first cards will appear here as soon as the model finishes the opening batch."
         }
@@ -124,7 +131,7 @@ struct AIStreamingProgressCard: View {
                 HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: UIConstants.Spacing.small) {
-                            Text("Generating cards")
+                            Text(title)
                                 .font(.system(size: 20, weight: .bold, design: .rounded))
                                 .foregroundStyle(.primary)
 
@@ -174,7 +181,7 @@ struct AIStreamingProgressCard: View {
                     HStack(spacing: UIConstants.Spacing.small) {
                         Image(systemName: "sparkles.rectangle.stack")
                             .font(.caption)
-                        Text("Cards appear in place as each batch finishes")
+                        Text(footnote)
                             .font(.caption)
                     }
                     .foregroundStyle(.secondary)
@@ -194,9 +201,12 @@ struct AIPausedResumeCard: View {
     let targetCount: Int
     let remainingCount: Int
     let progress: Double
+    var title: String = "Generation paused"
+    var subtitle: String = "Continue from the last completed batch when you're ready."
+    var accentColor: Color? = nil
     let onResume: () -> Void
 
-    private var accent: Color { ThemeManager.shared.accentColor.color }
+    private var accent: Color { accentColor ?? ThemeManager.shared.accentColor.color }
 
     private var clampedProgress: CGFloat {
         CGFloat(min(max(progress, 0), 1))
@@ -211,11 +221,11 @@ struct AIPausedResumeCard: View {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
                 HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Generation paused")
+                        Text(title)
                             .font(.system(size: 20, weight: .bold, design: .rounded))
                             .foregroundStyle(.primary)
 
-                        Text("Continue from the last completed batch when you're ready.")
+                        Text(subtitle)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .lineLimit(3)

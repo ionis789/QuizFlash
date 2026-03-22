@@ -61,11 +61,12 @@ struct Day: Identifiable, Equatable {
 /// @State private var calendarVM = CalendarViewModel()
 /// ```
 @Observable
+@MainActor
 final class CalendarViewModel {
 
     // MARK: - Dependencies
 
-    private let calendar = Calendar.current
+    private var calendar: Calendar
 
     // MARK: - State
 
@@ -150,10 +151,12 @@ final class CalendarViewModel {
     // MARK: - Initializer
 
     init() {
-        let today = calendar.startOfDay(for: Date())
+        let initialCalendar = AppPreferences.shared.resolvedCalendar
+        calendar = initialCalendar
+        let today = initialCalendar.startOfDay(for: Date())
         selectedDate = today
-        selectedMonth = CalendarViewModel.monthStart(for: today, calendar: calendar)
-        preferredDayOfMonth = calendar.component(.day, from: today)
+        selectedMonth = CalendarViewModel.monthStart(for: today, calendar: initialCalendar)
+        preferredDayOfMonth = initialCalendar.component(.day, from: today)
     }
 
     // MARK: - Setup
@@ -194,6 +197,19 @@ final class CalendarViewModel {
         updateSelection(date: normalizedDate, visibleMonth: normalizedDate)
     }
 
+    /// Rebuilds the calendar grid when the preferred start weekday changes.
+    func applyWeekStartPreference(_ preference: AppWeekStartDayPreference) {
+        let updatedCalendar = preference == .system
+            ? Calendar.autoupdatingCurrent
+            : preference.resolvedCalendar
+        guard calendar.firstWeekday != updatedCalendar.firstWeekday else { return }
+        calendar = updatedCalendar
+        selectedDate = calendar.startOfDay(for: selectedDate)
+        selectedMonth = CalendarViewModel.monthStart(for: selectedMonth, calendar: calendar)
+        preferredDayOfMonth = calendar.component(.day, from: selectedDate)
+        calculateMonthData()
+    }
+
     // MARK: - Private: Grid Calculation
 
     /// Rebuilds `monthRows` and `monthProgress` for the current `selectedMonth`.
@@ -223,7 +239,8 @@ final class CalendarViewModel {
 
         // Prepend trailing days from the previous month.
         let firstWeekday = calendar.component(.weekday, from: firstDate)
-        for index in Array(0..<firstWeekday - 1).reversed() {
+        let leadingPadding = (firstWeekday - calendar.firstWeekday + 7) % 7
+        for index in Array(0..<leadingPadding).reversed() {
             if let date = calendar.date(byAdding: .day, value: -index - 1, to: firstDate) {
                 days.append(Day(
                     shortSymbol: Self.dayFormatter.string(from: date),
@@ -247,9 +264,9 @@ final class CalendarViewModel {
         }
 
         // Append leading days from the next month to complete the final row.
-        let lastWeekday = 7 - calendar.component(.weekday, from: lastDate)
-        if lastWeekday > 0 {
-            for index in 0..<lastWeekday {
+        let trailingPadding = (7 - (days.count % 7)) % 7
+        if trailingPadding > 0 {
+            for index in 0..<trailingPadding {
                 if let date = calendar.date(byAdding: .day, value: index + 1, to: lastDate) {
                     days.append(Day(
                         shortSymbol: Self.dayFormatter.string(from: date),

@@ -38,6 +38,114 @@ struct HomeExamNarrativeCard: View {
     }
 }
 
+// MARK: - Home Exam Pressure Card
+
+/// Executive summary for the exam goal carrying the highest current risk.
+struct HomeExamPressureCard: View {
+    let summary: HomeExamPressureSummary
+
+    private var progressTint: Color {
+        if summary.readinessFraction >= 0.75 { return .green }
+        if summary.readinessFraction >= 0.55 { return .orange }
+        return .red
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+            HStack(alignment: .top, spacing: UIConstants.Spacing.standard) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Exam Pressure")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(.secondary)
+
+                    Text(summary.goalTitle)
+                        .font(.title3.weight(.heavy))
+                        .fontDesign(.rounded)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("\(summary.headline) • \(summary.countdownLabel)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(progressTint)
+                }
+
+                Spacer(minLength: 0)
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("\(Int((summary.readinessFraction * 100).rounded()))%")
+                        .font(.system(size: 28, weight: .heavy, design: .rounded))
+                        .foregroundStyle(progressTint)
+                        .monospacedDigit()
+
+                    Text("readiness")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Text(summary.detailLine)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(summary.actionLine)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: UIConstants.Spacing.small) {
+                pressureMetricChip(title: "Overdue", value: "\(summary.overdueCards)", tint: .orange)
+                pressureMetricChip(
+                    title: "Pace",
+                    value: summary.dailyPaceNeeded == 0 ? "steady" : "\(summary.dailyPaceNeeded)/day",
+                    tint: ThemeManager.shared.accentColor.color
+                )
+                pressureMetricChip(title: "Risk Decks", value: "\(summary.belowTargetDeckCount)", tint: .red)
+            }
+
+            if let weakestDeckTitle = summary.weakestDeckTitle {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(progressTint)
+
+                    Text("Weakest deck: \(weakestDeckTitle)")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 0)
+
+                    if let weakestDeckReadinessFraction = summary.weakestDeckReadinessFraction {
+                        Text("\(Int((weakestDeckReadinessFraction * 100).rounded()))%")
+                            .font(.footnote.weight(.black))
+                            .foregroundStyle(progressTint)
+                            .monospacedDigit()
+                    }
+                }
+            }
+        }
+        .padding(UIConstants.Spacing.large)
+        .widgetStyle(cornerRadius: 24)
+    }
+
+    private func pressureMetricChip(title: String, value: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.black))
+                .foregroundStyle(.secondary)
+
+            Text(value)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, UIConstants.Spacing.standard)
+        .padding(.vertical, UIConstants.Spacing.small)
+        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous))
+    }
+}
+
 // MARK: - Home Exam Goal Summary Card
 
 /// One Home dashboard card summarizing readiness for a single upcoming exam goal.

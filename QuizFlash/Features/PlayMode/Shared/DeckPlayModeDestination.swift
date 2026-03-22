@@ -18,13 +18,6 @@ struct PlayModeSettingPreset: Identifiable, Hashable {
     var id: String { title }
 }
 
-/// Compact deck-card callout shown when a play mode is still relying on fallback content.
-struct PlayModeFallbackPrompt: Equatable {
-    let title: String
-    let detail: String
-    let ctaTitle: String
-}
-
 /// Compact deck-level explanation shown when a mode tile is tapped while unavailable.
 struct PlayModeUnavailablePrompt: Equatable {
     let title: String
@@ -112,12 +105,19 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
     }
 
     /// Number of compatible cards for this mode inside the current deck.
-    func compatibleCardCount(in availability: PlayModeCardAvailability) -> Int {
+    func compatibleCardCount(
+        in availability: PlayModeCardAvailability,
+        deck: DeckModel
+    ) -> Int {
         switch self {
         case .flashcards:
             return availability.flashcardCards
         case .match:
-            return availability.matchCards > 0 ? availability.matchCards : availability.flashcardCards
+            if availability.matchCards > 0 {
+                return availability.matchCards
+            }
+            let allowsFallback = deck.playModeSettings?.matchSettings.allowsFlashcardFallback ?? true
+            return allowsFallback ? availability.flashcardCards : 0
         case .quiz:
             return availability.quizCards
         case .write:
@@ -128,28 +128,16 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
     }
 
     /// `true` when the deck currently contains cards that this mode can consume.
-    func hasCompatibleCards(in availability: PlayModeCardAvailability) -> Bool {
-        compatibleCardCount(in: availability) > 0
+    func hasCompatibleCards(
+        in availability: PlayModeCardAvailability,
+        deck: DeckModel
+    ) -> Bool {
+        compatibleCardCount(in: availability, deck: deck) > 0
     }
 
     /// `true` when the gameplay view exists and the deck can actually launch it.
-    func canLaunch(with availability: PlayModeCardAvailability) -> Bool {
-        isGameplayImplemented && hasCompatibleCards(in: availability)
-    }
-
-    /// Optional fallback warning shown when the mode can launch, but is still using less ideal source content.
-    func fallbackPrompt(in availability: PlayModeCardAvailability) -> PlayModeFallbackPrompt? {
-        switch self {
-        case .match:
-            guard availability.matchCards == 0, availability.flashcardCards > 0 else { return nil }
-            return PlayModeFallbackPrompt(
-                title: "Using flashcard fallback",
-                detail: "Dedicated Match cards will read cleaner than front/back preview pairs on small screens.",
-                ctaTitle: "Convert to Match"
-            )
-        case .flashcards, .quiz, .learn, .write:
-            return nil
-        }
+    func canLaunch(with availability: PlayModeCardAvailability, deck: DeckModel) -> Bool {
+        isGameplayImplemented && hasCompatibleCards(in: availability, deck: deck)
     }
 
     /// Card kind that the deck can convert into to unlock this mode, when applicable.
@@ -169,48 +157,78 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
     }
 
     /// Minimal explanation used by the deck screen when the tile is tapped while unavailable.
-    func unavailablePrompt(in availability: PlayModeCardAvailability) -> PlayModeUnavailablePrompt {
+    func unavailablePrompt(
+        in availability: PlayModeCardAvailability,
+        deck: DeckModel
+    ) -> PlayModeUnavailablePrompt {
         let deckHasAnyCards = availability.totalCards > 0
 
         switch self {
         case .flashcards:
             return PlayModeUnavailablePrompt(
-                title: "Flashcards isn't available yet",
+                title: "Flashcards Isn't Ready",
                 detail: deckHasAnyCards
-                    ? "This deck has no flashcards right now. Convert the current cards into Flashcards to launch swipe review."
-                    : "This deck needs cards before Flashcards can start.",
-                actionTitle: deckHasAnyCards ? "Convert Current Cards" : nil
+                    ? "Convert the current cards to Flashcards to use this mode."
+                    : "Add cards to this deck first.",
+                actionTitle: deckHasAnyCards ? "Convert Cards" : nil
             )
         case .quiz:
             return PlayModeUnavailablePrompt(
-                title: "Quiz isn't available yet",
+                title: "Quiz Isn't Ready",
                 detail: deckHasAnyCards
-                    ? "This deck has no quiz cards right now. Convert the current cards into Quiz cards to unlock multiple-choice practice."
-                    : "This deck needs cards before Quiz can start.",
-                actionTitle: deckHasAnyCards ? "Convert Current Cards" : nil
+                    ? "Convert the current cards to Quiz to use this mode."
+                    : "Add cards to this deck first.",
+                actionTitle: deckHasAnyCards ? "Convert Cards" : nil
             )
         case .learn:
             return PlayModeUnavailablePrompt(
-                title: "Learn isn't available yet",
-                detail: "Learn needs cards in this deck first. Add or generate cards, then come back.",
+                title: "Learn Isn't Ready",
+                detail: "Add cards to this deck first.",
                 actionTitle: nil
             )
         case .match:
             return PlayModeUnavailablePrompt(
-                title: "Match isn't available yet",
+                title: "Match Isn't Ready",
                 detail: deckHasAnyCards
-                    ? "This deck has no Match-compatible pairs right now. Convert the current cards into Match cards to unlock it."
-                    : "This deck needs cards before Match can start.",
-                actionTitle: deckHasAnyCards ? "Convert Current Cards" : nil
+                    ? "Convert the current cards to Match to use this mode."
+                    : "Add cards to this deck first.",
+                actionTitle: deckHasAnyCards ? "Convert Cards" : nil
             )
         case .write:
             return PlayModeUnavailablePrompt(
-                title: "Write isn't available yet",
+                title: "Write Isn't Ready",
                 detail: deckHasAnyCards
-                    ? "This deck has no Write cards right now. Convert the current cards into Write cards to unlock manual input mode."
-                    : "This deck needs cards before Write can start.",
-                actionTitle: deckHasAnyCards ? "Convert Current Cards" : nil
+                    ? "Convert the current cards to Write to use this mode."
+                    : "Add cards to this deck first.",
+                actionTitle: deckHasAnyCards ? "Convert Cards" : nil
             )
+        }
+    }
+
+    /// Minimal status line shown inside the deck play-mode tile.
+    func statusText(in availability: PlayModeCardAvailability, deck: DeckModel) -> String {
+        switch self {
+        case .match:
+            if availability.matchCards > 0 {
+                let count = availability.matchCards
+                return "\(count) match card\(count == 1 ? "" : "s") ready"
+            }
+            if canLaunch(with: availability, deck: deck) {
+                return "Ready to play"
+            }
+            return availability.totalCards > 0
+                ? "Convert cards to unlock"
+                : "Add cards to unlock"
+        case .learn:
+            return availability.totalCards > 0 ? "Deck summary ready" : "Add cards to unlock"
+        default:
+            let count = compatibleCardCount(in: availability, deck: deck)
+            if count > 0 {
+                return "\(count) \(compatibilityRequirementLabel) ready"
+            }
+            return availability.totalCards > 0
+                ? "Convert cards to unlock"
+                : "Add cards to unlock"
         }
     }
 
@@ -240,7 +258,7 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         case .learn:
             return "Tune how the guided deck briefing should read for this deck."
         case .match:
-            return "Tune board size, fallback rules, and retry pressure for this deck."
+            return "Tune board size, density, retries, and feedback for this deck."
         case .write:
             return "Tune answer entry, matching strictness, reveal timing, and retries."
         }
@@ -256,7 +274,7 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         case .learn:
             return "Learn stays report-only, but the grouping and density can now be tailored to the deck you are reviewing."
         case .match:
-            return "Match can keep using flashcard-preview fallback for mixed decks, or you can tighten the rules and chunk size for this specific deck."
+            return "Choose how dense the board feels, whether missed pairs loop back, and when mixed decks are allowed to fall back internally."
         case .write:
             return "Write can stay loose and text-first, or switch into a stricter assisted flow when the deck contains formula-heavy prompts."
         }

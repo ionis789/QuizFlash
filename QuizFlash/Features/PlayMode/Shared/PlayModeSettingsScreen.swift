@@ -49,7 +49,7 @@ struct PlayModeSettingsScreen: View {
     }
 
     private var compatibleCardCount: Int {
-        mode.compatibleCardCount(in: availability)
+        mode.compatibleCardCount(in: availability, deck: deck)
     }
 
     private var horizontalInset: CGFloat {

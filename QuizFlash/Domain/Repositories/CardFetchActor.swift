@@ -70,7 +70,7 @@ struct CardDataSnapshot: Sendable {
 }
 
 /// A sendable conversion-ready projection of a persisted card.
-struct CardConversionSourceSnapshot: Sendable {
+nonisolated struct CardConversionSourceSnapshot: Codable, Equatable, Sendable {
     let id: PersistentIdentifier
     let kind: CardKind
     let content: DraftCardContent

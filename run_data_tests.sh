@@ -9,16 +9,22 @@ readonly REPO_ROOT="/Users/ionsocol/Documents/SWIFT/QuizFlash"
 readonly PROJECT_PATH="$REPO_ROOT/QuizFlash.xcodeproj"
 readonly SCHEME="QuizFlash"
 readonly DERIVED_DATA_PATH="${QUIZFLASH_DERIVED_DATA_PATH:-/tmp/QuizFlashDerivedDataTests}"
-readonly DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"
-readonly XCODE_PATH="$DEVELOPER_DIR/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+readonly XCODE_DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"
+readonly XCODE_PATH="$XCODE_DEVELOPER_DIR/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 typeset -a ALL_SUITES=(
   "AIProviderStoreTests"
+  "AIJobSessionStoreTests"
   "AIGenerationSessionStoreTests"
+  "AIWorkspaceCoordinatorTests"
+  "MatchConversionPipelineTests"
   "CreateDeckViewModelTests"
+  "MatchQualityAndReadinessTests"
   "HomeViewModelTests"
   "LibraryViewModelMutationTests"
   "DeckViewModelMutationTests"
+  "DeckCardConversionRequestTests"
+  "DeckConversionPersistenceTests"
   "DeckPlayModeSettingsStoreTests"
   "PlaySessionPersistenceServiceTests"
   "DeckSharingManagerTests"
@@ -27,15 +33,21 @@ typeset -a ALL_SUITES=(
 
 typeset -a CATEGORY_AI_SUITES=(
   "AIProviderStoreTests"
+  "AIJobSessionStoreTests"
   "AIGenerationSessionStoreTests"
+  "AIWorkspaceCoordinatorTests"
+  "MatchConversionPipelineTests"
 )
 
 typeset -a CATEGORY_AUTHORING_SUITES=(
   "CreateDeckViewModelTests"
+  "MatchQualityAndReadinessTests"
 )
 
 typeset -a CATEGORY_DECKS_SUITES=(
   "DeckViewModelMutationTests"
+  "DeckCardConversionRequestTests"
+  "DeckConversionPersistenceTests"
 )
 
 typeset -a CATEGORY_HOME_SUITES=(
@@ -112,9 +124,9 @@ print_suites() {
 
 print_categories() {
   cat <<'EOF'
-ai: AIProviderStoreTests, AIGenerationSessionStoreTests
-authoring: CreateDeckViewModelTests
-decks: DeckViewModelMutationTests
+ai: AIProviderStoreTests, AIJobSessionStoreTests, AIGenerationSessionStoreTests, AIWorkspaceCoordinatorTests, MatchConversionPipelineTests
+authoring: CreateDeckViewModelTests, MatchQualityAndReadinessTests
+decks: DeckViewModelMutationTests, DeckCardConversionRequestTests, DeckConversionPersistenceTests
 home: HomeViewModelTests
 library: LibraryViewModelMutationTests
 play: DeckPlayModeSettingsStoreTests, PlaySessionPersistenceServiceTests
@@ -259,12 +271,12 @@ parse_args() {
 }
 
 booted_simulator_ids() {
-  PATH="$XCODE_PATH" DEVELOPER_DIR="$DEVELOPER_DIR" \
+  PATH="$XCODE_PATH" DEVELOPER_DIR="$XCODE_DEVELOPER_DIR" \
     xcrun simctl list devices booted | awk -F '[()]' '/Booted/ { print $2 }'
 }
 
 pick_default_iphone_id() {
-  PATH="$XCODE_PATH" DEVELOPER_DIR="$DEVELOPER_DIR" \
+  PATH="$XCODE_PATH" DEVELOPER_DIR="$XCODE_DEVELOPER_DIR" \
     xcrun simctl list devices available | awk -F '[()]' '/iPhone/ && /Shutdown|Booted/ { print $2; exit }'
 }
 
@@ -297,14 +309,14 @@ resolve_simulator_id() {
   [[ -n "$default_id" ]] || fail "Could not find an available iPhone simulator to boot."
 
   echo "Booting simulator $default_id ..."
-  PATH="$XCODE_PATH" DEVELOPER_DIR="$DEVELOPER_DIR" xcrun simctl boot "$default_id" >/dev/null 2>&1 || true
-  PATH="$XCODE_PATH" DEVELOPER_DIR="$DEVELOPER_DIR" xcrun simctl bootstatus "$default_id" -b
+  PATH="$XCODE_PATH" DEVELOPER_DIR="$XCODE_DEVELOPER_DIR" xcrun simctl boot "$default_id" >/dev/null 2>&1 || true
+  PATH="$XCODE_PATH" DEVELOPER_DIR="$XCODE_DEVELOPER_DIR" xcrun simctl bootstatus "$default_id" -b
   SIMULATOR_ID="$default_id"
 }
 
 build_for_testing() {
   echo "Building tests once into $DERIVED_DATA_PATH ..."
-  PATH="$XCODE_PATH" DEVELOPER_DIR="$DEVELOPER_DIR" \
+  PATH="$XCODE_PATH" DEVELOPER_DIR="$XCODE_DEVELOPER_DIR" \
     xcodebuild \
       -project "$PROJECT_PATH" \
       -scheme "$SCHEME" \
@@ -321,7 +333,7 @@ run_suite() {
   echo
   echo "Running $suite_name on simulator $SIMULATOR_ID ..."
 
-  PATH="$XCODE_PATH" DEVELOPER_DIR="$DEVELOPER_DIR" \
+  PATH="$XCODE_PATH" DEVELOPER_DIR="$XCODE_DEVELOPER_DIR" \
     xcodebuild \
       -project "$PROJECT_PATH" \
       -scheme "$SCHEME" \

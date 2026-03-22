@@ -15,6 +15,12 @@ import UniformTypeIdentifiers
 
 private let kCreateDeckChromeSpace = "CreateDeckChromeSpace"
 
+private struct CreateDeckWorkspaceSeedSignature: Equatable {
+    let sourceDeckID: PersistentIdentifier
+    let destination: DeckCardConversionDestinationOption
+    let liveDeckID: PersistentIdentifier?
+}
+
 struct CreateDeckView: View {
     // MARK: - Environment
     @Environment(\.modelContext) private var context
@@ -23,9 +29,12 @@ struct CreateDeckView: View {
     @Environment(\.fullScreenSheetDismissCoordinator) private var fullScreenSheetDismissCoordinator
     @Environment(\.scenePhase) private var scenePhase
     @Environment(NavigationManager.self) private var router
+    @Environment(AIWorkspaceCoordinator.self) private var aiWorkspaceCoordinator
+    @Environment(AppPreferences.self) private var appPreferences
 
     /// Fetches all available folders to populate the destination picker.
     @Query(sort: \FolderModel.createdAt, order: .reverse) private var folders: [FolderModel]
+    @Query(sort: \DeckModel.editedAt, order: .reverse) private var sourceDecks: [DeckModel]
 
     // MARK: - State
     @State private var viewModel: CreateDeckViewModel
@@ -39,6 +48,9 @@ struct CreateDeckView: View {
     @State private var showAddCardTypeDialog = false
     @State private var allowDismissWithoutConfirmation = false
     @State private var hasCapturedPhysicalSafeBottom = false
+    @State private var isHistoricalCardsCollapsed = true
+    @State private var hasSeededWorkspaceEditorState = false
+    @State private var workspaceSeedSignature: CreateDeckWorkspaceSeedSignature?
 
     /// Tracks the focus state of the deck title text field.
     /// Drives the tab bar visibility rule reactively.
@@ -46,18 +58,23 @@ struct CreateDeckView: View {
 
     // MARK: - Input
     private let presentedSafeAreaInsets: UIEdgeInsets?
+    private let isAIWorkspaceHost: Bool
 
     // MARK: - Computed Properties
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var canSave: Bool {
         let hasTitle = !viewModel.deckTitle.trimmingCharacters(in: .whitespaces).isEmpty
         if viewModel.isEditingExistingDeck {
-            return hasTitle
+            return hasTitle && viewModel.hasUnsavedChanges
         }
         return hasTitle && !viewModel.draftCards.isEmpty
     }
     private var collapsedDeckTitle: String {
-        viewModel.deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let workspaceTitle = conversionWorkspaceContext?.displayTitle,
+           !workspaceTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return workspaceTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return viewModel.deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     private var destinationTitle: String {
         viewModel.selectedFolder?.title ?? "Library"
@@ -107,6 +124,10 @@ struct CreateDeckView: View {
         min(UIScreen.main.bounds.width - (UIConstants.Layout.screenEdgeInset * 2), 320)
     }
     private var savedDeckTitle: String {
+        let overlayTitle = viewModel.successOverlayDeckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !overlayTitle.isEmpty {
+            return overlayTitle
+        }
         let trimmedTitle = viewModel.deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedTitle.isEmpty ? "Untitled Deck" : trimmedTitle
     }
@@ -126,8 +147,20 @@ struct CreateDeckView: View {
             return "\(viewModel.aiGeneratedCardCount)/\(max(viewModel.aiTargetCardCount, 1))"
         }
     }
+    private var conversionWorkspaceContext: AIWorkspaceDeckContext? {
+        guard isAIWorkspaceHost else { return nil }
+        return aiWorkspaceCoordinator.workspaceDeckContext
+    }
+    private var isShowingConversionWorkspace: Bool { conversionWorkspaceContext != nil }
+    private var isShowingConversionConfiguration: Bool {
+        isAIWorkspaceHost && aiWorkspaceCoordinator.conversionSheetToken != nil && aiWorkspaceCoordinator.conversionSeed != nil
+    }
     private var tabBarOffset: CGFloat {
         max(0, viewSafeBottom - physicalSafeBottom)
+    }
+    private var canStartLocalGeneration: Bool {
+        !hasUnifiedAISession
+            && (!isAIWorkspaceHost || !aiWorkspaceCoordinator.hasBlockingJob || aiWorkspaceCoordinator.generationStatus != nil)
     }
     private var shouldShowFloatingGenerate: Bool {
         scrollState.pillVisible
@@ -136,6 +169,8 @@ struct CreateDeckView: View {
             && !isTitleFocused
             && viewModel.aiSheetDestination == nil
             && !viewModel.showSuccessOverlay
+            && !hasUnifiedAISession
+            && !isShowingConversionConfiguration
     }
     private var shouldShowCollapsedTitle: Bool {
         scrollState.pillVisible && !viewModel.draftCards.isEmpty && !collapsedDeckTitle.isEmpty
@@ -145,6 +180,8 @@ struct CreateDeckView: View {
             && viewModel.aiSheetDestination == nil
             && !viewModel.showSuccessOverlay
             && !isTitleFocused
+            && !hasUnifiedAISession
+            && !isShowingConversionConfiguration
     }
     private var swipeBackEnabled: Bool {
         fullScreenSheetDismiss != nil ? canUseInteractiveDismiss : true
@@ -158,19 +195,192 @@ struct CreateDeckView: View {
     /// Forces the tab bar to hide only while the keyboard is active.
     /// Materialization (card reveal animation) intentionally leaves the bar visible.
     private var tabRule: TabBarVisibilityRule {
-        if isTitleFocused || viewModel.aiSheetDestination != nil || viewModel.isSelectingCards {
+        if isTitleFocused || viewModel.aiSheetDestination != nil || viewModel.isSelectingCards || isShowingConversionConfiguration {
             return .hidden
         }
         return .implicit
     }
 
+    private var canOpenConversionMenu: Bool {
+        !sourceDecks.isEmpty
+            && !viewModel.isGenerating
+            && (!isAIWorkspaceHost || !aiWorkspaceCoordinator.hasBlockingJob || isShowingConversionConfiguration || isShowingConversionWorkspace)
+    }
+    private var hasActiveGenerationRuntime: Bool {
+        if case .extractingText = viewModel.aiState { return true }
+        if case .generatingCards = viewModel.aiState { return true }
+        return viewModel.hasPausedAIGeneration
+    }
+
+    private var hasActiveConversionRuntime: Bool {
+        aiWorkspaceCoordinator.conversionProgress != nil || aiWorkspaceCoordinator.canResumeConversion
+    }
+
+    private var hasUnifiedAISession: Bool {
+        hasActiveGenerationRuntime
+            || hasActiveConversionRuntime
+            || viewModel.hasAISessionDraftCards
+            || isShowingConversionWorkspace
+    }
+
+    private var displayedDraftCards: [DraftCard] {
+        if hasUnifiedAISession {
+            return sortDraftCards(viewModel.sessionDraftCards)
+        }
+        return sortDraftCards(viewModel.draftCards)
+    }
+
+    private var displayedDraftRowsBeforeAISlots: [DraftCard] {
+        guard hasUnifiedAISession else {
+            return displayedDraftCards
+        }
+        guard hasActiveGenerationRuntime || hasActiveConversionRuntime else {
+            return displayedDraftCards
+        }
+        return displayedDraftCards.filter { !viewModel.aiSessionDraftCardIDs.contains($0.id) }
+    }
+
+    private var displayedHistoricalDraftCards: [DraftCard] {
+        guard hasUnifiedAISession, !isHistoricalCardsCollapsed else { return [] }
+        return sortDraftCards(viewModel.baseDraftCards)
+    }
+
+    private var sortedAISessionDraftCards: [DraftCard] {
+        sortDraftCards(viewModel.aiSessionDraftCards)
+    }
+
+    private var canToggleHistoricalSessionCards: Bool {
+        hasUnifiedAISession && !viewModel.baseDraftCards.isEmpty
+    }
+
+    private var hiddenSessionCardsCount: Int {
+        guard hasUnifiedAISession, isHistoricalCardsCollapsed else { return 0 }
+        return viewModel.baseDraftCards.count
+    }
+
     // MARK: - Initialization
     init(deckToEdit: DeckModel? = nil, safeAreaInsets: UIEdgeInsets? = nil) {
+        self.isAIWorkspaceHost = false
+        self.presentedSafeAreaInsets = safeAreaInsets
+        _viewModel = State(initialValue: CreateDeckViewModel(deckToEdit: deckToEdit))
+    }
+
+    init(
+        deckToEdit: DeckModel? = nil,
+        safeAreaInsets: UIEdgeInsets? = nil,
+        isAIWorkspaceHost: Bool
+    ) {
+        self.isAIWorkspaceHost = isAIWorkspaceHost
         self.presentedSafeAreaInsets = safeAreaInsets
         _viewModel = State(initialValue: CreateDeckViewModel(deckToEdit: deckToEdit))
     }
 
     var body: some View {
+        conversionStateSyncedContent
+    }
+
+    private var conversionStateSyncedContent: some View {
+        generationStateSyncedContent
+            .onChange(of: aiWorkspaceCoordinator.workspaceDeckContext) { _, _ in
+                refreshWorkspaceDeckPresentation()
+            }
+            .onChange(of: aiWorkspaceCoordinator.conversionProgress) { _, _ in
+                refreshWorkspaceDeckPresentation()
+            }
+            .onChange(of: aiWorkspaceCoordinator.conversionSummary) { _, _ in
+                refreshWorkspaceDeckPresentation()
+            }
+            .onChange(of: aiWorkspaceCoordinator.conversionErrorMessage) { _, _ in
+                refreshWorkspaceDeckPresentation()
+            }
+            .onChange(of: aiWorkspaceCoordinator.conversionSheetToken) { _, _ in
+                refreshSessionPresentationState()
+            }
+    }
+
+    private var generationStateSyncedContent: some View {
+        appearanceBoundContent
+            .onChange(of: viewModel.aiState) { _, _ in
+                syncAIWorkspaceGenerationState()
+            }
+            .onChange(of: viewModel.aiGeneratedCardCount) { _, _ in
+                syncAIWorkspaceGenerationState()
+            }
+            .onChange(of: viewModel.aiTargetCardCount) { _, _ in
+                syncAIWorkspaceGenerationState()
+            }
+            .onChange(of: viewModel.hasPausedAIGeneration) { _, _ in
+                syncAIWorkspaceGenerationState()
+            }
+            .onChange(of: viewModel.deckTitle) { _, _ in
+                syncAIWorkspaceGenerationState()
+            }
+            .onChange(of: viewModel.draftCards) { _, _ in
+                refreshSessionPresentationState()
+            }
+            .onChange(of: viewModel.aiState) { _, _ in
+                refreshSessionPresentationState()
+            }
+            .onChange(of: viewModel.aiGeneratedCardCount) { _, _ in
+                refreshSessionPresentationState()
+            }
+            .onChange(of: viewModel.hasPausedAIGeneration) { _, _ in
+                refreshSessionPresentationState()
+            }
+            .onChange(of: appPreferences.autoCollapseEarlierCardsInAISession) { _, newValue in
+                if newValue {
+                    refreshSessionPresentationState()
+                } else {
+                    isHistoricalCardsCollapsed = false
+                }
+            }
+    }
+
+    private var appearanceBoundContent: some View {
+        AnyView(pickerBoundContent)
+            .onChange(of: viewModel.aiSheetDestination) { oldValue, newValue in
+                if oldValue != nil, newValue == nil {
+                    viewModel.handleAISheetDismissed()
+                }
+            }
+            .swipeBack(
+                enabled: swipeBackEnabled,
+                attachment: swipeBackAttachment
+            ) {
+                requestDismiss()
+            }
+            .onAppear {
+                refreshDerivedDeckState()
+                refreshWorkspaceDeckPresentation()
+                refreshSessionPresentationState()
+                syncAIWorkspaceGenerationState()
+                fullScreenSheetDismissCoordinator?.shouldAllowDismiss = {
+                    attemptInteractiveDismissValidation()
+                }
+            }
+            .onChange(of: viewModel.draftCards) { _, _ in
+                refreshDerivedDeckState()
+            }
+            .onDisappear {
+                if fullScreenSheetDismissCoordinator?.shouldAllowDismiss != nil {
+                    fullScreenSheetDismissCoordinator?.shouldAllowDismiss = nil
+                }
+                guard viewModel.aiSheetDestination == nil,
+                      viewModel.cardEditorDestination == nil else { return }
+                ImageCache.shared.clearCache()
+            }
+            .customTabBarVisibility(tabRule)
+    }
+
+    private var pickerBoundContent: some View {
+        generationSheetContent
+            .photosPicker(isPresented: $viewModel.showAIPhotoPicker, selection: $viewModel.selectedAIPhotos, matching: .images)
+            .fileImporter(isPresented: $viewModel.showAIPDFPicker, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
+                if case .success(let urls) = result, let url = urls.first { viewModel.pdfWasSelected(url) }
+            }
+    }
+
+    private var generationSheetContent: some View {
         viewContent
             .fullScreenSheet(
                 ignoresSafeArea: true,
@@ -190,39 +400,6 @@ struct CreateDeckView: View {
             } background: {
                 AIGenerationSheetBackground()
             }
-            .photosPicker(isPresented: $viewModel.showAIPhotoPicker, selection: $viewModel.selectedAIPhotos, matching: .images)
-            .fileImporter(isPresented: $viewModel.showAIPDFPicker, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
-                if case .success(let urls) = result, let url = urls.first { viewModel.pdfWasSelected(url) }
-            }
-            .onChange(of: viewModel.aiSheetDestination) { oldValue, newValue in
-                if oldValue != nil, newValue == nil {
-                    viewModel.handleAISheetDismissed()
-                }
-            }
-            .swipeBack(
-                enabled: swipeBackEnabled,
-                attachment: swipeBackAttachment
-            ) {
-                requestDismiss()
-            }
-            .onAppear {
-                refreshDerivedDeckState()
-                fullScreenSheetDismissCoordinator?.shouldAllowDismiss = {
-                    attemptInteractiveDismissValidation()
-                }
-            }
-            .onChange(of: viewModel.draftCards) { _, _ in
-                refreshDerivedDeckState()
-            }
-            .onDisappear {
-                if fullScreenSheetDismissCoordinator?.shouldAllowDismiss != nil {
-                    fullScreenSheetDismissCoordinator?.shouldAllowDismiss = nil
-                }
-                guard viewModel.aiSheetDestination == nil,
-                      viewModel.cardEditorDestination == nil else { return }
-                ImageCache.shared.clearCache()
-            }
-            .customTabBarVisibility(tabRule)
     }
 
     @ViewBuilder
@@ -270,6 +447,10 @@ struct CreateDeckView: View {
 
                     successOverlay
                         .zIndex(100)
+                }
+                .overlay {
+                    conversionConfigurationOverlay
+                        .zIndex(140)
                 }
                 .overlay {
                     if fullScreenSheetDismiss != nil {
@@ -484,13 +665,14 @@ private extension CreateDeckView {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
                 destinationMetadataControl
-                    .layoutPriority(1)
+                .layoutPriority(1)
 
                 Spacer(minLength: 0)
 
                 HStack(spacing: UIConstants.Spacing.small) {
                     mockAIActionControl
                     generateActionControl
+                    convertActionControl
                 }
                 .opacity(shouldShowInlineHeaderActions ? 1 : 0)
                 .allowsHitTesting(shouldShowInlineHeaderActions)
@@ -499,7 +681,7 @@ private extension CreateDeckView {
 
             if !viewModel.draftCards.isEmpty {
                 headerStatsStrip
-                if !draftReadinessRecommendedTargets.isEmpty {
+                if !isShowingConversionWorkspace && !draftReadinessRecommendedTargets.isEmpty {
                     draftReadinessMenuStrip
                 }
             }
@@ -518,13 +700,17 @@ private extension CreateDeckView {
     }
 
     private var shouldShowInlineHeaderActions: Bool {
-        !viewModel.isSelectingCards && !shouldShowFloatingGenerate
+        !hasUnifiedAISession
+            && !viewModel.isSelectingCards
+            && !shouldShowFloatingGenerate
+            && !isShowingConversionConfiguration
     }
 
     private var destinationMetadataControl: some View {
         Menu {
             Button {
                 isTitleFocused = false
+                exitDraftSelectionModeForExternalAction()
                 viewModel.selectedFolder = nil
             } label: {
                 Label("Library (All Decks)", systemImage: "tray.full")
@@ -536,6 +722,7 @@ private extension CreateDeckView {
                 ForEach(folders) { folder in
                     Button {
                         isTitleFocused = false
+                        exitDraftSelectionModeForExternalAction()
                         viewModel.selectedFolder = folder
                     } label: {
                         Label(folder.title, systemImage: "folder")
@@ -646,8 +833,10 @@ private extension CreateDeckView {
             CreateDeckCapsuleButton(
                 action: {
                     isTitleFocused = false
+                    exitDraftSelectionModeForExternalAction()
                     viewModel.startMockAIGeneration()
                 },
+                isEnabled: canStartLocalGeneration,
                 accessibilityLabel: "Run mock AI generation"
             ) {
                 HStack(spacing: UIConstants.Spacing.small) {
@@ -707,8 +896,10 @@ private extension CreateDeckView {
             CreateDeckCapsuleButton(
                 action: {
                     isTitleFocused = false
+                    exitDraftSelectionModeForExternalAction()
                     viewModel.showAIPickerOptions = true
                 },
+                isEnabled: canStartLocalGeneration,
                 accessibilityLabel: "Generate cards with AI"
             ) {
                 HStack(spacing: UIConstants.Spacing.small) {
@@ -719,6 +910,26 @@ private extension CreateDeckView {
                         .lineLimit(1)
                 }
                 .foregroundStyle(accent)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var convertActionControl: some View {
+        if !viewModel.isGenerating && !viewModel.isSelectingCards {
+            CreateDeckCapsuleButton(
+                action: presentConversionConfiguration,
+                isEnabled: canOpenConversionMenu,
+                accessibilityLabel: "Convert cards with AI"
+            ) {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                    Text("Convert")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(.orange)
             }
         }
     }
@@ -753,8 +964,60 @@ private extension CreateDeckView {
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: shouldShowFloatingGenerate)
     }
 
+    @ViewBuilder
+    private var conversionConfigurationOverlay: some View {
+        if isShowingConversionConfiguration {
+            GeometryReader { proxy in
+                ZStack {
+                    Color(uiColor: .systemGroupedBackground)
+                        .opacity(0.985)
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            aiWorkspaceCoordinator.dismissConversionConfiguration()
+                        }
+
+                    VStack(spacing: 0) {
+                        Spacer(minLength: max(proxy.safeAreaInsets.top, UIConstants.Spacing.huge))
+
+                        AIWorkspaceConversionConfigurationCard(
+                            coordinator: aiWorkspaceCoordinator,
+                            sourceDecks: sourceDecks,
+                            onSelectSourceDeck: { deck in
+                                reseedConversion(for: deck)
+                            }
+                        ) {
+                            aiWorkspaceCoordinator.startConversion(context: context)
+                        }
+                        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+
+                        Spacer(minLength: max(proxy.safeAreaInsets.bottom, UIConstants.Spacing.huge))
+                    }
+                }
+            }
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        }
+    }
+
     private var moreMenuContents: some View {
         Group {
+            Menu {
+                ForEach(CreateDeckSortOrder.allCases) { sortOrder in
+                    Button {
+                        appPreferences.createDeckSortOrder = sortOrder
+                    } label: {
+                        if appPreferences.createDeckSortOrder == sortOrder {
+                            Label(sortOrder.title, systemImage: "checkmark")
+                        } else {
+                            Text(sortOrder.title)
+                        }
+                    }
+                }
+            } label: {
+                Label("Sort Cards", systemImage: "arrow.up.arrow.down")
+            }
+            .disabled(viewModel.draftCards.count < 2)
+
             if viewModel.isEditingExistingDeck {
                 Button {
                     isTitleFocused = false
@@ -890,61 +1153,8 @@ private extension CreateDeckView {
 
     // MARK: 2. Cards List Content
     func cardsListContent(using scrollProxy: ScrollViewProxy) -> some View {
-        Group {
-            if viewModel.hasPausedAIGeneration {
-                let progress = min(1.0, Double(viewModel.aiGeneratedCardCount) / Double(max(viewModel.aiTargetCardCount, 1)))
-                LazyVStack(spacing: 16) {
-                    AIPausedResumeCard(
-                        foundCount: viewModel.aiGeneratedCardCount,
-                        targetCount: max(viewModel.aiTargetCardCount, 1),
-                        remainingCount: max(viewModel.pausedRemainingCardCount, 0),
-                        progress: progress,
-                        onResume: {
-                            viewModel.resumePausedAIGeneration()
-                        }
-                    )
-                    .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
-
-                    if !existingDraftCardsDuringAIGeneration.isEmpty {
-                        ForEach(Array(existingDraftCardsDuringAIGeneration.enumerated()), id: \.element.id) { index, card in
-                            draftCardRow(card, index: index + 1, scrollProxy: scrollProxy)
-                        }
-                    }
-
-                    aiGenerationCardSlots(using: scrollProxy)
-                }
-            } else if case .extractingText = viewModel.aiState {
-                AIExtractingLoadingView().transition(.asymmetric(insertion: .opacity, removal: .opacity))
-            } else if case .generatingCards(let progress, let foundCount) = viewModel.aiState {
-                LazyVStack(spacing: 16) {
-                    AIStreamingProgressCard(
-                        foundCount: foundCount,
-                        targetCount: max(viewModel.aiTargetCardCount, 1),
-                        progress: progress,
-                        onCancel: {
-                            viewModel.requestAIGenerationCancel()
-                        },
-                        onPause: {
-                            viewModel.pauseAIGeneration()
-                        }
-                    )
-                    .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
-
-                    if !existingDraftCardsDuringAIGeneration.isEmpty {
-                        ForEach(Array(existingDraftCardsDuringAIGeneration.enumerated()), id: \.element.id) { index, card in
-                            draftCardRow(card, index: index + 1, scrollProxy: scrollProxy)
-                        }
-                    }
-
-                    aiGenerationCardSlots(using: scrollProxy)
-                }
-            } else if viewModel.draftCards.isEmpty {
-                emptyStateView.transition(.opacity)
-            } else {
-                LazyVStack(spacing: 16) {
-                    draftCardRows(scrollProxy: scrollProxy)
-                }
-            }
+        LazyVStack(spacing: 16) {
+            mainCardsListContent(using: scrollProxy)
         }
             .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
             .animation(
@@ -954,44 +1164,217 @@ private extension CreateDeckView {
             .animation(.easeInOut(duration: 0.35), value: viewModel.draftCards.isEmpty)
     }
 
-    private var existingDraftCardsDuringAIGeneration: ArraySlice<DraftCard> {
-        let cappedBaseCount = min(viewModel.aiGenerationBaseCardCount, viewModel.draftCards.count)
-        return viewModel.draftCards.prefix(cappedBaseCount)
-    }
+    @ViewBuilder
+    private func mainCardsListContent(using scrollProxy: ScrollViewProxy) -> some View {
+        if viewModel.draftCards.isEmpty && !hasActiveGenerationRuntime && !hasActiveConversionRuntime {
+            emptyStateView.transition(.opacity)
+        } else {
+            unifiedRuntimeCard
 
-    private var generatedDraftCardsDuringAIGeneration: ArraySlice<DraftCard> {
-        let cappedBaseCount = min(viewModel.aiGenerationBaseCardCount, viewModel.draftCards.count)
-        return viewModel.draftCards.dropFirst(cappedBaseCount)
+            if hasUnifiedAISession {
+                if !displayedDraftRowsBeforeAISlots.isEmpty {
+                    draftCardRows(displayedDraftRowsBeforeAISlots)
+                }
+
+                aiPendingSlots
+
+                inlineHistoricalCardsToggle(
+                    title: "Earlier cards",
+                    hiddenCount: hiddenSessionCardsCount
+                )
+
+                if !displayedHistoricalDraftCards.isEmpty {
+                    draftCardRows(displayedHistoricalDraftCards)
+                }
+            } else if !viewModel.draftCards.isEmpty {
+                draftCardRows(displayedDraftRowsBeforeAISlots)
+            }
+        }
     }
 
     @ViewBuilder
-    private func aiGenerationCardSlots(using scrollProxy: ScrollViewProxy) -> some View {
-        let generatedCards = Array(generatedDraftCardsDuringAIGeneration)
-        let baseCount = existingDraftCardsDuringAIGeneration.count
-        let slotCount = max(viewModel.aiTargetCardCount, generatedCards.count)
-
-        ForEach(0..<slotCount, id: \.self) { slotIndex in
-            let card = slotIndex < generatedCards.count ? generatedCards[slotIndex] : nil
-            AIStreamingCardSlot(
-                slotIndex: slotIndex,
-                isFilled: card != nil,
-                filledCardID: card?.id,
-                shouldAnimateReveal: card.map { !viewModel.hasCompletedAIGeneratedCardReveal(id: $0.id) } ?? false,
-                onRevealFinished: { revealedCardID in
-                    viewModel.markAIGeneratedCardRevealCompleted(id: revealedCardID)
+    private var unifiedRuntimeCard: some View {
+        if case .extractingText = viewModel.aiState {
+            AIExtractingLoadingView()
+                .transition(.asymmetric(insertion: .opacity, removal: .opacity))
+        } else if viewModel.hasPausedAIGeneration {
+            let progress = min(1.0, Double(viewModel.aiGeneratedCardCount) / Double(max(viewModel.aiTargetCardCount, 1)))
+            AIPausedResumeCard(
+                foundCount: viewModel.aiGeneratedCardCount,
+                targetCount: max(viewModel.aiTargetCardCount, 1),
+                remainingCount: max(viewModel.pausedRemainingCardCount, 0),
+                progress: progress,
+                onResume: {
+                    viewModel.resumePausedAIGeneration()
                 }
-            ) {
-                if let card {
-                    draftCardRow(card, index: baseCount + slotIndex + 1, appliesTransition: false, scrollProxy: scrollProxy)
+            )
+            .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
+        } else if case .generatingCards(let progress, let foundCount) = viewModel.aiState {
+            AIStreamingProgressCard(
+                foundCount: foundCount,
+                targetCount: max(viewModel.aiTargetCardCount, 1),
+                progress: progress,
+                onCancel: {
+                    viewModel.requestAIGenerationCancel()
+                },
+                onPause: {
+                    viewModel.pauseAIGeneration()
+                }
+            )
+            .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
+        } else if aiWorkspaceCoordinator.canResumeConversion,
+                  let progress = aiWorkspaceCoordinator.conversionProgress {
+            AIPausedResumeCard(
+                foundCount: progress.createdCount,
+                targetCount: max(progress.totalCount, 1),
+                remainingCount: max(progress.totalCount - progress.completedCount, 0),
+                progress: progress.fractionCompleted,
+                title: "Generation paused",
+                subtitle: "Continue from the last completed batch when you're ready.",
+                accentColor: .orange,
+                onResume: {
+                    aiWorkspaceCoordinator.resumeConversion(context: context)
+                }
+            )
+            .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
+        } else if let progress = aiWorkspaceCoordinator.conversionProgress {
+            AIStreamingProgressCard(
+                foundCount: progress.createdCount,
+                targetCount: max(progress.totalCount, 1),
+                progress: progress.fractionCompleted,
+                subtitleOverride: progress.statusMessage,
+                accentColor: .orange,
+                onCancel: {
+                    aiWorkspaceCoordinator.requestConversionCancel()
+                },
+                onPause: {
+                    aiWorkspaceCoordinator.pauseConversion()
+                }
+            )
+            .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
+        }
+    }
+
+    @ViewBuilder
+    private var aiPendingSlots: some View {
+        let createdCount = sortedAISessionDraftCards.count
+
+        if viewModel.isGenerating || viewModel.hasPausedAIGeneration {
+            let slotCount = max(viewModel.aiTargetCardCount, createdCount)
+            let leadingRowCount = displayedDraftRowsBeforeAISlots.count
+
+            ForEach(0..<slotCount, id: \.self) { slotIndex in
+                let card = slotIndex < sortedAISessionDraftCards.count ? sortedAISessionDraftCards[slotIndex] : nil
+                AIStreamingCardSlot(
+                    slotIndex: slotIndex,
+                    isFilled: card != nil,
+                    filledCardID: card?.id,
+                    shouldAnimateReveal: card.map { !viewModel.hasCompletedAIGeneratedCardReveal(id: $0.id) } ?? false,
+                    onRevealFinished: { revealedCardID in
+                        viewModel.markAIGeneratedCardRevealCompleted(id: revealedCardID)
+                    }
+                ) {
+                    if let card {
+                        draftCardRow(
+                            card,
+                            index: leadingRowCount + slotIndex + 1,
+                            appliesTransition: false
+                        )
+                    }
+                }
+            }
+        } else if let progress = aiWorkspaceCoordinator.conversionProgress {
+            let leadingRowCount = displayedDraftRowsBeforeAISlots.count
+            let slotCount = max(progress.totalCount, createdCount)
+
+            ForEach(0..<slotCount, id: \.self) { slotIndex in
+                let card = slotIndex < sortedAISessionDraftCards.count ? sortedAISessionDraftCards[slotIndex] : nil
+                AIStreamingCardSlot(
+                    slotIndex: slotIndex,
+                    isFilled: card != nil,
+                    filledCardID: card?.id,
+                    shouldAnimateReveal: false
+                ) {
+                    if let card {
+                        draftCardRow(
+                            card,
+                            index: leadingRowCount + slotIndex + 1,
+                            appliesTransition: false
+                        )
+                    }
                 }
             }
         }
     }
 
     @ViewBuilder
-    private func draftCardRows(scrollProxy: ScrollViewProxy) -> some View {
-        ForEach(Array(viewModel.draftCards.enumerated()), id: \.element.id) { index, card in
-            draftCardRow(card, index: index + 1, scrollProxy: scrollProxy)
+    private func inlineHistoricalCardsToggle(
+        title: String,
+        hiddenCount: Int
+    ) -> some View {
+        if canToggleHistoricalSessionCards, hiddenCount > 0 || !isHistoricalCardsCollapsed {
+            Button {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                    isHistoricalCardsCollapsed.toggle()
+                }
+            } label: {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+
+                    Text(
+                        isHistoricalCardsCollapsed
+                            ? "\(hiddenCount) hidden"
+                            : "Showing all"
+                    )
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 0)
+
+                    Text(isHistoricalCardsCollapsed ? "Show" : "Hide")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isHistoricalCardsCollapsed ? 0 : 180))
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private func conversionPendingSlots(
+        createdCount: Int,
+        targetCount: Int
+    ) -> some View {
+        let remainingCount = max(0, targetCount - createdCount)
+
+        ForEach(0..<remainingCount, id: \.self) { slotIndex in
+            AIStreamingCardSlot(
+                slotIndex: createdCount + slotIndex,
+                isFilled: false,
+                filledCardID: nil,
+                shouldAnimateReveal: false
+            ) {
+                EmptyView()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func draftCardRows(
+        _ cards: [DraftCard]
+    ) -> some View {
+        ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
+            draftCardRow(card, index: index + 1)
         }
     }
 
@@ -999,8 +1382,7 @@ private extension CreateDeckView {
     private func draftCardRow(
         _ card: DraftCard,
         index: Int,
-        appliesTransition: Bool = true,
-        scrollProxy: ScrollViewProxy
+        appliesTransition: Bool = true
     ) -> some View {
         let row = DetailedCardRowView(
             card: card,
@@ -1064,8 +1446,97 @@ private extension CreateDeckView {
 
     private func openCardEditor(for kind: CardKind) {
         isTitleFocused = false
+        exitDraftSelectionModeForExternalAction()
         showAddCardTypeDialog = false
         viewModel.presentCardEditor(for: kind)
+    }
+
+    private func presentConversionConfiguration() {
+        isTitleFocused = false
+        guard let sourceDeck = preferredConversionSourceDeck else { return }
+        reseedConversion(for: sourceDeck)
+    }
+
+    private var preferredConversionSourceDeck: DeckModel? {
+        if let seed = aiWorkspaceCoordinator.conversionSeed,
+           let matchingDeck = sourceDecks.first(where: { $0.persistentModelID == seed.sourceDeckID }) {
+            return matchingDeck
+        }
+
+        if let deckToEdit = viewModel.deckToEdit {
+            return deckToEdit
+        }
+
+        return sourceDecks.first
+    }
+
+    private func reseedConversion(for sourceDeck: DeckModel) {
+        guard let request = makeConversionRequest(for: sourceDeck) else { return }
+        exitDraftSelectionModeForExternalAction()
+        _ = aiWorkspaceCoordinator.seedConversion(
+            request: request,
+            sourceDeck: sourceDeck,
+            activatesWorkspaceContext: false
+        )
+        isHistoricalCardsCollapsed = true
+    }
+
+    private func makeConversionRequest(for sourceDeck: DeckModel) -> DeckCardConversionRequest? {
+        let orderedCards = sourceDeck.cards.sorted {
+            if $0.cardNumber == $1.cardNumber {
+                return $0.createdAt < $1.createdAt
+            }
+            return $0.cardNumber < $1.cardNumber
+        }
+
+        let wholeDeckSources = orderedCards.map {
+            DeckCardConversionSourceDescriptor(id: $0.persistentModelID, kind: $0.kind)
+        }
+        let recommendedSources = orderedCards
+            .filter { card in
+                CardReadinessDiagnostics.diagnostics(for: card)
+                    .contains { $0.recommendedConversionTargetKind != nil }
+            }
+            .map { DeckCardConversionSourceDescriptor(id: $0.persistentModelID, kind: $0.kind) }
+
+        guard !wholeDeckSources.isEmpty else { return nil }
+
+        var availableScopes: [DeckCardConversionScopeOption] = [.wholeDeck]
+        if !recommendedSources.isEmpty {
+            availableScopes.insert(.recommendedCards, at: 0)
+        }
+
+        let preferredTargetKind = aiWorkspaceCoordinator.conversionSeed?.request.targetKind
+        let sourceKinds = wholeDeckSources.map(\.kind)
+        let targetKind = preferredTargetKind ?? defaultConversionTargetKind(for: sourceKinds)
+        let sourceKindFilters = Set(
+            wholeDeckSources
+                .map(\.kind)
+                .filter { $0 != targetKind }
+        )
+
+        let existingRequest = aiWorkspaceCoordinator.conversionSeed?.request
+
+        return DeckCardConversionRequest(
+            availableScopes: availableScopes,
+            wholeDeckSources: wholeDeckSources,
+            recommendedSources: recommendedSources,
+            selectedSources: [],
+            singleSources: [],
+            scope: availableScopes.contains(existingRequest?.scope ?? .wholeDeck)
+                ? (existingRequest?.scope ?? .wholeDeck)
+                : .wholeDeck,
+            sourceKindFilters: existingRequest?.sourceKindFilters ?? sourceKindFilters,
+            targetKind: targetKind,
+            destination: existingRequest?.destination ?? .sameDeck,
+            newDeckTitle: existingRequest?.newDeckTitle ?? "\(sourceDeck.title) \(targetKind.displayTitle)s"
+        )
+    }
+
+    private func defaultConversionTargetKind(for sourceKinds: [CardKind]) -> CardKind {
+        let sourceKindSet = Set(sourceKinds)
+        let orderedTargets: [CardKind] = [.match, .quiz, .write, .flashcard]
+        return orderedTargets.first(where: { !sourceKindSet.contains($0) }) ?? .match
     }
 
     private func recommendedDraftCards(for targetKind: CardKind) -> [DraftCard] {
@@ -1074,6 +1545,7 @@ private extension CreateDeckView {
 
     private func presentDraftRecommendedConversion(for card: DraftCard, targetKind: CardKind) {
         isTitleFocused = false
+        exitDraftSelectionModeForExternalAction()
         viewModel.presentCardConversionEditor(for: card, targetKind: targetKind)
     }
 
@@ -1132,19 +1604,20 @@ private extension CreateDeckView {
 
     private func handleSave() {
         isTitleFocused = false
+        exitDraftSelectionModeForExternalAction()
         allowDismissWithoutConfirmation = true
-        let didStartDismissFlow = viewModel.saveDeck(
-            context: context,
-            router: router,
-            dismissAction: dismissPresentation
-        )
+        let didStartDismissFlow = viewModel.saveDeck(context: context)
         if !didStartDismissFlow {
             allowDismissWithoutConfirmation = false
+        } else {
+            aiWorkspaceCoordinator.dismissConversionOutcome()
+            refreshSessionPresentationState()
         }
     }
 
     private func handleDeleteDeck() {
         isTitleFocused = false
+        exitDraftSelectionModeForExternalAction()
         allowDismissWithoutConfirmation = true
         let didDelete = viewModel.deleteDeck(
             context: context,
@@ -1168,6 +1641,7 @@ private extension CreateDeckView {
     }
 
     private func requestDismiss() {
+        exitDraftSelectionModeForExternalAction()
         guard attemptInteractiveDismissValidation() else { return }
         allowDismissWithoutConfirmation = true
         dismissPresentation()
@@ -1195,8 +1669,131 @@ private extension CreateDeckView {
         }
     }
 
+    private func syncAIWorkspaceGenerationState() {
+        guard isAIWorkspaceHost else { return }
+        aiWorkspaceCoordinator.syncGenerationState(
+            aiState: viewModel.aiState,
+            hasPausedGeneration: viewModel.hasPausedAIGeneration,
+            generatedCardCount: viewModel.aiGeneratedCardCount,
+            targetCardCount: viewModel.aiTargetCardCount,
+            deckTitle: collapsedDeckTitle
+        )
+    }
+
     private func refreshDerivedDeckState() {
         derivedDeckState = CreateDeckDerivedState(cards: viewModel.draftCards)
+    }
+
+    private func exitDraftSelectionModeForExternalAction() {
+        guard viewModel.isSelectingCards else { return }
+        withBottomChromeAnimation {
+            viewModel.exitCardSelectionMode()
+        }
+    }
+
+    private func sortDraftCards(_ cards: [DraftCard]) -> [DraftCard] {
+        cards.sorted { lhs, rhs in
+            let lhsDate = lhs.createdAt ?? .distantPast
+            let rhsDate = rhs.createdAt ?? .distantPast
+
+            if lhsDate != rhsDate {
+                return appPreferences.createDeckSortOrder == .newest
+                    ? lhsDate > rhsDate
+                    : lhsDate < rhsDate
+            }
+
+            if lhs.cardNumber != rhs.cardNumber {
+                return appPreferences.createDeckSortOrder == .newest
+                    ? lhs.cardNumber > rhs.cardNumber
+                    : lhs.cardNumber < rhs.cardNumber
+            }
+
+            return appPreferences.createDeckSortOrder == .newest
+                ? lhs.id.uuidString > rhs.id.uuidString
+                : lhs.id.uuidString < rhs.id.uuidString
+        }
+    }
+
+    private func refreshSessionPresentationState() {
+        guard appPreferences.autoCollapseEarlierCardsInAISession else { return }
+        if hasUnifiedAISession,
+           !viewModel.baseDraftCards.isEmpty,
+           !viewModel.sessionDraftCards.isEmpty {
+            isHistoricalCardsCollapsed = true
+        }
+    }
+
+    private func refreshWorkspaceDeckPresentation() {
+        guard let workspaceContext = conversionWorkspaceContext else {
+            hasSeededWorkspaceEditorState = false
+            workspaceSeedSignature = nil
+            refreshSessionPresentationState()
+            return
+        }
+
+        let liveDeckID = workspaceContext.liveDeckID ?? (
+            workspaceContext.destination == .sameDeck ? workspaceContext.sourceDeckID : nil
+        )
+        let seedSignature = CreateDeckWorkspaceSeedSignature(
+            sourceDeckID: workspaceContext.sourceDeckID,
+            destination: workspaceContext.destination,
+            liveDeckID: liveDeckID
+        )
+        if workspaceSeedSignature != seedSignature {
+            workspaceSeedSignature = seedSignature
+            hasSeededWorkspaceEditorState = false
+        }
+
+        let sourceDeck = context.safeModel(for: workspaceContext.sourceDeckID, as: DeckModel.self)
+
+        guard let liveDeckID,
+              let deck = context.safeModel(for: liveDeckID, as: DeckModel.self) else {
+            viewModel.seedEditorState(
+                editingDeckID: nil,
+                title: workspaceContext.displayTitle,
+                selectedFolder: sourceDeck?.folder,
+                draftCards: [],
+                resetsBaseline: !hasSeededWorkspaceEditorState
+            )
+            hasSeededWorkspaceEditorState = true
+            refreshSessionPresentationState()
+            return
+        }
+
+        let orderedCards = deck.cards.sorted {
+            if $0.cardNumber == $1.cardNumber {
+                return $0.createdAt < $1.createdAt
+            }
+            return $0.cardNumber < $1.cardNumber
+        }
+
+        if !hasSeededWorkspaceEditorState {
+            viewModel.seedEditorState(
+                editingDeckID: deck.persistentModelID,
+                title: deck.title,
+                selectedFolder: deck.folder,
+                draftCards: orderedCards.map(workspaceDraftCard(from:)),
+                resetsBaseline: workspaceContext.destination == .sameDeck
+            )
+            hasSeededWorkspaceEditorState = true
+        } else {
+            viewModel.mergePersistedDeckState(deck, markNewCardsAsAISession: true)
+        }
+        refreshSessionPresentationState()
+    }
+
+    private func workspaceDraftCard(from card: CardModel) -> DraftCard {
+        DraftCard(
+            id: CreateDeckViewModel.stableDraftID(for: card.persistentModelID),
+            originalCardID: card.persistentModelID,
+            cardNumber: card.cardNumber,
+            content: card.cardContent,
+            isPinned: card.isPinned,
+            creationSource: card.creationSource,
+            conversionMetadata: card.conversionMetadata,
+            createdAt: card.createdAt,
+            editedAt: card.editedAt
+        )
     }
 }
 

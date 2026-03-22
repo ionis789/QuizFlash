@@ -31,6 +31,7 @@ struct HomeView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(NavigationManager.self) private var router
+    @Environment(AppPreferences.self) private var appPreferences
 
     // MARK: - SwiftData Queries
 
@@ -102,8 +103,7 @@ struct HomeView: View {
                         extendedHeight: extendedHeight,
                         scrollDistance: scrollDistance,
                         safeAreaTop: safeAreaTop,
-                        logsCache: viewModel.logsCache,
-                        examGoalsCache: viewModel.examGoalsCache,
+                        calendarInsightsCache: viewModel.calendarInsightsCache,
                         router: router
                     )
                     .zIndex(100)
@@ -113,9 +113,6 @@ struct HomeView: View {
                         folders: folders,
                         recentDecks: recentlyOpenedDecks,
                         examGoals: examGoals,
-                        userProfile: profile,
-                        dailyLogs: dailyLogs,
-                        calendarVM: calendarVM,
                         router: router
                     )
                     .frame(minHeight: proxy.size.height - compactHeight)
@@ -140,15 +137,81 @@ struct HomeView: View {
             // MARK: Lifecycle
 
             .onAppear {
+                calendarVM.applyWeekStartPreference(appPreferences.weekStartDay)
                 calendarVM.setupIfNeeded()
                 viewModel.updateLogsCache(logs: dailyLogs)
                 viewModel.updateExamGoalsCache(goals: examGoals)
+                viewModel.refreshCalendarInsights(
+                    dailyLogs: dailyLogs,
+                    examGoals: examGoals,
+                    userProfile: profile
+                )
+                viewModel.refreshDashboardSnapshot(
+                    selectedDate: calendarVM.selectedDate,
+                    dailyLogs: dailyLogs,
+                    examGoals: examGoals,
+                    userProfile: profile
+                )
+            }
+            .onChange(of: appPreferences.weekStartDay) { _, newValue in
+                calendarVM.applyWeekStartPreference(newValue)
+            }
+            .onChange(of: calendarVM.selectedDate) { _, newValue in
+                viewModel.refreshDashboardSnapshot(
+                    selectedDate: newValue,
+                    dailyLogs: dailyLogs,
+                    examGoals: examGoals,
+                    userProfile: profile
+                )
             }
             .task(id: dailyLogsCacheSignature) {
                 viewModel.updateLogsCache(logs: dailyLogs)
+                viewModel.refreshCalendarInsights(
+                    dailyLogs: dailyLogs,
+                    examGoals: examGoals,
+                    userProfile: profile
+                )
+                viewModel.refreshDashboardSnapshot(
+                    selectedDate: calendarVM.selectedDate,
+                    dailyLogs: dailyLogs,
+                    examGoals: examGoals,
+                    userProfile: profile
+                )
             }
             .task(id: examGoalsCacheSignature) {
                 viewModel.updateExamGoalsCache(goals: examGoals)
+                viewModel.refreshCalendarInsights(
+                    dailyLogs: dailyLogs,
+                    examGoals: examGoals,
+                    userProfile: profile
+                )
+                viewModel.refreshDashboardSnapshot(
+                    selectedDate: calendarVM.selectedDate,
+                    dailyLogs: dailyLogs,
+                    examGoals: examGoals,
+                    userProfile: profile
+                )
+            }
+            .task(id: userProfileDashboardSignature) {
+                viewModel.refreshCalendarInsights(
+                    dailyLogs: dailyLogs,
+                    examGoals: examGoals,
+                    userProfile: profile
+                )
+                viewModel.refreshDashboardSnapshot(
+                    selectedDate: calendarVM.selectedDate,
+                    dailyLogs: dailyLogs,
+                    examGoals: examGoals,
+                    userProfile: profile
+                )
+            }
+            .task(id: deckHealthRefreshSignature) {
+                await viewModel.refreshDeckHealthSummaries(
+                    decks: allDecks,
+                    recentDecks: recentlyOpenedDecks,
+                    examGoals: examGoals,
+                    container: context.container
+                )
             }
             .sheet(isPresented: $viewModel.showCreateFolder) {
                 CreateFolderSheet(viewModel: viewModel)
@@ -194,6 +257,47 @@ struct HomeView: View {
                 ].joined(separator: "|")
             }
             .sorted()
+    }
+
+    /// Stable signature used to refresh Home dashboard summaries when profile stats change.
+    private var userProfileDashboardSignature: String {
+        guard let profile else { return "no-profile" }
+        return [
+            "\(profile.totalXP)",
+            "\(profile.currentStreak)",
+            "\(profile.longestStreak)",
+            "\(profile.lastActiveDate?.timeIntervalSince1970 ?? 0)"
+        ].joined(separator: "|")
+    }
+
+    /// Stable signature used to refresh Home deck-health summaries when deck-facing inputs change.
+    private var deckHealthRefreshSignature: String {
+        let todayKey = HomeViewModel.dateKeyFormatter.string(from: Date())
+        let deckSignature = allDecks
+            .map {
+                [
+                    "\($0.persistentModelID.hashValue)",
+                    $0.title,
+                    $0.icon,
+                    $0.colorHex,
+                    "\($0.cardCount)",
+                    "\($0.editedAt.timeIntervalSince1970)",
+                    "\($0.lastOpenedAt?.timeIntervalSince1970 ?? 0)"
+                ].joined(separator: "|")
+            }
+            .sorted()
+            .joined(separator: "~")
+
+        let recentSignature = recentlyOpenedDecks
+            .map { "\($0.persistentModelID.hashValue)" }
+            .joined(separator: "~")
+
+        return [
+            todayKey,
+            deckSignature,
+            recentSignature,
+            examGoalsCacheSignature.joined(separator: "~")
+        ].joined(separator: "||")
     }
 
     // MARK: - Scroll Behavior

@@ -5,11 +5,11 @@ These tests verify data mutations and persistence behavior, not UI rendering.
 ## Test Categories
 
 - `ai`
-  Covers provider-profile persistence and paused AI generation session persistence.
+  Covers provider-profile persistence, unified AI job persistence, paused AI generation compatibility, workspace restore/resume state, and AI Match conversion quality filtering.
 - `authoring`
-  Covers create, edit, delete, and draft reconciliation in deck authoring.
+  Covers create, edit, delete, draft reconciliation, and Match readiness/quality diagnostics in deck authoring.
 - `decks`
-  Covers deck-detail mutations like add, pin, delete, bulk delete, and grouping persistence.
+  Covers deck-detail mutations like add, pin, delete, bulk delete, grouping persistence, mixed-deck conversion request filtering, and converted-card persistence.
 - `home`
   Covers folder and exam-goal mutations from Home flows.
 - `library`
@@ -23,12 +23,16 @@ These tests verify data mutations and persistence behavior, not UI rendering.
 
 - deck creation, editing, deletion, and draft reconciliation
 - card add, delete, pin, bulk delete, and deck grouping persistence
+- type-scoped deck conversion requests for mixed decks
+- same-deck and new-deck converted-card persistence
 - folder and exam-goal mutations
 - play-mode settings persistence
 - review history, daily log, and XP persistence
 - `.qflash` export/import round-trips
 - storage accounting and deck cleanup
 - AI provider profile persistence and paused AI session persistence
+- unified AI job persistence and workspace resume state
+- Match generation/conversion quality gating and readiness diagnostics
 
 ## How The Tests Work
 

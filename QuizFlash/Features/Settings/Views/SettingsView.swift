@@ -17,6 +17,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var themeManager = ThemeManager.shared
+    @State private var keyboardMonitor = KeyboardMonitor.shared
     @Query private var decks: [DeckModel]
     let allowsSwipeBack: Bool
 
@@ -89,6 +90,12 @@ struct SettingsView: View {
 
             Section {
                 NavigationLink {
+                    AppPreferencesSettingsView()
+                } label: {
+                    Label("General", systemImage: "slider.horizontal.3")
+                }
+
+                NavigationLink {
                     Text("Notifications")
                     // If these child views also need to be entirely clean,
                     // they will need the same .toolbar(.hidden) and .swipeBack setup.
@@ -122,6 +129,8 @@ struct SettingsView: View {
                 #endif
             } header: {
                 Text("Preferences")
+            } footer: {
+                Text("Week layout, Create Deck defaults, and editor behaviour live here.")
             }
 
             Section {
@@ -155,7 +164,7 @@ struct SettingsView: View {
         }
         .listStyle(.insetGrouped)
         .safeAreaInset(edge: .bottom) {
-            Color.clear.frame(height: 90)
+            Color.clear.frame(height: keyboardMonitor.isVisible ? 0 : 90)
         }
         // Force hide the native navigation bar to keep the screen entirely clean
         .toolbar(.hidden, for: .navigationBar)
@@ -163,6 +172,67 @@ struct SettingsView: View {
         .swipeBack(enabled: allowsSwipeBack) {
             dismiss()
         }
+    }
+}
+
+// MARK: - App Preferences Settings View
+
+struct AppPreferencesSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppPreferences.self) private var appPreferences
+
+    var body: some View {
+        List {
+            Section {
+                Picker("Week Starts On", selection: weekStartBinding) {
+                    ForEach(AppWeekStartDayPreference.allCases) { preference in
+                        Text(preference.title).tag(preference)
+                    }
+                }
+            } header: {
+                Text("Calendar")
+            } footer: {
+                Text("Choose whether the Home calendar starts on the system default, Monday, or Sunday.")
+            }
+
+            Section {
+                Picker("Default Sort Order", selection: createDeckSortBinding) {
+                    ForEach(CreateDeckSortOrder.allCases) { sortOrder in
+                        Text(sortOrder.title).tag(sortOrder)
+                    }
+                }
+
+                Toggle("Auto-collapse Earlier Cards", isOn: autoCollapseBinding)
+            } header: {
+                Text("Create Deck")
+            } footer: {
+                Text("Controls how new AI session cards and older deck cards are presented in the editor.")
+            }
+        }
+        .listStyle(.insetGrouped)
+        .toolbar(.hidden, for: .navigationBar)
+        .swipeBack { dismiss() }
+    }
+
+    private var weekStartBinding: Binding<AppWeekStartDayPreference> {
+        Binding(
+            get: { appPreferences.weekStartDay },
+            set: { appPreferences.weekStartDay = $0 }
+        )
+    }
+
+    private var createDeckSortBinding: Binding<CreateDeckSortOrder> {
+        Binding(
+            get: { appPreferences.createDeckSortOrder },
+            set: { appPreferences.createDeckSortOrder = $0 }
+        )
+    }
+
+    private var autoCollapseBinding: Binding<Bool> {
+        Binding(
+            get: { appPreferences.autoCollapseEarlierCardsInAISession },
+            set: { appPreferences.autoCollapseEarlierCardsInAISession = $0 }
+        )
     }
 }
 

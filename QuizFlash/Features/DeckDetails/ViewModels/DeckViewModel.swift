@@ -116,7 +116,7 @@ final class DeckViewModel {
 
     /// Compact readiness summary used by preview and deck-level diagnostics UI.
     var readinessSummary: DeckReadinessSummary {
-        CardReadinessDiagnostics.summary(for: allCardInfos)
+        CardReadinessDiagnostics.deckSurfaceSummary(for: allCardInfos)
     }
 
     // MARK: - Scroll Restoration
@@ -734,30 +734,30 @@ final class DeckViewModel {
             )
         }
 
-        let batchSize = 4
-        for (batchIndex, batchSources) in convertibleSources.chunked(into: batchSize).enumerated() {
-            try Task.checkCancellation()
-
+        if !convertibleSources.isEmpty {
             updateConversionProgress(
                 totalCount: totalCount,
                 completedCount: completedCount,
                 createdCount: createdCount,
                 skippedCount: skippedCount,
                 failedCount: failedCount,
-                statusMessage: "Converting batch \(batchIndex + 1) of \(max(1, Int(ceil(Double(convertibleSources.count) / Double(batchSize)))))"
+                statusMessage: "Planning AI conversion batches"
             )
+        }
 
-            let batchPayload = batchSources.map {
+        let conversionStream = aiService.convertCardsStream(
+            convertibleSources.map {
                 AICardConversionSource(id: $0.id, kind: $0.kind, content: $0.content)
-            }
+            },
+            to: request.targetKind.aiGenerationType
+        )
 
-            do {
-                let outputs = try await aiService.convertCards(
-                    batchPayload,
-                    to: request.targetKind.aiGenerationType
-                )
+        do {
+            for try await chunk in conversionStream {
+                try Task.checkCancellation()
+
                 let persistedCount = try persistConvertedOutputs(
-                    outputs,
+                    chunk.outputs,
                     request: request,
                     sourcesByID: sourcesByID,
                     batchID: batchID,
@@ -766,54 +766,32 @@ final class DeckViewModel {
                     destinationDeck: &destinationDeck,
                     context: context
                 )
+
+                let batchFailures = max(0, chunk.plannedCardCount - persistedCount)
                 createdCount += persistedCount
-                completedCount += batchSources.count
-            } catch {
-                logger.error("Batch conversion failed, retrying per-card: \(error.localizedDescription, privacy: .public)")
-                for source in batchSources {
-                    try Task.checkCancellation()
-                    do {
-                        let outputs = try await aiService.convertCards(
-                            [AICardConversionSource(id: source.id, kind: source.kind, content: source.content)],
-                            to: request.targetKind.aiGenerationType
-                        )
-                        let persistedCount = try persistConvertedOutputs(
-                            outputs,
-                            request: request,
-                            sourcesByID: sourcesByID,
-                            batchID: batchID,
-                            convertedAt: convertedAt,
-                            sourceDeck: deck,
-                            destinationDeck: &destinationDeck,
-                            context: context
-                        )
-                        createdCount += persistedCount
-                    } catch {
-                        failedCount += 1
-                        logger.error("Single-card conversion failed: \(error.localizedDescription, privacy: .public)")
-                    }
+                failedCount += batchFailures
+                completedCount += chunk.plannedCardCount
 
-                    completedCount += 1
-                    updateConversionProgress(
-                        totalCount: totalCount,
-                        completedCount: completedCount,
-                        createdCount: createdCount,
-                        skippedCount: skippedCount,
-                        failedCount: failedCount,
-                        statusMessage: "Recovering batch failures card by card"
+                updateConversionProgress(
+                    totalCount: totalCount,
+                    completedCount: completedCount,
+                    createdCount: createdCount,
+                    skippedCount: skippedCount,
+                    failedCount: failedCount,
+                    statusMessage: conversionStatusMessage(
+                        for: chunk,
+                        targetKind: request.targetKind,
+                        persistedCount: persistedCount
                     )
-                }
-                continue
+                )
             }
-
-            updateConversionProgress(
-                totalCount: totalCount,
-                completedCount: completedCount,
-                createdCount: createdCount,
-                skippedCount: skippedCount,
-                failedCount: failedCount,
-                statusMessage: "Persisted \(createdCount) converted card\(createdCount == 1 ? "" : "s")"
-            )
+        } catch {
+            let remainingCount = max(0, totalCount - completedCount)
+            if remainingCount > 0 {
+                failedCount += remainingCount
+                completedCount += remainingCount
+            }
+            logger.error("Conversion stream finished with partial failures: \(error.localizedDescription, privacy: .public)")
         }
 
         conversionProgress = nil
@@ -837,6 +815,24 @@ final class DeckViewModel {
         }
     }
 
+    private func conversionStatusMessage(
+        for chunk: AIConversionBatchChunk,
+        targetKind: CardKind,
+        persistedCount: Int
+    ) -> String {
+        let rejectedCount = max(0, chunk.plannedCardCount - persistedCount)
+
+        if rejectedCount > 0, targetKind == .match {
+            return "Accepted \(persistedCount) high-quality Match card\(persistedCount == 1 ? "" : "s") from \(chunk.sourceLabel). Rejected \(rejectedCount) verbose pair\(rejectedCount == 1 ? "" : "s")."
+        }
+
+        if rejectedCount > 0 {
+            return "Converted \(persistedCount) card\(persistedCount == 1 ? "" : "s") from \(chunk.sourceLabel). \(rejectedCount) could not be completed."
+        }
+
+        return "Converted \(persistedCount) \(targetKind.displayTitle.lowercased()) card\(persistedCount == 1 ? "" : "s") from \(chunk.sourceLabel)."
+    }
+
     private func fetchConversionSources(
         request: DeckCardConversionRequest,
         deckID: PersistentIdentifier,
@@ -851,7 +847,7 @@ final class DeckViewModel {
         return sources
     }
 
-    private func persistConvertedOutputs(
+    func persistConvertedOutputs(
         _ outputs: [AICardConversionOutput],
         request: DeckCardConversionRequest,
         sourcesByID: [PersistentIdentifier: CardConversionSourceSnapshot],
@@ -963,11 +959,11 @@ final class DeckViewModel {
                 colorHex: sourceDeck.colorHex
             )
             newDeck.cardGroupingMode = sourceDeck.cardGroupingMode
-            newDeck.folder = sourceDeck.folder
+            context.insert(newDeck)
             if let folder = sourceDeck.folder {
+                newDeck.folder = folder
                 folder.deckCount += 1
             }
-            context.insert(newDeck)
             destinationDeck = newDeck
             return newDeck
         }
@@ -999,17 +995,24 @@ final class DeckViewModel {
         recommendedCardIDs: [PersistentIdentifier]
     ) -> DeckCardConversionRequest? {
         let selectedIDs = orderedSelectedCardIDs()
+        let selectedIDSet = Set(selectedIDs)
+        let recommendedIDSet = Set(recommendedCardIDs)
         let visibleCards = visibleCardsInDisplayOrder()
-        let wholeDeckKinds = allCardInfos.map(\.kind)
-        let selectedKinds = visibleCards
-            .filter { selectedCards.contains($0.id) }
-            .map(\.kind)
-        let recommendedKinds = visibleCards
-            .filter { recommendedCardIDs.contains($0.id) }
-            .map(\.kind)
-        let singleCardKind = singleCardID.flatMap { id in
-            allCardInfos.first(where: { $0.id == id })?.kind
+
+        let wholeDeckSources = allCardInfos.map {
+            DeckCardConversionSourceDescriptor(id: $0.id, kind: $0.kind)
         }
+        let selectedSources = visibleCards
+            .filter { selectedIDSet.contains($0.id) }
+            .map { DeckCardConversionSourceDescriptor(id: $0.id, kind: $0.kind) }
+        let recommendedSources = visibleCards
+            .filter { recommendedIDSet.contains($0.id) }
+            .map { DeckCardConversionSourceDescriptor(id: $0.id, kind: $0.kind) }
+        let singleSources = singleCardID.flatMap { id in
+            allCardInfos
+                .first(where: { $0.id == id })
+                .map { [DeckCardConversionSourceDescriptor(id: $0.id, kind: $0.kind)] }
+        } ?? []
 
         var availableScopes: [DeckCardConversionScopeOption] = [.wholeDeck]
         if !recommendedCardIDs.isEmpty {
@@ -1024,31 +1027,37 @@ final class DeckViewModel {
 
         guard availableScopes.contains(preferredScope) else { return nil }
 
-        let sourceKinds: [CardKind]
+        let currentSources: [DeckCardConversionSourceDescriptor]
         switch preferredScope {
         case .wholeDeck:
-            sourceKinds = wholeDeckKinds
+            currentSources = wholeDeckSources
         case .recommendedCards:
-            sourceKinds = recommendedKinds
+            currentSources = recommendedSources
         case .selectedCards:
-            sourceKinds = selectedKinds
+            currentSources = selectedSources
         case .singleCard:
-            sourceKinds = singleCardKind.map { [$0] } ?? []
+            currentSources = singleSources
         }
 
+        let sourceKinds = currentSources.map(\.kind)
         guard !sourceKinds.isEmpty else { return nil }
 
         let targetKind = preferredTargetKind ?? defaultConversionTargetKind(for: sourceKinds)
+        let sourceKindFilters = Set(
+            currentSources
+                .map(\.kind)
+                .filter { $0 != targetKind }
+        )
         let newDeckTitle = "\(deck.title) \(targetKind.displayTitle)s"
 
         return DeckCardConversionRequest(
             availableScopes: availableScopes,
-            wholeDeckCardCount: deck.cardCount,
-            recommendedCardIDs: recommendedCardIDs,
-            selectedCardIDs: selectedIDs,
-            singleCardID: singleCardID,
-            sourceKinds: sourceKinds,
+            wholeDeckSources: wholeDeckSources,
+            recommendedSources: recommendedSources,
+            selectedSources: selectedSources,
+            singleSources: singleSources,
             scope: preferredScope,
+            sourceKindFilters: sourceKindFilters,
             targetKind: targetKind,
             destination: .sameDeck,
             newDeckTitle: newDeckTitle

@@ -138,16 +138,14 @@ private struct MatchModeSessionView: View {
         case .empty:
             centeredStateCard(
                 icon: "rectangle.stack.badge.minus",
-                title: viewModel.settings.allowsFlashcardFallback ? "No Match Cards Yet" : "Flashcard Fallback Disabled",
-                message: viewModel.settings.allowsFlashcardFallback
-                    ? "This deck needs flashcards before Match can build prompt-and-answer pairs."
-                    : "Enable flashcard fallback in Match settings or add dedicated match-ready content before launching this mode."
+                title: "Match Isn't Available",
+                message: "This deck doesn't have usable pairs for Match right now."
             )
         case .invalid:
             centeredStateCard(
                 icon: "text.badge.xmark",
-                title: "Match Needs Readable Previews",
-                message: "Flashcards exist for this deck, but Match v1 only works when both sides can produce readable preview text.",
+                title: "Match Needs Cleaner Pairs",
+                message: "This deck couldn't build clean prompt-and-answer pairs from the current content.",
                 bullets: matchInvalidBullets
             )
         case .failed:
@@ -192,10 +190,6 @@ private struct MatchModeSessionView: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             if viewModel.isRetryRound {
                 retryRoundBanner
-            }
-
-            if viewModel.isUsingFlashcardFallback {
-                fallbackWarningBanner
             }
 
             if let prompt = viewModel.currentPromptPair {
@@ -245,28 +239,6 @@ private struct MatchModeSessionView: View {
             .padding(.horizontal, UIConstants.Spacing.medium)
             .padding(.vertical, UIConstants.Spacing.small)
             .background(Color.orange.opacity(0.14), in: Capsule())
-    }
-
-    private var fallbackWarningBanner: some View {
-        HStack(alignment: .top, spacing: UIConstants.Spacing.small) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 14, weight: .black))
-                .foregroundStyle(.orange)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Using Flashcard Fallback")
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(.primary)
-
-                Text("This build still prepares Match from short flashcard previews. Shorter front/back text works best on small screens.")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.horizontal, UIConstants.Spacing.medium)
-        .padding(.vertical, UIConstants.Spacing.small)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
     }
 
     private func activePromptCard(for pair: MatchPlayablePair) -> some View {
@@ -348,7 +320,7 @@ private struct MatchModeSessionView: View {
     }
 
     private var matchInvalidBullets: [String] {
-        var bullets = ["Match v1 only keeps flashcards whose question and answer can both render as readable text previews."]
+        var bullets = ["Both sides of a pair need short, readable preview text before Match can use them."]
 
         let reasonSummaries = viewModel.diagnostics.nonZeroReasonCounts.compactMap { reason, count in
             switch reason {

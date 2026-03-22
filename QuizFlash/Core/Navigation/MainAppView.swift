@@ -37,6 +37,8 @@ struct MainAppView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var router = NavigationManager()
+    @State private var aiWorkspaceCoordinator = AIWorkspaceCoordinator()
+    @State private var keyboardMonitor = KeyboardMonitor.shared
 
     /// The long-lived view model for the Library tab.
     /// Instantiated at the root level and injected into the environment so that
@@ -68,6 +70,10 @@ struct MainAppView: View {
 
     // MARK: - Computed Properties
 
+    private var isPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+
     /// Resolves the active tab bar visibility rule to a Bool.
     ///
     /// Decision table:
@@ -75,11 +81,16 @@ struct MainAppView: View {
     ///   `.hidden`   → always hide  (e.g. DeckView, full-screen flows)
     ///   `.implicit` → show by default
     private var isTabBarVisible: Bool {
+        guard !keyboardMonitor.isVisible else { return false }
         switch tabBarRule {
         case .visible:  return true
         case .hidden:   return false
         case .implicit: return true
         }
+    }
+
+    private var isAIWorkspaceVisible: Bool {
+        router.activeTab == .create && router.createPath.isEmpty
     }
 
     /// The raw `TabView` selection binding. Tab semantics such as reselect and
@@ -112,55 +123,128 @@ struct MainAppView: View {
     // MARK: - Body
 
     var body: some View {
-        // The ZStack keeps the custom tab bar rendered as a true overlay, independent
-        // of NavigationStack's internal view hierarchy. This allows pushed destinations
-        // (e.g. FolderView) to opt in to bar visibility without
-        // the bar being clipped or re-laid out by navigation transitions.
-        ZStack(alignment: .bottom) {
+        GeometryReader { proxy in
+            // The GeometryReader gives the floating bar access to the real root
+            // container width. Without that, the bar can inherit the TabView host's
+            // safe-area-adjusted width in landscape and look subtly off-center on iPhone.
 
-            // ── Navigation Layer ─────────────────────────────────────────────
-            rootTabView
-            .ignoresSafeArea(.keyboard, edges: .bottom)
-            // Propagate tab bar visibility changes with an explicit spring so the
-            // animation context is preserved regardless of where the preference
-            // change fires. Without withAnimation here, mutations placed inside
-            // DispatchQueue.main.async run in a new SwiftUI transaction that is
-            // decoupled from the .animation modifier on the ZStack — the tab bar
-            // would snap instead of spring.
-            .onPreferenceChange(TabBarVisibilityKey.self) { rule in
-                DispatchQueue.main.async {
-                    withAnimation(.bottomChromeSpring) {
-                        self.tabBarRule = rule
+            ZStack(alignment: isPad ? .bottomTrailing : .bottom) {
+
+                // ── Navigation Layer ─────────────────────────────────────────────
+                rootTabView
+                .ignoresSafeArea(.keyboard, edges: .bottom)
+                .dismissKeyboardOnBackgroundTap(enabled: keyboardMonitor.isVisible)
+                // Propagate tab bar visibility changes with an explicit spring so the
+                // animation context is preserved regardless of where the preference
+                // change fires. Without withAnimation here, mutations placed inside
+                // DispatchQueue.main.async run in a new SwiftUI transaction that is
+                // decoupled from the .animation modifier on the ZStack — the tab bar
+                // would snap instead of spring.
+                .onPreferenceChange(TabBarVisibilityKey.self) { rule in
+                    DispatchQueue.main.async {
+                        withAnimation(.bottomChromeSpring) {
+                            self.tabBarRule = rule
+                        }
                     }
                 }
+                // Directly controls the live UITabBar instance created by UIKit for
+                // SwiftUI's TabView. The appearance proxy only affects new instances;
+                // this configurator applies isHidden and isUserInteractionEnabled on
+                // the existing object so that safe area recalculates immediately and
+                // hit-testing is disabled, preventing phantom _tabBarItemClicked: events.
+                .configureNativeTabBar(visible: isTabBarVisible)
+
+                EdgeShadowOverlay(topHeight: 60, bottomHeight: 60)
+
+                // ── Custom Tab Bar Layer ─────────────────────────────────────────
+                // The bar is always present in the view hierarchy. Visibility is
+                // expressed through property animation (opacity + vertical offset)
+                // rather than conditional insertion.
+                //
+                // Rationale: inserting the bar view mid-transition (e.g. while the
+                // selection bar is still animating out) causes a race condition where
+                // the bar slides in beneath the selection overlay, invisible, and then
+                // snaps to its final position — producing an asymmetric animation.
+                // Keeping the view alive and animating its properties avoids that
+                // race entirely.
+                CustomTabBar(activeTab: router.activeTab, onTabSelection: handleTabActivation)
+                    .frame(width: isPad ? nil : proxy.size.width)
+                    .ignoresSafeArea(.container, edges: isPad ? .bottom : [.horizontal, .bottom])
+                    .bottomChromeVisibility(isTabBarVisible)
+                    .zIndex(1)
+
+                if let status = aiWorkspaceCoordinator.floatingStatus,
+                   !keyboardMonitor.isVisible,
+                   aiWorkspaceCoordinator.shouldShowFloatingStatus(isWorkspaceVisible: isAIWorkspaceVisible) {
+                    FloatingAIWorkspaceStatusMenu(
+                        status: status,
+                        bottomPadding: isTabBarVisible
+                            ? UIConstants.Layout.bottomChromeBottomPadding
+                                + UIConstants.Size.bottomChromeBarHeight
+                                + UIConstants.Spacing.medium
+                            : proxy.safeAreaInsets.bottom + UIConstants.Spacing.large,
+                        onOpenWorkspace: {
+                            aiWorkspaceCoordinator.openWorkspace(router: router)
+                        },
+                        onPauseResume: status.kind == .conversion && (status.phase == .running || status.phase == .paused) ? {
+                            if aiWorkspaceCoordinator.canResumeConversion {
+                                aiWorkspaceCoordinator.resumeConversion(context: modelContext)
+                            } else {
+                                aiWorkspaceCoordinator.pauseConversion()
+                            }
+                        } : nil,
+                        onCancel: status.kind == .conversion && aiWorkspaceCoordinator.canCancelConversion ? {
+                            aiWorkspaceCoordinator.requestConversionCancel()
+                        } : nil
+                    )
+                    .zIndex(2)
+                }
             }
-            // Directly controls the live UITabBar instance created by UIKit for
-            // SwiftUI's TabView. The appearance proxy only affects new instances;
-            // this configurator applies isHidden and isUserInteractionEnabled on
-            // the existing object so that safe area recalculates immediately and
-            // hit-testing is disabled, preventing phantom _tabBarItemClicked: events.
-            .configureNativeTabBar(visible: isTabBarVisible)
-
-            EdgeShadowOverlay(topHeight: 60, bottomHeight: 60)
-
-            // ── Custom Tab Bar Layer ─────────────────────────────────────────
-            // The bar is always present in the view hierarchy. Visibility is
-            // expressed through property animation (opacity + vertical offset)
-            // rather than conditional insertion.
-            //
-            // Rationale: inserting the bar view mid-transition (e.g. while the
-            // selection bar is still animating out) causes a race condition where
-            // the bar slides in beneath the selection overlay, invisible, and then
-            // snaps to its final position — producing an asymmetric animation.
-            // Keeping the view alive and animating its properties avoids that
-            // race entirely.
-            CustomTabBar(activeTab: router.activeTab, onTabSelection: handleTabActivation)
-                .bottomChromeVisibility(isTabBarVisible)
-                .zIndex(1)
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
+        .environment(keyboardMonitor)
         .environment(router)
+        .environment(aiWorkspaceCoordinator)
         .environment(libraryViewModel)
+        .confirmationDialog(
+            "Stop AI conversion?",
+            isPresented: $aiWorkspaceCoordinator.showConversionCancelDialog,
+            titleVisibility: .visible
+        ) {
+            if aiWorkspaceCoordinator.convertedCardCountInVisibleSession > 0 {
+                Button("Keep converted cards") {
+                    aiWorkspaceCoordinator.cancelConversion(
+                        context: modelContext,
+                        keepingCreatedCards: true
+                    )
+                }
+                Button("Discard converted cards", role: .destructive) {
+                    aiWorkspaceCoordinator.cancelConversion(
+                        context: modelContext,
+                        keepingCreatedCards: false
+                    )
+                }
+            } else {
+                Button("Stop conversion", role: .destructive) {
+                    aiWorkspaceCoordinator.cancelConversion(
+                        context: modelContext,
+                        keepingCreatedCards: true
+                    )
+                }
+            }
+            Button("Continue", role: .cancel) {
+                aiWorkspaceCoordinator.dismissConversionCancelRequest()
+            }
+        } message: {
+            if aiWorkspaceCoordinator.convertedCardCountInVisibleSession > 0 {
+                Text("You can stop now and keep the converted cards already received, or discard this AI conversion batch completely.")
+            } else {
+                Text("The current AI conversion will stop immediately.")
+            }
+        }
         .task {
+            await aiWorkspaceCoordinator.restorePersistedJobIfNeeded(context: modelContext)
+
             // One-time migration: removed logic based on cardCount and deckCount.
             let key = "didMigrateCardCount_v1"
             guard !UserDefaults.standard.bool(forKey: key) else { return }
@@ -173,7 +257,7 @@ struct MainAppView: View {
 
     @ViewBuilder
     private var rootTabView: some View {
-        let baseTabView = TabView(selection: tabViewSelection) {
+        TabView(selection: tabViewSelection) {
             // HOME TAB
             NavigationStack(path: $router.homePath) {
                 HomeView()
@@ -208,7 +292,7 @@ struct MainAppView: View {
 
             // CREATE TAB
             NavigationStack(path: $router.createPath) {
-                CreateDeckView()
+                CreateDeckView(isAIWorkspaceHost: true)
                     .toolbar(.hidden, for: .tabBar)
                     .navigationDestination(for: DeckNavigationValue.self) { value in
                         if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
@@ -231,12 +315,6 @@ struct MainAppView: View {
                     }
             }
             .tag(AppTabBar.settings)
-        }
-
-        if #available(iOS 18.0, *) {
-            baseTabView.tabViewStyle(.tabBarOnly)
-        } else {
-            baseTabView
         }
     }
 

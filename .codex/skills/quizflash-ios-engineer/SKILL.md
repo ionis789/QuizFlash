@@ -63,6 +63,8 @@ Write and review code for QuizFlash using the repository's architecture rules in
 4. Verify tests conservatively on one simulator at a time.
    - Prefer `build-for-testing` once, then `test-without-building` per suite or class.
    - Disable parallel testing for local verification unless the user explicitly wants parallel runs.
+   - Unless the user explicitly asks for a different target, default to the currently active simulator set for this repo: `iPhone 15 Pro (iOS 17.5)`.
+   - When reporting verification, prefer targeted `xcodebuild` test runs against that active simulator instead of broader generic destinations.
 5. Extend the regression net when fixing a bug.
    - If a data-flow bug is discovered while testing, fix the fixture or production code at the root cause and keep the new test as a permanent guardrail.
 
