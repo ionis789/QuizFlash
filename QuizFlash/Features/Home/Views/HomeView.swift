@@ -88,8 +88,7 @@ struct HomeView: View {
             // Height of the calendar header when collapsed to a single sticky row.
             let compactHeight = safeAreaTop
                 + calendarVM.topPaddingCollapsed
-                + calendarVM.weekLabelHeight
-                + calendarVM.rowHeight
+                + calendarVM.compactCapsuleHeight
                 + calendarVM.bottomPadding
 
             let scrollDistance = extendedHeight - compactHeight
@@ -108,6 +107,8 @@ struct HomeView: View {
                     )
                     .zIndex(100)
 
+                    calendarTransitionBand
+
                     HomeDashboardView(
                         viewModel: viewModel,
                         folders: folders,
@@ -116,20 +117,10 @@ struct HomeView: View {
                         router: router
                     )
                     .frame(minHeight: proxy.size.height - compactHeight)
-                    .background(
-                        Color(.systemGroupedBackground)
-                            .clipShape(UnevenRoundedRectangle(
-                                topLeadingRadius: 30,
-                                topTrailingRadius: 30,
-                                style: .continuous
-                            ))
-                            .shadow(color: .black.opacity(0.05), radius: 10, y: -5)
-                    )
                     .zIndex(1)
                 }
             }
             .scrollIndicators(.hidden)
-            .scrollTargetBehavior(HomeScrollBehavior(maxHeight: scrollDistance))
             .ignoresSafeArea(.container, edges: .top)
             .toolbar(.hidden)
             .background(Color(.systemBackground).ignoresSafeArea())
@@ -300,27 +291,24 @@ struct HomeView: View {
         ].joined(separator: "||")
     }
 
-    // MARK: - Scroll Behavior
+    private var calendarTransitionBand: some View {
+        VStack(spacing: 0) {
+            Color.clear
+                .frame(height: UIConstants.Layout.homeCalendarTransitionTopPadding)
 
-    /// Snaps the scroll position to either fully expanded or fully collapsed.
-    ///
-    /// Prevents the calendar header from resting in an intermediate (partially expanded) state,
-    /// mirroring the snap behaviour used by Calendar.app and native iOS date pickers.
-    struct HomeScrollBehavior: ScrollTargetBehavior {
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [.clear, Color.white.opacity(0.12), .clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(height: 1)
+                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
 
-        /// The maximum scroll distance before the header is fully collapsed.
-        let maxHeight: CGFloat
-
-        func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
-            if target.rect.minY < maxHeight {
-                // Past the halfway point → snap to fully collapsed.
-                // Below halfway → snap back to fully expanded.
-                if target.rect.minY > maxHeight / 2 {
-                    target.rect.origin.y = maxHeight
-                } else {
-                    target.rect = .zero
-                }
-            }
+            Color.clear
+                .frame(height: UIConstants.Layout.homeCalendarTransitionBottomPadding)
         }
     }
 }

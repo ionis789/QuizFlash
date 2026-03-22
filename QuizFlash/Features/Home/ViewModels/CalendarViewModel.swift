@@ -124,16 +124,30 @@ final class CalendarViewModel {
     // Adjust here to update the entire layout without touching any View files.
 
     /// Height of the month + year title row (including navigation chevrons).
-    let titleHeight: CGFloat = 68.0
+    let titleHeight: CGFloat = 60.0
 
     /// Vertical spacing between the title row and the weekday label row.
-    let titleBottomSpacing: CGFloat = 12.0
+    let titleBottomSpacing: CGFloat = 6.0
 
     /// Height of the row displaying abbreviated weekday names (Sun, Mon, …).
-    let weekLabelHeight: CGFloat = 24.0
+    let weekLabelHeight: CGFloat = 18.0
 
     /// Height of a single week row in the grid.
-    let rowHeight: CGFloat = 44.0
+    let rowHeight: CGFloat = 38.0
+
+    /// Vertical padding applied to the compact sticky capsule.
+    let compactCapsuleVerticalPadding: CGFloat = UIConstants.Layout.homeCalendarCompactCapsuleVerticalPadding
+
+    /// Horizontal padding applied to the compact sticky capsule.
+    let compactCapsuleHorizontalPadding: CGFloat = UIConstants.Layout.homeCalendarCompactCapsuleHorizontalPadding
+
+    /// Corner radius of the compact sticky capsule.
+    let compactCapsuleCornerRadius: CGFloat = 28.0
+
+    /// Rendered height of the compact sticky capsule.
+    var compactCapsuleHeight: CGFloat {
+        weekLabelHeight + rowHeight + (compactCapsuleVerticalPadding * 2)
+    }
 
     /// Top padding applied when the header is fully expanded.
     var topPaddingExpanded: CGFloat {
@@ -263,8 +277,10 @@ final class CalendarViewModel {
             ))
         }
 
-        // Append leading days from the next month to complete the final row.
-        let trailingPadding = (7 - (days.count % 7)) % 7
+        // Append leading days from the next month so the grid always renders
+        // with a stable 6-week footprint across months.
+        let minimumVisibleCells = 42
+        let trailingPadding = max((7 - (days.count % 7)) % 7, minimumVisibleCells - days.count)
         if trailingPadding > 0 {
             for index in 0..<trailingPadding {
                 if let date = calendar.date(byAdding: .day, value: index + 1, to: lastDate) {

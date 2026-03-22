@@ -489,7 +489,7 @@ struct DeckContentView: View {
 
                         Spacer(minLength: 0)
 
-                        DeckMasteryRing(
+                        MasteryProgressRing(
                             mastery: viewModel.currentStats.deckMastery,
                             deckColor: Color(hex: deck.colorHex) ?? .blue
                         )

@@ -43,4 +43,28 @@ final class CalendarViewModelTests: XCTestCase {
         XCTAssertEqual(components.day, 1)
         XCTAssertFalse(firstVisibleDay.ignored)
     }
+
+    func testCalendarAlwaysRendersSixRowsForStableHomeHeaderHeight() throws {
+        let viewModel = CalendarViewModel()
+        let calendar = AppWeekStartDayPreference.monday.resolvedCalendar
+        let aprilDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 4, day: 20)))
+        let augustDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 8, day: 20)))
+
+        viewModel.applyWeekStartPreference(.monday)
+        viewModel.selectDate(aprilDate)
+        XCTAssertEqual(viewModel.monthRows.count, 6)
+
+        viewModel.selectDate(augustDate)
+        XCTAssertEqual(viewModel.monthRows.count, 6)
+    }
+
+    func testCompactCapsuleHeightMatchesCalendarRowMetrics() {
+        let viewModel = CalendarViewModel()
+
+        XCTAssertEqual(
+            viewModel.compactCapsuleHeight,
+            viewModel.weekLabelHeight + viewModel.rowHeight + (viewModel.compactCapsuleVerticalPadding * 2),
+            accuracy: 0.001
+        )
+    }
 }

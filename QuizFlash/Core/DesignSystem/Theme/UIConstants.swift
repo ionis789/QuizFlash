@@ -227,6 +227,36 @@ enum UIConstants {
             UIConstants.isPad ? UIConstants.Spacing.huge : UIConstants.Spacing.standard
         }
 
+        /// Dense horizontal inset for Home dashboard content.
+        static var homeContentEdgeInset: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.huge : UIConstants.Spacing.small
+        }
+
+        /// Top spacing inside the transition band between Home calendar and content.
+        static var homeCalendarTransitionTopPadding: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.large : 16
+        }
+
+        /// Bottom spacing inside the transition band between Home calendar and content.
+        static var homeCalendarTransitionBottomPadding: CGFloat {
+            homeCalendarTransitionTopPadding
+        }
+
+        /// Horizontal padding applied inside the compact Home calendar capsule.
+        static var homeCalendarCompactCapsuleHorizontalPadding: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.standard : 10
+        }
+
+        /// Vertical padding applied inside the compact Home calendar capsule.
+        static var homeCalendarCompactCapsuleVerticalPadding: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.small : 6
+        }
+
+        /// Gap reserved between the compact Home calendar capsule and the floating avatar.
+        static var homeCalendarCompactTrailingGap: CGFloat {
+            UIConstants.isPad ? UIConstants.Spacing.medium : 14
+        }
+
         /// Collapsed top padding for the Home calendar header.
         static var homeCalendarCollapsedTopPadding: CGFloat {
             UIConstants.isPad ? UIConstants.Spacing.standard : 0

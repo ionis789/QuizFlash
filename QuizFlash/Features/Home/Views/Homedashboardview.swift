@@ -13,7 +13,7 @@ import SwiftData
 /// The scrollable body of the Home screen, rendered below the collapsible calendar header.
 ///
 /// Displays Home's analytics and navigation surfaces in order:
-/// 1. **Daily Activity** — stats for the currently selected calendar day.
+/// 1. **Overview** — the selected-day hero and momentum insights.
 /// 2. **Exam Goals** — readiness and agenda around upcoming deadlines.
 /// 3. **Deck Health** — the decks that most need attention right now.
 /// 4. **Recent Decks** — a horizontal carousel of recently opened decks.
@@ -22,6 +22,9 @@ import SwiftData
 /// `HomeDashboardView` is a **dumb view**: it holds no `@State`, makes no decisions,
 /// and contains no formatting logic. All data arrives as `let` constants from `HomeView`.
 struct HomeDashboardView: View {
+
+    private let contentHorizontalInset = UIConstants.Layout.homeContentEdgeInset
+    private let topSectionInset: CGFloat = 0
 
     // MARK: - Dependencies
 
@@ -54,27 +57,32 @@ struct HomeDashboardView: View {
     var body: some View {
         VStack(spacing: 0) {
             statsSection
-                .padding(.top, UIConstants.Layout.homeDashboardTopPadding)
-                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                .padding(.top, topSectionInset)
+                .padding(.horizontal, contentHorizontalInset)
+                .homeDashboardSectionMotion()
 
             examGoalsSection
                 .padding(.top, UIConstants.Layout.sectionSpacing)
-                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                .padding(.horizontal, contentHorizontalInset)
+                .homeDashboardSectionMotion()
 
             if !viewModel.deckHealthSummaries.isEmpty {
                 deckHealthSection
                     .padding(.top, UIConstants.Layout.sectionSpacing)
-                    .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                    .padding(.horizontal, contentHorizontalInset)
+                    .homeDashboardSectionMotion()
             }
 
             if !recentDecks.isEmpty {
                 recentDecksSection
                     .padding(.top, UIConstants.Layout.sectionSpacing)
+                    .homeDashboardSectionMotion()
             }
 
             foldersSection
                 .padding(.top, UIConstants.Layout.sectionSpacing)
-                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                .padding(.horizontal, contentHorizontalInset)
+                .homeDashboardSectionMotion()
 
             Spacer(minLength: 150)
         }
@@ -187,7 +195,7 @@ struct HomeDashboardView: View {
 
     // MARK: - Daily Activity Section
 
-    /// Renders the hero goal-progress card and three compact secondary stat cards.
+    /// Renders the selected-day hero plus action-oriented learning insights.
     private var statsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HomeAnalyticsHeroCard(
@@ -198,36 +206,6 @@ struct HomeDashboardView: View {
             HomeSelectedDayInsightsCard(summary: dashboardSnapshot.selectedDayInsight)
 
             HomeWeeklyMomentumCard(summary: dashboardSnapshot.weeklyMomentum)
-
-            // Hero card: daily cards reviewed vs. goal.
-            DailyGoalProgressCard(
-                cardsReviewed: dashboardSnapshot.selectedDayOverview.cardsReviewed,
-                dailyGoal: dashboardSnapshot.selectedDayOverview.dailyGoal
-            )
-
-            // Secondary stats: XP, Streak, Learned — compact horizontal grid.
-            HStack(spacing: 12) {
-                MiniStatCardView(
-                    title: "XP",
-                    value: "\(dashboardSnapshot.selectedDayOverview.xpEarnedToday)",
-                    icon: "star.fill",
-                    color: .orange
-                )
-
-                MiniStatCardView(
-                    title: "Streak",
-                    value: "\(dashboardSnapshot.selectedDayOverview.streakCount)",
-                    icon: "flame.fill",
-                    color: .red
-                )
-
-                MiniStatCardView(
-                    title: "Learned",
-                    value: "\(dashboardSnapshot.selectedDayOverview.newCardsLearned)",
-                    icon: "brain.head.profile",
-                    color: .purple
-                )
-            }
         }
     }
 
@@ -239,7 +217,7 @@ struct HomeDashboardView: View {
             Text("Recent Decks")
                 .font(.system(.title3, design: .rounded, weight: .bold))
                 .foregroundStyle(.primary)
-                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                .padding(.horizontal, contentHorizontalInset)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
@@ -254,7 +232,7 @@ struct HomeDashboardView: View {
                         }
                     }
                 }
-                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                .padding(.horizontal, contentHorizontalInset)
                 // Extra vertical padding so card drop shadows are not clipped.
                 .padding(.bottom, 16)
                 .padding(.top, 4)
@@ -308,5 +286,19 @@ struct HomeDashboardView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Scroll Motion
+
+private struct HomeDashboardSectionMotionModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+    }
+}
+
+private extension View {
+    func homeDashboardSectionMotion() -> some View {
+        modifier(HomeDashboardSectionMotionModifier())
     }
 }

@@ -23,8 +23,8 @@ final class HomeCalendarDayMetricsTests: XCTestCase {
             isHighlighted: true
         )
 
-        XCTAssertEqual(expanded.highlightDiameter, 40, accuracy: 0.001)
-        XCTAssertEqual(collapsed.highlightDiameter, 34, accuracy: 0.001)
+        XCTAssertEqual(expanded.highlightDiameter, 36, accuracy: 0.001)
+        XCTAssertEqual(collapsed.highlightDiameter, 30, accuracy: 0.001)
         XCTAssertGreaterThan(expanded.streakRingDiameter, expanded.highlightDiameter)
         XCTAssertLessThan(collapsed.markerDotSize, expanded.markerDotSize)
         XCTAssertGreaterThan(collapsed.markerOffsetY, expanded.markerOffsetY)

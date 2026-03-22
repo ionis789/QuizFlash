@@ -32,6 +32,7 @@ struct HomeDeckHealthSection: View {
                 Text("\(summaries.count) focus")
                     .font(.caption.weight(.black))
                     .foregroundStyle(.secondary)
+                    .statusTextMotion(trigger: summaries.count)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
                     .background(Color.primary.opacity(0.06), in: Capsule())
@@ -58,10 +59,6 @@ private struct HomeDeckHealthCard: View {
 
     private var accentColor: Color {
         Color(hex: summary.colorHex) ?? ThemeManager.shared.accentColor.color
-    }
-
-    private var masteryLabel: String {
-        "\(Int((summary.masteryFraction * 100).rounded()))%"
     }
 
     var body: some View {
@@ -106,10 +103,11 @@ private struct HomeDeckHealthCard: View {
 
                     Spacer(minLength: 0)
 
-                    HomeDeckMasteryMeter(
-                        progress: summary.masteryFraction,
-                        valueLabel: masteryLabel,
-                        tint: accentColor
+                    MasteryProgressRing(
+                        mastery: summary.masteryFraction,
+                        deckColor: accentColor,
+                        size: 70,
+                        strokeWidth: 10
                     )
                 }
 
@@ -156,50 +154,8 @@ private struct HomeDeckHealthCard: View {
             }
             .padding(18)
             .widgetStyle(cornerRadius: 26)
-            .overlay {
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .stroke(accentColor.opacity(0.12), lineWidth: 1)
-            }
-            .shadow(color: accentColor.opacity(0.10), radius: 14, x: 0, y: 8)
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Support Views
-
-private struct HomeDeckMasteryMeter: View {
-    let progress: Double
-    let valueLabel: String
-    let tint: Color
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.primary.opacity(0.08), lineWidth: 10)
-
-            Circle()
-                .trim(from: 0, to: max(min(progress, 1), 0))
-                .stroke(
-                    AngularGradient(
-                        colors: [tint.opacity(0.45), tint],
-                        center: .center
-                    ),
-                    style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-
-            VStack(spacing: 2) {
-                Text(valueLabel)
-                    .font(.system(size: 15, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.primary)
-
-                Text("Mastery")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(width: 70, height: 70)
     }
 }
 
@@ -231,6 +187,7 @@ private struct HomeDeckHealthStatPill: View {
             Text(value)
                 .font(.caption.weight(.heavy))
                 .foregroundStyle(tint)
+                .statusTextMotion(trigger: value)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)

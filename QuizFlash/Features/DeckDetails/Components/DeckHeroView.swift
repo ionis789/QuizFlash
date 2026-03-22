@@ -115,6 +115,7 @@ private struct AnimatedPillBackground: View {
 
     @State private var animatedMastery: Double = 0
     @State private var isGlowing: Bool = false
+    @State private var glowResetTask: Task<Void, Never>?
 
     private var ringColor: Color { masteryColor(mastery) }
 
@@ -151,86 +152,16 @@ private struct AnimatedPillBackground: View {
                 withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) { animatedMastery = new }
                 // Pulse a brief glow to draw attention to the change.
                 withAnimation(.easeIn(duration: 0.2)) { isGlowing = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                glowResetTask?.cancel()
+                glowResetTask = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1.2))
+                    guard !Task.isCancelled else { return }
                     withAnimation(.easeInOut(duration: 0.8)) { isGlowing = false }
                 }
             }
-    }
-}
-
-// MARK: - DeckMasteryRing
-
-/// A circular progress ring showing the deck's mastery percentage.
-///
-/// Used in the main scroll canvas of `DeckView`. The ring animates on appear and
-/// whenever `mastery` changes by more than 0.1 %.
-struct DeckMasteryRing: View {
-
-    // MARK: - Inputs
-
-    /// The deck's mastery fraction in [0, 1].
-    let mastery: Double
-    /// The deck's brand colour, used for the inactive track.
-    let deckColor: Color
-    /// Diameter of the ring in points.
-    var size: CGFloat = 72
-    /// Stroke width of both the track and the progress arc.
-    var strokeWidth: CGFloat = 9
-
-    // MARK: - Private State
-
-    @State private var animatedMastery: Double = 0
-    @State private var isGlowing: Bool = false
-
-    private var ringColor: Color { masteryColor(mastery) }
-
-    // MARK: - Body
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(deckColor.opacity(0.2), style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round))
-            Circle()
-                .trim(from: 0, to: animatedMastery)
-                .stroke(ringColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .shadow(color: isGlowing ? ringColor.opacity(0.8) : .clear, radius: isGlowing ? 10 : 0)
-            Text("\(Int(animatedMastery * 100))%")
-                .font(.system(size: 15, weight: .black, design: .rounded))
-                .foregroundStyle(.primary)
-                .contentTransition(.numericText())
-        }
-        .frame(width: size, height: size)
-        .onAppear {
-            withAnimation(.spring(response: 1.1, dampingFraction: 0.82).delay(0.15)) {
-                animatedMastery = mastery
+            .onDisappear {
+                glowResetTask?.cancel()
             }
-        }
-        .onChange(of: mastery) { old, new in
-            guard abs(new - old) > 0.001 else { return }
-            withAnimation(.spring(response: 0.9, dampingFraction: 0.78)) { animatedMastery = new }
-            withAnimation(.easeIn(duration: 0.2)) { isGlowing = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                withAnimation(.easeInOut(duration: 0.8)) { isGlowing = false }
-            }
-        }
-    }
-}
-
-// MARK: - masteryColor
-
-/// Returns a semantic colour that represents a given mastery fraction.
-///
-/// - Parameter mastery: A value in [0, 1] where 1.0 is fully mastered.
-/// - Returns: `.red` for < 25 %, `.orange` for 25–50 %, `.yellow` for 50–75 %,
-///   `.teal` for 75–90 %, and `.green` for ≥ 90 %.
-func masteryColor(_ mastery: Double) -> Color {
-    switch mastery {
-    case ..<0.25:       return .red
-    case 0.25..<0.50:   return .orange
-    case 0.50..<0.75:   return .yellow
-    case 0.75..<0.90:   return .teal
-    default:            return .green
     }
 }
 

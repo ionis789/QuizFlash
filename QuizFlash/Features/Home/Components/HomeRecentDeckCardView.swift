@@ -72,11 +72,16 @@ struct HomeRecentDeckCardView: View {
                 }
 
                 Spacer(minLength: 0)
+
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(deckColor)
+                    .padding(10)
+                    .background(deckColor.opacity(0.12), in: Circle())
             }
-            .padding(12)
+            .padding(14)
             .frame(width: 260)
             .widgetStyle(cornerRadius: 24)
-            .shadow(color: deckColor.opacity(0.1), radius: 10, x: 0, y: 4)
         }
         .buttonStyle(.plain)
     }

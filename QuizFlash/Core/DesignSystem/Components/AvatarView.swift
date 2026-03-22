@@ -19,7 +19,7 @@ struct HomeAvatarView: View {
     let router: NavigationManager
 
     /// The fixed width and height of the avatar button.
-    private let iconSize: CGFloat = UIConstants.Size.actionButton
+    var iconSize: CGFloat = UIConstants.Size.actionButton
 
     // MARK: - View
 
@@ -27,14 +27,12 @@ struct HomeAvatarView: View {
         Button {
             router.append(AppRoute.settings)
         } label: {
-            ZStack {
-                Image(systemName: "person.crop.circle.fill")
-                    .resizable()
-                    .foregroundStyle(Color.primary.opacity(0.85))
-                    .padding(2.5)
-            }
-            .frame(width: iconSize, height: iconSize)
-            .glassButton(shape: .circle)
+            Image(systemName: "person")
+                .font(.system(size: iconSize * 0.44, weight: .regular))
+                .foregroundStyle(Color.primary.opacity(0.88))
+                .symbolRenderingMode(.hierarchical)
+                .frame(width: iconSize, height: iconSize)
+                .glassButton(shape: .circle)
         }
         .buttonStyle(.plain)
     }

@@ -12,11 +12,11 @@ extension View {
     /// The recognizer is attached in UIKit so it can distinguish between
     /// background taps and controls embedded deep inside composed SwiftUI layouts.
     func dismissKeyboardOnBackgroundTap(enabled: Bool = true) -> some View {
-        modifier(KeyboardDismissOnBackgroundTapModifier(enabled: enabled))
+        modifier(KeyboardDismissModifier(enabled: enabled))
     }
 }
 
-private struct KeyboardDismissOnBackgroundTapModifier: ViewModifier {
+private struct KeyboardDismissModifier: ViewModifier {
     let enabled: Bool
 
     func body(content: Content) -> some View {

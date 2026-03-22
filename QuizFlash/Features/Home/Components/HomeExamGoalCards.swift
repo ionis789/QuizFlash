@@ -76,6 +76,7 @@ struct HomeExamPressureCard: View {
                         .font(.system(size: 28, weight: .heavy, design: .rounded))
                         .foregroundStyle(progressTint)
                         .monospacedDigit()
+                        .statusTextMotion(trigger: Int((summary.readinessFraction * 100).rounded()))
 
                     Text("readiness")
                         .font(.caption.weight(.bold))
@@ -212,6 +213,7 @@ struct HomeExamGoalSummaryCard: View {
                         .font(.caption.weight(.black))
                         .foregroundStyle(progressTint)
                         .monospacedDigit()
+                        .statusTextMotion(trigger: Int((summary.readinessFraction * 100).rounded()))
                 }
 
                 GeometryReader { proxy in

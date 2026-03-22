@@ -39,8 +39,10 @@ Write and review code for QuizFlash using the repository's architecture rules in
 3. Match the project's UI system before changing presentation code.
    - Use `UIConstants` tokens instead of magic numbers.
    - Prefer semantic colors and existing theme plumbing.
+   - Prefer shared design-system modifiers and components such as `widgetStyle`, `glassButton`, shared rings, and existing chrome containers over ad-hoc overlays, borders, shadows, or custom surface treatments.
    - Keep navigation programmatic through `NavigationManager`.
    - Treat long scrolling surfaces and immersive modal flows as architecture-sensitive code paths, not local view tweaks.
+   - On iPad and other resizable environments, derive layout from the container geometry and available width instead of `UIScreen` assumptions. Expect split view, Stage Manager, and future resizable iPad windows to expose widths that differ materially from full-screen iPad.
    - On drag-heavy or scroll-heavy surfaces, do not leave expensive collection-wide work in view `computed` properties.
    - If a value walks many cards, zones, diagnostics, or summaries, cache it in local state or move it out of the hot render path, then recompute only when the source collection actually changes.
    - Prefer `Equatable` row views and other diff-friendly techniques for large editor/deck lists so parent refreshes do not rebuild every row.
@@ -65,6 +67,7 @@ Write and review code for QuizFlash using the repository's architecture rules in
    - Disable parallel testing for local verification unless the user explicitly wants parallel runs.
    - Unless the user explicitly asks for a different target, default to the currently active simulator set for this repo: `iPhone 15 Pro (iOS 17.5)`.
    - When reporting verification, prefer targeted `xcodebuild` test runs against that active simulator instead of broader generic destinations.
+   - For layout-sensitive UI work, also do a manual visual pass on iPad-sized and resizable widths when the changed screen supports them, especially for sticky headers, compact calendar states, floating chrome, and multi-column/dashboard surfaces.
 5. Extend the regression net when fixing a bug.
    - If a data-flow bug is discovered while testing, fix the fixture or production code at the root cause and keep the new test as a permanent guardrail.
 
