@@ -27,6 +27,9 @@ struct HomeRecentDeckCardView: View {
 
     var body: some View {
         let deckColor = Color(hex: deck.colorHex) ?? ThemeManager.shared.accentColor.color
+        let isPad = UIConstants.isPad
+        let cardWidth: CGFloat = isPad ? 320 : 260
+        let iconSize: CGFloat = isPad ? 68 : 60
 
         Button(action: action) {
             HStack(spacing: 16) {
@@ -41,7 +44,7 @@ struct HomeRecentDeckCardView: View {
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(.white)
                 }
-                .frame(width: 60, height: 60)
+                .frame(width: iconSize, height: iconSize)
 
                 // MARK: Text Content
 
@@ -79,8 +82,8 @@ struct HomeRecentDeckCardView: View {
                     .padding(10)
                     .background(deckColor.opacity(0.12), in: Circle())
             }
-            .padding(14)
-            .frame(width: 260)
+            .padding(isPad ? 16 : 14)
+            .frame(width: cardWidth)
             .widgetStyle(cornerRadius: 24)
         }
         .buttonStyle(.plain)

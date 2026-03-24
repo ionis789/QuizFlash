@@ -426,9 +426,10 @@ struct HomeExamGoalsEmptyCard: View {
     let onCreate: () -> Void
 
     var body: some View {
+        let isPad = UIConstants.isPad
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             Image(systemName: "calendar.badge.plus")
-                .font(.system(size: 28, weight: .black))
+                .font(.system(size: isPad ? 30 : 28, weight: .black))
                 .foregroundStyle(ThemeManager.shared.accentColor.color)
 
             Text("No exam goals yet")
@@ -445,7 +446,8 @@ struct HomeExamGoalsEmptyCard: View {
                 .buttonStyle(.borderedProminent)
                 .tint(ThemeManager.shared.accentColor.color)
         }
-        .padding(UIConstants.Spacing.large)
+        .frame(maxWidth: .infinity, minHeight: isPad ? 210 : 0, alignment: .topLeading)
+        .padding(isPad ? UIConstants.Spacing.extraLarge : UIConstants.Spacing.large)
         .widgetStyle(cornerRadius: 24)
     }
 }

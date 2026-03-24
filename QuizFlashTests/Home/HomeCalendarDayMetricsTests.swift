@@ -12,19 +12,22 @@ final class HomeCalendarDayMetricsTests: XCTestCase {
     func testCollapsedMetricsReduceHighlightFootprint() {
         let expanded = HomeCalendarDayMetrics(
             collapseProgress: 0,
+            dayColumnWidth: 56,
+            rowHeight: 42,
             hasGoalNote: true,
             hasExamGoalCount: true,
             isHighlighted: true
         )
         let collapsed = HomeCalendarDayMetrics(
             collapseProgress: 1,
+            dayColumnWidth: 44,
+            rowHeight: 38,
             hasGoalNote: true,
             hasExamGoalCount: true,
             isHighlighted: true
         )
 
-        XCTAssertEqual(expanded.highlightDiameter, 36, accuracy: 0.001)
-        XCTAssertEqual(collapsed.highlightDiameter, 30, accuracy: 0.001)
+        XCTAssertGreaterThan(expanded.highlightDiameter, collapsed.highlightDiameter)
         XCTAssertGreaterThan(expanded.streakRingDiameter, expanded.highlightDiameter)
         XCTAssertLessThan(collapsed.markerDotSize, expanded.markerDotSize)
         XCTAssertGreaterThan(collapsed.markerOffsetY, expanded.markerOffsetY)
@@ -33,12 +36,16 @@ final class HomeCalendarDayMetricsTests: XCTestCase {
     func testCollapsedMetricsSimplifySecondaryNoteMarker() {
         let expanded = HomeCalendarDayMetrics(
             collapseProgress: 0.2,
+            dayColumnWidth: 54,
+            rowHeight: 40,
             hasGoalNote: true,
             hasExamGoalCount: true,
             isHighlighted: false
         )
         let collapsed = HomeCalendarDayMetrics(
             collapseProgress: 0.9,
+            dayColumnWidth: 42,
+            rowHeight: 36,
             hasGoalNote: true,
             hasExamGoalCount: true,
             isHighlighted: false

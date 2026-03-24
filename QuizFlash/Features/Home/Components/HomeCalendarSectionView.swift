@@ -27,14 +27,8 @@ struct HomeCalendarSectionView: View {
     /// The view model managing date selection and grid data.
     var calendarVM: CalendarViewModel
 
-    /// Maximum height of the header when fully expanded.
-    let extendedHeight: CGFloat
-
-    /// Total scrollable distance required to fully collapse the header.
-    let scrollDistance: CGFloat
-
-    /// Top safe-area inset used to compute absolute anchor points.
-    let safeAreaTop: CGFloat
+    /// Width-aware layout metrics shared with `HomeView`.
+    let layout: HomeCalendarAdaptiveLayout
 
     /// O(1) lookup dictionary providing per-day progress and marker insights.
     let calendarInsightsCache: [String: HomeCalendarDayInsight]
@@ -48,37 +42,28 @@ struct HomeCalendarSectionView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let avatarSize = max(UIConstants.Size.actionButton, calendarVM.compactCapsuleHeight - 8)
-            let availableContentWidth = max(0, proxy.size.width - (UIConstants.Layout.screenEdgeInset * 2))
-
             // MARK: Scroll Metrics
 
             let minY = proxy.frame(in: .scrollView(axis: .vertical)).minY
 
             /// Normalised collapse progress: 0.0 = fully expanded, 1.0 = fully compact.
-            let progress = max(0, min(-minY / scrollDistance, 1.0))
+            let progress = max(0, min(-minY / layout.scrollDistance, 1.0))
 
             /// Vertical offset applied to keep the entire header pinned to the screen top.
             let stickyOffset: CGFloat = minY < 0 ? -minY : 0
 
-            // MARK: Grid Geometry
-
-            let compactLayout = HomeCompactCalendarLayout(
-                collapseProgress: progress,
-                avatarSize: avatarSize,
-                outerHorizontalInset: UIConstants.Layout.screenEdgeInset,
-                collapsedHorizontalPadding: calendarVM.compactCapsuleHorizontalPadding,
-                collapsedVerticalPadding: calendarVM.compactCapsuleVerticalPadding,
-                trailingGap: UIConstants.Layout.homeCalendarCompactTrailingGap,
-                cornerRadius: calendarVM.compactCapsuleCornerRadius
-            )
-
+            let state = layout.state(for: progress)
+            let calendarColumnWidth = layout.capsuleWidth(for: progress)
+            let contentLeadingInset = layout.contentLeadingInset(for: progress)
             // MARK: Avatar Absolute Positioning
 
-            let expandedCenterY = safeAreaTop + calendarVM.topPaddingExpanded + (calendarVM.titleHeight / 2.0)
-            let collapsedCenterY = safeAreaTop + calendarVM.topPaddingCollapsed + (calendarVM.compactCapsuleHeight / 2.0)
+            let expandedCenterY = layout.expandedAvatarCenterY
+            let collapsedCenterY = layout.collapsedAvatarCenterY
             let currentCenterY = expandedCenterY - ((expandedCenterY - collapsedCenterY) * progress)
-            let avatarAbsoluteTop = currentCenterY - (avatarSize / 2.0)
+            let avatarAbsoluteTop = currentCenterY - (layout.avatarSize / 2.0)
+            let compactAvatarOpacity = layout.kind == .pad
+                ? max(0, min((progress - 0.86) / 0.08, 1))
+                : 1.0
 
             // MARK: Render Tree
 
@@ -86,33 +71,39 @@ struct HomeCalendarSectionView: View {
 
                 // LAYER 1: Content & Background
                 VStack(spacing: 0) {
-                    Spacer().frame(height: safeAreaTop)
+                    Spacer().frame(height: layout.safeAreaTop)
 
-                    VStack(alignment: .leading, spacing: 0) {
-                        titleRow(progress: progress, avatarSize: avatarSize)
-                        calendarGrid(
+                    VStack(spacing: 0) {
+                        titleRow(progress: progress, state: state)
+                            .frame(width: layout.headerColumnWidth, alignment: .leading)
+
+                        headerContent(
                             progress: progress,
-                            layout: compactLayout,
-                            availableWidth: availableContentWidth
+                            state: state,
+                            calendarColumnWidth: calendarColumnWidth
                         )
                     }
+                    .padding(.leading, contentLeadingInset)
 
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-                .padding(.top, calendarVM.topPaddingExpanded - (calendarVM.topPaddingExpanded - calendarVM.topPaddingCollapsed) * progress)
-                .padding(.bottom, calendarVM.bottomPadding)
-                .shadow(color: .black.opacity(0.08 * progress), radius: 10, y: 4)
+                .padding(.top, state.topPadding)
+                .padding(.bottom, layout.bottomPadding)
 
                 // LAYER 2: Absolute Avatar (floats independently of the content stack)
-                HomeAvatarView(router: router, iconSize: avatarSize)
-                    .padding(.trailing, UIConstants.Layout.screenEdgeInset)
-                    .padding(.top, avatarAbsoluteTop)
+                if layout.kind == .phone || compactAvatarOpacity > 0.001 {
+                    HomeAvatarView(router: router, iconSize: layout.avatarSize)
+                        .padding(.trailing, UIConstants.Layout.screenEdgeInset)
+                        .padding(.top, avatarAbsoluteTop)
+                        .opacity(compactAvatarOpacity)
+                        .allowsHitTesting(compactAvatarOpacity > 0.9 || layout.kind == .phone)
+                }
             }
             .offset(y: stickyOffset)
         }
-        .frame(height: extendedHeight)
+        .frame(height: layout.extendedHeight)
     }
 
     // MARK: - Subviews
@@ -121,22 +112,50 @@ struct HomeCalendarSectionView: View {
     ///
     /// Fades out and collapses vertically as `progress` approaches 1.0 (fully compact).
     @ViewBuilder
-    private func titleRow(progress: CGFloat, avatarSize: CGFloat) -> some View {
-        HStack(alignment: .center, spacing: UIConstants.Spacing.standard) {
+    private func titleRow(progress: CGFloat, state: HomeCalendarAdaptiveLayout.State) -> some View {
+        HStack(alignment: .center, spacing: state.monthControlSpacing) {
             Text(calendarVM.currentMonthString + " " + calendarVM.yearString)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .font(.system(size: state.titleFontSize, weight: .bold, design: .rounded))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
-            HStack(spacing: 2) {
-                chevronButton(increment: false)
-                chevronButton(increment: true)
+            HStack(spacing: state.monthControlSpacing) {
+                chevronButton(increment: false, size: state.monthControlSize)
+                chevronButton(increment: true, size: state.monthControlSize)
             }
-            .padding(.trailing, avatarSize + UIConstants.Spacing.medium)
+            .padding(.trailing, layout.kind == .pad ? 0 : layout.trailingReservation)
+
+            if layout.kind == .pad {
+                HomeAvatarView(router: router, iconSize: layout.avatarSize)
+            }
         }
-        .frame(height: calendarVM.titleHeight * (1 - progress), alignment: .center)
-        .padding(.bottom, calendarVM.titleBottomSpacing * (1 - progress))
+        .frame(height: state.titleHeight, alignment: .center)
+        .padding(.bottom, state.titleBottomSpacing)
         .clipped()
-        .opacity(1.0 - progress * 2)
+        .opacity(max(0, 1.0 - (progress * 1.6)))
+    }
+
+    @ViewBuilder
+    private func headerContent(
+        progress: CGFloat,
+        state: HomeCalendarAdaptiveLayout.State,
+        calendarColumnWidth: CGFloat
+    ) -> some View {
+        if layout.kind == .pad {
+            calendarGrid(
+                progress: progress,
+                state: state
+            )
+            .frame(width: calendarColumnWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            calendarGrid(
+                progress: progress,
+                state: state
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     /// Renders the weekday labels and the scrollable grid of days.
@@ -145,26 +164,28 @@ struct HomeCalendarSectionView: View {
     @ViewBuilder
     private func calendarGrid(
         progress: CGFloat,
-        layout: HomeCompactCalendarLayout,
-        availableWidth: CGFloat
+        state: HomeCalendarAdaptiveLayout.State
     ) -> some View {
-        let totalGridHeight = CGFloat(calendarVM.monthRows.count) * calendarVM.rowHeight
+        let totalGridHeight = CGFloat(calendarVM.monthRows.count) * state.rowHeight
         let isCompactStripActive = progress >= 0.999
-        let capsuleWidth = capsuleWidth(layout: layout, availableWidth: availableWidth)
-        let compactVisibleWidth = compactStripWidth(layout: layout, capsuleWidth: capsuleWidth)
+        let visibleGridWidth = state.dayColumnWidth * 7
+        let capsuleWidth = layout.capsuleWidth(for: progress)
 
         VStack(spacing: 0) {
-            weekdayLabels
+            weekdayLabels(state: state)
+                .frame(width: visibleGridWidth, alignment: .leading)
 
             ZStack(alignment: .top) {
-                dayGrid(totalGridHeight: totalGridHeight, progress: progress)
+                dayGrid(totalGridHeight: totalGridHeight, progress: progress, state: state)
                     .opacity(isCompactStripActive ? 0 : 1)
+                    .frame(width: visibleGridWidth, alignment: .leading)
 
                 if isCompactStripActive && !compactWeekPages.isEmpty {
                     CompactCalendarWeekStrip(
                         weeks: compactWeekPages,
-                        visibleWidth: compactVisibleWidth,
-                        dayRowHeight: calendarVM.rowHeight,
+                        visibleWidth: visibleGridWidth,
+                        dayColumnWidth: state.dayColumnWidth,
+                        dayRowHeight: state.rowHeight,
                         calendarInsightsCache: calendarInsightsCache,
                         onSelectDay: { day in
                             calendarVM.selectDate(day.date)
@@ -175,33 +196,41 @@ struct HomeCalendarSectionView: View {
                 }
             }
             .frame(
-                height: calendarVM.rowHeight + (totalGridHeight - calendarVM.rowHeight) * (1 - progress),
+                height: state.rowHeight + (totalGridHeight - state.rowHeight) * (1 - progress),
                 alignment: .top
             )
             .clipped()
             .transaction { $0.animation = nil }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, layout.verticalPadding)
-        .padding(.horizontal, layout.horizontalPadding)
+        .padding(.horizontal, state.horizontalPadding)
+        .padding(.vertical, state.verticalPadding)
         .frame(width: capsuleWidth, alignment: .leading)
         .background {
-            compactCalendarChrome(layout: layout, progress: progress)
+            if progress > 0.001 {
+                Color.clear
+                    .glassButton(
+                        shape: RoundedRectangle(
+                            cornerRadius: state.cornerRadius,
+                            style: .continuous
+                        )
+                    )
+                    .opacity(progress)
+            }
         }
-        .clipShape(RoundedRectangle(cornerRadius: layout.cornerRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: state.cornerRadius, style: .continuous))
     }
 
     /// A horizontal row displaying abbreviated weekday symbols (e.g., Sun, Mon).
-    private var weekdayLabels: some View {
+    private func weekdayLabels(state: HomeCalendarAdaptiveLayout.State) -> some View {
         HStack(spacing: 0) {
             ForEach(weekdaySymbols, id: \.self) { symbol in
                 Text(symbol)
-                    .font(.system(size: 12, weight: .bold))
-                    .frame(maxWidth: .infinity)
+                    .font(.system(size: state.weekdayFontSize, weight: .bold, design: .rounded))
+                    .frame(width: state.dayColumnWidth)
                     .foregroundStyle(.secondary)
             }
         }
-        .frame(height: calendarVM.weekLabelHeight, alignment: .center)
+        .frame(height: state.weekLabelHeight, alignment: .center)
     }
 
     private var weekdaySymbols: [String] {
@@ -216,7 +245,11 @@ struct HomeCalendarSectionView: View {
     /// Rows outside the selected week fade out based on their vertical distance from
     /// the active row's position during the collapse animation.
     @ViewBuilder
-    private func dayGrid(totalGridHeight: CGFloat, progress: CGFloat) -> some View {
+    private func dayGrid(
+        totalGridHeight: CGFloat,
+        progress: CGFloat,
+        state: HomeCalendarAdaptiveLayout.State
+    ) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(calendarVM.monthRows.enumerated()), id: \.element.first?.id) { rowIndex, row in
                 let distance = abs(CGFloat(rowIndex) - calendarVM.monthProgress)
@@ -227,72 +260,44 @@ struct HomeCalendarSectionView: View {
                         CalendarDayCellView(
                             day: day,
                             insight: calendarInsightsCache[day.dateString],
-                            collapseProgress: progress
+                            collapseProgress: progress,
+                            dayColumnWidth: state.dayColumnWidth,
+                            rowHeight: state.rowHeight
                         )
-                            .onTapGesture {
-                                calendarVM.selectDate(day.date)
-                            }
+                        .frame(width: state.dayColumnWidth, height: state.rowHeight)
+                        .onTapGesture {
+                            calendarVM.selectDate(day.date)
+                        }
                     }
                 }
-                .frame(height: calendarVM.rowHeight)
+                .frame(width: state.dayColumnWidth * 7, height: state.rowHeight, alignment: .leading)
                 .opacity(rowOpacity)
                 // Disable automatic opacity interpolation during month transitions.
                 .transaction { $0.animation = nil }
             }
         }
         .frame(height: totalGridHeight, alignment: .top)
-        .offset(y: -(calendarVM.monthProgress * calendarVM.rowHeight) * progress)
+        .offset(y: -(calendarVM.monthProgress * state.rowHeight) * progress)
     }
 
     /// A minimal button for advancing or rewinding the displayed month.
     ///
     /// - Parameter increment: `true` to move forward one month, `false` to go back.
-    private func chevronButton(increment: Bool) -> some View {
+    private func chevronButton(increment: Bool, size: CGFloat) -> some View {
         Button {
             calendarVM.monthUpdate(increment: increment)
         } label: {
             Image(systemName: increment ? "chevron.right" : "chevron.left")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: size * 0.48, weight: .semibold))
                 .foregroundStyle(.secondary.opacity(0.95))
-                .frame(width: 30, height: 30)
+                .frame(width: size, height: size)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
-    @ViewBuilder
-    private func compactCalendarChrome(layout: HomeCompactCalendarLayout, progress: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: layout.cornerRadius, style: .continuous)
-        let borderProgress = max(0, min((progress - 0.985) / 0.015, 1))
-
-        Color.clear
-            .background {
-                shape
-                    .fill(.ultraThinMaterial)
-                    .opacity(progress)
-                    .overlay {
-                        shape
-                            .fill(Color.white.opacity(0.35))
-                            .blur(radius: 10)
-                            .mask(shape.stroke(lineWidth: 4))
-                            .blendMode(.overlay)
-                            .opacity(borderProgress)
-                    }
-            }
-    }
-
     private var compactWeekPages: [[Day]] {
         calendarVM.monthRows
-    }
-
-    private func capsuleWidth(layout: HomeCompactCalendarLayout, availableWidth: CGFloat) -> CGFloat {
-        max(0, availableWidth - layout.trailingReservation)
-    }
-
-    private func compactStripWidth(layout: HomeCompactCalendarLayout, capsuleWidth: CGFloat) -> CGFloat {
-        let availableWidth = capsuleWidth - (layout.horizontalPadding * 2)
-        let cellWidth = floor(max(0, availableWidth) / 7)
-        return cellWidth * 7
     }
 }
 
@@ -309,6 +314,8 @@ struct CalendarDayCellView: View {
     let day: Day
     let insight: HomeCalendarDayInsight?
     let collapseProgress: CGFloat
+    let dayColumnWidth: CGFloat
+    let rowHeight: CGFloat
 
     // MARK: - Computed States
 
@@ -356,6 +363,8 @@ struct CalendarDayCellView: View {
     private var metrics: HomeCalendarDayMetrics {
         HomeCalendarDayMetrics(
             collapseProgress: collapseProgress,
+            dayColumnWidth: dayColumnWidth,
+            rowHeight: rowHeight,
             hasGoalNote: hasGoalNote,
             hasExamGoalCount: examGoalCount > 1,
             isHighlighted: shouldShowInnerHighlight
@@ -464,114 +473,23 @@ struct CalendarDayCellView: View {
     }
 }
 
-// MARK: - Calendar Day Metrics
-
-/// Visual metrics for one Home calendar day cell across expanded and compact states.
-struct HomeCalendarDayMetrics: Equatable {
-    let highlightDiameter: CGFloat
-    let streakRingDiameter: CGFloat
-    let streakRingLineWidth: CGFloat
-    let fontSize: CGFloat
-    let markerDotSize: CGFloat
-    let markerCapsuleWidth: CGFloat
-    let markerSpacing: CGFloat
-    let markerOffsetY: CGFloat
-    let usesMarkerCapsule: Bool
-    let showsSecondaryNoteMarker: Bool
-
-    init(
-        collapseProgress: CGFloat,
-        hasGoalNote: Bool,
-        hasExamGoalCount: Bool,
-        isHighlighted: Bool
-    ) {
-        let clampedProgress = min(max(collapseProgress, 0), 1)
-        let compactHighlightDiameter = isHighlighted ? 30.0 : 28.0
-
-        highlightDiameter = Self.interpolate(
-            from: 36,
-            to: compactHighlightDiameter,
-            progress: clampedProgress
-        )
-        streakRingDiameter = highlightDiameter + Self.interpolate(from: 7, to: 4, progress: clampedProgress)
-        streakRingLineWidth = Self.interpolate(from: 1.7, to: 1.1, progress: clampedProgress)
-        fontSize = Self.interpolate(from: 16, to: 15, progress: clampedProgress)
-        markerDotSize = Self.interpolate(from: 5, to: 4, progress: clampedProgress)
-        markerCapsuleWidth = Self.interpolate(from: 10, to: 7, progress: clampedProgress)
-        markerSpacing = Self.interpolate(from: 4, to: 3, progress: clampedProgress)
-        markerOffsetY = Self.interpolate(from: -4, to: -2, progress: clampedProgress)
-        showsSecondaryNoteMarker = hasGoalNote && clampedProgress < 0.72
-        usesMarkerCapsule = hasExamGoalCount && clampedProgress < 0.82
-    }
-
-    private static func interpolate(from start: CGFloat, to end: CGFloat, progress: CGFloat) -> CGFloat {
-        start + ((end - start) * progress)
-    }
-}
-
-// MARK: - Compact Calendar Layout
-
-/// Shared compact-layout metrics for the sticky Home calendar capsule.
-struct HomeCompactCalendarLayout: Equatable {
-    let verticalPadding: CGFloat
-    let horizontalPadding: CGFloat
-    let trailingReservation: CGFloat
-    let cornerRadius: CGFloat
-
-    static let minimumCollapsedDayWidth: CGFloat = 36
-
-    init(
-        collapseProgress: CGFloat,
-        avatarSize: CGFloat,
-        outerHorizontalInset: CGFloat,
-        collapsedHorizontalPadding: CGFloat,
-        collapsedVerticalPadding: CGFloat,
-        trailingGap: CGFloat,
-        cornerRadius: CGFloat
-    ) {
-        let progress = min(max(collapseProgress, 0), 1)
-        verticalPadding = Self.interpolate(from: 0, to: collapsedVerticalPadding, progress: progress)
-        horizontalPadding = Self.interpolate(from: 0, to: collapsedHorizontalPadding, progress: progress)
-        trailingReservation = Self.interpolate(
-            from: 0,
-            to: avatarSize + trailingGap,
-            progress: progress
-        )
-        self.cornerRadius = Self.interpolate(from: 0, to: cornerRadius, progress: progress)
-    }
-
-    func collapsedWeekContentWidth(for containerWidth: CGFloat) -> CGFloat {
-        max(0, containerWidth - (horizontalPadding * 2) - trailingReservation)
-    }
-
-    private static func interpolate(from start: CGFloat, to end: CGFloat, progress: CGFloat) -> CGFloat {
-        start + ((end - start) * progress)
-    }
-}
-
 // MARK: - Compact Calendar Day Strip
 
 /// Horizontally scrollable compact strip that pages calendar weeks while weekday labels stay fixed.
-private struct CompactCalendarWeekStrip: View {
+struct CompactCalendarWeekStrip: View {
     let weeks: [[Day]]
     let visibleWidth: CGFloat
+    let dayColumnWidth: CGFloat
     let dayRowHeight: CGFloat
     let calendarInsightsCache: [String: HomeCalendarDayInsight]
     let onSelectDay: (Day) -> Void
 
-    private var cellWidth: CGFloat {
-        max(
-            HomeCompactCalendarLayout.minimumCollapsedDayWidth,
-            floor(max(visibleWidth, 0) / 7)
-        )
-    }
-
     private var pageWidth: CGFloat {
-        max(visibleWidth, cellWidth * 7)
+        max(visibleWidth, dayColumnWidth * 7)
     }
 
     private var rowHorizontalInset: CGFloat {
-        max(0, (pageWidth - (cellWidth * 7)) / 2)
+        max(0, (pageWidth - (dayColumnWidth * 7)) / 2)
     }
 
     var body: some View {
@@ -584,9 +502,11 @@ private struct CompactCalendarWeekStrip: View {
                                 CalendarDayCellView(
                                     day: day,
                                     insight: calendarInsightsCache[day.dateString],
-                                    collapseProgress: 1
+                                    collapseProgress: 1,
+                                    dayColumnWidth: dayColumnWidth,
+                                    rowHeight: dayRowHeight
                                 )
-                                .frame(width: cellWidth, height: dayRowHeight)
+                                .frame(width: dayColumnWidth, height: dayRowHeight)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     onSelectDay(day)

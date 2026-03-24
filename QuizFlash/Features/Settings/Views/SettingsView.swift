@@ -196,6 +196,18 @@ struct AppPreferencesSettingsView: View {
             }
 
             Section {
+                Picker("iPad Tab Bar Position", selection: padTabBarPositionBinding) {
+                    ForEach(AppPadTabBarPosition.allCases) { position in
+                        Text(position.title).tag(position)
+                    }
+                }
+            } header: {
+                Text("Navigation")
+            } footer: {
+                Text("Applies to the floating tab bar on iPad. Default is centered.")
+            }
+
+            Section {
                 Picker("Default Sort Order", selection: createDeckSortBinding) {
                     ForEach(CreateDeckSortOrder.allCases) { sortOrder in
                         Text(sortOrder.title).tag(sortOrder)
@@ -225,6 +237,13 @@ struct AppPreferencesSettingsView: View {
         Binding(
             get: { appPreferences.createDeckSortOrder },
             set: { appPreferences.createDeckSortOrder = $0 }
+        )
+    }
+
+    private var padTabBarPositionBinding: Binding<AppPadTabBarPosition> {
+        Binding(
+            get: { appPreferences.padTabBarPosition },
+            set: { appPreferences.padTabBarPosition = $0 }
         )
     }
 

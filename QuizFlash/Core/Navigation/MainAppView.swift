@@ -35,6 +35,7 @@ struct MainAppView: View {
     // MARK: - State
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(AppPreferences.self) private var appPreferences
 
     @State private var router = NavigationManager()
     @State private var aiWorkspaceCoordinator = AIWorkspaceCoordinator()
@@ -167,10 +168,7 @@ struct MainAppView: View {
                 // snaps to its final position — producing an asymmetric animation.
                 // Keeping the view alive and animating its properties avoids that
                 // race entirely.
-                CustomTabBar(activeTab: router.activeTab, onTabSelection: handleTabActivation)
-                    .frame(width: isPad ? nil : proxy.size.width)
-                    .ignoresSafeArea(.container, edges: isPad ? .bottom : [.horizontal, .bottom])
-                    .bottomChromeVisibility(isTabBarVisible)
+                tabBarView(in: proxy)
                     .zIndex(1)
 
                 if let status = aiWorkspaceCoordinator.floatingStatus,
@@ -250,6 +248,41 @@ struct MainAppView: View {
             guard !UserDefaults.standard.bool(forKey: key) else { return }
             try? modelContext.save()
             UserDefaults.standard.set(true, forKey: key)
+        }
+    }
+
+    @ViewBuilder
+    private func tabBarView(in proxy: GeometryProxy) -> some View {
+        let barWidth = isPad
+            ? min(max(proxy.size.width * 0.56, 560), 700)
+            : proxy.size.width
+        let sideAnchorTrim = isPad ? (UIConstants.Layout.bottomChromeSideInset / 2) : 0
+
+        let bar = CustomTabBar(activeTab: router.activeTab, onTabSelection: handleTabActivation)
+            .frame(width: barWidth)
+            .ignoresSafeArea(.container, edges: isPad ? .bottom : [.horizontal, .bottom])
+            .bottomChromeVisibility(isTabBarVisible)
+
+        if isPad {
+            HStack(spacing: 0) {
+                switch appPreferences.padTabBarPosition {
+                case .left:
+                    bar
+                        .offset(x: -sideAnchorTrim)
+                    Spacer(minLength: 0)
+                case .center:
+                    Spacer(minLength: 0)
+                    bar
+                    Spacer(minLength: 0)
+                case .right:
+                    Spacer(minLength: 0)
+                    bar
+                        .offset(x: sideAnchorTrim)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        } else {
+            bar
         }
     }
 

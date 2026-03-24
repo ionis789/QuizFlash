@@ -5,6 +5,246 @@
 
 import SwiftUI
 
+// MARK: - Home Calendar Overview Card
+
+/// Dense iPad-oriented summary card shown next to the Home calendar.
+struct HomeCalendarOverviewCard: View {
+    let overview: HomeSelectedDayOverviewSummary
+    let weeklyMomentum: HomeWeeklyMomentumSummary
+
+    private var accentColor: Color {
+        ThemeManager.shared.accentColor.color
+    }
+
+    private var completionTint: Color {
+        overview.didReachGoal ? .green : accentColor
+    }
+
+    private var isPad: Bool {
+        UIConstants.isPad
+    }
+
+    private var utilityHeadline: String {
+        if overview.didReachGoal {
+            return "Day closed"
+        }
+        if overview.cardsReviewed == 0 {
+            return "Fresh study window"
+        }
+        return "\(overview.remainingCardsToGoal) cards to goal"
+    }
+
+    private var utilityDetail: String {
+        if overview.didReachGoal {
+            return "Today's target is complete. You can use the slot to review weak cards."
+        }
+        return overview.detailLine
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(overview.selectedDateLabel)
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background {
+                            Capsule()
+                                .fill(Color.white.opacity(0.08))
+                        }
+
+                    Text(utilityHeadline)
+                        .font(.system(size: isPad ? 22 : 24, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.82)
+
+                    Text(utilityDetail)
+                        .font(.system(size: isPad ? 15 : 16, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                AnimatedProgressRing(
+                    progress: overview.goalCompletionFraction,
+                    trackColor: Color.primary.opacity(0.10),
+                    progressColor: completionTint,
+                    size: isPad ? 84 : 88,
+                    strokeWidth: 10
+                ) { _ in
+                    VStack(spacing: 2) {
+                        Text(overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)")
+                            .font(.system(size: 22, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.primary)
+
+                        Text(overview.didReachGoal ? "Today" : "To goal")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            HStack(spacing: isPad ? 8 : 10) {
+                HomeCalendarCompactMetricTile(
+                    title: "Level",
+                    value: "\(overview.level)",
+                    detail: "\(overview.totalXP) XP",
+                    tint: .blue
+                )
+
+                HomeCalendarCompactMetricTile(
+                    title: "Cards",
+                    value: "\(overview.cardsReviewed)",
+                    detail: overview.didReachGoal ? "target hit" : "\(overview.dailyGoal) goal",
+                    tint: completionTint
+                )
+
+                HomeCalendarCompactMetricTile(
+                    title: "Week",
+                    value: "\(weeklyMomentum.activeDays)/7",
+                    detail: weeklyMomentum.goalHitDays == 0 ? "active days" : "\(weeklyMomentum.goalHitDays) hits",
+                    tint: .orange
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(isPad ? 16 : 18)
+        .widgetStyle(cornerRadius: 28)
+    }
+}
+
+// MARK: - Home Calendar Setup Card
+
+/// Compact onboarding companion shown next to the iPad calendar before any deck exists.
+struct HomeCalendarSetupCard: View {
+    let folderCount: Int
+
+    private var accentColor: Color {
+        ThemeManager.shared.accentColor.color
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Getting Started")
+                .font(.caption.weight(.black))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background {
+                    Capsule()
+                        .fill(Color.white.opacity(0.08))
+                }
+
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Create your first deck")
+                        .font(.system(size: 22, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+
+                    Text("Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(accentColor.opacity(0.14))
+                    .frame(width: 72, height: 72)
+                    .overlay {
+                        Image(systemName: "rectangle.stack.badge.plus")
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundStyle(accentColor)
+                    }
+            }
+
+            HStack(spacing: 10) {
+                HomeInlineStatPill(
+                    label: "Next",
+                    value: "Create deck",
+                    tint: accentColor
+                )
+
+                if folderCount > 0 {
+                    HomeInlineStatPill(
+                        label: "Folders",
+                        value: "\(folderCount)",
+                        tint: .orange
+                    )
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(16)
+        .widgetStyle(cornerRadius: 28)
+    }
+}
+
+// MARK: - Workspace Prompt Card
+
+/// General onboarding prompt used when Home should guide the user instead of showing empty analytics.
+struct HomeWorkspacePromptCard: View {
+    let eyebrow: String
+    let title: String
+    let detail: String
+    let icon: String
+    let tint: Color
+    let buttonTitle: String?
+    let action: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 14) {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(tint.opacity(0.14))
+                    .frame(width: 58, height: 58)
+                    .overlay {
+                        Image(systemName: icon)
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(tint)
+                    }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(eyebrow)
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(.secondary)
+
+                    Text(title)
+                        .font(.system(.title3, design: .rounded, weight: .heavy))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Text(detail)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+
+            if let buttonTitle, let action {
+                Button(action: action) {
+                    Text(buttonTitle)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: UIConstants.Size.buttonHeight)
+                        .glassButton(shape: .capsule)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: UIConstants.isPad ? 234 : 0, alignment: .topLeading)
+        .padding(UIConstants.isPad ? 20 : 18)
+        .widgetStyle(cornerRadius: 26)
+    }
+}
+
 // MARK: - Home Analytics Hero
 
 /// Premium analytics hero for the Home dashboard, focused on the selected day.
@@ -129,6 +369,10 @@ struct HomeWeeklyMomentumCard: View {
         ThemeManager.shared.accentColor.color
     }
 
+    private var isPad: Bool {
+        UIConstants.isPad
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -155,7 +399,7 @@ struct HomeWeeklyMomentumCard: View {
             Text(summary.detailLine)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
-                .frame(minHeight: 44, alignment: .topLeading)
+                .frame(minHeight: isPad ? 52 : 44, alignment: .topLeading)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(alignment: .bottom, spacing: 10) {
@@ -188,7 +432,8 @@ struct HomeWeeklyMomentumCard: View {
                 }
             }
         }
-        .padding(18)
+        .frame(maxWidth: .infinity, minHeight: isPad ? 306 : 0, alignment: .topLeading)
+        .padding(isPad ? 20 : 18)
         .widgetStyle(cornerRadius: 26)
     }
 }
@@ -201,6 +446,10 @@ struct HomeSelectedDayInsightsCard: View {
 
     private var accentColor: Color {
         ThemeManager.shared.accentColor.color
+    }
+
+    private var isPad: Bool {
+        UIConstants.isPad
     }
 
     var body: some View {
@@ -229,7 +478,7 @@ struct HomeSelectedDayInsightsCard: View {
             Text(summary.detailLine)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
-                .frame(minHeight: 48, alignment: .topLeading)
+                .frame(minHeight: isPad ? 56 : 48, alignment: .topLeading)
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 10) {
@@ -244,7 +493,8 @@ struct HomeSelectedDayInsightsCard: View {
                 HomeInlineStatPill(label: "Goals", value: "\(summary.selectedDayExamCount)", tint: accentColor)
             }
         }
-        .padding(18)
+        .frame(maxWidth: .infinity, minHeight: isPad ? 306 : 0, alignment: .topLeading)
+        .padding(isPad ? 20 : 18)
         .widgetStyle(cornerRadius: 26)
     }
 }
@@ -291,6 +541,76 @@ private struct HomeHeroMetricTile: View {
     }
 }
 
+private struct HomeOverviewMiniTile: View {
+    let title: String
+    let value: String
+    let detail: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            Text(value)
+                .font(.system(size: 21, weight: .heavy, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+
+            Text(detail)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(tint.opacity(0.12))
+        }
+    }
+}
+
+private struct HomeCalendarCompactMetricTile: View {
+    let title: String
+    let value: String
+    let detail: String
+    let tint: Color
+
+    var body: some View {
+        let isPad = UIConstants.isPad
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            Text(value)
+                .font(.system(size: isPad ? 18 : 19, weight: .heavy, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
+            Text(detail)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, isPad ? 10 : 12)
+        .padding(.vertical, isPad ? 9 : 10)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(tint.opacity(0.12))
+        }
+    }
+}
+
 private struct HomeWeeklyMomentumBar: View {
     let day: HomeWeeklyDaySummary
     let accentColor: Color
@@ -303,8 +623,8 @@ private struct HomeWeeklyMomentumBar: View {
     }
 
     private var barHeight: CGFloat {
-        let baseHeight: CGFloat = 22
-        let variableHeight: CGFloat = 42
+        let baseHeight: CGFloat = UIConstants.isPad ? 26 : 22
+        let variableHeight: CGFloat = UIConstants.isPad ? 46 : 42
         return baseHeight + (variableHeight * day.intensityFraction)
     }
 
@@ -316,7 +636,7 @@ private struct HomeWeeklyMomentumBar: View {
 
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(fillColor)
-                .frame(width: 28, height: barHeight)
+                .frame(width: UIConstants.isPad ? 32 : 28, height: barHeight)
                 .overlay(alignment: .bottom) {
                     if day.isSelectedDay {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)

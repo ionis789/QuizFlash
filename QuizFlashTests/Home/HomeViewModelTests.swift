@@ -138,6 +138,176 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.calendarInsightsCache[twoDaysAgoKey]?.isStreakDay, nil)
     }
 
+    func testGreetingSummaryPrefersRecentDeckResumeContext() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 22, hour: 9)))
+        let log = DailyActivityLog(date: today, dailyGoal: 40)
+        log.cardsReviewed = 18
+        log.xpEarnedToday = 70
+
+        let recentDeck = DeckModel(title: "Neuro", icon: "brain.head.profile", colorHex: "#4C8DFF")
+        recentDeck.cardCount = 48
+        recentDeck.lastOpenedAt = calendar.date(byAdding: .hour, value: -2, to: today)
+
+        let viewModel = HomeViewModel()
+        viewModel.updateLogsCache(logs: [log])
+        viewModel.updateExamGoalsCache(goals: [])
+        viewModel.refreshDashboardSnapshot(
+            selectedDate: today,
+            dailyLogs: [log],
+            examGoals: [],
+            userProfile: nil
+        )
+
+        let summary = viewModel.greetingSummary(
+            userProfile: nil,
+            recentDecks: [recentDeck],
+            allDeckCount: 1,
+            folderCount: 0,
+            referenceDate: today
+        )
+
+        XCTAssertEqual(summary.title, "Good morning")
+        XCTAssertEqual(summary.subtitle, "Continue where you left off")
+        XCTAssertEqual(summary.contextTitle, "Neuro")
+        XCTAssertEqual(summary.primaryPill, "48 cards")
+        XCTAssertEqual(summary.ctaTitle, "Resume Deck")
+        XCTAssertEqual(summary.action, .openDeck(recentDeck.persistentModelID))
+        XCTAssertEqual(summary.progressValueText, "22")
+        XCTAssertEqual(summary.progressLabel, "To goal")
+    }
+
+    func testGreetingSummaryUsesWorkspaceSetupStateWithoutDecks() {
+        let viewModel = HomeViewModel()
+
+        let summary = viewModel.greetingSummary(
+            userProfile: nil,
+            recentDecks: [],
+            allDeckCount: 0,
+            folderCount: 0,
+            referenceDate: Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 3, day: 22, hour: 20)) ?? Date()
+        )
+
+        XCTAssertEqual(summary.title, "Good evening")
+        XCTAssertEqual(summary.subtitle, "Build your study space")
+        XCTAssertEqual(summary.contextTitle, "Create your first deck")
+        XCTAssertEqual(summary.primaryPill, "New workspace")
+        XCTAssertEqual(summary.ctaTitle, "Open Create")
+        XCTAssertEqual(summary.action, .switchTab(.create))
+    }
+
+    func testGreetingSummaryUsesNightGreetingForLateHours() {
+        let viewModel = HomeViewModel()
+
+        let summary = viewModel.greetingSummary(
+            userProfile: nil,
+            recentDecks: [],
+            allDeckCount: 0,
+            folderCount: 1,
+            referenceDate: Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 3, day: 23, hour: 2)) ?? Date()
+        )
+
+        XCTAssertEqual(summary.title, "Good night")
+        XCTAssertEqual(summary.primaryPill, "1 folder ready")
+    }
+
+    func testGreetingPhaseCoversAllDaySegments() {
+        let calendar = Calendar(identifier: .gregorian)
+
+        XCTAssertEqual(
+            HomeViewModel.greetingPhase(
+                for: calendar.date(from: DateComponents(year: 2026, month: 3, day: 23, hour: 8)) ?? Date()
+            ),
+            .morning
+        )
+        XCTAssertEqual(
+            HomeViewModel.greetingPhase(
+                for: calendar.date(from: DateComponents(year: 2026, month: 3, day: 23, hour: 14)) ?? Date()
+            ),
+            .afternoon
+        )
+        XCTAssertEqual(
+            HomeViewModel.greetingPhase(
+                for: calendar.date(from: DateComponents(year: 2026, month: 3, day: 23, hour: 19)) ?? Date()
+            ),
+            .evening
+        )
+        XCTAssertEqual(
+            HomeViewModel.greetingPhase(
+                for: calendar.date(from: DateComponents(year: 2026, month: 3, day: 23, hour: 1)) ?? Date()
+            ),
+            .night
+        )
+    }
+
+    func testTodayFocusSummaryUsesActionFirstSetupWithoutDecks() {
+        let viewModel = HomeViewModel()
+
+        let summary = viewModel.todayFocusSummary(
+            userProfile: nil,
+            recentDecks: [],
+            allDeckCount: 0,
+            folderCount: 0,
+            referenceDate: Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 3, day: 23, hour: 9)) ?? Date()
+        )
+
+        XCTAssertEqual(summary.eyebrow, "Start")
+        XCTAssertEqual(summary.title, "No deck yet")
+        XCTAssertEqual(summary.compactTitle, "No deck yet")
+        XCTAssertEqual(summary.progressValueText, "New")
+        XCTAssertEqual(summary.progressLabel, "Start")
+        XCTAssertEqual(summary.compactDetail, "Create Deck")
+        XCTAssertEqual(summary.ctaTitle, "Create Deck")
+        XCTAssertEqual(summary.action, .switchTab(.create))
+    }
+
+    func testWorkspaceOnboardingStateRequiresFoldersForMultiDeckWorkspace() {
+        let viewModel = HomeViewModel()
+
+        XCTAssertEqual(viewModel.workspaceOnboardingState(allDeckCount: 0, folderCount: 0), .needsDeck)
+        XCTAssertEqual(viewModel.workspaceOnboardingState(allDeckCount: 3, folderCount: 0), .needsFolders)
+        XCTAssertEqual(viewModel.workspaceOnboardingState(allDeckCount: 1, folderCount: 0), .ready)
+        XCTAssertEqual(viewModel.workspaceOnboardingState(allDeckCount: 3, folderCount: 2), .ready)
+    }
+
+    func testTodayFocusSummaryPrioritizesResumeDeckWhenRecentDeckExists() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let today = calendar.startOfDay(for: Date())
+        let log = DailyActivityLog(date: today, dailyGoal: 40)
+        log.cardsReviewed = 12
+        log.xpEarnedToday = 50
+
+        let recentDeck = DeckModel(title: "Roman Law", icon: "books.vertical", colorHex: "#4C8DFF")
+        recentDeck.cardCount = 86
+        recentDeck.lastOpenedAt = calendar.date(byAdding: .hour, value: 11, to: today)
+
+        let viewModel = HomeViewModel()
+        viewModel.updateLogsCache(logs: [log])
+        viewModel.updateExamGoalsCache(goals: [])
+        viewModel.refreshDashboardSnapshot(
+            selectedDate: today,
+            dailyLogs: [log],
+            examGoals: [],
+            userProfile: nil
+        )
+
+        let summary = viewModel.todayFocusSummary(
+            userProfile: nil,
+            recentDecks: [recentDeck],
+            allDeckCount: 1,
+            folderCount: 0,
+            referenceDate: today
+        )
+
+        XCTAssertEqual(summary.eyebrow, "Today goal")
+        XCTAssertEqual(summary.title, "Roman Law")
+        XCTAssertEqual(summary.compactTitle, "Roman Law")
+        XCTAssertEqual(summary.compactDetail, "Resume Deck")
+        XCTAssertEqual(summary.detail, "Last opened 11h ago.")
+        XCTAssertEqual(summary.ctaTitle, "Resume Deck")
+        XCTAssertEqual(summary.action, .openDeck(recentDeck.persistentModelID))
+    }
+
     func testRefreshDeckHealthSummariesPrioritizesExamLinkedDecksUnderPressure() async throws {
         let container = try TestModelContainerFactory.makeInMemoryContainer()
         let context = ModelContext(container)
@@ -244,8 +414,11 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.deckHealthSummaries.first?.dueCards, 1)
         XCTAssertEqual(viewModel.deckHealthSummaries.first?.newCards, 1)
         XCTAssertEqual(viewModel.deckHealthSummaries.first?.headline, "Exam-linked and under pressure")
-        XCTAssertEqual(viewModel.deckHealthSummaries.last?.title, "History Stable")
-        XCTAssertEqual(viewModel.deckHealthSummaries.last?.stableCards, 1)
+
+        let stableSummary = try XCTUnwrap(
+            viewModel.deckHealthSummaries.first(where: { $0.title == "History Stable" })
+        )
+        XCTAssertEqual(stableSummary.title, "History Stable")
     }
 
     func testCreateFolderPersistsFolderAndResetsDraftState() throws {

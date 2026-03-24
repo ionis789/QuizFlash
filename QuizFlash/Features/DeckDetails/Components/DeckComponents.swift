@@ -86,20 +86,20 @@ struct DeckHeaderView: View {
 
                 // Edit button
                 Button(action: onEdit) {
-                Image(systemName: "pencil.line")
-                    .font(
-                        .system(
+                    Image(systemName: "pencil.line")
+                        .font(
+                            .system(
                             size: 11,
                             weight: .bold
                         )
                     )
-                    .foregroundStyle(.secondary)
-                    .frame(
+                        .foregroundStyle(.secondary)
+                        .frame(
                         height: UIConstants.Size.heroInlineActionHeight
                     )
-                    .padding(.horizontal, 12)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .overlay {
+                        .padding(.horizontal, 12)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .overlay {
                         Capsule()
                             .stroke(Color.white.opacity(0.10), lineWidth: 0.75)
                     }
@@ -143,7 +143,7 @@ struct DeckPlayModesView: View {
     private var deckColor: Color { Color(hex: deck.colorHex) ?? accentColor }
     private var orderedModes: [DeckPlayModeDestination] {
         let visibleModes = DeckPlayModeDestination.allCases.filter { $0 != .learn }
-            let defaultOrder = Dictionary(
+        let defaultOrder = Dictionary(
             uniqueKeysWithValues: visibleModes.enumerated().map { ($1, $0) }
         )
 
@@ -214,18 +214,6 @@ struct DeckPlayModesView: View {
                     .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
             }
                 .frame(height: 188)
-
-            if availability.totalCards == 0 {
-                Text("Add cards to start a session. Settings stay available for every mode.")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-            } else {
-                Text("Unavailable modes can be unlocked by converting the current cards.")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-            }
         }
     }
 }
@@ -251,15 +239,15 @@ struct DeckReadinessDiagnosticsView: View {
                             readinessChip(for: item)
                         }
                     }
-                    .padding(.vertical, 2)
+                        .padding(.vertical, 2)
                 }
-                .scrollIndicators(.hidden)
+                    .scrollIndicators(.hidden)
 
                 Text("These notes stay subtle and only flag cards that may need gentler answer entry or cleanup before practice.")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
+                .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
         )
     }
 
@@ -268,11 +256,11 @@ struct DeckReadinessDiagnosticsView: View {
             Image(systemName: item.kind.symbol)
             Text(item.title)
         }
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(item.kind.tint)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(item.kind.tint.opacity(0.12), in: Capsule())
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(item.kind.tint)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(item.kind.tint.opacity(0.12), in: Capsule())
     }
 
 }
@@ -334,13 +322,13 @@ private struct PlayModeCard: View {
 
                         Spacer(minLength: UIConstants.Size.actionButton)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                    .buttonStyle(.plain)
             }
-            .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
-            .padding(14)
+                .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
+                .padding(14)
 
             Button {
                 onOpenSettings(mode)
@@ -351,13 +339,13 @@ private struct PlayModeCard: View {
                     .frame(width: 34, height: 34)
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 13, style: .continuous)
-                            .fill(tintColor.opacity(0.12))
-                    }
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .fill(tintColor.opacity(0.12))
+                }
                     .overlay {
-                        RoundedRectangle(cornerRadius: 13, style: .continuous)
-                            .stroke(Color.white.opacity(0.10), lineWidth: 0.75)
-                    }
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 0.75)
+                }
             }
                 .buttonStyle(.plain)
                 .padding(12)
@@ -452,9 +440,9 @@ struct DeckActionOverlay: View {
             .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
             .glassButton(shape: .circle)
             .overlay {
-                Circle()
-                    .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
-            }
+            Circle()
+                .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
+        }
             .clipShape(Circle())
             .compositingGroup()
     }
@@ -477,14 +465,14 @@ struct DeckActionOverlay: View {
             } label: {
                 Label("Select Cards", systemImage: "checkmark.circle")
             }
-            .disabled(isSelecting)
+                .disabled(isSelecting)
 
             Button {
                 onConvert()
             } label: {
                 Label("Convert Cards", systemImage: "arrow.triangle.2.circlepath")
             }
-            .disabled(deck.cardCount == 0)
+                .disabled(deck.cardCount == 0)
 
             Button {
                 onExport()
@@ -509,8 +497,8 @@ struct DeckActionOverlay: View {
         } label: {
             actionChromeLabel(symbol: "ellipsis", tint: isSelecting ? .white : accent)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("More actions")
+            .buttonStyle(.plain)
+            .accessibilityLabel("More actions")
     }
 
     private var groupByTypeBinding: Binding<Bool> {
@@ -568,7 +556,7 @@ struct DeckSelectionBottomBar: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
             }
-            .layoutPriority(1)
+                .layoutPriority(1)
 
             Text(selectionSummary)
                 .font(.subheadline.weight(.semibold))
@@ -607,7 +595,7 @@ struct DeckSelectionBottomBar: View {
                     .foregroundStyle(selectedCount > 0 ? Color.red : Color.secondary)
             }
         }
-        .frame(maxWidth: .infinity)
-        .contentShape(Rectangle())
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
     }
 }

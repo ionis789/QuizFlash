@@ -265,6 +265,78 @@ struct HomeDashboardSnapshot: Equatable {
     }
 }
 
+/// Resume-oriented greeting payload shown at the top of the Home dashboard.
+enum HomeGreetingAction: Equatable {
+    case openDeck(PersistentIdentifier)
+    case switchTab(AppTabBar)
+    case createFolder
+}
+
+/// Time-of-day phase used to select Home greetings and contextual copy.
+enum HomeGreetingPhase: Equatable {
+    case morning
+    case afternoon
+    case evening
+    case night
+
+    var title: String {
+        switch self {
+        case .morning:
+            return "Good morning"
+        case .afternoon:
+            return "Good afternoon"
+        case .evening:
+            return "Good evening"
+        case .night:
+            return "Good night"
+        }
+    }
+}
+
+/// Workspace readiness state used to avoid empty-zero analytics on Home.
+enum HomeWorkspaceOnboardingState: Equatable {
+    case needsDeck
+    case needsFolders
+    case ready
+}
+
+/// Resume-oriented greeting payload shown at the top of the Home dashboard.
+struct HomeGreetingSummary: Equatable {
+    let title: String
+    let subtitle: String
+    let contextTitle: String
+    let contextLine: String
+    let icon: String
+    let colorHex: String
+    let primaryPill: String
+    let secondaryPill: String?
+    let progressFraction: Double
+    let progressValueText: String
+    let progressLabel: String
+    let ctaTitle: String?
+    let action: HomeGreetingAction?
+}
+
+/// Sticky companion summary shown in the custom iPad Home top header.
+struct HomeTodayFocusHeaderSummary: Equatable {
+    let introTitle: String
+    let introSubtitle: String
+    let eyebrow: String
+    let title: String
+    let detail: String
+    let compactTitle: String
+    let compactDetail: String
+    let icon: String
+    let colorHex: String
+    let primaryPill: String
+    let secondaryPill: String?
+    let progressFraction: Double
+    let progressValueText: String
+    let progressLabel: String
+    let ctaTitle: String?
+    let action: HomeGreetingAction?
+}
+
 // MARK: - Home View Model
 
 /// The single source of truth for all business logic on the Home screen.
@@ -748,6 +820,298 @@ final class HomeViewModel {
         )
     }
 
+    /// Builds the lightweight greeting widget summary shown at the top of Home.
+    ///
+    /// The greeting prefers the most recent deck, then falls back to the highest-priority
+    /// deck-health candidate, and finally uses today's dashboard context when no deck
+    /// destination is available.
+    func workspaceOnboardingState(
+        allDeckCount: Int,
+        folderCount: Int
+    ) -> HomeWorkspaceOnboardingState {
+        if allDeckCount == 0 {
+            return .needsDeck
+        }
+
+        if folderCount == 0 && allDeckCount > 1 {
+            return .needsFolders
+        }
+
+        return .ready
+    }
+
+    /// Builds the custom iPad companion summary that mirrors the sticky calendar behaviour.
+    func todayFocusSummary(
+        userProfile: UserProfile?,
+        recentDecks: [DeckModel],
+        allDeckCount: Int,
+        folderCount: Int,
+        referenceDate: Date = Date()
+    ) -> HomeTodayFocusHeaderSummary {
+        let overview = dashboardSnapshot.selectedDayOverview
+        let workspaceState = workspaceOnboardingState(
+            allDeckCount: allDeckCount,
+            folderCount: folderCount
+        )
+        let greetingTitle = Self.greetingPhase(for: referenceDate).title
+
+        if workspaceState == .needsDeck {
+            return HomeTodayFocusHeaderSummary(
+                introTitle: greetingTitle,
+                introSubtitle: "Create your first deck to begin.",
+                eyebrow: "Start",
+                title: "No deck yet",
+                detail: "Create a deck to start studying from Home.",
+                compactTitle: "No deck yet",
+                compactDetail: "Create Deck",
+                icon: "rectangle.stack.badge.plus",
+                colorHex: "",
+                primaryPill: "",
+                secondaryPill: nil,
+                progressFraction: 0,
+                progressValueText: "New",
+                progressLabel: "Start",
+                ctaTitle: "Create Deck",
+                action: .switchTab(.create)
+            )
+        }
+
+        if let recentDeck = recentDecks.first {
+            let deckTitle = recentDeck.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resolvedTitle = deckTitle.isEmpty ? "Untitled Deck" : deckTitle
+            let matchingHealth = deckHealthSummaries.first { $0.id == recentDeck.persistentModelID }
+            let remainingCards = max(overview.remainingCardsToGoal, 0)
+            let detail: String
+
+            if overview.didReachGoal {
+                detail = "Today's goal is closed."
+            } else if let lastOpenedAt = recentDeck.lastOpenedAt {
+                detail = "Last opened \(Self.relativeTimeLabel(for: lastOpenedAt))."
+            } else if let matchingHealth {
+                let deckPressure = matchingHealth.dueCards + matchingHealth.newCards
+                if deckPressure > 0 {
+                    detail = "\(min(deckPressure, max(remainingCards, 1))) cards are ready."
+                } else {
+                    detail = "\(remainingCards) cards are still open today."
+                }
+            } else {
+                detail = "\(remainingCards) cards are still open today."
+            }
+
+            return HomeTodayFocusHeaderSummary(
+                introTitle: greetingTitle,
+                introSubtitle: "Continue where you left off.",
+                eyebrow: overview.didReachGoal ? "Today clear" : "Today goal",
+                title: resolvedTitle,
+                detail: detail,
+                compactTitle: resolvedTitle,
+                compactDetail: "Resume Deck",
+                icon: recentDeck.icon,
+                colorHex: recentDeck.colorHex,
+                primaryPill: "",
+                secondaryPill: nil,
+                progressFraction: overview.goalCompletionFraction,
+                progressValueText: overview.didReachGoal ? "Done" : "\(remainingCards)",
+                progressLabel: overview.didReachGoal ? "Today" : "To goal",
+                ctaTitle: "Resume Deck",
+                action: .openDeck(recentDeck.persistentModelID)
+            )
+        }
+
+        if let focusDeck = deckHealthSummaries.first {
+            let remainingCards = max(overview.remainingCardsToGoal, 0)
+            let focusTitle = focusDeck.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "Focus deck"
+                : focusDeck.title
+
+            return HomeTodayFocusHeaderSummary(
+                introTitle: greetingTitle,
+                introSubtitle: overview.cardsReviewed == 0
+                    ? "Start today's goal from this deck."
+                    : "Continue where you left off.",
+                eyebrow: overview.didReachGoal ? "Today clear" : "Today goal",
+                title: focusTitle,
+                detail: overview.cardsReviewed == 0
+                    ? "Open this deck to start today's goal."
+                    : "\(remainingCards) cards are still open today.",
+                compactTitle: focusTitle,
+                compactDetail: "Open Deck",
+                icon: focusDeck.icon,
+                colorHex: focusDeck.colorHex,
+                primaryPill: "",
+                secondaryPill: nil,
+                progressFraction: overview.goalCompletionFraction,
+                progressValueText: overview.didReachGoal ? "Done" : "\(remainingCards)",
+                progressLabel: overview.didReachGoal ? "Today" : "To goal",
+                ctaTitle: "Open Focus Deck",
+                action: .openDeck(focusDeck.id)
+            )
+        }
+
+        let totalXP = max(userProfile?.totalXP ?? 0, 0)
+        let secondaryPill = totalXP > 0 ? "\(totalXP) XP" : nil
+
+        return HomeTodayFocusHeaderSummary(
+            introTitle: greetingTitle,
+            introSubtitle: overview.didReachGoal
+                ? "Today is already closed."
+                : "Pick a deck and continue.",
+            eyebrow: overview.didReachGoal ? "Today clear" : "Today goal",
+            title: Self.greetingPhase(for: referenceDate) == .night ? "Pick a deck for tonight" : "Pick a deck for today",
+            detail: overview.didReachGoal
+                ? "Today's goal is already closed."
+                : "\(overview.remainingCardsToGoal) cards are still open today.",
+            compactTitle: overview.didReachGoal ? "Today is clear" : "Pick a deck",
+            compactDetail: "Open Home",
+            icon: "sparkles.rectangle.stack.fill",
+            colorHex: "",
+            primaryPill: overview.didReachGoal ? "Goal closed" : "\(overview.remainingCardsToGoal) left",
+            secondaryPill: secondaryPill,
+            progressFraction: overview.goalCompletionFraction,
+            progressValueText: overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)",
+            progressLabel: overview.didReachGoal ? "Today" : "To goal",
+            ctaTitle: nil,
+            action: nil
+        )
+    }
+
+    func greetingSummary(
+        userProfile: UserProfile?,
+        recentDecks: [DeckModel],
+        allDeckCount: Int,
+        folderCount: Int,
+        referenceDate: Date = Date()
+    ) -> HomeGreetingSummary {
+        let greetingTitle = Self.greetingPhase(for: referenceDate).title
+        let overview = dashboardSnapshot.selectedDayOverview
+        let workspaceState = workspaceOnboardingState(
+            allDeckCount: allDeckCount,
+            folderCount: folderCount
+        )
+
+        if workspaceState == .needsDeck {
+            return HomeGreetingSummary(
+                title: greetingTitle,
+                subtitle: "Build your study space",
+                contextTitle: "Create your first deck",
+                contextLine: "Add one deck and Home will start surfacing progress, momentum and recall cues here.",
+                icon: "rectangle.stack.badge.plus",
+                colorHex: "",
+                primaryPill: folderCount == 0
+                    ? "New workspace"
+                    : "\(folderCount) folder\(folderCount == 1 ? "" : "s") ready",
+                secondaryPill: nil,
+                progressFraction: 0,
+                progressValueText: "New",
+                progressLabel: "Setup",
+                ctaTitle: "Open Create",
+                action: .switchTab(.create)
+            )
+        }
+
+        if let recentDeck = recentDecks.first {
+            let deckTitle = recentDeck.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resolvedTitle = deckTitle.isEmpty ? "Untitled Deck" : deckTitle
+            let matchingHealth = deckHealthSummaries.first { $0.id == recentDeck.persistentModelID }
+            let contextLine: String
+            let progressFraction: Double
+            let progressValueText: String
+            let progressLabel: String
+
+            if let matchingHealth {
+                let remainingCards = matchingHealth.dueCards + matchingHealth.newCards
+                contextLine = remainingCards == 0
+                    ? "This deck looks stable right now. A short pass keeps recall warm."
+                    : "\(remainingCards) cards still need attention in this deck."
+                progressFraction = matchingHealth.masteryFraction
+                progressValueText = "\(Int((matchingHealth.masteryFraction * 100).rounded()))%"
+                progressLabel = "Mastery"
+            } else if overview.didReachGoal {
+                contextLine = "Today's target is already clear. A short review keeps the streak moving."
+                progressFraction = overview.goalCompletionFraction
+                progressValueText = "Done"
+                progressLabel = "Today"
+            } else {
+                contextLine = "This deck is the cleanest way back into a focused pass without hunting around the library."
+                progressFraction = overview.goalCompletionFraction
+                progressValueText = "\(overview.remainingCardsToGoal)"
+                progressLabel = "To goal"
+            }
+
+            return HomeGreetingSummary(
+                title: greetingTitle,
+                subtitle: "Continue where you left off",
+                contextTitle: resolvedTitle,
+                contextLine: contextLine,
+                icon: recentDeck.icon,
+                colorHex: recentDeck.colorHex,
+                primaryPill: "\(recentDeck.cardCount) cards",
+                secondaryPill: recentDeck.lastOpenedAt.map { "Opened \(Self.relativeTimeLabel(for: $0))" },
+                progressFraction: progressFraction,
+                progressValueText: progressValueText,
+                progressLabel: progressLabel,
+                ctaTitle: "Resume Deck",
+                action: .openDeck(recentDeck.persistentModelID)
+            )
+        }
+
+        if let focusDeck = deckHealthSummaries.first {
+            return HomeGreetingSummary(
+                title: greetingTitle,
+                subtitle: "Pick up the deck that needs attention",
+                contextTitle: focusDeck.title,
+                contextLine: focusDeck.actionLine,
+                icon: focusDeck.icon,
+                colorHex: focusDeck.colorHex,
+                primaryPill: "\(focusDeck.totalCards) cards",
+                secondaryPill: focusDeck.lastOpenedLabel.map { "Opened \($0)" },
+                progressFraction: focusDeck.masteryFraction,
+                progressValueText: "\(Int((focusDeck.masteryFraction * 100).rounded()))%",
+                progressLabel: "Mastery",
+                ctaTitle: "Open Focus Deck",
+                action: .openDeck(focusDeck.id)
+            )
+        }
+
+        if workspaceState == .needsFolders {
+            return HomeGreetingSummary(
+                title: greetingTitle,
+                subtitle: "Bring structure to your study space",
+                contextTitle: "Group your decks into folders",
+                contextLine: "Folders stay closer to the top of Home and make larger libraries easier to scan on both iPhone and iPad.",
+                icon: "folder.badge.plus",
+                colorHex: "",
+                primaryPill: "\(allDeckCount) decks",
+                secondaryPill: nil,
+                progressFraction: overview.goalCompletionFraction,
+                progressValueText: overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)",
+                progressLabel: overview.didReachGoal ? "Today" : "To goal",
+                ctaTitle: "Create Folder",
+                action: .createFolder
+            )
+        }
+
+        let totalXP = max(userProfile?.totalXP ?? 0, 0)
+        let streakCount = max(userProfile?.currentStreak ?? 0, 0)
+        let secondaryPill = streakCount > 0 ? "\(streakCount)-day streak" : nil
+
+        return HomeGreetingSummary(
+            title: greetingTitle,
+            subtitle: "Start a focused study pass",
+            contextTitle: overview.headline,
+            contextLine: dashboardSnapshot.selectedDayInsight.recommendationLine,
+            icon: "sparkles.rectangle.stack.fill",
+            colorHex: "",
+            primaryPill: "\(totalXP) XP",
+            secondaryPill: secondaryPill,
+            progressFraction: overview.goalCompletionFraction,
+            progressValueText: overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)",
+            progressLabel: overview.didReachGoal ? "Today" : "To goal",
+            ctaTitle: nil,
+            action: nil
+        )
+    }
+
     // MARK: - Actions
 
     /// Creates and persists a new `FolderModel` using the current form values,
@@ -957,9 +1321,10 @@ final class HomeViewModel {
         selectedDate: Date,
         dailyLogs: [DailyActivityLog]
     ) -> HomeWeeklyMomentumSummary {
-        let calendar = Calendar.current
+        let calendar = AppPreferences.shared.resolvedCalendar
         let startOfSelectedDay = calendar.startOfDay(for: selectedDate)
-        let weekStart = calendar.date(byAdding: .day, value: -6, to: startOfSelectedDay) ?? startOfSelectedDay
+        let weekStart = calendar.dateInterval(of: .weekOfYear, for: startOfSelectedDay)?.start
+            ?? startOfSelectedDay
 
         let logsByDay = Dictionary(
             uniqueKeysWithValues: dailyLogs.map { log in
@@ -992,7 +1357,10 @@ final class HomeViewModel {
         let weeklyLogs = dailyLogs
             .filter { log in
                 let logDay = calendar.startOfDay(for: log.date)
-                return logDay >= weekStart && logDay <= startOfSelectedDay
+                guard let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart) else {
+                    return false
+                }
+                return logDay >= weekStart && logDay <= weekEnd
             }
             .sorted { $0.date < $1.date }
 
@@ -1414,6 +1782,20 @@ final class HomeViewModel {
             return "Tomorrow"
         }
         return selectedDayLabelFormatter.string(from: date)
+    }
+
+    static func greetingPhase(for referenceDate: Date) -> HomeGreetingPhase {
+        let hour = Calendar.current.component(.hour, from: referenceDate)
+        switch hour {
+        case 5..<12:
+            return .morning
+        case 12..<17:
+            return .afternoon
+        case 17..<22:
+            return .evening
+        default:
+            return .night
+        }
     }
 
     private func buildExamGoalSummary(

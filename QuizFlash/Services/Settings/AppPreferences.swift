@@ -62,6 +62,28 @@ nonisolated enum CreateDeckSortOrder: String, CaseIterable, Identifiable, Codabl
     }
 }
 
+// MARK: - iPad Tab Bar Position
+
+/// Persists how the floating tab bar is anchored on iPad layouts.
+nonisolated enum AppPadTabBarPosition: String, CaseIterable, Identifiable, Codable, Sendable {
+    case center
+    case left
+    case right
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .center:
+            return "Center"
+        case .left:
+            return "Left"
+        case .right:
+            return "Right"
+        }
+    }
+}
+
 // MARK: - App Preferences Store
 
 /// Shared app preferences consumed by Home, Create Deck, and Settings surfaces.
@@ -74,6 +96,7 @@ final class AppPreferences {
         static let weekStartDay = "preferences.calendar.weekStartDay"
         static let createDeckSortOrder = "preferences.createDeck.sortOrder"
         static let autoCollapseEarlierCards = "preferences.createDeck.autoCollapseEarlierCards"
+        static let padTabBarPosition = "preferences.navigation.padTabBarPosition"
     }
 
     private let userDefaults: UserDefaults
@@ -102,6 +125,16 @@ final class AppPreferences {
         }
     }
 
+    /// Preferred iPad anchor position for the floating tab bar.
+    var padTabBarPosition: AppPadTabBarPosition {
+        didSet {
+            userDefaults.set(
+                padTabBarPosition.rawValue,
+                forKey: Keys.padTabBarPosition
+            )
+        }
+    }
+
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.weekStartDay = AppWeekStartDayPreference(
@@ -113,6 +146,9 @@ final class AppPreferences {
         self.autoCollapseEarlierCardsInAISession = userDefaults.object(
             forKey: Keys.autoCollapseEarlierCards
         ) as? Bool ?? true
+        self.padTabBarPosition = AppPadTabBarPosition(
+            rawValue: userDefaults.string(forKey: Keys.padTabBarPosition) ?? ""
+        ) ?? .center
     }
 
     /// Resolves the app's effective calendar based on the stored weekday preference.

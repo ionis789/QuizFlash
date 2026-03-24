@@ -61,6 +61,10 @@ private struct HomeDeckHealthCard: View {
         Color(hex: summary.colorHex) ?? ThemeManager.shared.accentColor.color
     }
 
+    private var isPad: Bool {
+        UIConstants.isPad
+    }
+
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 16) {
@@ -73,7 +77,7 @@ private struct HomeDeckHealthCard: View {
                             .font(.system(size: 22, weight: .bold))
                             .foregroundStyle(accentColor)
                     }
-                    .frame(width: 56, height: 56)
+                    .frame(width: isPad ? 60 : 56, height: isPad ? 60 : 56)
 
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -106,7 +110,7 @@ private struct HomeDeckHealthCard: View {
                     MasteryProgressRing(
                         mastery: summary.masteryFraction,
                         deckColor: accentColor,
-                        size: 70,
+                        size: isPad ? 78 : 70,
                         strokeWidth: 10
                     )
                 }
@@ -152,7 +156,8 @@ private struct HomeDeckHealthCard: View {
                         .background(accentColor.opacity(0.12), in: Circle())
                 }
             }
-            .padding(18)
+            .padding(isPad ? 20 : 18)
+            .frame(maxWidth: .infinity, minHeight: isPad ? 250 : 0, alignment: .topLeading)
             .widgetStyle(cornerRadius: 26)
         }
         .buttonStyle(.plain)

@@ -5,7 +5,7 @@
 //
 // Responsibilities:
 //   - Injects SwiftData queries as plain data into child views.
-//   - Computes scroll geometry (extendedHeight, scrollDistance) from CalendarViewModel constants.
+//   - Computes scroll geometry from `HomeCalendarAdaptiveLayout`.
 //   - Orchestrates HomeCalendarSectionView and HomeDashboardView inside a single ScrollView.
 //
 // This view contains no business logic — all state is owned by
@@ -73,39 +73,27 @@ struct HomeView: View {
     var body: some View {
         GeometryReader { proxy in
             let safeAreaTop = proxy.safeAreaInsets.top == 0 ? 47.0 : proxy.safeAreaInsets.top
-
+            let layoutKind: HomeCalendarAdaptiveLayout.Kind = UIConstants.isPad ? .pad : .phone
+            let calendarLayout = HomeCalendarAdaptiveLayout(
+                containerWidth: proxy.size.width,
+                safeAreaTop: safeAreaTop,
+                monthRowCount: calendarVM.monthRows.count,
+                kind: layoutKind
+            )
+            let greetingSummary = viewModel.greetingSummary(
+                userProfile: profile,
+                recentDecks: recentlyOpenedDecks,
+                allDeckCount: allDecks.count,
+                folderCount: folders.count
+            )
             // MARK: Scroll Geometry
-
-            // Total height of the calendar header when fully expanded.
-            let extendedHeight = safeAreaTop
-                + calendarVM.topPaddingExpanded
-                + calendarVM.titleHeight
-                + calendarVM.titleBottomSpacing
-                + calendarVM.weekLabelHeight
-                + CGFloat(calendarVM.monthRows.count) * calendarVM.rowHeight
-                + calendarVM.bottomPadding
-
-            // Height of the calendar header when collapsed to a single sticky row.
-            let compactHeight = safeAreaTop
-                + calendarVM.topPaddingCollapsed
-                + calendarVM.compactCapsuleHeight
-                + calendarVM.bottomPadding
-
-            let scrollDistance = extendedHeight - compactHeight
 
             // MARK: Content
 
             ScrollView(.vertical) {
                 VStack(spacing: 0) {
-                    HomeCalendarSectionView(
-                        calendarVM: calendarVM,
-                        extendedHeight: extendedHeight,
-                        scrollDistance: scrollDistance,
-                        safeAreaTop: safeAreaTop,
-                        calendarInsightsCache: viewModel.calendarInsightsCache,
-                        router: router
-                    )
-                    .zIndex(100)
+                    calendarHeader(layout: calendarLayout, weeklyMomentumSummary: viewModel.dashboardSnapshot.weeklyMomentum)
+                        .zIndex(100)
 
                     calendarTransitionBand
 
@@ -113,10 +101,13 @@ struct HomeView: View {
                         viewModel: viewModel,
                         folders: folders,
                         recentDecks: recentlyOpenedDecks,
+                        containerWidth: proxy.size.width,
+                        greetingSummary: greetingSummary,
+                        allDeckCount: allDecks.count,
                         examGoals: examGoals,
                         router: router
                     )
-                    .frame(minHeight: proxy.size.height - compactHeight)
+                    .frame(minHeight: proxy.size.height - calendarLayout.compactHeight)
                     .zIndex(1)
                 }
             }
@@ -309,6 +300,45 @@ struct HomeView: View {
 
             Color.clear
                 .frame(height: UIConstants.Layout.homeCalendarTransitionBottomPadding)
+        }
+    }
+
+    @ViewBuilder
+    private func calendarHeader(
+        layout: HomeCalendarAdaptiveLayout,
+        weeklyMomentumSummary: HomeWeeklyMomentumSummary
+    ) -> some View {
+        if layout.kind == .pad {
+            HomeTopHeaderSectionView(
+                calendarVM: calendarVM,
+                layout: layout,
+                calendarInsightsCache: viewModel.calendarInsightsCache,
+                weeklyMomentumSummary: weeklyMomentumSummary,
+                router: router
+            )
+        } else {
+            HomeCalendarSectionView(
+                calendarVM: calendarVM,
+                layout: layout,
+                calendarInsightsCache: viewModel.calendarInsightsCache,
+                router: router
+            )
+        }
+    }
+
+    private func handleHomeAction(_ action: HomeGreetingAction) {
+        switch action {
+        case .openDeck(let deckID):
+            router.append(
+                DeckNavigationValue(
+                    deckID: deckID,
+                    backLabel: router.activeTab.rawValue
+                )
+            )
+        case .switchTab(let tab):
+            router.activeTab = tab
+        case .createFolder:
+            viewModel.showCreateFolder = true
         }
     }
 }

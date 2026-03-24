@@ -26,6 +26,7 @@ struct FolderCardView: View {
 
     var body: some View {
         let folderColor = Color(hex: folder.colorHex) ?? ThemeManager.shared.accentColor.color
+        let isPad = UIConstants.isPad
 
         Button(action: action) {
             VStack(alignment: .leading, spacing: 0) {
@@ -34,7 +35,7 @@ struct FolderCardView: View {
 
                 HStack {
                     Image(systemName: "folder.fill")
-                        .font(.title)
+                        .font(isPad ? .system(size: 30, weight: .semibold) : .title)
                         .foregroundStyle(folderColor.gradient)
 
                     Spacer()
@@ -61,10 +62,10 @@ struct FolderCardView: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
             }
-            .padding(16)
+            .padding(isPad ? 18 : 16)
+            .frame(minHeight: isPad ? 142 : 0, alignment: .topLeading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .widgetStyle()
-            .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
         }
         .buttonStyle(.plain)
     }

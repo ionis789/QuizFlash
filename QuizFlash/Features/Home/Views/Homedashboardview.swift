@@ -37,6 +37,15 @@ struct HomeDashboardView: View {
     /// The top 5 recently opened decks, pre-filtered and pre-sliced by `HomeView`.
     let recentDecks: [DeckModel]
 
+    /// Current container width from `HomeView` for adaptive widget layouts.
+    let containerWidth: CGFloat
+
+    /// Resume-oriented greeting summary rendered above the main Home analytics.
+    let greetingSummary: HomeGreetingSummary
+
+    /// Total deck count fetched by `HomeView`.
+    let allDeckCount: Int
+
     /// Persisted exam goals fetched by `HomeView`.
     let examGoals: [ExamGoalModel]
 
@@ -52,39 +61,209 @@ struct HomeDashboardView: View {
         viewModel.dashboardSnapshot
     }
 
+    private var usesPadDashboardColumns: Bool {
+        UIConstants.isPad && containerWidth >= 760
+    }
+
+    private var showsWorkspaceOnboarding: Bool {
+        allDeckCount == 0
+    }
+
+    private var dashboardMaxWidth: CGFloat? {
+        guard UIConstants.isPad else { return nil }
+        return min(max(containerWidth - (contentHorizontalInset * 2), 0), 1180)
+    }
+
+    private var folderColumns: [GridItem] {
+        if UIConstants.isPad {
+            let count = containerWidth >= 1180 ? 3 : 2
+            return Array(repeating: GridItem(.flexible(), spacing: 16), count: count)
+        }
+        return [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
+    }
+
+    private var showsFoldersQuickStrip: Bool {
+        !folders.isEmpty || allDeckCount > 0
+    }
+
+    private var showsFoldersSection: Bool {
+        !folders.isEmpty
+    }
+
     // MARK: - Body
 
     var body: some View {
         VStack(spacing: 0) {
-            statsSection
-                .padding(.top, topSectionInset)
-                .padding(.horizontal, contentHorizontalInset)
-                .homeDashboardSectionMotion()
+            if showsFoldersQuickStrip {
+                boundedSection(foldersQuickStripSection)
+                    .padding(.top, topSectionInset)
+                    .padding(.horizontal, contentHorizontalInset)
+                    .homeDashboardSectionMotion()
+            }
 
-            examGoalsSection
-                .padding(.top, UIConstants.Layout.sectionSpacing)
-                .padding(.horizontal, contentHorizontalInset)
-                .homeDashboardSectionMotion()
+            boundedSection(
+                HomeGreetingCardView(
+                    summary: greetingSummary,
+                    availableWidth: availableSectionWidth,
+                    onPrimaryAction: greetingPrimaryAction
+                )
+            )
+            .padding(.top, showsFoldersQuickStrip ? UIConstants.Layout.sectionSpacing : topSectionInset)
+            .padding(.horizontal, contentHorizontalInset)
+            .homeDashboardSectionMotion()
 
-            if !viewModel.deckHealthSummaries.isEmpty {
-                deckHealthSection
+            if !recentDecks.isEmpty {
+                boundedSection(recentDecksSection)
+                    .padding(.top, UIConstants.Layout.sectionSpacing)
+                    .homeDashboardSectionMotion()
+            }
+
+            if showsFoldersSection {
+                boundedSection(foldersSection)
                     .padding(.top, UIConstants.Layout.sectionSpacing)
                     .padding(.horizontal, contentHorizontalInset)
                     .homeDashboardSectionMotion()
             }
 
-            if !recentDecks.isEmpty {
-                recentDecksSection
+            if showsWorkspaceOnboarding {
+                boundedSection(workspaceSetupSection)
                     .padding(.top, UIConstants.Layout.sectionSpacing)
+                    .padding(.horizontal, contentHorizontalInset)
+                    .homeDashboardSectionMotion()
+            } else {
+                boundedSection(statsSection)
+                    .padding(.top, UIConstants.Layout.sectionSpacing)
+                    .padding(.horizontal, contentHorizontalInset)
                     .homeDashboardSectionMotion()
             }
 
-            foldersSection
-                .padding(.top, UIConstants.Layout.sectionSpacing)
-                .padding(.horizontal, contentHorizontalInset)
-                .homeDashboardSectionMotion()
+            if !showsWorkspaceOnboarding || !examGoals.isEmpty {
+                boundedSection(examGoalsSection)
+                    .padding(.top, UIConstants.Layout.sectionSpacing)
+                    .padding(.horizontal, contentHorizontalInset)
+                    .homeDashboardSectionMotion()
+            }
+
+            if !viewModel.deckHealthSummaries.isEmpty {
+                boundedSection(deckHealthSection)
+                    .padding(.top, UIConstants.Layout.sectionSpacing)
+                    .padding(.horizontal, contentHorizontalInset)
+                    .homeDashboardSectionMotion()
+            }
 
             Spacer(minLength: 150)
+        }
+    }
+
+    private var foldersQuickStripSection: some View {
+        HomeFoldersQuickStripView(
+            folders: folders,
+            allDeckCount: allDeckCount,
+            onOpenFolder: { folder in
+                router.append(AppRoute.folder(folder, backLabel: router.activeTab.rawValue))
+            },
+            onCreateFolder: {
+                viewModel.showCreateFolder = true
+            }
+        )
+    }
+
+    private var greetingPrimaryAction: (() -> Void)? {
+        guard let action = greetingSummary.action else { return nil }
+        return {
+            handleGreetingAction(action)
+        }
+    }
+
+    private var availableSectionWidth: CGFloat {
+        let rawWidth = dashboardMaxWidth ?? (containerWidth - (contentHorizontalInset * 2))
+        return max(0, rawWidth)
+    }
+
+    @ViewBuilder
+    private func boundedSection<Content: View>(_ content: Content) -> some View {
+        if let dashboardMaxWidth {
+            content
+                .frame(maxWidth: dashboardMaxWidth, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else {
+            content
+        }
+    }
+
+    private func handleGreetingAction(_ action: HomeGreetingAction) {
+        switch action {
+        case .openDeck(let deckID):
+            router.append(
+                DeckNavigationValue(
+                    deckID: deckID,
+                    backLabel: router.activeTab.rawValue
+                )
+            )
+        case .switchTab(let tab):
+            router.activeTab = tab
+        case .createFolder:
+            viewModel.showCreateFolder = true
+        }
+    }
+
+    private var workspaceSetupSection: some View {
+        Group {
+            if usesPadDashboardColumns {
+                HStack(alignment: .top, spacing: 16) {
+                    HomeWorkspacePromptCard(
+                        eyebrow: "First Step",
+                        title: "Create a deck that matters",
+                        detail: "Start with one subject or exam topic. Home will turn that deck into daily targets, momentum and recall guidance.",
+                        icon: "rectangle.stack.badge.plus",
+                        tint: ThemeManager.shared.accentColor.color,
+                        buttonTitle: "Open Create",
+                        action: {
+                            router.activeTab = .create
+                        }
+                    )
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+
+                    HomeWorkspacePromptCard(
+                        eyebrow: "Structure",
+                        title: "Keep folders close",
+                        detail: "Folders now sit near the top of Home so larger libraries stay easy to scan once you begin adding decks.",
+                        icon: "folder.badge.plus",
+                        tint: .orange,
+                        buttonTitle: "Create Folder",
+                        action: {
+                            viewModel.showCreateFolder = true
+                        }
+                    )
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 16) {
+                    HomeWorkspacePromptCard(
+                        eyebrow: "First Step",
+                        title: "Create a deck that matters",
+                        detail: "Start with one subject or exam topic. Home will turn that deck into daily targets, momentum and recall guidance.",
+                        icon: "rectangle.stack.badge.plus",
+                        tint: ThemeManager.shared.accentColor.color,
+                        buttonTitle: "Open Create",
+                        action: {
+                            router.activeTab = .create
+                        }
+                    )
+
+                    HomeWorkspacePromptCard(
+                        eyebrow: "Structure",
+                        title: "Keep folders close",
+                        detail: "Folders now sit near the top of Home so larger libraries stay easy to scan once you begin adding decks.",
+                        icon: "folder.badge.plus",
+                        tint: .orange,
+                        buttonTitle: "Create Folder",
+                        action: {
+                            viewModel.showCreateFolder = true
+                        }
+                    )
+                }
+            }
         }
     }
 
@@ -197,15 +376,27 @@ struct HomeDashboardView: View {
 
     /// Renders the selected-day hero plus action-oriented learning insights.
     private var statsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HomeAnalyticsHeroCard(
-                overview: dashboardSnapshot.selectedDayOverview,
-                weeklyMomentum: dashboardSnapshot.weeklyMomentum
-            )
+        Group {
+            if usesPadDashboardColumns {
+                HStack(alignment: .top, spacing: 16) {
+                    HomeSelectedDayInsightsCard(summary: dashboardSnapshot.selectedDayInsight)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
 
-            HomeSelectedDayInsightsCard(summary: dashboardSnapshot.selectedDayInsight)
+                    HomeWeeklyMomentumCard(summary: dashboardSnapshot.weeklyMomentum)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 16) {
+                    HomeAnalyticsHeroCard(
+                        overview: dashboardSnapshot.selectedDayOverview,
+                        weeklyMomentum: dashboardSnapshot.weeklyMomentum
+                    )
 
-            HomeWeeklyMomentumCard(summary: dashboardSnapshot.weeklyMomentum)
+                    HomeSelectedDayInsightsCard(summary: dashboardSnapshot.selectedDayInsight)
+
+                    HomeWeeklyMomentumCard(summary: dashboardSnapshot.weeklyMomentum)
+                }
+            }
         }
     }
 
@@ -269,11 +460,13 @@ struct HomeDashboardView: View {
             if folders.isEmpty {
                 EmptyStatePlaceholderFolderCard(
                     icon: "folder.badge.plus",
-                    message: "No folders yet. Create one to organize your decks."
+                    message: allDeckCount == 0
+                        ? "Create a folder now or after your first deck to keep Home organized."
+                        : "No folders yet. Create one to organize your decks."
                 )
             } else {
                 LazyVGrid(
-                    columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
+                    columns: folderColumns,
                     spacing: 16
                 ) {
                     ForEach(folders) { folder in
