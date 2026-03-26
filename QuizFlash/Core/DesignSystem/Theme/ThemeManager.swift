@@ -7,6 +7,11 @@
 
 import SwiftUI
 
+enum AppScreenBackgroundStyle {
+    case primary
+    case grouped
+}
+
 // MARK: - Accent Color Option
 
 /// Defines the available accent colours for the application's theme.
@@ -83,6 +88,23 @@ final class ThemeManager {
     var accentColor: AccentColorOption {
         didSet {
             UserDefaults.standard.set(accentColor.rawValue, forKey: accentColorKey)
+        }
+    }
+
+    var screenBackground: Color {
+        .black
+    }
+
+    var groupedScreenBackground: Color {
+        .black
+    }
+
+    func backgroundColor(for style: AppScreenBackgroundStyle) -> Color {
+        switch style {
+        case .primary:
+            screenBackground
+        case .grouped:
+            groupedScreenBackground
         }
     }
 

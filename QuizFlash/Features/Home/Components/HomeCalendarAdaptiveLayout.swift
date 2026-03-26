@@ -143,15 +143,17 @@ struct HomeCalendarAdaptiveLayout: Equatable {
         } else {
             expandedColumnSpacing = 0
             if resolvedKind == .pad {
-                let targetShare: CGFloat = mode == .wide ? 0.68 : 0.72
-                let minimumWidth = min(availableContentWidth, 500.0)
-                expandedCalendarWidth = max(
-                    HomeCalendarAdaptiveLayout
-                        .rounded(availableContentWidth * targetShare),
+                let targetShare: CGFloat = 0.42
+                let maximumWidth: CGFloat = 640
+                let minimumWidth = min(availableContentWidth, 400.0)
+                let targetWidth = max(
+                    HomeCalendarAdaptiveLayout.rounded(availableContentWidth * targetShare),
                     minimumWidth
                 )
+                expandedCalendarWidth = min(targetWidth, min(availableContentWidth, maximumWidth))
             } else {
-                expandedCalendarWidth = availableContentWidth
+                let maximumWidth: CGFloat = 360
+                expandedCalendarWidth = min(availableContentWidth, maximumWidth)
             }
             expandedCompanionWidth = 0
         }
@@ -187,9 +189,8 @@ struct HomeCalendarAdaptiveLayout: Equatable {
         let expandedWeekLabelHeight = usesRegularMetrics
             ? Self.rounded(Self.interpolate(from: 22, to: 24, progress: widthProgress))
             : 18
-        let expandedRowHeight = usesRegularMetrics
-            ? Self.rounded(min(max((expandedCalendarWidth / 7) * 0.62, 50), 76))
-            : Self.rounded(Self.interpolate(from: 40, to: 48, progress: widthProgress))
+        let expandedDayColumnWidth = Self.rounded(max(28, expandedCalendarWidth / 7))
+        let expandedRowHeight = Self.rounded(expandedDayColumnWidth)
 
         let collapsedWeekdayFontSize: CGFloat = usesRegularMetrics ? 12 : 11
         let collapsedWeekLabelHeight: CGFloat = usesRegularMetrics ? 18 : 16
@@ -219,7 +220,7 @@ struct HomeCalendarAdaptiveLayout: Equatable {
             weekdayFontSize: expandedWeekdayFontSize,
             weekLabelHeight: expandedWeekLabelHeight,
             rowHeight: expandedRowHeight,
-            dayColumnWidth: max(28, expandedCalendarWidth / 7),
+            dayColumnWidth: expandedDayColumnWidth,
             verticalPadding: 0,
             horizontalPadding: 0,
             cornerRadius: 0,
@@ -247,7 +248,7 @@ struct HomeCalendarAdaptiveLayout: Equatable {
     // MARK: - Derived Metrics
 
     var headerColumnWidth: CGFloat {
-        kind == .pad ? expandedCalendarWidth : availableContentWidth
+        max(expandedCalendarWidth, compactCapsuleWidth)
     }
 
     var expandedGridWidth: CGFloat {
@@ -597,7 +598,13 @@ struct HomeCalendarDayMetrics: Equatable {
 
         highlightDiameter = min(dayColumnWidth * highlightWidthScale, rowHeight * highlightHeightScale)
         streakRingLineWidth = HomeCalendarAdaptiveLayout.interpolate(from: 1.5, to: 1.0, progress: progress)
-        fontSize = min(max(rowHeight * HomeCalendarAdaptiveLayout.interpolate(from: 0.23, to: 0.36, progress: progress), 12), 18)
+        fontSize = min(
+            max(
+                rowHeight * HomeCalendarAdaptiveLayout.interpolate(from: 0.21, to: 0.33, progress: progress),
+                12
+            ),
+            18
+        )
         valueFontSize = min(max(rowHeight * 0.20, 14), 22)
         captionFontSize = min(max(rowHeight * 0.11, 10), 12)
         tilePadding = min(max(minDimension * 0.12, 6), 10)

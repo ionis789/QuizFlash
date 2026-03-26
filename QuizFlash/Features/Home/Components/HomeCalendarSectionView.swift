@@ -4,8 +4,8 @@
 // A sticky, collapsible calendar header for the Home screen.
 // Transitions from a fully expanded month grid to a compact single-week row
 // as the user scrolls the underlying content upward.
-
 import SwiftUI
+import UIKit
 
 // MARK: - Home Calendar Section View
 
@@ -21,7 +21,6 @@ import SwiftUI
 ///   hardcoded values.
 struct HomeCalendarSectionView: View {
     @Environment(AppPreferences.self) private var appPreferences
-    @State private var expandedMonthPageSelection = 1
 
     // MARK: - Dependencies
 
@@ -130,7 +129,9 @@ struct HomeCalendarSectionView: View {
                 progress: progress,
                 state: state
             )
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: calendarColumnWidth, alignment: .leading)
+            .frame(width: layout.headerColumnWidth, alignment: .center)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
@@ -142,8 +143,11 @@ struct HomeCalendarSectionView: View {
         progress: CGFloat,
         state: HomeCalendarAdaptiveLayout.State
     ) -> some View {
+        let totalGridHeight = CGFloat(calendarVM.monthRows.count) * state.rowHeight
         let isCompactStripActive = progress >= 0.999
-        let visibleGridWidth = state.dayColumnWidth * 7
+        let usesMonthPager = progress < 0.001
+        let pagerState = layout.expanded
+        let visibleGridWidth = (usesMonthPager ? pagerState.dayColumnWidth : state.dayColumnWidth) * 7
         let capsuleWidth = layout.capsuleWidth(for: progress)
 
         VStack(spacing: 0) {
@@ -151,9 +155,18 @@ struct HomeCalendarSectionView: View {
                 .frame(width: visibleGridWidth, alignment: .leading)
 
             ZStack(alignment: .top) {
-                if !isCompactStripActive {
-                    expandedMonthPager(progress: progress, state: state)
+                if !isCompactStripActive && usesMonthPager {
+                    expandedMonthPager(progress: 0, state: pagerState)
                         .frame(width: visibleGridWidth, alignment: .leading)
+                }
+
+                if !isCompactStripActive && !usesMonthPager {
+                    dayGrid(
+                        totalGridHeight: totalGridHeight,
+                        progress: progress,
+                        state: state
+                    )
+                    .frame(width: visibleGridWidth, alignment: .leading)
                 }
 
                 if isCompactStripActive && !compactWeekPages.isEmpty {
@@ -172,7 +185,7 @@ struct HomeCalendarSectionView: View {
                 }
             }
             .frame(
-                height: visibleMonthGridHeight(progress: progress, state: state),
+                height: state.rowHeight + (totalGridHeight - state.rowHeight) * (1 - progress),
                 alignment: .top
             )
             .clipped()
@@ -201,24 +214,22 @@ struct HomeCalendarSectionView: View {
         progress: CGFloat,
         state: HomeCalendarAdaptiveLayout.State
     ) -> some View {
-        let snapshots = expandedMonthSnapshots
-
-        TabView(selection: $expandedMonthPageSelection) {
-            ForEach(Array(snapshots.enumerated()), id: \.offset) { index, snapshot in
-                dayGrid(
-                    snapshot: snapshot,
-                    totalGridHeight: CGFloat(snapshot.rows.count) * state.rowHeight,
-                    progress: progress,
-                    state: state
-                )
-                .frame(width: state.dayColumnWidth * 7, alignment: .leading)
-                .tag(index)
+        ExpandedMonthPagerHost(
+            snapshots: [-1, 0, 1].map { calendarVM.monthSnapshot(offsetBy: $0) },
+            progress: 0,
+            state: state,
+            calendarInsightsCache: calendarInsightsCache,
+            onSelectDay: { day in
+                calendarVM.selectDate(day.date)
+            },
+            onMonthOffset: { offset in
+                withAnimation(.snappy(duration: 0.26, extraBounce: 0.02)) {
+                    calendarVM.applyMonthOffset(offset)
+                }
             }
-        }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .onChange(of: expandedMonthPageSelection) { _, newValue in
-            handleExpandedMonthPageChange(newValue)
-        }
+        )
+        .frame(width: state.dayColumnWidth * 7)
+        .clipped()
     }
 
     /// A horizontal row displaying abbreviated weekday symbols (e.g., Sun, Mon).
@@ -247,14 +258,13 @@ struct HomeCalendarSectionView: View {
     /// the active row's position during the collapse animation.
     @ViewBuilder
     private func dayGrid(
-        snapshot: CalendarViewModel.MonthSnapshot,
         totalGridHeight: CGFloat,
         progress: CGFloat,
         state: HomeCalendarAdaptiveLayout.State
     ) -> some View {
         VStack(spacing: 0) {
-            ForEach(Array(snapshot.rows.enumerated()), id: \.element.first?.id) { rowIndex, row in
-                let distance = abs(CGFloat(rowIndex) - snapshot.monthProgress)
+            ForEach(Array(calendarVM.monthRows.enumerated()), id: \.element.first?.id) { rowIndex, row in
+                let distance = abs(CGFloat(rowIndex) - calendarVM.monthProgress)
                 let rowOpacity = max(0, 1.0 - distance * progress)
 
                 HStack(spacing: 0) {
@@ -279,7 +289,7 @@ struct HomeCalendarSectionView: View {
             }
         }
         .frame(height: totalGridHeight, alignment: .top)
-        .offset(y: -(snapshot.monthProgress * state.rowHeight) * progress)
+        .offset(y: -(calendarVM.monthProgress * state.rowHeight) * progress)
     }
 
     /// A minimal button for advancing or rewinding the displayed month.
@@ -287,7 +297,9 @@ struct HomeCalendarSectionView: View {
     /// - Parameter increment: `true` to move forward one month, `false` to go back.
     private func chevronButton(increment: Bool, size: CGFloat) -> some View {
         Button {
-            calendarVM.monthUpdate(increment: increment)
+            withAnimation(.snappy(duration: 0.26, extraBounce: 0.02)) {
+                calendarVM.monthUpdate(increment: increment)
+            }
         } label: {
             Image(systemName: increment ? "chevron.right" : "chevron.left")
                 .font(.system(size: size * 0.48, weight: .semibold))
@@ -302,28 +314,206 @@ struct HomeCalendarSectionView: View {
         calendarVM.monthRows
     }
 
-    private var expandedMonthSnapshots: [CalendarViewModel.MonthSnapshot] {
-        [-1, 0, 1].map { calendarVM.monthSnapshot(offsetBy: $0) }
-    }
+}
 
-    private func visibleMonthGridHeight(
-        progress: CGFloat,
-        state: HomeCalendarAdaptiveLayout.State
-    ) -> CGFloat {
-        let totalGridHeight = CGFloat(calendarVM.monthRows.count) * state.rowHeight
-        return state.rowHeight + (totalGridHeight - state.rowHeight) * (1 - progress)
-    }
+// MARK: - Month Grid Page View
 
-    private func handleExpandedMonthPageChange(_ page: Int) {
-        guard page != 1 else { return }
+private struct MonthGridPageView: View {
+    let snapshot: CalendarViewModel.MonthSnapshot
+    let progress: CGFloat
+    let state: HomeCalendarAdaptiveLayout.State
+    let calendarInsightsCache: [String: HomeCalendarDayInsight]
+    let onSelectDay: (Day) -> Void
 
-        calendarVM.applyMonthOffset(page == 0 ? -1 : 1)
+    var body: some View {
+        let totalGridHeight = CGFloat(snapshot.rows.count) * state.rowHeight
 
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            expandedMonthPageSelection = 1
+        VStack(spacing: 0) {
+            ForEach(Array(snapshot.rows.enumerated()), id: \.element.first?.id) { rowIndex, row in
+                let distance = abs(CGFloat(rowIndex) - snapshot.monthProgress)
+                let rowOpacity = max(0, 1.0 - distance * progress)
+
+                HStack(spacing: 0) {
+                    ForEach(row) { day in
+                        CalendarDayCellView(
+                            day: day,
+                            insight: calendarInsightsCache[day.dateString],
+                            collapseProgress: progress,
+                            dayColumnWidth: state.dayColumnWidth,
+                            rowHeight: state.rowHeight
+                        )
+                        .frame(width: state.dayColumnWidth, height: state.rowHeight)
+                        .onTapGesture {
+                            onSelectDay(day)
+                        }
+                    }
+                }
+                .frame(width: state.dayColumnWidth * 7, height: state.rowHeight, alignment: .leading)
+                .opacity(rowOpacity)
+                .transaction { $0.animation = nil }
+            }
         }
+        .frame(height: totalGridHeight, alignment: .top)
+        .offset(y: -(snapshot.monthProgress * state.rowHeight) * progress)
+    }
+}
+
+// MARK: - Expanded Month Pager Host
+
+private struct ExpandedMonthPagerHost: UIViewControllerRepresentable {
+    let snapshots: [CalendarViewModel.MonthSnapshot]
+    let progress: CGFloat
+    let state: HomeCalendarAdaptiveLayout.State
+    let calendarInsightsCache: [String: HomeCalendarDayInsight]
+    let onSelectDay: (Day) -> Void
+    let onMonthOffset: (Int) -> Void
+
+    func makeUIViewController(context: Context) -> ExpandedMonthPagerController {
+        let controller = ExpandedMonthPagerController()
+        controller.view.backgroundColor = .clear
+        controller.onMonthOffset = onMonthOffset
+        controller.configure(
+            snapshots: snapshots,
+            progress: progress,
+            state: state,
+            calendarInsightsCache: calendarInsightsCache,
+            onSelectDay: onSelectDay
+        )
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: ExpandedMonthPagerController, context: Context) {
+        uiViewController.onMonthOffset = onMonthOffset
+        uiViewController.configure(
+            snapshots: snapshots,
+            progress: progress,
+            state: state,
+            calendarInsightsCache: calendarInsightsCache,
+            onSelectDay: onSelectDay
+        )
+    }
+}
+
+private final class ExpandedMonthPagerController: UIPageViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
+    var onMonthOffset: ((Int) -> Void)?
+
+    private var pageControllers: [MonthGridHostingController] = []
+    private var centeredMonthStart: Date?
+
+    init() {
+        super.init(transitionStyle: .scroll, navigationOrientation: .horizontal)
+        dataSource = self
+        delegate = self
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .clear
+    }
+
+    func configure(
+        snapshots: [CalendarViewModel.MonthSnapshot],
+        progress: CGFloat,
+        state: HomeCalendarAdaptiveLayout.State,
+        calendarInsightsCache: [String: HomeCalendarDayInsight],
+        onSelectDay: @escaping (Day) -> Void
+    ) {
+        guard snapshots.count == 3 else { return }
+
+        let monthChanged = centeredMonthStart != snapshots[1].monthStart || pageControllers.count != snapshots.count
+
+        if monthChanged {
+            pageControllers = snapshots.enumerated().map { index, snapshot in
+                MonthGridHostingController(
+                    pageIndex: index,
+                    rootView: MonthGridPageView(
+                        snapshot: snapshot,
+                        progress: progress,
+                        state: state,
+                        calendarInsightsCache: calendarInsightsCache,
+                        onSelectDay: onSelectDay
+                    )
+                )
+            }
+            centeredMonthStart = snapshots[1].monthStart
+            setViewControllers([pageControllers[1]], direction: .forward, animated: false)
+        } else {
+            for (index, controller) in pageControllers.enumerated() {
+                controller.rootView = MonthGridPageView(
+                    snapshot: snapshots[index],
+                    progress: progress,
+                    state: state,
+                    calendarInsightsCache: calendarInsightsCache,
+                    onSelectDay: onSelectDay
+                )
+            }
+        }
+    }
+
+    func pageViewController(
+        _ pageViewController: UIPageViewController,
+        viewControllerBefore viewController: UIViewController
+    ) -> UIViewController? {
+        guard
+            let controller = viewController as? MonthGridHostingController,
+            controller.pageIndex > 0
+        else { return nil }
+
+        return pageControllers[controller.pageIndex - 1]
+    }
+
+    func pageViewController(
+        _ pageViewController: UIPageViewController,
+        viewControllerAfter viewController: UIViewController
+    ) -> UIViewController? {
+        guard
+            let controller = viewController as? MonthGridHostingController,
+            controller.pageIndex < pageControllers.count - 1
+        else { return nil }
+
+        return pageControllers[controller.pageIndex + 1]
+    }
+
+    func pageViewController(
+        _ pageViewController: UIPageViewController,
+        didFinishAnimating finished: Bool,
+        previousViewControllers: [UIViewController],
+        transitionCompleted completed: Bool
+    ) {
+        guard
+            finished,
+            completed,
+            let controller = viewControllers?.first as? MonthGridHostingController
+        else { return }
+
+        switch controller.pageIndex {
+        case 0:
+            onMonthOffset?(-1)
+        case 2:
+            onMonthOffset?(1)
+        default:
+            break
+        }
+    }
+}
+
+private final class MonthGridHostingController: UIHostingController<MonthGridPageView> {
+    let pageIndex: Int
+
+    init(pageIndex: Int, rootView: MonthGridPageView) {
+        self.pageIndex = pageIndex
+        super.init(rootView: rootView)
+        view.backgroundColor = .clear
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 }
 
@@ -362,12 +552,20 @@ struct CalendarDayCellView: View {
         insight?.isPerfectDay ?? false
     }
 
-    private var activityFraction: Double {
-        insight?.activityFraction ?? 0
+    private var hasExamGoal: Bool {
+        insight?.hasExamGoal ?? false
     }
 
-    private var shouldShowInnerHighlight: Bool {
-        day.isSelected || isToday
+    private var hasGoalNote: Bool {
+        insight?.hasGoalNote ?? false
+    }
+
+    private var examGoalCount: Int {
+        insight?.examGoalCount ?? 0
+    }
+
+    private var activityFraction: Double {
+        insight?.activityFraction ?? 0
     }
 
     private var metrics: HomeCalendarDayMetrics {
@@ -375,28 +573,30 @@ struct CalendarDayCellView: View {
             collapseProgress: collapseProgress,
             dayColumnWidth: dayColumnWidth,
             rowHeight: rowHeight,
-            hasGoalNote: false,
-            hasExamGoalCount: false,
-            isHighlighted: shouldShowInnerHighlight
+            hasGoalNote: hasGoalNote,
+            hasExamGoalCount: examGoalCount > 1,
+            isHighlighted: day.isSelected || isToday || didStudy
         )
     }
 
     // MARK: - Styling
 
-    private var highlightFillColor: Color {
+    private var tileFillColor: Color {
+        if day.ignored { return .clear }
         if day.isSelected { return .white }
         if isToday { return accent }
         if isPerfectDay { return .green }
         if didStudy { return accent }
-        return .clear
+        return .white
     }
 
-    private var highlightOpacity: Double {
+    private var tileFillOpacity: Double {
+        if day.ignored { return 0 }
         if day.isSelected { return 1.0 }
-        if isToday { return didStudy ? 0.28 : 0.18 }
-        if isPerfectDay { return 0.22 + (activityFraction * 0.18) }
-        if didStudy { return 0.10 + (activityFraction * 0.18) }
-        return 0
+        if isToday { return didStudy ? 0.24 : 0.16 }
+        if isPerfectDay { return 0.18 + (activityFraction * 0.10) }
+        if didStudy { return 0.12 + (activityFraction * 0.08) }
+        return 0.06
     }
 
     private var textColor: Color {
@@ -404,163 +604,73 @@ struct CalendarDayCellView: View {
         if isToday { return accent }
         if isPerfectDay { return .green }
         if didStudy { return accent.opacity(0.92) }
-        if day.ignored { return .secondary.opacity(0.12) }
+        if day.ignored { return .secondary.opacity(0.3) }
         return .primary
     }
 
-    private var expandedTileInset: CGFloat {
-        min(max(min(dayColumnWidth, rowHeight) * 0.035, 2), 5)
+    private var tileSize: CGFloat {
+        if day.ignored { return 0 }
+        let cellMinDimension = min(dayColumnWidth, rowHeight)
+        let scale: CGFloat = cellMinDimension >= 72 ? 0.62 : 0.70
+        return max(cellMinDimension * scale, 0)
     }
 
-    private var expandedTileCornerRadius: CGFloat {
-        min(max(min(dayColumnWidth, rowHeight) * 0.18, 14), 24)
-    }
-
-    private var expandedTileBackgroundColor: Color {
-        if day.ignored {
-            return Color.white.opacity(0.008)
+    private var examMarkerColor: Color {
+        if examGoalCount > 1 {
+            return accent.opacity(0.95)
         }
-        if day.isSelected {
-            return Color.white.opacity(0.10)
-        }
-        if isToday {
-            return accent.opacity(0.16)
-        }
-        if didStudy {
-            return isPerfectDay ? Color.green.opacity(0.16) : accent.opacity(0.14)
-        }
-        return Color.white.opacity(0.06)
+        return accent
     }
 
-    private var dayBadgeFillColor: Color {
-        if day.isSelected { return .white }
-        if isToday { return accent }
-        return .clear
-    }
-
-    private var shouldFillDayBadge: Bool {
-        day.isSelected || isToday
-    }
-
-    private var dayBadgeTextColor: Color {
-        if day.isSelected { return .black }
-        if isToday { return .white }
-        if isPerfectDay { return .green }
-        if didStudy { return accent.opacity(0.95) }
-        if day.ignored { return .secondary.opacity(0.16) }
-        return .primary
-    }
-
-    private var waterFillColor: Color {
-        if isPerfectDay {
-            return Color.green.opacity(day.isSelected ? 0.42 : 0.38)
-        }
-        return accent.opacity(day.isSelected ? 0.38 : 0.34)
-    }
-
-    private var waterFillFraction: CGFloat {
-        CGFloat(max(activityFraction, 0.12))
-    }
-
-    private var expandedDayFontSize: CGFloat {
-        min(max(rowHeight * 0.20, 14), 18)
-    }
-
-    private var expandedBadgeDiameter: CGFloat {
-        min(max(rowHeight * 0.34, 28), 40)
-    }
-
-    private var compactTransitionProgress: CGFloat {
-        max(0, min((collapseProgress - 0.42) / 0.22, 1))
-    }
-
-    private func interpolated(_ from: CGFloat, _ to: CGFloat) -> CGFloat {
-        from + ((to - from) * compactTransitionProgress)
-    }
-
-    private var transitionCenterX: CGFloat {
-        let expandedX = metrics.tilePadding + (expandedBadgeDiameter / 2)
-        let compactX = dayColumnWidth / 2
-        return interpolated(expandedX, compactX)
-    }
-
-    private var transitionCenterY: CGFloat {
-        let expandedY = metrics.tilePadding + (expandedBadgeDiameter / 2)
-        let compactY = rowHeight / 2
-        return interpolated(expandedY, compactY)
-    }
-
-    private var transitionBadgeDiameter: CGFloat {
-        interpolated(expandedBadgeDiameter, metrics.highlightDiameter)
-    }
-
-    private var transitionFontSize: CGFloat {
-        interpolated(expandedDayFontSize, metrics.fontSize)
-    }
-
-    private var expandedLayerOpacity: CGFloat {
-        1 - compactTransitionProgress
-    }
-
-    private var compactHighlightOpacity: Double {
-        Double(compactTransitionProgress) * highlightOpacity
+    private var noteMarkerColor: Color {
+        .orange
     }
 
     // MARK: - Body
 
     var body: some View {
-        transitioningCellBody
-        .contentShape(Rectangle())
-        .zIndex(day.isSelected ? 1 : 0)
+        Text(day.shortSymbol)
+            .font(.system(
+                size: metrics.fontSize,
+                weight: (day.isSelected || isToday) ? .bold : .medium,
+                design: .rounded
+            ))
+            .foregroundStyle(textColor)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                ZStack {
+                    Circle()
+                        .fill(tileFillColor.opacity(tileFillOpacity))
+                        .frame(width: tileSize, height: tileSize)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if hasExamGoal && !day.isSelected {
+                    HStack(spacing: metrics.markerSpacing) {
+                        markerShape(color: examMarkerColor)
+
+                        if metrics.showsSecondaryNoteMarker {
+                            markerShape(color: noteMarkerColor)
+                        }
+                    }
+                    .offset(y: metrics.markerOffsetY)
+                }
+            }
+            .contentShape(Rectangle())
+            .zIndex(day.isSelected ? 1 : 0)
     }
 
-    private var transitioningCellBody: some View {
-        ZStack(alignment: .topLeading) {
-            let tileShape = RoundedRectangle(
-                cornerRadius: expandedTileCornerRadius,
-                style: .continuous
-            )
-
-            tileShape
-                .fill(expandedTileBackgroundColor)
-                .opacity(expandedLayerOpacity)
-
-            if didStudy && !day.ignored {
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
-
-                    Rectangle()
-                        .fill(waterFillColor)
-                        .frame(height: max((rowHeight - (metrics.tilePadding * 2)) * waterFillFraction, 8))
-                        .frame(maxWidth: .infinity)
-                }
-                .clipShape(tileShape)
-                .opacity(expandedLayerOpacity)
-            }
-
+    @ViewBuilder
+    private func markerShape(color: Color) -> some View {
+        if metrics.usesMarkerCapsule {
+            Capsule()
+                .fill(color)
+                .frame(width: metrics.markerCapsuleWidth, height: metrics.markerDotSize)
+        } else {
             Circle()
-                .fill(highlightFillColor.opacity(compactHighlightOpacity))
-                .frame(width: transitionBadgeDiameter, height: transitionBadgeDiameter)
-                .position(x: transitionCenterX, y: transitionCenterY)
-
-            Text(day.shortSymbol)
-                .font(.system(
-                    size: transitionFontSize,
-                    weight: (day.isSelected || isToday) ? .bold : .semibold,
-                    design: .rounded
-                ))
-                .foregroundStyle(dayBadgeTextColor)
-                .frame(width: transitionBadgeDiameter, height: transitionBadgeDiameter, alignment: .center)
-                .background {
-                    if shouldFillDayBadge {
-                        Circle()
-                            .fill(dayBadgeFillColor)
-                            .opacity(expandedLayerOpacity)
-                    }
-                }
-                .position(x: transitionCenterX, y: transitionCenterY)
+                .fill(color)
+                .frame(width: metrics.markerDotSize, height: metrics.markerDotSize)
         }
-        .padding(expandedTileInset)
     }
 }
 

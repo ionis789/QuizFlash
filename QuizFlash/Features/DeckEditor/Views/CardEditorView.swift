@@ -9,6 +9,7 @@ import SwiftUI
 
 struct CardEditorView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(ThemeManager.self) private var themeManager
 
     let destination: CardEditorDestination
     var searchQuery: String? = nil
@@ -67,7 +68,7 @@ struct CardEditorView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(UIConstants.Spacing.extraLarge)
-            .background(Color(.systemBackground))
+            .background(themeManager.screenBackground)
             .navigationTitle("Card Editor")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

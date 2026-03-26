@@ -23,6 +23,7 @@ struct DeckContentView: View {
     @Environment(NavigationManager.self) private var router
     @Environment(AIWorkspaceCoordinator.self) private var aiWorkspaceCoordinator
     @Environment(\.dismiss) private var dismiss
+    @Environment(ThemeManager.self) private var themeManager
     @Bindable var deck: DeckModel
     let searchQuery: String?
     let ownerTab: AppTabBar
@@ -557,7 +558,7 @@ struct DeckContentView: View {
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .background {
-                Color(.systemGroupedBackground)
+                themeManager.groupedScreenBackground
 
                 if viewModel.isSelecting {
                     Color.clear
@@ -578,7 +579,7 @@ struct DeckContentView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Color.clear.frame(height: bottomContentInset)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(themeManager.groupedScreenBackground)
 
         return scrollView
     }
@@ -1187,6 +1188,8 @@ struct DeckContentView: View {
 // MARK: - iOS 17 Retain Cycle Wrapper
 
 struct DeckView: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let deck: DeckModel
     let searchQuery: String?
     let backLabel: String
@@ -1212,7 +1215,7 @@ struct DeckView: View {
                     viewModel: vm
                 )
             } else {
-                Color(.systemGroupedBackground)
+                themeManager.groupedScreenBackground
                     .onAppear {
                         if self.viewModel == nil {
                             self.viewModel = DeckViewModel(searchQuery: searchQuery)

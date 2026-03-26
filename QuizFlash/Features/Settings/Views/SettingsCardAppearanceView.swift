@@ -55,6 +55,7 @@ enum CardContentMode: String, CaseIterable {
 struct SettingsCardAppearanceView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(ThemeManager.self) private var themeManager
 
     @AppStorage(CardContentMode.storageKey)
     private var rawMode: String = CardContentMode.scaleToFit.rawValue
@@ -208,7 +209,7 @@ struct SettingsCardAppearanceView: View {
     // MARK: - Background
 
     private var background: some View {
-        Color(uiColor: .systemGroupedBackground)
+        themeManager.groupedScreenBackground
     }
 }
 

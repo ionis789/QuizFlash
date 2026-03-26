@@ -354,6 +354,8 @@ struct FlashCardsPlayModeView: View {
 /// the closure-based initialisation escapes the cover's internal storage before
 /// the persistent reference is established.
 struct DefaultModePlay: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let deck: DeckModel
     var safeAreaInsets: UIEdgeInsets = .zero
 
@@ -368,7 +370,7 @@ struct DefaultModePlay: View {
                     viewModel: vm
                 )
             } else {
-                Color(uiColor: .systemBackground)
+                themeManager.screenBackground
                     .onAppear {
                     if self.viewModel == nil {
                         self.viewModel = FlashCardsPlayModeViewModel(

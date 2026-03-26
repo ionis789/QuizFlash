@@ -352,8 +352,10 @@ final class CalendarViewModel {
             ))
         }
 
-        let minimumVisibleCells = 42
-        let trailingPadding = max((7 - (days.count % 7)) % 7, minimumVisibleCells - days.count)
+        // Pad only enough to complete the final week row — no forced minimum.
+        // Showing a full extra row of next-month days when the month fits in 5 rows
+        // adds visual noise without benefit; each month now occupies its natural row count.
+        let trailingPadding = (7 - (days.count % 7)) % 7
         if trailingPadding > 0 {
             for index in 0..<trailingPadding {
                 if let date = calendar.date(byAdding: .day, value: index + 1, to: lastDate) {

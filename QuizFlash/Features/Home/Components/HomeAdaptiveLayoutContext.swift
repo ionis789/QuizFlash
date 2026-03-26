@@ -119,7 +119,7 @@ enum HomeLayoutMode: Equatable {
 /// The single source of truth for Home composition and width-driven layout decisions.
 struct HomeAdaptiveLayoutContext: Equatable {
     static let widthThresholds = AdaptiveLayoutWidthThresholds(
-        medium: 580,
+        medium: 430,
         wide: 860
     )
     static let minimumRegularCalendarWidth: CGFloat = 500

@@ -12,6 +12,8 @@ import SwiftData
 
 /// Lazy wrapper that avoids initializing the quiz view model inside the full-screen cover path.
 struct QuizModeView: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let deck: DeckModel
     let safeAreaInsets: UIEdgeInsets
     let availability: PlayModeCardAvailability
@@ -28,7 +30,7 @@ struct QuizModeView: View {
                     viewModel: viewModel
                 )
             } else {
-                Color(uiColor: .systemBackground)
+                themeManager.screenBackground
                     .onAppear {
                         if viewModel == nil {
                             viewModel = QuizModeViewModel(

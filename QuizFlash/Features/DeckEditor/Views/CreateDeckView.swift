@@ -31,6 +31,7 @@ struct CreateDeckView: View {
     @Environment(NavigationManager.self) private var router
     @Environment(AIWorkspaceCoordinator.self) private var aiWorkspaceCoordinator
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
 
     /// Fetches all available folders to populate the destination picker.
     @Query(sort: \FolderModel.createdAt, order: .reverse) private var folders: [FolderModel]
@@ -425,7 +426,7 @@ struct CreateDeckView: View {
                     if fullScreenSheetDismiss != nil {
                         Color.clear
                     } else {
-                        Color(uiColor: .systemGroupedBackground)
+                        themeManager.groupedScreenBackground
                             .ignoresSafeArea()
                     }
 
@@ -969,7 +970,7 @@ private extension CreateDeckView {
         if isShowingConversionConfiguration {
             GeometryReader { proxy in
                 ZStack {
-                    Color(uiColor: .systemGroupedBackground)
+                    themeManager.groupedScreenBackground
                         .opacity(0.985)
                         .ignoresSafeArea()
                         .contentShape(Rectangle())

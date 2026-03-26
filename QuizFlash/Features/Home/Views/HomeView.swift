@@ -97,145 +97,149 @@ struct HomeView: View {
             // MARK: Scroll Geometry
 
             // MARK: Content
+            ZStack {
+                Color.black
+                    .ignoresSafeArea()
 
-            ScrollView(.vertical) {
-                VStack(spacing: 0) {
-                    calendarHeader(layout: calendarLayout)
-                        .zIndex(100)
+                ScrollView(.vertical) {
+                    VStack(spacing: 0) {
+                        calendarHeader(layout: calendarLayout)
+                            .zIndex(100)
 
-                    calendarTransitionBand(horizontalInset: calendarLayout.outerHorizontalInset)
+                        calendarTransitionBand(horizontalInset: calendarLayout.outerHorizontalInset)
 
-                    HomeDashboardView(
-                        viewModel: viewModel,
-                        folders: folders,
-                        recentDecks: recentlyOpenedDecks,
-                        layoutContext: layoutContext,
-                        greetingSummary: greetingSummary,
-                        allDeckCount: allDecks.count,
-                        examGoals: examGoals,
-                        router: router
-                    )
-                    .frame(minHeight: proxy.size.height - calendarLayout.compactHeight)
-                    .zIndex(1)
+                        HomeDashboardView(
+                            viewModel: viewModel,
+                            folders: folders,
+                            recentDecks: recentlyOpenedDecks,
+                            layoutContext: layoutContext,
+                            greetingSummary: greetingSummary,
+                            allDeckCount: allDecks.count,
+                            examGoals: examGoals,
+                            router: router
+                        )
+                        .frame(minHeight: proxy.size.height - calendarLayout.compactHeight)
+                        .zIndex(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .top)
                 }
-                .frame(maxWidth: .infinity, alignment: .top)
-            }
-            .scrollIndicators(.hidden)
-            .ignoresSafeArea(.container, edges: .top)
-            .toolbar(.hidden)
-            .background(Color(.systemBackground).ignoresSafeArea())
-            .onAppear {
-                logLayoutIfNeeded(
-                    containerWidth: proxy.size.width,
-                    safeAreaTop: safeAreaTop,
-                    layoutContext: layoutContext,
-                    calendarLayout: calendarLayout
-                )
-            }
-            .onChange(
-                of: homeLayoutSignature(
-                    containerWidth: proxy.size.width,
-                    safeAreaTop: safeAreaTop,
-                    layoutContext: layoutContext,
-                    calendarLayout: calendarLayout
-                )
-            ) { _, _ in
-                logLayoutIfNeeded(
-                    containerWidth: proxy.size.width,
-                    safeAreaTop: safeAreaTop,
-                    layoutContext: layoutContext,
-                    calendarLayout: calendarLayout
-                )
-            }
+                .scrollIndicators(.hidden)
+                .ignoresSafeArea(.container, edges: .top)
+                .toolbar(.hidden)
+                .background(Color.clear)
+                .onAppear {
+                    logLayoutIfNeeded(
+                        containerWidth: proxy.size.width,
+                        safeAreaTop: safeAreaTop,
+                        layoutContext: layoutContext,
+                        calendarLayout: calendarLayout
+                    )
+                }
+                .onChange(
+                    of: homeLayoutSignature(
+                        containerWidth: proxy.size.width,
+                        safeAreaTop: safeAreaTop,
+                        layoutContext: layoutContext,
+                        calendarLayout: calendarLayout
+                    )
+                ) { _, _ in
+                    logLayoutIfNeeded(
+                        containerWidth: proxy.size.width,
+                        safeAreaTop: safeAreaTop,
+                        layoutContext: layoutContext,
+                        calendarLayout: calendarLayout
+                    )
+                }
 
-            // MARK: Lifecycle
+                // MARK: Lifecycle
 
-            .onAppear {
-                calendarVM.applyWeekStartPreference(appPreferences.weekStartDay)
-                calendarVM.setupIfNeeded()
-                viewModel.updateLogsCache(logs: dailyLogs)
-                viewModel.updateExamGoalsCache(goals: examGoals)
-                viewModel.refreshCalendarInsights(
-                    dailyLogs: dailyLogs,
-                    examGoals: examGoals,
-                    userProfile: profile
-                )
-                viewModel.refreshDashboardSnapshot(
-                    selectedDate: calendarVM.selectedDate,
-                    dailyLogs: dailyLogs,
-                    examGoals: examGoals,
-                    userProfile: profile
-                )
-            }
-            .onChange(of: appPreferences.weekStartDay) { _, newValue in
-                calendarVM.applyWeekStartPreference(newValue)
-            }
-            .onChange(of: calendarVM.selectedDate) { _, newValue in
-                viewModel.refreshDashboardSnapshot(
-                    selectedDate: newValue,
-                    dailyLogs: dailyLogs,
-                    examGoals: examGoals,
-                    userProfile: profile
-                )
-            }
-            .task(id: dailyLogsCacheSignature) {
-                viewModel.updateLogsCache(logs: dailyLogs)
-                viewModel.refreshCalendarInsights(
-                    dailyLogs: dailyLogs,
-                    examGoals: examGoals,
-                    userProfile: profile
-                )
-                viewModel.refreshDashboardSnapshot(
-                    selectedDate: calendarVM.selectedDate,
-                    dailyLogs: dailyLogs,
-                    examGoals: examGoals,
-                    userProfile: profile
-                )
-            }
-            .task(id: examGoalsCacheSignature) {
-                viewModel.updateExamGoalsCache(goals: examGoals)
-                viewModel.refreshCalendarInsights(
-                    dailyLogs: dailyLogs,
-                    examGoals: examGoals,
-                    userProfile: profile
-                )
-                viewModel.refreshDashboardSnapshot(
-                    selectedDate: calendarVM.selectedDate,
-                    dailyLogs: dailyLogs,
-                    examGoals: examGoals,
-                    userProfile: profile
-                )
-            }
-            .task(id: userProfileDashboardSignature) {
-                viewModel.refreshCalendarInsights(
-                    dailyLogs: dailyLogs,
-                    examGoals: examGoals,
-                    userProfile: profile
-                )
-                viewModel.refreshDashboardSnapshot(
-                    selectedDate: calendarVM.selectedDate,
-                    dailyLogs: dailyLogs,
-                    examGoals: examGoals,
-                    userProfile: profile
-                )
-            }
-            .task(id: deckHealthRefreshSignature) {
-                await viewModel.refreshDeckHealthSummaries(
-                    decks: allDecks,
-                    recentDecks: recentlyOpenedDecks,
-                    examGoals: examGoals,
-                    container: context.container
-                )
-            }
-            .sheet(isPresented: $viewModel.showCreateFolder) {
-                CreateFolderSheet(viewModel: viewModel)
-            }
-            .sheet(item: $viewModel.examGoalSheetPresentation, onDismiss: viewModel.resetExamGoalDraft) { presentation in
-                CreateExamGoalSheet(
-                    viewModel: viewModel,
-                    decks: allDecks,
-                    editingGoal: editingExamGoal(for: presentation)
-                )
+                .onAppear {
+                    calendarVM.applyWeekStartPreference(appPreferences.weekStartDay)
+                    calendarVM.setupIfNeeded()
+                    viewModel.updateLogsCache(logs: dailyLogs)
+                    viewModel.updateExamGoalsCache(goals: examGoals)
+                    viewModel.refreshCalendarInsights(
+                        dailyLogs: dailyLogs,
+                        examGoals: examGoals,
+                        userProfile: profile
+                    )
+                    viewModel.refreshDashboardSnapshot(
+                        selectedDate: calendarVM.selectedDate,
+                        dailyLogs: dailyLogs,
+                        examGoals: examGoals,
+                        userProfile: profile
+                    )
+                }
+                .onChange(of: appPreferences.weekStartDay) { _, newValue in
+                    calendarVM.applyWeekStartPreference(newValue)
+                }
+                .onChange(of: calendarVM.selectedDate) { _, newValue in
+                    viewModel.refreshDashboardSnapshot(
+                        selectedDate: newValue,
+                        dailyLogs: dailyLogs,
+                        examGoals: examGoals,
+                        userProfile: profile
+                    )
+                }
+                .task(id: dailyLogsCacheSignature) {
+                    viewModel.updateLogsCache(logs: dailyLogs)
+                    viewModel.refreshCalendarInsights(
+                        dailyLogs: dailyLogs,
+                        examGoals: examGoals,
+                        userProfile: profile
+                    )
+                    viewModel.refreshDashboardSnapshot(
+                        selectedDate: calendarVM.selectedDate,
+                        dailyLogs: dailyLogs,
+                        examGoals: examGoals,
+                        userProfile: profile
+                    )
+                }
+                .task(id: examGoalsCacheSignature) {
+                    viewModel.updateExamGoalsCache(goals: examGoals)
+                    viewModel.refreshCalendarInsights(
+                        dailyLogs: dailyLogs,
+                        examGoals: examGoals,
+                        userProfile: profile
+                    )
+                    viewModel.refreshDashboardSnapshot(
+                        selectedDate: calendarVM.selectedDate,
+                        dailyLogs: dailyLogs,
+                        examGoals: examGoals,
+                        userProfile: profile
+                    )
+                }
+                .task(id: userProfileDashboardSignature) {
+                    viewModel.refreshCalendarInsights(
+                        dailyLogs: dailyLogs,
+                        examGoals: examGoals,
+                        userProfile: profile
+                    )
+                    viewModel.refreshDashboardSnapshot(
+                        selectedDate: calendarVM.selectedDate,
+                        dailyLogs: dailyLogs,
+                        examGoals: examGoals,
+                        userProfile: profile
+                    )
+                }
+                .task(id: deckHealthRefreshSignature) {
+                    await viewModel.refreshDeckHealthSummaries(
+                        decks: allDecks,
+                        recentDecks: recentlyOpenedDecks,
+                        examGoals: examGoals,
+                        container: context.container
+                    )
+                }
+                .sheet(isPresented: $viewModel.showCreateFolder) {
+                    CreateFolderSheet(viewModel: viewModel)
+                }
+                .sheet(item: $viewModel.examGoalSheetPresentation, onDismiss: viewModel.resetExamGoalDraft) { presentation in
+                    CreateExamGoalSheet(
+                        viewModel: viewModel,
+                        decks: allDecks,
+                        editingGoal: editingExamGoal(for: presentation)
+                    )
+                }
             }
         }
     }
@@ -344,6 +348,8 @@ struct HomeView: View {
             layout: layout,
             calendarInsightsCache: viewModel.calendarInsightsCache
         )
+        .animation(.snappy(duration: 0.26, extraBounce: 0.02), value: calendarVM.monthRows.count)
+        .animation(.snappy(duration: 0.26, extraBounce: 0.02), value: calendarVM.selectedMonth)
     }
 
     private func handleHomeAction(_ action: HomeGreetingAction) {

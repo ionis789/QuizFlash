@@ -25,6 +25,7 @@ struct QuizFlashApp: App {
         WindowGroup {
             RootView()
                 .environment(authManager)
+                .environment(themeManager)
                 .environment(aiProviderStore)
                 .environment(appPreferences)
                 .tint(themeManager.accentColor.color)

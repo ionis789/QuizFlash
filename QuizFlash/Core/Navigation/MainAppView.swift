@@ -130,6 +130,8 @@ struct MainAppView: View {
             // safe-area-adjusted width in landscape and look subtly off-center on iPhone.
 
             ZStack(alignment: isPad ? .bottomTrailing : .bottom) {
+                Color.black
+                    .ignoresSafeArea()
 
                 // ── Navigation Layer ─────────────────────────────────────────────
                 rootTabView

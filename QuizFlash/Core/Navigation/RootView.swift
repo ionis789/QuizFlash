@@ -3,15 +3,21 @@ import SwiftUI
 struct RootView: View {
 
     @Environment(AuthManager.self) var authManager
+    @Environment(ThemeManager.self) private var themeManager
 
     var body: some View {
-        Group {
-            if authManager.isAuthenticated {
-                MainAppView()
-                    .transition(.opacity)
-            } else {
-                LoginView()
-                    .transition(.opacity)
+        ZStack {
+            themeManager.screenBackground
+                .ignoresSafeArea()
+
+            Group {
+                if authManager.isAuthenticated {
+                    MainAppView()
+                        .transition(.opacity)
+                } else {
+                    LoginView()
+                        .transition(.opacity)
+                }
             }
         }
     }

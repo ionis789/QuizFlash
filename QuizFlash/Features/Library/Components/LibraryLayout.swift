@@ -11,6 +11,7 @@ import SwiftData
 /// Handles coordinate spaces, structural overlays, safe area computation,
 /// and delegates all business logic to `LibraryViewModel`.
 struct LibraryLayout: View {
+    @Environment(ThemeManager.self) private var themeManager
 
     let decks: [DeckModel]
     let folders: [FolderModel]
@@ -52,7 +53,7 @@ struct LibraryLayout: View {
     /// Read directly from UIWindow so it is never inflated by TabView's layout.
     @State private var physicalSafeBottom: CGFloat = 0
 
-    private var backgroundTheme: Color { Color(uiColor: .systemBackground) }
+    private var backgroundTheme: Color { themeManager.screenBackground }
     private var searchTransition: Animation {
             .spring(response: UIConstants.Animation.instant, dampingFraction: 0.92)
     }

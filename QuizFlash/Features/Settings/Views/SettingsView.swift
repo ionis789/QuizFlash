@@ -163,6 +163,7 @@ struct SettingsView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .appScreenBackground(.grouped)
         .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: keyboardMonitor.isVisible ? 0 : 90)
         }
@@ -222,6 +223,7 @@ struct AppPreferencesSettingsView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .appScreenBackground(.grouped)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
     }
@@ -353,7 +355,7 @@ struct AccentColorPickerView: View {
             }
             .padding(.top, 20)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .appScreenBackground(.grouped)
         // Keep the UI fully immersive by hiding the navigation bar
         .toolbar(.hidden, for: .navigationBar)
         // Only allow dismissing via the custom swipe back modifier

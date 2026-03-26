@@ -144,6 +144,18 @@ private struct BottomChromeVisibilityModifier: ViewModifier {
     }
 }
 
+private struct AppScreenBackgroundModifier: ViewModifier {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let style: AppScreenBackgroundStyle
+
+    func body(content: Content) -> some View {
+        content
+            .scrollContentBackground(.hidden)
+            .background(themeManager.backgroundColor(for: style).ignoresSafeArea())
+    }
+}
+
 // MARK: - View Extensions
 
 extension View {
@@ -180,5 +192,10 @@ extension View {
     /// Applies the standard visibility motion used when bottom chrome appears or yields to selection bars.
     func bottomChromeVisibility(_ isVisible: Bool, hiddenOffset: CGFloat = 80) -> some View {
         modifier(BottomChromeVisibilityModifier(isVisible: isVisible, hiddenOffset: hiddenOffset))
+    }
+
+    /// Applies the app-level screen background so root surfaces do not fall back to UIKit system greys during resize.
+    func appScreenBackground(_ style: AppScreenBackgroundStyle = .primary) -> some View {
+        modifier(AppScreenBackgroundModifier(style: style))
     }
 }

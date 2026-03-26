@@ -12,6 +12,7 @@ import SwiftUI
 struct AIProviderSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AIProviderStore.self) private var aiProviderStore
+    @Environment(ThemeManager.self) private var themeManager
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -24,7 +25,7 @@ struct AIProviderSettingsView: View {
             .padding(.top, UIConstants.Spacing.large)
             .padding(.bottom, UIConstants.Spacing.huge)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(themeManager.groupedScreenBackground)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
         .safeAreaInset(edge: .top) {
@@ -32,7 +33,7 @@ struct AIProviderSettingsView: View {
                 .padding(.horizontal, UIConstants.Spacing.large)
                 .padding(.top, UIConstants.Spacing.standard)
                 .padding(.bottom, UIConstants.Spacing.small)
-                .background(Color(uiColor: .systemGroupedBackground))
+                .background(themeManager.groupedScreenBackground)
         }
     }
 
@@ -379,6 +380,7 @@ private struct AIProviderRowView: View {
 
 struct AIProviderEditorView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(ThemeManager.self) private var themeManager
     @Environment(AIProviderStore.self) private var aiProviderStore
 
     @State private var draft: AIProviderProfile
@@ -410,7 +412,7 @@ struct AIProviderEditorView: View {
             .padding(.top, UIConstants.Spacing.large)
             .padding(.bottom, UIConstants.Spacing.huge)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(themeManager.groupedScreenBackground)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
         .safeAreaInset(edge: .top) {
@@ -418,7 +420,7 @@ struct AIProviderEditorView: View {
                 .padding(.horizontal, UIConstants.Spacing.large)
                 .padding(.top, UIConstants.Spacing.standard)
                 .padding(.bottom, UIConstants.Spacing.small)
-                .background(Color(uiColor: .systemGroupedBackground))
+                .background(themeManager.groupedScreenBackground)
         }
     }
 
