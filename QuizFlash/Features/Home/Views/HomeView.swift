@@ -13,6 +13,7 @@
 
 import SwiftUI
 import SwiftData
+import OSLog
 
 // MARK: - Home View
 
@@ -49,6 +50,12 @@ struct HomeView: View {
 
     @State private var viewModel = HomeViewModel()
     @State private var calendarVM = CalendarViewModel()
+    @State private var lastLoggedLayoutSignature = ""
+
+    private static let layoutLogger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
+        category: "HomeLayout"
+    )
 
     // MARK: - Derived Data
 
@@ -73,12 +80,13 @@ struct HomeView: View {
     var body: some View {
         GeometryReader { proxy in
             let safeAreaTop = proxy.safeAreaInsets.top == 0 ? 47.0 : proxy.safeAreaInsets.top
-            let layoutKind: HomeCalendarAdaptiveLayout.Kind = UIConstants.isPad ? .pad : .phone
+            let layoutContext = HomeAdaptiveLayoutContext(containerWidth: proxy.size.width)
             let calendarLayout = HomeCalendarAdaptiveLayout(
                 containerWidth: proxy.size.width,
                 safeAreaTop: safeAreaTop,
                 monthRowCount: calendarVM.monthRows.count,
-                kind: layoutKind
+                mode: layoutContext.mode,
+                scaffold: layoutContext.headerScaffold
             )
             let greetingSummary = viewModel.greetingSummary(
                 userProfile: profile,
@@ -92,16 +100,16 @@ struct HomeView: View {
 
             ScrollView(.vertical) {
                 VStack(spacing: 0) {
-                    calendarHeader(layout: calendarLayout, weeklyMomentumSummary: viewModel.dashboardSnapshot.weeklyMomentum)
+                    calendarHeader(layout: calendarLayout)
                         .zIndex(100)
 
-                    calendarTransitionBand
+                    calendarTransitionBand(horizontalInset: calendarLayout.outerHorizontalInset)
 
                     HomeDashboardView(
                         viewModel: viewModel,
                         folders: folders,
                         recentDecks: recentlyOpenedDecks,
-                        containerWidth: proxy.size.width,
+                        layoutContext: layoutContext,
                         greetingSummary: greetingSummary,
                         allDeckCount: allDecks.count,
                         examGoals: examGoals,
@@ -110,11 +118,35 @@ struct HomeView: View {
                     .frame(minHeight: proxy.size.height - calendarLayout.compactHeight)
                     .zIndex(1)
                 }
+                .frame(maxWidth: .infinity, alignment: .top)
             }
             .scrollIndicators(.hidden)
             .ignoresSafeArea(.container, edges: .top)
             .toolbar(.hidden)
             .background(Color(.systemBackground).ignoresSafeArea())
+            .onAppear {
+                logLayoutIfNeeded(
+                    containerWidth: proxy.size.width,
+                    safeAreaTop: safeAreaTop,
+                    layoutContext: layoutContext,
+                    calendarLayout: calendarLayout
+                )
+            }
+            .onChange(
+                of: homeLayoutSignature(
+                    containerWidth: proxy.size.width,
+                    safeAreaTop: safeAreaTop,
+                    layoutContext: layoutContext,
+                    calendarLayout: calendarLayout
+                )
+            ) { _, _ in
+                logLayoutIfNeeded(
+                    containerWidth: proxy.size.width,
+                    safeAreaTop: safeAreaTop,
+                    layoutContext: layoutContext,
+                    calendarLayout: calendarLayout
+                )
+            }
 
             // MARK: Lifecycle
 
@@ -282,7 +314,7 @@ struct HomeView: View {
         ].joined(separator: "||")
     }
 
-    private var calendarTransitionBand: some View {
+    private func calendarTransitionBand(horizontalInset: CGFloat) -> some View {
         VStack(spacing: 0) {
             Color.clear
                 .frame(height: UIConstants.Layout.homeCalendarTransitionTopPadding)
@@ -296,7 +328,7 @@ struct HomeView: View {
                     )
                 )
                 .frame(height: 1)
-                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+                .padding(.horizontal, horizontalInset)
 
             Color.clear
                 .frame(height: UIConstants.Layout.homeCalendarTransitionBottomPadding)
@@ -305,25 +337,13 @@ struct HomeView: View {
 
     @ViewBuilder
     private func calendarHeader(
-        layout: HomeCalendarAdaptiveLayout,
-        weeklyMomentumSummary: HomeWeeklyMomentumSummary
+        layout: HomeCalendarAdaptiveLayout
     ) -> some View {
-        if layout.kind == .pad {
-            HomeTopHeaderSectionView(
-                calendarVM: calendarVM,
-                layout: layout,
-                calendarInsightsCache: viewModel.calendarInsightsCache,
-                weeklyMomentumSummary: weeklyMomentumSummary,
-                router: router
-            )
-        } else {
-            HomeCalendarSectionView(
-                calendarVM: calendarVM,
-                layout: layout,
-                calendarInsightsCache: viewModel.calendarInsightsCache,
-                router: router
-            )
-        }
+        HomeCalendarSectionView(
+            calendarVM: calendarVM,
+            layout: layout,
+            calendarInsightsCache: viewModel.calendarInsightsCache
+        )
     }
 
     private func handleHomeAction(_ action: HomeGreetingAction) {
@@ -340,5 +360,62 @@ struct HomeView: View {
         case .createFolder:
             viewModel.showCreateFolder = true
         }
+    }
+
+    private func homeLayoutSignature(
+        containerWidth: CGFloat,
+        safeAreaTop: CGFloat,
+        layoutContext: HomeAdaptiveLayoutContext,
+        calendarLayout: HomeCalendarAdaptiveLayout
+    ) -> String {
+        [
+            roundedLayoutValue(containerWidth),
+            roundedLayoutValue(safeAreaTop),
+            String(describing: layoutContext.mode),
+            String(describing: layoutContext.headerScaffold),
+            roundedLayoutValue(layoutContext.calendarContext.contentWidth),
+            roundedLayoutValue(layoutContext.dashboardContext.contentWidth),
+            roundedLayoutValue(calendarLayout.expandedCalendarWidth),
+            roundedLayoutValue(calendarLayout.expandedCompanionWidth),
+            roundedLayoutValue(calendarLayout.compactCapsuleWidth)
+        ].joined(separator: "|")
+    }
+
+    private func logLayoutIfNeeded(
+        containerWidth: CGFloat,
+        safeAreaTop: CGFloat,
+        layoutContext: HomeAdaptiveLayoutContext,
+        calendarLayout: HomeCalendarAdaptiveLayout
+    ) {
+#if DEBUG
+        let signature = homeLayoutSignature(
+            containerWidth: containerWidth,
+            safeAreaTop: safeAreaTop,
+            layoutContext: layoutContext,
+            calendarLayout: calendarLayout
+        )
+
+        guard lastLoggedLayoutSignature != signature else { return }
+        lastLoggedLayoutSignature = signature
+
+        Self.layoutLogger.notice(
+            """
+            home_layout \
+            container=\(Double(containerWidth), format: .fixed(precision: 1)) \
+            safeTop=\(Double(safeAreaTop), format: .fixed(precision: 1)) \
+            mode=\(String(describing: layoutContext.mode), privacy: .public) \
+            header=\(String(describing: layoutContext.headerScaffold), privacy: .public) \
+            calendarContent=\(Double(layoutContext.calendarContext.contentWidth), format: .fixed(precision: 1)) \
+            dashboardContent=\(Double(layoutContext.dashboardContext.contentWidth), format: .fixed(precision: 1)) \
+            expandedCalendar=\(Double(calendarLayout.expandedCalendarWidth), format: .fixed(precision: 1)) \
+            companion=\(Double(calendarLayout.expandedCompanionWidth), format: .fixed(precision: 1)) \
+            compactCapsule=\(Double(calendarLayout.compactCapsuleWidth), format: .fixed(precision: 1))
+            """
+        )
+#endif
+    }
+
+    private func roundedLayoutValue(_ value: CGFloat) -> String {
+        String(format: "%.1f", Double(value))
     }
 }

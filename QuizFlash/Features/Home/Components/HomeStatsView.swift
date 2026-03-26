@@ -11,6 +11,7 @@ import SwiftUI
 struct HomeCalendarOverviewCard: View {
     let overview: HomeSelectedDayOverviewSummary
     let weeklyMomentum: HomeWeeklyMomentumSummary
+    let layoutMode: HomeLayoutMode
 
     private var accentColor: Color {
         ThemeManager.shared.accentColor.color
@@ -20,8 +21,8 @@ struct HomeCalendarOverviewCard: View {
         overview.didReachGoal ? .green : accentColor
     }
 
-    private var isPad: Bool {
-        UIConstants.isPad
+    private var usesRegularMetrics: Bool {
+        layoutMode.usesRegularMetrics
     }
 
     private var utilityHeadline: String {
@@ -56,13 +57,13 @@ struct HomeCalendarOverviewCard: View {
                         }
 
                     Text(utilityHeadline)
-                        .font(.system(size: isPad ? 22 : 24, weight: .heavy, design: .rounded))
+                        .font(.system(size: usesRegularMetrics ? 22 : 24, weight: .heavy, design: .rounded))
                         .foregroundStyle(.primary)
                         .lineLimit(2)
                         .minimumScaleFactor(0.82)
 
                     Text(utilityDetail)
-                        .font(.system(size: isPad ? 15 : 16, weight: .semibold, design: .rounded))
+                        .font(.system(size: usesRegularMetrics ? 15 : 16, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -73,7 +74,7 @@ struct HomeCalendarOverviewCard: View {
                     progress: overview.goalCompletionFraction,
                     trackColor: Color.primary.opacity(0.10),
                     progressColor: completionTint,
-                    size: isPad ? 84 : 88,
+                    size: usesRegularMetrics ? 84 : 88,
                     strokeWidth: 10
                 ) { _ in
                     VStack(spacing: 2) {
@@ -88,31 +89,34 @@ struct HomeCalendarOverviewCard: View {
                 }
             }
 
-            HStack(spacing: isPad ? 8 : 10) {
+            HStack(spacing: usesRegularMetrics ? 8 : 10) {
                 HomeCalendarCompactMetricTile(
                     title: "Level",
                     value: "\(overview.level)",
                     detail: "\(overview.totalXP) XP",
-                    tint: .blue
+                    tint: .blue,
+                    usesRegularMetrics: usesRegularMetrics
                 )
 
                 HomeCalendarCompactMetricTile(
                     title: "Cards",
                     value: "\(overview.cardsReviewed)",
                     detail: overview.didReachGoal ? "target hit" : "\(overview.dailyGoal) goal",
-                    tint: completionTint
+                    tint: completionTint,
+                    usesRegularMetrics: usesRegularMetrics
                 )
 
                 HomeCalendarCompactMetricTile(
                     title: "Week",
                     value: "\(weeklyMomentum.activeDays)/7",
                     detail: weeklyMomentum.goalHitDays == 0 ? "active days" : "\(weeklyMomentum.goalHitDays) hits",
-                    tint: .orange
+                    tint: .orange,
+                    usesRegularMetrics: usesRegularMetrics
                 )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(isPad ? 16 : 18)
+        .padding(usesRegularMetrics ? 16 : 18)
         .widgetStyle(cornerRadius: 28)
     }
 }
@@ -193,6 +197,7 @@ struct HomeWorkspacePromptCard: View {
     let detail: String
     let icon: String
     let tint: Color
+    let usesRegularMetrics: Bool
     let buttonTitle: String?
     let action: (() -> Void)?
 
@@ -239,8 +244,8 @@ struct HomeWorkspacePromptCard: View {
                 .buttonStyle(.plain)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: UIConstants.isPad ? 234 : 0, alignment: .topLeading)
-        .padding(UIConstants.isPad ? 20 : 18)
+        .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 234 : 0, alignment: .topLeading)
+        .padding(usesRegularMetrics ? 20 : 18)
         .widgetStyle(cornerRadius: 26)
     }
 }
@@ -249,14 +254,11 @@ struct HomeWorkspacePromptCard: View {
 
 /// Premium analytics hero for the Home dashboard, focused on the selected day.
 struct HomeAnalyticsHeroCard: View {
-    private let narrativeColumnMinHeight: CGFloat = 192
-    private let metricRowHeight: CGFloat = 118
-    private let cardMinHeight: CGFloat = 342
-
     // MARK: - Input
 
     let overview: HomeSelectedDayOverviewSummary
     let weeklyMomentum: HomeWeeklyMomentumSummary
+    let usesRegularMetrics: Bool
 
     // MARK: - Derived State
 
@@ -266,6 +268,18 @@ struct HomeAnalyticsHeroCard: View {
 
     private var completionTint: Color {
         overview.didReachGoal ? .green : accentColor
+    }
+
+    private var narrativeColumnMinHeight: CGFloat {
+        usesRegularMetrics ? 192 : 164
+    }
+
+    private var metricRowHeight: CGFloat {
+        usesRegularMetrics ? 118 : 108
+    }
+
+    private var cardMinHeight: CGFloat {
+        usesRegularMetrics ? 342 : 300
     }
 
     // MARK: - Body
@@ -285,7 +299,7 @@ struct HomeAnalyticsHeroCard: View {
                         }
 
                     Text(overview.headline)
-                        .font(.system(size: 32, weight: .heavy, design: .rounded))
+                        .font(.system(size: usesRegularMetrics ? 32 : 28, weight: .heavy, design: .rounded))
                         .foregroundStyle(.primary)
                         .lineSpacing(-2)
                         .lineLimit(3)
@@ -306,12 +320,12 @@ struct HomeAnalyticsHeroCard: View {
                     progress: overview.goalCompletionFraction,
                     trackColor: Color.primary.opacity(0.10),
                     progressColor: completionTint,
-                    size: 108,
+                    size: usesRegularMetrics ? 108 : 92,
                     strokeWidth: 12
                 ) { _ in
                     VStack(spacing: 2) {
                         Text("\(overview.cardsReviewed)")
-                            .font(.system(size: 26, weight: .heavy, design: .rounded))
+                            .font(.system(size: usesRegularMetrics ? 26 : 22, weight: .heavy, design: .rounded))
                             .foregroundStyle(.primary)
                             .statusTextMotion(trigger: overview.cardsReviewed)
 
@@ -349,7 +363,7 @@ struct HomeAnalyticsHeroCard: View {
             .frame(height: metricRowHeight, alignment: .top)
         }
         .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .topLeading)
-        .padding(20)
+        .padding(usesRegularMetrics ? 20 : 18)
         .widgetStyle(cornerRadius: 30)
     }
 }
@@ -362,15 +376,12 @@ struct HomeWeeklyMomentumCard: View {
     // MARK: - Input
 
     let summary: HomeWeeklyMomentumSummary
+    let usesRegularMetrics: Bool
 
     // MARK: - Derived State
 
     private var accentColor: Color {
         ThemeManager.shared.accentColor.color
-    }
-
-    private var isPad: Bool {
-        UIConstants.isPad
     }
 
     // MARK: - Body
@@ -396,15 +407,13 @@ struct HomeWeeklyMomentumCard: View {
                     .statusTextMotion(trigger: summary.goalHitDays)
             }
 
-            Text(summary.detailLine)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
-                .frame(minHeight: isPad ? 52 : 44, alignment: .topLeading)
-                .fixedSize(horizontal: false, vertical: true)
-
             HStack(alignment: .bottom, spacing: 10) {
                 ForEach(summary.daySummaries) { day in
-                    HomeWeeklyMomentumBar(day: day, accentColor: accentColor)
+                    HomeWeeklyMomentumBar(
+                        day: day,
+                        accentColor: accentColor,
+                        usesRegularMetrics: usesRegularMetrics
+                    )
                 }
             }
             .frame(maxWidth: .infinity)
@@ -432,8 +441,8 @@ struct HomeWeeklyMomentumCard: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, minHeight: isPad ? 306 : 0, alignment: .topLeading)
-        .padding(isPad ? 20 : 18)
+        .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 306 : 0, alignment: .topLeading)
+        .padding(usesRegularMetrics ? 20 : 18)
         .widgetStyle(cornerRadius: 26)
     }
 }
@@ -443,13 +452,10 @@ struct HomeWeeklyMomentumCard: View {
 /// Action-oriented card that tells the user what the selected day means and what to do next.
 struct HomeSelectedDayInsightsCard: View {
     let summary: HomeSelectedDayInsightSummary
+    let usesRegularMetrics: Bool
 
     private var accentColor: Color {
         ThemeManager.shared.accentColor.color
-    }
-
-    private var isPad: Bool {
-        UIConstants.isPad
     }
 
     var body: some View {
@@ -478,7 +484,7 @@ struct HomeSelectedDayInsightsCard: View {
             Text(summary.detailLine)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
-                .frame(minHeight: isPad ? 56 : 48, alignment: .topLeading)
+                .frame(minHeight: usesRegularMetrics ? 56 : 48, alignment: .topLeading)
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 10) {
@@ -493,8 +499,8 @@ struct HomeSelectedDayInsightsCard: View {
                 HomeInlineStatPill(label: "Goals", value: "\(summary.selectedDayExamCount)", tint: accentColor)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: isPad ? 306 : 0, alignment: .topLeading)
-        .padding(isPad ? 20 : 18)
+        .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 306 : 0, alignment: .topLeading)
+        .padding(usesRegularMetrics ? 20 : 18)
         .widgetStyle(cornerRadius: 26)
     }
 }
@@ -580,9 +586,9 @@ private struct HomeCalendarCompactMetricTile: View {
     let value: String
     let detail: String
     let tint: Color
+    let usesRegularMetrics: Bool
 
     var body: some View {
-        let isPad = UIConstants.isPad
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption.weight(.bold))
@@ -590,7 +596,7 @@ private struct HomeCalendarCompactMetricTile: View {
                 .textCase(.uppercase)
 
             Text(value)
-                .font(.system(size: isPad ? 18 : 19, weight: .heavy, design: .rounded))
+                .font(.system(size: usesRegularMetrics ? 18 : 19, weight: .heavy, design: .rounded))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
@@ -602,8 +608,8 @@ private struct HomeCalendarCompactMetricTile: View {
                 .minimumScaleFactor(0.72)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, isPad ? 10 : 12)
-        .padding(.vertical, isPad ? 9 : 10)
+        .padding(.horizontal, usesRegularMetrics ? 10 : 12)
+        .padding(.vertical, usesRegularMetrics ? 9 : 10)
         .background {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(tint.opacity(0.12))
@@ -614,6 +620,7 @@ private struct HomeCalendarCompactMetricTile: View {
 private struct HomeWeeklyMomentumBar: View {
     let day: HomeWeeklyDaySummary
     let accentColor: Color
+    let usesRegularMetrics: Bool
 
     private var fillColor: Color {
         if day.didReachGoal { return .green }
@@ -623,8 +630,8 @@ private struct HomeWeeklyMomentumBar: View {
     }
 
     private var barHeight: CGFloat {
-        let baseHeight: CGFloat = UIConstants.isPad ? 26 : 22
-        let variableHeight: CGFloat = UIConstants.isPad ? 46 : 42
+        let baseHeight: CGFloat = usesRegularMetrics ? 26 : 22
+        let variableHeight: CGFloat = usesRegularMetrics ? 46 : 42
         return baseHeight + (variableHeight * day.intensityFraction)
     }
 
@@ -636,7 +643,7 @@ private struct HomeWeeklyMomentumBar: View {
 
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(fillColor)
-                .frame(width: UIConstants.isPad ? 32 : 28, height: barHeight)
+                .frame(width: usesRegularMetrics ? 32 : 28, height: barHeight)
                 .overlay(alignment: .bottom) {
                     if day.isSelectedDay {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)

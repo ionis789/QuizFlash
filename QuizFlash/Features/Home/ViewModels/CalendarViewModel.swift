@@ -64,6 +64,18 @@ struct Day: Identifiable, Equatable {
 @MainActor
 final class CalendarViewModel {
 
+    // MARK: - Month Snapshot
+
+    struct MonthSnapshot: Equatable, Identifiable {
+        let monthStart: Date
+        let monthString: String
+        let yearString: String
+        let rows: [[Day]]
+        let monthProgress: CGFloat
+
+        var id: Date { monthStart }
+    }
+
     // MARK: - Dependencies
 
     private var calendar: Calendar
@@ -191,15 +203,7 @@ final class CalendarViewModel {
     ///
     /// - Parameter increment: `true` to advance forward, `false` to go back.
     func monthUpdate(increment: Bool) {
-        let value = increment ? 1 : -1
-        guard
-            let month = calendar.date(byAdding: .month, value: value, to: selectedMonth),
-            let date = clampedDate(
-                day: preferredDayOfMonth,
-                in: CalendarViewModel.monthStart(for: month, calendar: calendar)
-            )
-        else { return }
-        updateSelection(date: date, visibleMonth: month)
+        applyMonthOffset(increment ? 1 : -1)
     }
 
     /// Updates `selectedDate` and triggers a grid refresh to update `isSelected` flags.
@@ -224,6 +228,29 @@ final class CalendarViewModel {
         calculateMonthData()
     }
 
+    func applyMonthOffset(_ value: Int) {
+        guard
+            let month = calendar.date(byAdding: .month, value: value, to: selectedMonth),
+            let date = clampedDate(
+                day: preferredDayOfMonth,
+                in: CalendarViewModel.monthStart(for: month, calendar: calendar)
+            )
+        else { return }
+        updateSelection(date: date, visibleMonth: month)
+    }
+
+    func monthSnapshot(offsetBy months: Int) -> MonthSnapshot {
+        let visibleMonth: Date
+        if months == 0 {
+            visibleMonth = selectedMonth
+        } else {
+            visibleMonth = calendar.date(byAdding: .month, value: months, to: selectedMonth) ?? selectedMonth
+        }
+
+        let monthAnchor = CalendarViewModel.monthStart(for: visibleMonth, calendar: calendar)
+        return snapshot(for: monthAnchor, selectedDate: selectedDate)
+    }
+
     // MARK: - Private: Grid Calculation
 
     /// Rebuilds `monthRows` and `monthProgress` for the current `selectedMonth`.
@@ -235,79 +262,11 @@ final class CalendarViewModel {
     /// 4. Chunk the flat array into rows of 7.
     /// 5. Record the row index of the selected date as `monthProgress` for the collapse animation.
     private func calculateMonthData() {
-        let monthAnchor = CalendarViewModel.monthStart(for: selectedMonth, calendar: calendar)
-
-        currentMonthString = Self.monthFormatter.string(from: monthAnchor)
-        yearString = Self.yearFormatter.string(from: monthAnchor)
-
-        var days: [Day] = []
-
-        guard let range = calendar.range(of: .day, in: .month, for: monthAnchor) else { return }
-
-        let monthDates = range.compactMap { value -> Date? in
-            calendar.date(byAdding: .day, value: value - 1, to: monthAnchor)
-        }
-
-        guard let firstDate = monthDates.first, let lastDate = monthDates.last
-        else { return }
-
-        // Prepend trailing days from the previous month.
-        let firstWeekday = calendar.component(.weekday, from: firstDate)
-        let leadingPadding = (firstWeekday - calendar.firstWeekday + 7) % 7
-        for index in Array(0..<leadingPadding).reversed() {
-            if let date = calendar.date(byAdding: .day, value: -index - 1, to: firstDate) {
-                days.append(Day(
-                    shortSymbol: Self.dayFormatter.string(from: date),
-                    date: date,
-                    dateString: Self.logFormatter.string(from: date),
-                    ignored: true,
-                    isSelected: calendar.isDate(date, inSameDayAs: selectedDate)
-                ))
-            }
-        }
-
-        // Add all days within the current month.
-        for date in monthDates {
-            days.append(Day(
-                shortSymbol: Self.dayFormatter.string(from: date),
-                date: date,
-                dateString: Self.logFormatter.string(from: date),
-                ignored: false,
-                isSelected: calendar.isDate(date, inSameDayAs: selectedDate)
-            ))
-        }
-
-        // Append leading days from the next month so the grid always renders
-        // with a stable 6-week footprint across months.
-        let minimumVisibleCells = 42
-        let trailingPadding = max((7 - (days.count % 7)) % 7, minimumVisibleCells - days.count)
-        if trailingPadding > 0 {
-            for index in 0..<trailingPadding {
-                if let date = calendar.date(byAdding: .day, value: index + 1, to: lastDate) {
-                    days.append(Day(
-                        shortSymbol: Self.dayFormatter.string(from: date),
-                        date: date,
-                        dateString: Self.logFormatter.string(from: date),
-                        ignored: true,
-                        isSelected: calendar.isDate(date, inSameDayAs: selectedDate)
-                    ))
-                }
-            }
-        }
-
-        // Chunk the flat array into week rows.
-        var rows: [[Day]] = []
-        for i in stride(from: 0, to: days.count, by: 7) {
-            rows.append(Array(days[i..<min(i + 7, days.count)]))
-        }
-        self.monthRows = rows
-
-        // Record the selected day's row index for the collapse animation offset.
-        if let index = days.firstIndex(where: { $0.isSelected }) {
-            self.monthProgress = CGFloat(index / 7).rounded(.down)
-        } else {
-            self.monthProgress = 0
-        }
+        let snapshot = snapshot(for: selectedMonth, selectedDate: selectedDate)
+        currentMonthString = snapshot.monthString
+        yearString = snapshot.yearString
+        monthRows = snapshot.rows
+        monthProgress = snapshot.monthProgress
     }
 
     private func updateSelection(date: Date, visibleMonth: Date) {
@@ -327,5 +286,88 @@ final class CalendarViewModel {
         let normalizedDate = calendar.startOfDay(for: date)
         let components = calendar.dateComponents([.year, .month], from: normalizedDate)
         return calendar.date(from: components) ?? normalizedDate
+    }
+
+    private func snapshot(for visibleMonth: Date, selectedDate: Date) -> MonthSnapshot {
+        let monthAnchor = CalendarViewModel.monthStart(for: visibleMonth, calendar: calendar)
+        let days = buildDays(for: monthAnchor, selectedDate: selectedDate)
+
+        var rows: [[Day]] = []
+        for index in stride(from: 0, to: days.count, by: 7) {
+            rows.append(Array(days[index..<min(index + 7, days.count)]))
+        }
+
+        let selectedRow: CGFloat
+        if let index = days.firstIndex(where: { $0.isSelected }) {
+            selectedRow = CGFloat(index / 7).rounded(.down)
+        } else {
+            selectedRow = 0
+        }
+
+        return MonthSnapshot(
+            monthStart: monthAnchor,
+            monthString: Self.monthFormatter.string(from: monthAnchor),
+            yearString: Self.yearFormatter.string(from: monthAnchor),
+            rows: rows,
+            monthProgress: selectedRow
+        )
+    }
+
+    private func buildDays(for monthAnchor: Date, selectedDate: Date) -> [Day] {
+        var days: [Day] = []
+
+        guard let range = calendar.range(of: .day, in: .month, for: monthAnchor) else {
+            return []
+        }
+
+        let monthDates = range.compactMap { value -> Date? in
+            calendar.date(byAdding: .day, value: value - 1, to: monthAnchor)
+        }
+
+        guard let firstDate = monthDates.first, let lastDate = monthDates.last else {
+            return []
+        }
+
+        let firstWeekday = calendar.component(.weekday, from: firstDate)
+        let leadingPadding = (firstWeekday - calendar.firstWeekday + 7) % 7
+        for index in Array(0..<leadingPadding).reversed() {
+            if let date = calendar.date(byAdding: .day, value: -index - 1, to: firstDate) {
+                days.append(Day(
+                    shortSymbol: Self.dayFormatter.string(from: date),
+                    date: date,
+                    dateString: Self.logFormatter.string(from: date),
+                    ignored: true,
+                    isSelected: calendar.isDate(date, inSameDayAs: selectedDate)
+                ))
+            }
+        }
+
+        for date in monthDates {
+            days.append(Day(
+                shortSymbol: Self.dayFormatter.string(from: date),
+                date: date,
+                dateString: Self.logFormatter.string(from: date),
+                ignored: false,
+                isSelected: calendar.isDate(date, inSameDayAs: selectedDate)
+            ))
+        }
+
+        let minimumVisibleCells = 42
+        let trailingPadding = max((7 - (days.count % 7)) % 7, minimumVisibleCells - days.count)
+        if trailingPadding > 0 {
+            for index in 0..<trailingPadding {
+                if let date = calendar.date(byAdding: .day, value: index + 1, to: lastDate) {
+                    days.append(Day(
+                        shortSymbol: Self.dayFormatter.string(from: date),
+                        date: date,
+                        dateString: Self.logFormatter.string(from: date),
+                        ignored: true,
+                        isSelected: calendar.isDate(date, inSameDayAs: selectedDate)
+                    ))
+                }
+            }
+        }
+
+        return days
     }
 }

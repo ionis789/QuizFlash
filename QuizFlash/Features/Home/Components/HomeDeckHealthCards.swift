@@ -11,6 +11,7 @@ import SwiftData
 /// Home section that surfaces the top decks needing attention right now.
 struct HomeDeckHealthSection: View {
     let summaries: [HomeDeckHealthSummary]
+    let usesRegularMetrics: Bool
     let onOpenDeck: (PersistentIdentifier) -> Void
 
     var body: some View {
@@ -42,6 +43,7 @@ struct HomeDeckHealthSection: View {
                 ForEach(summaries) { summary in
                     HomeDeckHealthCard(
                         summary: summary,
+                        usesRegularMetrics: usesRegularMetrics,
                         onTap: { onOpenDeck(summary.id) }
                     )
                 }
@@ -55,14 +57,11 @@ struct HomeDeckHealthSection: View {
 /// Rich deck-level status card used on Home to highlight where the next study session should go.
 private struct HomeDeckHealthCard: View {
     let summary: HomeDeckHealthSummary
+    let usesRegularMetrics: Bool
     let onTap: () -> Void
 
     private var accentColor: Color {
         Color(hex: summary.colorHex) ?? ThemeManager.shared.accentColor.color
-    }
-
-    private var isPad: Bool {
-        UIConstants.isPad
     }
 
     var body: some View {
@@ -77,7 +76,7 @@ private struct HomeDeckHealthCard: View {
                             .font(.system(size: 22, weight: .bold))
                             .foregroundStyle(accentColor)
                     }
-                    .frame(width: isPad ? 60 : 56, height: isPad ? 60 : 56)
+                    .frame(width: usesRegularMetrics ? 60 : 56, height: usesRegularMetrics ? 60 : 56)
 
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -110,7 +109,7 @@ private struct HomeDeckHealthCard: View {
                     MasteryProgressRing(
                         mastery: summary.masteryFraction,
                         deckColor: accentColor,
-                        size: isPad ? 78 : 70,
+                        size: usesRegularMetrics ? 78 : 70,
                         strokeWidth: 10
                     )
                 }
@@ -156,8 +155,8 @@ private struct HomeDeckHealthCard: View {
                         .background(accentColor.opacity(0.12), in: Circle())
                 }
             }
-            .padding(isPad ? 20 : 18)
-            .frame(maxWidth: .infinity, minHeight: isPad ? 250 : 0, alignment: .topLeading)
+            .padding(usesRegularMetrics ? 20 : 18)
+            .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 250 : 0, alignment: .topLeading)
             .widgetStyle(cornerRadius: 26)
         }
         .buttonStyle(.plain)

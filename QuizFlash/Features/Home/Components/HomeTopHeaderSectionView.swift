@@ -35,7 +35,7 @@ struct HomeTopHeaderSectionView: View {
                         headerState: headerState
                     )
                     .frame(width: headerState.calendarWidth, alignment: .leading)
-                    .padding(.leading, UIConstants.Layout.screenEdgeInset)
+                    .padding(.leading, layout.outerHorizontalInset)
                     .padding(.top, headerState.calendarState.topPadding)
                     .offset(y: headerState.stickyOffset)
 
@@ -52,12 +52,12 @@ struct HomeTopHeaderSectionView: View {
                     height: layout.expandedContentHeight,
                     alignment: .topLeading
                 )
-                .padding(.leading, UIConstants.Layout.screenEdgeInset + layout.expandedCalendarWidth + layout.expandedColumnSpacing)
+                .padding(.leading, layout.outerHorizontalInset + layout.expandedCalendarWidth + layout.expandedColumnSpacing)
                 .padding(.top, layout.safeAreaTop + layout.expanded.topPadding)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
                 HomeAvatarView(router: router, iconSize: layout.avatarSize)
-                    .padding(.trailing, UIConstants.Layout.screenEdgeInset)
+                    .padding(.trailing, layout.outerHorizontalInset)
                     .padding(.top, headerState.avatarTop)
                     .offset(y: headerState.stickyOffset)
             }
@@ -73,6 +73,11 @@ struct HomeWeeklyMomentumHeaderView: View {
     let summary: HomeWeeklyMomentumSummary
     let layout: HomeCalendarAdaptiveLayout
 
+    private enum CompanionMode {
+        case condensed
+        case regular
+    }
+
     private var tintColor: Color {
         ThemeManager.shared.accentColor.color
     }
@@ -81,78 +86,151 @@ struct HomeWeeklyMomentumHeaderView: View {
         "\(summary.activeDays)/7"
     }
 
+    private var companionMode: CompanionMode {
+        layout.expandedCompanionWidth < 240 ? .condensed : .regular
+    }
+
     var body: some View {
+        VStack(alignment: .center, spacing: 0) {
+            switch companionMode {
+            case .condensed:
+                condensedCompanionBody
+            case .regular:
+                regularCompanionBody
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var regularCompanionBody: some View {
         let titleFontSize = max(layout.expanded.titleFontSize - 1, 22)
         let titleHeight = layout.expanded.titleHeight
         let titleBottomSpacing = layout.expanded.titleBottomSpacing
-        let contentWidth = min(max(layout.expandedCompanionWidth - 16, 360), 440)
+        let contentWidth = min(max(layout.expandedCompanionWidth - 16, 0), 440)
 
-        VStack(alignment: .center, spacing: 0) {
-            VStack(alignment: .center, spacing: 0) {
-                Text("Weekly Momentum")
-                    .font(.system(size: titleFontSize, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.9)
-                    .frame(
-                        maxWidth: .infinity,
-                        minHeight: titleHeight,
-                        maxHeight: titleHeight,
-                        alignment: .center
+        return VStack(alignment: .center, spacing: 0) {
+            Text("Weekly Momentum")
+                .font(.system(size: titleFontSize, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: titleHeight,
+                    maxHeight: titleHeight,
+                    alignment: .center
+                )
+                .padding(.bottom, max(titleBottomSpacing - 6, 6))
+
+            Text(compactHeadline)
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+                .multilineTextAlignment(.center)
+
+            Spacer(minLength: 16)
+
+            VStack(alignment: .center, spacing: 24) {
+                HStack(alignment: .bottom, spacing: 12) {
+                    ForEach(summary.daySummaries) { day in
+                        HomeWeeklyMomentumHeaderBar(day: day, accentColor: tintColor)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .animation(.snappy(duration: 0.34, extraBounce: 0.08), value: summary.daySummaries)
+
+                HStack(spacing: 0) {
+                    HomeTopHeaderStatLine(
+                        label: "Cards",
+                        value: "\(summary.totalCardsReviewed)",
+                        tint: tintColor
                     )
-                    .padding(.bottom, max(titleBottomSpacing - 6, 6))
+                    HomeTopHeaderStatLine(
+                        label: "XP",
+                        value: "\(summary.totalXPEarned)",
+                        tint: .orange
+                    )
 
-                Text(compactHeadline)
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.9)
-                    .multilineTextAlignment(.center)
-
-                Spacer(minLength: 16)
-
-                VStack(alignment: .center, spacing: 24) {
-                    HStack(alignment: .bottom, spacing: 12) {
-                        ForEach(summary.daySummaries) { day in
-                            HomeWeeklyMomentumHeaderBar(day: day, accentColor: tintColor)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .animation(.snappy(duration: 0.34, extraBounce: 0.08), value: summary.daySummaries)
-
-                    HStack(spacing: 0) {
+                    if let bestDayLabel = summary.bestDayLabel {
                         HomeTopHeaderStatLine(
-                            label: "Cards",
-                            value: "\(summary.totalCardsReviewed)",
-                            tint: tintColor
+                            label: "Best",
+                            value: bestDayLabel,
+                            tint: .green
                         )
-                        HomeTopHeaderStatLine(
-                            label: "XP",
-                            value: "\(summary.totalXPEarned)",
-                            tint: .orange
-                        )
-
-                        if let bestDayLabel = summary.bestDayLabel {
-                            HomeTopHeaderStatLine(
-                                label: "Best",
-                                value: bestDayLabel,
-                                tint: .green
-                            )
-                        }
                     }
-                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
+        .frame(width: contentWidth, alignment: .center)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private var condensedCompanionBody: some View {
+        let companionWidth = max(layout.expandedCompanionWidth - 8, 0)
+        let barSpacing: CGFloat = 4
+        let barWidth = max(min((companionWidth - (barSpacing * 6)) / 7, 16), 10)
+
+        return VStack(alignment: .center, spacing: 12) {
+            Text("Momentum")
+                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            Text(compactHeadline)
+                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            HStack(alignment: .bottom, spacing: barSpacing) {
+                ForEach(summary.daySummaries) { day in
+                    HomeWeeklyMomentumHeaderBar(
+                        day: day,
+                        accentColor: tintColor,
+                        barWidth: barWidth,
+                        showsLabels: false
+                    )
                 }
             }
-            .frame(width: contentWidth, alignment: .center)
-            .frame(maxHeight: .infinity, alignment: .top)
+            .frame(maxWidth: .infinity, alignment: .center)
+
+            VStack(alignment: .center, spacing: 6) {
+                condensedStatLine(label: "Cards", value: "\(summary.totalCardsReviewed)", tint: tintColor)
+                condensedStatLine(label: "XP", value: "\(summary.totalXPEarned)", tint: .orange)
+
+                if let bestDayLabel = summary.bestDayLabel {
+                    condensedStatLine(label: "Best", value: bestDayLabel, tint: .green)
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(width: companionWidth, alignment: .center)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private func condensedStatLine(label: String, value: String, tint: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(label.uppercased())
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.secondary)
+
+            Text(value)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 }
 
 private struct HomeWeeklyMomentumHeaderBar: View {
     let day: HomeWeeklyDaySummary
     let accentColor: Color
+    var barWidth: CGFloat = 34
+    var showsLabels: Bool = true
 
     private var fillColor: Color {
         if day.didReachGoal { return .green }
@@ -162,20 +240,22 @@ private struct HomeWeeklyMomentumHeaderBar: View {
     }
 
     private var barHeight: CGFloat {
-        let baseHeight: CGFloat = 30
-        let variableHeight: CGFloat = 52
+        let baseHeight: CGFloat = showsLabels ? 30 : 24
+        let variableHeight: CGFloat = showsLabels ? 52 : 34
         return baseHeight + (variableHeight * day.intensityFraction)
     }
 
     var body: some View {
-        VStack(spacing: 10) {
-            Text(day.shortWeekday)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(day.isSelectedDay ? .primary : .secondary)
+        VStack(spacing: showsLabels ? 10 : 6) {
+            if showsLabels {
+                Text(day.shortWeekday)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(day.isSelectedDay ? .primary : .secondary)
+            }
 
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(fillColor)
-                .frame(width: 34, height: barHeight)
+                .frame(width: barWidth, height: barHeight)
                 .overlay(alignment: .bottom) {
                     if day.isSelectedDay {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -183,9 +263,11 @@ private struct HomeWeeklyMomentumHeaderBar: View {
                     }
                 }
 
-            Text("\(day.cardsReviewed)")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.secondary)
+            if showsLabels {
+                Text("\(day.cardsReviewed)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
         }
         .animation(.snappy(duration: 0.34, extraBounce: 0.08), value: day.intensityFraction)
         .animation(.snappy(duration: 0.34, extraBounce: 0.08), value: day.isSelectedDay)

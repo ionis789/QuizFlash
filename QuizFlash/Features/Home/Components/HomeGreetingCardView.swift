@@ -21,15 +21,19 @@ struct HomeGreetingCardView: View {
 
     private var layout: HomeGreetingCardLayout {
         HomeGreetingCardLayout(
-            kind: UIConstants.isPad ? .pad : .phone,
+            kind: availableWidth >= 620 ? .pad : .phone,
             availableWidth: availableWidth
         )
     }
 
     var body: some View {
         Group {
-            if layout.kind == .pad {
+            if availableWidth >= 980 {
                 padLayout
+            } else if availableWidth >= 680 {
+                wideLayout
+            } else if layout.kind == .pad {
+                compactLayout
             } else if layout.usesWideLayout {
                 wideLayout
             } else {
@@ -232,9 +236,9 @@ private struct HomeGreetingCardLayout {
     var usesWideLayout: Bool {
         switch kind {
         case .phone:
-            return availableWidth >= 430
+            return availableWidth >= 560
         case .pad:
-            return true
+            return availableWidth >= 860
         }
     }
 
@@ -245,7 +249,7 @@ private struct HomeGreetingCardLayout {
     var minHeight: CGFloat {
         switch kind {
         case .pad:
-            return 184
+            return usesWideLayout ? 184 : 236
         case .phone:
             return usesWideLayout ? 188 : 240
         }

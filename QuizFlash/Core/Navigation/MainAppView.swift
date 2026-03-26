@@ -253,9 +253,14 @@ struct MainAppView: View {
 
     @ViewBuilder
     private func tabBarView(in proxy: GeometryProxy) -> some View {
-        let barWidth = isPad
-            ? min(max(proxy.size.width * 0.56, 560), 700)
-            : proxy.size.width
+        let availableWidth = max(
+            proxy.size.width - (UIConstants.Layout.bottomChromeSideInset * 2),
+            0
+        )
+        let usesDetachedPadTabBar = isPad && availableWidth >= 760
+        let barWidth = usesDetachedPadTabBar
+            ? min(max(availableWidth * 0.56, 560), 700)
+            : availableWidth
         let sideAnchorTrim = isPad ? (UIConstants.Layout.bottomChromeSideInset / 2) : 0
 
         let bar = CustomTabBar(activeTab: router.activeTab, onTabSelection: handleTabActivation)
@@ -263,7 +268,7 @@ struct MainAppView: View {
             .ignoresSafeArea(.container, edges: isPad ? .bottom : [.horizontal, .bottom])
             .bottomChromeVisibility(isTabBarVisible)
 
-        if isPad {
+        if usesDetachedPadTabBar {
             HStack(spacing: 0) {
                 switch appPreferences.padTabBarPosition {
                 case .left:

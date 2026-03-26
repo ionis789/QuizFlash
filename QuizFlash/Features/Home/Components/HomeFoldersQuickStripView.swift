@@ -13,11 +13,14 @@ import SwiftUI
 struct HomeFoldersQuickStripView: View {
     let folders: [FolderModel]
     let allDeckCount: Int
+    let visibleLimit: Int
+    let chipWidth: CGFloat
+    let promptWidth: CGFloat
     let onOpenFolder: (FolderModel) -> Void
     let onCreateFolder: () -> Void
 
     private var visibleFolders: [FolderModel] {
-        Array(folders.prefix(UIConstants.isPad ? 5 : 4))
+        Array(folders.prefix(visibleLimit))
     }
 
     var body: some View {
@@ -45,11 +48,12 @@ struct HomeFoldersQuickStripView: View {
                     if folders.isEmpty {
                         HomeFoldersQuickStripPrompt(
                             allDeckCount: allDeckCount,
+                            width: promptWidth,
                             onCreateFolder: onCreateFolder
                         )
                     } else {
                         ForEach(visibleFolders) { folder in
-                            HomeFoldersQuickChip(folder: folder) {
+                            HomeFoldersQuickChip(folder: folder, width: chipWidth) {
                                 onOpenFolder(folder)
                             }
                         }
@@ -69,14 +73,11 @@ struct HomeFoldersQuickStripView: View {
 
 private struct HomeFoldersQuickChip: View {
     let folder: FolderModel
+    let width: CGFloat
     let action: () -> Void
 
     private var folderColor: Color {
         Color(hex: folder.colorHex) ?? ThemeManager.shared.accentColor.color
-    }
-
-    private var chipWidth: CGFloat {
-        UIConstants.isPad ? 212 : 176
     }
 
     var body: some View {
@@ -110,7 +111,7 @@ private struct HomeFoldersQuickChip: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .frame(width: chipWidth, alignment: .leading)
+            .frame(width: width, alignment: .leading)
             .glassButton(
                 shape: RoundedRectangle(cornerRadius: 24, style: .continuous)
             )
@@ -123,6 +124,7 @@ private struct HomeFoldersQuickChip: View {
 
 private struct HomeFoldersQuickStripPrompt: View {
     let allDeckCount: Int
+    let width: CGFloat
     let onCreateFolder: () -> Void
 
     var body: some View {
@@ -152,7 +154,7 @@ private struct HomeFoldersQuickStripPrompt: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .frame(width: UIConstants.isPad ? 320 : 260, alignment: .leading)
+            .frame(width: width, alignment: .leading)
             .glassButton(
                 shape: RoundedRectangle(cornerRadius: 24, style: .continuous)
             )

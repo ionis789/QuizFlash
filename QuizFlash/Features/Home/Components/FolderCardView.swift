@@ -20,14 +20,13 @@ struct FolderCardView: View {
     // MARK: - Input
 
     let folder: FolderModel
+    let usesRegularMetrics: Bool
     let action: () -> Void
 
     // MARK: - Body
 
     var body: some View {
         let folderColor = Color(hex: folder.colorHex) ?? ThemeManager.shared.accentColor.color
-        let isPad = UIConstants.isPad
-
         Button(action: action) {
             VStack(alignment: .leading, spacing: 0) {
 
@@ -35,7 +34,7 @@ struct FolderCardView: View {
 
                 HStack {
                     Image(systemName: "folder.fill")
-                        .font(isPad ? .system(size: 30, weight: .semibold) : .title)
+                        .font(usesRegularMetrics ? .system(size: 30, weight: .semibold) : .title)
                         .foregroundStyle(folderColor.gradient)
 
                     Spacer()
@@ -62,8 +61,8 @@ struct FolderCardView: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
             }
-            .padding(isPad ? 18 : 16)
-            .frame(minHeight: isPad ? 142 : 0, alignment: .topLeading)
+            .padding(usesRegularMetrics ? 18 : 16)
+            .frame(minHeight: usesRegularMetrics ? 142 : 0, alignment: .topLeading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .widgetStyle()
         }

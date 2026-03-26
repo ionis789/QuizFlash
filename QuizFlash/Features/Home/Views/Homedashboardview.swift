@@ -17,13 +17,11 @@ import SwiftData
 /// 2. **Exam Goals** — readiness and agenda around upcoming deadlines.
 /// 3. **Deck Health** — the decks that most need attention right now.
 /// 4. **Recent Decks** — a horizontal carousel of recently opened decks.
-/// 5. **Folders** — a two-column grid of user folders.
+/// 5. **Folders** — a grid of user folders.
 ///
 /// `HomeDashboardView` is a **dumb view**: it holds no `@State`, makes no decisions,
 /// and contains no formatting logic. All data arrives as `let` constants from `HomeView`.
 struct HomeDashboardView: View {
-
-    private let contentHorizontalInset = UIConstants.Layout.homeContentEdgeInset
     private let topSectionInset: CGFloat = 0
 
     // MARK: - Dependencies
@@ -37,8 +35,8 @@ struct HomeDashboardView: View {
     /// The top 5 recently opened decks, pre-filtered and pre-sliced by `HomeView`.
     let recentDecks: [DeckModel]
 
-    /// Current container width from `HomeView` for adaptive widget layouts.
-    let containerWidth: CGFloat
+    /// Shared Home adaptive layout facts derived from the real container width.
+    let layoutContext: HomeAdaptiveLayoutContext
 
     /// Resume-oriented greeting summary rendered above the main Home analytics.
     let greetingSummary: HomeGreetingSummary
@@ -61,8 +59,20 @@ struct HomeDashboardView: View {
         viewModel.dashboardSnapshot
     }
 
-    private var usesPadDashboardColumns: Bool {
-        UIConstants.isPad && containerWidth >= 760
+    private var contentHorizontalInset: CGFloat {
+        layoutContext.dashboardContext.horizontalInset
+    }
+
+    private var availableSectionWidth: CGFloat {
+        layoutContext.dashboardContext.contentWidth
+    }
+
+    private var dashboardMetrics: HomeDashboardAdaptiveMetrics {
+        HomeDashboardAdaptiveMetrics(contentWidth: availableSectionWidth)
+    }
+
+    private var usesDashboardColumns: Bool {
+        dashboardMetrics.usesDashboardColumns
     }
 
     private var showsWorkspaceOnboarding: Bool {
@@ -70,24 +80,38 @@ struct HomeDashboardView: View {
     }
 
     private var dashboardMaxWidth: CGFloat? {
-        guard UIConstants.isPad else { return nil }
-        return min(max(containerWidth - (contentHorizontalInset * 2), 0), 1180)
+        layoutContext.dashboardContext.maxContentWidth
     }
 
     private var folderColumns: [GridItem] {
-        if UIConstants.isPad {
-            let count = containerWidth >= 1180 ? 3 : 2
-            return Array(repeating: GridItem(.flexible(), spacing: 16), count: count)
+        switch dashboardMetrics.folderColumnCount {
+        case 1:
+            return [GridItem(.flexible(), spacing: 16)]
+        case 3:
+            return Array(repeating: GridItem(.flexible(), spacing: 16), count: 3)
+        default:
+            return [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
         }
-        return [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
+    }
+
+    private var recentDeckColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 16), count: dashboardMetrics.recentDeckColumnCount)
+    }
+
+    private var recentDeckCarouselCardWidth: CGFloat {
+        dashboardMetrics.recentDeckCarouselCardWidth
+    }
+
+    private var usesRecentDeckGrid: Bool {
+        dashboardMetrics.usesRecentDeckGrid
     }
 
     private var showsFoldersQuickStrip: Bool {
-        !folders.isEmpty || allDeckCount > 0
+        dashboardMetrics.isNarrowSection && (!folders.isEmpty || allDeckCount > 0)
     }
 
     private var showsFoldersSection: Bool {
-        !folders.isEmpty
+        !folders.isEmpty || (!showsFoldersQuickStrip && allDeckCount > 0)
     }
 
     // MARK: - Body
@@ -115,6 +139,7 @@ struct HomeDashboardView: View {
             if !recentDecks.isEmpty {
                 boundedSection(recentDecksSection)
                     .padding(.top, UIConstants.Layout.sectionSpacing)
+                    .padding(.horizontal, contentHorizontalInset)
                     .homeDashboardSectionMotion()
             }
 
@@ -159,6 +184,9 @@ struct HomeDashboardView: View {
         HomeFoldersQuickStripView(
             folders: folders,
             allDeckCount: allDeckCount,
+            visibleLimit: dashboardMetrics.quickStripVisibleLimit,
+            chipWidth: dashboardMetrics.quickStripChipWidth,
+            promptWidth: dashboardMetrics.quickStripPromptWidth,
             onOpenFolder: { folder in
                 router.append(AppRoute.folder(folder, backLabel: router.activeTab.rawValue))
             },
@@ -173,11 +201,6 @@ struct HomeDashboardView: View {
         return {
             handleGreetingAction(action)
         }
-    }
-
-    private var availableSectionWidth: CGFloat {
-        let rawWidth = dashboardMaxWidth ?? (containerWidth - (contentHorizontalInset * 2))
-        return max(0, rawWidth)
     }
 
     @ViewBuilder
@@ -209,7 +232,7 @@ struct HomeDashboardView: View {
 
     private var workspaceSetupSection: some View {
         Group {
-            if usesPadDashboardColumns {
+            if usesDashboardColumns {
                 HStack(alignment: .top, spacing: 16) {
                     HomeWorkspacePromptCard(
                         eyebrow: "First Step",
@@ -217,6 +240,7 @@ struct HomeDashboardView: View {
                         detail: "Start with one subject or exam topic. Home will turn that deck into daily targets, momentum and recall guidance.",
                         icon: "rectangle.stack.badge.plus",
                         tint: ThemeManager.shared.accentColor.color,
+                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics,
                         buttonTitle: "Open Create",
                         action: {
                             router.activeTab = .create
@@ -230,6 +254,7 @@ struct HomeDashboardView: View {
                         detail: "Folders now sit near the top of Home so larger libraries stay easy to scan once you begin adding decks.",
                         icon: "folder.badge.plus",
                         tint: .orange,
+                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics,
                         buttonTitle: "Create Folder",
                         action: {
                             viewModel.showCreateFolder = true
@@ -245,6 +270,7 @@ struct HomeDashboardView: View {
                         detail: "Start with one subject or exam topic. Home will turn that deck into daily targets, momentum and recall guidance.",
                         icon: "rectangle.stack.badge.plus",
                         tint: ThemeManager.shared.accentColor.color,
+                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics,
                         buttonTitle: "Open Create",
                         action: {
                             router.activeTab = .create
@@ -257,6 +283,7 @@ struct HomeDashboardView: View {
                         detail: "Folders now sit near the top of Home so larger libraries stay easy to scan once you begin adding decks.",
                         icon: "folder.badge.plus",
                         tint: .orange,
+                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics,
                         buttonTitle: "Create Folder",
                         action: {
                             viewModel.showCreateFolder = true
@@ -273,6 +300,7 @@ struct HomeDashboardView: View {
     private var deckHealthSection: some View {
         HomeDeckHealthSection(
             summaries: viewModel.deckHealthSummaries,
+            usesRegularMetrics: dashboardMetrics.usesRegularMetrics,
             onOpenDeck: { deckID in
                 router.append(
                     DeckNavigationValue(
@@ -310,7 +338,7 @@ struct HomeDashboardView: View {
             }
 
             if examGoals.isEmpty {
-                HomeExamGoalsEmptyCard {
+                HomeExamGoalsEmptyCard(usesRegularMetrics: dashboardMetrics.usesRegularMetrics) {
                     viewModel.presentCreateExamGoal()
                 }
             } else {
@@ -377,24 +405,37 @@ struct HomeDashboardView: View {
     /// Renders the selected-day hero plus action-oriented learning insights.
     private var statsSection: some View {
         Group {
-            if usesPadDashboardColumns {
+            if usesDashboardColumns {
                 HStack(alignment: .top, spacing: 16) {
-                    HomeSelectedDayInsightsCard(summary: dashboardSnapshot.selectedDayInsight)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    HomeSelectedDayInsightsCard(
+                        summary: dashboardSnapshot.selectedDayInsight,
+                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics
+                    )
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
 
-                    HomeWeeklyMomentumCard(summary: dashboardSnapshot.weeklyMomentum)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    HomeWeeklyMomentumCard(
+                        summary: dashboardSnapshot.weeklyMomentum,
+                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics
+                    )
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 16) {
                     HomeAnalyticsHeroCard(
                         overview: dashboardSnapshot.selectedDayOverview,
-                        weeklyMomentum: dashboardSnapshot.weeklyMomentum
+                        weeklyMomentum: dashboardSnapshot.weeklyMomentum,
+                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics
                     )
 
-                    HomeSelectedDayInsightsCard(summary: dashboardSnapshot.selectedDayInsight)
+                    HomeSelectedDayInsightsCard(
+                        summary: dashboardSnapshot.selectedDayInsight,
+                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics
+                    )
 
-                    HomeWeeklyMomentumCard(summary: dashboardSnapshot.weeklyMomentum)
+                    HomeWeeklyMomentumCard(
+                        summary: dashboardSnapshot.weeklyMomentum,
+                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics
+                    )
                 }
             }
         }
@@ -402,32 +443,46 @@ struct HomeDashboardView: View {
 
     // MARK: - Recent Decks Section
 
-    /// Renders a horizontally scrollable carousel of recently opened deck cards.
+    /// Renders recent decks as a carousel on narrow widths and a grid once the
+    /// container can support stable multi-column cards.
     private var recentDecksSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Recent Decks")
                 .font(.system(.title3, design: .rounded, weight: .bold))
                 .foregroundStyle(.primary)
-                .padding(.horizontal, contentHorizontalInset)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
+            if usesRecentDeckGrid {
+                LazyVGrid(columns: recentDeckColumns, spacing: 16) {
                     ForEach(recentDecks) { deck in
-                        HomeRecentDeckCardView(deck: deck) {
-                            // Back label is frozen at push time — immune to cross-tab
-                            // mutation of router.activeTab during tab-switch animations.
-                            router.append(DeckNavigationValue(
-                                deckID: deck.persistentModelID,
-                                backLabel: router.activeTab.rawValue
-                            ))
-                        }
+                        recentDeckCard(deck)
                     }
                 }
-                .padding(.horizontal, contentHorizontalInset)
-                // Extra vertical padding so card drop shadows are not clipped.
-                .padding(.bottom, 16)
-                .padding(.top, 4)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(recentDecks) { deck in
+                            recentDeckCard(deck)
+                                .frame(width: recentDeckCarouselCardWidth, alignment: .leading)
+                        }
+                    }
+                    .padding(.bottom, 16)
+                    .padding(.top, 4)
+                }
             }
+        }
+    }
+
+    private func recentDeckCard(_ deck: DeckModel) -> some View {
+        HomeRecentDeckCardView(
+            deck: deck,
+            usesRegularMetrics: dashboardMetrics.usesRegularMetrics
+        ) {
+            router.append(
+                DeckNavigationValue(
+                    deckID: deck.persistentModelID,
+                    backLabel: router.activeTab.rawValue
+                )
+            )
         }
     }
 
@@ -443,7 +498,6 @@ struct HomeDashboardView: View {
 
                 Spacer()
 
-                // Uses the current theme accent colour — no hardcoded colours.
                 Button {
                     viewModel.showCreateFolder = true
                 } label: {
@@ -470,9 +524,7 @@ struct HomeDashboardView: View {
                     spacing: 16
                 ) {
                     ForEach(folders) { folder in
-                        FolderCardView(folder: folder) {
-                            // Back label is frozen at push time — immune to subsequent
-                            // router.activeTab mutations during tab-switch animations.
+                        FolderCardView(folder: folder, usesRegularMetrics: dashboardMetrics.usesRegularMetrics) {
                             router.append(AppRoute.folder(folder, backLabel: router.activeTab.rawValue))
                         }
                     }
