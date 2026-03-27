@@ -11,6 +11,8 @@
 
 import SwiftUI
 
+private let kCardAppearanceChromeSpace = "CardAppearanceChromeSpace"
+
 // MARK: - Card Content Mode
 
 /// Controls how FlipCard handles content that overflows the card bounds.
@@ -56,6 +58,10 @@ struct SettingsCardAppearanceView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(ThemeManager.self) private var themeManager
+    @State private var isCollapsedTitleVisible = false
+    @State private var navigationBarHeight: CGFloat =
+        UIConstants.Size.capsuleHeight + UIConstants.Layout.deckNavigationTopPadding
+    @State private var navigationBarBottomY: CGFloat = 0
 
     @AppStorage(CardContentMode.storageKey)
     private var rawMode: String = CardContentMode.scaleToFit.rawValue
@@ -71,23 +77,31 @@ struct SettingsCardAppearanceView: View {
         ZStack(alignment: .top) {
             background.ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                navigationBar
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 24)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 32) {
+                    LargeScreenTitle(title: "Card Appearance")
+                        .collapsibleTitleRevealAnchor(
+                            in: kCardAppearanceChromeSpace,
+                            navigationBarBottomY: navigationBarBottomY,
+                            revealClearance: SettingsChromeMetrics.pillRevealClearance,
+                            isVisible: $isCollapsedTitleVisible
+                        )
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 32) {
-                        previewSection
-                        pickerSection
-                        descriptionSection
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 48)
+                    previewSection
+                    pickerSection
+                    descriptionSection
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 24)
+                .padding(.bottom, 48)
             }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
+            }
+
+            navigationBar
         }
+        .coordinateSpace(name: kCardAppearanceChromeSpace)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
     }
@@ -95,25 +109,22 @@ struct SettingsCardAppearanceView: View {
     // MARK: - Navigation Bar
 
     private var navigationBar: some View {
-        HStack {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .padding(10)
-                    .background(.ultraThinMaterial, in: Circle())
+        CollapsibleTitleNavigationBar(
+            coordinateSpaceName: kCardAppearanceChromeSpace,
+            onHeightChange: { navigationBarHeight = $0 },
+            onBottomChange: { navigationBarBottomY = $0 }
+        ) {
+            ChromeCircleIconButton(systemName: "chevron.left") {
+                dismiss()
             }
-
-            Spacer()
-
-            Text("Card Appearance")
-                .font(.headline.weight(.bold))
-
-            Spacer()
-
-            // Invisible placeholder to centre the title
-            Color.clear
-                .frame(width: 40, height: 40)
+        } center: { maxWidth in
+            CollapsibleTitlePill(
+                title: "Card Appearance",
+                maxWidth: maxWidth,
+                isVisible: isCollapsedTitleVisible
+            )
+        } trailing: {
+            ChromeCirclePlaceholder()
         }
     }
 

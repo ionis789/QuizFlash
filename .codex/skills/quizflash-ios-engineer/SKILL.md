@@ -7,14 +7,25 @@ description: Project-specific engineering guide for QuizFlash, a SwiftUI flashca
 
 ## Overview
 
-Write and review code for QuizFlash using the repository's architecture rules instead of generic SwiftUI defaults. Treat the standards in `references/architecture.md` as the target for new code even when older files still contain legacy patterns.
+Write and review code for QuizFlash using the repository's architecture rules instead of generic SwiftUI defaults. Optimize for the smallest safe context: start from the target file, load the paired owner file next, and pull longer references only when the task actually crosses those boundaries. Treat the standards in `references/architecture.md` as the target for new code even when older files still contain legacy patterns.
 
 ## Quick Start
 
-1. Read `references/project-map.md` to locate the feature or layer you are touching.
-2. Read `references/architecture.md` before any non-trivial implementation, refactor, or review.
-3. Verify `references/component-catalog.md` before creating any new UI component.
-4. Reuse existing project primitives before introducing new abstractions:
+1. Read `references/task-routing.md`.
+2. Open the target file first.
+3. Open the smallest paired owner file next.
+   - `Features/*/Views/*.swift`: pull the paired `ViewModels/` file only if the change touches state, async work, persistence, derived data, or navigation owned outside the view.
+   - `Features/*/Components/*.swift`: pull the parent view or local layout/helper file only if the component does not fully explain the behavior by itself.
+   - `Features/*/ViewModels/*.swift`: pull the paired root `Views/` file only if UI wiring or presentation behavior changes.
+4. Read `references/project-map.md` only when ownership is unclear or you are adding or moving types.
+5. Read only the relevant parts of `references/architecture.md` when the task touches:
+   - SwiftData fetches, saves, model-graph access, or memory-sensitive reads
+   - Stored tasks, async pipelines, actor boundaries, or cancellation
+   - Navigation, `fullScreenSheet`, sticky chrome, long scroll surfaces, or adaptive layout infrastructure
+   - Shared design-system behavior, tokens, or reusable cross-screen presentation rules
+   - Multi-layer refactors or reviews that cross feature boundaries
+6. Verify `references/component-catalog.md` only before creating a new reusable UI component.
+7. Reuse existing project primitives before introducing new abstractions:
    - `NavigationManager`
    - `UIConstants`
    - `ThemeManager`
@@ -26,17 +37,31 @@ Write and review code for QuizFlash using the repository's architecture rules in
    - `fullScreenSheet` from `Core/DesignSystem/Modifiers/View+FullScreenSheet.swift`
    - `StandardSheetTopStripBackground` for immersive dark sheets that react to drag-dismiss progress
 
+## Context Loading Rules
+
+- Prefer the smallest viable read set for edits to existing files.
+- Do not preload unrelated feature clusters just because the repo has shared architecture docs.
+- Escalate from local files to shared references only when the task crosses a boundary that the local files do not explain safely.
+- Examples:
+  - `CreateDeckView.swift` copy, spacing, or overlay tweaks should start in `CreateDeckView.swift`; do not read `AIFlashcardService.swift` unless the change reaches AI pipeline behavior.
+  - `HomeCalendarSectionView.swift` spacing or compact-calendar tweaks should start in `HomeCalendarSectionView.swift` plus `HomeCalendarAdaptiveLayout.swift`; pull `HomeViewModel.swift` only if the change touches summaries or derived data.
+  - `DeckView.swift` dialog, toolbar, or overlay copy tweaks should start in `DeckView.swift`; pull `DeckViewModel.swift` only if the action, mutation, or state flow changes.
+
 ## Workflow
 
-1. Identify the ownership layer first.
+1. Identify the ownership layer first from the file path and local neighbors.
    - Keep `Domain/Models/` data-oriented.
    - Keep `Features/*/ViewModels/` focused on business logic and async orchestration.
    - Keep `Views/` and `Components/` focused on rendering and event forwarding.
-2. Follow the repository's data-access rules before changing SwiftData code.
+2. Escalate references on demand, not by default.
+   - Use `references/task-routing.md` for the smallest safe starting set.
+   - Use `references/project-map.md` only when ownership, placement, or feature boundaries are unclear.
+   - Use the specific sections of `references/architecture.md` that match the task, not an automatic full read for local UI or copy edits.
+3. Follow the repository's data-access rules before changing SwiftData code.
    - Prefer denormalized counters over relationship `.count`.
    - Route heavy card-content reads through `CardFetchActor`.
    - Save mutations explicitly and surface failures.
-3. Match the project's UI system before changing presentation code.
+4. Match the project's UI system before changing presentation code.
    - Use `UIConstants` tokens instead of magic numbers.
    - Prefer semantic colors and existing theme plumbing.
    - Prefer shared design-system modifiers and components such as `widgetStyle`, `glassButton`, shared rings, and existing chrome containers over ad-hoc overlays, borders, shadows, or custom surface treatments.
@@ -46,7 +71,7 @@ Write and review code for QuizFlash using the repository's architecture rules in
    - On drag-heavy or scroll-heavy surfaces, do not leave expensive collection-wide work in view `computed` properties.
    - If a value walks many cards, zones, diagnostics, or summaries, cache it in local state or move it out of the hot render path, then recompute only when the source collection actually changes.
    - Prefer `Equatable` row views and other diff-friendly techniques for large editor/deck lists so parent refreshes do not rebuild every row.
-4. Preserve the repo's file hygiene when generating or rewriting files.
+5. Preserve the repo's file hygiene when generating or rewriting files.
    - Keep Apple-style file headers.
    - Keep `// MARK: -` sections.
    - Keep DocC comments on new internal and public declarations.
@@ -73,14 +98,17 @@ Write and review code for QuizFlash using the repository's architecture rules in
 
 ## Decision Points
 
-- Inspect `references/project-map.md` before adding a new type if you are not sure where it belongs.
-- Read `references/architecture.md` end to end before touching navigation, concurrency, SwiftData, or performance-sensitive code.
-- Read `references/architecture.md` before changing any large `ScrollView`, sticky hero, floating top chrome, or custom full-screen presentation.
+- Read `references/task-routing.md` first for existing-file tasks when the smallest safe context is not obvious.
+- Inspect `references/project-map.md` before adding a new type only if you are not sure where it belongs.
+- Read the relevant sections of `references/architecture.md` before touching navigation, concurrency, SwiftData, or performance-sensitive code.
+- Read `references/architecture.md` end to end only for new features, large refactors, or reviews that cross multiple layers.
+- Read the scroll and presentation guidance in `references/architecture.md` before changing any large `ScrollView`, sticky hero, floating top chrome, or custom full-screen presentation.
 - Prefer the standards in this skill for new code. If a surrounding file still uses an older pattern, keep the change narrow unless the task explicitly asks for cleanup.
 - Read `../../../quizflash_mcp_prompt.md` only when you need the original long-form source prompt that this skill was derived from.
 
 ## References
 
+- `references/task-routing.md`: Smallest safe starting points and escalation triggers for local tasks.
 - `references/project-map.md`: Real repo layout, important files, and common starting points.
 - `references/architecture.md`: Project rules for architecture, concurrency, SwiftData safety, navigation, design tokens, code style, and review checks.
 - `references/examples/ViewModel.swift.example`: Canonical QuizFlash-flavored view-model skeleton for new code.
@@ -91,6 +119,8 @@ Write and review code for QuizFlash using the repository's architecture rules in
 - `references/universal_prompt.md`: Copy-paste prompt template for other agents/tools.
 
 ## Before Writing Any New Feature
+
+For new screens or end-to-end features, deeper loading is expected than for local edits.
 
 1. Read `references/project-map.md` to confirm the ownership layer and target folder.
 2. Read `references/component-catalog.md` before creating any new card, row, toolbar, menu, overlay, or modal.
@@ -108,10 +138,14 @@ This skill is intentionally written to be mostly agent-agnostic:
 
 ### What To Share With Another Agent
 
-When you use Claude/ChatGPT/Cursor/etc. outside Codex, paste or attach:
+When you use Claude/ChatGPT/Cursor/etc. outside Codex, paste or attach first:
 - `SKILL.md`
+- `references/task-routing.md`
+
+Add these only when the task needs them:
 - `references/architecture.md`
 - `references/project-map.md`
+- `references/component-catalog.md`
 
 If the agent cannot access your repo directly, also paste:
 - the exact file paths involved

@@ -84,6 +84,50 @@ nonisolated enum AppPadTabBarPosition: String, CaseIterable, Identifiable, Codab
     }
 }
 
+// MARK: - Study Session Progress Style
+
+/// Controls how prominently study-session progress is rendered in supported play modes.
+nonisolated enum AppStudySessionProgressStyle: String, CaseIterable, Identifiable, Codable, Sendable {
+    case prominent
+    case compact
+    case hidden
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .prominent:
+            return "Prominent"
+        case .compact:
+            return "Compact"
+        case .hidden:
+            return "Hidden"
+        }
+    }
+}
+
+// MARK: - Study Haptics Preference
+
+/// Controls how strongly supported play modes use haptics for feedback.
+nonisolated enum AppStudyHapticsPreference: String, CaseIterable, Identifiable, Codable, Sendable {
+    case off
+    case subtle
+    case standard
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .off:
+            return "Off"
+        case .subtle:
+            return "Subtle"
+        case .standard:
+            return "Standard"
+        }
+    }
+}
+
 // MARK: - App Preferences Store
 
 /// Shared app preferences consumed by Home, Create Deck, and Settings surfaces.
@@ -97,6 +141,18 @@ final class AppPreferences {
         static let createDeckSortOrder = "preferences.createDeck.sortOrder"
         static let autoCollapseEarlierCards = "preferences.createDeck.autoCollapseEarlierCards"
         static let padTabBarPosition = "preferences.navigation.padTabBarPosition"
+        static let flashcardsProgressStyle = "preferences.playMode.flashcards.progressStyle"
+        static let flashcardsSwipeHaptics = "preferences.playMode.flashcards.swipeHaptics"
+        static let flashcardsKeepsScreenAwake = "preferences.playMode.flashcards.keepsScreenAwake"
+        static let quizAutoAdvanceCorrectAnswers = "preferences.playMode.quiz.autoAdvanceCorrectAnswers"
+        static let quizShowsQuestionProgress = "preferences.playMode.quiz.showsQuestionProgress"
+        static let quizUsesLargeChoiceButtons = "preferences.playMode.quiz.usesLargeChoiceButtons"
+        static let matchShowsRoundCountdown = "preferences.playMode.match.showsRoundCountdown"
+        static let matchHapticsPreference = "preferences.playMode.match.hapticsPreference"
+        static let matchUsesReducedMotion = "preferences.playMode.match.usesReducedMotion"
+        static let writeAutoFocusesAnswerField = "preferences.playMode.write.autoFocusesAnswerField"
+        static let writeKeepsKeyboardVisibleBetweenPrompts = "preferences.playMode.write.keepsKeyboardVisibleBetweenPrompts"
+        static let writeShowsAnswerLengthHint = "preferences.playMode.write.showsAnswerLengthHint"
     }
 
     private let userDefaults: UserDefaults
@@ -135,6 +191,126 @@ final class AppPreferences {
         }
     }
 
+    /// Preferred progress treatment for flashcard sessions.
+    var flashcardsProgressStyle: AppStudySessionProgressStyle {
+        didSet {
+            userDefaults.set(
+                flashcardsProgressStyle.rawValue,
+                forKey: Keys.flashcardsProgressStyle
+            )
+        }
+    }
+
+    /// Preferred haptics level for flashcard swipe feedback.
+    var flashcardsSwipeHaptics: AppStudyHapticsPreference {
+        didSet {
+            userDefaults.set(
+                flashcardsSwipeHaptics.rawValue,
+                forKey: Keys.flashcardsSwipeHaptics
+            )
+        }
+    }
+
+    /// Keeps the screen awake during flashcard review sessions when supported.
+    var flashcardsKeepsScreenAwake: Bool {
+        didSet {
+            userDefaults.set(
+                flashcardsKeepsScreenAwake,
+                forKey: Keys.flashcardsKeepsScreenAwake
+            )
+        }
+    }
+
+    /// Advances to the next quiz question automatically after a correct answer when supported.
+    var quizAutoAdvanceCorrectAnswers: Bool {
+        didSet {
+            userDefaults.set(
+                quizAutoAdvanceCorrectAnswers,
+                forKey: Keys.quizAutoAdvanceCorrectAnswers
+            )
+        }
+    }
+
+    /// Shows quiz progress chrome during supported quiz sessions.
+    var quizShowsQuestionProgress: Bool {
+        didSet {
+            userDefaults.set(
+                quizShowsQuestionProgress,
+                forKey: Keys.quizShowsQuestionProgress
+            )
+        }
+    }
+
+    /// Prefers larger answer targets in quiz sessions when supported.
+    var quizUsesLargeChoiceButtons: Bool {
+        didSet {
+            userDefaults.set(
+                quizUsesLargeChoiceButtons,
+                forKey: Keys.quizUsesLargeChoiceButtons
+            )
+        }
+    }
+
+    /// Shows a short countdown before each match round when supported.
+    var matchShowsRoundCountdown: Bool {
+        didSet {
+            userDefaults.set(
+                matchShowsRoundCountdown,
+                forKey: Keys.matchShowsRoundCountdown
+            )
+        }
+    }
+
+    /// Preferred haptics level for match interactions.
+    var matchHapticsPreference: AppStudyHapticsPreference {
+        didSet {
+            userDefaults.set(
+                matchHapticsPreference.rawValue,
+                forKey: Keys.matchHapticsPreference
+            )
+        }
+    }
+
+    /// Reduces board motion in match mode when supported.
+    var matchUsesReducedMotion: Bool {
+        didSet {
+            userDefaults.set(
+                matchUsesReducedMotion,
+                forKey: Keys.matchUsesReducedMotion
+            )
+        }
+    }
+
+    /// Focuses the answer field automatically in write sessions when supported.
+    var writeAutoFocusesAnswerField: Bool {
+        didSet {
+            userDefaults.set(
+                writeAutoFocusesAnswerField,
+                forKey: Keys.writeAutoFocusesAnswerField
+            )
+        }
+    }
+
+    /// Keeps the keyboard visible between write prompts when supported.
+    var writeKeepsKeyboardVisibleBetweenPrompts: Bool {
+        didSet {
+            userDefaults.set(
+                writeKeepsKeyboardVisibleBetweenPrompts,
+                forKey: Keys.writeKeepsKeyboardVisibleBetweenPrompts
+            )
+        }
+    }
+
+    /// Shows answer-length hints in write mode when supported.
+    var writeShowsAnswerLengthHint: Bool {
+        didSet {
+            userDefaults.set(
+                writeShowsAnswerLengthHint,
+                forKey: Keys.writeShowsAnswerLengthHint
+            )
+        }
+    }
+
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.weekStartDay = AppWeekStartDayPreference(
@@ -149,6 +325,42 @@ final class AppPreferences {
         self.padTabBarPosition = AppPadTabBarPosition(
             rawValue: userDefaults.string(forKey: Keys.padTabBarPosition) ?? ""
         ) ?? .center
+        self.flashcardsProgressStyle = AppStudySessionProgressStyle(
+            rawValue: userDefaults.string(forKey: Keys.flashcardsProgressStyle) ?? ""
+        ) ?? .prominent
+        self.flashcardsSwipeHaptics = AppStudyHapticsPreference(
+            rawValue: userDefaults.string(forKey: Keys.flashcardsSwipeHaptics) ?? ""
+        ) ?? .standard
+        self.flashcardsKeepsScreenAwake = userDefaults.object(
+            forKey: Keys.flashcardsKeepsScreenAwake
+        ) as? Bool ?? true
+        self.quizAutoAdvanceCorrectAnswers = userDefaults.object(
+            forKey: Keys.quizAutoAdvanceCorrectAnswers
+        ) as? Bool ?? false
+        self.quizShowsQuestionProgress = userDefaults.object(
+            forKey: Keys.quizShowsQuestionProgress
+        ) as? Bool ?? true
+        self.quizUsesLargeChoiceButtons = userDefaults.object(
+            forKey: Keys.quizUsesLargeChoiceButtons
+        ) as? Bool ?? false
+        self.matchShowsRoundCountdown = userDefaults.object(
+            forKey: Keys.matchShowsRoundCountdown
+        ) as? Bool ?? true
+        self.matchHapticsPreference = AppStudyHapticsPreference(
+            rawValue: userDefaults.string(forKey: Keys.matchHapticsPreference) ?? ""
+        ) ?? .standard
+        self.matchUsesReducedMotion = userDefaults.object(
+            forKey: Keys.matchUsesReducedMotion
+        ) as? Bool ?? false
+        self.writeAutoFocusesAnswerField = userDefaults.object(
+            forKey: Keys.writeAutoFocusesAnswerField
+        ) as? Bool ?? true
+        self.writeKeepsKeyboardVisibleBetweenPrompts = userDefaults.object(
+            forKey: Keys.writeKeepsKeyboardVisibleBetweenPrompts
+        ) as? Bool ?? true
+        self.writeShowsAnswerLengthHint = userDefaults.object(
+            forKey: Keys.writeShowsAnswerLengthHint
+        ) as? Bool ?? true
     }
 
     /// Resolves the app's effective calendar based on the stored weekday preference.

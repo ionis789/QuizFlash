@@ -2,23 +2,33 @@
 //  SettingsView.swift
 //  QuizFlash
 //
-//  Created by Ion Socol on 23.12.2025.
+//  Main settings hub for QuizFlash.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
+
+private let kSettingsChromeSpace = "SettingsChromeSpace"
+private let kSettingsInfoChromeSpace = "SettingsInfoChromeSpace"
 
 // MARK: - Settings View
+
 struct SettingsView: View {
-    // MARK: - Environment & State
-    @Environment(AuthManager.self) var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(AIProviderStore.self) private var aiProviderStore
-    /// Enables view dismissal triggered purely by the custom edge swipe gesture.
+    @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
-    
-    @State private var themeManager = ThemeManager.shared
+
     @State private var keyboardMonitor = KeyboardMonitor.shared
+    @State private var isCollapsedTitleVisible = false
+    @State private var navigationBarHeight: CGFloat =
+        UIConstants.Size.capsuleHeight + UIConstants.Layout.deckNavigationTopPadding
+    @State private var navigationBarBottomY: CGFloat = 0
     @Query private var decks: [DeckModel]
+    @Query private var userProfiles: [UserProfile]
+    @AppStorage(CardContentMode.storageKey) private var rawCardContentMode = CardContentMode.scaleToFit.rawValue
+
     let allowsSwipeBack: Bool
 
     init(allowsSwipeBack: Bool = false) {
@@ -26,242 +36,437 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        // We render the List directly as the root view for a completely clean layout.
-        List {
-            Section {
-                HStack(spacing: 14) {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [themeManager.accentColor.color.opacity(0.7), themeManager.accentColor.color.opacity(0.3)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 56, height: 56)
-                        .overlay(
-                            Text("IS")
-                                .font(.title3.weight(.bold))
-                                .foregroundStyle(.white)
-                        )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Ion Socol")
-                            .font(.body.weight(.semibold))
-                        Text("QuizFlash User")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
+        ZStack(alignment: .top) {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+                    screenTitle
+                    profileCard
+                    personalizationSection
+                    studyDefaultsSection
+                    workflowSection
+                    supportSection
+                    accountSection
                 }
-                .padding(.vertical, 4)
+                .padding(.horizontal, UIConstants.Spacing.large)
+                .padding(.top, UIConstants.Spacing.large)
+                .padding(.bottom, keyboardMonitor.isVisible ? UIConstants.Spacing.large : UIConstants.Spacing.huge * 1.5)
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
             }
 
-            Section {
-                NavigationLink {
-                    AccentColorPickerView()
-                } label: {
-                    HStack {
-                        Label("Accent Color", systemImage: "paintpalette")
-
-                        Spacer()
-
-                        Circle()
-                            .fill(themeManager.accentColor.color)
-                            .frame(width: 22, height: 22)
-                    }
-                }
-
-                NavigationLink {
-                    SettingsCardAppearanceView()
-                } label: {
-                    Label("Card Appearance", systemImage: "rectangle.on.rectangle")
-                }
-
-                NavigationLink {
-                    Text("Appearance Settings")
-                } label: {
-                    Label("Appearance", systemImage: "moon.fill")
-                }
-            } header: {
-                Text("Appearance")
-            }
-
-            Section {
-                NavigationLink {
-                    AppPreferencesSettingsView()
-                } label: {
-                    Label("General", systemImage: "slider.horizontal.3")
-                }
-
-                NavigationLink {
-                    Text("Notifications")
-                    // If these child views also need to be entirely clean,
-                    // they will need the same .toolbar(.hidden) and .swipeBack setup.
-                } label: {
-                    Label("Notifications", systemImage: "bell.fill")
-                }
-
-                NavigationLink {
-                    StorageInfoView(decks: decks)
-                } label: {
-                    Label("Data & Storage", systemImage: "externaldrive.fill")
-                }
-
-                #if DEBUG
-                NavigationLink {
-                    AIProviderSettingsView()
-                } label: {
-                    HStack {
-                        Label("Developer AI", systemImage: "sparkles.rectangle.stack")
-
-                        Spacer()
-
-                        if let activeProfile = aiProviderStore.activeProfile {
-                            Text(activeProfile.trimmedName)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-                #endif
-            } header: {
-                Text("Preferences")
-            } footer: {
-                Text("Week layout, Create Deck defaults, and editor behaviour live here.")
-            }
-
-            Section {
-                NavigationLink {
-                    Text("Help")
-                } label: {
-                    Label("Help & Support", systemImage: "questionmark.circle")
-                }
-
-                NavigationLink {
-                    Text("About")
-                } label: {
-                    Label("About QuizFlash", systemImage: "info.circle")
-                }
-            } header: {
-                Text("About")
-            }
-
-            Section {
-                Button {
-                    authManager.logout()
-                } label: {
-                    HStack {
-                        Spacer()
-                        Text("Log Out")
-                            .foregroundStyle(.red)
-                        Spacer()
-                    }
-                }
-            }
+            navigationBar
         }
-        .listStyle(.insetGrouped)
-        .appScreenBackground(.grouped)
-        .safeAreaInset(edge: .bottom) {
-            Color.clear.frame(height: keyboardMonitor.isVisible ? 0 : 90)
-        }
-        // Force hide the native navigation bar to keep the screen entirely clean
+        .coordinateSpace(name: kSettingsChromeSpace)
+        .background(themeManager.groupedScreenBackground)
         .toolbar(.hidden, for: .navigationBar)
-        // Only route the custom fluid gesture when Settings is pushed from another screen.
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: keyboardMonitor.isVisible ? 0 : 40)
+        }
         .swipeBack(enabled: allowsSwipeBack) {
             dismiss()
         }
     }
-}
 
-// MARK: - App Preferences Settings View
+    private var screenTitle: some View {
+        LargeScreenTitle(title: "Settings")
+            .collapsibleTitleRevealAnchor(
+                in: kSettingsChromeSpace,
+                navigationBarBottomY: navigationBarBottomY,
+                revealClearance: SettingsChromeMetrics.pillRevealClearance,
+                isVisible: $isCollapsedTitleVisible
+            )
+    }
 
-struct AppPreferencesSettingsView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(AppPreferences.self) private var appPreferences
+    private var profileCard: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    themeManager.accentColor.color.opacity(0.84),
+                                    themeManager.accentColor.color.opacity(0.34)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 76, height: 76)
 
-    var body: some View {
-        List {
-            Section {
-                Picker("Week Starts On", selection: weekStartBinding) {
-                    ForEach(AppWeekStartDayPreference.allCases) { preference in
-                        Text(preference.title).tag(preference)
-                    }
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 30, weight: .bold))
+                        .foregroundStyle(.white)
                 }
-            } header: {
-                Text("Calendar")
-            } footer: {
-                Text("Choose whether the Home calendar starts on the system default, Monday, or Sunday.")
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("QuizFlash User")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+
+                    Text("Level \(userLevel)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+
+                premiumBadge
             }
 
-            Section {
-                Picker("iPad Tab Bar Position", selection: padTabBarPositionBinding) {
-                    ForEach(AppPadTabBarPosition.allCases) { position in
-                        Text(position.title).tag(position)
-                    }
-                }
-            } header: {
-                Text("Navigation")
-            } footer: {
-                Text("Applies to the floating tab bar on iPad. Default is centered.")
-            }
-
-            Section {
-                Picker("Default Sort Order", selection: createDeckSortBinding) {
-                    ForEach(CreateDeckSortOrder.allCases) { sortOrder in
-                        Text(sortOrder.title).tag(sortOrder)
-                    }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    profileMetric(icon: "bolt.fill", title: "Lvl \(userLevel)")
+                    profileMetric(icon: "flame.fill", title: "\(currentStreak) streak")
+                    profileMetric(icon: "square.stack.3d.up.fill", title: "\(decks.count) decks")
                 }
 
-                Toggle("Auto-collapse Earlier Cards", isOn: autoCollapseBinding)
-            } header: {
-                Text("Create Deck")
-            } footer: {
-                Text("Controls how new AI session cards and older deck cards are presented in the editor.")
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                    HStack(spacing: UIConstants.Spacing.small) {
+                        profileMetric(icon: "bolt.fill", title: "Lvl \(userLevel)")
+                        profileMetric(icon: "flame.fill", title: "\(currentStreak) streak")
+                    }
+
+                    profileMetric(icon: "square.stack.3d.up.fill", title: "\(decks.count) decks")
+                }
             }
         }
-        .listStyle(.insetGrouped)
-        .appScreenBackground(.grouped)
-        .toolbar(.hidden, for: .navigationBar)
-        .swipeBack { dismiss() }
+        .padding(UIConstants.Spacing.large)
+        .settingsCardBackground(cornerRadius: UIConstants.Radius.maximum)
     }
 
-    private var weekStartBinding: Binding<AppWeekStartDayPreference> {
-        Binding(
-            get: { appPreferences.weekStartDay },
-            set: { appPreferences.weekStartDay = $0 }
-        )
+    private var premiumBadge: some View {
+        Text(isPremiumUser ? "Premium" : "Free")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(isPremiumUser ? .yellow : .secondary)
+            .padding(.horizontal, UIConstants.Spacing.standard)
+            .padding(.vertical, 6)
+            .background(
+                (isPremiumUser ? Color.yellow.opacity(0.14) : Color.white.opacity(0.06)),
+                in: Capsule()
+            )
     }
 
-    private var createDeckSortBinding: Binding<CreateDeckSortOrder> {
-        Binding(
-            get: { appPreferences.createDeckSortOrder },
-            set: { appPreferences.createDeckSortOrder = $0 }
-        )
+    private func profileMetric(icon: String, title: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(themeManager.accentColor.color.opacity(0.92))
+
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, UIConstants.Spacing.standard)
+        .padding(.vertical, 8)
+        .background(Color.white.opacity(0.05), in: Capsule())
     }
 
-    private var padTabBarPositionBinding: Binding<AppPadTabBarPosition> {
-        Binding(
-            get: { appPreferences.padTabBarPosition },
-            set: { appPreferences.padTabBarPosition = $0 }
-        )
+    private var personalizationSection: some View {
+        SettingsSectionCard(
+            title: "Personalization",
+            subtitle: nil
+        ) {
+            NavigationLink {
+                AccentColorPickerView()
+            } label: {
+                SettingsNavigationRow(
+                    icon: "paintpalette.fill",
+                    tint: themeManager.accentColor.color,
+                    title: "Accent Color",
+                    detail: nil,
+                    value: themeManager.accentColor.rawValue
+                )
+            }
+            .buttonStyle(.plain)
+
+            SettingsCardDivider()
+
+            NavigationLink {
+                SettingsCardAppearanceView()
+            } label: {
+                SettingsNavigationRow(
+                    icon: "rectangle.on.rectangle",
+                    tint: .cyan,
+                    title: "Card Appearance",
+                    detail: nil,
+                    value: currentCardAppearanceTitle
+                )
+            }
+            .buttonStyle(.plain)
+        }
     }
 
-    private var autoCollapseBinding: Binding<Bool> {
-        Binding(
-            get: { appPreferences.autoCollapseEarlierCardsInAISession },
-            set: { appPreferences.autoCollapseEarlierCardsInAISession = $0 }
-        )
+    private var studyDefaultsSection: some View {
+        SettingsSectionCard(
+            title: "Study Defaults",
+            subtitle: nil
+        ) {
+            NavigationLink {
+                AppPreferencesSettingsView()
+            } label: {
+                SettingsNavigationRow(
+                    icon: "gearshape.2.fill",
+                    tint: .blue,
+                    title: "App Defaults",
+                    detail: nil,
+                    value: appPreferences.weekStartDay.title
+                )
+            }
+            .buttonStyle(.plain)
+
+            SettingsCardDivider()
+
+            NavigationLink {
+                PlayModeDefaultsSettingsView(mode: .flashcards)
+            } label: {
+                SettingsNavigationRow(
+                    icon: SettingsStudyModeKind.flashcards.systemImage,
+                    tint: SettingsStudyModeKind.flashcards.tint,
+                    title: "Flashcards",
+                    detail: nil,
+                    value: flashcardsSummary
+                )
+            }
+            .buttonStyle(.plain)
+
+            SettingsCardDivider()
+
+            NavigationLink {
+                PlayModeDefaultsSettingsView(mode: .quiz)
+            } label: {
+                SettingsNavigationRow(
+                    icon: SettingsStudyModeKind.quiz.systemImage,
+                    tint: SettingsStudyModeKind.quiz.tint,
+                    title: "Quiz",
+                    detail: nil,
+                    value: quizSummary
+                )
+            }
+            .buttonStyle(.plain)
+
+            SettingsCardDivider()
+
+            NavigationLink {
+                PlayModeDefaultsSettingsView(mode: .match)
+            } label: {
+                SettingsNavigationRow(
+                    icon: SettingsStudyModeKind.match.systemImage,
+                    tint: SettingsStudyModeKind.match.tint,
+                    title: "Match",
+                    detail: nil,
+                    value: matchSummary
+                )
+            }
+            .buttonStyle(.plain)
+
+            SettingsCardDivider()
+
+            NavigationLink {
+                PlayModeDefaultsSettingsView(mode: .write)
+            } label: {
+                SettingsNavigationRow(
+                    icon: SettingsStudyModeKind.write.systemImage,
+                    tint: SettingsStudyModeKind.write.tint,
+                    title: "Write",
+                    detail: nil,
+                    value: writeSummary
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var workflowSection: some View {
+        SettingsSectionCard(
+            title: "Data & Tools",
+            subtitle: nil
+        ) {
+            NavigationLink {
+                StorageInfoView(decks: decks)
+            } label: {
+                SettingsNavigationRow(
+                    icon: "externaldrive.fill",
+                    tint: .orange,
+                    title: "Data & Storage",
+                    detail: nil,
+                    value: "\(decks.count) Decks"
+                )
+            }
+            .buttonStyle(.plain)
+
+            #if DEBUG
+            SettingsCardDivider()
+
+            NavigationLink {
+                AIProviderSettingsView()
+            } label: {
+                SettingsNavigationRow(
+                    icon: "sparkles.rectangle.stack.fill",
+                    tint: .purple,
+                    title: "Developer AI",
+                    detail: nil,
+                    value: aiProviderStore.activeProfile?.trimmedName ?? "Not Configured"
+                )
+            }
+            .buttonStyle(.plain)
+            #endif
+        }
+    }
+
+    private var supportSection: some View {
+        SettingsSectionCard(
+            title: "About",
+            subtitle: nil
+        ) {
+            NavigationLink {
+                SettingsInfoDetailView(
+                    title: "Help & Support",
+                    icon: "questionmark.circle.fill",
+                    tint: .teal,
+                    message: "Support content can live here later."
+                )
+            } label: {
+                SettingsNavigationRow(
+                    icon: "questionmark.circle.fill",
+                    tint: .teal,
+                    title: "Help & Support",
+                    detail: nil,
+                    value: nil
+                )
+            }
+            .buttonStyle(.plain)
+
+            SettingsCardDivider()
+
+            NavigationLink {
+                SettingsInfoDetailView(
+                    title: "About QuizFlash",
+                    icon: "info.circle.fill",
+                    tint: .blue,
+                    message: "Version, credits, and release notes can live here."
+                )
+            } label: {
+                SettingsNavigationRow(
+                    icon: "info.circle.fill",
+                    tint: .blue,
+                    title: "About QuizFlash",
+                    detail: nil,
+                    value: nil
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var accountSection: some View {
+        SettingsSectionCard(
+            title: "Account",
+            subtitle: nil
+        ) {
+            Button {
+                authManager.logout()
+            } label: {
+                HStack(spacing: UIConstants.Spacing.medium) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous)
+                            .fill(Color.red.opacity(0.12))
+                            .frame(width: 40, height: 40)
+
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.red)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Log Out")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.red)
+
+                        Text("Sign out of the current QuizFlash session on this device.")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var navigationBar: some View {
+        CollapsibleTitleNavigationBar(
+            coordinateSpaceName: kSettingsChromeSpace,
+            onHeightChange: { navigationBarHeight = $0 },
+            onBottomChange: { navigationBarBottomY = $0 }
+        ) {
+            if allowsSwipeBack {
+                ChromeCircleIconButton(systemName: "chevron.left") {
+                    dismiss()
+                }
+            } else {
+                ChromeCirclePlaceholder()
+            }
+        } center: { maxWidth in
+            CollapsibleTitlePill(
+                title: "Settings",
+                maxWidth: maxWidth,
+                isVisible: isCollapsedTitleVisible
+            )
+        } trailing: {
+            ChromeCirclePlaceholder()
+        }
+    }
+
+    private var currentCardAppearanceTitle: String {
+        CardContentMode(rawValue: rawCardContentMode)?.label ?? CardContentMode.scaleToFit.label
+    }
+
+    private var flashcardsSummary: String {
+        "\(appPreferences.flashcardsProgressStyle.title) Progress"
+    }
+
+    private var quizSummary: String {
+        appPreferences.quizAutoAdvanceCorrectAnswers ? "Auto Advance" : "Manual Pace"
+    }
+
+    private var matchSummary: String {
+        appPreferences.matchShowsRoundCountdown ? "Countdown On" : "Countdown Off"
+    }
+
+    private var writeSummary: String {
+        appPreferences.writeAutoFocusesAnswerField ? "Auto Focus" : "Manual Focus"
+    }
+
+    private var profile: UserProfile? {
+        userProfiles.first
+    }
+
+    private var userLevel: Int {
+        profile?.level ?? 1
+    }
+
+    private var currentStreak: Int {
+        profile?.currentStreak ?? 0
+    }
+
+    private var isPremiumUser: Bool {
+        false
     }
 }
 
 // MARK: - Accent Color Picker View
+
 struct AccentColorPickerView: View {
-    // MARK: - Environment & State
     @Environment(\.dismiss) private var dismiss
-    @State private var themeManager = ThemeManager.shared
+    @Environment(ThemeManager.self) private var themeManager
 
     private let columns = [
         GridItem(.adaptive(minimum: 70, maximum: 100), spacing: 16)
@@ -270,7 +475,6 @@ struct AccentColorPickerView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Preview card
                 VStack(spacing: 12) {
                     Text("Preview")
                         .font(.caption.weight(.semibold))
@@ -278,7 +482,6 @@ struct AccentColorPickerView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     HStack(spacing: 12) {
-                        // Sample icon
                         ZStack {
                             Circle()
                                 .fill(
@@ -315,7 +518,6 @@ struct AccentColorPickerView: View {
                 }
                 .padding(.horizontal, 20)
 
-                // Color grid
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Choose Color")
                         .font(.caption.weight(.semibold))
@@ -356,12 +558,82 @@ struct AccentColorPickerView: View {
             .padding(.top, 20)
         }
         .appScreenBackground(.grouped)
-        // Keep the UI fully immersive by hiding the navigation bar
         .toolbar(.hidden, for: .navigationBar)
-        // Only allow dismissing via the custom swipe back modifier
         .swipeBack {
             dismiss()
         }
+    }
+}
+
+// MARK: - Settings Info Detail View
+
+private struct SettingsInfoDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(ThemeManager.self) private var themeManager
+    @State private var isCollapsedTitleVisible = false
+    @State private var navigationBarHeight: CGFloat =
+        UIConstants.Size.capsuleHeight + UIConstants.Layout.deckNavigationTopPadding
+    @State private var navigationBarBottomY: CGFloat = 0
+
+    let title: String
+    let icon: String
+    let tint: Color
+    let message: String
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+                    LargeScreenTitle(title: title)
+                        .collapsibleTitleRevealAnchor(
+                            in: kSettingsInfoChromeSpace,
+                            navigationBarBottomY: navigationBarBottomY,
+                            revealClearance: SettingsChromeMetrics.pillRevealClearance,
+                            isVisible: $isCollapsedTitleVisible
+                        )
+
+                    SettingsInfoCard(
+                        icon: icon,
+                        tint: tint,
+                        text: message
+                    )
+
+                    SettingsInfoCard(
+                        icon: "clock.arrow.circlepath",
+                        tint: themeManager.accentColor.color,
+                        text: "This destination is now organized and visually aligned with the rest of Settings, even though the underlying support content can be expanded later."
+                    )
+                }
+                .padding(.horizontal, UIConstants.Spacing.large)
+                .padding(.top, UIConstants.Spacing.large)
+                .padding(.bottom, UIConstants.Spacing.huge)
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
+            }
+
+            CollapsibleTitleNavigationBar(
+                coordinateSpaceName: kSettingsInfoChromeSpace,
+                onHeightChange: { navigationBarHeight = $0 },
+                onBottomChange: { navigationBarBottomY = $0 }
+            ) {
+                ChromeCircleIconButton(systemName: "chevron.left") {
+                    dismiss()
+                }
+            } center: { maxWidth in
+                CollapsibleTitlePill(
+                    title: title,
+                    maxWidth: maxWidth,
+                    isVisible: isCollapsedTitleVisible
+                )
+            } trailing: {
+                ChromeCirclePlaceholder()
+            }
+        }
+        .coordinateSpace(name: kSettingsInfoChromeSpace)
+        .background(themeManager.groupedScreenBackground)
+        .toolbar(.hidden, for: .navigationBar)
+        .swipeBack { dismiss() }
     }
 }
 
@@ -369,5 +641,7 @@ struct AccentColorPickerView: View {
     SettingsView()
         .environment(AuthManager.shared)
         .environment(AIProviderStore.shared)
+        .environment(ThemeManager.shared)
+        .environment(AppPreferences.shared)
         .modelContainer(for: [DeckModel.self, CardModel.self], inMemory: true)
 }

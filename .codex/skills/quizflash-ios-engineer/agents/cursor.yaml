@@ -1,4 +1,4 @@
 interface:
   display_name: "QuizFlash iOS Engineer"
   short_description: "QuizFlash SwiftUI + SwiftData coding guide (iOS 17+)"
-  default_prompt: "Use $quizflash-ios-engineer rules for all non-trivial QuizFlash changes. Prefer existing primitives (NavigationManager, UIConstants, CardFetchActor, fullScreenSheet). Avoid performance regressions and iOS 17 SwiftData relationship predicates. Output exact file edits and the command to validate with xcodebuild."
+  default_prompt: "Use $quizflash-ios-engineer rules for all non-trivial QuizFlash changes. Read references/task-routing.md first, start with the target file and paired owner file, and load architecture or project-map only on demand. Prefer existing primitives (NavigationManager, UIConstants, CardFetchActor, fullScreenSheet). Avoid performance regressions and iOS 17 SwiftData relationship predicates. Output exact file edits and the command to validate with xcodebuild."
