@@ -66,23 +66,6 @@ extension DeckContentView {
 
     var measuredNavigationBar: some View {
         unifiedNavigationBar
-            .background {
-                Color.clear
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.size.height
-                    } action: { newHeight in
-                        if abs(navigationBarHeight - newHeight) > 0.5 {
-                            navigationBarHeight = newHeight
-                        }
-                    }
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.frame(in: .named(kDeckChromeSpace)).maxY
-                    } action: { newBottom in
-                        if abs(navigationBarBottomY - newBottom) > 0.5 {
-                            navigationBarBottomY = newBottom
-                        }
-                    }
-            }
     }
 
     var unifiedNavigationBar: some View {
@@ -92,6 +75,7 @@ extension DeckContentView {
             backLabel: backLabel,
             searchQuery: searchQuery,
             isSelecting: viewModel.isSelecting,
+            coordinateSpaceName: kDeckChromeSpace,
             sortOrder: $viewModel.sortOrder,
             groupingMode: Binding(
                 get: { viewModel.groupingMode },
@@ -116,6 +100,16 @@ extension DeckContentView {
             onExport: {
                 exitSelectionModeForExternalAction()
                 viewModel.exportDeck(deck)
+            },
+            onHeightChange: { newHeight in
+                if abs(navigationBarHeight - newHeight) > 0.5 {
+                    navigationBarHeight = newHeight
+                }
+            },
+            onBottomChange: { newBottom in
+                if abs(navigationBarBottomY - newBottom) > 0.5 {
+                    navigationBarBottomY = newBottom
+                }
             }
         )
     }

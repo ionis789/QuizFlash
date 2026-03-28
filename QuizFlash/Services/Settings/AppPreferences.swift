@@ -128,6 +128,31 @@ nonisolated enum AppStudyHapticsPreference: String, CaseIterable, Identifiable, 
     }
 }
 
+// MARK: - Match Card Font Size
+
+/// Controls how large Match board cards render their mini preview content.
+nonisolated enum AppMatchCardFontSizePreference: String, CaseIterable, Identifiable, Codable, Sendable {
+    case small
+    case standard
+    case large
+    case custom
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .small:
+            return "Small"
+        case .standard:
+            return "Standard"
+        case .large:
+            return "Large"
+        case .custom:
+            return "Custom"
+        }
+    }
+}
+
 // MARK: - App Preferences Store
 
 /// Shared app preferences consumed by Home, Create Deck, and Settings surfaces.
@@ -149,6 +174,8 @@ final class AppPreferences {
         static let quizUsesLargeChoiceButtons = "preferences.playMode.quiz.usesLargeChoiceButtons"
         static let matchShowsRoundCountdown = "preferences.playMode.match.showsRoundCountdown"
         static let matchHapticsPreference = "preferences.playMode.match.hapticsPreference"
+        static let matchCardFontSize = "preferences.playMode.match.cardFontSize"
+        static let matchCustomCardFontSizePixels = "preferences.playMode.match.customCardFontSizePixels"
         static let matchUsesReducedMotion = "preferences.playMode.match.usesReducedMotion"
         static let writeAutoFocusesAnswerField = "preferences.playMode.write.autoFocusesAnswerField"
         static let writeKeepsKeyboardVisibleBetweenPrompts = "preferences.playMode.write.keepsKeyboardVisibleBetweenPrompts"
@@ -271,6 +298,32 @@ final class AppPreferences {
         }
     }
 
+    /// Preferred text scale for Match board cards.
+    var matchCardFontSize: AppMatchCardFontSizePreference {
+        didSet {
+            userDefaults.set(
+                matchCardFontSize.rawValue,
+                forKey: Keys.matchCardFontSize
+            )
+        }
+    }
+
+    /// Custom body-sized font in pixels used when Match card font size is set to Custom.
+    var matchCustomCardFontSizePixels: Double {
+        didSet {
+            let clamped = Self.clampedMatchCardFontSize(matchCustomCardFontSizePixels)
+            if abs(clamped - matchCustomCardFontSizePixels) > .ulpOfOne {
+                matchCustomCardFontSizePixels = clamped
+                return
+            }
+
+            userDefaults.set(
+                clamped,
+                forKey: Keys.matchCustomCardFontSizePixels
+            )
+        }
+    }
+
     /// Reduces board motion in match mode when supported.
     var matchUsesReducedMotion: Bool {
         didSet {
@@ -349,6 +402,12 @@ final class AppPreferences {
         self.matchHapticsPreference = AppStudyHapticsPreference(
             rawValue: userDefaults.string(forKey: Keys.matchHapticsPreference) ?? ""
         ) ?? .standard
+        self.matchCardFontSize = AppMatchCardFontSizePreference(
+            rawValue: userDefaults.string(forKey: Keys.matchCardFontSize) ?? ""
+        ) ?? .standard
+        self.matchCustomCardFontSizePixels = Self.clampedMatchCardFontSize(
+            userDefaults.object(forKey: Keys.matchCustomCardFontSizePixels) as? Double ?? 22
+        )
         self.matchUsesReducedMotion = userDefaults.object(
             forKey: Keys.matchUsesReducedMotion
         ) as? Bool ?? false
@@ -366,5 +425,23 @@ final class AppPreferences {
     /// Resolves the app's effective calendar based on the stored weekday preference.
     var resolvedCalendar: Calendar {
         weekStartDay.resolvedCalendar
+    }
+
+    /// Resolved scale applied to Match mini card typography.
+    var matchCardFontScale: CGFloat {
+        switch matchCardFontSize {
+        case .small:
+            return 0.84
+        case .standard:
+            return 1.0
+        case .large:
+            return 1.12
+        case .custom:
+            return CGFloat(Self.clampedMatchCardFontSize(matchCustomCardFontSizePixels) / 22.0)
+        }
+    }
+
+    private static func clampedMatchCardFontSize(_ value: Double) -> Double {
+        min(max(value.rounded(), 14), 34)
     }
 }

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 // MARK: - Match Mode View
 
@@ -50,8 +51,10 @@ struct MatchModeView: View {
 private struct MatchModeSessionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
+    @Environment(\.fullScreenSheetDragProgress) private var fullScreenSheetDragProgress
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var context
+    @Environment(AppPreferences.self) private var appPreferences
 
     let deck: DeckModel
     let safeAreaInsets: UIEdgeInsets
@@ -60,20 +63,25 @@ private struct MatchModeSessionView: View {
     @Bindable var viewModel: MatchModeViewModel
 
     @State private var headerHeight: CGFloat = 0
+    @State private var mismatchHapticTask: Task<Void, Never>?
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
+    private var topSheetCornerRadius: CGFloat {
+        fullScreenSheetDragProgress > 0.001 ? 50 : 0
+    }
 
     var body: some View {
         GeometryReader { geo in
             let isLandscape = geo.size.width > geo.size.height
             let resolvedSafeTopInset = max(safeAreaInsets.top, geo.safeAreaInsets.top)
             let resolvedSafeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
-            let headerHorizontalPadding: CGFloat = isCompact ? 20 : 32
-            let headerBottomPadding: CGFloat = isCompact ? 18 : 28
+            let headerHorizontalPadding: CGFloat = isCompact ? 14 : 24
+            let headerBottomPadding: CGFloat = isCompact ? 10 : 18
             let preferredRoundSize = viewModel.settings.roundSize.rawValue
             let roundCapacity = min(preferredRoundSize, isCompact && !isLandscape ? 6 : 8)
+            let boardTopInset = headerHeight + headerBottomPadding
 
-            ZStack {
+            ZStack(alignment: .top) {
                 if fullScreenSheetDismiss == nil {
                     CardPreviewModeBackground()
                         .ignoresSafeArea()
@@ -82,19 +90,28 @@ private struct MatchModeSessionView: View {
                 if viewModel.isComplete {
                     completionOverlay
                 } else {
-                    VStack(spacing: 0) {
-                        header(
-                            safeTopInset: resolvedSafeTopInset,
-                            horizontalPadding: headerHorizontalPadding
-                        )
-                        .padding(.bottom, headerBottomPadding)
+                    content(geo: geo, topContentInset: boardTopInset)
+                        .padding(.horizontal, 0)
+                        .padding(.bottom, max(resolvedSafeBottomInset, UIConstants.Spacing.large))
 
-                        content(geo: geo)
-                            .padding(.horizontal, isCompact ? 16 : (isLandscape ? geo.size.width * 0.10 : 32))
-                            .padding(.bottom, max(resolvedSafeBottomInset, UIConstants.Spacing.large))
-                    }
+                    header(
+                        safeTopInset: resolvedSafeTopInset,
+                        horizontalPadding: headerHorizontalPadding
+                    )
+                    .zIndex(1)
                 }
             }
+            .clipShape(
+                UnevenRoundedRectangle(
+                    cornerRadii: .init(
+                        topLeading: topSheetCornerRadius,
+                        bottomLeading: 0,
+                        bottomTrailing: 0,
+                        topTrailing: topSheetCornerRadius
+                    ),
+                    style: .continuous
+                )
+            )
             .fullScreenSheetDragActivationHeight(headerHeight)
             .task(id: roundCapacity) {
                 await viewModel.startSession(
@@ -104,39 +121,51 @@ private struct MatchModeSessionView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .onChange(of: viewModel.mismatchAnimationToken) { oldValue, newValue in
+            guard newValue > oldValue else { return }
+            mismatchHapticTask?.cancel()
+            let preference = appPreferences.matchHapticsPreference
+            let rhythm = viewModel.settings.feedbackIntensity
+            mismatchHapticTask = Task {
+                await MatchBoardHaptics.playMismatchSequence(
+                    for: preference,
+                    rhythm: rhythm
+                )
+            }
+        }
+        .onChange(of: viewModel.totalMatchedCount) { oldValue, newValue in
+            guard newValue > oldValue else { return }
+            MatchBoardHaptics.playCorrectMatch(for: appPreferences.matchHapticsPreference)
+        }
         .onDisappear {
+            mismatchHapticTask?.cancel()
             viewModel.tearDown()
         }
     }
 
     private func header(safeTopInset: CGFloat, horizontalPadding: CGFloat) -> some View {
-        PlayModeSessionHeader(
+        MatchSessionHeader(
             deckTitle: viewModel.resolvedDeckTitle,
-            subtitle: viewModel.roundLabel,
+            roundLabel: viewModel.roundLabel,
             progressLabel: viewModel.progressLabel,
             progressFraction: viewModel.progressFraction,
+            matchedCount: viewModel.totalMatchedCount,
+            mismatchCount: viewModel.totalMismatchCount,
+            isRetryRound: viewModel.isRetryRound,
             safeTopInset: safeTopInset,
             horizontalPadding: horizontalPadding,
             measuredHeight: $headerHeight
         ) {
-            HStack(spacing: UIConstants.Spacing.medium) {
-                headerMetric(value: viewModel.totalMatchedCount, symbol: "checkmark.circle.fill", tint: .green)
-                headerMetric(value: viewModel.totalMismatchCount, symbol: "xmark.circle.fill", tint: .orange)
-            }
-        } trailing: {
             dismissButton
         }
     }
 
     @ViewBuilder
-    private func content(geo: GeometryProxy) -> some View {
+    private func content(geo: GeometryProxy, topContentInset: CGFloat) -> some View {
         switch viewModel.loadState {
         case .idle, .loading:
-            centeredStateCard(
-                icon: "hourglass",
-                title: "Preparing Match",
-                message: "Building preview-text pairs and chunking the deck into round-sized boards."
-            )
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .empty:
             centeredStateCard(
                 icon: "rectangle.stack.badge.minus",
@@ -158,13 +187,10 @@ private struct MatchModeSessionView: View {
             )
         case .ready:
             if viewModel.activeRound != nil {
-                matchBoard(availableSize: geo.size)
+                matchBoard(availableSize: geo.size, topContentInset: topContentInset)
             } else {
-                centeredStateCard(
-                    icon: "square.grid.2x2.fill",
-                    title: "Waiting For Round Data",
-                    message: "The next board is being prepared."
-                )
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -188,41 +214,66 @@ private struct MatchModeSessionView: View {
         }
     }
 
-    private func matchBoard(availableSize: CGSize) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            if viewModel.isRetryRound {
-                retryRoundBanner
-            }
+    private func matchBoard(availableSize: CGSize, topContentInset: CGFloat) -> some View {
+        let boardSpacing = isCompact ? 8.0 : 12.0
+        let tileMinHeight = viewModel.settings.contentDensity == .compact ? 86.0 : 100.0
 
-            if let prompt = viewModel.currentPromptPair {
-                activePromptCard(for: prompt)
-                    .id(prompt.id)
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        return GeometryReader { boardGeo in
+            let laneHeight = max(0, boardGeo.size.height)
 
-                ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: UIConstants.Spacing.small) {
-                        ForEach(viewModel.remainingAnswerPairs) { pair in
+            ZStack {
+                HStack(alignment: .top, spacing: boardSpacing) {
+                    matchLane(height: laneHeight, topInset: topContentInset) {
+                        ForEach(viewModel.remainingPromptPairs) { pair in
                             MatchTileButton(
-                                text: pair.answerPreview,
-                                tint: .green,
-                                isSelected: viewModel.selectedAnswerID == pair.id,
-                                isMismatch: viewModel.mismatchAnswerID == pair.id,
+                                content: pair.promptContent,
+                                accent: .blue,
+                                removalOffsetX: 18,
+                                isSelected: viewModel.selectedPromptID == pair.id,
+                                isConfirmed: viewModel.confirmingMatchID == pair.id,
+                                isRemoving: viewModel.removingMatchID == pair.id,
+                                isMismatch: viewModel.mismatchPromptID == pair.id,
                                 mismatchToken: viewModel.mismatchAnimationToken,
                                 density: viewModel.settings.contentDensity,
-                                minHeight: viewModel.settings.contentDensity == .compact ? 68 : 82,
-                                action: { viewModel.selectAnswer(pair.id) }
+                                fontScale: appPreferences.matchCardFontScale,
+                                minHeight: tileMinHeight,
+                                action: { handlePromptTap(pair.id) }
                             )
                         }
                     }
-                    .padding(.bottom, UIConstants.Spacing.small)
+
+                    Color.white.opacity(0.1)
+                        .frame(width: 1)
+                        .padding(.top, topContentInset + 6)
+                        .padding(.bottom, 6)
+                        .frame(maxHeight: .infinity, alignment: .top)
+
+                    matchLane(height: laneHeight, topInset: topContentInset) {
+                        ForEach(viewModel.remainingAnswerPairs) { pair in
+                            MatchTileButton(
+                                content: pair.answerContent,
+                                accent: .green,
+                                removalOffsetX: -18,
+                                isSelected: viewModel.selectedAnswerID == pair.id,
+                                isConfirmed: viewModel.confirmingMatchID == pair.id,
+                                isRemoving: viewModel.removingMatchID == pair.id,
+                                isMismatch: viewModel.mismatchAnswerID == pair.id,
+                                mismatchToken: viewModel.mismatchAnimationToken,
+                                density: viewModel.settings.contentDensity,
+                                fontScale: appPreferences.matchCardFontScale,
+                                minHeight: tileMinHeight,
+                                action: { handleAnswerTap(pair.id) }
+                            )
+                        }
+                    }
                 }
-                .frame(
-                    maxWidth: .infinity,
-                    minHeight: max(220, availableSize.height * 0.34),
-                    maxHeight: .infinity,
-                    alignment: .top
-                )
-            } else {
+                .id(viewModel.boardTransitionID)
+                .transition(.opacity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
+        }
+        .overlay {
+            if viewModel.activeRound == nil {
                 centeredStateCard(
                     icon: "checkmark.circle.fill",
                     title: "Round Cleared",
@@ -231,64 +282,27 @@ private struct MatchModeSessionView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(.spring(response: 0.3, dampingFraction: 0.86), value: viewModel.currentPromptPair?.id)
+        .animation(.easeOut(duration: 0.18), value: viewModel.boardTransitionID)
+        .animation(.spring(response: 0.24, dampingFraction: 0.9), value: viewModel.totalMatchedCount)
+        .animation(.spring(response: 0.24, dampingFraction: 0.9), value: viewModel.remainingPromptPairs.count)
+        .animation(.spring(response: 0.24, dampingFraction: 0.9), value: viewModel.remainingAnswerPairs.count)
     }
 
-    private var retryRoundBanner: some View {
-        Text("Resolve the missed pairs from this round before the next chunk.")
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, UIConstants.Spacing.medium)
-            .padding(.vertical, UIConstants.Spacing.small)
-            .background(Color.orange.opacity(0.14), in: Capsule())
-    }
-
-    private func activePromptCard(for pair: MatchPlayablePair) -> some View {
-        PlayModeContentCard(cornerRadius: UIConstants.Radius.maximum) {
-            HStack(alignment: .firstTextBaseline, spacing: UIConstants.Spacing.small) {
-                Text("CURRENT PROMPT")
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(.secondary)
-
-                Spacer(minLength: 0)
-
-                Text("\(viewModel.remainingPairsInRound) LEFT")
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(.blue)
-                    .padding(.horizontal, UIConstants.Spacing.small)
-                    .padding(.vertical, 6)
-                    .background(Color.blue.opacity(0.12), in: Capsule())
+    private func matchLane<Content: View>(
+        height: CGFloat,
+        topInset: CGFloat,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        ScrollView(showsIndicators: false) {
+            LazyVStack(spacing: 6) {
+                content()
             }
-
-            MixedMathTextView(
-                text: pair.promptPreview,
-                fontSize: viewModel.settings.contentDensity == .compact ? 24 : 27,
-                textColor: .primary,
-                alignment: .leading,
-                isBold: true,
-                isInteractive: false,
-                allowsReadOnlyOverflowScrolling: true
-            )
-
-            Text("Pick the matching answer from the list below. After a correct match, the next prompt slides in automatically.")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, topInset)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 6)
         }
-    }
-
-    private func headerMetric(value: Int, symbol: String, tint: Color) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: symbol)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(tint)
-
-            Text("\(value)")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundStyle(.primary.opacity(0.94))
-                .monospacedDigit()
-                .contentTransition(.numericText(value: Double(value)))
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: height, alignment: .top)
     }
 
     private var dismissButton: some View {
@@ -346,83 +360,249 @@ private struct MatchModeSessionView: View {
             dismiss()
         }
     }
+
+    private func handlePromptTap(_ id: PersistentIdentifier) {
+        guard canInteractWithTile(id) else { return }
+        MatchBoardHaptics.playCardTap(for: appPreferences.matchHapticsPreference)
+        viewModel.selectPrompt(id)
+    }
+
+    private func handleAnswerTap(_ id: PersistentIdentifier) {
+        guard canInteractWithTile(id) else { return }
+        MatchBoardHaptics.playCardTap(for: appPreferences.matchHapticsPreference)
+        viewModel.selectAnswer(id)
+    }
+
+    private func canInteractWithTile(_ id: PersistentIdentifier) -> Bool {
+        viewModel.loadState == .ready &&
+        !viewModel.isComplete &&
+        !viewModel.matchedIDs.contains(id) &&
+        viewModel.confirmingMatchID == nil &&
+        viewModel.removingMatchID == nil &&
+        viewModel.mismatchPromptID == nil &&
+        viewModel.mismatchAnswerID == nil
+    }
 }
 
 // MARK: - MatchTileButton
 
 /// One prompt or answer tile inside the match board.
 private struct MatchTileButton: View {
-    let text: String
-    let tint: Color
+    let content: MatchPlayableSideContent
+    let accent: Color
+    let removalOffsetX: CGFloat
     let isSelected: Bool
+    let isConfirmed: Bool
+    let isRemoving: Bool
     let isMismatch: Bool
     let mismatchToken: Int
     let density: MatchContentDensity
+    let fontScale: CGFloat
     let minHeight: CGFloat
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(alignment: .top, spacing: UIConstants.Spacing.small) {
-                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(isMismatch ? Color.red : tint.opacity(isSelected ? 0.95 : 0.55))
-
-                Text(text)
-                    .font(.system(size: density == .compact ? 17 : 19, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(nil)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
-            .padding(.horizontal, UIConstants.Spacing.medium)
-            .padding(.vertical, UIConstants.Spacing.small)
-                .background(background)
-                .overlay {
-                    RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
-                        .stroke(borderColor, lineWidth: isSelected || isMismatch ? 1.5 : 1)
-                }
+        MatchMiniPreviewSurface(
+            content: content,
+            fontScale: fontScale
+        )
+        .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background {
+            RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
+                .fill(background)
         }
-        .buttonStyle(.plain)
+        .overlay {
+            RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
+                .strokeBorder(borderColor, lineWidth: borderWidth)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                action()
+            }
+        )
         .scaleEffect(isSelected ? 0.98 : 1)
         .modifier(
             MatchShakeEffect(animatableData: isMismatch ? CGFloat(mismatchToken) : 0)
         )
+        .opacity(isRemoving ? 0 : 1)
+        .shadow(
+            color: (isConfirmed || isRemoving) ? .green.opacity(0.2) : .clear,
+            radius: (isConfirmed || isRemoving) ? 10 : 0,
+            y: (isConfirmed || isRemoving) ? 2 : 0
+        )
         .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isSelected)
+        .animation(.easeOut(duration: 0.08), value: isConfirmed)
+        .animation(.easeOut(duration: 0.16), value: isRemoving)
         .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isMismatch)
     }
 
     private var background: some ShapeStyle {
         if isMismatch {
-            return AnyShapeStyle(
-                LinearGradient(
-                    colors: [Color.orange.opacity(0.28), Color.red.opacity(0.18)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
+            return AnyShapeStyle(Color.red.opacity(0.18))
+        }
+
+        if isConfirmed || isRemoving {
+            return AnyShapeStyle(Color.green.opacity(0.28))
         }
 
         if isSelected {
-            return AnyShapeStyle(
-                LinearGradient(
-                    colors: [tint.opacity(0.26), tint.opacity(0.14)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
+            return AnyShapeStyle(accent.opacity(0.28))
         }
 
-        return AnyShapeStyle(Color(uiColor: .secondarySystemBackground))
+        return AnyShapeStyle(Color(uiColor: .secondarySystemBackground).opacity(0.98))
     }
 
     private var borderColor: Color {
-        if isMismatch { return .red.opacity(0.7) }
-        if isSelected { return tint.opacity(0.65) }
-        return Color.white.opacity(0.08)
+        if isMismatch {
+            return .red.opacity(0.44)
+        }
+
+        if isConfirmed || isRemoving {
+            return .green.opacity(0.64)
+        }
+
+        if isSelected {
+            return accent.opacity(0.62)
+        }
+
+        return .clear
+    }
+
+    private var borderWidth: CGFloat {
+        if isMismatch || isConfirmed || isRemoving || isSelected {
+            return 1.25
+        }
+
+        return 0
+    }
+}
+
+private struct MatchMiniPreviewSurface: View {
+    let content: MatchPlayableSideContent
+    let fontScale: CGFloat
+
+    var body: some View {
+        let zone = content.renderZone
+
+        CardFaceView(zone: zone, fontScale: fontScale)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct MatchSessionHeader<Trailing: View>: View {
+    let deckTitle: String
+    let roundLabel: String
+    let progressLabel: String
+    let progressFraction: Double
+    let matchedCount: Int
+    let mismatchCount: Int
+    let isRetryRound: Bool
+    let safeTopInset: CGFloat
+    let horizontalPadding: CGFloat
+    @Binding var measuredHeight: CGFloat
+    @ViewBuilder let trailing: () -> Trailing
+
+    @State private var leadingWidth: CGFloat = 0
+    @State private var trailingWidth: CGFloat = UIConstants.Size.actionButton
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Capsule()
+                .fill(Color.white.opacity(0.18))
+                .frame(width: 50, height: 5)
+                .accessibilityHidden(true)
+
+            GeometryReader { proxy in
+                let titleSideReserve = max(leadingWidth, trailingWidth)
+                let titleWidth = max(
+                    0,
+                    proxy.size.width - (titleSideReserve * 2) - 20
+                )
+
+                ZStack {
+                    VStack(spacing: 4) {
+                        Text(deckTitle)
+                            .font(.system(size: 18, weight: .black, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                            .frame(maxWidth: titleWidth)
+
+                        HStack(spacing: 7) {
+                            Text(roundLabel)
+                                .font(.system(size: 11, weight: .black, design: .rounded))
+                                .foregroundStyle(.secondary)
+
+                            if isRetryRound {
+                                Text("RETRY")
+                                    .font(.system(size: 10, weight: .black, design: .rounded))
+                                    .foregroundStyle(.orange.opacity(0.95))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(Color.orange.opacity(0.14), in: Capsule())
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    HStack(spacing: 0) {
+                        summaryCapsule
+                            .onGeometryChange(for: CGFloat.self) { proxy in
+                                proxy.size.width
+                            } action: { newWidth in
+                                if abs(leadingWidth - newWidth) > 0.5 {
+                                    leadingWidth = newWidth
+                                }
+                            }
+
+                        Spacer(minLength: 0)
+
+                        trailing()
+                            .onGeometryChange(for: CGFloat.self) { proxy in
+                                proxy.size.width
+                            } action: { newWidth in
+                                if abs(trailingWidth - newWidth) > 0.5 {
+                                    trailingWidth = newWidth
+                                }
+                            }
+                    }
+                }
+            }
+            .frame(height: UIConstants.Size.capsuleHeight)
+        }
+        .padding(.top, safeTopInset + 4)
+        .padding(.horizontal, horizontalPadding)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { newHeight in
+            if abs(measuredHeight - newHeight) > 0.5 {
+                measuredHeight = newHeight
+            }
+        }
+    }
+
+    private var summaryCapsule: some View {
+        HStack(spacing: 8) {
+            Text("\(matchedCount)")
+                .foregroundStyle(.green.opacity(0.96))
+            Text("|")
+                .foregroundStyle(.white.opacity(0.24))
+            Text("\(mismatchCount)")
+                .foregroundStyle(.orange.opacity(0.95))
+            Text("•")
+                .foregroundStyle(.white.opacity(0.24))
+            Text("\(Int((max(0, min(progressFraction, 1)) * 100).rounded()))%")
+                .foregroundStyle(.white.opacity(0.82))
+                .monospacedDigit()
+        }
+        .font(.system(size: 13, weight: .black, design: .rounded))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .glassButton(shape: .capsule)
     }
 }
 
@@ -437,5 +617,86 @@ private struct MatchShakeEffect: GeometryEffect {
     func effectValue(size: CGSize) -> ProjectionTransform {
         let translation = travelDistance * sin(animatableData * .pi * shakesPerUnit)
         return ProjectionTransform(CGAffineTransform(translationX: translation, y: 0))
+    }
+}
+
+// MARK: - MatchBoardHaptics
+
+/// Small UI-only haptic adapter for Match interactions.
+@MainActor
+private enum MatchBoardHaptics {
+    static func playCardTap(for preference: AppStudyHapticsPreference) {
+        switch preference {
+        case .off:
+            return
+        case .subtle:
+            let generator = UISelectionFeedbackGenerator()
+            generator.prepare()
+            generator.selectionChanged()
+        case .standard:
+            let generator = UIImpactFeedbackGenerator(style: .soft)
+            generator.prepare()
+            generator.impactOccurred(intensity: 0.7)
+        }
+    }
+
+    static func playCorrectMatch(for preference: AppStudyHapticsPreference) {
+        switch preference {
+        case .off:
+            return
+        case .subtle:
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.prepare()
+            generator.impactOccurred(intensity: 0.82)
+        case .standard:
+            let generator = UINotificationFeedbackGenerator()
+            generator.prepare()
+            generator.notificationOccurred(.success)
+        }
+    }
+
+    static func playMismatchSequence(
+        for preference: AppStudyHapticsPreference,
+        rhythm: MatchFeedbackIntensity
+    ) async {
+        guard preference != .off else { return }
+
+        playMismatchPulseStart(for: preference)
+
+        let secondPulseDelay = rhythm == .subtle ? 110 : 145
+        try? await Task.sleep(for: .milliseconds(secondPulseDelay))
+        guard !Task.isCancelled else { return }
+
+        playMismatchPulseEnd(for: preference)
+    }
+
+    private static func playMismatchPulseStart(for preference: AppStudyHapticsPreference) {
+        switch preference {
+        case .off:
+            return
+        case .subtle:
+            let generator = UIImpactFeedbackGenerator(style: .soft)
+            generator.prepare()
+            generator.impactOccurred(intensity: 0.42)
+        case .standard:
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.prepare()
+            generator.impactOccurred(intensity: 0.74)
+        }
+    }
+
+    private static func playMismatchPulseEnd(for preference: AppStudyHapticsPreference) {
+        switch preference {
+        case .off:
+            return
+        case .subtle:
+            let generator = UIImpactFeedbackGenerator(style: .soft)
+            generator.prepare()
+            generator.impactOccurred(intensity: 0.34)
+        case .standard:
+            let generator = UIImpactFeedbackGenerator(style: .rigid)
+            generator.prepare()
+            generator.impactOccurred(intensity: 0.92)
+        }
     }
 }

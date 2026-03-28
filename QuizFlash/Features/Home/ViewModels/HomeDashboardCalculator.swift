@@ -12,12 +12,11 @@ extension HomeViewModel {
     /// The narrative intentionally stays short and action-oriented rather than
     /// motivational. It uses current goal pressure plus recent activity logs.
     func buildDashboardNarrative(
-        goals: [ExamGoalModel],
-        dailyLogs: [DailyActivityLog],
+        upcomingExamSummaries: [HomeExamGoalSummary],
         userProfile: UserProfile?,
         referenceDate: Date = Date()
     ) -> HomeDashboardNarrative? {
-        let summaries = upcomingExamGoalSummaries(from: goals, referenceDate: referenceDate, limit: 6)
+        let summaries = Array(upcomingExamSummaries.prefix(6))
         guard !summaries.isEmpty else { return nil }
 
         let riskGoal = summaries.max { lhs, rhs in
@@ -26,10 +25,7 @@ extension HomeViewModel {
         let closestWinGoal = summaries.max { lhs, rhs in
             lhs.readinessFraction < rhs.readinessFraction
         }
-
-        let sevenDayStart = Calendar.current.date(byAdding: .day, value: -6, to: referenceDate) ?? referenceDate
-        let recentLogs = dailyLogs.filter { $0.date >= sevenDayStart }
-        let recentStudyDays = recentLogs.filter { $0.cardsReviewed > 0 }.count
+        let recentStudyDays = recentStudyDayCount(referenceDate: referenceDate)
 
         let riskLine: String?
         if let riskGoal, let weakestDeck = riskGoal.weakestDeck {
@@ -63,6 +59,35 @@ extension HomeViewModel {
             riskDeckLine: riskLine,
             closestWinLine: closestWinLine,
             nextBestActionLine: nextBestActionLine
+        )
+    }
+
+    /// Refreshes dashboard payloads that stay stable while only the selected day changes.
+    func refreshDashboardStaticSnapshot(
+        examGoals: [ExamGoalModel],
+        userProfile: UserProfile?,
+        referenceDate: Date = Date()
+    ) {
+        let signature = buildDashboardStaticSignature(
+            userProfile: userProfile,
+            referenceDate: referenceDate
+        )
+        guard dashboardStaticSignature != signature else { return }
+        dashboardStaticSignature = signature
+
+        let upcomingExamSummaries = upcomingExamGoalSummaries(
+            from: examGoals,
+            referenceDate: referenceDate
+        )
+
+        dashboardStaticSnapshot = HomeDashboardStaticSnapshot(
+            upcomingExamSummaries: upcomingExamSummaries,
+            examPressure: buildExamPressureSummary(from: upcomingExamSummaries),
+            examNarrative: buildDashboardNarrative(
+                upcomingExamSummaries: upcomingExamSummaries,
+                userProfile: userProfile,
+                referenceDate: referenceDate
+            )
         )
     }
 
@@ -386,6 +411,17 @@ extension HomeViewModel {
         for selectedDate: Date,
         userProfile: UserProfile?
     ) -> HomeSelectedDayOverviewSummary {
+        let selectedDateKey = Self.dateKeyFormatter.string(from: selectedDate)
+        let cacheKey = [
+            selectedDateKey,
+            profileSignature(for: userProfile),
+            "\(logsCacheRevision)"
+        ].joined(separator: "||")
+
+        if let cached = selectedDayOverviewCache[cacheKey] {
+            return cached
+        }
+
         let log = getFastLog(for: selectedDate)
         let cardsReviewed = log?.cardsReviewed ?? 0
         let dailyGoal = max(log?.dailyGoal ?? 50, 1)
@@ -408,7 +444,7 @@ extension HomeViewModel {
             detailLine = "No study logged for \(selectedDateLabel.lowercased()) yet."
         }
 
-        return HomeSelectedDayOverviewSummary(
+        let summary = HomeSelectedDayOverviewSummary(
             selectedDate: selectedDate,
             selectedDateLabel: selectedDateLabel,
             cardsReviewed: cardsReviewed,
@@ -423,33 +459,45 @@ extension HomeViewModel {
             headline: headline,
             detailLine: detailLine
         )
+        selectedDayOverviewCache[cacheKey] = summary
+        return summary
     }
 
     func buildWeeklyMomentumSummary(
-        selectedDate: Date,
-        dailyLogs: [DailyActivityLog]
+        selectedDate: Date
     ) -> HomeWeeklyMomentumSummary {
         let calendar = AppPreferences.shared.resolvedCalendar
         let startOfSelectedDay = calendar.startOfDay(for: selectedDate)
         let weekStart = calendar.dateInterval(of: .weekOfYear, for: startOfSelectedDay)?.start
             ?? startOfSelectedDay
+        let weekKey = Self.dateKeyFormatter.string(from: weekStart)
+        let cacheKey = [
+            weekKey,
+            "\(logsCacheRevision)"
+        ].joined(separator: "||")
 
-        let logsByDay = Dictionary(
-            uniqueKeysWithValues: dailyLogs.map { log in
-                (calendar.startOfDay(for: log.date), log)
-            }
-        )
+        if let cached = weeklyMomentumCache[cacheKey] {
+            return cached
+        }
+
+        var weeklyLogs: [DailyActivityLog] = []
+        weeklyLogs.reserveCapacity(7)
 
         let daySummaries: [HomeWeeklyDaySummary] = (0..<7).compactMap { index in
             guard let day = calendar.date(byAdding: .day, value: index, to: weekStart) else { return nil }
-            let log = logsByDay[day]
+            let dayKey = Self.dateKeyFormatter.string(from: day)
+            let log = logsCache[dayKey]
             let cardsReviewed = log?.cardsReviewed ?? 0
             let xpEarned = log?.xpEarnedToday ?? 0
             let goal = max(log?.dailyGoal ?? 50, 1)
             let intensityFraction = min(Double(cardsReviewed) / Double(goal), 1.0)
 
+            if let log {
+                weeklyLogs.append(log)
+            }
+
             return HomeWeeklyDaySummary(
-                id: Self.dateKeyFormatter.string(from: day),
+                id: dayKey,
                 date: day,
                 shortWeekday: Self.shortWeekdayFormatter.string(from: day),
                 cardsReviewed: cardsReviewed,
@@ -461,16 +509,6 @@ extension HomeViewModel {
                 isSelectedDay: calendar.isDate(day, inSameDayAs: startOfSelectedDay)
             )
         }
-
-        let weeklyLogs = dailyLogs
-            .filter { log in
-                let logDay = calendar.startOfDay(for: log.date)
-                guard let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart) else {
-                    return false
-                }
-                return logDay >= weekStart && logDay <= weekEnd
-            }
-            .sorted { $0.date < $1.date }
 
         let totalCardsReviewed = weeklyLogs.map(\.cardsReviewed).reduce(0, +)
         let totalXPEarned = weeklyLogs.map(\.xpEarnedToday).reduce(0, +)
@@ -498,7 +536,7 @@ extension HomeViewModel {
             detailLine = "You averaged \(averageCardsPerActiveDay) cards and \(averageXPPerActiveDay) XP when active."
         }
 
-        return HomeWeeklyMomentumSummary(
+        let summary = HomeWeeklyMomentumSummary(
             totalCardsReviewed: totalCardsReviewed,
             totalXPEarned: totalXPEarned,
             activeDays: activeDays,
@@ -511,6 +549,8 @@ extension HomeViewModel {
             detailLine: detailLine,
             daySummaries: daySummaries
         )
+        weeklyMomentumCache[cacheKey] = summary
+        return summary
     }
 
     func buildSelectedDayInsightSummary(
@@ -520,6 +560,21 @@ extension HomeViewModel {
         upcomingExamSummaries: [HomeExamGoalSummary],
         weeklyMomentum: HomeWeeklyMomentumSummary
     ) -> HomeSelectedDayInsightSummary {
+        let cacheKey = [
+            Self.dateKeyFormatter.string(from: selectedDate),
+            selectedDayOverview.headline,
+            selectedDayOverview.detailLine,
+            "\(selectedDayOverview.cardsReviewed)",
+            "\(selectedDayOverview.remainingCardsToGoal)",
+            "\(weeklyMomentum.averageCardsPerActiveDay)",
+            selectedDayExamSummaries.map(\.id.hashValue).map(String.init).joined(separator: "~"),
+            upcomingExamSummaries.map(\.id.hashValue).map(String.init).joined(separator: "~")
+        ].joined(separator: "||")
+
+        if let cached = selectedDayInsightCache[cacheKey] {
+            return cached
+        }
+
         let averageCardsPerActiveDay = weeklyMomentum.averageCardsPerActiveDay
         let cardsReviewed = selectedDayOverview.cardsReviewed
 
@@ -578,7 +633,7 @@ extension HomeViewModel {
             recommendationLine = "Best next move: finish the remaining \(selectedDayOverview.remainingCardsToGoal) cards and lock the day."
         }
 
-        return HomeSelectedDayInsightSummary(
+        let summary = HomeSelectedDayInsightSummary(
             headline: headline,
             detailLine: detailLine,
             recommendationLine: recommendationLine,
@@ -588,6 +643,8 @@ extension HomeViewModel {
             newCardsLearned: selectedDayOverview.newCardsLearned,
             selectedDayExamCount: selectedDayExamSummaries.count
         )
+        selectedDayInsightCache[cacheKey] = summary
+        return summary
     }
 
     func buildExamPressureSummary(
@@ -790,8 +847,21 @@ extension HomeViewModel {
         return [
             selectedDateKey,
             profileSignature(for: userProfile),
-            logsCacheSignature.joined(separator: "~"),
-            examGoalsCacheSignature.joined(separator: "~")
+            "\(logsCacheRevision)",
+            "\(examGoalsCacheRevision)"
+        ].joined(separator: "||")
+    }
+
+    func buildDashboardStaticSignature(
+        userProfile: UserProfile?,
+        referenceDate: Date
+    ) -> String {
+        [
+            Self.dateKeyFormatter.string(from: referenceDate),
+            profileSignature(for: userProfile),
+            "\(logsCacheRevision)",
+            "\(examGoalsCacheRevision)",
+            "\(activeExamGoalDeckRevisionFingerprint())"
         ].joined(separator: "||")
     }
 
@@ -802,8 +872,8 @@ extension HomeViewModel {
         [
             Self.dateKeyFormatter.string(from: referenceDate),
             profileSignature(for: userProfile),
-            logsCacheSignature.joined(separator: "~"),
-            examGoalsCacheSignature.joined(separator: "~")
+            "\(logsCacheRevision)",
+            "\(examGoalsCacheRevision)"
         ].joined(separator: "||")
     }
 
@@ -836,7 +906,7 @@ extension HomeViewModel {
             Self.dateKeyFormatter.string(from: referenceDate),
             deckSignature,
             recentSignature,
-            examGoalsCacheSignature.joined(separator: "~")
+            "\(examGoalsCacheRevision)"
         ].joined(separator: "||")
     }
 
@@ -863,6 +933,30 @@ extension HomeViewModel {
             }
             return Self.dateKeyFormatter.string(from: date)
         })
+    }
+
+    func recentStudyDayCount(referenceDate: Date) -> Int {
+        let calendar = Calendar.current
+        let normalizedReference = calendar.startOfDay(for: referenceDate)
+        let cacheKey = [
+            Self.dateKeyFormatter.string(from: normalizedReference),
+            "\(logsCacheRevision)"
+        ].joined(separator: "||")
+
+        if let cached = recentStudyDayCountCache[cacheKey] {
+            return cached
+        }
+
+        let count = (0..<7).reduce(into: 0) { count, offset in
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: normalizedReference) else {
+                return
+            }
+            let key = Self.dateKeyFormatter.string(from: day)
+            guard let log = logsCache[key], log.cardsReviewed > 0 else { return }
+            count += 1
+        }
+        recentStudyDayCountCache[cacheKey] = count
+        return count
     }
 
     func profileSignature(for userProfile: UserProfile?) -> String {
@@ -910,6 +1004,11 @@ extension HomeViewModel {
         for goal: ExamGoalModel,
         referenceDate: Date
     ) -> HomeExamGoalSummary {
+        let cacheKey = goalSummaryCacheKey(for: goal, referenceDate: referenceDate)
+        if let cached = examGoalSummaryCache[cacheKey] {
+            return cached
+        }
+
         let calendar = Calendar.current
         let startOfReferenceDay = calendar.startOfDay(for: referenceDate)
         let startOfGoalDay = calendar.startOfDay(for: goal.date)
@@ -945,7 +1044,7 @@ extension HomeViewModel {
             summaryLine = "Linked decks look healthy for this goal right now."
         }
 
-        return HomeExamGoalSummary(
+        let summary = HomeExamGoalSummary(
             id: goal.persistentModelID,
             title: goal.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled Goal" : goal.title,
             note: goal.note,
@@ -963,20 +1062,51 @@ extension HomeViewModel {
             summaryLine: summaryLine,
             deckSummaries: deckSummaries
         )
+        examGoalSummaryCache[cacheKey] = summary
+        return summary
     }
 
     func buildDeckSummary(for deck: DeckModel, now: Date) -> HomeExamDeckSummary {
+        let cacheKey = deckSummaryCacheKey(for: deck, referenceDate: now)
+        if let cached = examDeckSummaryCache[cacheKey] {
+            return cached
+        }
+
         let cards = deck.cards
         let totalCards = max(deck.cardCount, cards.count)
-        let reviewedCards = cards.filter { !$0.reviewHistory.isEmpty }.count
-        let dueCards = cards.filter { $0.dueDate <= now }.count
-        let newCards = cards.filter { $0.reviewHistory.isEmpty }.count
-        let stableCards = cards.filter { $0.interval >= 14 }.count
-        let reviewEvents = cards.flatMap(\.reviewHistory)
-        let successfulReviews = reviewEvents.filter { $0.difficultyRaw >= ReviewDifficulty.good.rawValue }.count
-        let accuracyFraction = reviewEvents.isEmpty
+        var reviewedCards = 0
+        var dueCards = 0
+        var newCards = 0
+        var stableCards = 0
+        var successfulReviews = 0
+        var reviewEventCount = 0
+
+        for card in cards {
+            let history = card.reviewHistory
+
+            if history.isEmpty {
+                newCards += 1
+            } else {
+                reviewedCards += 1
+            }
+
+            if card.dueDate <= now {
+                dueCards += 1
+            }
+
+            if card.interval >= 14 {
+                stableCards += 1
+            }
+
+            reviewEventCount += history.count
+            for event in history where event.difficultyRaw >= ReviewDifficulty.good.rawValue {
+                successfulReviews += 1
+            }
+        }
+
+        let accuracyFraction = reviewEventCount == 0
             ? 0
-            : Double(successfulReviews) / Double(reviewEvents.count)
+            : Double(successfulReviews) / Double(reviewEventCount)
         let coverageFraction = totalCards > 0
             ? Double(reviewedCards) / Double(totalCards)
             : 0
@@ -997,7 +1127,7 @@ extension HomeViewModel {
             )
         )
 
-        return HomeExamDeckSummary(
+        let summary = HomeExamDeckSummary(
             id: deck.persistentModelID,
             title: deck.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled Deck" : deck.title,
             colorHex: deck.colorHex,
@@ -1008,6 +1138,8 @@ extension HomeViewModel {
             accuracyFraction: accuracyFraction,
             readinessFraction: readinessFraction
         )
+        examDeckSummaryCache[cacheKey] = summary
+        return summary
     }
 
     func readinessThreshold(daysRemaining: Int) -> Double {
@@ -1026,5 +1158,56 @@ extension HomeViewModel {
         let workloadPressure = Double(summary.belowTargetDeckCount) * 0.25
         let overduePressure = summary.overdueCount > 0 ? min(Double(summary.overdueCount) / 40.0, 0.4) : 0
         return readinessPressure + workloadPressure + overduePressure
+    }
+
+    func activeExamGoalDeckRevisionFingerprint() -> Int {
+        var aggregate = 17
+        for goal in examGoalsCache.values.flatMap({ $0 }) where goal.status != .archived {
+            aggregate ^= goalSummaryRevisionFingerprint(for: goal)
+        }
+        return aggregate
+    }
+
+    func goalSummaryCacheKey(for goal: ExamGoalModel, referenceDate: Date) -> String {
+        [
+            "\(goal.persistentModelID.hashValue)",
+            Self.dateKeyFormatter.string(from: referenceDate),
+            "\(goalSummaryRevisionFingerprint(for: goal))"
+        ].joined(separator: "||")
+    }
+
+    func goalSummaryRevisionFingerprint(for goal: ExamGoalModel) -> Int {
+        var deckAggregate = goal.linkedDecks.count &* 131
+        for deck in goal.linkedDecks {
+            deckAggregate ^= deckSummaryRevisionFingerprint(for: deck)
+        }
+
+        var hasher = Hasher()
+        hasher.combine(goal.persistentModelID.hashValue)
+        hasher.combine(goal.title)
+        hasher.combine(goal.note)
+        hasher.combine(goal.statusRaw)
+        hasher.combine(Self.dateKeyFormatter.string(from: goal.date))
+        hasher.combine(goal.targetWorkload)
+        hasher.combine(deckAggregate)
+        return hasher.finalize()
+    }
+
+    func deckSummaryCacheKey(for deck: DeckModel, referenceDate: Date) -> String {
+        [
+            "\(deck.persistentModelID.hashValue)",
+            Self.dateKeyFormatter.string(from: referenceDate),
+            "\(deckSummaryRevisionFingerprint(for: deck))"
+        ].joined(separator: "||")
+    }
+
+    func deckSummaryRevisionFingerprint(for deck: DeckModel) -> Int {
+        var hasher = Hasher()
+        hasher.combine(deck.persistentModelID.hashValue)
+        hasher.combine(deck.title)
+        hasher.combine(deck.colorHex)
+        hasher.combine(deck.cardCount)
+        hasher.combine(deck.editedAt.timeIntervalSince1970.bitPattern)
+        return hasher.finalize()
     }
 }

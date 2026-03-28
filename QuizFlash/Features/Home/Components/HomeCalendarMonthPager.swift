@@ -6,6 +6,13 @@
 import SwiftUI
 import UIKit
 
+private struct ExpandedMonthPagerConfiguration: Equatable {
+    let snapshots: [CalendarViewModel.MonthSnapshot]
+    let progress: CGFloat
+    let state: HomeCalendarAdaptiveLayout.State
+    let insightsRevision: Int
+}
+
 // MARK: - Month Grid Page View
 
 private struct MonthGridPageView: View {
@@ -55,6 +62,7 @@ struct ExpandedMonthPagerHost: UIViewControllerRepresentable {
     let progress: CGFloat
     let state: HomeCalendarAdaptiveLayout.State
     let calendarInsightsCache: [String: HomeCalendarDayInsight]
+    let insightsRevision: Int
     let onSelectDay: (Day) -> Void
     let onMonthOffset: (Int) -> Void
 
@@ -67,6 +75,7 @@ struct ExpandedMonthPagerHost: UIViewControllerRepresentable {
             progress: progress,
             state: state,
             calendarInsightsCache: calendarInsightsCache,
+            insightsRevision: insightsRevision,
             onSelectDay: onSelectDay
         )
         return controller
@@ -79,6 +88,7 @@ struct ExpandedMonthPagerHost: UIViewControllerRepresentable {
             progress: progress,
             state: state,
             calendarInsightsCache: calendarInsightsCache,
+            insightsRevision: insightsRevision,
             onSelectDay: onSelectDay
         )
     }
@@ -89,6 +99,7 @@ final class ExpandedMonthPagerController: UIPageViewController, UIPageViewContro
 
     private var pageControllers: [MonthGridHostingController] = []
     private var centeredMonthStart: Date?
+    private var lastConfiguration: ExpandedMonthPagerConfiguration?
 
     init() {
         super.init(transitionStyle: .scroll, navigationOrientation: .horizontal)
@@ -111,9 +122,21 @@ final class ExpandedMonthPagerController: UIPageViewController, UIPageViewContro
         progress: CGFloat,
         state: HomeCalendarAdaptiveLayout.State,
         calendarInsightsCache: [String: HomeCalendarDayInsight],
+        insightsRevision: Int,
         onSelectDay: @escaping (Day) -> Void
     ) {
         guard snapshots.count == 3 else { return }
+
+        let configuration = ExpandedMonthPagerConfiguration(
+            snapshots: snapshots,
+            progress: progress,
+            state: state,
+            insightsRevision: insightsRevision
+        )
+
+        if lastConfiguration == configuration {
+            return
+        }
 
         let monthChanged = centeredMonthStart != snapshots[1].monthStart || pageControllers.count != snapshots.count
 
@@ -143,6 +166,8 @@ final class ExpandedMonthPagerController: UIPageViewController, UIPageViewContro
                 )
             }
         }
+
+        lastConfiguration = configuration
     }
 
     func pageViewController(

@@ -32,6 +32,7 @@ struct HomeCalendarSectionView: View {
 
     /// O(1) lookup dictionary providing per-day progress and marker insights.
     let calendarInsightsCache: [String: HomeCalendarDayInsight]
+    let calendarInsightsRevision: Int
 
     // MARK: - Private Constants
 
@@ -215,17 +216,16 @@ struct HomeCalendarSectionView: View {
         state: HomeCalendarAdaptiveLayout.State
     ) -> some View {
         ExpandedMonthPagerHost(
-            snapshots: [-1, 0, 1].map { calendarVM.monthSnapshot(offsetBy: $0) },
+            snapshots: calendarVM.visibleMonthSnapshots,
             progress: 0,
             state: state,
             calendarInsightsCache: calendarInsightsCache,
+            insightsRevision: calendarInsightsRevision,
             onSelectDay: { day in
                 calendarVM.selectDate(day.date)
             },
             onMonthOffset: { offset in
-                withAnimation(.snappy(duration: 0.26, extraBounce: 0.02)) {
-                    calendarVM.applyMonthOffset(offset)
-                }
+                calendarVM.applyMonthOffset(offset)
             }
         )
         .frame(width: state.dayColumnWidth * 7)
@@ -297,9 +297,7 @@ struct HomeCalendarSectionView: View {
     /// - Parameter increment: `true` to move forward one month, `false` to go back.
     private func chevronButton(increment: Bool, size: CGFloat) -> some View {
         Button {
-            withAnimation(.snappy(duration: 0.26, extraBounce: 0.02)) {
-                calendarVM.monthUpdate(increment: increment)
-            }
+            calendarVM.monthUpdate(increment: increment)
         } label: {
             Image(systemName: increment ? "chevron.right" : "chevron.left")
                 .font(.system(size: size * 0.48, weight: .semibold))
@@ -471,4 +469,3 @@ struct CalendarDayCellView: View {
         }
     }
 }
-

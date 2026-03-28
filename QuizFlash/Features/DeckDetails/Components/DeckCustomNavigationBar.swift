@@ -2,23 +2,13 @@
 //  DeckCustomNavigationBar.swift
 //  QuizFlash
 //
-//  Custom navigation bar for the deck-detail screen.
-//  Uses a ZStack so the centred pill is absolutely centred regardless of
-//  asymmetric leading/trailing item widths.
+//  Shared collapsible-title navigation bar adapter for the deck-detail screen.
 //
 
 import SwiftUI
 
 // MARK: - DeckCustomNavigationBar
 
-/// A unified, safe-area-respectful custom navigation bar for `DeckView`.
-///
-/// Layout strategy: a `ZStack` places the leading back button and trailing
-/// action overlay as an `HStack` layer, while the collapsed `DeckHeroView` pill
-/// floats in the absolute centre — immune to button-width asymmetry.
-///
-/// This view is fully dumb: it receives all state and callbacks from `DeckView`
-/// and `DeckViewModel` via `let` properties, bindings, and closures.
 struct DeckCustomNavigationBar: View {
 
     // MARK: - Inputs
@@ -33,6 +23,8 @@ struct DeckCustomNavigationBar: View {
     let searchQuery: String?
     /// `true` when the parent view is in multi-card selection mode.
     let isSelecting: Bool
+    /// Coordinate space used by shared chrome geometry callbacks.
+    let coordinateSpaceName: String
     /// Active sort order shown in the native overflow menu.
     @Binding var sortOrder: SortOrder
     /// Active grouping mode shown beside the sort controls.
@@ -50,85 +42,66 @@ struct DeckCustomNavigationBar: View {
     let onConvert: () -> Void
     /// Called when the user taps "Export Deck" in the menu.
     let onExport: () -> Void
+    /// Reports the resolved navigation bar height.
+    let onHeightChange: (CGFloat) -> Void
+    /// Reports the floating chrome bottom edge in the deck coordinate space.
+    let onBottomChange: (CGFloat) -> Void
 
     // MARK: - Computed Properties
 
-    private var accentColor: Color { ThemeManager.shared.accentColor.color }
+    @Environment(DeckScrollState.self) private var scrollState
 
-    @State private var leadingControlWidth: CGFloat = 120
-    @State private var trailingControlWidth: CGFloat = 108
+    private var accentColor: Color { ThemeManager.shared.accentColor.color }
+    private var shouldShowCollapsedTitle: Bool {
+        searchQuery == nil && scrollState.pillVisible
+    }
 
     // MARK: - Body
 
     var body: some View {
-        GeometryReader { proxy in
-            let availableWidth = max(0, proxy.size.width - (UIConstants.Layout.compactScreenEdgeInset * 2))
-            let sideReserve = max(leadingControlWidth, trailingControlWidth)
-            let maxPillWidth = max(
-                UIConstants.Size.capsuleHeight,
-                availableWidth - (sideReserve * 2) - (UIConstants.Spacing.medium * 2)
+        CollapsibleTitleNavigationBar(
+            coordinateSpaceName: coordinateSpaceName,
+            onHeightChange: onHeightChange,
+            onBottomChange: onBottomChange
+        ) {
+            backButton
+        } center: { maxTitleWidth in
+            CollapsibleTitlePill(
+                title: searchQuery == nil ? deck.title : "",
+                maxWidth: maxTitleWidth,
+                isVisible: shouldShowCollapsedTitle,
+                fallbackTitle: "Untitled Deck"
             )
-
-            ZStack(alignment: .center) {
-
-                // Centre layer: collapsed pill (manages its own opacity/scale via DeckScrollState).
-                if searchQuery == nil {
-                    DeckHeroView(deck: deck, stats: stats, maxWidth: maxPillWidth)
-                        .allowsHitTesting(false)
-                }
-
-                // Edge layer: back button (leading) and action controls (trailing).
-                HStack(alignment: .center) {
-
-                    // Leading: Back button
-                    Button(action: onBack) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "chevron.compact.left")
-                                .font(.system(size: UIConstants.Size.navigationChromeIcon, weight: .bold))
-                                .fontDesign(.rounded)
-                            Text(backLabel)
-                                .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold))
-                                .fontDesign(.rounded)
-                        }
-                        .foregroundStyle(accentColor)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .frame(height: UIConstants.Size.capsuleHeight)
-                        .glassButton(shape: .capsule)
-                    }
-                    .buttonStyle(.plain)
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.size.width
-                    } action: { newWidth in
-                        if abs(leadingControlWidth - newWidth) > 0.5 {
-                            leadingControlWidth = newWidth
-                        }
-                    }
-
-                    Spacer()
-
-                    // Trailing: Add and menu buttons
-                    DeckActionOverlay(
-                        deck: deck,
-                        isSelecting: isSelecting,
-                        sortOrder: $sortOrder,
-                        groupingMode: $groupingMode,
-                        onAdd: onAdd,
-                        onStartSelection: onStartSelection,
-                        onConvert: onConvert,
-                        onExport: onExport
-                    )
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.size.width
-                    } action: { newWidth in
-                        if abs(trailingControlWidth - newWidth) > 0.5 {
-                            trailingControlWidth = newWidth
-                        }
-                    }
-                }
-            }
+        } trailing: {
+            DeckActionOverlay(
+                deck: deck,
+                isSelecting: isSelecting,
+                sortOrder: $sortOrder,
+                groupingMode: $groupingMode,
+                onAdd: onAdd,
+                onStartSelection: onStartSelection,
+                onConvert: onConvert,
+                onExport: onExport
+            )
         }
-        .frame(height: UIConstants.Size.capsuleHeight)
-        .topNavigationChrome()
+    }
+
+    private var backButton: some View {
+        Button(action: onBack) {
+            HStack(spacing: 5) {
+                Image(systemName: "chevron.compact.left")
+                    .font(.system(size: UIConstants.Size.navigationChromeIcon, weight: .bold))
+                    .fontDesign(.rounded)
+                Text(backLabel)
+                    .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold))
+                    .fontDesign(.rounded)
+            }
+            .foregroundStyle(accentColor)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .frame(height: UIConstants.Size.capsuleHeight)
+            .glassButton(shape: .capsule)
+        }
+        .buttonStyle(.plain)
     }
 }

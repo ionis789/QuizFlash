@@ -8,6 +8,7 @@
 import Foundation
 import Observation
 import SwiftData
+import SwiftUI
 
 // MARK: - MatchRoundState
 
@@ -54,7 +55,10 @@ final class MatchModeViewModel {
     var mismatchPromptID: PersistentIdentifier?
     var mismatchAnswerID: PersistentIdentifier?
     var mismatchAnimationToken = 0
+    var confirmingMatchID: PersistentIdentifier?
+    var removingMatchID: PersistentIdentifier?
     var completionSnapshot: SessionOutcomeSnapshot?
+    var boardTransitionID = 0
 
     // MARK: - Private
 
@@ -88,6 +92,12 @@ final class MatchModeViewModel {
     @ObservationIgnored
     private var feedbackTask: Task<Void, Never>?
 
+    @ObservationIgnored
+    private var matchConfirmationTask: Task<Void, Never>?
+
+    @ObservationIgnored
+    private var roundTransitionTask: Task<Void, Never>?
+
     // MARK: - Init
 
     init(deck: DeckModel, settings: MatchModeSettings) {
@@ -97,6 +107,8 @@ final class MatchModeViewModel {
 
     deinit {
         feedbackTask?.cancel()
+        matchConfirmationTask?.cancel()
+        roundTransitionTask?.cancel()
     }
 
     // MARK: - Derived State
@@ -143,6 +155,16 @@ final class MatchModeViewModel {
         return activeRound.answerOrder.compactMap { answerID in
             guard !matchedIDs.contains(answerID) else { return nil }
             return currentRoundPairLookup[answerID]
+        }
+    }
+
+    /// The remaining prompts visible for the current board.
+    var remainingPromptPairs: [MatchPlayablePair] {
+        guard let activeRound else { return [] }
+
+        return activeRound.promptOrder.compactMap { promptID in
+            guard !matchedIDs.contains(promptID) else { return nil }
+            return currentRoundPairLookup[promptID]
         }
     }
 
@@ -194,6 +216,8 @@ final class MatchModeViewModel {
     /// Releases transient card payloads and runtime caches on dismiss.
     func tearDown() {
         feedbackTask?.cancel()
+        matchConfirmationTask?.cancel()
+        roundTransitionTask?.cancel()
         activeRound = nil
         allPairs = []
         pendingPairs = []
@@ -216,10 +240,7 @@ final class MatchModeViewModel {
     /// Selects one answer tile against the currently focused prompt.
     func selectAnswer(_ id: PersistentIdentifier) {
         guard canSelectTile(id) else { return }
-        guard let promptID = currentPromptPair?.id else { return }
-
-        selectedPromptID = promptID
-        selectedAnswerID = id
+        selectedAnswerID = selectedAnswerID == id ? nil : id
         evaluateSelectionIfReady()
     }
 
@@ -229,6 +250,8 @@ final class MatchModeViewModel {
         loadState == .ready &&
         !isComplete &&
         !matchedIDs.contains(id) &&
+        confirmingMatchID == nil &&
+        removingMatchID == nil &&
         mismatchPromptID == nil &&
         mismatchAnswerID == nil
     }
@@ -246,8 +269,14 @@ final class MatchModeViewModel {
     private func resolveCorrectMatch(for pairID: PersistentIdentifier) {
         guard let pair = currentRoundPairLookup[pairID] else { return }
 
-        matchedIDs.insert(pairID)
-        totalMatchedCount += 1
+        feedbackTask?.cancel()
+        matchConfirmationTask?.cancel()
+
+        withAnimation(.easeOut(duration: 0.1)) {
+            confirmingMatchID = pairID
+            selectedPromptID = nil
+            selectedAnswerID = nil
+        }
         reviewedCardIDs.append(pairID)
 
         let timeSpent = Date().timeIntervalSince(pairPresentedAt[pairID] ?? sessionStartTime)
@@ -262,11 +291,27 @@ final class MatchModeViewModel {
             )
         )
 
-        selectedPromptID = nil
-        selectedAnswerID = nil
+        matchConfirmationTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(135))
+            guard let self, !Task.isCancelled else { return }
 
-        if matchedIDs.count == currentRoundPairLookup.count {
-            finishRoundIfNeeded()
+            withAnimation(.easeOut(duration: 0.16)) {
+                self.confirmingMatchID = nil
+                self.removingMatchID = pairID
+            }
+
+            try? await Task.sleep(for: .milliseconds(165))
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+                self.matchedIDs.insert(pairID)
+                self.totalMatchedCount += 1
+                self.removingMatchID = nil
+            }
+
+            if self.matchedIDs.count == self.currentRoundPairLookup.count {
+                self.finishRoundIfNeeded()
+            }
         }
     }
 
@@ -334,13 +379,22 @@ final class MatchModeViewModel {
     private func beginNextStandardRound() {
         let nextPairs = Array(pendingPairs.prefix(roundCapacity))
         pendingPairs.removeFirst(min(roundCapacity, pendingPairs.count))
-        configureRound(with: nextPairs, isRetryRound: false)
+        scheduleRoundConfiguration(with: nextPairs, isRetryRound: false)
     }
 
     private func beginRetryRound() {
         let retryPairs = activeRound?.pairs.filter { missedIDs.contains($0.id) } ?? []
         retryReviewCount += retryPairs.count
-        configureRound(with: retryPairs, isRetryRound: true)
+        scheduleRoundConfiguration(with: retryPairs, isRetryRound: true)
+    }
+
+    private func scheduleRoundConfiguration(with pairs: [MatchPlayablePair], isRetryRound: Bool) {
+        roundTransitionTask?.cancel()
+        roundTransitionTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard let self, !Task.isCancelled else { return }
+            self.configureRound(with: pairs, isRetryRound: isRetryRound)
+        }
     }
 
     private func configureRound(with pairs: [MatchPlayablePair], isRetryRound: Bool) {
@@ -348,6 +402,8 @@ final class MatchModeViewModel {
         self.matchedIDs = []
         self.selectedPromptID = nil
         self.selectedAnswerID = nil
+        self.confirmingMatchID = nil
+        self.removingMatchID = nil
         self.mismatchPromptID = nil
         self.mismatchAnswerID = nil
 
@@ -359,11 +415,14 @@ final class MatchModeViewModel {
 
         currentRoundPairLookup = Dictionary(uniqueKeysWithValues: pairs.map { ($0.id, $0) })
         pairPresentedAt = Dictionary(uniqueKeysWithValues: pairs.map { ($0.id, Date()) })
-        activeRound = MatchRoundState(
-            pairs: pairs,
-            promptOrder: pairs.map(\.id).shuffled(),
-            answerOrder: pairs.map(\.id).shuffled()
-        )
+        withAnimation(.easeInOut(duration: 0.2)) {
+            boardTransitionID += 1
+            activeRound = MatchRoundState(
+                pairs: pairs,
+                promptOrder: pairs.map(\.id).shuffled(),
+                answerOrder: pairs.map(\.id).shuffled()
+            )
+        }
 
         if pairs.isEmpty {
             finishRoundIfNeeded()

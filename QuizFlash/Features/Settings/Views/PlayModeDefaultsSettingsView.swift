@@ -232,6 +232,32 @@ struct PlayModeDefaultsSettingsView: View {
                 subtitle: "These defaults govern the sensory intensity of Match mode so players can choose speed or calmness."
             ) {
                 SettingsMenuPickerRow(
+                    icon: "textformat.size",
+                    tint: .pink,
+                    title: "Card Font Size",
+                    detail: "Change how large Match cards render their preview content on the board.",
+                    selection: matchCardFontSizeBinding,
+                    options: AppMatchCardFontSizePreference.allCases
+                ) { $0.title }
+
+                if appPreferences.matchCardFontSize == .custom {
+                    SettingsCardDivider()
+
+                    SettingsSliderRow(
+                        icon: "slider.horizontal.3",
+                        tint: .pink,
+                        title: "Custom Size",
+                        detail: "Set the base text size in pixels for Match card content.",
+                        valueSuffix: "px",
+                        range: 14...34,
+                        step: 1,
+                        value: matchCustomCardFontSizePixelsBinding
+                    )
+                }
+
+                SettingsCardDivider()
+
+                SettingsMenuPickerRow(
                     icon: "waveform.path",
                     tint: .orange,
                     title: "Match Haptics",
@@ -353,6 +379,20 @@ struct PlayModeDefaultsSettingsView: View {
         Binding(
             get: { appPreferences.matchUsesReducedMotion },
             set: { appPreferences.matchUsesReducedMotion = $0 }
+        )
+    }
+
+    private var matchCardFontSizeBinding: Binding<AppMatchCardFontSizePreference> {
+        Binding(
+            get: { appPreferences.matchCardFontSize },
+            set: { appPreferences.matchCardFontSize = $0 }
+        )
+    }
+
+    private var matchCustomCardFontSizePixelsBinding: Binding<Double> {
+        Binding(
+            get: { appPreferences.matchCustomCardFontSizePixels },
+            set: { appPreferences.matchCustomCardFontSizePixels = $0 }
         )
     }
 

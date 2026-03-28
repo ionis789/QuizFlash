@@ -228,6 +228,60 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
     }
 }
 
+struct SettingsSliderRow: View {
+    let icon: String
+    let tint: Color
+    let title: String
+    let detail: String
+    let valueSuffix: String
+    let range: ClosedRange<Double>
+    let step: Double
+    @Binding var value: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
+                SettingsRowIcon(icon: icon, tint: tint)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Text(detail)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: UIConstants.Spacing.standard)
+
+                Text("\(Int(value.rounded())) \(valueSuffix)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, UIConstants.Spacing.standard)
+                    .padding(.vertical, UIConstants.Spacing.small)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .contentTransition(.numericText())
+            }
+
+            HStack(spacing: UIConstants.Spacing.small) {
+                Text("\(Int(range.lowerBound))")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Slider(value: $value, in: range, step: step)
+                    .tint(tint)
+
+                Text("\(Int(range.upperBound))")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.leading, 54)
+        }
+    }
+}
+
 struct SettingsInfoCard: View {
     let icon: String
     let tint: Color

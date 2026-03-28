@@ -7,6 +7,8 @@ import SwiftData
 
 // MARK: - LibraryLayout
 
+let kLibraryChromeSpace = "libraryChrome"
+
 /// Shared layout engine for `LibraryView` and `FolderView`.
 /// Handles coordinate spaces, structural overlays, safe area computation,
 /// and delegates all business logic to `LibraryViewModel`.
@@ -40,6 +42,8 @@ struct LibraryLayout: View {
 
     /// Height of LibraryTopBarView measured live.
     @State private var headerHeight: CGFloat = 0
+    @State private var navigationBarBottomY: CGFloat = 0
+    @State private var isCollapsedTitleVisible = false
 
     /// safeAreaInsets.top captured from the root body context (non-zero here).
     @State private var safeTop: CGFloat = 0
@@ -95,9 +99,16 @@ struct LibraryLayout: View {
                     title: title,
                     deckCount: decks.count,
                     viewModel: viewModel,
+                    coordinateSpaceName: kLibraryChromeSpace,
+                    isCollapsedTitleVisible: isCollapsedTitleVisible,
                     isScrolled: viewModel.savedScrollOffset > 10,
                     onBack: onBack,
-                    backLabel: backLabel
+                    backLabel: backLabel,
+                    onBottomChange: { newBottom in
+                        if abs(navigationBarBottomY - newBottom) > 0.5 {
+                            navigationBarBottomY = newBottom
+                        }
+                    }
                 )
                 // Capture rendered height so the ScrollView spacer and blur
                 // frame stay in sync. Guard prevents redundant state writes.
@@ -140,6 +151,7 @@ struct LibraryLayout: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .coordinateSpace(name: kLibraryChromeSpace)
             .animation(.bottomChromeSpring, value: viewModel.isSelecting)
             .background {
             GeometryReader { geo in
@@ -237,8 +249,30 @@ struct LibraryLayout: View {
     @ViewBuilder
     private var stackContent: some View {
         LazyVStack(spacing: 0) {
+            if !isSearching {
+                libraryHeroTitle
+            }
             deckListContent
         }
+    }
+
+    private var libraryHeroTitle: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            LargeScreenTitle(title: title)
+
+            Text(decks.count == 0 ? "No Decks" : "\(decks.count) Deck\(decks.count == 1 ? "" : "s")")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
+        .padding(.top, UIConstants.Spacing.large)
+        .padding(.bottom, UIConstants.Spacing.extraLarge)
+        .collapsibleTitleRevealAnchor(
+            in: kLibraryChromeSpace,
+            navigationBarBottomY: navigationBarBottomY,
+            isVisible: $isCollapsedTitleVisible
+        )
     }
 
     @ViewBuilder

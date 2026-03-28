@@ -90,11 +90,17 @@ final class HomeViewModel {
     /// Exam goals keyed by day string (`yyyy-MM-dd`) for Home calendar markers.
     var examGoalsCache: [String: [ExamGoalModel]] = [:]
 
-    /// Signature of the latest cached daily-log input.
-    var logsCacheSignature: [String] = []
+    /// Fingerprint of the latest cached daily-log input.
+    var logsCacheFingerprint: Int = 0
 
-    /// Signature of the latest cached exam-goal input.
-    var examGoalsCacheSignature: [String] = []
+    /// Fingerprint of the latest cached exam-goal input.
+    var examGoalsCacheFingerprint: Int = 0
+
+    /// Monotonic revision bumped whenever the daily-log cache changes.
+    var logsCacheRevision: Int = 0
+
+    /// Monotonic revision bumped whenever the exam-goal cache changes.
+    var examGoalsCacheRevision: Int = 0
 
     /// Cached Home analytics snapshot consumed by `HomeDashboardView`.
     private(set) var dashboardSnapshot: HomeDashboardSnapshot = .placeholder()
@@ -102,8 +108,39 @@ final class HomeViewModel {
     /// Signature used to skip rebuilding Home dashboard summaries when inputs are unchanged.
     private var dashboardSnapshotSignature: String = ""
 
+    /// Cached Home dashboard payload that does not depend on the selected calendar day.
+    var dashboardStaticSnapshot: HomeDashboardStaticSnapshot = .empty()
+
+    /// Signature used to skip rebuilding dashboard payloads that are independent of date selection.
+    var dashboardStaticSignature: String = ""
+
+    /// Cached selected-day overview summaries keyed by date + input signature.
+    var selectedDayOverviewCache: [String: HomeSelectedDayOverviewSummary] = [:]
+
+    /// Cached weekly momentum summaries keyed by week start + input signature.
+    var weeklyMomentumCache: [String: HomeWeeklyMomentumSummary] = [:]
+
+    /// Cached selected-day exam summaries keyed by date + goal signature.
+    var selectedDayExamSummariesCache: [String: [HomeExamGoalSummary]] = [:]
+
+    /// Cached selected-day insight summaries keyed by date + local summary inputs.
+    var selectedDayInsightCache: [String: HomeSelectedDayInsightSummary] = [:]
+
+    /// Cached recent-study counters keyed by reference day + logs signature.
+    var recentStudyDayCountCache: [String: Int] = [:]
+
+    /// Cached goal summaries keyed by goal identity, linked deck revision, and reference day.
+    var examGoalSummaryCache: [String: HomeExamGoalSummary] = [:]
+
+    /// Cached deck summaries keyed by deck identity, revision, and reference day.
+    var examDeckSummaryCache: [String: HomeExamDeckSummary] = [:]
+
     /// Cached per-day insight payloads consumed by the Home calendar.
     private(set) var calendarInsightsCache: [String: HomeCalendarDayInsight] = [:]
+
+    /// Monotonic token used by Home calendar surfaces to detect real insight changes
+    /// without diffing the full dictionary during scroll-driven updates.
+    private(set) var calendarInsightsRevision: Int = 0
 
     /// Signature used to skip rebuilding Home calendar insight payloads when inputs are unchanged.
     private var calendarInsightsSignature: String = ""
@@ -134,38 +171,27 @@ final class HomeViewModel {
     ///
     /// - Parameter logs: The updated array from the `@Query` in `HomeView`.
     func updateLogsCache(logs: [DailyActivityLog]) {
-        let signature = logs
-            .map { "\($0.dateString)-\($0.cardsReviewed)-\($0.xpEarnedToday)-\($0.newCardsLearned)-\($0.dailyGoal)" }
-            .sorted()
-        guard logsCacheSignature != signature else { return }
-        logsCacheSignature = signature
+        let fingerprint = Self.logsFingerprint(for: logs)
+        guard logsCacheFingerprint != fingerprint else { return }
+        logsCacheFingerprint = fingerprint
+        logsCacheRevision &+= 1
 
         var dict = [String: DailyActivityLog](minimumCapacity: logs.count)
         for log in logs {
             dict[log.dateString] = log
         }
         logsCache = dict
+        invalidateDashboardDerivedCaches()
     }
 
     /// Rebuilds `examGoalsCache` so the Home calendar can mark exam days and notes in O(1).
     ///
     /// - Parameter goals: The current exam-goal query result from `HomeView`.
     func updateExamGoalsCache(goals: [ExamGoalModel]) {
-        let signature = goals
-            .map {
-                [
-                    "\($0.persistentModelID.hashValue)",
-                    Self.dateKeyFormatter.string(from: $0.date),
-                    $0.statusRaw,
-                    $0.title,
-                    $0.note,
-                    "\($0.linkedDecks.count)",
-                    "\($0.targetWorkload)"
-                ].joined(separator: "|")
-            }
-            .sorted()
-        guard examGoalsCacheSignature != signature else { return }
-        examGoalsCacheSignature = signature
+        let fingerprint = Self.examGoalsFingerprint(for: goals)
+        guard examGoalsCacheFingerprint != fingerprint else { return }
+        examGoalsCacheFingerprint = fingerprint
+        examGoalsCacheRevision &+= 1
 
         var dict: [String: [ExamGoalModel]] = [:]
         for goal in goals {
@@ -173,6 +199,7 @@ final class HomeViewModel {
             dict[key, default: []].append(goal)
         }
         examGoalsCache = dict
+        invalidateDashboardDerivedCaches()
     }
 
     /// Returns the activity log for a given date, or `nil` if none exists.
@@ -283,8 +310,20 @@ final class HomeViewModel {
     /// - Parameter date: The selected calendar day.
     /// - Returns: Stable summaries sorted by time within the day.
     func selectedDayExamGoalSummaries(for date: Date) -> [HomeExamGoalSummary] {
-        examGoals(for: date)
+        let dateKey = HomeViewModel.dateKeyFormatter.string(from: date)
+        let cacheKey = [
+            dateKey,
+            "\(examGoalsCacheRevision)"
+        ].joined(separator: "||")
+
+        if let cached = selectedDayExamSummariesCache[cacheKey] {
+            return cached
+        }
+
+        let summaries = examGoals(for: date)
             .map { buildExamGoalSummary(for: $0, referenceDate: date) }
+        selectedDayExamSummariesCache[cacheKey] = summaries
+        return summaries
     }
 
     /// Refreshes the cached dashboard snapshot that backs the Home screen.
@@ -293,10 +332,14 @@ final class HomeViewModel {
     /// reacting to the selected day, logs, goals, and profile changes.
     func refreshDashboardSnapshot(
         selectedDate: Date,
-        dailyLogs: [DailyActivityLog],
         examGoals: [ExamGoalModel],
         userProfile: UserProfile?
     ) {
+        refreshDashboardStaticSnapshot(
+            examGoals: examGoals,
+            userProfile: userProfile
+        )
+
         let signature = buildDashboardSnapshotSignature(
             selectedDate: selectedDate,
             userProfile: userProfile
@@ -308,12 +351,8 @@ final class HomeViewModel {
             for: selectedDate,
             userProfile: userProfile
         )
-        let weeklyMomentum = buildWeeklyMomentumSummary(
-            selectedDate: selectedDate,
-            dailyLogs: dailyLogs
-        )
+        let weeklyMomentum = buildWeeklyMomentumSummary(selectedDate: selectedDate)
         let selectedDayExamSummaries = selectedDayExamGoalSummaries(for: selectedDate)
-        let upcomingExamSummaries = upcomingExamGoalSummaries(from: examGoals)
 
         dashboardSnapshot = HomeDashboardSnapshot(
             selectedDayOverview: selectedDayOverview,
@@ -321,18 +360,14 @@ final class HomeViewModel {
                 selectedDate: selectedDate,
                 selectedDayOverview: selectedDayOverview,
                 selectedDayExamSummaries: selectedDayExamSummaries,
-                upcomingExamSummaries: upcomingExamSummaries,
+                upcomingExamSummaries: dashboardStaticSnapshot.upcomingExamSummaries,
                 weeklyMomentum: weeklyMomentum
             ),
             weeklyMomentum: weeklyMomentum,
-            examPressure: buildExamPressureSummary(from: upcomingExamSummaries),
+            examPressure: dashboardStaticSnapshot.examPressure,
             selectedDayExamSummaries: selectedDayExamSummaries,
-            upcomingExamSummaries: upcomingExamSummaries,
-            examNarrative: buildDashboardNarrative(
-                goals: examGoals,
-                dailyLogs: dailyLogs,
-                userProfile: userProfile
-            )
+            upcomingExamSummaries: dashboardStaticSnapshot.upcomingExamSummaries,
+            examNarrative: dashboardStaticSnapshot.examNarrative
         )
     }
 
@@ -389,6 +424,7 @@ final class HomeViewModel {
         }
 
         calendarInsightsCache = insights
+        calendarInsightsRevision &+= 1
     }
 
     /// Refreshes the Home deck-health summaries using the background play-mode repository.
@@ -594,6 +630,58 @@ final class HomeViewModel {
         newExamGoalTargetWorkload = 30
         newExamGoalStatus = .active
         newExamGoalLinkedDeckIDs = []
+    }
+
+    func invalidateDashboardDerivedCaches() {
+        dashboardSnapshotSignature = ""
+        dashboardStaticSignature = ""
+        dashboardStaticSnapshot = .empty()
+        selectedDayOverviewCache.removeAll(keepingCapacity: true)
+        weeklyMomentumCache.removeAll(keepingCapacity: true)
+        selectedDayExamSummariesCache.removeAll(keepingCapacity: true)
+        selectedDayInsightCache.removeAll(keepingCapacity: true)
+        recentStudyDayCountCache.removeAll(keepingCapacity: true)
+        examGoalSummaryCache.removeAll(keepingCapacity: true)
+        examDeckSummaryCache.removeAll(keepingCapacity: true)
+    }
+
+    static func logsFingerprint(for logs: [DailyActivityLog]) -> Int {
+        var aggregate = logs.count &* 1_000_003
+        for log in logs {
+            var hasher = Hasher()
+            hasher.combine(log.dateString)
+            hasher.combine(log.cardsReviewed)
+            hasher.combine(log.xpEarnedToday)
+            hasher.combine(log.newCardsLearned)
+            hasher.combine(log.dailyGoal)
+            aggregate ^= hasher.finalize()
+        }
+        return aggregate
+    }
+
+    static func examGoalsFingerprint(for goals: [ExamGoalModel]) -> Int {
+        var aggregate = goals.count &* 1_000_033
+        for goal in goals {
+            var deckAggregate = goal.linkedDecks.count &* 97
+            for deck in goal.linkedDecks {
+                var deckHasher = Hasher()
+                deckHasher.combine(deck.persistentModelID.hashValue)
+                deckHasher.combine(deck.cardCount)
+                deckHasher.combine(deck.editedAt.timeIntervalSince1970.bitPattern)
+                deckAggregate ^= deckHasher.finalize()
+            }
+
+            var hasher = Hasher()
+            hasher.combine(goal.persistentModelID.hashValue)
+            hasher.combine(Self.dateKeyFormatter.string(from: goal.date))
+            hasher.combine(goal.statusRaw)
+            hasher.combine(goal.title)
+            hasher.combine(goal.note)
+            hasher.combine(goal.targetWorkload)
+            hasher.combine(deckAggregate)
+            aggregate ^= hasher.finalize()
+        }
+        return aggregate
     }
 
 }

@@ -28,8 +28,6 @@ struct Day: Identifiable, Equatable {
 
     // MARK: - Properties
 
-    let id = UUID()
-
     /// Two-digit day number displayed in the cell (e.g. `"01"`, `"15"`).
     var shortSymbol: String
 
@@ -44,6 +42,9 @@ struct Day: Identifiable, Equatable {
 
     /// `true` when this day matches `CalendarViewModel.selectedDate`.
     var isSelected: Bool = false
+
+    /// Stable identity so calendar cells do not churn during scroll-only updates.
+    var id: String { dateString }
 
     /// Convenience inverse of `ignored`.
     var isCurrentMonth: Bool { !ignored }
@@ -74,6 +75,13 @@ final class CalendarViewModel {
         let monthProgress: CGFloat
 
         var id: Date { monthStart }
+    }
+
+    private struct MonthGridCacheEntry {
+        let monthString: String
+        let yearString: String
+        let rows: [[Day]]
+        let rowIndexByDateString: [String: CGFloat]
     }
 
     // MARK: - Dependencies
@@ -110,6 +118,13 @@ final class CalendarViewModel {
     ///
     /// Used to drive the collapse animation offset in `HomeCalendarSectionView`.
     private(set) var monthProgress: CGFloat = 0.0
+
+    /// Cached previous/current/next month snapshots used by the expanded pager.
+    private(set) var visibleMonthSnapshots: [MonthSnapshot] = []
+
+    /// Reusable per-month grid cache so month paging does not regenerate the full
+    /// day matrix and date formatting payloads every time the visible month changes.
+    private var monthGridCache: [Date: MonthGridCacheEntry] = [:]
 
     // MARK: - Static Date Formatters
 
@@ -222,6 +237,7 @@ final class CalendarViewModel {
             : preference.resolvedCalendar
         guard calendar.firstWeekday != updatedCalendar.firstWeekday else { return }
         calendar = updatedCalendar
+        monthGridCache.removeAll(keepingCapacity: true)
         selectedDate = calendar.startOfDay(for: selectedDate)
         selectedMonth = CalendarViewModel.monthStart(for: selectedMonth, calendar: calendar)
         preferredDayOfMonth = calendar.component(.day, from: selectedDate)
@@ -240,6 +256,11 @@ final class CalendarViewModel {
     }
 
     func monthSnapshot(offsetBy months: Int) -> MonthSnapshot {
+        let cacheIndex = months + 1
+        if (0..<visibleMonthSnapshots.count).contains(cacheIndex) {
+            return visibleMonthSnapshots[cacheIndex]
+        }
+
         let visibleMonth: Date
         if months == 0 {
             visibleMonth = selectedMonth
@@ -267,6 +288,7 @@ final class CalendarViewModel {
         yearString = snapshot.yearString
         monthRows = snapshot.rows
         monthProgress = snapshot.monthProgress
+        rebuildVisibleMonthSnapshots()
     }
 
     private func updateSelection(date: Date, visibleMonth: Date) {
@@ -288,32 +310,81 @@ final class CalendarViewModel {
         return calendar.date(from: components) ?? normalizedDate
     }
 
-    private func snapshot(for visibleMonth: Date, selectedDate: Date) -> MonthSnapshot {
-        let monthAnchor = CalendarViewModel.monthStart(for: visibleMonth, calendar: calendar)
-        let days = buildDays(for: monthAnchor, selectedDate: selectedDate)
+    private func cachedMonthGrid(for monthAnchor: Date) -> MonthGridCacheEntry {
+        if let cached = monthGridCache[monthAnchor] {
+            return cached
+        }
 
+        let days = buildDays(for: monthAnchor)
         var rows: [[Day]] = []
+        rows.reserveCapacity(max(1, days.count / 7))
+
         for index in stride(from: 0, to: days.count, by: 7) {
             rows.append(Array(days[index..<min(index + 7, days.count)]))
         }
 
-        let selectedRow: CGFloat
-        if let index = days.firstIndex(where: { $0.isSelected }) {
-            selectedRow = CGFloat(index / 7).rounded(.down)
+        var rowIndexByDateString: [String: CGFloat] = [:]
+        rowIndexByDateString.reserveCapacity(days.count)
+        for (rowIndex, row) in rows.enumerated() {
+            let resolvedRowIndex = CGFloat(rowIndex)
+            for day in row {
+                rowIndexByDateString[day.dateString] = resolvedRowIndex
+            }
+        }
+
+        let cacheEntry = MonthGridCacheEntry(
+            monthString: Self.monthFormatter.string(from: monthAnchor),
+            yearString: Self.yearFormatter.string(from: monthAnchor),
+            rows: rows,
+            rowIndexByDateString: rowIndexByDateString
+        )
+        monthGridCache[monthAnchor] = cacheEntry
+        return cacheEntry
+    }
+
+    private func rebuildVisibleMonthSnapshots() {
+        visibleMonthSnapshots = [-1, 0, 1].map { offset in
+            let visibleMonth: Date
+            if offset == 0 {
+                visibleMonth = selectedMonth
+            } else {
+                visibleMonth = calendar.date(byAdding: .month, value: offset, to: selectedMonth) ?? selectedMonth
+            }
+
+            let monthAnchor = CalendarViewModel.monthStart(for: visibleMonth, calendar: calendar)
+            return snapshot(for: monthAnchor, selectedDate: selectedDate)
+        }
+    }
+
+    private func snapshot(for visibleMonth: Date, selectedDate: Date) -> MonthSnapshot {
+        let monthAnchor = CalendarViewModel.monthStart(for: visibleMonth, calendar: calendar)
+        let cachedGrid = cachedMonthGrid(for: monthAnchor)
+        let selectedKey = Self.logFormatter.string(from: calendar.startOfDay(for: selectedDate))
+        let selectedRow = cachedGrid.rowIndexByDateString[selectedKey] ?? 0
+        let rows: [[Day]]
+
+        if cachedGrid.rowIndexByDateString[selectedKey] != nil {
+            rows = cachedGrid.rows.map { row in
+                row.map { day in
+                    var resolvedDay = day
+                    resolvedDay.isSelected = day.dateString == selectedKey
+                    return resolvedDay
+                }
+            }
         } else {
-            selectedRow = 0
+            rows = cachedGrid.rows
         }
 
         return MonthSnapshot(
             monthStart: monthAnchor,
-            monthString: Self.monthFormatter.string(from: monthAnchor),
-            yearString: Self.yearFormatter.string(from: monthAnchor),
+            monthString: cachedGrid.monthString,
+            yearString: cachedGrid.yearString,
             rows: rows,
             monthProgress: selectedRow
         )
     }
 
-    private func buildDays(for monthAnchor: Date, selectedDate: Date) -> [Day] {
+    private func buildDays(for monthAnchor: Date) -> [Day] {
         var days: [Day] = []
 
         guard let range = calendar.range(of: .day, in: .month, for: monthAnchor) else {
@@ -336,8 +407,7 @@ final class CalendarViewModel {
                     shortSymbol: Self.dayFormatter.string(from: date),
                     date: date,
                     dateString: Self.logFormatter.string(from: date),
-                    ignored: true,
-                    isSelected: calendar.isDate(date, inSameDayAs: selectedDate)
+                    ignored: true
                 ))
             }
         }
@@ -347,8 +417,7 @@ final class CalendarViewModel {
                 shortSymbol: Self.dayFormatter.string(from: date),
                 date: date,
                 dateString: Self.logFormatter.string(from: date),
-                ignored: false,
-                isSelected: calendar.isDate(date, inSameDayAs: selectedDate)
+                ignored: false
             ))
         }
 
@@ -363,8 +432,7 @@ final class CalendarViewModel {
                         shortSymbol: Self.dayFormatter.string(from: date),
                         date: date,
                         dateString: Self.logFormatter.string(from: date),
-                        ignored: true,
-                        isSelected: calendar.isDate(date, inSameDayAs: selectedDate)
+                        ignored: true
                     ))
                 }
             }

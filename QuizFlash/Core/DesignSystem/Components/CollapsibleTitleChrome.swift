@@ -2,8 +2,8 @@
 //  CollapsibleTitleChrome.swift
 //  QuizFlash
 //
-//  Shared large-title chrome that reveals a centered capsule once the hero
-//  title scrolls out of view.
+//  Shared large-title chrome that reveals a centered floating title once the
+//  hero title scrolls out of view.
 //
 
 import SwiftUI
@@ -11,19 +11,17 @@ import SwiftUI
 // MARK: - Collapsible Title Metrics
 
 enum CollapsibleTitleChromeMetrics {
-    static let maximumPillWidth: CGFloat = 220
     static let hiddenScale: CGFloat = 0.82
+    static let floatingTitleVerticalOffset: CGFloat =  0
 }
 
-// MARK: - Collapsible Title Pill
+// MARK: - Collapsible Title Label
 
 struct CollapsibleTitlePill: View {
     let title: String
     let maxWidth: CGFloat
     let isVisible: Bool
     var fallbackTitle: String = ""
-
-    @State private var measuredTextWidth: CGFloat = 0
 
     private var resolvedTitle: String {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -37,46 +35,19 @@ struct CollapsibleTitlePill: View {
         !resolvedTitle.isEmpty
     }
 
-    private var horizontalPadding: CGFloat {
-        hasTitle ? UIConstants.Spacing.standard : 0
-    }
-
-    private var resolvedWidth: CGFloat {
-        let intrinsicWidth = measuredTextWidth + (horizontalPadding * 2)
-        let cappedMaxWidth = min(maxWidth, CollapsibleTitleChromeMetrics.maximumPillWidth)
-        return min(cappedMaxWidth, max(UIConstants.Size.buttonHeight, intrinsicWidth))
-    }
-
     var body: some View {
-        ZStack {
-            if hasTitle {
-                Text(resolvedTitle)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .hidden()
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.size.width
-                    } action: { newWidth in
-                        if abs(measuredTextWidth - newWidth) > 0.5 {
-                            measuredTextWidth = newWidth
-                        }
-                    }
-            }
-
-            Text(resolvedTitle)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .minimumScaleFactor(0.92)
-                .frame(width: max(0, resolvedWidth - (horizontalPadding * 2)))
-        }
-        .padding(.horizontal, horizontalPadding)
-        .padding(.vertical, UIConstants.Spacing.small)
-        .frame(width: resolvedWidth)
-        .frame(height: UIConstants.Size.capsuleHeight)
-        .glassButton(shape: .capsule)
+        Text(resolvedTitle)
+            .font(.system(size: 18, weight: .black, design: .rounded))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .minimumScaleFactor(0.86)
+            .frame(maxWidth: maxWidth)
+            .shadow(color: .black.opacity(0.92), radius: 18, x: 0, y: 0)
+            .shadow(color: .black.opacity(0.85), radius: 7, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.7), radius: 1.5, x: 0, y: 0)
+            .opacity(hasTitle ? 1 : 0)
+            .frame(height: UIConstants.Size.capsuleHeight)
         .opacity(isVisible ? 1 : 0)
         .scaleEffect(isVisible ? 1 : CollapsibleTitleChromeMetrics.hiddenScale, anchor: .top)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isVisible)
@@ -89,6 +60,7 @@ struct CollapsibleTitlePill: View {
 struct CollapsibleTitleNavigationBar<Leading: View, Center: View, Trailing: View>: View {
     let coordinateSpaceName: String
     let horizontalInset: CGFloat
+    let appliesTopNavigationChrome: Bool
     let onHeightChange: (CGFloat) -> Void
     let onBottomChange: (CGFloat) -> Void
     @ViewBuilder let leading: () -> Leading
@@ -101,14 +73,16 @@ struct CollapsibleTitleNavigationBar<Leading: View, Center: View, Trailing: View
     init(
         coordinateSpaceName: String,
         horizontalInset: CGFloat = UIConstants.Layout.compactScreenEdgeInset,
-        onHeightChange: @escaping (CGFloat) -> Void,
-        onBottomChange: @escaping (CGFloat) -> Void,
+        appliesTopNavigationChrome: Bool = true,
+        onHeightChange: @escaping (CGFloat) -> Void = { _ in },
+        onBottomChange: @escaping (CGFloat) -> Void = { _ in },
         @ViewBuilder leading: @escaping () -> Leading,
         @ViewBuilder center: @escaping (CGFloat) -> Center,
         @ViewBuilder trailing: @escaping () -> Trailing
     ) {
         self.coordinateSpaceName = coordinateSpaceName
         self.horizontalInset = horizontalInset
+        self.appliesTopNavigationChrome = appliesTopNavigationChrome
         self.onHeightChange = onHeightChange
         self.onBottomChange = onBottomChange
         self.leading = leading
@@ -117,6 +91,29 @@ struct CollapsibleTitleNavigationBar<Leading: View, Center: View, Trailing: View
     }
 
     var body: some View {
+        chromeContent
+            .modifier(
+                CollapsibleTitleTopChromeModifier(
+                    appliesTopNavigationChrome: appliesTopNavigationChrome,
+                    horizontalInset: horizontalInset
+                )
+            )
+            .background {
+            Color.clear
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { newHeight in
+                    onHeightChange(newHeight)
+                }
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.frame(in: .named(coordinateSpaceName)).maxY
+                } action: { newBottom in
+                    onBottomChange(newBottom)
+                }
+        }
+    }
+
+    private var chromeContent: some View {
         GeometryReader { proxy in
             let availableWidth = max(0, proxy.size.width - (horizontalInset * 2))
             let sideReserve = max(leadingControlWidth, trailingControlWidth)
@@ -127,6 +124,7 @@ struct CollapsibleTitleNavigationBar<Leading: View, Center: View, Trailing: View
 
             ZStack(alignment: .center) {
                 center(maxCenterWidth)
+                    .offset(y: CollapsibleTitleChromeMetrics.floatingTitleVerticalOffset)
                     .allowsHitTesting(false)
 
                 HStack(alignment: .center) {
@@ -153,19 +151,19 @@ struct CollapsibleTitleNavigationBar<Leading: View, Center: View, Trailing: View
             }
         }
         .frame(height: UIConstants.Size.capsuleHeight)
-        .topNavigationChrome(horizontalInset: horizontalInset)
-        .background {
-            Color.clear
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.height
-                } action: { newHeight in
-                    onHeightChange(newHeight)
-                }
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.frame(in: .named(coordinateSpaceName)).maxY
-                } action: { newBottom in
-                    onBottomChange(newBottom)
-                }
+    }
+}
+
+private struct CollapsibleTitleTopChromeModifier: ViewModifier {
+    let appliesTopNavigationChrome: Bool
+    let horizontalInset: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if appliesTopNavigationChrome {
+            content.topNavigationChrome(horizontalInset: horizontalInset)
+        } else {
+            content
         }
     }
 }

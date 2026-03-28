@@ -532,7 +532,13 @@ struct ZoneContentView: View {
 
 struct CardFaceView: View {
     let zone: ZoneModel
+    let fontScale: CGFloat
     @Environment(\.colorScheme) private var colorScheme
+
+    init(zone: ZoneModel, fontScale: CGFloat = 1.0) {
+        self.zone = zone
+        self.fontScale = fontScale
+    }
 
     var body: some View {
         if zone.isLeaf { leafPreview } else { containerPreview }
@@ -589,10 +595,10 @@ struct CardFaceView: View {
 
     private func fontSizeFor(_ zone: ZoneModel) -> CGFloat {
         switch zone.textStyle {
-        case .caption: return 16
-        case .body: return 22
-        case .headline: return 26
-        case .title: return 32
+        case .caption: return 16 * fontScale
+        case .body: return 22 * fontScale
+        case .headline: return 26 * fontScale
+        case .title: return 32 * fontScale
         }
     }
 
@@ -600,9 +606,9 @@ struct CardFaceView: View {
     private var containerPreview: some View {
         let children = zone.children ?? []
         if zone.direction == .horizontal {
-            HStack(alignment: .top, spacing: 12) { ForEach(children) { child in CardFaceView(zone: child) } }
+            HStack(alignment: .top, spacing: 12) { ForEach(children) { child in CardFaceView(zone: child, fontScale: fontScale) } }
         } else {
-            VStack(alignment: .leading, spacing: 12) { ForEach(children) { child in CardFaceView(zone: child) } }
+            VStack(alignment: .leading, spacing: 12) { ForEach(children) { child in CardFaceView(zone: child, fontScale: fontScale) } }
         }
     }
 
@@ -615,7 +621,7 @@ struct CardFaceView: View {
         let weight: Font.Weight = zone.isBold ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
         let size: CGFloat
         switch style { case .body: size = 22; case .title: size = 32; case .headline: size = 26; case .caption: size = 16 }
-        return family.font(size: size, weight: weight)
+        return family.font(size: size * fontScale, weight: weight)
     }
 }
 

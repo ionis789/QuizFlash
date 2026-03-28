@@ -32,7 +32,7 @@ extension CreateDeckView {
 
     @ViewBuilder
     func navigationChrome(
-        containerWidth: CGFloat,
+        containerWidth _: CGFloat,
         safeTopInset: CGFloat
     ) -> some View {
         let horizontalInset = UIConstants.Layout.compactScreenEdgeInset
@@ -44,59 +44,39 @@ extension CreateDeckView {
                     .frame(width: 56, height: 5)
                     .accessibilityHidden(true)
 
-                navigationBarContent(containerWidth: containerWidth)
+                navigationBarContent(horizontalInset: 0, appliesTopNavigationChrome: false)
             }
             .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
             .padding(.horizontal, horizontalInset)
-            .background(navigationBarHeightReader)
         } else {
-            navigationBarContent(containerWidth: containerWidth)
-                .topNavigationChrome(horizontalInset: horizontalInset)
-                .background(navigationBarHeightReader)
+            navigationBarContent(horizontalInset: horizontalInset, appliesTopNavigationChrome: true)
         }
     }
 
-    func navigationBarContent(containerWidth: CGFloat) -> some View {
-        let horizontalInset = UIConstants.Layout.compactScreenEdgeInset
-        let availableChromeWidth = max(0, containerWidth - (horizontalInset * 2))
-        let leadingControlWidth = UIConstants.Size.actionButton
-        let trailingControlWidth = (UIConstants.Size.actionButton * 2) + UIConstants.Spacing.small
-        let sideClearance = max(leadingControlWidth, trailingControlWidth)
-        let maxTitleWidth = max(
-            UIConstants.Size.buttonHeight,
-            availableChromeWidth - (sideClearance * 2) - (UIConstants.Spacing.small * 2)
-        )
-
-        return ZStack(alignment: .center) {
+    func navigationBarContent(horizontalInset: CGFloat, appliesTopNavigationChrome: Bool) -> some View {
+        CollapsibleTitleNavigationBar(
+            coordinateSpaceName: kCreateDeckChromeSpace,
+            horizontalInset: horizontalInset,
+            appliesTopNavigationChrome: appliesTopNavigationChrome,
+            onHeightChange: { newHeight in
+                if abs(navigationBarHeight - newHeight) > 0.5 {
+                    navigationBarHeight = newHeight
+                }
+            }
+        ) {
+            doneButton
+        } center: { maxTitleWidth in
             CreateDeckCollapsedTitlePill(
                 title: collapsedDeckTitle,
                 maxWidth: maxTitleWidth,
                 isVisible: shouldShowCollapsedTitle
             )
-                .allowsHitTesting(false)
-
-            HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
-                doneButton
-
-                Spacer(minLength: 0)
-
-                HStack(spacing: UIConstants.Spacing.small) {
-                    addCardButton
-                    moreActionsButton
-                }
+        } trailing: {
+            HStack(spacing: UIConstants.Spacing.small) {
+                addCardButton
+                moreActionsButton
             }
         }
-    }
-
-    var navigationBarHeightReader: some View {
-        Color.clear
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.size.height
-            } action: { newHeight in
-                if abs(navigationBarHeight - newHeight) > 0.5 {
-                    navigationBarHeight = newHeight
-                }
-            }
     }
 
     var headerMetadataRow: some View {

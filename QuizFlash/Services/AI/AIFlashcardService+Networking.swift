@@ -333,9 +333,11 @@ extension AIFlashcardService {
             .joined(separator: "\n")
 
         let retryInstruction = """
-        The previous Match attempt produced prompt-answer pairs that were too verbose for fast matching rounds.
-        Regenerate EXACTLY \(targetCount) new Match cards that are tighter and more scannable.
-        Prefer term -> definition, notation -> meaning, structure -> property, or cue -> direct counterpart.
+        The previous Match attempt produced prompt-answer pairs that were too verbose, too generic, or too weak for fast matching rounds.
+        Regenerate EXACTLY \(targetCount) new Match cards that are tighter, more canonical, and easier to pair correctly.
+        Keep one consistent pairing style when possible: concept -> definition, notation -> meaning, symbol -> interpretation, or rule name -> formal statement.
+        Each answer must be the direct counterpart only, not an explanation or mini flashcard back.
+        Prefer unique answers that would not plausibly match several prompts in the same batch.
         Avoid repeating or paraphrasing these rejected weak pairs:
         \(rejectedPreview.isEmpty ? "- No rejected pairs listed." : rejectedPreview)
         """
@@ -643,4 +645,3 @@ extension AIFlashcardService {
 
     // -------------------------------------------------------------------------
 }
-

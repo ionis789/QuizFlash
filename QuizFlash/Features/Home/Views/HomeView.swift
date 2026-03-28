@@ -165,7 +165,6 @@ struct HomeView: View {
                     )
                     viewModel.refreshDashboardSnapshot(
                         selectedDate: calendarVM.selectedDate,
-                        dailyLogs: dailyLogs,
                         examGoals: examGoals,
                         userProfile: profile
                     )
@@ -176,12 +175,11 @@ struct HomeView: View {
                 .onChange(of: calendarVM.selectedDate) { _, newValue in
                     viewModel.refreshDashboardSnapshot(
                         selectedDate: newValue,
-                        dailyLogs: dailyLogs,
                         examGoals: examGoals,
                         userProfile: profile
                     )
                 }
-                .task(id: dailyLogsCacheSignature) {
+                .task(id: dailyLogsTaskFingerprint) {
                     viewModel.updateLogsCache(logs: dailyLogs)
                     viewModel.refreshCalendarInsights(
                         dailyLogs: dailyLogs,
@@ -190,12 +188,11 @@ struct HomeView: View {
                     )
                     viewModel.refreshDashboardSnapshot(
                         selectedDate: calendarVM.selectedDate,
-                        dailyLogs: dailyLogs,
                         examGoals: examGoals,
                         userProfile: profile
                     )
                 }
-                .task(id: examGoalsCacheSignature) {
+                .task(id: examGoalsTaskFingerprint) {
                     viewModel.updateExamGoalsCache(goals: examGoals)
                     viewModel.refreshCalendarInsights(
                         dailyLogs: dailyLogs,
@@ -204,7 +201,6 @@ struct HomeView: View {
                     )
                     viewModel.refreshDashboardSnapshot(
                         selectedDate: calendarVM.selectedDate,
-                        dailyLogs: dailyLogs,
                         examGoals: examGoals,
                         userProfile: profile
                     )
@@ -217,12 +213,11 @@ struct HomeView: View {
                     )
                     viewModel.refreshDashboardSnapshot(
                         selectedDate: calendarVM.selectedDate,
-                        dailyLogs: dailyLogs,
                         examGoals: examGoals,
                         userProfile: profile
                     )
                 }
-                .task(id: deckHealthRefreshSignature) {
+                .task(id: deckHealthRefreshFingerprint) {
                     await viewModel.refreshDeckHealthSummaries(
                         decks: allDecks,
                         recentDecks: recentlyOpenedDecks,
@@ -254,27 +249,13 @@ struct HomeView: View {
     }
 
     /// Stable signature used to refresh the daily-log cache when Home data changes.
-    private var dailyLogsCacheSignature: [String] {
-        dailyLogs
-            .map { "\($0.dateString)-\($0.cardsReviewed)-\($0.xpEarnedToday)-\($0.newCardsLearned)-\($0.dailyGoal)" }
-            .sorted()
+    private var dailyLogsTaskFingerprint: Int {
+        HomeViewModel.logsFingerprint(for: dailyLogs)
     }
 
     /// Stable signature used to refresh the exam-goal cache when goal data changes.
-    private var examGoalsCacheSignature: [String] {
-        examGoals
-            .map {
-                [
-                    "\($0.persistentModelID.hashValue)",
-                    HomeViewModel.dateKeyFormatter.string(from: $0.date),
-                    $0.statusRaw,
-                    $0.title,
-                    $0.note,
-                    "\($0.targetWorkload)",
-                    "\($0.linkedDecks.count)"
-                ].joined(separator: "|")
-            }
-            .sorted()
+    private var examGoalsTaskFingerprint: Int {
+        HomeViewModel.examGoalsFingerprint(for: examGoals)
     }
 
     /// Stable signature used to refresh Home dashboard summaries when profile stats change.
@@ -289,33 +270,40 @@ struct HomeView: View {
     }
 
     /// Stable signature used to refresh Home deck-health summaries when deck-facing inputs change.
-    private var deckHealthRefreshSignature: String {
-        let todayKey = HomeViewModel.dateKeyFormatter.string(from: Date())
-        let deckSignature = allDecks
-            .map {
-                [
-                    "\($0.persistentModelID.hashValue)",
-                    $0.title,
-                    $0.icon,
-                    $0.colorHex,
-                    "\($0.cardCount)",
-                    "\($0.editedAt.timeIntervalSince1970)",
-                    "\($0.lastOpenedAt?.timeIntervalSince1970 ?? 0)"
-                ].joined(separator: "|")
-            }
-            .sorted()
-            .joined(separator: "~")
+    private var deckHealthRefreshFingerprint: Int {
+        var hasher = Hasher()
+        hasher.combine(HomeViewModel.dateKeyFormatter.string(from: Date()))
+        hasher.combine(allDecksFingerprint)
+        hasher.combine(recentDecksFingerprint)
+        hasher.combine(examGoalsTaskFingerprint)
+        return hasher.finalize()
+    }
 
-        let recentSignature = recentlyOpenedDecks
-            .map { "\($0.persistentModelID.hashValue)" }
-            .joined(separator: "~")
+    private var allDecksFingerprint: Int {
+        var aggregate = allDecks.count &* 1_000_211
+        for deck in allDecks {
+            var hasher = Hasher()
+            hasher.combine(deck.persistentModelID.hashValue)
+            hasher.combine(deck.title)
+            hasher.combine(deck.icon)
+            hasher.combine(deck.colorHex)
+            hasher.combine(deck.cardCount)
+            hasher.combine(deck.editedAt.timeIntervalSince1970.bitPattern)
+            hasher.combine(deck.lastOpenedAt?.timeIntervalSince1970.bitPattern ?? 0)
+            aggregate ^= hasher.finalize()
+        }
+        return aggregate
+    }
 
-        return [
-            todayKey,
-            deckSignature,
-            recentSignature,
-            examGoalsCacheSignature.joined(separator: "~")
-        ].joined(separator: "||")
+    private var recentDecksFingerprint: Int {
+        var aggregate = recentlyOpenedDecks.count &* 131
+        for deck in recentlyOpenedDecks {
+            var hasher = Hasher()
+            hasher.combine(deck.persistentModelID.hashValue)
+            hasher.combine(deck.lastOpenedAt?.timeIntervalSince1970.bitPattern ?? 0)
+            aggregate ^= hasher.finalize()
+        }
+        return aggregate
     }
 
     private func calendarTransitionBand(horizontalInset: CGFloat) -> some View {
@@ -346,10 +334,9 @@ struct HomeView: View {
         HomeCalendarSectionView(
             calendarVM: calendarVM,
             layout: layout,
-            calendarInsightsCache: viewModel.calendarInsightsCache
+            calendarInsightsCache: viewModel.calendarInsightsCache,
+            calendarInsightsRevision: viewModel.calendarInsightsRevision
         )
-        .animation(.snappy(duration: 0.26, extraBounce: 0.02), value: calendarVM.monthRows.count)
-        .animation(.snappy(duration: 0.26, extraBounce: 0.02), value: calendarVM.selectedMonth)
     }
 
     private func handleHomeAction(_ action: HomeGreetingAction) {

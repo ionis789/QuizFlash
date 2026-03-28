@@ -168,6 +168,26 @@ extension AIFlashcardService {
         }
         .joined(separator: "\n\n---\n\n")
 
+        if targetType == .match {
+            return """
+            Convert each source card below into ONE \(targetType.title) output.
+            Preserve the dominant language of each source card.
+            Keep the order stable and return one result for every SOURCE_INDEX.
+
+            CRITICAL FOR MATCH:
+            - Do NOT mechanically paraphrase the whole front/back pair.
+            - Extract the single best atomic cue -> counterpart pair from each source card.
+            - Keep the pairing style consistent across this batch whenever possible.
+            - Prefer canonical study pairs such as concept -> definition, notation -> meaning, rule name -> rule statement, symbol -> interpretation.
+            - If the source card is broad, choose the most concrete sub-concept that still teaches something useful.
+            - The answer must be the direct counterpart, not an explanation, proof sketch, or mini flashcard back.
+
+            SOURCE CARDS:
+
+            \(body)
+            """
+        }
+
         return """
         Convert each source card below into ONE \(targetType.title) output.
         Preserve the dominant language of each source card.
@@ -414,10 +434,14 @@ extension AIFlashcardService {
         - prompt and answer MUST stay plain, compact, and immediately scannable.
         - Prefer a single line for each field. Avoid bullet points, numbering, and sentence fragments stacked across lines.
         - Think in compact pairs only: term -> definition, notation -> meaning, event -> outcome, structure -> property.
+        - Within one batch, prefer ONE stable pairing style instead of mixing unrelated pair types.
+        - The pair should feel like a direct textbook counterpart, not like two vaguely related study notes.
+        - The answer must uniquely resolve the prompt among neighboring cards in the same batch.
         - Each field should feel readable in under one second.
         - Avoid markdown emphasis unless a math or code symbol is essential to the concept.
         - Never include explanations, examples, or qualifiers beyond the direct pair itself.
         - Never output lists, semicolon chains, or mini paragraphs.
+        - Avoid generic answers that could match many prompts in the same deck.
         - If the source concept is too broad for a compact pair, skip it and generate a tighter concept instead.
         """
         }
@@ -595,11 +619,22 @@ extension AIFlashcardService {
         CARD TYPE PROFILE — MATCH CARDS
         ═══════════════════════════════════════════════════════
         These cards must remain easy to pair in match mode.
-        The front should usually be a short term, prompt, event, notation, formula name, or compact cue.
-        The back should be the direct counterpart only: concise definition, association, mapping, or result.
+        The front should usually be a short term, concept label, notation, rule name, formula name, symbol, or compact cue.
+        The back should be the direct counterpart only: concise definition, interpretation, named result, canonical statement, or exact mapping.
         Prefer the tightest faithful pair, not the most complete explanation.
+        Keep the relation family consistent across the batch whenever possible.
+        Good examples of relation families:
+        - concept -> definition
+        - notation -> meaning
+        - symbol -> interpretation
+        - rule/theorem name -> formal statement
+        - structure -> defining property
+        Avoid mixing formula-name cards, notation cards, and definition cards randomly unless the source strongly demands it.
+        If the source is phrased as a long question, extract the underlying concept name or notation instead of copying the whole question style.
+        If the source answer contains several clauses, keep only the single canonical counterpart that best teaches the concept.
+        Use formulas as answers only when the source concept is itself a named rule/schema and the formula is the canonical statement of that rule.
+        Do not turn one source concept into a mini flashcard answer. Match needs compact canonical pairs, not explanations.
         Skip broad concepts that would require multiple clauses to explain.
-        Do not turn one source concept into a mini flashcard answer. Match needs compact pairs, not explanations.
         """
         case .quiz:
             return """

@@ -238,6 +238,21 @@ struct HomeDashboardSnapshot: Equatable {
     }
 }
 
+/// Cached Home dashboard payload that does not depend on the currently selected day.
+struct HomeDashboardStaticSnapshot: Equatable {
+    let upcomingExamSummaries: [HomeExamGoalSummary]
+    let examPressure: HomeExamPressureSummary?
+    let examNarrative: HomeDashboardNarrative?
+
+    static func empty() -> HomeDashboardStaticSnapshot {
+        HomeDashboardStaticSnapshot(
+            upcomingExamSummaries: [],
+            examPressure: nil,
+            examNarrative: nil
+        )
+    }
+}
+
 /// Resume-oriented greeting payload shown at the top of the Home dashboard.
 enum HomeGreetingAction: Equatable {
     case openDeck(PersistentIdentifier)

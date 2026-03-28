@@ -42,13 +42,28 @@ struct PlayableCard: Identifiable, Equatable, Sendable {
 // MARK: - Match Payload
 
 /// A validated prompt/answer pair sourced from a flashcard and reduced to preview text for match gameplay.
+enum MatchPlayableSideContent: Equatable, Sendable {
+    case zone(ZoneModel)
+    case text(String)
+
+    var renderZone: ZoneModel {
+        switch self {
+        case .zone(let zone):
+            return zone
+        case .text(let text):
+            return .text(text)
+        }
+    }
+}
+
+/// A validated prompt/answer pair sourced from persisted card content for match gameplay.
 struct MatchPlayablePair: Identifiable, Equatable, Sendable {
     let id: PersistentIdentifier
     let sourceKind: CardKind
     let cardNumber: Int
     let interval: Int
-    let promptPreview: String
-    let answerPreview: String
+    let promptContent: MatchPlayableSideContent
+    let answerContent: MatchPlayableSideContent
 }
 
 // MARK: - Quiz Payload
@@ -276,13 +291,13 @@ actor PlayModeCardRepository {
                 guard case .match(let content) = card.cardContent else { return }
                 compatibleCount += 1
 
-                guard let promptPreview = Self.validatedPreviewText(for: content.prompt) else {
+                guard let promptText = Self.validatedMatchText(for: content.prompt) else {
                     Self.increment(.missingPromptPreview, in: &invalidReasons)
                     card.clearZoneCache()
                     return
                 }
 
-                guard let answerPreview = Self.validatedPreviewText(for: content.answer) else {
+                guard let answerText = Self.validatedMatchText(for: content.answer) else {
                     Self.increment(.missingAnswerPreview, in: &invalidReasons)
                     card.clearZoneCache()
                     return
@@ -294,8 +309,8 @@ actor PlayModeCardRepository {
                         sourceKind: .match,
                         cardNumber: card.cardNumber,
                         interval: card.interval,
-                        promptPreview: promptPreview,
-                        answerPreview: answerPreview
+                        promptContent: .text(promptText),
+                        answerContent: .text(answerText)
                     )
                 )
                 card.clearZoneCache()
@@ -323,13 +338,13 @@ actor PlayModeCardRepository {
                 guard case .flashcard(let content) = card.cardContent else { return }
                 compatibleCount += 1
 
-                guard let promptPreview = Self.validatedPreviewText(for: content.frontZone) else {
+                guard Self.validatedMatchZone(content.frontZone) != nil else {
                     Self.increment(.missingPromptPreview, in: &invalidReasons)
                     card.clearZoneCache()
                     return
                 }
 
-                guard let answerPreview = Self.validatedPreviewText(for: content.backZone) else {
+                guard Self.validatedMatchZone(content.backZone) != nil else {
                     Self.increment(.missingAnswerPreview, in: &invalidReasons)
                     card.clearZoneCache()
                     return
@@ -341,8 +356,8 @@ actor PlayModeCardRepository {
                         sourceKind: .flashcard,
                         cardNumber: card.cardNumber,
                         interval: card.interval,
-                        promptPreview: promptPreview,
-                        answerPreview: answerPreview
+                        promptContent: .zone(content.frontZone),
+                        answerContent: .zone(content.backZone)
                     )
                 )
                 card.clearZoneCache()
@@ -709,6 +724,21 @@ actor PlayModeCardRepository {
     private static func validatedPreviewText(for zone: ZoneModel) -> String? {
         let preview = zone.previewText(maxLength: 140)
         return validatedPreviewText(for: preview)
+    }
+
+    private static func validatedMatchText(for text: String) -> String? {
+        let normalized = AIZoneParser.sanitizeLatex(text)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalized.isEmpty, normalized.caseInsensitiveCompare("empty") != .orderedSame else {
+            return nil
+        }
+
+        return normalized
+    }
+
+    private static func validatedMatchZone(_ zone: ZoneModel) -> ZoneModel? {
+        zone.hasContent ? zone : nil
     }
 
     private static func validatedPreviewText(for text: String) -> String? {

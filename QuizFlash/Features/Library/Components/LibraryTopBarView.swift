@@ -15,12 +15,15 @@ struct LibraryTopBarView: View {
     let title: String
     let deckCount: Int
     @Bindable var viewModel: LibraryViewModel
+    let coordinateSpaceName: String
+    let isCollapsedTitleVisible: Bool
 
     var isScrolled: Bool = false
     /// When non-nil, a back button is shown on the left instead of the deck-count pill.
     var onBack: (() -> Void)? = nil
     /// Text shown inside the back button pill. Only used when `onBack != nil`.
     var backLabel: String = "Library"
+    var onBottomChange: (CGFloat) -> Void = { _ in }
 
     @Namespace private var searchTransitionNamespace
     @State private var searchIconBackgroundScale: CGFloat = 1
@@ -70,10 +73,6 @@ struct LibraryTopBarView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            titleRow
-                .opacity(viewModel.isSearching ? 0 : 1)
-                .accessibilityHidden(viewModel.isSearching)
-
             idleChromeRow
                 .opacity(viewModel.isSearching ? 0 : 1)
                 .allowsHitTesting(!viewModel.isSearching)
@@ -108,41 +107,36 @@ struct LibraryTopBarView: View {
         }
     }
 
-    // MARK: - Title Row
-
-    private var titleRow: some View {
-        VStack(spacing: 2) {
-            Text(title)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-            deckCountPill
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, trailingControlReservation)
-        .padding(.top, UIConstants.Layout.deckNavigationTopPadding)
-        .padding(.bottom, UIConstants.Spacing.small + 2)
-    }
-
     private var idleChromeRow: some View {
-        HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
+        CollapsibleTitleNavigationBar(
+            coordinateSpaceName: coordinateSpaceName,
+            onBottomChange: onBottomChange
+        ) {
             leadingControl
                 .fixedSize()
+        } center: { maxTitleWidth in
+            CollapsibleTitlePill(
+                title: title,
+                maxWidth: maxTitleWidth,
+                isVisible: isCollapsedTitleVisible,
+                fallbackTitle: "Library"
+            )
+        } trailing: {
+            ZStack {
+                ChromeCirclePlaceholder()
 
-            Spacer(minLength: 0)
-
-            if showsEllipsis {
-                moreSettingsButton
-                    .opacity(ellipsisOpacity)
-                    .allowsHitTesting(!viewModel.isSearching && ellipsisOpacity > 0.01)
-                    .accessibilityHidden(viewModel.isSearching)
-                    .transition(.identity)
-                    .transaction { transaction in
-                        transaction.animation = nil
-                    }
+                if showsEllipsis {
+                    moreSettingsButton
+                        .opacity(ellipsisOpacity)
+                        .allowsHitTesting(!viewModel.isSearching && ellipsisOpacity > 0.01)
+                        .accessibilityHidden(viewModel.isSearching)
+                        .transition(.identity)
+                        .transaction { transaction in
+                            transaction.animation = nil
+                        }
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .topNavigationChrome()
     }
 
     // MARK: - Leading Control
@@ -254,16 +248,6 @@ struct LibraryTopBarView: View {
                 isSource: isSource
             )
     }
-
-    // MARK: - Subviews
-
-    private var deckCountPill: some View {
-        Text(deckCount == 0 ? "No Decks" : "\(deckCount) Deck\(deckCount == 1 ? "" : "s")")
-            .font(.system(size: 13, weight: .bold))
-            .fontDesign(.rounded)
-            .foregroundStyle(.secondary)
-    }
-
     private var searchIcon: some View {
         Button {
             activateSearch()
