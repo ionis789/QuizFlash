@@ -156,6 +156,8 @@ final class CreateDeckViewModel {
     var aiGeneratedCardCount: Int = 0
     var aiTargetCardCount: Int = 0
     var aiGenerationBaseCardCount: Int = 0
+    var aiGenerationStartedAt: Date? = nil
+    var aiAccumulatedGenerationDuration: TimeInterval = 0
 
     var hasPendingAISource: Bool {
         preparedAISource != nil
@@ -198,6 +200,10 @@ final class CreateDeckViewModel {
 
     var isPreparedSourcePDF: Bool {
         preparedAISource?.isPDF == true
+    }
+
+    var hasAIGenerationClock: Bool {
+        aiGenerationStartedAt != nil || aiAccumulatedGenerationDuration > 0
     }
 
     var canConfirmAIGeneration: Bool {

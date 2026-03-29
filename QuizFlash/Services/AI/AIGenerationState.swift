@@ -235,6 +235,50 @@ public struct AITextSourceSegment: Identifiable, Equatable, Codable, Sendable {
 
 /// User-controlled AI generation settings that shape both prompt behavior and
 /// how the source document is chunked into real-time batches.
+public nonisolated struct AIGenerationLanguageHint: Equatable, Codable, Sendable {
+    public var languageCode: String
+    public var displayName: String
+
+    public init(languageCode: String, displayName: String) {
+        self.languageCode = languageCode
+        self.displayName = displayName
+    }
+}
+
+public enum AIGenerationOutputLanguageMode: String, CaseIterable, Identifiable, Codable, Sendable {
+    case auto
+    case manual
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .auto: return "Auto"
+        case .manual: return "Manual"
+        }
+    }
+}
+
+extension AIGenerationLanguageHint {
+    public static let supportedOutputLanguages: [AIGenerationLanguageHint] = [
+        .init(languageCode: "en", displayName: "English"),
+        .init(languageCode: "ro", displayName: "Romanian"),
+        .init(languageCode: "de", displayName: "German"),
+        .init(languageCode: "es", displayName: "Spanish"),
+        .init(languageCode: "fr", displayName: "French"),
+        .init(languageCode: "it", displayName: "Italian"),
+        .init(languageCode: "pt", displayName: "Portuguese"),
+        .init(languageCode: "nl", displayName: "Dutch"),
+        .init(languageCode: "pl", displayName: "Polish"),
+        .init(languageCode: "cs", displayName: "Czech"),
+        .init(languageCode: "sk", displayName: "Slovak"),
+        .init(languageCode: "hu", displayName: "Hungarian"),
+        .init(languageCode: "tr", displayName: "Turkish"),
+        .init(languageCode: "uk", displayName: "Ukrainian"),
+        .init(languageCode: "ru", displayName: "Russian")
+    ]
+}
+
 public nonisolated struct AIGenerationOptions: Equatable, Codable, Sendable {
     public var cardType: AICardGenerationType = .flashcards
     public var cardLevel: AICardGenerationLevel = .balanced
@@ -242,17 +286,67 @@ public nonisolated struct AIGenerationOptions: Equatable, Codable, Sendable {
     /// adaptive now and no longer uses a user-visible fixed batch size.
     public var cardsPerBatch: Int = 3
     public var sourceDistributionMode: AISourceDistributionMode = .auto
+    public var outputLanguageMode: AIGenerationOutputLanguageMode = .auto
+    public var manualOutputLanguage: AIGenerationLanguageHint? = nil
+    public var sourceLanguageHint: AIGenerationLanguageHint? = nil
 
     public init(
         cardType: AICardGenerationType = .flashcards,
         cardLevel: AICardGenerationLevel = .balanced,
         cardsPerBatch: Int = 3,
-        sourceDistributionMode: AISourceDistributionMode = .auto
+        sourceDistributionMode: AISourceDistributionMode = .auto,
+        outputLanguageMode: AIGenerationOutputLanguageMode = .auto,
+        manualOutputLanguage: AIGenerationLanguageHint? = nil,
+        sourceLanguageHint: AIGenerationLanguageHint? = nil
     ) {
         self.cardType = cardType
         self.cardLevel = cardLevel
         self.cardsPerBatch = cardsPerBatch
         self.sourceDistributionMode = sourceDistributionMode
+        self.outputLanguageMode = outputLanguageMode
+        self.manualOutputLanguage = manualOutputLanguage
+        self.sourceLanguageHint = sourceLanguageHint
+    }
+
+    public var outputLanguageSummary: String {
+        switch outputLanguageMode {
+        case .auto:
+            return "Auto"
+        case .manual:
+            return manualOutputLanguage?.displayName ?? "Auto"
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case cardType
+        case cardLevel
+        case cardsPerBatch
+        case sourceDistributionMode
+        case outputLanguageMode
+        case manualOutputLanguage
+        case sourceLanguageHint
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cardType = try container.decodeIfPresent(AICardGenerationType.self, forKey: .cardType) ?? .flashcards
+        cardLevel = try container.decodeIfPresent(AICardGenerationLevel.self, forKey: .cardLevel) ?? .balanced
+        cardsPerBatch = try container.decodeIfPresent(Int.self, forKey: .cardsPerBatch) ?? 3
+        sourceDistributionMode = try container.decodeIfPresent(AISourceDistributionMode.self, forKey: .sourceDistributionMode) ?? .auto
+        outputLanguageMode = try container.decodeIfPresent(AIGenerationOutputLanguageMode.self, forKey: .outputLanguageMode) ?? .auto
+        manualOutputLanguage = try container.decodeIfPresent(AIGenerationLanguageHint.self, forKey: .manualOutputLanguage)
+        sourceLanguageHint = try container.decodeIfPresent(AIGenerationLanguageHint.self, forKey: .sourceLanguageHint)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(cardType, forKey: .cardType)
+        try container.encode(cardLevel, forKey: .cardLevel)
+        try container.encode(cardsPerBatch, forKey: .cardsPerBatch)
+        try container.encode(sourceDistributionMode, forKey: .sourceDistributionMode)
+        try container.encode(outputLanguageMode, forKey: .outputLanguageMode)
+        try container.encodeIfPresent(manualOutputLanguage, forKey: .manualOutputLanguage)
+        try container.encodeIfPresent(sourceLanguageHint, forKey: .sourceLanguageHint)
     }
 
     /// Resolves the per-request card quota adaptively for speed while keeping
@@ -526,19 +620,22 @@ public struct AIFlashcardBatchChunk: Sendable {
     public let plannedCardCount: Int
     public let shortfallCount: Int
     public let sourceLabel: String
+    let matchDiagnostics: AIFlashcardService.MatchAIBatchDiagnostics?
 
-    public init(
+    init(
         cards: [AIFlashcard],
         allocationID: UUID?,
         plannedCardCount: Int,
         shortfallCount: Int = 0,
-        sourceLabel: String
+        sourceLabel: String,
+        matchDiagnostics: AIFlashcardService.MatchAIBatchDiagnostics? = nil
     ) {
         self.cards = cards
         self.allocationID = allocationID
         self.plannedCardCount = plannedCardCount
         self.shortfallCount = shortfallCount
         self.sourceLabel = sourceLabel
+        self.matchDiagnostics = matchDiagnostics
     }
 }
 
@@ -550,19 +647,22 @@ nonisolated struct AIConversionBatchChunk: Sendable {
     let plannedCardCount: Int
     let shortfallCount: Int
     let sourceLabel: String
+    let matchDiagnostics: AIFlashcardService.MatchAIBatchDiagnostics?
 
     init(
         outputs: [AICardConversionOutput],
         plannedSourceIDs: [PersistentIdentifier],
         plannedCardCount: Int,
         shortfallCount: Int = 0,
-        sourceLabel: String
+        sourceLabel: String,
+        matchDiagnostics: AIFlashcardService.MatchAIBatchDiagnostics? = nil
     ) {
         self.outputs = outputs
         self.plannedSourceIDs = plannedSourceIDs
         self.plannedCardCount = plannedCardCount
         self.shortfallCount = shortfallCount
         self.sourceLabel = sourceLabel
+        self.matchDiagnostics = matchDiagnostics
     }
 }
 

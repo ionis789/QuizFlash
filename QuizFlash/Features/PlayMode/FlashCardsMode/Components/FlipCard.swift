@@ -54,11 +54,11 @@ struct FlipCard: View {
     ///
     /// `false` = front (question), `true` = back (answer).
     @Binding var isFlipped: Bool
+    private let swipeFeedback: SwipeCardFeedbackState
 
     // MARK: - Environment
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.colorScheme) private var colorScheme
 
     // MARK: - AppStorage
 
@@ -91,17 +91,24 @@ struct FlipCard: View {
     // MARK: - Init
 
     /// Creates a card renderer from a playback snapshot.
-    init(card: PlayableCard, isFlipped: Binding<Bool>) {
+    init(card: PlayableCard, isFlipped: Binding<Bool>, swipeFeedback: SwipeCardFeedbackState) {
         self.frontZone = card.frontZone
         self.backZone = card.backZone
         self._isFlipped = isFlipped
+        self.swipeFeedback = swipeFeedback
     }
 
     /// Creates a card renderer directly from question and answer zones.
-    init(frontZone: ZoneModel, backZone: ZoneModel, isFlipped: Binding<Bool>) {
+    init(
+        frontZone: ZoneModel,
+        backZone: ZoneModel,
+        isFlipped: Binding<Bool>,
+        swipeFeedback: SwipeCardFeedbackState
+    ) {
         self.frontZone = frontZone
         self.backZone = backZone
         self._isFlipped = isFlipped
+        self.swipeFeedback = swipeFeedback
     }
 
     // MARK: - Body
@@ -128,23 +135,6 @@ struct FlipCard: View {
     @ViewBuilder
     private func cardFace(zone: ZoneModel, contentHeight: Binding<CGFloat>) -> some View {
         ZStack {
-            // Card background
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .fill(cardBackground)
-                .shadow(color: shadowColor, radius: isCompact ? 16 : 24, y: 8)
-
-            // Inner glow border — two layers produce a warm soft-edge effect.
-            // A tight crisp rim sits in front of a wider blurred halo, creating
-            // the "warm inner light" look without any harsh visible edge.
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(colorScheme == .dark ? 0.18 : 0.55), lineWidth: 1)
-                .blur(radius: 2)
-                .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
-
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.30), lineWidth: 1)
-                .blur(radius: 1)
-
             // Content area — switches between user-selected overflow modes.
             Group {
                 if contentMode == .scrollable {
@@ -155,6 +145,39 @@ struct FlipCard: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
         }
+        .flashcardStyle(
+            cornerRadius: cardCornerRadius,
+            shadowRadius: isCompact ? 16 : 24,
+            borderFeedbackColor: cardFeedbackBorderColor,
+            borderFeedbackProgress: cardFeedbackProgress,
+            borderFeedbackBlurRadius: cardFeedbackBorderRadius
+        )
+    }
+
+    private var cardFeedbackBorderColor: Color? {
+        guard let direction = swipeFeedback.direction else { return nil }
+
+        let baseColor: Color = switch direction {
+        case .left:
+            Color(red: 1.0, green: 0.10, blue: 0.20)
+        case .right:
+            Color(red: 0.10, green: 1.0, blue: 0.30)
+        }
+
+        return baseColor
+    }
+
+    private var cardFeedbackProgress: CGFloat {
+        guard swipeFeedback.direction != nil else { return 0 }
+
+        let normalizedIntensity = min(max(((swipeFeedback.intensity - 0.08) / 0.92) * 1.3, 0), 1)
+        return pow(normalizedIntensity, 1.65)
+    }
+
+    private var cardFeedbackBorderRadius: CGFloat {
+        guard swipeFeedback.direction != nil else { return 0 }
+
+        return 1.6 + cardFeedbackProgress * 5.4
     }
 
     // MARK: - Scale Mode
@@ -174,7 +197,7 @@ struct FlipCard: View {
                 : 1.0
 
             if zone.hasContent {
-                CardFaceView(zone: zone)
+                CardFaceView(zone: zone, onTap: flipFromZoneTap)
                     .padding(.horizontal, hPad)
                     .padding(.vertical, vPad)
                     .background(
@@ -227,7 +250,7 @@ struct FlipCard: View {
 
             if zone.hasContent {
                 ScrollView(.vertical, showsIndicators: needsScroll) {
-                    CardFaceView(zone: zone)
+                    CardFaceView(zone: zone, onTap: flipFromZoneTap)
                         .padding(.horizontal, hPad)
                         .padding(.vertical, vPad)
                         .background(
@@ -262,6 +285,12 @@ struct FlipCard: View {
         }
     }
 
+    private func flipFromZoneTap() {
+        withAnimation(.interactiveSpring(response: 0.45, dampingFraction: 0.85)) {
+            isFlipped.toggle()
+        }
+    }
+
     // MARK: - Empty State
 
     /// Placeholder displayed when the zone contains no renderable content.
@@ -277,15 +306,4 @@ struct FlipCard: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Styling
-
-    private var cardBackground: some ShapeStyle {
-        colorScheme == .dark
-            ? AnyShapeStyle(Color(uiColor: .secondarySystemBackground))
-            : AnyShapeStyle(Color.white)
-    }
-
-    private var shadowColor: Color {
-        colorScheme == .dark ? Color.black.opacity(0.4) : Color.black.opacity(0.12)
-    }
 }

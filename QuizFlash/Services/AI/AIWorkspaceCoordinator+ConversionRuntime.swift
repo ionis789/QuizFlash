@@ -485,7 +485,7 @@ extension AIWorkspaceCoordinator {
         let rejectedCount = max(0, chunk.plannedCardCount - persistedCount)
 
         if rejectedCount > 0, targetKind == .match {
-            return "Accepted \(persistedCount) Match card\(persistedCount == 1 ? "" : "s") from \(sourceKind.displayTitle). Rejected \(rejectedCount) verbose pair\(rejectedCount == 1 ? "" : "s")."
+            return "Converted \(persistedCount) Match card\(persistedCount == 1 ? "" : "s") from \(sourceKind.displayTitle). \(rejectedCount) could not be completed from the available candidates."
         }
 
         if rejectedCount > 0 {

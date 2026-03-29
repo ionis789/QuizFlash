@@ -19,6 +19,7 @@ struct AIGenerationSheetBackground: View {
 private enum AIGenerationSheetSection: Hashable {
     case type
     case level
+    case language
     case extraction
     case coverage
 }
@@ -173,6 +174,15 @@ struct AIGenerationSheetView: View {
                             }
                         }
                     }
+                }
+
+                section(
+                    .language,
+                    title: "Output Language",
+                    summary: viewModel.aiGenerationOptions.outputLanguageSummary,
+                    subtitle: "Auto detect or force a language"
+                ) {
+                    outputLanguagePicker
                 }
 
                 section(
@@ -449,6 +459,78 @@ struct AIGenerationSheetView: View {
                 ) {
                     viewModel.setSourceDistributionMode(.manual)
                 }
+            }
+        }
+    }
+
+    private var outputLanguagePicker: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+            HStack(spacing: UIConstants.Spacing.small) {
+                DistributionModeButton(
+                    title: "Auto",
+                    subtitle: "Detect from source text.",
+                    isSelected: viewModel.aiGenerationOptions.outputLanguageMode == .auto
+                ) {
+                    viewModel.aiGenerationOptions.outputLanguageMode = .auto
+                }
+
+                DistributionModeButton(
+                    title: "Manual",
+                    subtitle: "Force one language for all cards.",
+                    isSelected: viewModel.aiGenerationOptions.outputLanguageMode == .manual
+                ) {
+                    viewModel.aiGenerationOptions.outputLanguageMode = .manual
+                    if viewModel.aiGenerationOptions.manualOutputLanguage == nil {
+                        viewModel.aiGenerationOptions.manualOutputLanguage = AIGenerationLanguageHint.supportedOutputLanguages.first
+                    }
+                }
+            }
+
+            if viewModel.aiGenerationOptions.outputLanguageMode == .manual {
+                Menu {
+                    ForEach(AIGenerationLanguageHint.supportedOutputLanguages, id: \.languageCode) { language in
+                        Button {
+                            viewModel.aiGenerationOptions.manualOutputLanguage = language
+                        } label: {
+                            if viewModel.aiGenerationOptions.manualOutputLanguage?.languageCode == language.languageCode {
+                                Label(language.displayName, systemImage: "checkmark")
+                            } else {
+                                Text(language.displayName)
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: UIConstants.Spacing.small) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Selected language")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.primary)
+
+                            Text(viewModel.aiGenerationOptions.manualOutputLanguage?.displayName ?? "Choose a language")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer(minLength: UIConstants.Spacing.small)
+
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, UIConstants.Spacing.standard)
+                    .padding(.vertical, 14)
+                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    }
+                }
+                .buttonStyle(.plain)
+            } else {
+                Label("AI detects the source language once and keeps the whole run in that language.", systemImage: "waveform.and.magnifyingglass")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

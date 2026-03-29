@@ -111,7 +111,10 @@ extension CreateDeckView {
     @ViewBuilder
     var unifiedRuntimeCard: some View {
         if case .extractingText = viewModel.aiState {
-            AIExtractingLoadingView()
+            AIExtractingLoadingView(
+                elapsedStartDate: viewModel.aiGenerationStartedAt,
+                elapsedAccumulatedDuration: viewModel.aiAccumulatedGenerationDuration
+            )
                 .transition(.asymmetric(insertion: .opacity, removal: .opacity))
         } else if viewModel.hasPausedAIGeneration {
             let progress = min(1.0, Double(viewModel.aiGeneratedCardCount) / Double(max(viewModel.aiTargetCardCount, 1)))
@@ -120,6 +123,8 @@ extension CreateDeckView {
                 targetCount: max(viewModel.aiTargetCardCount, 1),
                 remainingCount: max(viewModel.pausedRemainingCardCount, 0),
                 progress: progress,
+                elapsedStartDate: viewModel.aiGenerationStartedAt,
+                elapsedAccumulatedDuration: viewModel.aiAccumulatedGenerationDuration,
                 onResume: {
                     viewModel.resumePausedAIGeneration()
                 }
@@ -130,6 +135,8 @@ extension CreateDeckView {
                 foundCount: foundCount,
                 targetCount: max(viewModel.aiTargetCardCount, 1),
                 progress: progress,
+                elapsedStartDate: viewModel.aiGenerationStartedAt,
+                elapsedAccumulatedDuration: viewModel.aiAccumulatedGenerationDuration,
                 onCancel: {
                     viewModel.requestAIGenerationCancel()
                 },

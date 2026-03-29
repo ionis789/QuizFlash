@@ -293,12 +293,8 @@ final class DeckGridRichPreviewRenderer: NSObject, WKNavigationDelegate {
 private enum DeckGridRichPreviewHTML {
     static var baseHTMLTemplate: String {
         let katexTags: String
-        if let urls = katexBundleURLs() {
-            katexTags = """
-            <link rel="stylesheet" href="\(urls.css)">
-            <script src="\(urls.js)"></script>
-            <script src="\(urls.autoRender)"></script>
-            """
+        if let localTags = MathTextSanitizer.katexLocalHTMLTags() {
+            katexTags = localTags
         } else {
             katexTags = """
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
@@ -360,17 +356,7 @@ private enum DeckGridRichPreviewHTML {
         <div id="content"></div>
         <script>
         const extraMacros = {
-            "\\\\thinspace": "\\\\,",
-            "\\\\negthinspace": "\\\\!",
-            "\\\\medspace": "\\\\:",
-            "\\\\thickspace": "\\\\;",
-            "\\\\R": "\\\\mathbb{R}",
-            "\\\\N": "\\\\mathbb{N}",
-            "\\\\Z": "\\\\mathbb{Z}",
-            "\\\\Q": "\\\\mathbb{Q}",
-            "\\\\C": "\\\\mathbb{C}",
-            "\\\\eps": "\\\\varepsilon",
-            "\\\\epsilon": "\\\\varepsilon"
+        \(MathTextSanitizer.katexExtraMacrosJSObjectLiteral)
         };
 
         let updateTimeout;
@@ -511,12 +497,4 @@ private enum DeckGridRichPreviewHTML {
             .replacingOccurrences(of: "'", with: "&#39;")
     }
 
-    private static func katexBundleURLs() -> (js: String, css: String, autoRender: String)? {
-        guard
-            let js = Bundle.main.url(forResource: "katex.min", withExtension: "js"),
-            let css = Bundle.main.url(forResource: "katex.min", withExtension: "css"),
-            let autoRender = Bundle.main.url(forResource: "auto-render.min", withExtension: "js")
-        else { return nil }
-        return (js.absoluteString, css.absoluteString, autoRender.absoluteString)
-    }
 }

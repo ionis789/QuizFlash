@@ -101,6 +101,83 @@ private struct WidgetStyleModifier: ViewModifier {
     }
 }
 
+// MARK: - FlashcardSurfaceModifier
+
+/// Applies the dedicated flashcard chrome used by the play-mode card surface.
+private struct FlashcardSurfaceModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let cornerRadius: CGFloat
+    let shadowRadius: CGFloat
+    let borderFeedbackColor: Color?
+    let borderFeedbackProgress: CGFloat
+    let borderFeedbackBlurRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let opacityProgress = pow(borderFeedbackProgress, 1.2)
+
+        content
+            .background {
+                shape
+                    .fill(cardBackground)
+                    .shadow(color: shadowColor, radius: shadowRadius, y: 8)
+            }
+            .overlay {
+                shape
+                    .stroke(basePrimaryBorderColor, lineWidth: 1)
+                    .blur(radius: 2)
+                    .clipShape(shape)
+            }
+            .overlay {
+                shape
+                    .stroke(baseSecondaryBorderColor, lineWidth: 1)
+                    .blur(radius: 1)
+            }
+            .overlay {
+                if let borderFeedbackColor, borderFeedbackProgress > 0.001 {
+                    shape
+                        .stroke(
+                            borderFeedbackColor.opacity(opacityProgress * 0.82),
+                            lineWidth: 1.2
+                        )
+                        .blur(radius: 2.4 + borderFeedbackBlurRadius)
+                        .clipShape(shape)
+                }
+            }
+            .overlay {
+                if let borderFeedbackColor, borderFeedbackProgress > 0.001 {
+                    shape
+                        .stroke(
+                            borderFeedbackColor.opacity(opacityProgress * 0.48),
+                            lineWidth: 1.1
+                        )
+                        .blur(radius: 1.3 + borderFeedbackBlurRadius * 0.65)
+                        .clipShape(shape)
+                }
+            }
+            .clipShape(shape)
+    }
+
+    private var cardBackground: some ShapeStyle {
+        colorScheme == .dark
+            ? Color(uiColor: .secondarySystemBackground)
+            : Color.white
+    }
+
+    private var shadowColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.4) : Color.black.opacity(0.12)
+    }
+
+    private var basePrimaryBorderColor: Color {
+        Color.white.opacity(colorScheme == .dark ? 0.18 : 0.55)
+    }
+
+    private var baseSecondaryBorderColor: Color {
+        Color.white.opacity(colorScheme == .dark ? 0.08 : 0.30)
+    }
+}
+
 // MARK: - TopNavigationChromeModifier
 
 /// Applies the shared top-bar inset used by Deck, Create, and Library chrome.
@@ -177,6 +254,25 @@ extension View {
     /// Applies the shared static widget card style used by dashboard and deck information surfaces.
     func widgetStyle(cornerRadius: CGFloat = 40) -> some View {
         modifier(WidgetStyleModifier(cornerRadius: cornerRadius))
+    }
+
+    /// Applies the dedicated flashcard card chrome with optional swipe-driven border feedback.
+    func flashcardStyle(
+        cornerRadius: CGFloat,
+        shadowRadius: CGFloat,
+        borderFeedbackColor: Color? = nil,
+        borderFeedbackProgress: CGFloat = 0,
+        borderFeedbackBlurRadius: CGFloat = 0
+    ) -> some View {
+        modifier(
+            FlashcardSurfaceModifier(
+                cornerRadius: cornerRadius,
+                shadowRadius: shadowRadius,
+                borderFeedbackColor: borderFeedbackColor,
+                borderFeedbackProgress: borderFeedbackProgress,
+                borderFeedbackBlurRadius: borderFeedbackBlurRadius
+            )
+        )
     }
 
     /// Applies the standard top chrome positioning shared by navigation surfaces.

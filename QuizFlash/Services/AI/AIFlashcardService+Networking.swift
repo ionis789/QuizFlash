@@ -9,8 +9,8 @@ extension AIFlashcardService {
         options: AIGenerationOptions
     ) async throws -> [AIFlashcard] {
         try await performRetriableJSONRequest(messages: messages, model: model) { [self] data in
-            let content = try self.parseResponseContent(from: data)
-            return try self.decodeGeneratedCards(
+            let content = try await self.parseResponseContent(from: data)
+            return try await self.decodeGeneratedCards(
                 from: content,
                 contract: options.cardType.outputContract
             )
@@ -22,7 +22,7 @@ extension AIFlashcardService {
         model: String
     ) async throws -> String? {
         return try await performRetriableJSONRequest(messages: messages, model: model) { [self] data in
-            let content = try self.parseResponseContent(from: data)
+            let content = try await self.parseResponseContent(from: data)
             let decoded = try JSONDecoder().decode(DeckTitleResponseDTO.self, from: Data(content.utf8))
             return decoded.deck_title?.trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -35,8 +35,8 @@ extension AIFlashcardService {
         targetType: AICardGenerationType
     ) async throws -> [AICardConversionOutput] {
         try await performRetriableJSONRequest(messages: messages, model: model) { [self] data in
-            let content = try self.parseResponseContent(from: data)
-            return try self.decodeConvertedCards(
+            let content = try await self.parseResponseContent(from: data)
+            return try await self.decodeConvertedCards(
                 from: content,
                 sourceCards: sourceCards,
                 contract: targetType.outputContract
@@ -48,16 +48,22 @@ extension AIFlashcardService {
         targetCards: Int,
         model: String,
         options: AIGenerationOptions,
+        existingPairKeys: Set<String> = [],
         messageBuilder: (_ targetCards: Int, _ retryHints: [String]) -> [[String: Any]]
     ) async throws -> MatchGenerationQualityResult {
         guard targetCards > 0 else {
-            return MatchGenerationQualityResult(cards: [], shortfallCount: 0)
+            return MatchGenerationQualityResult(
+                cards: [],
+                shortfallCount: 0,
+                diagnostics: MatchAIBatchDiagnostics()
+            )
         }
 
         var acceptedCards: [AIFlashcard] = []
-        var acceptedHints: Set<String> = []
+        var acceptedPairKeys: Set<String> = existingPairKeys
         var retryHints: [String] = []
         var remainingCards = targetCards
+        var diagnostics = MatchAIBatchDiagnostics()
 
         for attempt in 0..<maxMatchQualityAttempts where remainingCards > 0 {
             var messages = messageBuilder(remainingCards, retryHints)
@@ -69,59 +75,166 @@ extension AIFlashcardService {
                 )
             }
 
+            await trace(
+                .requestPrepared,
+                "Prepared Match generation quality attempt.",
+                metadata: [
+                    "quality_attempt": String(attempt + 1),
+                    "remaining_target_cards": String(remainingCards),
+                    "retry_hint_count": String(retryHints.count)
+                ]
+            )
+
             let cards = try await sendRequest(
                 messages: messages,
                 model: model,
                 options: options
             )
 
-            for card in cards {
-                let retryHint = matchQualityRetryHint(from: card)
+            var attemptDiagnostics = MatchAIBatchDiagnostics()
+            attemptDiagnostics.increment(
+                .providerUnderfilled,
+                by: max(0, remainingCards - cards.count)
+            )
+            var attemptAcceptedCards: [AIFlashcard] = []
+            var attemptRetryHints: [String] = []
+            var feedbackLines: [String] = []
 
-                if let acceptedCard = acceptedMatchCard(from: card),
-                   acceptedCards.count < targetCards,
-                   acceptedHints.insert(retryHint).inserted {
-                    acceptedCards.append(acceptedCard)
-                } else {
-                    retryHints.append(retryHint)
+            for card in cards {
+                guard let inspectedCard = inspectMatchCard(card) else {
+                    attemptDiagnostics.increment(.structurallyRejected)
+                    attemptRetryHints.append(matchQualityRetryHint(from: card))
+                    continue
                 }
+
+                let pairKey = matchPairKey(
+                    prompt: inspectedCard.evaluation.prompt,
+                    answer: inspectedCard.evaluation.answer
+                )
+                let retryHint = inspectedCard.evaluation.retryHint
+
+                guard !acceptedPairKeys.contains(pairKey) else {
+                    attemptDiagnostics.increment(.duplicatePair)
+                    attemptRetryHints.append(retryHint)
+                    continue
+                }
+
+                if inspectedCard.isLowQuality {
+                    attemptDiagnostics.lowQualityAcceptedCount += 1
+                }
+
+                guard attemptAcceptedCards.count < targetCards else { continue }
+                attemptAcceptedCards.append(inspectedCard.card)
+                feedbackLines.append(matchQualityFeedbackLine(for: inspectedCard.evaluation))
             }
 
-            retryHints = Array(Set(retryHints)).sorted()
+            let shouldRetryWeakAttempt = shouldRetryWeakMatchAttempt(
+                acceptedCount: attemptAcceptedCards.count,
+                lowQualityCount: attemptDiagnostics.lowQualityAcceptedCount,
+                attempt: attempt
+            )
+
+            if shouldRetryWeakAttempt {
+                attemptRetryHints.append(contentsOf: attemptAcceptedCards.compactMap { card in
+                    guard let inspectedCard = inspectMatchCard(card) else { return nil }
+                    return inspectedCard.evaluation.retryHint
+                })
+                retryHints = Array(Set(retryHints + attemptRetryHints)).sorted()
+                await trace(
+                    .retryScheduled,
+                    "Retrying Match generation because the batch was semantically weak.",
+                    metadata: [
+                        "quality_attempt": String(attempt + 1),
+                        "accepted_card_count": String(attemptAcceptedCards.count),
+                        "low_quality_accepted": String(attemptDiagnostics.lowQualityAcceptedCount)
+                    ],
+                    payload: feedbackLines.joined(separator: "\n")
+                )
+                continue
+            }
+
+            for acceptedCard in attemptAcceptedCards {
+                guard case .match(let content) = acceptedCard.content else { continue }
+                acceptedPairKeys.insert(matchPairKey(prompt: content.prompt, answer: content.answer))
+            }
+
+            acceptedCards.append(contentsOf: attemptAcceptedCards)
+            diagnostics.merge(attemptDiagnostics)
+            retryHints = Array(Set(retryHints + attemptRetryHints)).sorted()
             remainingCards = max(0, targetCards - acceptedCards.count)
+            await trace(
+                .qualityEvaluated,
+                "Evaluated Match generation quality attempt.",
+                metadata: [
+                    "quality_attempt": String(attempt + 1),
+                    "provider_card_count": String(cards.count),
+                    "accepted_card_count": String(attemptAcceptedCards.count),
+                    "remaining_target_cards": String(remainingCards),
+                    "low_quality_accepted": String(attemptDiagnostics.lowQualityAcceptedCount)
+                ],
+                payload: feedbackLines.joined(separator: "\n")
+            )
         }
 
         return MatchGenerationQualityResult(
             cards: acceptedCards,
-            shortfallCount: max(0, targetCards - acceptedCards.count)
+            shortfallCount: max(0, targetCards - acceptedCards.count),
+            diagnostics: diagnostics
         )
     }
 
     func sendQualityFirstMatchConversionRequest(
         sourceCards: [AICardConversionSource],
-        level: AICardGenerationLevel
+        targetCount: Int,
+        level: AICardGenerationLevel,
+        approvedMatchExamples: [String] = [],
+        matchOverlapHints: [String] = [],
+        existingPairKeys: Set<String> = []
     ) async throws -> MatchConversionQualityResult {
-        guard !sourceCards.isEmpty else {
-            return MatchConversionQualityResult(outputs: [], shortfallCount: 0)
+        guard !sourceCards.isEmpty, targetCount > 0 else {
+            return MatchConversionQualityResult(
+                outputs: [],
+                shortfallCount: 0,
+                diagnostics: MatchAIBatchDiagnostics()
+            )
         }
 
         var acceptedOutputs: [AICardConversionOutput] = []
         var pendingSources = sourceCards
         var retryHints: [String] = []
+        var acceptedPairKeys: Set<String> = existingPairKeys
+        var diagnostics = MatchAIBatchDiagnostics()
 
         for attempt in 0..<maxMatchQualityAttempts where !pendingSources.isEmpty {
+            let remainingTargetCount = max(0, targetCount - acceptedOutputs.count)
+            guard remainingTargetCount > 0 else { break }
+
             var messages = buildConversionMessages(
                 sourceCards: pendingSources,
                 targetType: .match,
-                level: level
+                level: level,
+                targetCount: remainingTargetCount,
+                approvedMatchExamples: approvedMatchExamples,
+                matchOverlapHints: matchOverlapHints
             )
             if attempt > 0 {
                 messages = appendingMatchQualityRetryInstruction(
                     to: messages,
-                    targetCount: pendingSources.count,
+                    targetCount: remainingTargetCount,
                     retryHints: retryHints
                 )
             }
+
+            await trace(
+                .requestPrepared,
+                "Prepared Match conversion quality attempt.",
+                metadata: [
+                    "quality_attempt": String(attempt + 1),
+                    "pending_source_count": String(pendingSources.count),
+                    "remaining_target_cards": String(remainingTargetCount),
+                    "retry_hint_count": String(retryHints.count)
+                ]
+            )
 
             let outputs = try await sendConversionRequest(
                 messages: messages,
@@ -130,16 +243,66 @@ extension AIFlashcardService {
                 targetType: .match
             )
 
-            let filterResult = filterAcceptedMatchConversionOutputs(outputs)
+            diagnostics.increment(
+                .providerUnderfilled,
+                by: max(0, remainingTargetCount - outputs.count)
+            )
+
+            let filterResult = filterAcceptedMatchConversionOutputs(
+                outputs,
+                existingPairKeys: acceptedPairKeys
+            )
+
+            let shouldRetryWeakAttempt = shouldRetryWeakMatchAttempt(
+                acceptedCount: filterResult.outputs.count,
+                lowQualityCount: filterResult.diagnostics.lowQualityAcceptedCount,
+                attempt: attempt
+            )
+
+            if shouldRetryWeakAttempt {
+                retryHints = Array(Set(retryHints + filterResult.retryHints)).sorted()
+                await trace(
+                    .retryScheduled,
+                    "Retrying Match conversion because the candidate slice was semantically weak.",
+                    metadata: [
+                        "quality_attempt": String(attempt + 1),
+                        "accepted_output_count": String(filterResult.outputs.count),
+                        "low_quality_accepted": String(filterResult.diagnostics.lowQualityAcceptedCount)
+                    ],
+                    payload: filterResult.feedbackLines.joined(separator: "\n")
+                )
+                continue
+            }
+
             acceptedOutputs.append(contentsOf: filterResult.outputs)
-            retryHints.append(contentsOf: filterResult.retryHints)
-            retryHints = Array(Set(retryHints)).sorted()
+            acceptedPairKeys.formUnion(
+                filterResult.outputs.compactMap { output in
+                    guard case .match(let content) = output.generatedCard.content else { return nil }
+                    return matchPairKey(prompt: content.prompt, answer: content.answer)
+                }
+            )
+            retryHints = Array(Set(retryHints + filterResult.retryHints)).sorted()
+            diagnostics.merge(filterResult.diagnostics)
             pendingSources = pendingSources.filter { filterResult.rejectedSourceIDs.contains($0.id) }
+            await trace(
+                .qualityEvaluated,
+                "Evaluated Match conversion quality attempt.",
+                metadata: [
+                    "quality_attempt": String(attempt + 1),
+                    "provider_output_count": String(outputs.count),
+                    "accepted_output_count": String(filterResult.outputs.count),
+                    "rejected_source_count": String(filterResult.rejectedSourceIDs.count),
+                    "remaining_pending_sources": String(pendingSources.count),
+                    "low_quality_accepted": String(filterResult.diagnostics.lowQualityAcceptedCount)
+                ],
+                payload: filterResult.feedbackLines.joined(separator: "\n")
+            )
         }
 
         return MatchConversionQualityResult(
             outputs: acceptedOutputs,
-            shortfallCount: pendingSources.count
+            shortfallCount: max(0, targetCount - acceptedOutputs.count),
+            diagnostics: diagnostics
         )
     }
 
@@ -190,31 +353,77 @@ extension AIFlashcardService {
     }
 
     func filterAcceptedMatchConversionOutputs(
-        _ outputs: [AICardConversionOutput]
+        _ outputs: [AICardConversionOutput],
+        existingPairKeys: Set<String> = []
     ) -> MatchConversionFilterResult {
         var acceptedOutputs: [AICardConversionOutput] = []
         var rejectedSourceIDs: Set<PersistentIdentifier> = []
         var retryHints: [String] = []
+        var seenPairKeys = existingPairKeys
+        var seenSourceIDs: Set<PersistentIdentifier> = []
+        var diagnostics = MatchAIBatchDiagnostics()
+        var feedbackLines: [String] = []
 
         for output in outputs {
-            if let acceptedCard = acceptedMatchCard(from: output.generatedCard) {
-                acceptedOutputs.append(
-                    AICardConversionOutput(
-                        sourceCardID: output.sourceCardID,
-                        generatedCard: acceptedCard
-                    )
-                )
-            } else {
+            guard seenSourceIDs.insert(output.sourceCardID).inserted else {
+                rejectedSourceIDs.insert(output.sourceCardID)
+                diagnostics.increment(.invalidSourceMapping)
+                retryHints.append(matchQualityRetryHint(from: output.generatedCard))
+                continue
+            }
+
+            guard let inspectedCard = inspectMatchCard(output.generatedCard) else {
                 rejectedSourceIDs.insert(output.sourceCardID)
                 retryHints.append(matchQualityRetryHint(from: output.generatedCard))
+                diagnostics.increment(.structurallyRejected)
+                continue
             }
+
+            let pairKey = matchPairKey(
+                prompt: inspectedCard.evaluation.prompt,
+                answer: inspectedCard.evaluation.answer
+            )
+            guard seenPairKeys.insert(pairKey).inserted else {
+                rejectedSourceIDs.insert(output.sourceCardID)
+                retryHints.append(inspectedCard.evaluation.retryHint)
+                diagnostics.increment(.duplicatePair)
+                continue
+            }
+
+            if inspectedCard.isLowQuality {
+                diagnostics.lowQualityAcceptedCount += 1
+            }
+            feedbackLines.append(matchQualityFeedbackLine(for: inspectedCard.evaluation))
+
+            acceptedOutputs.append(
+                AICardConversionOutput(
+                    sourceCardID: output.sourceCardID,
+                    generatedCard: inspectedCard.card
+                )
+            )
         }
 
-        return MatchConversionFilterResult(
+        let result = MatchConversionFilterResult(
             outputs: acceptedOutputs,
             rejectedSourceIDs: rejectedSourceIDs,
-            retryHints: Array(Set(retryHints)).sorted()
+            retryHints: Array(Set(retryHints)).sorted(),
+            diagnostics: diagnostics,
+            feedbackLines: feedbackLines
         )
+        Task {
+            await self.trace(
+                .qualityEvaluated,
+                "Filtered Match conversion outputs.",
+                metadata: [
+                    "accepted_output_count": String(result.outputs.count),
+                    "rejected_source_count": String(result.rejectedSourceIDs.count),
+                    "retry_hint_count": String(result.retryHints.count),
+                    "low_quality_accepted": String(result.diagnostics.lowQualityAcceptedCount)
+                ],
+                payload: result.feedbackLines.joined(separator: "\n")
+            )
+        }
+        return result
     }
 
     func filterAcceptedWriteConversionOutputs(
@@ -246,23 +455,7 @@ extension AIFlashcardService {
     }
 
     func acceptedMatchCard(from card: AIFlashcard) -> AIFlashcard? {
-        guard case .match(let content) = card.content else { return nil }
-
-        let evaluation = MatchCardQualityPolicy.evaluate(
-            prompt: content.prompt,
-            answer: content.answer
-        )
-        guard evaluation.isCompact else { return nil }
-
-        return AIFlashcard(
-            id: card.id,
-            content: .match(
-                AIMatchCardContent(
-                    prompt: evaluation.prompt,
-                    answer: evaluation.answer
-                )
-            )
-        )
+        inspectMatchCard(card)?.card
     }
 
     func matchQualityRetryHint(from card: AIFlashcard) -> String {
@@ -274,6 +467,40 @@ extension AIFlashcardService {
             prompt: content.prompt,
             answer: content.answer
         ).retryHint
+    }
+
+    func inspectMatchCard(
+        _ card: AIFlashcard
+    ) -> (
+        card: AIFlashcard,
+        evaluation: MatchCardQualityEvaluation,
+        isLowQuality: Bool
+    )? {
+        guard case .match(let content) = card.content else { return nil }
+
+        let evaluation = MatchCardQualityPolicy.evaluate(
+            prompt: content.prompt,
+            answer: content.answer
+        )
+        guard !evaluation.prompt.isEmpty, !evaluation.answer.isEmpty else { return nil }
+
+        return (
+            AIFlashcard(
+                id: card.id,
+                content: .match(
+                    AIMatchCardContent(
+                        prompt: evaluation.prompt,
+                        answer: evaluation.answer
+                    )
+                )
+            ),
+            evaluation,
+            !evaluation.isStrongExample
+        )
+    }
+
+    func matchPairKey(prompt: String, answer: String) -> String {
+        "\(prompt.lowercased())\u{1F}|\u{1F}\(answer.lowercased())"
     }
 
     func acceptedWriteCard(from card: AIFlashcard) -> AIFlashcard? {
@@ -333,11 +560,15 @@ extension AIFlashcardService {
             .joined(separator: "\n")
 
         let retryInstruction = """
-        The previous Match attempt produced prompt-answer pairs that were too verbose, too generic, or too weak for fast matching rounds.
-        Regenerate EXACTLY \(targetCount) new Match cards that are tighter, more canonical, and easier to pair correctly.
-        Keep one consistent pairing style when possible: concept -> definition, notation -> meaning, symbol -> interpretation, or rule name -> formal statement.
-        Each answer must be the direct counterpart only, not an explanation or mini flashcard back.
-        Prefer unique answers that would not plausibly match several prompts in the same batch.
+        The previous Match attempt was semantically weak for match gameplay.
+        Regenerate UP TO \(targetCount) stronger Match cards.
+        PRIORITIES:
+        - use one stable relation family
+        - prefer atomic concept labels, motifs, roles, notations, or rule names as prompts
+        - answers must be the direct counterpart only
+        - avoid question-style prompts
+        - avoid list-like or explanatory answers
+        - if a source idea is broad, choose a tighter sub-concept instead of summarizing the whole paragraph
         Avoid repeating or paraphrasing these rejected weak pairs:
         \(rejectedPreview.isEmpty ? "- No rejected pairs listed." : rejectedPreview)
         """
@@ -348,6 +579,25 @@ extension AIFlashcardService {
             "content": retryInstruction
         ])
         return updatedMessages
+    }
+
+    func shouldRetryWeakMatchAttempt(
+        acceptedCount: Int,
+        lowQualityCount: Int,
+        attempt: Int
+    ) -> Bool {
+        guard attempt < maxMatchQualityAttempts - 1 else { return false }
+        guard acceptedCount >= 2 else { return false }
+        return lowQualityCount == acceptedCount
+    }
+
+    func matchQualityFeedbackLine(
+        for evaluation: MatchCardQualityEvaluation
+    ) -> String {
+        let issueSuffix = evaluation.qualityIssues.isEmpty
+            ? "strong"
+            : "issues: \(evaluation.qualityIssues.joined(separator: ", "))"
+        return "\"\(evaluation.prompt)\" -> \"\(evaluation.answer)\" [\(issueSuffix)]"
     }
 
     func appendingWriteQualityRetryInstruction(
@@ -402,10 +652,10 @@ extension AIFlashcardService {
         return count
     }
 
-    func performRetriableJSONRequest<T>(
+    func performRetriableJSONRequest<T: Sendable>(
         messages: [[String: Any]],
         model: String,
-        parser: @escaping (Data) throws -> T
+        parser: @escaping @Sendable (Data) async throws -> T
     ) async throws -> T {
         guard let url = apiEndpoint else { throw AIServiceError.networkError }
         let apiKey = try resolvedAPIKey()
@@ -414,34 +664,89 @@ extension AIFlashcardService {
 
         for attempt in 0...maxRequestRetryCount {
             try Task.checkCancellation()
+            let requestScope = AIDebugTraceContext.currentScope?.with(
+                modelName: model,
+                operation: AIDebugTraceContext.currentScope?.operation ?? "provider_request",
+                attempt: attempt + 1,
+                requestID: UUID()
+            )
 
             do {
-                var request = URLRequest(url: url)
-                request.httpMethod = "POST"
-                applyStandardHeaders(to: &request, apiKey: apiKey)
+                return try await withTraceScope(requestScope) { [self] in
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "POST"
+                    self.applyStandardHeaders(to: &request, apiKey: apiKey)
 
-                let body = requestBody(messages: messages, model: model)
-                request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                    let body = self.requestBody(messages: messages, model: model)
+                    let traceBody = self.traceJSONString(forJSONObject: body) ?? "Failed to pretty-print request body."
+                    await self.trace(
+                        .requestPrepared,
+                        "Prepared provider request.",
+                        metadata: [
+                            "url": url.absoluteString,
+                            "model": model,
+                            "message_count": String(messages.count),
+                            "request_style": self.provider.requestStyle.title
+                        ],
+                        payload: traceBody
+                    )
 
-                let (data, response) = try await session.data(for: request)
-                guard let http = response as? HTTPURLResponse else {
-                    throw AIServiceError.invalidResponse
+                    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+                    let (data, response) = try await self.session.data(for: request)
+                    guard let http = response as? HTTPURLResponse else {
+                        await self.trace(
+                            .decodeFailed,
+                            "Provider response was not an HTTPURLResponse.",
+                            metadata: ["model": model]
+                        )
+                        throw AIServiceError.invalidResponse
+                    }
+
+                    await self.trace(
+                        .responseReceived,
+                        "Received provider response.",
+                        metadata: [
+                            "status_code": String(http.statusCode),
+                            "model": model
+                        ],
+                        payload: String(decoding: data, as: UTF8.self)
+                    )
+
+                    guard (200...299).contains(http.statusCode) else {
+                        throw self.httpError(from: http, data: data)
+                    }
+
+                    return try await parser(data)
                 }
-                guard (200...299).contains(http.statusCode) else {
-                    throw httpError(from: http, data: data)
-                }
-
-                return try parser(data)
             } catch is CancellationError {
                 throw CancellationError()
             } catch let error as RetriableRequestError {
                 lastServiceError = error.serviceError
+                await debugTraceStore.record(
+                    stage: .retryScheduled,
+                    message: "Retrying provider request after retriable error.",
+                    scope: requestScope,
+                    metadata: [
+                        "service_error": String(describing: error.serviceError),
+                        "retry_after": error.retryAfter.map { String($0) } ?? "none"
+                    ]
+                )
                 guard attempt < maxRequestRetryCount else {
                     throw error.serviceError
                 }
                 try await sleepBeforeRetry(attempt: attempt, retryAfter: error.retryAfter)
             } catch let error as AIServiceError {
                 lastServiceError = error
+                await debugTraceStore.record(
+                    stage: .retryScheduled,
+                    message: "Provider request failed with AIServiceError.",
+                    scope: requestScope,
+                    metadata: [
+                        "service_error": String(describing: error),
+                        "will_retry": String(attempt < maxRequestRetryCount && shouldRetry(error))
+                    ]
+                )
                 guard attempt < maxRequestRetryCount, shouldRetry(error) else {
                     throw error
                 }
@@ -449,12 +754,31 @@ extension AIFlashcardService {
             } catch let error as URLError {
                 let serviceError = mapURLSessionError(error)
                 lastServiceError = serviceError
+                await debugTraceStore.record(
+                    stage: .retryScheduled,
+                    message: "Provider request failed with URLSession error.",
+                    scope: requestScope,
+                    metadata: [
+                        "url_error": error.localizedDescription,
+                        "mapped_service_error": String(describing: serviceError),
+                        "will_retry": String(attempt < maxRequestRetryCount && shouldRetry(serviceError))
+                    ]
+                )
                 guard attempt < maxRequestRetryCount, shouldRetry(serviceError) else {
                     throw serviceError
                 }
                 try await sleepBeforeRetry(attempt: attempt, retryAfter: nil)
             } catch {
                 lastServiceError = .networkError
+                await debugTraceStore.record(
+                    stage: .retryScheduled,
+                    message: "Provider request failed with unexpected error.",
+                    scope: requestScope,
+                    metadata: [
+                        "error": String(describing: error),
+                        "will_retry": String(attempt < maxRequestRetryCount)
+                    ]
+                )
                 guard attempt < maxRequestRetryCount else {
                     throw AIServiceError.networkError
                 }
@@ -504,6 +828,40 @@ extension AIFlashcardService {
 
             return body
         }
+    }
+
+    func traceJSONString(forJSONObject object: Any) -> String? {
+        let sanitizedObject = sanitizedTraceJSONObject(object)
+        guard JSONSerialization.isValidJSONObject(sanitizedObject),
+              let data = try? JSONSerialization.data(withJSONObject: sanitizedObject, options: [.prettyPrinted, .sortedKeys]),
+              let string = String(data: data, encoding: .utf8)
+        else {
+            return nil
+        }
+
+        return string
+    }
+
+    func sanitizedTraceJSONObject(_ value: Any) -> Any {
+        if let dictionary = value as? [String: Any] {
+            return dictionary.mapValues { sanitizedTraceJSONObject($0) }
+        }
+
+        if let array = value as? [Any] {
+            return array.map { sanitizedTraceJSONObject($0) }
+        }
+
+        if let string = value as? String {
+            if string.hasPrefix("data:image"),
+               let separatorRange = string.range(of: "base64,") {
+                let prefix = String(string[..<separatorRange.upperBound])
+                let encodedContent = String(string[separatorRange.upperBound...])
+                return "\(prefix)<redacted \(encodedContent.count) chars>"
+            }
+            return string
+        }
+
+        return value
     }
 
     func shouldRetry(_ error: AIServiceError) -> Bool {

@@ -289,7 +289,13 @@ extension DeckViewModel {
         let rejectedCount = max(0, chunk.plannedCardCount - persistedCount)
 
         if rejectedCount > 0, targetKind == .match {
-            return "Accepted \(persistedCount) high-quality Match card\(persistedCount == 1 ? "" : "s") from \(chunk.sourceLabel). Rejected \(rejectedCount) verbose pair\(rejectedCount == 1 ? "" : "s")."
+            if let diagnostics = chunk.matchDiagnostics {
+                let lowQualityAcceptedCount = diagnostics.lowQualityAcceptedCount
+                if lowQualityAcceptedCount > 0 {
+                    return "Converted \(persistedCount) Match card\(persistedCount == 1 ? "" : "s") from \(chunk.sourceLabel). \(rejectedCount) could not be completed, and \(lowQualityAcceptedCount) accepted pair\(lowQualityAcceptedCount == 1 ? "" : "s") needed a softer quality fallback."
+                }
+            }
+            return "Converted \(persistedCount) Match card\(persistedCount == 1 ? "" : "s") from \(chunk.sourceLabel). \(rejectedCount) could not be completed from the available candidates."
         }
 
         if rejectedCount > 0 {

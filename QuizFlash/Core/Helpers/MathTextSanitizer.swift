@@ -31,6 +31,63 @@ struct MathTextSanitizer {
     /// Characters that are valid INSIDE a math expression (besides letters/digits).
     nonisolated static let mathPunctChars: Set<Character> = Set("^_{}()[]+-=<>/!|,.'*~;:")
 
+    /// Shared KaTeX macro aliases used by the app renderers.
+    ///
+    /// Keep this list conservative:
+    /// - allow additive shorthand aliases that preserve meaning
+    /// - avoid remapping built-in commands to different glyphs
+    /// - avoid overriding standard relations such as `\neq`
+    nonisolated static let katexExtraMacros: [String: String] = [
+        "\\thinspace": "\\,",
+        "\\negthinspace": "\\!",
+        "\\medspace": "\\:",
+        "\\thickspace": "\\;",
+        "\\R": "\\mathbb{R}",
+        "\\N": "\\mathbb{N}",
+        "\\Z": "\\mathbb{Z}",
+        "\\Q": "\\mathbb{Q}",
+        "\\C": "\\mathbb{C}",
+        "\\eps": "\\epsilon"
+    ]
+
+    nonisolated static var katexExtraMacrosJSObjectLiteral: String {
+        katexExtraMacros
+            .sorted { $0.key < $1.key }
+            .map { key, value in
+                let escapedKey = key
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "\"", with: "\\\"")
+                let escapedValue = value
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "\"", with: "\\\"")
+                return "            \"\(escapedKey)\": \"\(escapedValue)\""
+            }
+            .joined(separator: ",\n")
+    }
+
+    /// HTML tags for loading bundled KaTeX assets with font URLs rewritten to
+    /// absolute bundle locations.
+    nonisolated static func katexLocalHTMLTags() -> String? {
+        guard
+            let jsURL = Bundle.main.url(forResource: "katex.min", withExtension: "js"),
+            let cssURL = Bundle.main.url(forResource: "katex.min", withExtension: "css"),
+            let autoRenderURL = Bundle.main.url(forResource: "auto-render.min", withExtension: "js"),
+            let rawCSS = try? String(contentsOf: cssURL),
+            let embeddedCSS = rewrittenKatexCSS(rawCSS)
+        else {
+            return nil
+        }
+
+        let safeCSS = embeddedCSS.replacingOccurrences(of: "</style", with: "<\\/style")
+        return """
+        <style>
+        \(safeCSS)
+        </style>
+        <script src="\(jsURL.absoluteString)"></script>
+        <script src="\(autoRenderURL.absoluteString)"></script>
+        """
+    }
+
     // -------------------------------------------------------------------------
     // MARK: - Public API
     // -------------------------------------------------------------------------
@@ -38,6 +95,9 @@ struct MathTextSanitizer {
     /// Main entry point. Call this on every string before rendering rich content.
     nonisolated static func heal(_ input: String) -> String {
         var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        text = normalizeJSONEscapedLatexCommands(text)
+        text = normalizeDetachedPunctuation(text)
+        text = applyWidowControl(text)
         text = repairBareLatexDelimiters(text)
         text = fixOrphanDollar(text)
         text = stripInvalidMathTokens(text)
@@ -87,6 +147,25 @@ struct MathTextSanitizer {
         flattenPreviewLatex(in: input)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Removes a single terminal period from a rendered zone without mutating
+    /// any stored content. This is intentionally conservative:
+    /// - removes only one final `.`
+    /// - preserves ellipses and all other punctuation
+    nonisolated static func stripTerminalZonePeriod(_ input: String) -> String {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+            let regex = try? NSRegularExpression(pattern: #"(?<!\.)\.(?=\s*$)"#)
+        else {
+            return trimmed
+        }
+
+        return regex.stringByReplacingMatches(
+            in: trimmed,
+            range: NSRange(trimmed.startIndex..., in: trimmed),
+            withTemplate: ""
+        )
     }
 
     /// Returns true if rich rendering would materially improve this string.
@@ -195,9 +274,111 @@ struct MathTextSanitizer {
         return result
     }
 
+    // -------------------------------------------------------------------------
+    // MARK: - KaTeX Asset Rewriting
+    // -------------------------------------------------------------------------
+
+    private nonisolated static func rewrittenKatexCSS(_ css: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: #"url\((['"]?)fonts/([^)'"]+)\1\)"#) else {
+            return css
+        }
+
+        let matches = regex.matches(in: css, range: NSRange(css.startIndex..., in: css))
+        guard !matches.isEmpty else { return css }
+
+        var rewritten = css
+        for match in matches.reversed() {
+            guard
+                let fullRange = Range(match.range, in: rewritten),
+                let fileNameRange = Range(match.range(at: 2), in: rewritten)
+            else { continue }
+
+            let fileName = String(rewritten[fileNameRange])
+            let nsFileName = fileName as NSString
+            let resourceName = nsFileName.deletingPathExtension
+            let fileExtension = nsFileName.pathExtension
+
+            guard
+                !resourceName.isEmpty,
+                !fileExtension.isEmpty,
+                let resolvedURL = Bundle.main.url(forResource: resourceName, withExtension: fileExtension)
+            else {
+                continue
+            }
+
+            rewritten.replaceSubrange(fullRange, with: "url('\(resolvedURL.absoluteString)')")
+        }
+
+        return rewritten
+    }
+
     // =========================================================================
     // MARK: - Core: Bare LaTeX Repair
     // =========================================================================
+
+    /// Reattaches punctuation that ended up separated from the preceding token
+    /// by spaces or newlines, e.g. `B' \n .` -> `B'.`
+    nonisolated static func normalizeDetachedPunctuation(_ input: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: #"\s+([.,;:!?])"#) else {
+            return input
+        }
+
+        return regex.stringByReplacingMatches(
+            in: input,
+            range: NSRange(input.startIndex..., in: input),
+            withTemplate: "$1"
+        )
+    }
+
+    /// Reduces typographic widows/orphans on narrow screens by making the final
+    /// break in each paragraph non-breaking. This is especially useful when a
+    /// zone ends in inline math like `$B'$.`, where the browser may otherwise
+    /// leave the punctuation or the final short fragment alone on the last line.
+    nonisolated static func applyWidowControl(_ input: String) -> String {
+        input
+            .components(separatedBy: "\n")
+            .map(makeFinalBreakNonBreaking)
+            .joined(separator: "\n")
+    }
+
+    private nonisolated static func makeFinalBreakNonBreaking(_ line: String) -> String {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return line }
+
+        // Replace the last regular whitespace run with a non-breaking space.
+        // This keeps the last fragment attached to what precedes it, but does
+        // not disturb earlier wrapping decisions.
+        guard let regex = try? NSRegularExpression(pattern: #"\s+(?=\S+\s*$)"#) else {
+            return line
+        }
+
+        let range = NSRange(line.startIndex..., in: line)
+        let matches = regex.matches(in: line, range: range)
+        guard let last = matches.last, let lastRange = Range(last.range, in: line) else {
+            return line
+        }
+
+        var result = line
+        result.replaceSubrange(lastRange, with: "\u{00A0}")
+        return result
+    }
+
+    /// Collapses JSON-escaped LaTeX commands such as `\\neq` into `\neq`.
+    ///
+    /// This keeps normal TeX line breaks intact because those use `\\`
+    /// followed by whitespace or structure, not by command letters.
+    nonisolated static func normalizeJSONEscapedLatexCommands(_ input: String) -> String {
+        guard input.contains("\\\\") else { return input }
+        guard let regex = try? NSRegularExpression(pattern: #"\\\\([A-Za-z]+)"#) else {
+            return input
+        }
+
+        return regex.stringByReplacingMatches(
+            in: input,
+            range: NSRange(input.startIndex..., in: input),
+            withTemplate: #"\\$1"#
+        )
+    }
 
     /// Wraps LaTeX commands that appear outside $…$ in proper delimiters.
     nonisolated static func repairBareLatexDelimiters(_ text: String) -> String {

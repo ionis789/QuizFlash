@@ -41,14 +41,22 @@ struct GameplayCard: View {
     ///
     /// When `true`, `FlipCard` shows the answer (back) face.
     @Binding var isFlipped: Bool
+    @State private var swipeFeedback = SwipeCardFeedbackState()
 
     // MARK: - Body
 
     var body: some View {
-        SwipeableCard(onSwipe: onSwipe, onTap: handleTap) {
+        SwipeableCard(
+            onSwipe: onSwipe,
+            onTap: handleTap,
+            onSwipeProgress: { direction, intensity in
+                swipeFeedback.update(direction: direction, intensity: intensity)
+            }
+        ) {
             FlipCard(
                 card: card,
-                isFlipped: $isFlipped
+                isFlipped: $isFlipped,
+                swipeFeedback: swipeFeedback
             )
         }
     }

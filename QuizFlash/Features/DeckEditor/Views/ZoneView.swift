@@ -533,11 +533,13 @@ struct ZoneContentView: View {
 struct CardFaceView: View {
     let zone: ZoneModel
     let fontScale: CGFloat
+    var onTap: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
 
-    init(zone: ZoneModel, fontScale: CGFloat = 1.0) {
+    init(zone: ZoneModel, fontScale: CGFloat = 1.0, onTap: (() -> Void)? = nil) {
         self.zone = zone
         self.fontScale = fontScale
+        self.onTap = onTap
     }
 
     var body: some View {
@@ -551,9 +553,10 @@ struct CardFaceView: View {
             Color.clear.frame(height: 28).padding(.vertical, 4)
         case .text, .code:
             if !zone.text.isEmpty {
+                let previewText = displayText(for: zone)
                 // Route to CodeSnippetView for fenced code blocks.
-                if zone.contentType == .code || zone.text.hasPrefix("```") {
-                    CodeSnippetView(rawText: zone.text)
+                if zone.contentType == .code || previewText.hasPrefix("```") {
+                    CodeSnippetView(rawText: previewText)
                         .padding(.vertical, 4)
                 }
                 else {
@@ -565,14 +568,15 @@ struct CardFaceView: View {
                                 .padding(.top, 8)
                         }
                         MixedMathTextView(
-                            text: zone.text,
+                            text: previewText,
                             fontSize: fontSizeFor(zone),
                             textColor: zone.textColor.color,
                             alignment: zone.textAlignment.horizontalAlignment,
                             isBold: zone.isBold,
                             isItalic: zone.isItalic,
                             isInteractive: false,
-                            allowsReadOnlyOverflowScrolling: true
+                            allowsReadOnlyOverflowScrolling: true,
+                            onTap: onTap
                         )
                             .padding(.vertical, 4)
                             .padding(.horizontal, zone.highlightColor != HighlightColor.none ? 6 : 0)
@@ -593,6 +597,15 @@ struct CardFaceView: View {
         }
     }
 
+    private func displayText(for zone: ZoneModel) -> String {
+        switch zone.contentType {
+        case .text:
+            return MathTextSanitizer.stripTerminalZonePeriod(zone.text)
+        default:
+            return zone.text
+        }
+    }
+
     private func fontSizeFor(_ zone: ZoneModel) -> CGFloat {
         switch zone.textStyle {
         case .caption: return 16 * fontScale
@@ -606,9 +619,9 @@ struct CardFaceView: View {
     private var containerPreview: some View {
         let children = zone.children ?? []
         if zone.direction == .horizontal {
-            HStack(alignment: .top, spacing: 12) { ForEach(children) { child in CardFaceView(zone: child, fontScale: fontScale) } }
+            HStack(alignment: .top, spacing: 12) { ForEach(children) { child in CardFaceView(zone: child, fontScale: fontScale, onTap: onTap) } }
         } else {
-            VStack(alignment: .leading, spacing: 12) { ForEach(children) { child in CardFaceView(zone: child, fontScale: fontScale) } }
+            VStack(alignment: .leading, spacing: 12) { ForEach(children) { child in CardFaceView(zone: child, fontScale: fontScale, onTap: onTap) } }
         }
     }
 

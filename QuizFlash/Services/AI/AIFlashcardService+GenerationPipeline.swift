@@ -75,10 +75,18 @@ extension AIFlashcardService {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else { return nil }
 
-        return try await sendDeckTitleRequest(
-            messages: buildDeckTitleMessages(fromText: trimmedText),
-            model: textModel
-        )
+        return try await withDebugRun(
+            kind: .utility,
+            targetType: "deck_title",
+            sourceKind: "text",
+            sourceCount: 1,
+            metadata: ["source_char_count": String(trimmedText.count)]
+        ) { [self] in
+            try await self.sendDeckTitleRequest(
+                messages: self.buildDeckTitleMessages(fromText: trimmedText),
+                model: self.textModel
+            )
+        }
     }
 
     /// Converts existing persisted cards into a new target card kind while
@@ -124,13 +132,25 @@ extension AIFlashcardService {
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await performConversionPlanQueue(
-                        plans: plans,
-                        targetType: targetType,
-                        level: level
-                    ) { chunk in
-                        continuation.yield(chunk)
-                        await Task.yield()
+                    try await withDebugRun(
+                        kind: .conversion,
+                        targetType: targetType.rawValue,
+                        sourceKind: "cards",
+                        targetCount: trimmedCards.count,
+                        sourceCount: trimmedCards.count,
+                        metadata: [
+                            "source_count": String(trimmedCards.count),
+                            "level": level.rawValue
+                        ]
+                    ) { [self] in
+                        try await self.performConversionPlanQueue(
+                            plans: plans,
+                            targetType: targetType,
+                            level: level
+                        ) { chunk in
+                            continuation.yield(chunk)
+                            await Task.yield()
+                        }
                     }
                     continuation.finish()
                 } catch is CancellationError {
@@ -167,13 +187,22 @@ extension AIFlashcardService {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let result = await DocumentTextExtractor.extract(from: pdfURL)
-                    try await routeStream(
-                        result: result,
-                        targetCards: targetCards,
-                        options: options,
-                        continuation: continuation
-                    )
+                    try await withDebugRun(
+                        kind: .generation,
+                        targetType: options.cardType.rawValue,
+                        sourceKind: "pdf",
+                        targetCount: targetCards,
+                        sourceCount: 1,
+                        metadata: ["source_name": pdfURL.lastPathComponent]
+                    ) { [self] in
+                        let result = await DocumentTextExtractor.extract(from: pdfURL)
+                        try await self.routeStream(
+                            result: result,
+                            targetCards: targetCards,
+                            options: options,
+                            continuation: continuation
+                        )
+                    }
                     continuation.finish()
                 } catch is CancellationError {
                     continuation.finish()
@@ -207,13 +236,22 @@ extension AIFlashcardService {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let result = await DocumentTextExtractor.extract(from: images)
-                    try await routeStream(
-                        result: result,
-                        targetCards: targetCards,
-                        options: options,
-                        continuation: continuation
-                    )
+                    try await withDebugRun(
+                        kind: .generation,
+                        targetType: options.cardType.rawValue,
+                        sourceKind: "images",
+                        targetCount: targetCards,
+                        sourceCount: images.count,
+                        metadata: ["image_count": String(images.count)]
+                    ) { [self] in
+                        let result = await DocumentTextExtractor.extract(from: images)
+                        try await self.routeStream(
+                            result: result,
+                            targetCards: targetCards,
+                            options: options,
+                            continuation: continuation
+                        )
+                    }
                     continuation.finish()
                 } catch is CancellationError {
                     continuation.finish()
@@ -247,13 +285,22 @@ extension AIFlashcardService {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await dispatchTextStream(
-                        text,
-                        targetCards: targetCards,
-                        needsOCRCorrection: false,
-                        options: options,
-                        continuation: continuation
-                    )
+                    try await withDebugRun(
+                        kind: .generation,
+                        targetType: options.cardType.rawValue,
+                        sourceKind: "text",
+                        targetCount: targetCards,
+                        sourceCount: 1,
+                        metadata: ["source_char_count": String(text.count)]
+                    ) { [self] in
+                        try await self.dispatchTextStream(
+                            text,
+                            targetCards: targetCards,
+                            needsOCRCorrection: false,
+                            options: options,
+                            continuation: continuation
+                        )
+                    }
                     continuation.finish()
                 } catch is CancellationError {
                     continuation.finish()
@@ -312,17 +359,49 @@ extension AIFlashcardService {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await performTextRequests(
-                        plans: buildTextBatchPlans(
-                            segments: segments,
-                            allocations: allocations,
-                            options: options
-                        ),
+                    let combinedText = segments
+                        .map(\.text)
+                        .joined(separator: "\n\n")
+                    let resolvedOptions = self.resolvedGenerationOptions(
+                        for: combinedText,
                         needsOCRCorrection: needsOCRCorrection,
-                        options: options
-                    ) { chunk in
-                        continuation.yield(chunk)
-                        await Task.yield()
+                        base: options
+                    )
+
+                    try await withDebugRun(
+                        kind: .generation,
+                        targetType: resolvedOptions.cardType.rawValue,
+                        sourceKind: "segments",
+                        targetCount: targetCards,
+                        sourceCount: segments.count,
+                        metadata: [
+                            "segment_count": String(segments.count),
+                            "allocation_count": String(allocations.count)
+                        ]
+                    ) { [self] in
+                        await self.trace(
+                            .planPrepared,
+                            "Resolved text-generation language lock.",
+                            metadata: [
+                                "locked_source_language": resolvedOptions.sourceLanguageHint?.displayName ?? "unresolved",
+                                "locked_source_language_code": resolvedOptions.sourceLanguageHint?.languageCode ?? "unresolved",
+                                "card_type": resolvedOptions.cardType.rawValue,
+                                "card_level": resolvedOptions.cardLevel.rawValue
+                            ]
+                        )
+
+                        try await self.performTextRequests(
+                            plans: self.buildTextBatchPlans(
+                                segments: segments,
+                                allocations: allocations,
+                                options: resolvedOptions
+                            ),
+                            needsOCRCorrection: needsOCRCorrection,
+                            options: resolvedOptions
+                        ) { chunk in
+                            continuation.yield(chunk)
+                            await Task.yield()
+                        }
                     }
                     continuation.finish()
                 } catch is CancellationError {
@@ -382,17 +461,42 @@ extension AIFlashcardService {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await performVisionRequests(
-                        plans: buildVisionBatchPlans(
-                            images: images,
-                            labels: itemLabels,
-                            allocations: allocations,
-                            options: options
-                        ),
-                        options: options
-                    ) { chunk in
-                        continuation.yield(chunk)
-                        await Task.yield()
+                    let resolvedOptions = self.resolvedVisionGenerationOptions(base: options)
+
+                    try await withDebugRun(
+                        kind: .generation,
+                        targetType: resolvedOptions.cardType.rawValue,
+                        sourceKind: "image_ranges",
+                        targetCount: targetCards,
+                        sourceCount: images.count,
+                        metadata: [
+                            "image_count": String(images.count),
+                            "allocation_count": String(allocations.count)
+                        ]
+                    ) { [self] in
+                        await self.trace(
+                            .planPrepared,
+                            "Resolved vision-generation language mode.",
+                            metadata: [
+                                "locked_output_language": resolvedOptions.sourceLanguageHint?.displayName ?? "auto",
+                                "locked_output_language_code": resolvedOptions.sourceLanguageHint?.languageCode ?? "auto",
+                                "card_type": resolvedOptions.cardType.rawValue,
+                                "card_level": resolvedOptions.cardLevel.rawValue
+                            ]
+                        )
+
+                        try await self.performVisionRequests(
+                            plans: self.buildVisionBatchPlans(
+                                images: images,
+                                labels: itemLabels,
+                                allocations: allocations,
+                                options: resolvedOptions
+                            ),
+                            options: resolvedOptions
+                        ) { chunk in
+                            continuation.yield(chunk)
+                            await Task.yield()
+                        }
                     }
                     continuation.finish()
                 } catch is CancellationError {
@@ -436,6 +540,16 @@ extension AIFlashcardService {
         options: AIGenerationOptions,
         continuation: AsyncThrowingStream<[AIFlashcard], Error>.Continuation
     ) async throws {
+        await trace(
+            .planPrepared,
+            "Routed extracted source into AI pipeline.",
+            metadata: [
+                "extraction_method": String(describing: result.method),
+                "needs_ocr_correction": String(result.needsOCRCorrection),
+                "target_cards": String(targetCards),
+                "card_type": options.cardType.rawValue
+            ]
+        )
         switch result.method {
         case .pdfKit, .visionOCR:
             guard let text = result.text, !text.isEmpty else { throw AIServiceError.parsingFailed }
@@ -462,12 +576,17 @@ extension AIFlashcardService {
         needsOCRCorrection: Bool,
         options: AIGenerationOptions
     ) async throws -> [AIFlashcard] {
+        let resolvedOptions = resolvedGenerationOptions(
+            for: text,
+            needsOCRCorrection: needsOCRCorrection,
+            base: options
+        )
         var allCards: [AIFlashcard] = []
         try await performTextRequests(
             text,
             targetCards: targetCards,
             needsOCRCorrection: needsOCRCorrection,
-            options: options
+            options: resolvedOptions
         ) { cards in
             allCards.append(contentsOf: cards)
         }
@@ -481,11 +600,28 @@ extension AIFlashcardService {
         options: AIGenerationOptions,
         continuation: AsyncThrowingStream<[AIFlashcard], Error>.Continuation
     ) async throws {
+        let resolvedOptions = resolvedGenerationOptions(
+            for: text,
+            needsOCRCorrection: needsOCRCorrection,
+            base: options
+        )
+
+        await trace(
+            .planPrepared,
+            "Resolved text-generation language lock.",
+            metadata: [
+                "locked_source_language": resolvedOptions.sourceLanguageHint?.displayName ?? "unresolved",
+                "locked_source_language_code": resolvedOptions.sourceLanguageHint?.languageCode ?? "unresolved",
+                "card_type": resolvedOptions.cardType.rawValue,
+                "card_level": resolvedOptions.cardLevel.rawValue
+            ]
+        )
+
         try await performTextRequests(
             text,
             targetCards: targetCards,
             needsOCRCorrection: needsOCRCorrection,
-            options: options
+            options: resolvedOptions
         ) { cards in
             continuation.yield(cards)
             await Task.yield()
@@ -497,8 +633,9 @@ extension AIFlashcardService {
         targetCards: Int,
         options: AIGenerationOptions
     ) async throws -> [AIFlashcard] {
+        let resolvedOptions = resolvedVisionGenerationOptions(base: options)
         var allCards: [AIFlashcard] = []
-        try await performVisionRequests(images, targetCards: targetCards, options: options) { cards in
+        try await performVisionRequests(images, targetCards: targetCards, options: resolvedOptions) { cards in
             allCards.append(contentsOf: cards)
         }
         return allCards
@@ -510,7 +647,20 @@ extension AIFlashcardService {
         options: AIGenerationOptions,
         continuation: AsyncThrowingStream<[AIFlashcard], Error>.Continuation
     ) async throws {
-        try await performVisionRequests(images, targetCards: targetCards, options: options) { cards in
+        let resolvedOptions = resolvedVisionGenerationOptions(base: options)
+
+        await trace(
+            .planPrepared,
+            "Resolved vision-generation language mode.",
+            metadata: [
+                "locked_output_language": resolvedOptions.sourceLanguageHint?.displayName ?? "auto",
+                "locked_output_language_code": resolvedOptions.sourceLanguageHint?.languageCode ?? "auto",
+                "card_type": resolvedOptions.cardType.rawValue,
+                "card_level": resolvedOptions.cardLevel.rawValue
+            ]
+        )
+
+        try await performVisionRequests(images, targetCards: targetCards, options: resolvedOptions) { cards in
             continuation.yield(cards)
             await Task.yield()
         }
@@ -553,11 +703,11 @@ extension AIFlashcardService {
         options: AIGenerationOptions,
         onBatch: @escaping (AIFlashcardBatchChunk) async throws -> Void
     ) async throws {
-        try await performPlanQueue(
-            plans: plans,
-            maxConcurrent: maxConcurrentTextPlanRequests,
-            execute: { [self] plan, coveredPrompts in
-                if options.cardType == .match {
+        if options.cardType == .match {
+            try await performPlanQueue(
+                plans: plans,
+                maxConcurrent: min(maxConcurrentMatchGenerationRequests, maxConcurrentTextPlanRequests),
+                execute: { [self] plan, coveredPrompts in
                     let result = try await sendQualityFirstMatchGenerationRequest(
                         targetCards: plan.targetCards,
                         model: textModel,
@@ -575,12 +725,22 @@ extension AIFlashcardService {
                             coveredPrompts: coveredPrompts + retryHints
                         )
                     }
+
                     return GeneratedBatchExecutionResult(
                         cards: result.cards,
-                        shortfallCount: result.shortfallCount
+                        shortfallCount: result.shortfallCount,
+                        matchDiagnostics: result.diagnostics
                     )
-                }
+                },
+                onBatch: onBatch
+            )
+            return
+        }
 
+        try await performPlanQueue(
+            plans: plans,
+            maxConcurrent: maxConcurrentTextPlanRequests,
+            execute: { [self] plan, coveredPrompts in
                 let messages = buildTextMessages(
                     text: plan.text,
                     targetCards: plan.targetCards,
@@ -595,7 +755,8 @@ extension AIFlashcardService {
 
                 return GeneratedBatchExecutionResult(
                     cards: try await sendRequest(messages: messages, model: textModel, options: options),
-                    shortfallCount: 0
+                    shortfallCount: 0,
+                    matchDiagnostics: nil
                 )
             },
             onBatch: onBatch
@@ -634,11 +795,11 @@ extension AIFlashcardService {
         options: AIGenerationOptions,
         onBatch: @escaping (AIFlashcardBatchChunk) async throws -> Void
     ) async throws {
-        try await performPlanQueue(
-            plans: plans,
-            maxConcurrent: maxConcurrentVisionPlanRequests,
-            execute: { [self] plan, coveredPrompts in
-                if options.cardType == .match {
+        if options.cardType == .match {
+            try await performPlanQueue(
+                plans: plans,
+                maxConcurrent: min(maxConcurrentMatchGenerationRequests, maxConcurrentVisionPlanRequests),
+                execute: { [self] plan, coveredPrompts in
                     let result = try await sendQualityFirstMatchGenerationRequest(
                         targetCards: plan.targetCards,
                         model: visionModel,
@@ -655,12 +816,22 @@ extension AIFlashcardService {
                             coveredPrompts: coveredPrompts + retryHints
                         )
                     }
+
                     return GeneratedBatchExecutionResult(
                         cards: result.cards,
-                        shortfallCount: result.shortfallCount
+                        shortfallCount: result.shortfallCount,
+                        matchDiagnostics: result.diagnostics
                     )
-                }
+                },
+                onBatch: onBatch
+            )
+            return
+        }
 
+        try await performPlanQueue(
+            plans: plans,
+            maxConcurrent: maxConcurrentVisionPlanRequests,
+            execute: { [self] plan, coveredPrompts in
                 let messages = buildVisionMessages(
                     images: plan.images,
                     targetCards: plan.targetCards,
@@ -674,11 +845,177 @@ extension AIFlashcardService {
 
                 return GeneratedBatchExecutionResult(
                     cards: try await sendRequest(messages: messages, model: visionModel, options: options),
-                    shortfallCount: 0
+                    shortfallCount: 0,
+                    matchDiagnostics: nil
                 )
             },
             onBatch: onBatch
         )
+    }
+
+    private func performSequentialMatchTextRequests(
+        plans: [TextBatchPlan],
+        needsOCRCorrection: Bool,
+        options: AIGenerationOptions,
+        onBatch: @escaping (AIFlashcardBatchChunk) async throws -> Void
+    ) async throws {
+        guard !plans.isEmpty else { return }
+
+        var coveredPrompts: [String] = []
+        var approvedExamples: [String] = []
+        var overlapHints: [String] = []
+        var acceptedPairKeys: Set<String> = []
+        var acceptedCards: [AIFlashcard] = []
+
+        for plan in plans {
+            try Task.checkCancellation()
+            let scope = traceScope(for: plan, operation: "match_generation_batch")
+            let existingPairKeys = acceptedPairKeys
+            await debugTraceStore.record(
+                stage: .batchStarted,
+                message: "Starting sequential Match text batch.",
+                scope: scope,
+                metadata: ["needs_ocr_correction": String(needsOCRCorrection)]
+            )
+
+            let result = try await withTraceScope(scope) { [self] in
+                try await self.sendQualityFirstMatchGenerationRequest(
+                    targetCards: plan.targetCards,
+                    model: self.textModel,
+                    options: options,
+                    existingPairKeys: existingPairKeys
+                ) { requestedCards, retryHints in
+                    self.buildTextMessages(
+                        text: plan.text,
+                        targetCards: requestedCards,
+                        needsOCRCorrection: needsOCRCorrection,
+                        options: options,
+                        sourceLabel: plan.sourceLabel,
+                        batchIndex: plan.batchIndex,
+                        totalBatches: plan.totalBatches,
+                        passIndex: plan.passIndex,
+                        coveredPrompts: coveredPrompts + retryHints,
+                        approvedMatchExamples: approvedExamples,
+                        matchOverlapHints: overlapHints
+                    )
+                }
+            }
+
+            if !result.cards.isEmpty || result.shortfallCount > 0 {
+                try await onBatch(
+                    AIFlashcardBatchChunk(
+                        cards: result.cards,
+                        allocationID: plan.allocationID,
+                        plannedCardCount: plan.targetCards,
+                        shortfallCount: result.shortfallCount,
+                        sourceLabel: plan.sourceLabel,
+                        matchDiagnostics: result.diagnostics
+                    )
+                )
+            }
+
+            acceptedCards.append(contentsOf: result.cards)
+            acceptedPairKeys.formUnion(
+                result.cards.compactMap { card in
+                    guard case .match(let content) = card.content else { return nil }
+                    return matchPairKey(prompt: content.prompt, answer: content.answer)
+                }
+            )
+            coveredPrompts = updateCoveredPrompts(existing: coveredPrompts, with: result.cards)
+            approvedExamples = formattedStrongMatchApprovedExamples(from: acceptedCards)
+            overlapHints = formattedMatchOverlapHints(from: acceptedCards)
+            await debugTraceStore.record(
+                stage: .batchCompleted,
+                message: "Completed sequential Match text batch.",
+                scope: scope,
+                metadata: [
+                    "accepted_cards": String(result.cards.count),
+                    "shortfall_count": String(result.shortfallCount),
+                    "low_quality_accepted": String(result.diagnostics.lowQualityAcceptedCount)
+                ]
+            )
+        }
+    }
+
+    private func performSequentialMatchVisionRequests(
+        plans: [VisionBatchPlan],
+        options: AIGenerationOptions,
+        onBatch: @escaping (AIFlashcardBatchChunk) async throws -> Void
+    ) async throws {
+        guard !plans.isEmpty else { return }
+
+        var coveredPrompts: [String] = []
+        var approvedExamples: [String] = []
+        var overlapHints: [String] = []
+        var acceptedPairKeys: Set<String> = []
+        var acceptedCards: [AIFlashcard] = []
+
+        for plan in plans {
+            try Task.checkCancellation()
+            let scope = traceScope(for: plan, operation: "match_vision_batch")
+            let existingPairKeys = acceptedPairKeys
+            await debugTraceStore.record(
+                stage: .batchStarted,
+                message: "Starting sequential Match vision batch.",
+                scope: scope
+            )
+
+            let result = try await withTraceScope(scope) { [self] in
+                try await self.sendQualityFirstMatchGenerationRequest(
+                    targetCards: plan.targetCards,
+                    model: self.visionModel,
+                    options: options,
+                    existingPairKeys: existingPairKeys
+                ) { requestedCards, retryHints in
+                    self.buildVisionMessages(
+                        images: plan.images,
+                        targetCards: requestedCards,
+                        options: options,
+                        sourceLabel: plan.sourceLabel,
+                        batchIndex: plan.batchIndex,
+                        totalBatches: plan.totalBatches,
+                        passIndex: plan.passIndex,
+                        coveredPrompts: coveredPrompts + retryHints,
+                        approvedMatchExamples: approvedExamples,
+                        matchOverlapHints: overlapHints
+                    )
+                }
+            }
+
+            if !result.cards.isEmpty || result.shortfallCount > 0 {
+                try await onBatch(
+                    AIFlashcardBatchChunk(
+                        cards: result.cards,
+                        allocationID: plan.allocationID,
+                        plannedCardCount: plan.targetCards,
+                        shortfallCount: result.shortfallCount,
+                        sourceLabel: plan.sourceLabel,
+                        matchDiagnostics: result.diagnostics
+                    )
+                )
+            }
+
+            acceptedCards.append(contentsOf: result.cards)
+            acceptedPairKeys.formUnion(
+                result.cards.compactMap { card in
+                    guard case .match(let content) = card.content else { return nil }
+                    return matchPairKey(prompt: content.prompt, answer: content.answer)
+                }
+            )
+            coveredPrompts = updateCoveredPrompts(existing: coveredPrompts, with: result.cards)
+            approvedExamples = formattedStrongMatchApprovedExamples(from: acceptedCards)
+            overlapHints = formattedMatchOverlapHints(from: acceptedCards)
+            await debugTraceStore.record(
+                stage: .batchCompleted,
+                message: "Completed sequential Match vision batch.",
+                scope: scope,
+                metadata: [
+                    "accepted_cards": String(result.cards.count),
+                    "shortfall_count": String(result.shortfallCount),
+                    "low_quality_accepted": String(result.diagnostics.lowQualityAcceptedCount)
+                ]
+            )
+        }
     }
 
     private func collectFlashcards(
@@ -1105,6 +1442,14 @@ extension AIFlashcardService {
         onBatch: @escaping (AIFlashcardBatchChunk) async throws -> Void
     ) async throws {
         guard !plans.isEmpty else { return }
+        await trace(
+            .planPrepared,
+            "Prepared generation plan queue.",
+            metadata: [
+                "plan_count": String(plans.count),
+                "max_concurrent": String(maxConcurrent)
+            ]
+        )
 
         var pendingPlans = plans
         var coveredPrompts: [String] = []
@@ -1118,14 +1463,29 @@ extension AIFlashcardService {
                 while activeTaskCount < activeConcurrency, !pendingPlans.isEmpty {
                     let plan = pendingPlans.removeFirst()
                     let promptSnapshot = coveredPrompts
+                    let scope = traceScope(for: plan, operation: "generation_batch")
                     activeTaskCount += 1
 
-                    group.addTask {
+                    group.addTask { [self] in
+                        await debugTraceStore.record(
+                            stage: .batchStarted,
+                            message: "Starting generation batch.",
+                            scope: scope,
+                            metadata: ["covered_prompt_count": String(promptSnapshot.count)]
+                        )
                         do {
-                            try Task.checkCancellation()
-                            let result = try await execute(plan, promptSnapshot)
-                            return (plan, .success(result))
+                            return try await withTraceScope(scope) {
+                                try Task.checkCancellation()
+                                let result = try await execute(plan, promptSnapshot)
+                                return (plan, .success(result))
+                            }
                         } catch {
+                            await debugTraceStore.record(
+                                stage: .batchCompleted,
+                                message: "Generation batch failed.",
+                                scope: scope,
+                                metadata: ["error": String(describing: error)]
+                            )
                             return (plan, .failure(error))
                         }
                     }
@@ -1146,6 +1506,7 @@ extension AIFlashcardService {
                 switch result {
                 case .success(let result):
                     consecutiveSuccesses += 1
+                    let scope = traceScope(for: plan, operation: "generation_batch")
 
                     if !result.cards.isEmpty || result.shortfallCount > 0 {
                         try await onBatch(
@@ -1154,11 +1515,21 @@ extension AIFlashcardService {
                                 allocationID: allocationID(for: plan),
                                 plannedCardCount: plan.targetCards,
                                 shortfallCount: result.shortfallCount,
-                                sourceLabel: plan.sourceLabel
+                                sourceLabel: plan.sourceLabel,
+                                matchDiagnostics: result.matchDiagnostics
                             )
                         )
                         coveredPrompts = updateCoveredPrompts(existing: coveredPrompts, with: result.cards)
                     }
+                    await debugTraceStore.record(
+                        stage: .batchCompleted,
+                        message: "Completed generation batch.",
+                        scope: scope,
+                        metadata: [
+                            "accepted_cards": String(result.cards.count),
+                            "shortfall_count": String(result.shortfallCount)
+                        ]
+                    )
 
                     if consecutiveSuccesses >= max(activeConcurrency, 1), activeConcurrency < maxConcurrent {
                         activeConcurrency += 1
@@ -1168,9 +1539,19 @@ extension AIFlashcardService {
                 case .failure(let error):
                     consecutiveSuccesses = 0
                     activeConcurrency = max(1, activeConcurrency / 2)
+                    let scope = traceScope(for: plan, operation: "generation_batch")
 
                     if shouldAttemptPlanSplit(after: error), let splitPlans = plan.splitForRecovery() {
                         pendingPlans.append(contentsOf: splitPlans)
+                        await debugTraceStore.record(
+                            stage: .batchRecovered,
+                            message: "Split failed generation batch for recovery.",
+                            scope: scope,
+                            metadata: [
+                                "split_plan_count": String(splitPlans.count),
+                                "error": String(describing: error)
+                            ]
+                        )
                     } else {
                         terminalFailures.append(batchFailureDescription(for: plan, error: error))
                     }
@@ -1198,10 +1579,21 @@ extension AIFlashcardService {
         onBatch: @escaping (AIConversionBatchChunk) async throws -> Void
     ) async throws {
         guard !plans.isEmpty else { return }
+        await trace(
+            .planPrepared,
+            "Prepared conversion plan queue.",
+            metadata: [
+                "plan_count": String(plans.count),
+                "target_type": targetType.rawValue
+            ]
+        )
 
         var pendingPlans = plans
         var activeTaskCount = 0
-        var activeConcurrency = min(max(maxConcurrentConversionRequests, 1), plans.count)
+        let allowedMaxConcurrency = targetType == .match
+            ? min(maxConcurrentMatchConversionRequests, maxConcurrentConversionRequests)
+            : maxConcurrentConversionRequests
+        var activeConcurrency = min(max(allowedMaxConcurrency, 1), plans.count)
         var consecutiveSuccesses = 0
         var terminalFailures: [String] = []
 
@@ -1212,65 +1604,85 @@ extension AIFlashcardService {
                     let sourceCards = plan.sourceCards
                     let plannedCardCount = plan.targetCards
                     let sourceLabel = plan.sourceLabel
+                    let scope = traceScope(for: plan, operation: "conversion_batch")
                     activeTaskCount += 1
 
                     group.addTask { [self] in
+                        await debugTraceStore.record(
+                            stage: .batchStarted,
+                            message: "Starting conversion batch.",
+                            scope: scope,
+                            metadata: [
+                                "source_card_count": String(sourceCards.count),
+                                "target_type": targetType.rawValue
+                            ]
+                        )
                         do {
-                            try Task.checkCancellation()
+                            return try await withTraceScope(scope) { [self] in
+                                try Task.checkCancellation()
 
-                            let chunk = try await withExecutionTimeout(
-                                nanoseconds: conversionBatchExecutionTimeoutNanoseconds
-                            ) {
-                                if targetType == .match {
-                                    let qualityResult = try await self.sendQualityFirstMatchConversionRequest(
+                                let chunk = try await self.withExecutionTimeout(
+                                    nanoseconds: self.conversionBatchExecutionTimeoutNanoseconds
+                                ) {
+                                    if targetType == .match {
+                                        let qualityResult = try await self.sendQualityFirstMatchConversionRequest(
+                                            sourceCards: sourceCards,
+                                            targetCount: plannedCardCount,
+                                            level: level
+                                        )
+                                        return AIConversionBatchChunk(
+                                            outputs: qualityResult.outputs,
+                                            plannedSourceIDs: sourceCards.map(\.id),
+                                            plannedCardCount: plannedCardCount,
+                                            shortfallCount: qualityResult.shortfallCount,
+                                            sourceLabel: sourceLabel,
+                                            matchDiagnostics: qualityResult.diagnostics
+                                        )
+                                    }
+
+                                    if targetType == .write {
+                                        let qualityResult = try await self.sendQualityFirstWriteConversionRequest(
+                                            sourceCards: sourceCards,
+                                            level: level
+                                        )
+                                        return AIConversionBatchChunk(
+                                            outputs: qualityResult.outputs,
+                                            plannedSourceIDs: sourceCards.map(\.id),
+                                            plannedCardCount: plannedCardCount,
+                                            shortfallCount: qualityResult.shortfallCount,
+                                            sourceLabel: sourceLabel
+                                        )
+                                    }
+
+                                    let messages = self.buildConversionMessages(
                                         sourceCards: sourceCards,
+                                        targetType: targetType,
                                         level: level
                                     )
+                                    let outputs = try await self.sendConversionRequest(
+                                        messages: messages,
+                                        model: self.textModel,
+                                        sourceCards: sourceCards,
+                                        targetType: targetType
+                                    )
                                     return AIConversionBatchChunk(
-                                        outputs: qualityResult.outputs,
+                                        outputs: outputs,
                                         plannedSourceIDs: sourceCards.map(\.id),
                                         plannedCardCount: plannedCardCount,
-                                        shortfallCount: qualityResult.shortfallCount,
+                                        shortfallCount: max(0, plannedCardCount - outputs.count),
                                         sourceLabel: sourceLabel
                                     )
                                 }
 
-                                if targetType == .write {
-                                    let qualityResult = try await self.sendQualityFirstWriteConversionRequest(
-                                        sourceCards: sourceCards,
-                                        level: level
-                                    )
-                                    return AIConversionBatchChunk(
-                                        outputs: qualityResult.outputs,
-                                        plannedSourceIDs: sourceCards.map(\.id),
-                                        plannedCardCount: plannedCardCount,
-                                        shortfallCount: qualityResult.shortfallCount,
-                                        sourceLabel: sourceLabel
-                                    )
-                                }
-
-                                let messages = self.buildConversionMessages(
-                                    sourceCards: sourceCards,
-                                    targetType: targetType,
-                                    level: level
-                                )
-                                let outputs = try await self.sendConversionRequest(
-                                    messages: messages,
-                                    model: self.textModel,
-                                    sourceCards: sourceCards,
-                                    targetType: targetType
-                                )
-                                return AIConversionBatchChunk(
-                                    outputs: outputs,
-                                    plannedSourceIDs: sourceCards.map(\.id),
-                                    plannedCardCount: plannedCardCount,
-                                    shortfallCount: max(0, plannedCardCount - outputs.count),
-                                    sourceLabel: sourceLabel
-                                )
+                                return (plan, .success(chunk))
                             }
-
-                            return (plan, .success(chunk))
                         } catch {
+                            await debugTraceStore.record(
+                                stage: .batchCompleted,
+                                message: "Conversion batch failed.",
+                                scope: scope,
+                                metadata: ["error": String(describing: error)]
+                            )
                             return (plan, .failure(error))
                         }
                     }
@@ -1292,6 +1704,15 @@ extension AIFlashcardService {
                 case .success(let chunk):
                     consecutiveSuccesses += 1
                     try await onBatch(chunk)
+                    await debugTraceStore.record(
+                        stage: .batchCompleted,
+                        message: "Completed conversion batch.",
+                        scope: traceScope(for: plan, operation: "conversion_batch"),
+                        metadata: [
+                            "output_count": String(chunk.outputs.count),
+                            "shortfall_count": String(chunk.shortfallCount)
+                        ]
+                    )
 
                     if consecutiveSuccesses >= max(activeConcurrency, 1), activeConcurrency < maxConcurrentConversionRequests {
                         activeConcurrency += 1
@@ -1301,9 +1722,19 @@ extension AIFlashcardService {
                 case .failure(let error):
                     consecutiveSuccesses = 0
                     activeConcurrency = max(1, activeConcurrency / 2)
+                    let scope = traceScope(for: plan, operation: "conversion_batch")
 
                     if shouldAttemptPlanSplit(after: error), let splitPlans = plan.splitForRecovery() {
                         pendingPlans.append(contentsOf: splitPlans)
+                        await debugTraceStore.record(
+                            stage: .batchRecovered,
+                            message: "Split failed conversion batch for recovery.",
+                            scope: scope,
+                            metadata: [
+                                "split_plan_count": String(splitPlans.count),
+                                "error": String(describing: error)
+                            ]
+                        )
                     } else {
                         terminalFailures.append(batchFailureDescription(for: plan, error: error))
                     }
@@ -1322,6 +1753,148 @@ extension AIFlashcardService {
                 """
             )
         }
+    }
+
+    private func performSequentialMatchConversionPlanQueue(
+        plans: [ConversionBatchPlan],
+        level: AICardGenerationLevel,
+        onBatch: @escaping (AIConversionBatchChunk) async throws -> Void
+    ) async throws {
+        guard !plans.isEmpty else { return }
+
+        var remainingCandidates = plans.flatMap(\.sourceCards)
+        var approvedExamples: [String] = []
+        var overlapHints: [String] = []
+        var acceptedPairKeys: Set<String> = []
+        var acceptedOutputsHistory: [AICardConversionOutput] = []
+
+        for plan in plans {
+            try Task.checkCancellation()
+            let scope = traceScope(for: plan, operation: "match_conversion_batch")
+            await debugTraceStore.record(
+                stage: .batchStarted,
+                message: "Starting sequential Match conversion batch.",
+                scope: scope,
+                metadata: ["candidate_pool_count": String(remainingCandidates.count)]
+            )
+
+            var batchOutputs: [AICardConversionOutput] = []
+            var batchPlannedSourceIDs: [PersistentIdentifier] = []
+            var batchDiagnostics = MatchAIBatchDiagnostics()
+            var remainingTarget = plan.targetCards
+
+            while remainingTarget > 0, !remainingCandidates.isEmpty {
+                let candidateCount = min(remainingCandidates.count, remainingTarget + 2)
+                let candidateSources = Array(remainingCandidates.prefix(candidateCount))
+                remainingCandidates.removeFirst(candidateCount)
+                batchPlannedSourceIDs.append(contentsOf: candidateSources.map(\.id))
+                let targetSnapshot = remainingTarget
+                let approvedExamplesSnapshot = approvedExamples
+                let overlapHintsSnapshot = overlapHints
+                let acceptedPairKeysSnapshot = acceptedPairKeys
+
+                let iterationScope = scope?.with(
+                    plannedCardCount: targetSnapshot,
+                    attempt: (plan.targetCards - remainingTarget) + 1
+                )
+                let result = try await withTraceScope(iterationScope) { [self] in
+                    try await self.withExecutionTimeout(
+                        nanoseconds: self.conversionBatchExecutionTimeoutNanoseconds
+                    ) {
+                        try await self.sendQualityFirstMatchConversionRequest(
+                            sourceCards: candidateSources,
+                            targetCount: targetSnapshot,
+                            level: level,
+                            approvedMatchExamples: approvedExamplesSnapshot,
+                            matchOverlapHints: overlapHintsSnapshot,
+                            existingPairKeys: acceptedPairKeysSnapshot
+                        )
+                    }
+                }
+
+                batchOutputs.append(contentsOf: result.outputs)
+                batchDiagnostics.merge(result.diagnostics)
+                acceptedPairKeys.formUnion(
+                    result.outputs.compactMap { output in
+                        guard case .match(let content) = output.generatedCard.content else { return nil }
+                        return matchPairKey(prompt: content.prompt, answer: content.answer)
+                    }
+                )
+                acceptedOutputsHistory.append(contentsOf: result.outputs)
+                approvedExamples = formattedStrongMatchApprovedExamples(from: acceptedOutputsHistory)
+                overlapHints = formattedMatchOverlapHints(from: acceptedOutputsHistory)
+                remainingTarget = max(0, plan.targetCards - batchOutputs.count)
+                await debugTraceStore.record(
+                    stage: .qualityEvaluated,
+                    message: "Evaluated sequential Match conversion candidate slice.",
+                    scope: iterationScope,
+                    metadata: [
+                        "candidate_count": String(candidateSources.count),
+                        "accepted_outputs": String(result.outputs.count),
+                        "remaining_target": String(remainingTarget),
+                        "low_quality_accepted": String(result.diagnostics.lowQualityAcceptedCount)
+                    ]
+                )
+            }
+
+            let finalShortfall = max(0, plan.targetCards - batchOutputs.count)
+            if finalShortfall > 0 {
+                batchDiagnostics.increment(.exhaustedCandidates, by: finalShortfall)
+            }
+
+            try await onBatch(
+                AIConversionBatchChunk(
+                    outputs: batchOutputs,
+                    plannedSourceIDs: batchPlannedSourceIDs,
+                    plannedCardCount: plan.targetCards,
+                    shortfallCount: finalShortfall,
+                    sourceLabel: plan.sourceLabel,
+                    matchDiagnostics: batchDiagnostics
+                )
+            )
+            await debugTraceStore.record(
+                stage: .batchCompleted,
+                message: "Completed sequential Match conversion batch.",
+                scope: scope,
+                metadata: [
+                    "output_count": String(batchOutputs.count),
+                    "shortfall_count": String(finalShortfall),
+                    "low_quality_accepted": String(batchDiagnostics.lowQualityAcceptedCount)
+                ]
+            )
+        }
+    }
+
+    private nonisolated func traceScope<Plan: RecoverableBatchPlan>(
+        for plan: Plan,
+        operation: String
+    ) -> AIDebugTraceScope? {
+        let baseScope = AIDebugTraceContext.currentScope
+        let batchIndex: Int?
+        let totalBatches: Int?
+
+        switch plan {
+        case let plan as TextBatchPlan:
+            batchIndex = plan.batchIndex
+            totalBatches = plan.totalBatches
+        case let plan as VisionBatchPlan:
+            batchIndex = plan.batchIndex
+            totalBatches = plan.totalBatches
+        case let plan as ConversionBatchPlan:
+            batchIndex = plan.batchIndex
+            totalBatches = plan.totalBatches
+        default:
+            batchIndex = nil
+            totalBatches = nil
+        }
+
+        return baseScope?.with(
+            operation: operation,
+            batchIndex: batchIndex,
+            totalBatches: totalBatches,
+            sourceLabel: plan.sourceLabel,
+            plannedCardCount: plan.targetCards
+        )
     }
 
     private func normalizedAllocations(

@@ -13,6 +13,8 @@ private let kAIGenerationStatusCardHeight: CGFloat = 212
 
 /// Minimal loading card shown while the source is read before cards start streaming.
 struct AIExtractingLoadingView: View {
+    var elapsedStartDate: Date? = nil
+    var elapsedAccumulatedDuration: TimeInterval = 0
     @State private var isActive = false
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -49,6 +51,13 @@ struct AIExtractingLoadingView: View {
                 Text("This usually takes a moment before the first cards start to stream in.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                if elapsedStartDate != nil || elapsedAccumulatedDuration > 0 {
+                    AIGenerationElapsedTimeLabel(
+                        startDate: elapsedStartDate,
+                        accumulatedDuration: elapsedAccumulatedDuration
+                    )
+                }
             }
         }
         .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
@@ -95,6 +104,8 @@ struct AIStreamingProgressCard: View {
     var subtitleOverride: String? = nil
     var accentColor: Color? = nil
     var footnote: String = "Cards appear in place as each batch finishes"
+    var elapsedStartDate: Date? = nil
+    var elapsedAccumulatedDuration: TimeInterval = 0
     var onCancel: (() -> Void)? = nil
     var onPause: (() -> Void)? = nil
 
@@ -185,6 +196,13 @@ struct AIStreamingProgressCard: View {
                             .font(.caption)
                     }
                     .foregroundStyle(.secondary)
+
+                    if elapsedStartDate != nil || elapsedAccumulatedDuration > 0 {
+                        AIGenerationElapsedTimeLabel(
+                            startDate: elapsedStartDate,
+                            accumulatedDuration: elapsedAccumulatedDuration
+                        )
+                    }
                 }
                 .frame(height: 36)
             }
@@ -204,6 +222,8 @@ struct AIPausedResumeCard: View {
     var title: String = "Generation paused"
     var subtitle: String = "Continue from the last completed batch when you're ready."
     var accentColor: Color? = nil
+    var elapsedStartDate: Date? = nil
+    var elapsedAccumulatedDuration: TimeInterval = 0
     let onResume: () -> Void
 
     private var accent: Color { accentColor ?? ThemeManager.shared.accentColor.color }
@@ -267,6 +287,13 @@ struct AIPausedResumeCard: View {
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                    if elapsedStartDate != nil || elapsedAccumulatedDuration > 0 {
+                        AIGenerationElapsedTimeLabel(
+                            startDate: elapsedStartDate,
+                            accumulatedDuration: elapsedAccumulatedDuration
+                        )
+                    }
                 }
                 .frame(height: 36)
             }
@@ -310,6 +337,38 @@ private struct AIGenerationCountBadge: View {
             }
             .statusTextMotion(trigger: text)
             .fixedSize(horizontal: true, vertical: false)
+    }
+}
+
+private struct AIGenerationElapsedTimeLabel: View {
+    let startDate: Date?
+    let accumulatedDuration: TimeInterval
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            Label(
+                formattedElapsedTime(at: context.date),
+                systemImage: "timer"
+            )
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+            .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    private func formattedElapsedTime(at referenceDate: Date) -> String {
+        let liveDuration = startDate.map { max(0, referenceDate.timeIntervalSince($0)) } ?? 0
+        let totalSeconds = Int((accumulatedDuration + liveDuration).rounded(.down))
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 }
 

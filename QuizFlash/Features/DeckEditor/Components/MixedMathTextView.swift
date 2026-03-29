@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import ObjectiveC.runtime
 
 // =============================================================================
 // MARK: - MixedMathRenderStyle
@@ -19,6 +20,24 @@ enum MixedMathRenderStyle: String, Sendable {
             return "inline-code--standard"
         case .deckCardPreview:
             return "inline-code--deck-card-preview"
+        }
+    }
+}
+
+private var quizFlashHorizontalOverflowAssociationKey: UInt8 = 0
+
+extension WKWebView {
+    var quizflashHasHorizontalOverflow: Bool {
+        get {
+            (objc_getAssociatedObject(self, &quizFlashHorizontalOverflowAssociationKey) as? NSNumber)?.boolValue ?? false
+        }
+        set {
+            objc_setAssociatedObject(
+                self,
+                &quizFlashHorizontalOverflowAssociationKey,
+                NSNumber(value: newValue),
+                .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+            )
         }
     }
 }
@@ -43,6 +62,7 @@ struct MixedMathTextView: View {
     var allowsReadOnlyOverflowScrolling: Bool = false
     var lineLimit: Int? = nil
     var renderStyle: MixedMathRenderStyle = .standard
+    var onTap: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var webHeight: CGFloat = 50
@@ -52,7 +72,7 @@ struct MixedMathTextView: View {
         let clean = MathTextSanitizer.heal(text)
         let signature = renderSignature(for: clean)
         let shouldAllowWebInteraction = isInteractive || (
-            allowsReadOnlyOverflowScrolling && MathTextSanitizer.containsDisplayMath(clean)
+            allowsReadOnlyOverflowScrolling && MathTextSanitizer.containsMath(clean)
         )
         let shouldShowHorizontalOverflowHint = (
             !isInteractive
@@ -74,7 +94,8 @@ struct MixedMathTextView: View {
                 contentHeight: $webHeight,
                 horizontalOverflowState: $horizontalOverflowState,
                 isInteractive: isInteractive,
-                allowsReadOnlyOverflowScrolling: shouldAllowWebInteraction && !isInteractive
+                allowsReadOnlyOverflowScrolling: shouldAllowWebInteraction && !isInteractive,
+                onTap: onTap
             )
             .frame(height: webHeight)
             .frame(maxWidth: .infinity)
@@ -324,11 +345,13 @@ struct MathWebView: UIViewRepresentable {
     var isInteractive: Bool = true
     /// Keeps display-math blocks pannable in otherwise read-only contexts.
     var allowsReadOnlyOverflowScrolling: Bool = false
+    var onTap: (() -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             contentHeight: $contentHeight,
-            horizontalOverflowState: $horizontalOverflowState
+            horizontalOverflowState: $horizontalOverflowState,
+            onTap: onTap
         )
     }
 
@@ -357,10 +380,13 @@ struct MathWebView: UIViewRepresentable {
 
         context.coordinator.webView = webView
         context.coordinator.lastRenderedSignature = renderSignature
+        context.coordinator.onTap = onTap
+        webView.quizflashHasHorizontalOverflow = false
 
         // In read-only contexts (playback, preview), disable UIKit interaction
         // unless this view contains display math that needs local horizontal panning.
         applyInteractivity(to: webView)
+        configureTapRecognizer(on: webView, coordinator: context.coordinator)
 
         loadContent(in: webView, context: context)
         return webView
@@ -368,7 +394,10 @@ struct MathWebView: UIViewRepresentable {
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         // Re-apply interaction state in case isInteractive changed between renders.
+        context.coordinator.onTap = onTap
+        webView.quizflashHasHorizontalOverflow = horizontalOverflowState.hasOverflow
         applyInteractivity(to: webView)
+        configureTapRecognizer(on: webView, coordinator: context.coordinator)
         guard context.coordinator.lastRenderedSignature != renderSignature else { return }
         context.coordinator.lastRenderedSignature = renderSignature
         loadContent(in: webView, context: context)
@@ -383,6 +412,23 @@ struct MathWebView: UIViewRepresentable {
         // Keep the page itself locked; overflowing math uses the DOM container's
         // own horizontal overflow instead of scrolling the WKWebView page.
         webView.scrollView.isScrollEnabled = false
+    }
+
+    private func configureTapRecognizer(on webView: WKWebView, coordinator: Coordinator) {
+        webView.gestureRecognizers?
+            .compactMap { $0 as? MathWebViewTapGestureRecognizer }
+            .forEach { webView.removeGestureRecognizer($0) }
+        webView.scrollView.gestureRecognizers?
+            .compactMap { $0 as? MathWebViewTapGestureRecognizer }
+            .forEach { webView.scrollView.removeGestureRecognizer($0) }
+
+        guard onTap != nil else { return }
+
+        let tapGesture = MathWebViewTapGestureRecognizer(target: coordinator, action: #selector(Coordinator.handleTap))
+        tapGesture.cancelsTouchesInView = false
+        tapGesture.numberOfTapsRequired = 1
+        tapGesture.delegate = coordinator
+        webView.scrollView.addGestureRecognizer(tapGesture)
     }
 
     private func loadContent(in webView: WKWebView, context: Context) {
@@ -416,12 +462,8 @@ struct MathWebView: UIViewRepresentable {
     /// A static, one-time HTML template injected into cached WebViews.
     static var baseHTMLTemplate: String {
         let katexTags: String
-        if let urls = katexBundleURLs() {
-            katexTags = """
-            <link rel="stylesheet" href="\(urls.css)">
-            <script src="\(urls.js)"></script>
-            <script src="\(urls.autoRender)"></script>
-            """
+        if let localTags = MathTextSanitizer.katexLocalHTMLTags() {
+            katexTags = localTags
         } else {
             katexTags = """
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
@@ -460,6 +502,25 @@ struct MathWebView: UIViewRepresentable {
                 overscroll-behavior-x: contain;
             }
             .katex-display::-webkit-scrollbar { display: none; }
+            .katex-inline-scroll {
+                display: block;
+                max-width: 100%;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding: 4px 0;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                touch-action: pan-x;
+                overscroll-behavior-x: contain;
+            }
+            .katex-inline-scroll::-webkit-scrollbar { display: none; }
+            .katex-inline-scroll > .katex {
+                display: inline-block;
+                min-width: max-content;
+            }
+            .katex-inline-boundary {
+                white-space: nowrap;
+            }
             .katex { font-size: 1.08em !important; }
             .katex-error {
                 color: inherit !important;
@@ -498,19 +559,7 @@ struct MathWebView: UIViewRepresentable {
         <div id="content"></div>
         <script>
         const extraMacros = {
-            "\\\\thinspace":    "\\\\,",
-            "\\\\negthinspace": "\\\\!",
-            "\\\\medspace":     "\\\\:",
-            "\\\\thickspace":   "\\\\;",
-            "\\\\R":  "\\\\mathbb{R}",
-            "\\\\N":  "\\\\mathbb{N}",
-            "\\\\Z":  "\\\\mathbb{Z}",
-            "\\\\Q":  "\\\\mathbb{Q}",
-            "\\\\C":  "\\\\mathbb{C}",
-            "\\\\neq": "\\\\mathrel{\\\\not=}",
-            "\\\\ne":  "\\\\mathrel{\\\\not=}",
-            "\\\\eps":      "\\\\varepsilon",
-            "\\\\epsilon":  "\\\\varepsilon"
+        \(MathTextSanitizer.katexExtraMacrosJSObjectLiteral)
         };
         
         let updateTimeout;
@@ -549,13 +598,91 @@ struct MathWebView: UIViewRepresentable {
             } catch(e) { console.error(e); }
 
             clearTimeout(updateTimeout);
-            Array.from(document.querySelectorAll('.katex-display')).forEach(block => {
-                block.onscroll = reportOverflow;
-            });
+            prepareOverflowContainers();
             reportHeight();
             reportOverflow();
             updateTimeout = setTimeout(reportHeight, 50);
             setTimeout(reportOverflow, 50);
+        }
+
+        function prepareOverflowContainers() {
+            const contentDiv = document.getElementById('content');
+            unwrapInlineBoundaryContainers(contentDiv);
+            unwrapInlineOverflowContainers(contentDiv);
+            bindInlineTrailingPunctuation(contentDiv);
+
+            const overflowTargets = [
+                ...Array.from(contentDiv.querySelectorAll('.katex-display'))
+            ];
+
+            const allowOverflow = document.body.dataset.allowDisplayMathOverflowScrolling === '1';
+            if (allowOverflow) {
+                const maxInlineWidth = contentDiv.getBoundingClientRect().width;
+                const inlineKatex = Array.from(contentDiv.querySelectorAll('.katex')).filter(node => !node.closest('.katex-display'));
+
+                inlineKatex.forEach(node => {
+                    const inlineWidth = node.getBoundingClientRect().width;
+                    if (inlineWidth <= maxInlineWidth + 1) { return; }
+
+                    const wrapper = document.createElement('span');
+                    wrapper.className = 'katex-inline-scroll';
+                    node.parentNode.insertBefore(wrapper, node);
+                    wrapper.appendChild(node);
+                    overflowTargets.push(wrapper);
+                });
+            }
+
+            overflowTargets.forEach(block => {
+                block.onscroll = reportOverflow;
+            });
+        }
+
+        function bindInlineTrailingPunctuation(contentDiv) {
+            const inlineKatex = Array.from(contentDiv.querySelectorAll('.katex')).filter(node => !node.closest('.katex-display'));
+
+            inlineKatex.forEach(node => {
+                const next = node.nextSibling;
+                if (!next || next.nodeType !== Node.TEXT_NODE) { return; }
+
+                const text = next.textContent || '';
+                const match = text.match(/^([.,;:!?]+)/);
+                if (!match) { return; }
+
+                const punctuation = match[1];
+                const remainder = text.slice(punctuation.length);
+                const wrapper = document.createElement('span');
+                wrapper.className = 'katex-inline-boundary';
+
+                node.parentNode.insertBefore(wrapper, node);
+                wrapper.appendChild(node);
+                wrapper.appendChild(document.createTextNode(punctuation));
+
+                if (remainder.length > 0) {
+                    next.textContent = remainder;
+                } else {
+                    next.parentNode.removeChild(next);
+                }
+            });
+        }
+
+        function unwrapInlineOverflowContainers(contentDiv) {
+            Array.from(contentDiv.querySelectorAll('.katex-inline-scroll')).forEach(wrapper => {
+                const parent = wrapper.parentNode;
+                while (wrapper.firstChild) {
+                    parent.insertBefore(wrapper.firstChild, wrapper);
+                }
+                parent.removeChild(wrapper);
+            });
+        }
+
+        function unwrapInlineBoundaryContainers(contentDiv) {
+            Array.from(contentDiv.querySelectorAll('.katex-inline-boundary')).forEach(wrapper => {
+                const parent = wrapper.parentNode;
+                while (wrapper.firstChild) {
+                    parent.insertBefore(wrapper.firstChild, wrapper);
+                }
+                parent.removeChild(wrapper);
+            });
         }
 
         function reportHeight() {
@@ -574,7 +701,7 @@ struct MathWebView: UIViewRepresentable {
                 return;
             }
 
-            const displays = Array.from(document.querySelectorAll('.katex-display'));
+            const displays = Array.from(document.querySelectorAll('.katex-display, .katex-inline-scroll'));
             const overflowState = displays.reduce(
                 (state, block) => {
                     const hasOverflow = (block.scrollWidth - block.clientWidth) > 1;
@@ -596,6 +723,7 @@ struct MathWebView: UIViewRepresentable {
 
         if (window.ResizeObserver) {
             new ResizeObserver(() => {
+                prepareOverflowContainers();
                 reportHeight();
                 reportOverflow();
             }).observe(document.getElementById('content'));
@@ -647,27 +775,21 @@ struct MathWebView: UIViewRepresentable {
         return result
     }
 
-    private static func katexBundleURLs() -> (js: String, css: String, autoRender: String)? {
-        guard
-            let js  = Bundle.main.url(forResource: "katex.min",       withExtension: "js"),
-            let css = Bundle.main.url(forResource: "katex.min",       withExtension: "css"),
-            let ar  = Bundle.main.url(forResource: "auto-render.min", withExtension: "js")
-        else { return nil }
-        return (js.absoluteString, css.absoluteString, ar.absoluteString)
-    }
-
-    class Coordinator: NSObject, WKScriptMessageHandler {
+    class Coordinator: NSObject, WKScriptMessageHandler, UIGestureRecognizerDelegate {
         @Binding var contentHeight: CGFloat
         @Binding var horizontalOverflowState: HorizontalOverflowState
         weak var webView: WKWebView? // WEAK reference to break the retain cycle
         var lastRenderedSignature: String = ""
+        var onTap: (() -> Void)?
 
         init(
             contentHeight: Binding<CGFloat>,
-            horizontalOverflowState: Binding<HorizontalOverflowState>
+            horizontalOverflowState: Binding<HorizontalOverflowState>,
+            onTap: (() -> Void)?
         ) {
             _contentHeight = contentHeight
             _horizontalOverflowState = horizontalOverflowState
+            self.onTap = onTap
         }
 
         func userContentController(
@@ -686,6 +808,7 @@ struct MathWebView: UIViewRepresentable {
                     let canScrollLeft = overflowPayload["canScrollLeft"] as? Bool ?? false
                     let canScrollRight = overflowPayload["canScrollRight"] as? Bool ?? false
                     Task { @MainActor in
+                        self.webView?.quizflashHasHorizontalOverflow = canScrollLeft || canScrollRight
                         self.horizontalOverflowState = HorizontalOverflowState(
                             canScrollLeft: canScrollLeft,
                             canScrollRight: canScrollRight
@@ -696,6 +819,7 @@ struct MathWebView: UIViewRepresentable {
 
                 guard let hasOverflow = message.body as? Bool else { return }
                 Task { @MainActor in
+                    self.webView?.quizflashHasHorizontalOverflow = hasOverflow
                     self.horizontalOverflowState = hasOverflow
                         ? HorizontalOverflowState(canScrollLeft: false, canScrollRight: true)
                         : .init()
@@ -719,6 +843,17 @@ struct MathWebView: UIViewRepresentable {
                     }
                 }
             }
+        }
+
+        @objc func handleTap() {
+            onTap?()
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
         }
     }
 }
@@ -790,3 +925,5 @@ private class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
         delegate?.userContentController(userContentController, didReceive: message)
     }
 }
+
+private final class MathWebViewTapGestureRecognizer: UITapGestureRecognizer {}

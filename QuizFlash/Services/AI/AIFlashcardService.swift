@@ -33,7 +33,7 @@ public enum AIServiceError: LocalizedError {
 // =============================================================================
 
 /// The structured JSON contract between GPT and the app for flashcard output.
-struct FlashcardResponseDTO: Codable {
+nonisolated struct FlashcardResponseDTO: Codable {
     struct CardDTO: Codable {
         let question_zones: [String]?
         let question: String? // Fallback if question_zones are intepreted as question by AI
@@ -55,7 +55,7 @@ struct FlashcardResponseDTO: Codable {
 }
 
 /// The structured JSON contract between GPT and the app for quiz output.
-struct QuizResponseDTO: Codable {
+nonisolated struct QuizResponseDTO: Codable {
     struct CardDTO: Codable {
         let question_zones: [String]
         let choices: [String]
@@ -67,7 +67,7 @@ struct QuizResponseDTO: Codable {
 }
 
 /// The structured JSON contract between GPT and the app for dedicated match output.
-struct MatchResponseDTO: Codable {
+nonisolated struct MatchResponseDTO: Codable {
     struct CardDTO: Codable {
         let prompt: String
         let answer: String
@@ -77,7 +77,7 @@ struct MatchResponseDTO: Codable {
 }
 
 /// The structured JSON contract between GPT and the app for write output.
-struct WriteResponseDTO: Codable {
+nonisolated struct WriteResponseDTO: Codable {
     struct CardDTO: Codable {
         let source_text: String
         let omitted_text: String
@@ -87,7 +87,7 @@ struct WriteResponseDTO: Codable {
 }
 
 /// Structured conversion result for flashcard targets, keyed by source index.
-struct FlashcardConversionResponseDTO: Codable {
+nonisolated struct FlashcardConversionResponseDTO: Codable {
     struct ResultDTO: Codable {
         let source_index: Int
         let question_zones: [String]
@@ -98,7 +98,7 @@ struct FlashcardConversionResponseDTO: Codable {
 }
 
 /// Structured conversion result for dedicated match targets, keyed by source index.
-struct MatchConversionResponseDTO: Codable {
+nonisolated struct MatchConversionResponseDTO: Codable {
     struct ResultDTO: Codable {
         let source_index: Int
         let prompt: String
@@ -109,7 +109,7 @@ struct MatchConversionResponseDTO: Codable {
 }
 
 /// Structured conversion result for quiz targets, keyed by source index.
-struct QuizConversionResponseDTO: Codable {
+nonisolated struct QuizConversionResponseDTO: Codable {
     struct ResultDTO: Codable {
         let source_index: Int
         let question_zones: [String]
@@ -122,7 +122,7 @@ struct QuizConversionResponseDTO: Codable {
 }
 
 /// Structured conversion result for write targets, keyed by source index.
-struct WriteConversionResponseDTO: Codable {
+nonisolated struct WriteConversionResponseDTO: Codable {
     struct ResultDTO: Codable {
         let source_index: Int
         let source_text: String
@@ -132,11 +132,11 @@ struct WriteConversionResponseDTO: Codable {
     let results: [ResultDTO]
 }
 
-struct DeckTitleResponseDTO: Codable {
+nonisolated struct DeckTitleResponseDTO: Codable {
     let deck_title: String?
 }
 
-struct AIProviderErrorEnvelope: Decodable {
+nonisolated struct AIProviderErrorEnvelope: Decodable {
     struct APIError: Decodable {
         let message: String?
         let type: String?
@@ -159,15 +159,18 @@ public final class AIFlashcardService: @unchecked Sendable {
 
     let provider: AIProviderProfile
     let session: URLSession
+    let debugTraceStore: AIDebugTraceStore
     let maxCharsPerChunk = 12_000
     let maxConcurrentTextPlanRequests = 6
     let maxConcurrentVisionPlanRequests = 4
     let maxConcurrentConversionRequests = 6
+    let maxConcurrentMatchGenerationRequests = 3
+    let maxConcurrentMatchConversionRequests = 3
     let timeoutIntervalForRequest: TimeInterval = 360
     let timeoutIntervalForResource: TimeInterval = 1_800
     let conversionBatchExecutionTimeoutNanoseconds: UInt64 = 120_000_000_000
     let maxRequestRetryCount = 4
-    let maxMatchQualityAttempts = 3
+    let maxMatchQualityAttempts = 2
     let baseRetryDelayNanoseconds: UInt64 = 1_200_000_000
     let maxRetryDelayNanoseconds: UInt64 = 12_000_000_000
 
@@ -186,9 +189,9 @@ public final class AIFlashcardService: @unchecked Sendable {
     }
 
     protocol RecoverableBatchPlan: Sendable {
-        var targetCards: Int { get }
-        var sourceLabel: String { get }
-        func splitForRecovery() -> [Self]?
+        nonisolated var targetCards: Int { get }
+        nonisolated var sourceLabel: String { get }
+        nonisolated func splitForRecovery() -> [Self]?
     }
 
     struct TextBatchPlan: RecoverableBatchPlan {
@@ -284,11 +287,13 @@ public final class AIFlashcardService: @unchecked Sendable {
     struct MatchGenerationQualityResult {
         let cards: [AIFlashcard]
         let shortfallCount: Int
+        let diagnostics: MatchAIBatchDiagnostics
     }
 
     struct MatchConversionQualityResult {
         let outputs: [AICardConversionOutput]
         let shortfallCount: Int
+        let diagnostics: MatchAIBatchDiagnostics
     }
 
     struct WriteConversionQualityResult {
@@ -300,6 +305,8 @@ public final class AIFlashcardService: @unchecked Sendable {
         let outputs: [AICardConversionOutput]
         let rejectedSourceIDs: Set<PersistentIdentifier>
         let retryHints: [String]
+        let diagnostics: MatchAIBatchDiagnostics
+        let feedbackLines: [String]
     }
 
     struct WriteConversionFilterResult {
@@ -311,14 +318,55 @@ public final class AIFlashcardService: @unchecked Sendable {
     struct GeneratedBatchExecutionResult {
         let cards: [AIFlashcard]
         let shortfallCount: Int
+        let matchDiagnostics: MatchAIBatchDiagnostics?
+    }
+
+    enum MatchAIShortfallReason: String, Codable, Sendable, Hashable {
+        case structurallyRejected
+        case duplicatePair
+        case invalidSourceMapping
+        case providerUnderfilled
+        case exhaustedCandidates
+    }
+
+    struct MatchAIBatchDiagnostics: Sendable, Equatable {
+        var lowQualityAcceptedCount: Int
+        var shortfallReasonCounts: [MatchAIShortfallReason: Int]
+
+        init(
+            lowQualityAcceptedCount: Int = 0,
+            shortfallReasonCounts: [MatchAIShortfallReason: Int] = [:]
+        ) {
+            self.lowQualityAcceptedCount = lowQualityAcceptedCount
+            self.shortfallReasonCounts = shortfallReasonCounts
+        }
+
+        mutating func increment(
+            _ reason: MatchAIShortfallReason,
+            by count: Int = 1
+        ) {
+            guard count > 0 else { return }
+            shortfallReasonCounts[reason, default: 0] += count
+        }
+
+        mutating func merge(_ other: MatchAIBatchDiagnostics) {
+            lowQualityAcceptedCount += other.lowQualityAcceptedCount
+            for (reason, count) in other.shortfallReasonCounts {
+                shortfallReasonCounts[reason, default: 0] += count
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
     // MARK: - Init
     // -------------------------------------------------------------------------
 
-    init(provider: AIProviderProfile) {
+    init(
+        provider: AIProviderProfile,
+        debugTraceStore: AIDebugTraceStore = .shared
+    ) {
         self.provider = provider
+        self.debugTraceStore = debugTraceStore
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = timeoutIntervalForRequest
         config.timeoutIntervalForResource = timeoutIntervalForResource

@@ -180,6 +180,7 @@ final class AppPreferences {
         static let writeAutoFocusesAnswerField = "preferences.playMode.write.autoFocusesAnswerField"
         static let writeKeepsKeyboardVisibleBetweenPrompts = "preferences.playMode.write.keepsKeyboardVisibleBetweenPrompts"
         static let writeShowsAnswerLengthHint = "preferences.playMode.write.showsAnswerLengthHint"
+        static let aiDebugTracingEnabled = AIDebugTracePreferenceKeys.debugTracingEnabled
     }
 
     private let userDefaults: UserDefaults
@@ -364,6 +365,16 @@ final class AppPreferences {
         }
     }
 
+    /// Enables verbose AI generation/conversion tracing for developer debugging.
+    var aiDebugTracingEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                aiDebugTracingEnabled,
+                forKey: Keys.aiDebugTracingEnabled
+            )
+        }
+    }
+
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.weekStartDay = AppWeekStartDayPreference(
@@ -419,6 +430,9 @@ final class AppPreferences {
         ) as? Bool ?? true
         self.writeShowsAnswerLengthHint = userDefaults.object(
             forKey: Keys.writeShowsAnswerLengthHint
+        ) as? Bool ?? true
+        self.aiDebugTracingEnabled = userDefaults.object(
+            forKey: Keys.aiDebugTracingEnabled
         ) as? Bool ?? true
     }
 

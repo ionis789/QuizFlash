@@ -11,7 +11,7 @@ import SwiftData
 
 @MainActor
 final class MatchConversionPipelineTests: XCTestCase {
-    func testFilterAcceptedMatchConversionOutputsRejectsVerbosePairsAndPreservesSourceMapping() throws {
+    func testFilterAcceptedMatchConversionOutputsAcceptsVerbosePairsSoftlyAndPreservesSourceMapping() throws {
         let context = try TestModelContainerFactory.makeContext()
         let deck = DeckModel(title: "Algorithms", icon: "book", colorHex: "#112233")
         let compactSource = TestMutationFactory.makePersistedCard(
@@ -49,18 +49,74 @@ final class MatchConversionPipelineTests: XCTestCase {
             )
         ])
 
-        XCTAssertEqual(result.outputs.count, 1)
-        XCTAssertEqual(result.outputs.first?.sourceCardID, compactSource.persistentModelID)
-        XCTAssertTrue(result.rejectedSourceIDs.contains(verboseSource.persistentModelID))
+        XCTAssertEqual(result.outputs.count, 2)
+        XCTAssertEqual(result.outputs[0].sourceCardID, compactSource.persistentModelID)
+        XCTAssertEqual(result.outputs[1].sourceCardID, verboseSource.persistentModelID)
+        XCTAssertTrue(result.rejectedSourceIDs.isEmpty)
+        XCTAssertEqual(result.diagnostics.lowQualityAcceptedCount, 1)
 
-        guard case .match(let acceptedContent) = result.outputs.first?.generatedCard.content else {
-            return XCTFail("Expected the accepted conversion output to stay a Match card.")
+        guard
+            case .match(let compactContent) = result.outputs.first?.generatedCard.content,
+            case .match(let verboseContent) = result.outputs.last?.generatedCard.content
+        else {
+            return XCTFail("Expected the accepted conversion outputs to stay Match cards.")
         }
 
-        XCTAssertEqual(acceptedContent.prompt, "BFS")
-        XCTAssertEqual(acceptedContent.answer, "Breadth-first search")
-        XCTAssertEqual(result.retryHints.count, 1)
-        XCTAssertTrue(result.retryHints[0].contains("adjacency matrix"))
+        XCTAssertEqual(compactContent.prompt, "BFS")
+        XCTAssertEqual(compactContent.answer, "Breadth-first search")
+        XCTAssertTrue(verboseContent.prompt.contains("adjacency matrix"))
+        XCTAssertTrue(result.retryHints.isEmpty)
+    }
+
+    func testFilterAcceptedMatchConversionOutputsRejectsDuplicateAndStructurallyBrokenPairs() throws {
+        let context = try TestModelContainerFactory.makeContext()
+        let deck = DeckModel(title: "Algorithms", icon: "book", colorHex: "#112233")
+        let firstSource = TestMutationFactory.makePersistedCard(
+            content: TestMutationFactory.flashcard(front: "BFS", back: "Breadth-first search"),
+            cardNumber: 1
+        )
+        let secondSource = TestMutationFactory.makePersistedCard(
+            content: TestMutationFactory.flashcard(front: "DFS", back: "Depth-first search"),
+            cardNumber: 2
+        )
+        let thirdSource = TestMutationFactory.makePersistedCard(
+            content: TestMutationFactory.flashcard(front: "Queue", back: "FIFO"),
+            cardNumber: 3
+        )
+
+        context.insert(deck)
+        context.insert(firstSource)
+        context.insert(secondSource)
+        context.insert(thirdSource)
+        deck.cards = [firstSource, secondSource, thirdSource]
+        deck.cardCount = 3
+        deck.lastAssignedCardNumber = 3
+        try context.save()
+
+        let result = AIFlashcardService(provider: makeProvider()).filterAcceptedMatchConversionOutputs([
+            AICardConversionOutput(
+                sourceCardID: firstSource.persistentModelID,
+                generatedCard: AIFlashcard(matchPrompt: "BFS", matchAnswer: "Breadth-first search")
+            ),
+            AICardConversionOutput(
+                sourceCardID: secondSource.persistentModelID,
+                generatedCard: AIFlashcard(matchPrompt: "BFS", matchAnswer: "Breadth-first search")
+            ),
+            AICardConversionOutput(
+                sourceCardID: thirdSource.persistentModelID,
+                generatedCard: AIFlashcard(matchPrompt: "   ", matchAnswer: "FIFO")
+            )
+        ])
+
+        XCTAssertEqual(result.outputs.count, 1)
+        XCTAssertEqual(result.outputs.first?.sourceCardID, firstSource.persistentModelID)
+        XCTAssertEqual(
+            result.rejectedSourceIDs,
+            Set([secondSource.persistentModelID, thirdSource.persistentModelID])
+        )
+        XCTAssertEqual(result.diagnostics.shortfallReasonCounts[.duplicatePair], 1)
+        XCTAssertEqual(result.diagnostics.shortfallReasonCounts[.structurallyRejected], 1)
+        XCTAssertEqual(result.retryHints.count, 2)
     }
 
     func testFilterAcceptedWriteConversionOutputsRejectsUnanchoredBlanksAndPreservesSourceMapping() throws {

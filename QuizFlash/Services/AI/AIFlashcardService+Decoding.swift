@@ -3,17 +3,28 @@ import UIKit
 import SwiftData
 
 extension AIFlashcardService {
-    func parseResponseContent(from data: Data) throws -> String {
+    func parseResponseContent(from data: Data) async throws -> String {
         guard
             let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let choices = json["choices"] as? [[String: Any]],
             let first = choices.first,
             let message = first["message"] as? [String: Any]
         else {
+            await trace(
+                .decodeFailed,
+                "Failed to extract provider response content envelope.",
+                payload: String(decoding: data, as: UTF8.self)
+            )
             throw AIServiceError.parsingFailed
         }
 
         if let content = message["content"] as? String {
+            await trace(
+                .responseContentExtracted,
+                "Extracted string response content.",
+                metadata: ["content_length": String(content.count)],
+                payload: content
+            )
             return content
         }
 
@@ -25,10 +36,21 @@ extension AIFlashcardService {
             .joined(separator: "\n")
 
             if !text.isEmpty {
+                await trace(
+                    .responseContentExtracted,
+                    "Extracted multipart response content.",
+                    metadata: ["content_length": String(text.count)],
+                    payload: text
+                )
                 return text
             }
         }
 
+        await trace(
+            .decodeFailed,
+            "Provider response content was empty after extraction.",
+            payload: String(decoding: data, as: UTF8.self)
+        )
         throw AIServiceError.parsingFailed
     }
 
@@ -69,7 +91,7 @@ extension AIFlashcardService {
     func decodeGeneratedCards(
         from jsonString: String,
         contract: AIGeneratedCardContract
-    ) throws -> [AIFlashcard] {
+    ) async throws -> [AIFlashcard] {
         // Strip markdown code fences if present (shouldn't happen with json_object mode, but defensive)
         var clean = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -86,17 +108,35 @@ extension AIFlashcardService {
 
         clean = fixLatexEscaping(in: clean)
         guard let data = clean.data(using: .utf8) else {
+            await trace(
+                .decodeFailed,
+                "Failed to materialize cleaned generated-card JSON as UTF-8 data.",
+                metadata: ["contract": String(describing: contract)],
+                payload: clean
+            )
             throw AIServiceError.parsingFailed
         }
 
+        await trace(
+            .decodePrepared,
+            "Prepared generated-card JSON for decoding.",
+            metadata: [
+                "contract": String(describing: contract),
+                "clean_json_length": String(clean.count)
+            ],
+            payload: clean
+        )
+
         do {
+            let decodedCards: [AIFlashcard]
+
             switch contract {
             case .flashcard:
                 let dto = try JSONDecoder().decode(FlashcardResponseDTO.self, from: data)
                 let cards = dto.resolvedCards
                 guard !cards.isEmpty else { throw AIServiceError.parsingFailed }
 
-                return cards.map { card in
+                let mappedCards = cards.map { card in
                     let questionZones = sanitizedZoneStrings(card.resolvedQuestionZones)
                     let answerZones = sanitizedZoneStrings(card.answer_zones)
 
@@ -110,11 +150,12 @@ extension AIFlashcardService {
                         )
                     )
                 }
+                decodedCards = mappedCards
             case .match:
                 let dto = try JSONDecoder().decode(MatchResponseDTO.self, from: data)
                 guard !dto.cards.isEmpty else { throw AIServiceError.parsingFailed }
 
-                return try dto.cards.map { card in
+                let mappedCards = try dto.cards.map { card in
                     let prompt = normalizedMatchText(card.prompt)
                     let answer = normalizedMatchText(card.answer)
 
@@ -132,11 +173,12 @@ extension AIFlashcardService {
                         )
                     )
                 }
+                decodedCards = mappedCards
             case .quiz:
                 let dto = try JSONDecoder().decode(QuizResponseDTO.self, from: data)
                 guard !dto.cards.isEmpty else { throw AIServiceError.parsingFailed }
 
-                return try dto.cards.map { card in
+                let mappedCards = try dto.cards.map { card in
                     let questionZones = sanitizedZoneStrings(card.question_zones)
                     let choices = card.choices
                         .map { AIZoneParser.sanitizeLatex($0).trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -160,11 +202,12 @@ extension AIFlashcardService {
                         )
                     )
                 }
+                decodedCards = mappedCards
             case .write:
                 let dto = try JSONDecoder().decode(WriteResponseDTO.self, from: data)
                 guard !dto.cards.isEmpty else { throw AIServiceError.parsingFailed }
 
-                return try dto.cards.map { card in
+                let mappedCards = try dto.cards.map { card in
                     let sourceText = AIZoneParser.sanitizeLatex(card.source_text)
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                     let omittedText = AIZoneParser.sanitizeLatex(card.omitted_text)
@@ -184,8 +227,28 @@ extension AIFlashcardService {
                         )
                     )
                 }
+                decodedCards = mappedCards
             }
+
+            await trace(
+                .decodeSucceeded,
+                "Decoded generated cards successfully.",
+                metadata: [
+                    "contract": String(describing: contract),
+                    "decoded_count": String(decodedCards.count)
+                ]
+            )
+            return decodedCards
         } catch {
+            await trace(
+                .decodeFailed,
+                "Generated-card decoding failed.",
+                metadata: [
+                    "contract": String(describing: contract),
+                    "error": String(describing: error)
+                ],
+                payload: clean
+            )
             throw AIServiceError.parsingFailed
         }
     }
@@ -194,7 +257,7 @@ extension AIFlashcardService {
         from jsonString: String,
         sourceCards: [AICardConversionSource],
         contract: AIGeneratedCardContract
-    ) throws -> [AICardConversionOutput] {
+    ) async throws -> [AICardConversionOutput] {
         var clean = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if clean.hasPrefix("```json") {
@@ -208,15 +271,36 @@ extension AIFlashcardService {
 
         clean = fixLatexEscaping(in: clean.trimmingCharacters(in: .whitespacesAndNewlines))
         guard let data = clean.data(using: .utf8) else {
+            await trace(
+                .decodeFailed,
+                "Failed to materialize cleaned conversion JSON as UTF-8 data.",
+                metadata: [
+                    "contract": String(describing: contract),
+                    "source_count": String(sourceCards.count)
+                ],
+                payload: clean
+            )
             throw AIServiceError.parsingFailed
         }
+
+        await trace(
+            .decodePrepared,
+            "Prepared conversion JSON for decoding.",
+            metadata: [
+                "contract": String(describing: contract),
+                "source_count": String(sourceCards.count),
+                "clean_json_length": String(clean.count)
+            ],
+            payload: clean
+        )
 
         func mappedOutputs<T>(
             _ results: [T],
             sourceIndex: (T) -> Int,
+            requireFullCoverage: Bool = true,
             makeCard: (T) throws -> AIFlashcard
         ) throws -> [AICardConversionOutput] {
-            guard results.count == sourceCards.count else {
+            if requireFullCoverage, results.count != sourceCards.count {
                 throw AIServiceError.parsingFailed
             }
 
@@ -232,17 +316,21 @@ extension AIFlashcardService {
             }
 
             let uniqueSourceIDs = Set(outputs.map(\.sourceCardID))
-            guard uniqueSourceIDs.count == sourceCards.count else {
+            let expectedUniqueCount = requireFullCoverage ? sourceCards.count : outputs.count
+            guard uniqueSourceIDs.count == expectedUniqueCount else {
                 throw AIServiceError.parsingFailed
             }
 
             return outputs
         }
 
-        switch contract {
+        do {
+            let outputs: [AICardConversionOutput]
+
+            switch contract {
         case .flashcard:
             let dto = try JSONDecoder().decode(FlashcardConversionResponseDTO.self, from: data)
-            return try mappedOutputs(dto.results, sourceIndex: \.source_index) { result in
+            outputs = try mappedOutputs(dto.results, sourceIndex: \.source_index) { result in
                 AIFlashcard(
                     content: .flashcard(
                         AIFlashcardContent(
@@ -254,7 +342,11 @@ extension AIFlashcardService {
             }
         case .match:
             let dto = try JSONDecoder().decode(MatchConversionResponseDTO.self, from: data)
-            return try mappedOutputs(dto.results, sourceIndex: \.source_index) { result in
+            outputs = try mappedOutputs(
+                dto.results,
+                sourceIndex: \.source_index,
+                requireFullCoverage: false
+            ) { result in
                 AIFlashcard(
                     content: .match(
                         AIMatchCardContent(
@@ -266,7 +358,7 @@ extension AIFlashcardService {
             }
         case .quiz:
             let dto = try JSONDecoder().decode(QuizConversionResponseDTO.self, from: data)
-            return try mappedOutputs(dto.results, sourceIndex: \.source_index) { result in
+            outputs = try mappedOutputs(dto.results, sourceIndex: \.source_index) { result in
                 let questionZones = sanitizedZoneStrings(result.question_zones)
                 let choices = result.choices
                     .map { AIZoneParser.sanitizeLatex($0).trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -291,7 +383,7 @@ extension AIFlashcardService {
             }
         case .write:
             let dto = try JSONDecoder().decode(WriteConversionResponseDTO.self, from: data)
-            return try mappedOutputs(dto.results, sourceIndex: \.source_index) { result in
+            outputs = try mappedOutputs(dto.results, sourceIndex: \.source_index) { result in
                 let sourceText = AIZoneParser.sanitizeLatex(result.source_text)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 let omittedText = AIZoneParser.sanitizeLatex(result.omitted_text)
@@ -310,6 +402,29 @@ extension AIFlashcardService {
                     )
                 )
             }
+        }
+            await trace(
+                .decodeSucceeded,
+                "Decoded conversion outputs successfully.",
+                metadata: [
+                    "contract": String(describing: contract),
+                    "decoded_count": String(outputs.count),
+                    "source_count": String(sourceCards.count)
+                ]
+            )
+            return outputs
+        } catch {
+            await trace(
+                .decodeFailed,
+                "Conversion decoding failed.",
+                metadata: [
+                    "contract": String(describing: contract),
+                    "source_count": String(sourceCards.count),
+                    "error": String(describing: error)
+                ],
+                payload: clean
+            )
+            throw AIServiceError.parsingFailed
         }
     }
 

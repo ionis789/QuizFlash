@@ -32,9 +32,12 @@ extension CreateDeckViewModel {
             aiGenerationBaseCardCount = draftCards.count
             aiTargetCardCount = targetCardCount
             aiGeneratedCardCount = 0
+            aiAccumulatedGenerationDuration = 0
         } else if aiTargetCardCount == 0 {
             aiTargetCardCount = aiGeneratedCardCount + targetCardCount
         }
+
+        aiGenerationStartedAt = Date()
 
         aiBackgroundCoordinator.beginSession(id: sessionID) { [weak self] in
             self?.pauseAIGeneration(isBackgroundTimeout: true)
@@ -108,7 +111,7 @@ extension CreateDeckViewModel {
             try Task.checkCancellation()
             if aiGeneratedShortfallCount > 0 {
                 throw AIServiceError.unknown(
-                    "Generated \(aiGeneratedCardCount) high-quality Match card\(aiGeneratedCardCount == 1 ? "" : "s"). \(aiGeneratedShortfallCount) requested card\(aiGeneratedShortfallCount == 1 ? "" : "s") were rejected as too verbose."
+                    "Generated \(aiGeneratedCardCount) Match card\(aiGeneratedCardCount == 1 ? "" : "s"). \(aiGeneratedShortfallCount) requested card\(aiGeneratedShortfallCount == 1 ? "" : "s") could not be completed from the available candidates."
                 )
             }
             completeAIGeneration()
@@ -267,8 +270,7 @@ extension CreateDeckViewModel {
         aiGenerationTask = nil
         resetAIGenerationRevealPipeline()
         showAICancelDialog = false
-
-
+        finalizeAIGenerationClock()
 
         aiState = .idle
         pdfAnalysis = nil
@@ -284,6 +286,8 @@ extension CreateDeckViewModel {
         aiGenerationSessionID = nil
         remainingAIAllocations = []
         aiGeneratedShortfallCount = 0
+        aiGenerationStartedAt = nil
+        aiAccumulatedGenerationDuration = 0
         aiRevealedGeneratedCardIDs.removeAll()
         clearAIGenerationPauseState()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -308,8 +312,7 @@ extension CreateDeckViewModel {
         pendingAIDeckTitleRequestID = nil
         resetAIGenerationRevealPipeline()
         showAICancelDialog = false
-
-
+        finalizeAIGenerationClock()
 
         pdfAnalysis = nil
         preparedAISource = nil
@@ -320,6 +323,8 @@ extension CreateDeckViewModel {
         aiGenerationSessionID = nil
         remainingAIAllocations = []
         aiGeneratedShortfallCount = 0
+        aiGenerationStartedAt = nil
+        aiAccumulatedGenerationDuration = 0
         aiRevealedGeneratedCardIDs.removeAll()
         clearAIGenerationPauseState()
         aiState = .error(error.localizedDescription)
@@ -345,8 +350,7 @@ extension CreateDeckViewModel {
 
     func cancelAIGeneration(keepingGeneratedCards: Bool) {
         showAICancelDialog = false
-
-
+        finalizeAIGenerationClock()
 
         cancelAIGenerationTask()
 
@@ -366,6 +370,8 @@ extension CreateDeckViewModel {
         aiGenerationSessionID = nil
         remainingAIAllocations = []
         aiGeneratedShortfallCount = 0
+        aiGenerationStartedAt = nil
+        aiAccumulatedGenerationDuration = 0
         aiRevealedGeneratedCardIDs.removeAll()
         aiSessionDraftCardIDs.removeAll()
         clearAIGenerationPauseState()
@@ -391,6 +397,7 @@ extension CreateDeckViewModel {
         pendingAIDeckTitleRequestID = nil
         resetAIGenerationRevealPipeline()
         showAICancelDialog = false
+        finalizeAIGenerationClock()
         isAIGenerationPaused = true
         isManualPauseInProgress = isBackgroundTimeout
         
@@ -470,6 +477,8 @@ extension CreateDeckViewModel {
         self.aiTargetCardCount = session.targetCardCount
         self.aiGeneratedCardCount = session.generatedCardCount
         self.aiGenerationBaseCardCount = session.baseCardCount
+        self.aiGenerationStartedAt = nil
+        self.aiAccumulatedGenerationDuration = 0
         self.aiGenerationOptions = session.options
         self.remainingAIAllocations = session.remainingAllocations
         self.draftCards = session.draftCards
@@ -559,6 +568,7 @@ extension CreateDeckViewModel {
         isAIGenerationPaused = false
         isAIGenerationPausedForBackground = false
         isManualPauseInProgress = false
+        aiGenerationStartedAt = Date()
         
         guard let source = preparedAISource else { return }
         guard let aiService = makeAIService() else { return }
@@ -583,6 +593,12 @@ extension CreateDeckViewModel {
 
 
 
+    }
+
+    func finalizeAIGenerationClock(referenceDate: Date = Date()) {
+        guard let startedAt = aiGenerationStartedAt else { return }
+        aiAccumulatedGenerationDuration += max(0, referenceDate.timeIntervalSince(startedAt))
+        aiGenerationStartedAt = nil
     }
 
     func resumeAllocations(

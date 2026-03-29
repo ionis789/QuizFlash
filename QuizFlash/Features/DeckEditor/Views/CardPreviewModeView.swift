@@ -23,6 +23,7 @@ struct CardPreviewModeView: View {
 
     @State private var isFlipped = false
     @State private var topChromeHeight: CGFloat = 0
+    @State private var swipeFeedback = SwipeCardFeedbackState()
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -127,7 +128,8 @@ struct CardPreviewModeView: View {
                 FlipCard(
                     frontZone: flashcardContent.frontZone,
                     backZone: flashcardContent.backZone,
-                    isFlipped: $isFlipped
+                    isFlipped: $isFlipped,
+                    swipeFeedback: swipeFeedback
                 )
                 .frame(maxWidth: .infinity)
                 .frame(height: availableCardHeight)
