@@ -157,14 +157,14 @@ struct FlashCardsPlayModeView: View {
                     )
                     .id(card.id)
                     .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.96)),
+                        insertion: .identity,
                         removal: .opacity
                     ))
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.spring(response: 0.22, dampingFraction: 0.82), value: viewModel.currentIndex)
+        .animation(.spring(response: 0.20, dampingFraction: 0.86), value: viewModel.currentIndex)
     }
 
     // MARK: - Header

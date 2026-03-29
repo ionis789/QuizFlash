@@ -92,6 +92,12 @@ Write and review code for QuizFlash using the repository's architecture rules in
    - Disable parallel testing for local verification unless the user explicitly wants parallel runs.
    - Unless the user explicitly asks for a different target, default to the currently active simulator set for this repo: `iPhone 15 Pro (iOS 17.5)`.
    - When reporting verification, prefer targeted `xcodebuild` test runs against that active simulator instead of broader generic destinations.
+   - For app run verification after a code change, prefer physical-device `build + install + launch` when the user's wired device `iPhoneIS` is connected:
+     `iPhone 13 Pro`
+     Xcode destination id: `00008110-00041841340A401E`
+     CoreDevice identifier: `C0558BFB-25CA-5399-A247-927C3D727AA7`
+   - On that device path, build with `xcodebuild` for the device destination, then install and launch with `xcrun devicectl device install app` and `xcrun devicectl device process launch`.
+   - If that device is not connected, fall back to `build + run` on the currently active simulator instead of asking the user to press Run in Xcode.
    - For layout-sensitive UI work, also do a manual visual pass on iPad-sized and resizable widths when the changed screen supports them, especially for sticky headers, compact calendar states, floating chrome, and multi-column/dashboard surfaces.
 5. Extend the regression net when fixing a bug.
    - If a data-flow bug is discovered while testing, fix the fixture or production code at the root cause and keep the new test as a permanent guardrail.
