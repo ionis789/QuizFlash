@@ -22,6 +22,13 @@ import UIKit
 /// This view only reads observable state and calls ViewModel methods.
 struct FlashCardsPlayModeView: View {
 
+    private struct BufferedCardEntry: Identifiable {
+        let displayIndex: Int
+        let card: PlayableCard
+
+        var id: PersistentIdentifier { card.id }
+    }
+
     // MARK: - Environment
 
     @Environment(\.dismiss) private var dismiss
@@ -48,6 +55,9 @@ struct FlashCardsPlayModeView: View {
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var chromeButtonSize: CGFloat { UIConstants.Size.capsuleHeight }
+    private var preloadBufferDepth: Int { 2 }
+    private var promotedCardScale: CGFloat { 0.952 }
+    private var promotedCardSpring: Animation { .spring(response: 0.36, dampingFraction: 0.84) }
     private var resolvedDeckTitle: String {
         let trimmedTitle = viewModel.deck.title.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedTitle.isEmpty ? "Untitled Deck" : trimmedTitle
@@ -141,32 +151,55 @@ struct FlashCardsPlayModeView: View {
     private var cardArea: some View {
         ZStack {
             if viewModel.isSessionStarted {
-                if !viewModel.cards.isEmpty && viewModel.currentIndex < viewModel.cards.count {
-                    let index = viewModel.currentIndex
-                    let card = viewModel.cards[index]
+                let bufferedCards = bufferedCardEntries
 
+                if !bufferedCards.isEmpty {
                     @Bindable var bindableViewModel = viewModel
 
-                    GameplayCard(
-                        card: card,
-                        onSwipe: { direction in
-                            viewModel.handleSwipe(direction)
-                        },
-                        allowsTapToFlip: viewModel.settings.flipBehavior == .tapToFlip,
-                        tapAnimationStyle: viewModel.settings.tapAnimationStyle,
-                        staticSwapTextMotion: viewModel.settings.staticSwapTextMotion,
-                        isFlipped: $bindableViewModel.isFlipped
-                    )
-                    .id(card.id)
-                    .transition(.asymmetric(
-                        insertion: .identity,
-                        removal: .opacity
-                    ))
+                    ForEach(bufferedCards) { entry in
+                        let isCurrentCard = entry.card.id == currentPlayableCard?.id
+                        let flipBinding = isCurrentCard
+                            ? $bindableViewModel.isFlipped
+                            : .constant(viewModel.settings.revealFlow == .answerFirst)
+
+                        GameplayCard(
+                            card: entry.card,
+                            onSwipe: { direction in
+                                viewModel.handleSwipe(direction)
+                            },
+                            isInteractionEnabled: isCurrentCard,
+                            allowsTapToFlip: viewModel.settings.flipBehavior == .tapToFlip,
+                            tapAnimationStyle: viewModel.settings.tapAnimationStyle,
+                            staticSwapTextMotion: viewModel.settings.staticSwapTextMotion,
+                            isFlipped: flipBinding
+                        )
+                        .opacity(isCurrentCard ? 1 : 0.001)
+                        .scaleEffect(isCurrentCard ? 1 : promotedCardScale)
+                        .allowsHitTesting(isCurrentCard)
+                        .accessibilityHidden(!isCurrentCard)
+                        .zIndex(isCurrentCard ? 10 : Double(preloadBufferDepth - (entry.displayIndex - viewModel.currentIndex)))
+                        .animation(promotedCardSpring, value: isCurrentCard)
+                        .transition(.asymmetric(
+                            insertion: .identity,
+                            removal: .opacity
+                        ))
+                    }
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.spring(response: 0.20, dampingFraction: 0.86), value: viewModel.currentIndex)
+    }
+
+    private var bufferedCardEntries: [BufferedCardEntry] {
+        guard !viewModel.cards.isEmpty, viewModel.currentIndex < viewModel.cards.count else { return [] }
+        let upperBound = min(viewModel.cards.count, viewModel.currentIndex + preloadBufferDepth + 1)
+        return Array(viewModel.cards[viewModel.currentIndex..<upperBound].enumerated()).map { offset, card in
+            BufferedCardEntry(
+                displayIndex: viewModel.currentIndex + offset,
+                card: card
+            )
+        }
     }
 
     // MARK: - Header

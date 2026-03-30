@@ -125,6 +125,7 @@ final class SwipeCardFeedbackState {
 struct SwipeableCard<Content: View>: View {
     let onSwipe: (SwipeDirection) -> Void
     let onTap: (() -> Void)?
+    let isInteractionEnabled: Bool
     let onSwipeProgress: ((SwipeDirection?, CGFloat) -> Void)?
     @ViewBuilder let content: () -> Content
 
@@ -132,6 +133,7 @@ struct SwipeableCard<Content: View>: View {
         _SwipeHost(
             onSwipe: onSwipe,
             onTap: onTap,
+            isInteractionEnabled: isInteractionEnabled,
             onSwipeProgress: onSwipeProgress,
             content: content
         )
@@ -231,11 +233,17 @@ final class _FixedContainer: UIView {
 private struct _SwipeHost<Content: View>: UIViewRepresentable {
     let onSwipe: (SwipeDirection) -> Void
     let onTap: (() -> Void)?
+    let isInteractionEnabled: Bool
     let onSwipeProgress: ((SwipeDirection?, CGFloat) -> Void)?
     let content: () -> Content
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onSwipe: onSwipe, onTap: onTap, onSwipeProgress: onSwipeProgress)
+        Coordinator(
+            onSwipe: onSwipe,
+            onTap: onTap,
+            isInteractionEnabled: isInteractionEnabled,
+            onSwipeProgress: onSwipeProgress
+        )
     }
 
     func makeUIView(context: Context) -> _FixedContainer {
@@ -281,6 +289,12 @@ private struct _SwipeHost<Content: View>: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: _FixedContainer, context: Context) {
+        context.coordinator.updateCallbacks(
+            onSwipe: onSwipe,
+            onTap: onTap,
+            isInteractionEnabled: isInteractionEnabled,
+            onSwipeProgress: onSwipeProgress
+        )
         guard !context.coordinator.isDragging else { return }
         context.coordinator.host?.rootView = content()
         DispatchQueue.main.async {
@@ -318,9 +332,10 @@ extension _SwipeHost {
 
         // MARK: Callbacks & references
 
-        let onSwipe: (SwipeDirection) -> Void
-        let onTap: (() -> Void)?
-        let onSwipeProgress: ((SwipeDirection?, CGFloat) -> Void)?
+        var onSwipe: (SwipeDirection) -> Void
+        var onTap: (() -> Void)?
+        var onSwipeProgress: ((SwipeDirection?, CGFloat) -> Void)?
+        private var isInteractionEnabled: Bool
 
         weak var fixed: _FixedContainer?
         weak var draggable: UIView?
@@ -381,10 +396,12 @@ extension _SwipeHost {
         init(
             onSwipe: @escaping (SwipeDirection) -> Void,
             onTap: (() -> Void)?,
+            isInteractionEnabled: Bool,
             onSwipeProgress: ((SwipeDirection?, CGFloat) -> Void)?
         ) {
             self.onSwipe = onSwipe
             self.onTap = onTap
+            self.isInteractionEnabled = isInteractionEnabled
             self.onSwipeProgress = onSwipeProgress
         }
 
@@ -430,11 +447,32 @@ extension _SwipeHost {
             let workItem = DispatchWorkItem { [weak self] in
                 guard let self else { return }
                 self.entranceUnlockWorkItem = nil
-                self.fixed?.isUserInteractionEnabled = true
-                self.draggable?.isUserInteractionEnabled = true
+                self.syncInteractionEnabled()
             }
             entranceUnlockWorkItem = workItem
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
+        }
+
+        func updateCallbacks(
+            onSwipe: @escaping (SwipeDirection) -> Void,
+            onTap: (() -> Void)?,
+            isInteractionEnabled: Bool,
+            onSwipeProgress: ((SwipeDirection?, CGFloat) -> Void)?
+        ) {
+            self.onSwipe = onSwipe
+            self.onTap = onTap
+            self.isInteractionEnabled = isInteractionEnabled
+            self.onSwipeProgress = onSwipeProgress
+            syncInteractionEnabled()
+        }
+
+        private func syncInteractionEnabled() {
+            guard !isDragging, !isExiting else { return }
+            let tapEnabled = isInteractionEnabled && onTap != nil
+            fixed?.isUserInteractionEnabled = isInteractionEnabled
+            draggable?.isUserInteractionEnabled = isInteractionEnabled
+            cardPanGesture?.isEnabled = isInteractionEnabled
+            cardTapGesture?.isEnabled = tapEnabled
         }
 
         // MARK: Gesture dependency refresh
@@ -456,6 +494,7 @@ extension _SwipeHost {
         // MARK: Gesture recogniser delegate
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard isInteractionEnabled else { return false }
             guard !isExiting else { return false }
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
                   let view = pan.view else { return true }
@@ -471,6 +510,7 @@ extension _SwipeHost {
             _ gestureRecognizer: UIGestureRecognizer,
             shouldReceive touch: UITouch
         ) -> Bool {
+            guard isInteractionEnabled else { return false }
             if gestureRecognizer === cardPanGesture {
                 return !isTouchInsideScrollableHostedWebView(touch.view)
             }

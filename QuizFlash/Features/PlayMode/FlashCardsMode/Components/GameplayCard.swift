@@ -34,6 +34,12 @@ struct GameplayCard: View {
     /// Called by `SwipeableCard` when the user completes a horizontal swipe.
     let onSwipe: (SwipeDirection) -> Void
 
+    /// Controls whether the UIKit gesture layer should currently accept input.
+    ///
+    /// Preloaded upcoming cards stay mounted with interaction disabled so their
+    /// rich content can finish rendering before they become visible.
+    let isInteractionEnabled: Bool
+
     /// `true` when tapping the card should toggle between question and answer.
     let allowsTapToFlip: Bool
 
@@ -52,13 +58,14 @@ struct GameplayCard: View {
     // MARK: - Body
 
     private var tapHandler: (() -> Void)? {
-        allowsTapToFlip ? { handleTap() } : nil
+        (isInteractionEnabled && allowsTapToFlip) ? { handleTap() } : nil
     }
 
     var body: some View {
         SwipeableCard(
             onSwipe: onSwipe,
             onTap: tapHandler,
+            isInteractionEnabled: isInteractionEnabled,
             onSwipeProgress: { direction, intensity in
                 swipeFeedback.update(direction: direction, intensity: intensity)
             }
@@ -78,7 +85,7 @@ struct GameplayCard: View {
 
     /// Toggles the card between question and answer faces using the selected tap animation.
     private func handleTap() {
-        guard allowsTapToFlip else { return }
+        guard isInteractionEnabled, allowsTapToFlip else { return }
         if let tapAnimation = resolvedTapAnimation {
             withAnimation(tapAnimation) {
                 isFlipped.toggle()
