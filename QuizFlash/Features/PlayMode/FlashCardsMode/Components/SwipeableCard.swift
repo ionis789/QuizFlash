@@ -214,7 +214,7 @@ final class _FixedContainer: UIView {
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        guard !isHidden, alpha > 0.01 else { return nil }
+        guard !isHidden, alpha > 0.01, isUserInteractionEnabled else { return nil }
         if let card = draggableCard {
             let p = convert(point, to: card)
             if let hit = card.hitTest(p, with: event) { return hit }
@@ -360,6 +360,12 @@ extension _SwipeHost {
         private var displayLink: CADisplayLink?
         private var activeAnimator: UIViewPropertyAnimator?
         private var pendingSwipeCommit: DispatchWorkItem?
+        private var pendingSwipeDirection: SwipeDirection?
+        private var exitHandoffLink: CADisplayLink?
+        private weak var exitObservedCard: UIView?
+        private var exitObservedDirection: SwipeDirection?
+        private var exitRevealMargin: CGFloat = 26
+        private var entranceUnlockWorkItem: DispatchWorkItem?
         private var hapticFired = false
         private let haptic = UIImpactFeedbackGenerator(style: .medium)
 
@@ -383,6 +389,8 @@ extension _SwipeHost {
         deinit {
             activeAnimator?.stopAnimation(true)
             pendingSwipeCommit?.cancel()
+            entranceUnlockWorkItem?.cancel()
+            stopExitHandoffObservation()
         }
 
         // MARK: Setup
@@ -397,6 +405,10 @@ extension _SwipeHost {
             self.fixed = fixed
             self.draggable = draggable
             self.host = host
+            entranceUnlockWorkItem?.cancel()
+            entranceUnlockWorkItem = nil
+            fixed.isUserInteractionEnabled = false
+            draggable.isUserInteractionEnabled = false
 
             CATransaction.begin()
             CATransaction.setDisableActions(true)
@@ -408,10 +420,19 @@ extension _SwipeHost {
                 delay: 0,
                 usingSpringWithDamping: 0.72,
                 initialSpringVelocity: 0,
-                options: []
+                options: [.allowUserInteraction, .beginFromCurrentState]
             ) { [weak draggable] in
                 draggable?.transform = .identity
             }
+
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.entranceUnlockWorkItem = nil
+                self.fixed?.isUserInteractionEnabled = true
+                self.draggable?.isUserInteractionEnabled = true
+            }
+            entranceUnlockWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
         }
 
         // MARK: Gesture dependency refresh
@@ -496,9 +517,13 @@ extension _SwipeHost {
                 activeAnimator = nil
                 pendingSwipeCommit?.cancel()
                 pendingSwipeCommit = nil
+                pendingSwipeDirection = nil
+                stopExitHandoffObservation()
 
                 CATransaction.begin()
                 CATransaction.setDisableActions(true)
+                container.isUserInteractionEnabled = true
+                card.isUserInteractionEnabled = true
                 card.layer.removeAllAnimations()
                 card.center = visualCenter
                 card.transform = visualTransform
@@ -570,6 +595,74 @@ extension _SwipeHost {
         private func stopDisplayLink() {
             displayLink?.invalidate()
             displayLink = nil
+        }
+
+        private func startExitHandoffObservation(card: UIView, direction: SwipeDirection) {
+            stopExitHandoffObservation()
+
+            let link = CADisplayLink(target: self, selector: #selector(observeExitHandoff))
+            if #available(iOS 15, *) {
+                link.preferredFrameRateRange = CAFrameRateRange(
+                    minimum: 60,
+                    maximum: 120,
+                    preferred: 120
+                )
+            }
+            link.add(to: .main, forMode: .common)
+
+            exitObservedCard = card
+            exitObservedDirection = direction
+            exitHandoffLink = link
+        }
+
+        private func stopExitHandoffObservation() {
+            exitHandoffLink?.invalidate()
+            exitHandoffLink = nil
+            exitObservedCard = nil
+            exitObservedDirection = nil
+            exitRevealMargin = -10
+        }
+
+        @objc private func observeExitHandoff() {
+            guard
+                pendingSwipeDirection != nil,
+                let card = exitObservedCard,
+                let container = fixed,
+                let direction = exitObservedDirection
+            else {
+                stopExitHandoffObservation()
+                return
+            }
+
+            let frame = card.layer.presentation()?.frame ?? card.frame
+            let revealMargin = exitRevealMargin
+            let shouldTrigger: Bool
+
+            switch direction {
+            case .right:
+                shouldTrigger = frame.minX >= container.bounds.maxX - revealMargin
+            case .left:
+                shouldTrigger = frame.maxX <= container.bounds.minX + revealMargin
+            }
+
+            if shouldTrigger {
+                triggerPendingSwipeCommit()
+            }
+        }
+
+        private func triggerPendingSwipeCommit() {
+            guard let direction = pendingSwipeDirection else {
+                pendingSwipeCommit?.cancel()
+                pendingSwipeCommit = nil
+                stopExitHandoffObservation()
+                return
+            }
+
+            pendingSwipeCommit?.cancel()
+            pendingSwipeCommit = nil
+            pendingSwipeDirection = nil
+            stopExitHandoffObservation()
+            onSwipe(direction)
         }
 
         /// Integrates the tilt spring and commits position + rotation in one
@@ -717,19 +810,25 @@ extension _SwipeHost {
             let projectedReleaseDisplacementX = currentDisplacementX + releaseVelocityLead(for: velocityX)
             let releaseTiltAngle = tiltTargetAngle(for: projectedReleaseDisplacementX)
 
-            // Small, fast flicks should still commit, but they should not turn
-            // into cannon-shot exits. Velocity now contributes in proportion to
-            // how far the card has actually traveled before release.
-            let velocityAttenuation: CGFloat = 0.10 + (0.46 * displacementProgress)
+            // Preserve some distinction between a controlled swipe and a fast
+            // flick, while still avoiding cannon-shot exits on tiny throws.
+            let gestureVelocityProgress = min(abs(velocityX) / 2400, 1)
+            let velocityAttenuation: CGFloat = 0.12
+                + (0.48 * displacementProgress)
+                + (0.08 * gestureVelocityProgress)
             let exitVelocityX = velocityX * velocityAttenuation
 
             // Normalise the attenuated velocity relative to remaining exit distance,
             // then soft-clamp it so quick short flicks cannot spike the launch speed.
+            // Faster swipes still get a meaningfully stronger launch than slower ones.
             let rawNormVx = abs(distanceToExit) > 0.5 ? exitVelocityX / distanceToExit : 1.0
             let forwardNormVx = max(rawNormVx, 0)
-            let maxLaunchVelocity: CGFloat = 0.36 + (0.12 * displacementProgress)
+            let maxLaunchVelocity: CGFloat = 0.44
+                + (0.16 * displacementProgress)
+                + (0.08 * gestureVelocityProgress)
+            let launchResponse: CGFloat = 0.32 + (0.10 * gestureVelocityProgress)
             let normVx = min(
-                max(tanh(forwardNormVx * 0.28), 0.26),
+                max(tanh(forwardNormVx * launchResponse), 0.30),
                 maxLaunchVelocity
             )
 
@@ -740,8 +839,8 @@ extension _SwipeHost {
             //   "thrown card" character instead of turning the exit mushy.
             let springParams = UISpringTimingParameters(
                 mass: 1.0,
-                stiffness: 92,
-                damping: 16.0,
+                stiffness: 108 + (18 * gestureVelocityProgress),
+                damping: 16.8 + (1.4 * gestureVelocityProgress),
                 initialVelocity: CGVector(dx: normVx, dy: 0)
             )
 
@@ -774,12 +873,18 @@ extension _SwipeHost {
             // card responsive. Faster throws get a shorter delay because the card
             // clears the screen sooner.
             pendingSwipeCommit?.cancel()
+            pendingSwipeDirection = direction
             let normalizedVelocity: CGFloat = min(abs(exitVelocityX) / 2200, 1)
-            let handoffDelay = 0.38 + (0.08 * (1 - displacementProgress)) - (0.015 * normalizedVelocity)
+            exitRevealMargin = -(10 + (6 * normalizedVelocity))
+            fixed?.isUserInteractionEnabled = false
+            card.isUserInteractionEnabled = false
+            startExitHandoffObservation(card: card, direction: direction)
+            let handoffDelay = max(
+                0.20,
+                0.28 + (0.05 * (1 - displacementProgress)) - (0.03 * normalizedVelocity)
+            )
             let workItem = DispatchWorkItem { [weak self] in
-                guard let self else { return }
-                self.pendingSwipeCommit = nil
-                self.onSwipe(direction)
+                self?.triggerPendingSwipeCommit()
             }
             pendingSwipeCommit = workItem
             DispatchQueue.main.asyncAfter(deadline: .now() + handoffDelay, execute: workItem)
