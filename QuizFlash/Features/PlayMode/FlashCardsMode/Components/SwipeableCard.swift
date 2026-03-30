@@ -596,23 +596,28 @@ extension _SwipeHost {
                 }
 
             case .ended, .cancelled:
-                hapticFired = false
                 isGestureActive = false
                 isDragging = false
                 stopDisplayLink()
 
                 let dx = gesture.translation(in: container).x
                 let vx = gesture.velocity(in: container).x
+                let shouldEmitCommitHaptic = !hapticFired
 
                 if dx > threshold || vx > 700 {
-                    haptic.impactOccurred(intensity: 1.0)
+                    if shouldEmitCommitHaptic {
+                        haptic.impactOccurred(intensity: 1.0)
+                    }
                     commitExit(.right, velocityX: vx, card: card)
                 } else if dx < -threshold || vx < -700 {
-                    haptic.impactOccurred(intensity: 1.0)
+                    if shouldEmitCommitHaptic {
+                        haptic.impactOccurred(intensity: 1.0)
+                    }
                     commitExit(.left, velocityX: vx, card: card)
                 } else {
                     snapBack(card: card, velocityX: vx)
                 }
+                hapticFired = false
 
             default:
                 break

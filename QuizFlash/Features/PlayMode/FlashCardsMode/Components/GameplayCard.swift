@@ -12,6 +12,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - GameplayCard
 
@@ -25,6 +26,8 @@ import SwiftUI
 /// `FlashCardsPlayModeViewModel.handleSwipe(_:)`, and `isFlipped` is a binding
 /// to `FlashCardsPlayModeViewModel.isFlipped`.
 struct GameplayCard: View {
+
+    @Environment(AppPreferences.self) private var appPreferences
 
     // MARK: - Properties
 
@@ -48,6 +51,9 @@ struct GameplayCard: View {
 
     /// Controls whether static-swap text transitions animate or switch instantly.
     let staticSwapTextMotion: FlashcardStaticSwapTextMotion
+
+    /// Controls how short content is positioned vertically inside the card.
+    let contentAlignment: FlashcardContentAlignment
 
     /// Binding to the ViewModel's `isFlipped` property.
     ///
@@ -76,6 +82,7 @@ struct GameplayCard: View {
                 swipeFeedback: swipeFeedback,
                 tapAnimationStyle: tapAnimationStyle,
                 staticSwapTextMotion: staticSwapTextMotion,
+                contentAlignment: contentAlignment,
                 onTap: tapHandler
             )
         }
@@ -86,12 +93,28 @@ struct GameplayCard: View {
     /// Toggles the card between question and answer faces using the selected tap animation.
     private func handleTap() {
         guard isInteractionEnabled, allowsTapToFlip else { return }
+        playRevealHaptic()
         if let tapAnimation = resolvedTapAnimation {
             withAnimation(tapAnimation) {
                 isFlipped.toggle()
             }
         } else {
             isFlipped.toggle()
+        }
+    }
+
+    private func playRevealHaptic() {
+        switch appPreferences.flashcardsSwipeHaptics {
+        case .off:
+            return
+        case .subtle:
+            let generator = UIImpactFeedbackGenerator(style: .soft)
+            generator.prepare()
+            generator.impactOccurred(intensity: 0.48)
+        case .standard:
+            let generator = UIImpactFeedbackGenerator(style: .soft)
+            generator.prepare()
+            generator.impactOccurred(intensity: 0.62)
         }
     }
 

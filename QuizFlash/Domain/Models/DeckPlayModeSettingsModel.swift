@@ -94,6 +94,22 @@ nonisolated enum FlashcardStaticSwapTextMotion: String, Codable, CaseIterable, I
     }
 }
 
+/// Controls how short flashcard content is positioned vertically inside the card.
+nonisolated enum FlashcardContentAlignment: String, Codable, CaseIterable, Identifiable, Sendable {
+    case top
+    case center
+
+    var id: String { rawValue }
+
+    /// Human-readable option label shown in the settings UI.
+    var title: String {
+        switch self {
+        case .top:    return "Top"
+        case .center: return "Center"
+        }
+    }
+}
+
 /// Flashcards runtime preferences persisted per deck.
 nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
     var order: FlashcardSessionOrder = .studyPriority
@@ -102,6 +118,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
     var flipBehavior: FlashcardFlipBehavior = .tapToFlip
     var tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D
     var staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated
+    var contentAlignment: FlashcardContentAlignment = .top
 
     init(
         order: FlashcardSessionOrder = .studyPriority,
@@ -109,7 +126,8 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         revealFlow: FlashcardRevealFlow = .questionFirst,
         flipBehavior: FlashcardFlipBehavior = .tapToFlip,
         tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D,
-        staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated
+        staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
+        contentAlignment: FlashcardContentAlignment = .top
     ) {
         self.order = order
         self.retryWrongCards = retryWrongCards
@@ -117,6 +135,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         self.flipBehavior = flipBehavior
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
+        self.contentAlignment = contentAlignment
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -126,6 +145,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         case flipBehavior
         case tapAnimationStyle
         case staticSwapTextMotion
+        case contentAlignment
     }
 
     init(from decoder: Decoder) throws {
@@ -136,6 +156,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         self.flipBehavior = try container.decodeIfPresent(FlashcardFlipBehavior.self, forKey: .flipBehavior) ?? .tapToFlip
         self.tapAnimationStyle = try container.decodeIfPresent(FlashcardTapAnimationStyle.self, forKey: .tapAnimationStyle) ?? .flip3D
         self.staticSwapTextMotion = try container.decodeIfPresent(FlashcardStaticSwapTextMotion.self, forKey: .staticSwapTextMotion) ?? .animated
+        self.contentAlignment = try container.decodeIfPresent(FlashcardContentAlignment.self, forKey: .contentAlignment) ?? .top
     }
 
     func encode(to encoder: Encoder) throws {
@@ -146,6 +167,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         try container.encode(flipBehavior, forKey: .flipBehavior)
         try container.encode(tapAnimationStyle, forKey: .tapAnimationStyle)
         try container.encode(staticSwapTextMotion, forKey: .staticSwapTextMotion)
+        try container.encode(contentAlignment, forKey: .contentAlignment)
     }
 }
 

@@ -73,7 +73,8 @@ struct PlayModeSettingsScreen: View {
                     : "Tap animation is saved but inactive while the face is locked.",
                 flashcardSettings.tapAnimationStyle == .staticSwap
                     ? "Static text motion: \(flashcardSettings.staticSwapTextMotion.title)."
-                    : "Static text motion applies only when Static Swap is selected."
+                    : "Static text motion applies only when Static Swap is selected.",
+                "Content alignment: \(flashcardSettings.contentAlignment.title)."
             ]
         case .quiz:
             return [

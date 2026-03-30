@@ -134,6 +134,13 @@ struct PlayModeSettingsModeCard: View {
                         options: FlashcardStaticSwapTextMotion.allCases
                     ) { $0.title }
                 }
+
+                PlayModeSettingsSegmentedRow(
+                    title: "Content Alignment",
+                    detail: "Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling.",
+                    selection: $flashcardSettings.contentAlignment,
+                    options: FlashcardContentAlignment.allCases
+                ) { $0.title }
             }
         case .quiz:
             PlayModeSettingsSectionCard(

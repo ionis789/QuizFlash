@@ -55,13 +55,19 @@ struct FlashCardsPlayModeView: View {
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var chromeButtonSize: CGFloat { UIConstants.Size.capsuleHeight }
+    private var playSurfaceHorizontalPadding: CGFloat { 8 }
     private var preloadBufferDepth: Int { 2 }
+    private var dismissDragOverlapBelowHeader: CGFloat { isCompact ? 60 : 80 }
     private var promotedCardScale: CGFloat { 0.952 }
     private var promotedCardSpring: Animation { .spring(response: 0.36, dampingFraction: 0.84) }
+    private var dragDismissActivationHeight: CGFloat {
+        headerHeight + currentHeaderBottomPadding + dismissDragOverlapBelowHeader
+    }
     private var resolvedDeckTitle: String {
         let trimmedTitle = viewModel.deck.title.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedTitle.isEmpty ? "Untitled Deck" : trimmedTitle
     }
+    private var currentHeaderBottomPadding: CGFloat { isCompact ? 16 : 24 }
     private var currentPlayableCard: PlayableCard? {
         guard viewModel.currentIndex < viewModel.cards.count else { return nil }
         return viewModel.cards[viewModel.currentIndex]
@@ -81,9 +87,6 @@ struct FlashCardsPlayModeView: View {
     var body: some View {
         GeometryReader { geo in
             let resolvedSafeTopInset = max(safeAreaInsets.top, geo.safeAreaInsets.top)
-            let headerHorizontalPadding: CGFloat = isCompact ? 20 : 32
-            let headerBottomPadding: CGFloat = isCompact ? 16 : 24
-            let cardHorizontalPadding: CGFloat = 2
             let cardBottomPadding: CGFloat = 2
 
             ZStack {
@@ -96,12 +99,12 @@ struct FlashCardsPlayModeView: View {
                     VStack(spacing: 0) {
                         header(
                             safeTopInset: resolvedSafeTopInset,
-                            horizontalPadding: headerHorizontalPadding
+                            horizontalPadding: playSurfaceHorizontalPadding
                         )
-                        .padding(.bottom, headerBottomPadding)
+                        .padding(.bottom, currentHeaderBottomPadding)
 
                         cardArea
-                            .padding(.horizontal, cardHorizontalPadding)
+                            .padding(.horizontal, playSurfaceHorizontalPadding)
                             .padding(.bottom, cardBottomPadding)
                             .ignoresSafeArea(edges: .bottom)
                     }
@@ -113,7 +116,7 @@ struct FlashCardsPlayModeView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
             }
-            .fullScreenSheetDragActivationHeight(headerHeight)
+            .fullScreenSheetDragActivationHeight(dragDismissActivationHeight)
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isComplete)
         .task {
@@ -171,6 +174,7 @@ struct FlashCardsPlayModeView: View {
                             allowsTapToFlip: viewModel.settings.flipBehavior == .tapToFlip,
                             tapAnimationStyle: viewModel.settings.tapAnimationStyle,
                             staticSwapTextMotion: viewModel.settings.staticSwapTextMotion,
+                            contentAlignment: viewModel.settings.contentAlignment,
                             isFlipped: flipBinding
                         )
                         .opacity(isCurrentCard ? 1 : 0.001)
