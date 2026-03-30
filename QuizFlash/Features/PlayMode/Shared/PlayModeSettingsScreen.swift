@@ -65,7 +65,15 @@ struct PlayModeSettingsScreen: View {
                 "Order: \(flashcardSettings.order.title)",
                 flashcardSettings.retryWrongCards ? "Retry run enabled for missed cards." : "Session ends after the first pass.",
                 flashcardSettings.revealFlow == .questionFirst ? "Cards open on the question side." : "Cards open on the answer side.",
-                flashcardSettings.flipBehavior == .tapToFlip ? "Tap-to-flip stays available in-session." : "Cards stay locked on the opening face."
+                flashcardSettings.flipBehavior == .tapToFlip
+                    ? "Tap reveal stays available in-session."
+                    : "Cards stay locked on the opening face.",
+                flashcardSettings.flipBehavior == .tapToFlip
+                    ? "Tap animation: \(flashcardSettings.tapAnimationStyle.title)."
+                    : "Tap animation is saved but inactive while the face is locked.",
+                flashcardSettings.tapAnimationStyle == .staticSwap
+                    ? "Static text motion: \(flashcardSettings.staticSwapTextMotion.title)."
+                    : "Static text motion applies only when Static Swap is selected."
             ]
         case .quiz:
             return [

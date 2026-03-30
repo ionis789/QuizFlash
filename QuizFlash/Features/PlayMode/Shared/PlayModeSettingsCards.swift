@@ -113,11 +113,27 @@ struct PlayModeSettingsModeCard: View {
                 ) { $0.title }
 
                 PlayModeSettingsSegmentedRow(
-                    title: "Flip Behavior",
-                    detail: "Lock the opening face or keep tap-to-flip enabled during the session.",
+                    title: "Tap Behavior",
+                    detail: "Allow tap-based reveal during the session or keep the opening face locked.",
                     selection: $flashcardSettings.flipBehavior,
                     options: FlashcardFlipBehavior.allCases
                 ) { $0.title }
+
+                PlayModeSettingsSegmentedRow(
+                    title: "Tap Animation",
+                    detail: "Choose between the current 3D flip and a static card that swaps only the content with the lighter snappy motion.",
+                    selection: $flashcardSettings.tapAnimationStyle,
+                    options: FlashcardTapAnimationStyle.allCases
+                ) { $0.title }
+
+                if flashcardSettings.tapAnimationStyle == .staticSwap {
+                    PlayModeSettingsSegmentedRow(
+                        title: "Static Text Motion",
+                        detail: "Keep the current snappy text transition or switch the content instantly with no text animation.",
+                        selection: $flashcardSettings.staticSwapTextMotion,
+                        options: FlashcardStaticSwapTextMotion.allCases
+                    ) { $0.title }
+                }
             }
         case .quiz:
             PlayModeSettingsSectionCard(

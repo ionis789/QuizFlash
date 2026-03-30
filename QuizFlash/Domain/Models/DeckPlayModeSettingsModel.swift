@@ -56,8 +56,40 @@ nonisolated enum FlashcardFlipBehavior: String, Codable, CaseIterable, Identifia
     /// Human-readable option label shown in the settings UI.
     var title: String {
         switch self {
-        case .tapToFlip: return "Tap To Flip"
+        case .tapToFlip: return "Tap Enabled"
         case .locked:    return "Locked Face"
+        }
+    }
+}
+
+/// Controls which visual treatment is used when tapping a flashcard.
+nonisolated enum FlashcardTapAnimationStyle: String, Codable, CaseIterable, Identifiable, Sendable {
+    case flip3D
+    case staticSwap
+
+    var id: String { rawValue }
+
+    /// Human-readable option label shown in the settings UI.
+    var title: String {
+        switch self {
+        case .flip3D:     return "3D Flip"
+        case .staticSwap: return "Static Swap"
+        }
+    }
+}
+
+/// Controls how text changes behave when the flashcard uses the static swap mode.
+nonisolated enum FlashcardStaticSwapTextMotion: String, Codable, CaseIterable, Identifiable, Sendable {
+    case animated
+    case instant
+
+    var id: String { rawValue }
+
+    /// Human-readable option label shown in the settings UI.
+    var title: String {
+        switch self {
+        case .animated: return "Animated"
+        case .instant:  return "Instant"
         }
     }
 }
@@ -68,6 +100,53 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
     var retryWrongCards: Bool = true
     var revealFlow: FlashcardRevealFlow = .questionFirst
     var flipBehavior: FlashcardFlipBehavior = .tapToFlip
+    var tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D
+    var staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated
+
+    init(
+        order: FlashcardSessionOrder = .studyPriority,
+        retryWrongCards: Bool = true,
+        revealFlow: FlashcardRevealFlow = .questionFirst,
+        flipBehavior: FlashcardFlipBehavior = .tapToFlip,
+        tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D,
+        staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated
+    ) {
+        self.order = order
+        self.retryWrongCards = retryWrongCards
+        self.revealFlow = revealFlow
+        self.flipBehavior = flipBehavior
+        self.tapAnimationStyle = tapAnimationStyle
+        self.staticSwapTextMotion = staticSwapTextMotion
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case order
+        case retryWrongCards
+        case revealFlow
+        case flipBehavior
+        case tapAnimationStyle
+        case staticSwapTextMotion
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.order = try container.decodeIfPresent(FlashcardSessionOrder.self, forKey: .order) ?? .studyPriority
+        self.retryWrongCards = try container.decodeIfPresent(Bool.self, forKey: .retryWrongCards) ?? true
+        self.revealFlow = try container.decodeIfPresent(FlashcardRevealFlow.self, forKey: .revealFlow) ?? .questionFirst
+        self.flipBehavior = try container.decodeIfPresent(FlashcardFlipBehavior.self, forKey: .flipBehavior) ?? .tapToFlip
+        self.tapAnimationStyle = try container.decodeIfPresent(FlashcardTapAnimationStyle.self, forKey: .tapAnimationStyle) ?? .flip3D
+        self.staticSwapTextMotion = try container.decodeIfPresent(FlashcardStaticSwapTextMotion.self, forKey: .staticSwapTextMotion) ?? .animated
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(order, forKey: .order)
+        try container.encode(retryWrongCards, forKey: .retryWrongCards)
+        try container.encode(revealFlow, forKey: .revealFlow)
+        try container.encode(flipBehavior, forKey: .flipBehavior)
+        try container.encode(tapAnimationStyle, forKey: .tapAnimationStyle)
+        try container.encode(staticSwapTextMotion, forKey: .staticSwapTextMotion)
+    }
 }
 
 // MARK: - Quiz Settings

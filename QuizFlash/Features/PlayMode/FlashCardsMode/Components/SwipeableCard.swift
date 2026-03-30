@@ -10,8 +10,9 @@
 //  **During drag:**
 //  - Position follows the finger 1:1 (direct manipulation, zero lag on X).
 //  - Tilt angle is governed by a per-frame spring integrator running inside
-//    `CADisplayLink`. The spring chases a `tanh`-curved target angle derived
-//    from the current translation. This gives the card perceived mass:
+//    `CADisplayLink`. The spring chases a progress-shaped target angle derived
+//    from the current translation, and the card scales down slightly toward the
+//    swipe threshold. This gives the card perceived mass:
 //    rapid direction reversals produce a short overshoot before the tilt
 //    settles, and slow drags ramp up tilt gently instead of jumping.
 //
@@ -31,8 +32,8 @@
 //    and commits one `CATransaction` per frame — no layout work between frames.
 //  - No `shouldRasterize` — rasterisation freezes the GPU texture at capture
 //    scale and produces visible distortion during the rotation transform.
-//  - No scale transform during drag — rotation only gives a cleaner physical
-//    feel. Scale is reserved for the entrance animation.
+//  - Drag scale is tied to the same swipe progress as the tilt, shrinking
+//    gently toward `0.9` as the card approaches the exit threshold.
 //  - `gestureRecognizerShouldBegin` rejects gestures whose initial velocity is
 //    primarily vertical, preventing the card from moving during scroll attempts.
 //
@@ -72,8 +73,8 @@
 //  **FIX 5 — Scale transform during drag:**
 //    `scale = max(0.88, 1 - |dx|/width × 0.26)` applied simultaneously with
 //    rotation. Scale + rotation together felt unnatural.
-//    Fix: removed. The card only tilts during drag. Scale is reserved for the
-//    entrance spring in `setup()`.
+//    Fix: replaced with a threshold-linked scale curve. The card now shrinks
+//    progressively toward `0.9` only as it nears exit commitment.
 //
 
 import SwiftUI
@@ -366,6 +367,7 @@ extension _SwipeHost {
         private var exitObservedDirection: SwipeDirection?
         private var exitRevealMargin: CGFloat = 26
         private var entranceUnlockWorkItem: DispatchWorkItem?
+        private var gestureStartScale: CGFloat = 1
         private var hapticFired = false
         private let haptic = UIImpactFeedbackGenerator(style: .medium)
 
@@ -536,6 +538,7 @@ extension _SwipeHost {
                 // entrance or snap-back animation.
                 translationX = 0
                 currentTilt = rotationAngle(for: visualTransform)
+                gestureStartScale = min(max(uniformScale(for: visualTransform), 0.9), 1.0)
                 tiltVelocity = 0
                 onSwipeProgress?(nil, 0)
                 startDisplayLink()
@@ -669,18 +672,19 @@ extension _SwipeHost {
         /// disabled-actions `CATransaction` every display frame.
         ///
         /// ## Tilt target
-        /// `tanh(translationX / 90) × 15°` provides continuous, smooth saturation:
+        /// `pow(min(|translationX| / threshold, 1), 1.85) × 15°` ties the tilt
+        /// directly to swipe progress:
         ///
         /// | translationX | target tilt |
         /// |---|---|
-        /// | ±20 px  | ±3.3° |
-        /// | ±60 px  | ±8.7° |
-        /// | ±90 px  | ±11.4° |
-        /// | ±160 px | ±13.5° |
-        /// | ±∞      | ±15°  (asymptote) |
+        /// | ±20 px  | ±0.6° |
+        /// | ±60 px  | ±4.2° |
+        /// | ±90 px  | ±10.0° |
+        /// | ±120 px | ±15.0° |
+        /// | ±∞      | ±15.0° |
         ///
-        /// No hard cap → no discontinuity. The tilt grows quickly at the start
-        /// (natural) and saturates softly at the extremes (physical).
+        /// The tilt now stays calm early in the drag, then ramps up more
+        /// aggressively as the card approaches the exit threshold.
         ///
         /// ## Spring integration
         /// A simple Euler step per frame:
@@ -700,8 +704,10 @@ extension _SwipeHost {
                 1.0 / 50.0
             )
 
-            // Compute target tilt angle using tanh for smooth, natural saturation.
+            // Compute target tilt from swipe progress so the card stays flatter
+            // early in the drag and reaches full tilt near exit commitment.
             let targetTilt = tiltTargetAngle(for: dx)
+            let dragScale = min(targetDragScale(for: dx), gestureStartScale)
 
             // Spring-integrate current tilt toward target (Euler method).
             let force = tiltStiffness * (targetTilt - currentTilt) - tiltDamping * tiltVelocity
@@ -713,7 +719,7 @@ extension _SwipeHost {
                 x: gestureStartCenter.x + dx,
                 y: gestureStartCenter.y
             )
-            let newTransform = CGAffineTransform(rotationAngle: currentTilt)
+            let newTransform = cardTransform(angle: currentTilt, scale: dragScale)
 
             // One atomic transaction per frame — no implicit animations, no layout.
             CATransaction.begin()
@@ -809,6 +815,8 @@ extension _SwipeHost {
             let displacementProgress = min(releaseDisplacement / threshold, 1)
             let projectedReleaseDisplacementX = currentDisplacementX + releaseVelocityLead(for: velocityX)
             let releaseTiltAngle = tiltTargetAngle(for: projectedReleaseDisplacementX)
+            let currentScale = min(max(uniformScale(for: currentPresentationTransform(for: card)), 0.9), 1.0)
+            let exitScale = min(currentScale, targetDragScale(for: projectedReleaseDisplacementX))
 
             // Preserve some distinction between a controlled swipe and a fast
             // flick, while still avoiding cannon-shot exits on tiny throws.
@@ -846,8 +854,8 @@ extension _SwipeHost {
 
             let directionSign: CGFloat = direction == .right ? 1 : -1
             let velocityFactor: CGFloat = min(abs(exitVelocityX) / 1800, 1)
-            let exitAngleBoost: CGFloat = (3.0 + (4.0 * velocityFactor)) * (.pi / 180.0)
-            let maxExitAngle: CGFloat = 14.0 * (.pi / 180.0)
+            let exitAngleBoost: CGFloat = (1.0 + (1.35 * velocityFactor)) * (.pi / 180.0)
+            let maxExitAngle: CGFloat = 5.0 * (.pi / 180.0)
             let carriedTiltMagnitude = max(abs(currentAngle), abs(releaseTiltAngle) * 0.9)
             let carriedTilt = directionSign * carriedTiltMagnitude
             let unclampedExitAngle = carriedTilt + (directionSign * exitAngleBoost)
@@ -856,7 +864,7 @@ extension _SwipeHost {
             let animator = UIViewPropertyAnimator(duration: 0.5, timingParameters: springParams)
             animator.addAnimations { [weak self] in
                 guard let self else { return }
-                card.transform = CGAffineTransform(rotationAngle: exitAngle)
+                card.transform = self.cardTransform(angle: exitAngle, scale: exitScale)
                 card.center = CGPoint(x: exitX, y: self.homeCenter.y)
                 self.onSwipeProgress?(nil, 0)
             }
@@ -967,8 +975,26 @@ extension _SwipeHost {
             atan2(transform.b, transform.a)
         }
 
+        private func uniformScale(for transform: CGAffineTransform) -> CGFloat {
+            sqrt((transform.a * transform.a) + (transform.b * transform.b))
+        }
+
+        private func cardTransform(angle: CGFloat, scale: CGFloat) -> CGAffineTransform {
+            CGAffineTransform(rotationAngle: angle).scaledBy(x: scale, y: scale)
+        }
+
+        private func dragProgress(for displacementX: CGFloat) -> CGFloat {
+            let normalizedProgress = min(abs(displacementX) / threshold, 1)
+            return pow(normalizedProgress, 1.85)
+        }
+
         private func tiltTargetAngle(for displacementX: CGFloat) -> CGFloat {
-            tanh(displacementX / 90.0) * (15.0 * .pi / 180.0)
+            let direction: CGFloat = displacementX >= 0 ? 1 : -1
+            return direction * dragProgress(for: displacementX) * (5.0 * .pi / 180.0)
+        }
+
+        private func targetDragScale(for displacementX: CGFloat) -> CGFloat {
+            1.0 - (0.10 * dragProgress(for: displacementX))
         }
 
         private func releaseVelocityLead(for velocityX: CGFloat) -> CGFloat {

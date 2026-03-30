@@ -153,6 +153,8 @@ struct FlashCardsPlayModeView: View {
                             viewModel.handleSwipe(direction)
                         },
                         allowsTapToFlip: viewModel.settings.flipBehavior == .tapToFlip,
+                        tapAnimationStyle: viewModel.settings.tapAnimationStyle,
+                        staticSwapTextMotion: viewModel.settings.staticSwapTextMotion,
                         isFlipped: $bindableViewModel.isFlipped
                     )
                     .id(card.id)

@@ -37,6 +37,12 @@ struct GameplayCard: View {
     /// `true` when tapping the card should toggle between question and answer.
     let allowsTapToFlip: Bool
 
+    /// Controls which visual treatment is used when tap reveal is enabled.
+    let tapAnimationStyle: FlashcardTapAnimationStyle
+
+    /// Controls whether static-swap text transitions animate or switch instantly.
+    let staticSwapTextMotion: FlashcardStaticSwapTextMotion
+
     /// Binding to the ViewModel's `isFlipped` property.
     ///
     /// When `true`, `FlipCard` shows the answer (back) face.
@@ -45,10 +51,14 @@ struct GameplayCard: View {
 
     // MARK: - Body
 
+    private var tapHandler: (() -> Void)? {
+        allowsTapToFlip ? { handleTap() } : nil
+    }
+
     var body: some View {
         SwipeableCard(
             onSwipe: onSwipe,
-            onTap: handleTap,
+            onTap: tapHandler,
             onSwipeProgress: { direction, intensity in
                 swipeFeedback.update(direction: direction, intensity: intensity)
             }
@@ -56,18 +66,39 @@ struct GameplayCard: View {
             FlipCard(
                 card: card,
                 isFlipped: $isFlipped,
-                swipeFeedback: swipeFeedback
+                swipeFeedback: swipeFeedback,
+                tapAnimationStyle: tapAnimationStyle,
+                staticSwapTextMotion: staticSwapTextMotion,
+                onTap: tapHandler
             )
         }
     }
 
     // MARK: - Actions
 
-    /// Toggles the card between question and answer faces with a spring animation.
+    /// Toggles the card between question and answer faces using the selected tap animation.
     private func handleTap() {
         guard allowsTapToFlip else { return }
-        withAnimation(.interactiveSpring(response: 0.45, dampingFraction: 0.85)) {
+        if let tapAnimation = resolvedTapAnimation {
+            withAnimation(tapAnimation) {
+                isFlipped.toggle()
+            }
+        } else {
             isFlipped.toggle()
+        }
+    }
+
+    private var resolvedTapAnimation: Animation? {
+        switch tapAnimationStyle {
+        case .flip3D:
+            return .interactiveSpring(response: 0.45, dampingFraction: 0.85)
+        case .staticSwap:
+            switch staticSwapTextMotion {
+            case .animated:
+                return .snappy(duration: 0.30, extraBounce: 0.02)
+            case .instant:
+                return nil
+            }
         }
     }
 }

@@ -26,18 +26,100 @@ private struct ContentHeightKey: PreferenceKey {
     }
 }
 
+// MARK: - Static Swap Transition
+
+private struct StaticSwapTransitionModifier: ViewModifier {
+    let scale: CGFloat
+    let opacity: Double
+    let blurRadius: CGFloat
+    let verticalOffset: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(scale)
+            .opacity(opacity)
+            .blur(radius: blurRadius)
+            .offset(y: verticalOffset)
+    }
+}
+
+private extension AnyTransition {
+    static var flashcardStaticSwap: AnyTransition {
+        .asymmetric(
+            insertion: .modifier(
+                active: StaticSwapTransitionModifier(
+                    scale: 0.972,
+                    opacity: 0,
+                    blurRadius: 6,
+                    verticalOffset: 8
+                ),
+                identity: StaticSwapTransitionModifier(
+                    scale: 1,
+                    opacity: 1,
+                    blurRadius: 0,
+                    verticalOffset: 0
+                )
+            ),
+            removal: .modifier(
+                active: StaticSwapTransitionModifier(
+                    scale: 1.018,
+                    opacity: 0,
+                    blurRadius: 8,
+                    verticalOffset: -6
+                ),
+                identity: StaticSwapTransitionModifier(
+                    scale: 1,
+                    opacity: 1,
+                    blurRadius: 0,
+                    verticalOffset: 0
+                )
+            )
+        )
+    }
+}
+
+private struct FlipFaceModifier: AnimatableModifier {
+    var rotationDegrees: Double
+    var perspective: CGFloat = 0.78
+
+    var animatableData: Double {
+        get { rotationDegrees }
+        set { rotationDegrees = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .rotation3DEffect(
+                .degrees(rotationDegrees),
+                axis: (x: 0, y: 1, z: 0),
+                perspective: perspective
+            )
+            .opacity(isFacingViewer ? 1 : 0)
+    }
+
+    private var isFacingViewer: Bool {
+        let normalized = normalizedDegrees(rotationDegrees)
+        return normalized < 90 || normalized > 270
+    }
+
+    private func normalizedDegrees(_ value: Double) -> Double {
+        let remainder = value.truncatingRemainder(dividingBy: 360)
+        return remainder >= 0 ? remainder : remainder + 360
+    }
+}
+
 // MARK: - FlipCard
 
-/// Renders the question and answer faces of a flashcard with a 3D Y-axis
-/// flip animation controlled by the `isFlipped` binding.
+/// Renders the question and answer faces of a flashcard using either a 3D
+/// flip or a static content swap controlled by the `isFlipped` binding.
 ///
 /// The view exposes two overflow modes via `CardContentMode` (stored in
 /// `@AppStorage`), allowing users to choose between proportional scaling and
 /// a scrollable layout without restarting the session.
 ///
 /// ## Performance Notes
-/// - `rotation3DEffect` uses opacity gating (`.opacity(isFlipped ? 1 : 0)`) to
-///   avoid rendering both faces simultaneously on the GPU.
+/// - 3D flip visibility is gated by the live rotation angle so front/back text
+///   never cross-fade through each other mid-flip.
 /// - `contentShape(Rectangle())` ensures the full card surface forwards touches
 ///   to `SwipeableCard`'s underlying UIKit gesture recognisers.
 struct FlipCard: View {
@@ -55,6 +137,9 @@ struct FlipCard: View {
     /// `false` = front (question), `true` = back (answer).
     @Binding var isFlipped: Bool
     private let swipeFeedback: SwipeCardFeedbackState
+    private let tapAnimationStyle: FlashcardTapAnimationStyle
+    private let staticSwapTextMotion: FlashcardStaticSwapTextMotion
+    private let onTap: (() -> Void)?
 
     // MARK: - Environment
 
@@ -91,11 +176,21 @@ struct FlipCard: View {
     // MARK: - Init
 
     /// Creates a card renderer from a playback snapshot.
-    init(card: PlayableCard, isFlipped: Binding<Bool>, swipeFeedback: SwipeCardFeedbackState) {
+    init(
+        card: PlayableCard,
+        isFlipped: Binding<Bool>,
+        swipeFeedback: SwipeCardFeedbackState,
+        tapAnimationStyle: FlashcardTapAnimationStyle,
+        staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
+        onTap: (() -> Void)? = nil
+    ) {
         self.frontZone = card.frontZone
         self.backZone = card.backZone
         self._isFlipped = isFlipped
         self.swipeFeedback = swipeFeedback
+        self.tapAnimationStyle = tapAnimationStyle
+        self.staticSwapTextMotion = staticSwapTextMotion
+        self.onTap = onTap
     }
 
     /// Creates a card renderer directly from question and answer zones.
@@ -103,27 +198,30 @@ struct FlipCard: View {
         frontZone: ZoneModel,
         backZone: ZoneModel,
         isFlipped: Binding<Bool>,
-        swipeFeedback: SwipeCardFeedbackState
+        swipeFeedback: SwipeCardFeedbackState,
+        tapAnimationStyle: FlashcardTapAnimationStyle,
+        staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
+        onTap: (() -> Void)? = nil
     ) {
         self.frontZone = frontZone
         self.backZone = backZone
         self._isFlipped = isFlipped
         self.swipeFeedback = swipeFeedback
+        self.tapAnimationStyle = tapAnimationStyle
+        self.staticSwapTextMotion = staticSwapTextMotion
+        self.onTap = onTap
     }
 
     // MARK: - Body
 
     var body: some View {
-        ZStack {
-            // Back face (answer) — rotated into view when isFlipped == true.
-            cardFace(zone: backZone, contentHeight: $backContentHeight)
-                .rotation3DEffect(.degrees(isFlipped ? 0 : 180), axis: (x: 0, y: 1, z: 0))
-                .opacity(isFlipped ? 1 : 0)
-
-            // Front face (question) — starts at 0° rotation, flips away.
-            cardFace(zone: frontZone, contentHeight: $frontContentHeight)
-                .rotation3DEffect(.degrees(isFlipped ? -180 : 0), axis: (x: 0, y: 1, z: 0))
-                .opacity(isFlipped ? 0 : 1)
+        Group {
+            switch tapAnimationStyle {
+            case .flip3D:
+                threeDimensionalFlipBody
+            case .staticSwap:
+                staticSwapBody
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Full-surface hit testing so SwipeableCard gestures fire everywhere.
@@ -132,18 +230,51 @@ struct FlipCard: View {
 
     // MARK: - Card Face Builder
 
+    private var threeDimensionalFlipBody: some View {
+        let rotation = isFlipped ? 180.0 : 0.0
+
+        return ZStack {
+            cardFace(zone: backZone, contentHeight: $backContentHeight)
+                .modifier(FlipFaceModifier(rotationDegrees: rotation + 180))
+
+            cardFace(zone: frontZone, contentHeight: $frontContentHeight)
+                .modifier(FlipFaceModifier(rotationDegrees: rotation))
+        }
+    }
+
+    private var staticSwapBody: some View {
+        cardShell {
+            if staticSwapTextMotion == .animated {
+                ZStack {
+                    if isFlipped {
+                        cardFaceContent(zone: backZone, contentHeight: $backContentHeight)
+                            .id("back-face")
+                            .transition(.flashcardStaticSwap)
+                    } else {
+                        cardFaceContent(zone: frontZone, contentHeight: $frontContentHeight)
+                            .id("front-face")
+                            .transition(.flashcardStaticSwap)
+                    }
+                }
+            } else if isFlipped {
+                cardFaceContent(zone: backZone, contentHeight: $backContentHeight)
+            } else {
+                cardFaceContent(zone: frontZone, contentHeight: $frontContentHeight)
+            }
+        }
+    }
+
     @ViewBuilder
     private func cardFace(zone: ZoneModel, contentHeight: Binding<CGFloat>) -> some View {
+        cardShell {
+            cardFaceContent(zone: zone, contentHeight: contentHeight)
+        }
+    }
+
+    @ViewBuilder
+    private func cardShell<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         ZStack {
-            // Content area — switches between user-selected overflow modes.
-            Group {
-                if contentMode == .scrollable {
-                    scrollableContent(zone: zone, contentHeight: contentHeight)
-                } else {
-                    scaledContent(zone: zone, contentHeight: contentHeight)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+            content()
         }
         .flashcardStyle(
             cornerRadius: cardCornerRadius,
@@ -152,6 +283,18 @@ struct FlipCard: View {
             borderFeedbackProgress: cardFeedbackProgress,
             borderFeedbackBlurRadius: cardFeedbackBorderRadius
         )
+    }
+
+    @ViewBuilder
+    private func cardFaceContent(zone: ZoneModel, contentHeight: Binding<CGFloat>) -> some View {
+        Group {
+            if contentMode == .scrollable {
+                scrollableContent(zone: zone, contentHeight: contentHeight)
+            } else {
+                scaledContent(zone: zone, contentHeight: contentHeight)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
     }
 
     private var cardFeedbackBorderColor: Color? {
@@ -197,7 +340,7 @@ struct FlipCard: View {
                 : 1.0
 
             if zone.hasContent {
-                CardFaceView(zone: zone, onTap: flipFromZoneTap)
+                CardFaceView(zone: zone, onTap: onTap)
                     .padding(.horizontal, hPad)
                     .padding(.vertical, vPad)
                     .background(
@@ -250,7 +393,7 @@ struct FlipCard: View {
 
             if zone.hasContent {
                 ScrollView(.vertical, showsIndicators: needsScroll) {
-                    CardFaceView(zone: zone, onTap: flipFromZoneTap)
+                    CardFaceView(zone: zone, onTap: onTap)
                         .padding(.horizontal, hPad)
                         .padding(.vertical, vPad)
                         .background(
@@ -273,21 +416,13 @@ struct FlipCard: View {
                 // to drag gestures but still blocks taps from reaching
                 // SwipeableCard's UITapGestureRecognizer beneath it.
                 .onTapGesture {
-                    withAnimation(.interactiveSpring(response: 0.45, dampingFraction: 0.85)) {
-                        isFlipped.toggle()
-                    }
+                    onTap?()
                 }
                 .frame(width: available.size.width, height: available.size.height)
             } else {
                 emptyContent
                     .frame(width: available.size.width, height: available.size.height)
             }
-        }
-    }
-
-    private func flipFromZoneTap() {
-        withAnimation(.interactiveSpring(response: 0.45, dampingFraction: 0.85)) {
-            isFlipped.toggle()
         }
     }
 

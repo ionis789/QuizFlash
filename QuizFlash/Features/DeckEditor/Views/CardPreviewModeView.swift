@@ -129,16 +129,16 @@ struct CardPreviewModeView: View {
                     frontZone: flashcardContent.frontZone,
                     backZone: flashcardContent.backZone,
                     isFlipped: $isFlipped,
-                    swipeFeedback: swipeFeedback
+                    swipeFeedback: swipeFeedback,
+                    tapAnimationStyle: .flip3D,
+                    onTap: togglePreviewFlip
                 )
                 .frame(maxWidth: .infinity)
                 .frame(height: availableCardHeight)
                 .layoutPriority(1)
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    withAnimation(.interactiveSpring(response: 0.45, dampingFraction: 0.85)) {
-                        isFlipped.toggle()
-                    }
+                    togglePreviewFlip()
                 }
                 .padding(.top, contentTopInset)
                 .padding(.horizontal, horizontalInset)
@@ -172,6 +172,12 @@ struct CardPreviewModeView: View {
                 .frame(maxWidth: .infinity)
             }
             .scrollIndicators(.hidden)
+        }
+    }
+
+    private func togglePreviewFlip() {
+        withAnimation(.interactiveSpring(response: 0.45, dampingFraction: 0.85)) {
+            isFlipped.toggle()
         }
     }
 
