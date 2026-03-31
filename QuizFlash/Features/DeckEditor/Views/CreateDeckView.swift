@@ -154,7 +154,19 @@ struct CreateDeckView: View {
     }
     var isShowingConversionWorkspace: Bool { conversionWorkspaceContext != nil }
     var isShowingConversionConfiguration: Bool {
-        isAIWorkspaceHost && aiWorkspaceCoordinator.conversionSheetToken != nil && aiWorkspaceCoordinator.conversionSeed != nil
+        aiWorkspaceCoordinator.conversionSheetToken != nil && aiWorkspaceCoordinator.conversionSeed != nil
+    }
+    var conversionConfigurationSheetBinding: Binding<AIWorkspaceConversionSheetToken?> {
+        Binding(
+            get: { aiWorkspaceCoordinator.conversionSheetToken },
+            set: { newValue in
+                if newValue == nil {
+                    aiWorkspaceCoordinator.dismissConversionConfiguration()
+                } else {
+                    aiWorkspaceCoordinator.conversionSheetToken = newValue
+                }
+            }
+        )
     }
     var tabBarOffset: CGFloat {
         max(0, viewSafeBottom - physicalSafeBottom)
@@ -401,6 +413,21 @@ struct CreateDeckView: View {
             } background: {
                 AIGenerationSheetBackground()
             }
+            .sheet(item: conversionConfigurationSheetBinding) { _ in
+                AIWorkspaceConversionSheetView(
+                    coordinator: aiWorkspaceCoordinator,
+                    sourceDecks: sourceDecks,
+                    onSelectSourceDeck: { deck in
+                        reseedConversion(for: deck)
+                    }
+                ) {
+                    aiWorkspaceCoordinator.startConversion(context: context)
+                }
+                .presentationDetents([.fraction(0.6)])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(34)
+                .presentationBackground(.clear)
+            }
     }
 
     @ViewBuilder
@@ -448,10 +475,6 @@ struct CreateDeckView: View {
 
                     successOverlay
                         .zIndex(100)
-                }
-                .overlay {
-                    conversionConfigurationOverlay
-                        .zIndex(140)
                 }
                 .overlay {
                     if fullScreenSheetDismiss != nil {

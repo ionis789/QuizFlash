@@ -24,7 +24,9 @@ extension DeckContentView {
 
     func handleConvertCard(_ gridCard: GridCardInfo) {
         dismissActiveActionMenu()
-        viewModel.presentSingleCardConversion(for: gridCard.id, in: deck)
+        presentConversionConfiguration(
+            viewModel.presentSingleCardConversion(for: gridCard.id, in: deck)
+        )
     }
 
     func handlePreviewRecommendedConversion(
@@ -32,10 +34,12 @@ extension DeckContentView {
         targetKind: CardKind
     ) {
         previewedCard = nil
-        viewModel.presentSingleCardConversion(
-            for: card.persistentModelID,
-            in: deck,
-            preferredTargetKind: targetKind
+        presentConversionConfiguration(
+            viewModel.presentSingleCardConversion(
+                for: card.persistentModelID,
+                in: deck,
+                preferredTargetKind: targetKind
+            )
         )
     }
 
@@ -61,7 +65,9 @@ extension DeckContentView {
     func convertUnavailablePlayMode(_ mode: DeckPlayModeDestination) {
         dismissUnavailablePlayMode()
         guard let targetKind = mode.unavailableConversionTargetKind else { return }
-        viewModel.presentDeckConversion(for: deck, preferredTargetKind: targetKind)
+        presentConversionConfiguration(
+            viewModel.presentDeckConversion(for: deck, preferredTargetKind: targetKind)
+        )
     }
 
     func recordCompletedPlayModeSession(_ mode: DeckPlayModeDestination) {
@@ -130,25 +136,35 @@ extension DeckContentView {
     func presentDeckConversion() {
         dismissActiveActionMenu()
         exitSelectionModeForExternalAction()
-        viewModel.presentDeckConversion(for: deck)
+        presentConversionConfiguration(
+            viewModel.presentDeckConversion(for: deck)
+        )
     }
 
     func presentSelectionConversion() {
         dismissActiveActionMenu()
-        viewModel.presentSelectionConversion(for: deck)
+        presentConversionConfiguration(
+            viewModel.presentSelectionConversion(for: deck)
+        )
     }
 
-    func startDeckSeededConversion() {
-        guard let request = viewModel.conversionRequest else { return }
-        exitSelectionModeForExternalAction()
-        _ = aiWorkspaceCoordinator.seedConversion(
+    @discardableResult
+    func presentConversionConfiguration(
+        _ request: DeckCardConversionRequest?
+    ) -> Bool {
+        guard let request else { return false }
+        return aiWorkspaceCoordinator.seedConversion(
             request: request,
             sourceDeck: deck,
             ownerTab: ownerTab,
             backLabel: backLabel,
-            showsConfiguration: false
+            showsConfiguration: true,
+            activatesWorkspaceContext: false
         )
-        viewModel.dismissConversionSheet()
+    }
+
+    func startDeckSeededConversion() {
+        exitSelectionModeForExternalAction()
         aiWorkspaceCoordinator.openWorkspace(router: router)
         aiWorkspaceCoordinator.startConversion(context: context)
     }
@@ -307,56 +323,6 @@ extension DeckContentView {
                 )
             }
             .zIndex(260)
-        }
-    }
-
-    @ViewBuilder
-    var deckConversionConfigurationOverlay: some View {
-        if let request = viewModel.conversionRequest, !isSuspended {
-            ZStack {
-                Color.black.opacity(0.28)
-                    .ignoresSafeArea()
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        viewModel.dismissConversionSheet()
-                    }
-
-                VStack(spacing: 0) {
-                    Spacer(minLength: navigationBarHeight + UIConstants.Spacing.large)
-
-                    DeckInlineConversionConfigurationCard(
-                        sourceDeckTitle: deck.title,
-                        sourceDeckCardCount: deck.cardCount,
-                        request: request,
-                        onDismiss: {
-                            viewModel.dismissConversionSheet()
-                        },
-                        onUpdateScope: { scope in
-                            viewModel.conversionRequest?.updateScope(scope)
-                        },
-                        onToggleSourceKind: { kind in
-                            viewModel.conversionRequest?.toggleSourceKind(kind)
-                        },
-                        onUpdateTargetKind: { kind in
-                            viewModel.conversionRequest?.updateTargetKind(kind)
-                        },
-                        onUpdateDestination: { option in
-                            viewModel.conversionRequest?.destination = option
-                        },
-                        onUpdateNewDeckTitle: { title in
-                            viewModel.conversionRequest?.newDeckTitle = title
-                        },
-                        onStart: {
-                            startDeckSeededConversion()
-                        }
-                    )
-                    .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-
-                    Spacer(minLength: UIConstants.Size.bottomChromeBarHeight + UIConstants.Layout.bottomChromeBottomPadding + UIConstants.Spacing.large)
-                }
-            }
-            .transition(.opacity.combined(with: .scale(scale: 0.98)))
-            .zIndex(280)
         }
     }
 

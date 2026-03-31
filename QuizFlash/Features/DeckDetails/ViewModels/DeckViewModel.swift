@@ -87,7 +87,6 @@ final class DeckViewModel {
         category: "DeckViewModel"
     )
     @ObservationIgnored var snapshotLoadTask: Task<Void, Never>?
-    @ObservationIgnored var conversionTask: Task<Void, Never>?
 
     // MARK: - Selection State
 
@@ -149,22 +148,6 @@ final class DeckViewModel {
     var showExportError = false
     /// Human-readable description of the last export error.
     var exportErrorMessage = ""
-
-    // MARK: - Conversion State
-
-    /// Mutable configuration shown in the deck conversion sheet.
-    var conversionRequest: DeckCardConversionRequest?
-    /// Live progress while a conversion run is underway.
-    var conversionProgress: DeckCardConversionProgress?
-    /// Final summary after a completed conversion run.
-    var conversionSummary: DeckCardConversionSummary?
-    /// Fatal conversion error shown inline in the sheet.
-    var conversionErrorMessage: String?
-
-    /// Whether the sheet is currently executing an AI conversion run.
-    var isConvertingCards: Bool {
-        conversionProgress != nil
-    }
 
     // MARK: - Initialization
 

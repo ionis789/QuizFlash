@@ -12,7 +12,6 @@ import OSLog
 extension DeckViewModel {
     func tearDown() {
         cancelSnapshotLoad()
-        cancelConversion()
         CardPreviewCache.shared.flush()
     }
 

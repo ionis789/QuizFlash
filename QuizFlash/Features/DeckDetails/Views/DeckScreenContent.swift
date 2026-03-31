@@ -53,13 +53,11 @@ extension DeckContentView {
                     && previewedCard == nil
                     && cardEditorDestination == nil
                     && unavailablePlayMode == nil
-                    && viewModel.conversionRequest == nil
                     && activeActionMenuCardID == nil
             ) { dismiss() }
             .animation(.bottomChromeSpring, value: viewModel.isSelecting)
             .environment(scrollState)
             .overlay { unavailablePlayModeOverlay }
-            .overlay { deckConversionConfigurationOverlay }
     }
 
     // MARK: Navigation Bar

@@ -382,41 +382,6 @@ extension CreateDeckView {
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: shouldShowFloatingGenerate)
     }
 
-    @ViewBuilder
-    var conversionConfigurationOverlay: some View {
-        if isShowingConversionConfiguration {
-            GeometryReader { proxy in
-                ZStack {
-                    themeManager.groupedScreenBackground
-                        .opacity(0.985)
-                        .ignoresSafeArea()
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            aiWorkspaceCoordinator.dismissConversionConfiguration()
-                        }
-
-                    VStack(spacing: 0) {
-                        Spacer(minLength: max(proxy.safeAreaInsets.top, UIConstants.Spacing.huge))
-
-                        AIWorkspaceConversionConfigurationCard(
-                            coordinator: aiWorkspaceCoordinator,
-                            sourceDecks: sourceDecks,
-                            onSelectSourceDeck: { deck in
-                                reseedConversion(for: deck)
-                            }
-                        ) {
-                            aiWorkspaceCoordinator.startConversion(context: context)
-                        }
-                        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-
-                        Spacer(minLength: max(proxy.safeAreaInsets.bottom, UIConstants.Spacing.huge))
-                    }
-                }
-            }
-            .transition(.opacity.combined(with: .scale(scale: 0.98)))
-        }
-    }
-
     var moreMenuContents: some View {
         Group {
             Menu {

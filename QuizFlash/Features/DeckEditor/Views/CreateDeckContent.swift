@@ -396,11 +396,16 @@ extension CreateDeckView {
     func reseedConversion(for sourceDeck: DeckModel) {
         guard let request = makeConversionRequest(for: sourceDeck) else { return }
         exitDraftSelectionModeForExternalAction()
-        _ = aiWorkspaceCoordinator.seedConversion(
+        let preservedSheetToken = aiWorkspaceCoordinator.conversionSheetToken
+        let shouldPreservePresentedSheet = preservedSheetToken != nil
+        let didSeed = aiWorkspaceCoordinator.seedConversion(
             request: request,
             sourceDeck: sourceDeck,
             activatesWorkspaceContext: false
         )
+        if didSeed, shouldPreservePresentedSheet, let preservedSheetToken {
+            aiWorkspaceCoordinator.conversionSheetToken = preservedSheetToken
+        }
         isHistoricalCardsCollapsed = true
     }
 

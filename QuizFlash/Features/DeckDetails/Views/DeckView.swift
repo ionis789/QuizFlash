@@ -57,6 +57,19 @@ struct DeckContentView: View {
         router.activeTab != ownerTab
     }
 
+    var conversionConfigurationSheetBinding: Binding<AIWorkspaceConversionSheetToken?> {
+        Binding(
+            get: { aiWorkspaceCoordinator.conversionSheetToken },
+            set: { newValue in
+                if newValue == nil {
+                    aiWorkspaceCoordinator.dismissConversionConfiguration()
+                } else {
+                    aiWorkspaceCoordinator.conversionSheetToken = newValue
+                }
+            }
+        )
+    }
+
     /// Reserved top spacing that keeps the hero content below the floating chrome.
     var topContentInset: CGFloat {
         navigationBarHeight + UIConstants.Layout.deckHeroChromeClearance
@@ -201,6 +214,19 @@ struct DeckContentView: View {
             }
             .sheet(isPresented: $viewModel.showShareSheet) {
                 if let url = viewModel.exportedURL { ShareSheet(items: [url]) }
+            }
+            .sheet(item: conversionConfigurationSheetBinding) { _ in
+                AIWorkspaceConversionSheetView(
+                    coordinator: aiWorkspaceCoordinator,
+                    sourceDecks: [deck],
+                    onSelectSourceDeck: { _ in }
+                ) {
+                    startDeckSeededConversion()
+                }
+                .presentationDetents([.fraction(0.6)])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(34)
+                .presentationBackground(.clear)
             }
             .alert("Export Error", isPresented: $viewModel.showExportError) {
                 Button("OK", role: .cancel) { }
