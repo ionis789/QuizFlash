@@ -79,7 +79,7 @@ final actor LibrarySearchActor {
     /// - Parameter deckInfos: Lightweight deck metadata snapshots (no `CardModel` references).
     /// - Returns: An array of `DeckSearchPayload` values ready for the `SearchEngine`.
     func buildPayloads(
-        for deckInfos: [(id: PersistentIdentifier, title: String, icon: String, colorHex: String)]
+        for deckInfos: [(id: PersistentIdentifier, title: String, colorHex: String, cardCount: Int, editedAt: Date)]
     ) -> [DeckSearchPayload] {
         var results: [DeckSearchPayload] = []
 
@@ -99,8 +99,9 @@ final actor LibrarySearchActor {
                 results.append(DeckSearchPayload(
                     id: info.id,
                     title: info.title,
-                    icon: info.icon,
                     colorHex: info.colorHex,
+                    cardCount: info.cardCount,
+                    editedAt: info.editedAt,
                     cards: searchCards
                 ))
             }

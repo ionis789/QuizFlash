@@ -143,7 +143,7 @@ final class HomeViewModelTests: XCTestCase {
         log.cardsReviewed = 18
         log.xpEarnedToday = 70
 
-        let recentDeck = DeckModel(title: "Neuro", icon: "brain.head.profile", colorHex: "#4C8DFF")
+        let recentDeck = DeckModel(title: "Neuro", colorHex: "#4C8DFF")
         recentDeck.cardCount = 48
         recentDeck.lastOpenedAt = calendar.date(byAdding: .hour, value: -2, to: today)
 
@@ -274,7 +274,7 @@ final class HomeViewModelTests: XCTestCase {
         log.cardsReviewed = 12
         log.xpEarnedToday = 50
 
-        let recentDeck = DeckModel(title: "Roman Law", icon: "books.vertical", colorHex: "#4C8DFF")
+        let recentDeck = DeckModel(title: "Roman Law", colorHex: "#4C8DFF")
         recentDeck.cardCount = 86
         recentDeck.lastOpenedAt = calendar.date(byAdding: .hour, value: 11, to: today)
 
@@ -312,13 +312,13 @@ final class HomeViewModelTests: XCTestCase {
         let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: today))
         let yesterday = try XCTUnwrap(calendar.date(byAdding: .day, value: -1, to: today))
 
-        let pressuredDeck = DeckModel(title: "Biology Sprint", icon: "cross.case", colorHex: "#FF7A59")
+        let pressuredDeck = DeckModel(title: "Biology Sprint", colorHex: "#FF7A59")
         pressuredDeck.lastOpenedAt = yesterday
 
-        let healthyDeck = DeckModel(title: "History Stable", icon: "books.vertical", colorHex: "#58C27D")
+        let healthyDeck = DeckModel(title: "History Stable", colorHex: "#58C27D")
         healthyDeck.lastOpenedAt = today
 
-        let warmupDeck = DeckModel(title: "Spanish Warmup", icon: "character.book.closed", colorHex: "#4C8DFF")
+        let warmupDeck = DeckModel(title: "Spanish Warmup", colorHex: "#4C8DFF")
 
         context.insert(pressuredDeck)
         context.insert(healthyDeck)
@@ -436,8 +436,8 @@ final class HomeViewModelTests: XCTestCase {
 
     func testSaveExamGoalCreatesLinkedGoal() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let firstDeck = DeckModel(title: "Deck A", icon: "book", colorHex: "#AAA111")
-        let secondDeck = DeckModel(title: "Deck B", icon: "book", colorHex: "#BBB222")
+        let firstDeck = DeckModel(title: "Deck A", colorHex: "#AAA111")
+        let secondDeck = DeckModel(title: "Deck B", colorHex: "#BBB222")
         context.insert(firstDeck)
         context.insert(secondDeck)
         try context.save()
@@ -471,8 +471,8 @@ final class HomeViewModelTests: XCTestCase {
 
     func testSaveExamGoalEditsExistingGoalAndStatus() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let originalDeck = DeckModel(title: "Original", icon: "book", colorHex: "#AAAAAA")
-        let replacementDeck = DeckModel(title: "Replacement", icon: "book", colorHex: "#BBBBBB")
+        let originalDeck = DeckModel(title: "Original", colorHex: "#AAAAAA")
+        let replacementDeck = DeckModel(title: "Replacement", colorHex: "#BBBBBB")
         let goal = ExamGoalModel(
             title: "Exam",
             note: "Old note",
@@ -510,7 +510,7 @@ final class HomeViewModelTests: XCTestCase {
 
     func testUpdateExamGoalStatusPersistsStatusMutation() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Deck", icon: "book", colorHex: "#111111")
+        let deck = DeckModel(title: "Deck", colorHex: "#111111")
         let goal = ExamGoalModel(
             title: "Status Goal",
             note: "",

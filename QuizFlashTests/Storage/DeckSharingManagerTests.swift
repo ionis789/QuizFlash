@@ -14,7 +14,7 @@ final class DeckSharingManagerTests: XCTestCase {
     func testExportImportRoundTripPreservesMixedCardMetadata() async throws {
         let exportContext = try TestModelContainerFactory.makeContext()
 
-        let deck = DeckModel(title: "Round Trip", icon: "bolt.fill", colorHex: "#ABCDEF")
+        let deck = DeckModel(title: "Round Trip", colorHex: "#ABCDEF")
         let sourceCard = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "Base", back: "Source"),
             cardNumber: 1
@@ -68,7 +68,6 @@ final class DeckSharingManagerTests: XCTestCase {
         let importedDeck = try await manager.importDeck(from: fileURL, into: importContext)
 
         XCTAssertEqual(importedDeck.title, "Round Trip")
-        XCTAssertEqual(importedDeck.icon, "bolt.fill")
         XCTAssertEqual(importedDeck.colorHex, "#ABCDEF")
         XCTAssertEqual(importedDeck.cardCount, 4)
 

@@ -60,7 +60,7 @@ struct EdgeShadowOverlay: View {
     var bottomHeight: CGFloat = 0
 
     /// Intensity of the top shadow. `0.0` = invisible, `1.0` = fully opaque black.
-    var kMaxAlphaTop: CGFloat = 0.85
+    var kMaxAlphaTop: CGFloat = 0.95
 
     /// Intensity of the bottom shadow. `0.0` = invisible, `1.0` = fully opaque black.
     var kMaxAlphaBottom: CGFloat = 0.5

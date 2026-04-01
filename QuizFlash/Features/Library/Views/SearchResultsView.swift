@@ -2,45 +2,19 @@
 //  SearchResultsView.swift
 //  QuizFlash
 //
-//  ARCHITECTURE
-//  ─────────────────────────────────────────────────────────────────────────────
+//  Integrated, deck-first search results for Library and Folder surfaces.
 //
-//  ScrollView  (owned by LibraryLayout's ScrollViewReader)
-//    └── LazyVStack  ← deck groups are lazy; only visible ones are alive
-//          └── SearchResultGroupView  (Equatable — skips redraws if unchanged)
-//                ├── DeckHeaderRow          — always visible, tap → open deck
-//                └── CardListSection
-//                      ├── Collapsed:  first `Layout.previewCount` (3) cards
-//                      │               + "Show N more" button  (if overflow)
-//                      └── Expanded:   ALL matchedCards in a LazyVStack
-//                                      so only cards scrolled into view get
-//                                      their HighlightedText tasks spawned.
-//                                      No "open deck" CTA — everything is
-//                                      available inline with highlights.
-//
-//  WHY NO ANIMATIONS ON THE LIST:
-//  Animating a LazyVStack during rapid search-result streaming (5+ updates/sec)
-//  causes SwiftUI layout-engine thrash. Animations live only on discrete user
-//  actions (expand tap = withAnimation(.spring)).
 
 import SwiftUI
 import SwiftData
 
-// MARK: - Layout Constants
+// MARK: - SearchResultsView
 
-private enum Layout {
-    /// Cards shown before the "Show more" button appears.
-    static let previewCount = 3
-}
-
-// MARK: - Container
-
-/// Displays a list of search results matching the query.
-/// List items use a lazy container to defer loading of card previews.
+/// Renders a flat, deck-first result list that stays visually aligned with the
+/// minimalist Library rows instead of presenting a separate search surface.
 struct SearchResultsView: View {
     @Environment(\.modelContext) private var context
     @Environment(NavigationManager.self) private var router
-    @Environment(LibraryViewModel.self) private var viewModel
 
     let results: [DeckSearchResultItem]
     let query: String
@@ -48,321 +22,180 @@ struct SearchResultsView: View {
     let onCardTap: (PersistentIdentifier) -> Void
 
     var body: some View {
-        LazyVStack(spacing: 28) {
-            ForEach(results) { result in
-                SearchResultGroupView(
-                    result: result,
-                    query: query,
-                    isExpanded: viewModel.expandedSearchDecks.contains(result.id),
-                    onDeckTap: { navigateToDeck(with: result.id) },
-                    onCardTap: onCardTap,
-                    onToggleExpand: { toggleExpansion(for: result.id) }
-                )
-                    .equatable()
+        VStack(spacing: 0) {
+            if results.isEmpty {
+                emptyState
+            } else {
+                LazyVStack(spacing: 0) {
+                    ForEach(results) { result in
+                        SearchDeckResultRow(
+                            result: result,
+                            query: query,
+                            onDeckTap: { navigateToDeck(with: result.id) },
+                            onCardTap: onCardTap
+                        )
+                    }
+                }
             }
         }
-            .safeAreaPadding(.top, 55)
-            .safeAreaPadding(.bottom, 80)
+        .padding(.top, UIConstants.Spacing.small)
+        .padding(.bottom, 80)
     }
 
-    // MARK: - Helpers
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(isSearchLoading ? "Searching…" : "No matching decks or cards")
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .foregroundStyle(.primary)
 
-    /// Animated toggle for expanding a specific result deck.
-    private func toggleExpansion(for id: PersistentIdentifier) {
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-            viewModel.toggleSearchDeckExpansion(for: id)
+            Text(
+                isSearchLoading
+                    ? "Keeping the current list stable while the next result set is prepared."
+                    : "Try a broader phrase, another deck title, or a different card keyword."
+            )
+            .font(.system(size: 16, weight: .medium, design: .rounded))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+        .padding(.top, UIConstants.Spacing.large)
     }
 
     private func navigateToDeck(with id: PersistentIdentifier) {
         guard let deck = context.safeModel(for: id, as: DeckModel.self) else { return }
-        // Back label is frozen at push time — "Search" indicates the user navigated
-        // from a search result, so the back button correctly reads "< Search".
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            router.append(DeckNavigationValue(
-                deckID: deck.persistentModelID,
-                backLabel: "Search"
-            ))
-        }
+        router.append(DeckNavigationValue(
+            deckID: deck.persistentModelID,
+            backLabel: "Search"
+        ))
     }
 }
 
-// MARK: - Equatable Group View
+// MARK: - SearchDeckResultRow
 
-private struct SearchResultGroupView: View, Equatable {
-
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.result == rhs.result
-            && lhs.query == rhs.query
-            && lhs.isExpanded == rhs.isExpanded
-    }
-
+private struct SearchDeckResultRow: View {
     let result: DeckSearchResultItem
     let query: String
-    let isExpanded: Bool
     let onDeckTap: () -> Void
     let onCardTap: (PersistentIdentifier) -> Void
-    let onToggleExpand: () -> Void
+
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
+
+    private var visibleSnippets: ArraySlice<MatchedCardInfo> {
+        result.matchedCards.prefix(2)
+    }
+
+    private var hiddenMatchCount: Int {
+        max(0, result.totalMatchedCardsCount - visibleSnippets.count)
+    }
+
+    private var timeAgoString: String {
+        Self.relativeFormatter.localizedString(for: result.editedAt, relativeTo: Date())
+    }
+
+    private var deckTint: Color {
+        Color(hex: result.deckColorHex) ?? ThemeManager.shared.accentColor.color
+    }
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Button(action: onDeckTap) {
-                DeckHeaderRow(result: result, query: query)
-            }
-                .buttonStyle(ScaleButtonStyle())
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HighlightedText(
+                            text: result.deckTitle,
+                            query: query,
+                            font: .system(size: 22, weight: .bold, design: .rounded),
+                            baseColor: .primary
+                        )
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
 
-            if !result.matchedCards.isEmpty {
-                CardListSection(
-                    result: result,
-                    query: query,
-                    isExpanded: isExpanded,
-                    onCardTap: onCardTap,
-                    onToggleExpand: onToggleExpand
-                )
-            }
-        }
-    }
-}
+                        HStack(spacing: 12) {
+                            LibraryDeckMetaLabel(
+                                systemImage: "rectangle.stack.fill",
+                                text: "\(result.cardCount) card\(result.cardCount == 1 ? "" : "s")"
+                            )
+                            LibraryDeckMetaLabel(
+                                systemImage: "clock",
+                                text: timeAgoString
+                            )
+                            LibraryDeckMetaLabel(
+                                systemImage: "sparkles",
+                                text: "\(result.totalMatchedCardsCount) match\(result.totalMatchedCardsCount == 1 ? "" : "es")"
+                            )
+                            Spacer(minLength: 0)
+                        }
+                    }
 
-// MARK: - Deck Header Row
+                    Spacer(minLength: 12)
 
-private struct DeckHeaderRow: View {
-    let result: DeckSearchResultItem
-    let query: String
-
-    var body: some View {
-        let deckColor = Color(hex: result.deckColorHex) ?? .blue
-        HStack(spacing: 14) {
-            // Icon circle
-            ZStack {
-                Circle()
-                    .fill(LinearGradient(
-                    colors: [deckColor.opacity(0.8), deckColor.opacity(0.4)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
-                    .frame(width: 44, height: 44)
-                Image(systemName: result.deckIcon.isEmpty
-                    ? "sparkles.rectangle.stack.fill"
-                : result.deckIcon)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-
-            // Title + match count
-            VStack(alignment: .leading, spacing: 3) {
-                HighlightedText(
-                    text: result.deckTitle,
-                    query: query,
-                    font: .title3.weight(.bold),
-                    baseColor: .primary
-                )
-                Text(matchCountLabel)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
-            }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.tertiary)
-        }
-            .padding(16)
-            .background(Color(uiColor: .secondarySystemGroupedBackground)) // Or ThemeManager if custom card background is preferred.
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
-    }
-
-    private var matchCountLabel: String {
-        let n = result.totalMatchedCardsCount
-        // If we hit the 200-card cap, show "200+" to signal truncation.
-        if result.overflowCardCount > 0 {
-            return "\(result.matchedCards.count)+ matching cards"
-        }
-        return "\(n) matching card\(n == 1 ? "" : "s")"
-    }
-}
-
-// MARK: - Card List Section
-
-private struct CardListSection: View {
-
-    let result: DeckSearchResultItem
-    let query: String
-    let isExpanded: Bool
-    let onCardTap: (PersistentIdentifier) -> Void
-    let onToggleExpand: () -> Void
-
-    // Always-visible preview slice
-    private var previewCards: ArraySlice<MatchedCardInfo> {
-        result.matchedCards.prefix(Layout.previewCount)
-    }
-
-    // Hidden-until-expanded slice (indices 3…n)
-    private var extraCards: ArraySlice<MatchedCardInfo> {
-        result.matchedCards.dropFirst(Layout.previewCount)
-    }
-
-    // Count shown on the "Show more" button
-    private var hiddenCount: Int {
-        extraCards.count + result.overflowCardCount
-    }
-
-    var body: some View {
-        VStack(spacing: 10) {
-            // ── Always-visible preview ────────────────────────────────────────
-            ForEach(previewCards) { card in
-                cardButton(card)
-            }
-
-            // ── Expand / collapse ─────────────────────────────────────────────
-            if hiddenCount > 0 {
-                if isExpanded {
-                    expandedSection
-                } else {
-                    showMoreButton
-                }
-            }
-        }
-            .frame(maxWidth: .infinity, alignment: .center)
-    }
-
-    // MARK: - Show More Button
-
-    private var showMoreButton: some View {
-        let accent = ThemeManager.shared.accentColor.color
-        return Button(action: onToggleExpand) {
-            HStack(spacing: 8) {
-                Image(systemName: "chevron.down.circle.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                Text("Show \(hiddenCount) more card\(hiddenCount == 1 ? "" : "s")")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                Spacer()
-                Image(systemName: "arrow.down")
-                    .font(.system(size: 11, weight: .bold))
-                    .opacity(0.5)
-            }
-                .foregroundStyle(accent)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .frame(maxWidth: .infinity)
-                .background(
-                accent.opacity(0.08),
-                in: RoundedRectangle(cornerRadius: 13, style: .continuous)
-            )
-                .overlay(
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .stroke(accent.opacity(0.18), lineWidth: 1)
-            )
-        }
-            .buttonStyle(ScaleButtonStyle())
-    }
-
-    // MARK: - Expanded Section
-
-    private var expandedSection: some View {
-        VStack(spacing: 0) {
-            // ── LazyVStack for extra cards ────────────────────────────────────
-            // Correct scope for lazy evaluation:
-            //  • Lives inside the parent ScrollView → lazy context is available
-            //  • The deck header above is already on screen → no height-jump
-            //  • Each CardSnippetRow's HighlightedText.task(id:) fires only
-            //    when the row scrolls into the viewport → no mass task spawning
-            LazyVStack(spacing: 10) {
-                ForEach(extraCards) { card in
-                    cardButton(card)
-                }
-
-                // If the deck exceeded even the 200-card cap, acknowledge it.
-                if result.overflowCardCount > 0 {
-                    Text("+ \(result.overflowCardCount) more cards not shown (query too broad)")
-                        .font(.caption)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity)
+                        .padding(.top, 4)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-                .frame(maxWidth: .infinity)
+            .buttonStyle(.plain)
 
-            // ── Collapse button ───────────────────────────────────────────────
-            Button(action: onToggleExpand) {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.up.circle.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                    Text("Show less")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+            ForEach(visibleSnippets) { card in
+                Button {
+                    onCardTap(card.id)
+                } label: {
+                    SearchSnippetRow(card: card, query: query)
                 }
+                .buttonStyle(.plain)
+            }
+
+            if hiddenMatchCount > 0 {
+                Text("+\(hiddenMatchCount) more match\(hiddenMatchCount == 1 ? "" : "es") in this deck")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
+                    .padding(.leading, 56)
             }
-                .buttonStyle(ScaleButtonStyle())
-                .padding(.top, 8)
         }
-    }
-
-    // MARK: - Card Button
-
-    private func cardButton(_ card: MatchedCardInfo) -> some View {
-        Button { onCardTap(card.id) } label: {
-            CardSnippetRow(card: card, query: query)
+        .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset + 4)
+        .padding(.vertical, 14)
+        .overlay(alignment: .bottom) {
+            LibraryRowSeparator(tint: deckTint)
+                .padding(.top, 10)
         }
-            .buttonStyle(ScaleButtonStyle())
-            .frame(maxWidth: .infinity)
     }
 }
 
-// MARK: - Card Snippet Row
+// MARK: - SearchSnippetRow
 
-private struct CardSnippetRow: View {
+private struct SearchSnippetRow: View {
     let card: MatchedCardInfo
     let query: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Match side badge
-            HStack {
-                Text(card.matchSide.rawValue)
-                    .font(.system(size: 10, weight: .bold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(badgeColor.opacity(0.15))
-                    .foregroundStyle(badgeColor)
-                    .clipShape(Capsule())
-                Spacer()
-            }
+        HStack(alignment: .top, spacing: 12) {
+            Text(card.matchSide.rawValue)
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(badgeColor)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(badgeColor.opacity(0.14), in: Capsule())
 
-            // Snippet with async highlights
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "text.quote")
-                    .font(.subheadline)
-                    .foregroundStyle(ThemeManager.shared.accentColor.color)
-                    .padding(.top, 2)
+            HighlightedText(
+                text: card.snippet,
+                query: query,
+                font: .system(size: 15, weight: .medium, design: .rounded),
+                baseColor: .secondary
+            )
+            .lineLimit(3)
+            .multilineTextAlignment(.leading)
 
-                // HighlightedText runs string-search on a background thread.
-                // Plain text is shown instantly; highlighted version swaps in
-                // asynchronously without blocking the main thread.
-                HighlightedText(
-                    text: card.snippet,
-                    query: query,
-                    font: .subheadline,
-                    baseColor: .secondary
-                )
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
-
-                Spacer(minLength: 0)
-            }
+            Spacer(minLength: 0)
         }
-            .padding(14)
-            .frame(maxWidth: .infinity)
-            .background(Color(uiColor: .tertiarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.primary.opacity(0.04), lineWidth: 1)
-        )
+        .contentShape(Rectangle())
     }
 
     private var badgeColor: Color {

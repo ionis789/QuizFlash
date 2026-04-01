@@ -60,12 +60,8 @@ struct LibraryListView: View {
     let onDelete: (DeckModel) -> Void
 
     var body: some View {
-        Group {
-            ForEach(groupedDecks) { section in
-                LibrarySectionHeader(title: section.title)
-                    .scrollProximityEffect()
-                    .id("header-\(section.id)")
-
+        ForEach(groupedDecks) { section in
+            Section {
                 ForEach(section.decks) { deck in
                     LibraryDeckListRow(
                         deck: deck,
@@ -78,11 +74,15 @@ struct LibraryListView: View {
                         onEditColor: { onEditColor(deck) },
                         onDelete: { onDelete(deck) }
                     )
-                        .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
-                        .padding(.vertical, 5)
-                        .scrollProximityEffect()
-                        .id(deck.id)
+                    .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
+                    .padding(.vertical, 2)
+                    .id(deck.id)
                 }
+            } header: {
+                LibrarySectionHeader(
+                    title: section.title
+                )
+                    .id("header-\(section.id)")
             }
         }
     }
@@ -107,6 +107,20 @@ struct LibraryDeckListRow: View {
     let onEditColor: () -> Void
     let onDelete: () -> Void
 
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
+
+    private var deckTint: Color {
+        Color(hex: deck.colorHex) ?? ThemeManager.shared.accentColor.color
+    }
+
+    private var timeAgoString: String {
+        Self.relativeFormatter.localizedString(for: deck.editedAt, relativeTo: Date())
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             if isSelecting {
@@ -124,16 +138,56 @@ struct LibraryDeckListRow: View {
                         onToggleSelection()
                     }
                 } else {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        onNavigate()
-                    }
+                    onNavigate()
                 }
             } label: {
-                DeckRowView(deck: deck)
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(deck.title)
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+
+                        HStack(spacing: 12) {
+                            LibraryDeckMetaLabel(
+                                systemImage: "rectangle.stack.fill",
+                                text: "\(deck.cardCount) card\(deck.cardCount == 1 ? "" : "s")"
+                            )
+
+                            LibraryDeckMetaLabel(
+                                systemImage: "clock",
+                                text: timeAgoString
+                            )
+
+                            if let folder = deck.folder {
+                                LibraryDeckMetaLabel(
+                                    systemImage: "folder",
+                                    text: folder.title
+                                )
+                            }
+
+                            Spacer(minLength: 0)
+                        }
+                    }
+
+                    Spacer(minLength: 12)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 4)
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 14)
+                .overlay(alignment: .bottom) {
+                    LibraryRowSeparator(tint: deckTint)
+                        .padding(.top, 10)
+                }
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(ScaleButtonStyle())
-            .padding(.vertical, 6)
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
             // ── Long-Press Action Menu ──────────────────────────────────────
             // NOT WORKING NOW 
             // .contextMenu is intentionally absent.
@@ -203,6 +257,78 @@ struct LibraryDeckListRow: View {
     }
 }
 
+struct LibraryDeckMetaLabel: View {
+    let systemImage: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+            Text(text)
+                .lineLimit(1)
+        }
+        .font(.system(size: 13, weight: .medium, design: .rounded))
+        .foregroundStyle(.secondary)
+    }
+}
+
+struct LibraryRowSeparator: View {
+    let tint: Color
+
+    var body: some View {
+        Capsule(style: .continuous)
+            .fill(
+                LinearGradient(
+                    stops: [
+                        .init(color: tint.opacity(0.20), location: 0.0),
+                        .init(color: Color.white.opacity(0.145), location: 0.18),
+                        .init(color: Color.white.opacity(0.12), location: 0.42),
+                        .init(color: Color.white.opacity(0.085), location: 0.68),
+                        .init(color: Color.white.opacity(0.045), location: 0.88),
+                        .init(color: .clear, location: 1.0)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .overlay(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: tint.opacity(0.11), location: 0.0),
+                                .init(color: Color.white.opacity(0.075), location: 0.45),
+                                .init(color: .clear, location: 1.0)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(maxWidth: 168)
+                    .blur(radius: 1.6)
+            }
+        .frame(height: 2)
+        .clipShape(Capsule(style: .continuous))
+        .opacity(0.88)
+    }
+}
+
+struct LibrarySectionHeaderSnapshot: Equatable {
+    let id: String
+    let title: String
+    let minY: CGFloat
+    let height: CGFloat
+}
+
+struct LibrarySectionHeaderPreferenceKey: PreferenceKey {
+    static var defaultValue: [LibrarySectionHeaderSnapshot] = []
+
+    static func reduce(value: inout [LibrarySectionHeaderSnapshot], nextValue: () -> [LibrarySectionHeaderSnapshot]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
 // MARK: - Deck Action Menu
 //
 // Pure SwiftUI replacement for UIContextMenuInteraction.
@@ -261,22 +387,39 @@ struct LibrarySectionHeader: View {
     let title: String
 
     var body: some View {
-        HStack(spacing: 12) {
-            Rectangle()
-                .fill(Color.primary.opacity(0.1))
-                .frame(height: 0.5)
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-                .fixedSize()
-            Rectangle()
-                .fill(Color.primary.opacity(0.1))
-                .frame(height: 0.5)
-        }
+        LibrarySectionHeaderLabel(title: title)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 2)
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-            .padding(.vertical, 14)
+            .textCase(nil)
     }
+}
+
+struct LibrarySectionHeaderLabel: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .foregroundStyle(Color.white.opacity(0.72))
+            .lineLimit(1)
+            .minimumScaleFactor(0.88)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 3)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(Color.white.opacity(0.07))
+                    .overlay {
+                        Capsule(style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
+                    }
+            }
+    }
+}
+
+enum LibrarySectionHeaderMetrics {
+    static let defaultHeight: CGFloat = 24
 }
 
 // MARK: - Empty State

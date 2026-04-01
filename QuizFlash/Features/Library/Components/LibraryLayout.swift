@@ -44,7 +44,7 @@ struct LibraryLayout: View {
     @State private var headerHeight: CGFloat = 0
     @State private var navigationBarBottomY: CGFloat = 0
     @State private var isCollapsedTitleVisible = false
-
+    @State private var lastLoggedNavigationBarBottomY: CGFloat = -.greatestFiniteMagnitude
     /// safeAreaInsets.top captured from the root body context (non-zero here).
     @State private var safeTop: CGFloat = 0
 
@@ -62,10 +62,9 @@ struct LibraryLayout: View {
         .easeOut(duration: 0.16)
     }
     private var searchContentMaxWidth: CGFloat { UIConstants.Layout.librarySearchContentMaxWidth }
-    private var searchPromptTopPadding: CGFloat {
-        UIConstants.Layout.searchPromptTopPadding
+    private var libraryCollapsedTitleRevealClearance: CGFloat {
+        UIConstants.Layout.deckHeroPillRevealClearance + 28
     }
-
     // MARK: - Body
 
     var body: some View {
@@ -79,11 +78,6 @@ struct LibraryLayout: View {
                 .zIndex(-1)
 
             mainScrollArea
-                .allowsHitTesting(!viewModel.isSearching)
-                .accessibilityHidden(viewModel.isSearching)
-
-            searchOverlay
-                .zIndex(4)
 
             // ── Edge shadows — top + bottom vignette ─────────────────────────
             // Tune kShadowRadius in EdgeShadowOverlay.swift to adjust both edges.
@@ -92,38 +86,6 @@ struct LibraryLayout: View {
                 bottomHeight: 60
             )
                 .zIndex(5)
-
-            // ── Header — above gradient, below selection bar ──────────────────
-            VStack(spacing: 0) {
-                LibraryTopBarView(
-                    title: title,
-                    deckCount: decks.count,
-                    viewModel: viewModel,
-                    coordinateSpaceName: kLibraryChromeSpace,
-                    isCollapsedTitleVisible: isCollapsedTitleVisible,
-                    isScrolled: viewModel.savedScrollOffset > 10,
-                    onBack: onBack,
-                    backLabel: backLabel,
-                    onBottomChange: { newBottom in
-                        if abs(navigationBarBottomY - newBottom) > 0.5 {
-                            navigationBarBottomY = newBottom
-                        }
-                    }
-                )
-                // Capture rendered height so the ScrollView spacer and blur
-                // frame stay in sync. Guard prevents redundant state writes.
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.height
-                } action: { newHeight in
-                    if headerHeight != newHeight { headerHeight = newHeight }
-                }
-                Spacer()
-            }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(true)
-                .zIndex(6)
-
-
 
             if viewModel.isSelecting && !isSearching {
                 BottomChromeContainer(
@@ -153,6 +115,37 @@ struct LibraryLayout: View {
         }
         .coordinateSpace(name: kLibraryChromeSpace)
             .animation(.bottomChromeSpring, value: viewModel.isSelecting)
+            .safeAreaInset(edge: .top, spacing: 0) {
+            LibraryTopBarView(
+                title: title,
+                deckCount: decks.count,
+                viewModel: viewModel,
+                coordinateSpaceName: kLibraryChromeSpace,
+                isCollapsedTitleVisible: isCollapsedTitleVisible,
+                isScrolled: viewModel.savedScrollOffset > 10,
+                onBack: onBack,
+                backLabel: backLabel,
+                onBottomChange: { newBottom in
+                    if abs(navigationBarBottomY - newBottom) > 0.5 {
+                        navigationBarBottomY = newBottom
+                    }
+                    #if DEBUG
+                    if abs(lastLoggedNavigationBarBottomY - newBottom) >= 8 {
+                        lastLoggedNavigationBarBottomY = newBottom
+                        let bottomText = String(format: "%.1f", newBottom)
+                        let heightText = String(format: "%.1f", headerHeight)
+                        print("[LibraryStickyDebug] chrome.bottomY=\(bottomText) headerHeight=\(heightText) collapsedTitleVisible=\(isCollapsedTitleVisible)")
+                    }
+                    #endif
+                }
+            )
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { newHeight in
+                if headerHeight != newHeight { headerHeight = newHeight }
+            }
+            .zIndex(6)
+        }
             .background {
             GeometryReader { geo in
                 Color.clear
@@ -206,11 +199,6 @@ struct LibraryLayout: View {
                     .frame(height: 100)
                     .animation(.bottomChromeSpring, value: viewModel.isSelecting)
             }
-                .safeAreaInset(edge: .top) {
-                Color.clear
-                    .frame(height: 100)
-                    .animation(.bottomChromeSpring, value: viewModel.isSelecting)
-            }
         }
         // ── Selection mode dismiss on empty-space tap ─────────────────────
         // .gesture (not .simultaneousGesture, not .highPriorityGesture) on a
@@ -234,11 +222,7 @@ struct LibraryLayout: View {
                 }
             }
         )
-            .ignoresSafeArea(.container, edges: .top)
             .coordinateSpace(name: kLibraryScrollSpace)
-            .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: headerHeight)
-        }
             .onAppear { viewModel.updateGroupedDecks(from: decks) }
             .onChange(of: decks) { _, newDecks in viewModel.updateGroupedDecks(from: newDecks) }
             .onChange(of: viewModel.sortOrder) { _, _ in viewModel.updateGroupedDecks(from: decks) }
@@ -248,9 +232,22 @@ struct LibraryLayout: View {
 
     @ViewBuilder
     private var stackContent: some View {
-        LazyVStack(spacing: 0) {
-            libraryHeroTitle
-            deckListContent
+        switch viewModel.searchPresentation {
+        case .browse, .searchEmpty:
+            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                if viewModel.searchPresentation == .browse {
+                    libraryHeroTitle
+                }
+                contentList
+            }
+            .animation(searchTransition, value: viewModel.searchPresentation)
+            .animation(searchTransition, value: viewModel.renderedSearchQuery)
+        case .searchResults:
+            LazyVStack(spacing: 0) {
+                contentList
+            }
+            .animation(searchTransition, value: viewModel.searchPresentation)
+            .animation(searchTransition, value: viewModel.renderedSearchQuery)
         }
     }
 
@@ -264,17 +261,38 @@ struct LibraryLayout: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
-        .padding(.top, UIConstants.Spacing.large)
+        .padding(.top, UIConstants.Spacing.large + 8)
         .padding(.bottom, UIConstants.Spacing.extraLarge)
         .collapsibleTitleRevealAnchor(
             in: kLibraryChromeSpace,
             navigationBarBottomY: navigationBarBottomY,
+            revealClearance: libraryCollapsedTitleRevealClearance,
             isVisible: $isCollapsedTitleVisible
         )
     }
 
     @ViewBuilder
-    private var deckListContent: some View {
+    private var contentList: some View {
+        switch viewModel.searchPresentation {
+        case .browse, .searchEmpty:
+            browseListContent
+                .transition(.opacity)
+        case .searchResults:
+            SearchResultsView(
+                results: viewModel.searchResults,
+                query: viewModel.renderedSearchQuery,
+                isSearchLoading: viewModel.isSearchLoading,
+                onCardTap: onCardTap
+            )
+            .frame(maxWidth: searchContentMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .top)
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder
+    private var browseListContent: some View {
         if viewModel.cachedGroupedDecks.isEmpty {
             LibraryEmptyStateView().transition(.opacity)
         } else {
@@ -297,152 +315,7 @@ struct LibraryLayout: View {
                 onEditColor: { deck in viewModel.deckToEditColor = deck },
                 onDelete: { deck in viewModel.deckToDelete = deck }
             )
-            // Needed so ScrollViewReader can actually find the items:
             .id("LibraryList-\(viewModel.cachedGroupedDecks.count)")
-        }
-    }
-
-    // MARK: - Search overlays
-
-    private var searchOverlay: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                Color.clear
-                    .frame(height: headerHeight + UIConstants.Layout.compactScreenEdgeInset)
-
-                searchResultsLayer
-                    .frame(maxWidth: .infinity, alignment: .top)
-                    .padding(.bottom, UIConstants.Layout.sectionSpacing)
-            }
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .ignoresSafeArea(.container, edges: .top)
-        .background {
-            searchOverlayBackground
-        }
-        .compositingGroup()
-        .opacity(viewModel.isSearching ? 1 : 0)
-        .allowsHitTesting(viewModel.isSearching)
-        .accessibilityHidden(!viewModel.isSearching)
-        .animation(searchTransition, value: viewModel.isSearching)
-    }
-
-    private var searchOverlayBackground: some View {
-        backgroundTheme
-            .ignoresSafeArea()
-    }
-
-    @ViewBuilder
-    private var searchResultsLayer: some View {
-        if viewModel.searchText.isEmpty {
-            searchContentContainer {
-                readyToSearchPrompt
-            }
-        } else if viewModel.searchResults.isEmpty && !viewModel.isSearchLoading {
-            searchContentContainer {
-                noResultsPrompt
-            }
-        } else {
-            searchContentContainer {
-                SearchResultsView(
-                    results: viewModel.searchResults,
-                    query: viewModel.searchText,
-                    isSearchLoading: viewModel.isSearchLoading,
-                    onCardTap: onCardTap
-                )
-            }
-        }
-    }
-
-    private func searchContentContainer<Content: View>(
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        content()
-            .frame(maxWidth: searchContentMaxWidth, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .top)
-            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-    }
-
-    private var readyToSearchPrompt: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Layout.searchPromptSectionSpacing) {
-
-
-
-            VStack(
-                alignment: .leading,
-                spacing: UIConstants.Layout.sectionSpacing
-            ) {
-                SearchEntryBulletRow(
-                    title: "Deck titles",
-                    subtitle: "Jump straight to a topic, subject, or collection by name."
-                )
-                SearchEntryBulletRow(
-                    title: "Card prompts",
-                    subtitle: "Look for a phrase from the main prompt or question of any card."
-                )
-                SearchEntryBulletRow(
-                    title: "Answers and explanations",
-                    subtitle: "Search a keyword buried inside card content and study notes."
-                )
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.top, searchPromptTopPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var noResultsPrompt: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            Text("No results for “\(viewModel.searchText)”")
-                .font(.system(.title3, design: .rounded).weight(.bold))
-
-            Text("Try a broader keyword, another phrase, or search by deck title.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                SearchEntryBulletRow(
-                    title: "Broaden the term",
-                    subtitle: "Remove extra words or search for the core subject."
-                )
-                SearchEntryBulletRow(
-                    title: "Try the deck name",
-                    subtitle: "Search first by title, then refine with card text."
-                )
-            }
-        }
-        .padding(.top, searchPromptTopPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-// MARK: - SearchEntryBulletRow
-
-private struct SearchEntryBulletRow: View {
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
-            Circle()
-                .fill(ThemeManager.shared.accentColor.color.opacity(0.9))
-                .frame(width: 6, height: 6)
-                .padding(.top, 7)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Text(subtitle)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
         }
     }
 }

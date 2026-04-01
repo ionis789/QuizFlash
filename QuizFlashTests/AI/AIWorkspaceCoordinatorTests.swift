@@ -57,7 +57,7 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
         let store = AIJobSessionStore(fileManager: .default, rootDirectoryURL: directoryURL)
         let coordinator = AIWorkspaceCoordinator(jobSessionStore: store)
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Graphs", icon: "book", colorHex: "#112233")
+        let deck = DeckModel(title: "Graphs", colorHex: "#112233")
         context.insert(deck)
         try context.save()
 
@@ -91,7 +91,7 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
         let store = AIJobSessionStore(fileManager: .default, rootDirectoryURL: directoryURL)
         let coordinator = AIWorkspaceCoordinator(jobSessionStore: store)
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Graphs", icon: "book", colorHex: "#112233")
+        let deck = DeckModel(title: "Graphs", colorHex: "#112233")
         let card = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "DFS", back: "Depth-first search"),
             cardNumber: 1
@@ -153,7 +153,7 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
         let store = AIJobSessionStore(fileManager: .default, rootDirectoryURL: directoryURL)
         let coordinator = AIWorkspaceCoordinator(jobSessionStore: store)
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Geometry", icon: "book", colorHex: "#223344")
+        let deck = DeckModel(title: "Geometry", colorHex: "#223344")
         context.insert(deck)
         try context.save()
 
@@ -249,7 +249,7 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
 
     func testPauseConversionKeepsPreparingSessionVisibleAndResumable() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Algorithms", icon: "book", colorHex: "#112233")
+        let deck = DeckModel(title: "Algorithms", colorHex: "#112233")
         let matchCard = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.match(prompt: "DFS", answer: "Depth-first search"),
             cardNumber: 1
@@ -323,7 +323,7 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
     }
 
     private func makeConversionSession(context: ModelContext) throws -> AIPausedConversionSession {
-        let sourceDeck = DeckModel(title: "Algorithms", icon: "book", colorHex: "#112233")
+        let sourceDeck = DeckModel(title: "Algorithms", colorHex: "#112233")
         let flashCard = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "BFS", back: "Breadth-first search"),
             cardNumber: 1

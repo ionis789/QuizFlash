@@ -133,7 +133,7 @@ final class AIJobSessionStoreTests: XCTestCase {
 
     private func makeConversionSession(timestamp: Date = Date()) throws -> AIPausedConversionSession {
         let context = try TestModelContainerFactory.makeContext()
-        let sourceDeck = DeckModel(title: "Algorithms", icon: "book", colorHex: "#112233")
+        let sourceDeck = DeckModel(title: "Algorithms", colorHex: "#112233")
         let flashCard = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "BFS", back: "Breadth-first search"),
             cardNumber: 1

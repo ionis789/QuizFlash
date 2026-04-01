@@ -14,8 +14,8 @@ final class LibraryViewModelMutationTests: XCTestCase {
     func testDeleteSelectedDecksRemovesDecksAndClearsSelectionState() throws {
         let context = try TestModelContainerFactory.makeContext()
         let folder = FolderModel(title: "Folder", colorHex: "#112233")
-        let selectedDeck = DeckModel(title: "Selected", icon: "book", colorHex: "#AAAAAA")
-        let untouchedDeck = DeckModel(title: "Untouched", icon: "book", colorHex: "#BBBBBB")
+        let selectedDeck = DeckModel(title: "Selected", colorHex: "#AAAAAA")
+        let untouchedDeck = DeckModel(title: "Untouched", colorHex: "#BBBBBB")
 
         context.insert(folder)
         context.insert(selectedDeck)
@@ -42,7 +42,7 @@ final class LibraryViewModelMutationTests: XCTestCase {
     func testConfirmSingleDeletionDeletesPendingDeck() throws {
         let context = try TestModelContainerFactory.makeContext()
         let folder = FolderModel(title: "Delete", colorHex: "#445566")
-        let deck = DeckModel(title: "Disposable", icon: "book", colorHex: "#CCCCCC")
+        let deck = DeckModel(title: "Disposable", colorHex: "#CCCCCC")
 
         context.insert(folder)
         context.insert(deck)
@@ -65,8 +65,8 @@ final class LibraryViewModelMutationTests: XCTestCase {
         let context = try TestModelContainerFactory.makeContext()
         let sourceFolder = FolderModel(title: "Source", colorHex: "#111111")
         let destinationFolder = FolderModel(title: "Destination", colorHex: "#222222")
-        let movingDeck = DeckModel(title: "Move Me", icon: "book", colorHex: "#123123")
-        let otherDeck = DeckModel(title: "Stay", icon: "book", colorHex: "#456456")
+        let movingDeck = DeckModel(title: "Move Me", colorHex: "#123123")
+        let otherDeck = DeckModel(title: "Stay", colorHex: "#456456")
 
         context.insert(sourceFolder)
         context.insert(destinationFolder)
@@ -118,7 +118,7 @@ final class LibraryViewModelMutationTests: XCTestCase {
 
     func testHandleFileImportPersistsImportedDeckAndSuccessState() async throws {
         let exportContext = try TestModelContainerFactory.makeContext()
-        let sourceDeck = DeckModel(title: "Import Me", icon: "book", colorHex: "#ABC123")
+        let sourceDeck = DeckModel(title: "Import Me", colorHex: "#ABC123")
         let sourceCard = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "Q", back: "A"),
             cardNumber: 1

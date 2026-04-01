@@ -11,7 +11,7 @@ import Foundation
 
 /// Represents a grouped section of decks tailored for list or gallery presentation.
 struct DeckSection: Identifiable, Equatable {
-    /// A unique identifier for the section, typically the section title itself.
+    /// A unique identifier for the section.
     let id: String
     /// The display title for the section (e.g., "Today", "This Week").
     let title: String
@@ -49,7 +49,7 @@ enum LibraryGrouping {
 
         var sections: [DeckSection] = groups.map { (startOfDay, decksInGroup) in
             DeckSection(
-                id: Self.sectionTitle(for: startOfDay, calendar: calendar),
+                id: "section-\(startOfDay.timeIntervalSinceReferenceDate)",
                 title: Self.sectionTitle(for: startOfDay, calendar: calendar),
                 decks: decksInGroup,
                 dateForSorting: startOfDay
@@ -81,9 +81,9 @@ enum LibraryGrouping {
         return f
     }()
 
-    private static let monthYearFormatter: DateFormatter = {
+    private static let monthDayYearFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "MMMM yyyy"
+        f.dateFormat = "MMMM d, yyyy"
         return f
     }()
 
@@ -91,13 +91,20 @@ enum LibraryGrouping {
     static func sectionTitle(for date: Date, calendar: Calendar) -> String {
         if calendar.isDateInToday(date) { return "Today" }
         if calendar.isDateInYesterday(date) { return "Yesterday" }
+
         let now = Date()
-        if calendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) {
-            return "This Week - " + weekFormatter.string(from: date)
+        let startOfToday = calendar.startOfDay(for: now)
+        let startOfDate = calendar.startOfDay(for: date)
+        let dayDistance = calendar.dateComponents([.day], from: startOfDate, to: startOfToday).day ?? .max
+
+        if (2...6).contains(dayDistance) {
+            return weekFormatter.string(from: date)
         }
-        if calendar.isDate(date, equalTo: now, toGranularity: .month) {
+
+        if calendar.isDate(date, equalTo: now, toGranularity: .year) {
             return monthDayFormatter.string(from: date)
         }
-        return monthYearFormatter.string(from: date)
+
+        return monthDayYearFormatter.string(from: date)
     }
 }

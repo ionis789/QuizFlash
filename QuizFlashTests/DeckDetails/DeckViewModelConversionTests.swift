@@ -13,7 +13,7 @@ import SwiftData
 final class DeckViewModelConversionTests: XCTestCase {
     func testPresentSelectionConversionUsesOnlyCurrentlySelectedCards() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Algorithms", icon: "book", colorHex: "#112233")
+        let deck = DeckModel(title: "Algorithms", colorHex: "#112233")
         let flash = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "BFS", back: "Breadth-first search"),
             cardNumber: 1
@@ -57,7 +57,7 @@ final class DeckViewModelConversionTests: XCTestCase {
 
     func testPresentSingleCardConversionUsesOnlyTappedCard() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Algorithms", icon: "book", colorHex: "#112233")
+        let deck = DeckModel(title: "Algorithms", colorHex: "#112233")
         let flash = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "Queue", back: "FIFO"),
             cardNumber: 1

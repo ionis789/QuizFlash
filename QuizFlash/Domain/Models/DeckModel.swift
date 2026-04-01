@@ -42,9 +42,6 @@ class DeckModel {
     /// The display title of the deck.
     var title: String
 
-    /// The SF Symbol name used as the deck's icon.
-    var icon: String
-
     /// The deck's background colour, stored as a hex string (e.g. `"#FF5733"`).
     var colorHex: String
 
@@ -99,11 +96,9 @@ class DeckModel {
     ///
     /// - Parameters:
     ///   - title: The display title of the deck.
-    ///   - icon: The SF Symbol name for the deck's icon.
     ///   - colorHex: The deck's background colour as a hex string.
-    init(title: String, icon: String, colorHex: String) {
+    init(title: String, colorHex: String) {
         self.title = title
-        self.icon = icon
         self.colorHex = colorHex
         self.createdAt = Date()
         self.editedAt = Date()

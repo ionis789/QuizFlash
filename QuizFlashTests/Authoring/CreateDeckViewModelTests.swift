@@ -52,7 +52,7 @@ final class CreateDeckViewModelTests: XCTestCase {
         context.insert(sourceFolder)
         context.insert(destinationFolder)
 
-        let deck = DeckModel(title: "Original", icon: "book.closed.fill", colorHex: "#FFFFFF")
+        let deck = DeckModel(title: "Original", colorHex: "#FFFFFF")
 
         context.insert(sourceFolder)
         context.insert(destinationFolder)
@@ -116,7 +116,7 @@ final class CreateDeckViewModelTests: XCTestCase {
         let folder = FolderModel(title: "Delete", colorHex: "#333333")
         folder.deckCount = 1
 
-        let deck = DeckModel(title: "Disposable", icon: "book.closed.fill", colorHex: "#FFFFFF")
+        let deck = DeckModel(title: "Disposable", colorHex: "#FFFFFF")
 
         context.insert(folder)
         context.insert(deck)
@@ -157,7 +157,7 @@ final class CreateDeckViewModelTests: XCTestCase {
     func testRevertToInitialStateRestoresOriginalDraftDeckState() throws {
         let context = try TestModelContainerFactory.makeContext()
         let folder = FolderModel(title: "Initial", colorHex: "#111111")
-        let deck = DeckModel(title: "Original Title", icon: "book.closed.fill", colorHex: "#FFFFFF")
+        let deck = DeckModel(title: "Original Title", colorHex: "#FFFFFF")
         let card = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "Prompt", back: "Answer"),
             cardNumber: 1
@@ -219,7 +219,7 @@ final class CreateDeckViewModelTests: XCTestCase {
 
     func testSaveDeckResetsWorkshopStateAfterSuccessfulEdit() async throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Original", icon: "book.closed.fill", colorHex: "#FFFFFF")
+        let deck = DeckModel(title: "Original", colorHex: "#FFFFFF")
         let card = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "Prompt", back: "Answer"),
             cardNumber: 1

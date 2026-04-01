@@ -116,8 +116,9 @@ actor SearchEngine {
                     results.append(DeckSearchResultItem(
                         id: deck.id,
                         deckTitle: deck.title,
-                        deckIcon: deck.icon,
                         deckColorHex: deck.colorHex,
+                        cardCount: deck.cardCount,
+                        editedAt: deck.editedAt,
                         titleMatches: titleMatches,
                         matchedCards: previewCards,
                         totalMatchedCardsCount: totalMatched

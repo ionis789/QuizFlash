@@ -51,7 +51,7 @@ struct HomeGreetingCardView: View {
 
             HStack(alignment: .top, spacing: 22) {
                 VStack(alignment: .leading, spacing: 16) {
-                    contextRow(iconSize: layout.iconBoxSize, titleLineLimit: 2)
+                    contextRow(titleLineLimit: 2)
                     pillRow
                 }
                 .frame(maxWidth: layout.leadingColumnWidth, alignment: .leading)
@@ -82,7 +82,7 @@ struct HomeGreetingCardView: View {
         HStack(alignment: .center, spacing: 24) {
             VStack(alignment: .leading, spacing: 18) {
                 headingBlock(titleSize: layout.titleSize)
-                contextRow(iconSize: layout.iconBoxSize, titleLineLimit: 2)
+                contextRow(titleLineLimit: 2)
                 pillRow
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -116,7 +116,7 @@ struct HomeGreetingCardView: View {
                 progressRing(size: layout.ringSize)
             }
 
-            contextRow(iconSize: layout.iconBoxSize, titleLineLimit: 2)
+            contextRow(titleLineLimit: 2)
 
             pillRow
 
@@ -149,17 +149,8 @@ struct HomeGreetingCardView: View {
         }
     }
 
-    private func contextRow(iconSize: CGFloat, titleLineLimit: Int) -> some View {
+    private func contextRow(titleLineLimit: Int) -> some View {
         HStack(alignment: .center, spacing: 14) {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(tintColor.opacity(0.14))
-                .frame(width: iconSize, height: iconSize)
-                .overlay {
-                    Image(systemName: summary.icon)
-                        .font(.system(size: iconSize * 0.4, weight: .semibold))
-                        .foregroundStyle(tintColor)
-                }
-
             VStack(alignment: .leading, spacing: 4) {
                 Text(summary.contextTitle)
                     .font(.system(size: layout.contextTitleSize, weight: .bold, design: .rounded))

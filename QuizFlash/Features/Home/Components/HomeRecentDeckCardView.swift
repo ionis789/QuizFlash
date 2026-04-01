@@ -28,25 +28,9 @@ struct HomeRecentDeckCardView: View {
 
     var body: some View {
         let deckColor = Color(hex: deck.colorHex) ?? ThemeManager.shared.accentColor.color
-        let iconSize: CGFloat = usesRegularMetrics ? 64 : 60
 
         Button(action: action) {
             HStack(spacing: 16) {
-
-                // MARK: Color Block with Icon
-
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(deckColor.gradient)
-
-                    Image(systemName: deck.icon)
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: iconSize, height: iconSize)
-
-                // MARK: Text Content
-
                 VStack(alignment: .leading, spacing: 6) {
                     Text(deck.title)
                         .font(.headline.weight(.semibold))

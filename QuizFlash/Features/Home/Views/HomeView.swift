@@ -285,7 +285,6 @@ struct HomeView: View {
             var hasher = Hasher()
             hasher.combine(deck.persistentModelID.hashValue)
             hasher.combine(deck.title)
-            hasher.combine(deck.icon)
             hasher.combine(deck.colorHex)
             hasher.combine(deck.cardCount)
             hasher.combine(deck.editedAt.timeIntervalSince1970.bitPattern)

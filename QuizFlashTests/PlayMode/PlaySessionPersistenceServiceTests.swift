@@ -15,7 +15,7 @@ final class PlaySessionPersistenceServiceTests: XCTestCase {
         let container = try TestModelContainerFactory.makeInMemoryContainer()
         let setupContext = ModelContext(container)
 
-        let deck = DeckModel(title: "Review Deck", icon: "book", colorHex: "#FFFFFF")
+        let deck = DeckModel(title: "Review Deck", colorHex: "#FFFFFF")
         let card = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "Front", back: "Back"),
             cardNumber: 1
@@ -71,7 +71,7 @@ final class PlaySessionPersistenceServiceTests: XCTestCase {
         let container = try TestModelContainerFactory.makeInMemoryContainer()
         let setupContext = ModelContext(container)
 
-        let deck = DeckModel(title: "Again Deck", icon: "book", colorHex: "#000000")
+        let deck = DeckModel(title: "Again Deck", colorHex: "#000000")
         let card = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "Q", back: "A"),
             cardNumber: 1

@@ -11,7 +11,7 @@ import SwiftUI
 
 // MARK: - DeckHeaderView
 
-/// Compact deck-identity header showing the colour-coded icon, title, card count,
+/// Compact deck-identity header showing the deck title, card count,
 /// creation date, and an inline edit button.
 ///
 /// Used at the top of a deck row or sheet header — not in the main `DeckView`
@@ -49,23 +49,6 @@ struct DeckHeaderView: View {
     var body: some View {
         VStack(spacing: 16) {
             HStack(spacing: 16) {
-
-                // Deck colour icon badge
-                ZStack {
-                    Circle()
-                        .fill(
-                        LinearGradient(
-                            colors: [deckColor.opacity(0.7), deckColor.opacity(0.3)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                        .frame(width: 56, height: 56)
-
-                    Image(systemName: deck.icon.isEmpty ? "sparkles.rectangle.stack.fill" : deck.icon)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(.white)
-                }
 
                 // Title and subtitle
                 VStack(alignment: .leading, spacing: 4) {

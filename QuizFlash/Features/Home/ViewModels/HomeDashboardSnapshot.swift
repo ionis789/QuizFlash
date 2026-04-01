@@ -158,7 +158,6 @@ struct HomeExamPressureSummary: Equatable {
 struct HomeDeckHealthSummary: Identifiable, Equatable {
     let id: PersistentIdentifier
     let title: String
-    let icon: String
     let colorHex: String
     let totalCards: Int
     let dueCards: Int
@@ -294,7 +293,6 @@ struct HomeGreetingSummary: Equatable {
     let subtitle: String
     let contextTitle: String
     let contextLine: String
-    let icon: String
     let colorHex: String
     let primaryPill: String
     let secondaryPill: String?
@@ -314,7 +312,6 @@ struct HomeTodayFocusHeaderSummary: Equatable {
     let detail: String
     let compactTitle: String
     let compactDetail: String
-    let icon: String
     let colorHex: String
     let primaryPill: String
     let secondaryPill: String?

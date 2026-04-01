@@ -13,7 +13,7 @@ import SwiftData
 final class DeckPlayModeSettingsStoreTests: XCTestCase {
     func testResolveCreatesAndReusesDeckSettingsBucket() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Settings", icon: "book", colorHex: "#FFFFFF")
+        let deck = DeckModel(title: "Settings", colorHex: "#FFFFFF")
         context.insert(deck)
         try context.save()
 
@@ -44,7 +44,7 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
 
     func testFlashcardContentAlignmentPersistsThroughDeckSettingsBucket() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Settings", icon: "book", colorHex: "#FFFFFF")
+        let deck = DeckModel(title: "Settings", colorHex: "#FFFFFF")
         context.insert(deck)
         try context.save()
 

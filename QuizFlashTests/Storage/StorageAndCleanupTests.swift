@@ -13,7 +13,7 @@ import SwiftData
     final class StorageAndCleanupTests: XCTestCase {
         func testCalculateDeckStorageCountsTextAndEmbeddedImages() async throws {
             let context = try TestModelContainerFactory.makeContext()
-            let deck = DeckModel(title: "Sized", icon: "tray", colorHex: "#FFFFFF")
+            let deck = DeckModel(title: "Sized", colorHex: "#FFFFFF")
             let imagePayload = Data(repeating: 7, count: 128)
             let front = ZoneModel.image(data: imagePayload)
             let back = ZoneModel.text("Answer")
@@ -39,7 +39,7 @@ import SwiftData
 
     func testGarbageCollectorDeleteDeckRemovesDeckAndTracksFreedBytes() async throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Trash", icon: "trash", colorHex: "#000000")
+        let deck = DeckModel(title: "Trash", colorHex: "#000000")
         let imagePayload = Data(repeating: 5, count: 256)
         let card = CardModel(
             frontZone: .image(data: imagePayload),

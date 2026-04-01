@@ -13,7 +13,7 @@ import SwiftData
 final class DeckConversionPersistenceTests: XCTestCase {
     func testPersistConvertedOutputsSameDeckAppendsConvertedCardsWithLineageMetadata() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Graphs", icon: "point.3.connected.trianglepath.dotted", colorHex: "#123456")
+        let deck = DeckModel(title: "Graphs", colorHex: "#123456")
         let sourceCard = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "BFS", back: "Breadth-first search"),
             cardNumber: 1
@@ -93,7 +93,7 @@ final class DeckConversionPersistenceTests: XCTestCase {
     func testPersistConvertedOutputsNewDeckCreatesSiblingDeckAndCarriesLineageMetadata() throws {
         let context = try TestModelContainerFactory.makeContext()
         let folder = FolderModel(title: "CS", colorHex: "#654321")
-        let deck = DeckModel(title: "Graphs", icon: "point.3.connected.trianglepath.dotted", colorHex: "#123456")
+        let deck = DeckModel(title: "Graphs", colorHex: "#123456")
         deck.cardGroupingMode = .byCardType
 
         let sourceCard = TestMutationFactory.makePersistedCard(
@@ -159,7 +159,6 @@ final class DeckConversionPersistenceTests: XCTestCase {
         }
 
         XCTAssertEqual(createdDeck.title, "Graphs Match")
-        XCTAssertEqual(createdDeck.icon, deck.icon)
         XCTAssertEqual(createdDeck.colorHex, deck.colorHex)
         XCTAssertEqual(createdDeck.folder?.persistentModelID, folder.persistentModelID)
         XCTAssertEqual(createdDeck.cardGroupingMode, .byCardType)

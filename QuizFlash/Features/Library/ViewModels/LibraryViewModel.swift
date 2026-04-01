@@ -18,6 +18,12 @@ import SwiftData
 
 // MARK: - Library View Model
 
+enum LibrarySearchPresentation: Equatable {
+    case browse
+    case searchEmpty
+    case searchResults
+}
+
 /// The ViewModel for `LibraryView` and `FolderView`.
 ///
 /// Manages selection state, search state, import/export state, and the
@@ -31,6 +37,7 @@ final class LibraryViewModel {
     // MARK: - View Preferences
     
     /// The shared background search actor instance.
+    @ObservationIgnored
     var sharedSearchActor: LibrarySearchActor?
     
     /// Current selected sort order for decks.
@@ -86,6 +93,12 @@ final class LibraryViewModel {
     
     /// The list of search results matching the current query.
     var searchResults: [DeckSearchResultItem] = []
+
+    /// The query whose results are currently rendered in the list.
+    ///
+    /// This intentionally lags behind `searchText` so the visible list can remain
+    /// stable while the next query is being computed.
+    var renderedSearchQuery: String = ""
     
     /// Indicates if the user is currently in search mode.
     var isSearching: Bool = false
@@ -96,11 +109,18 @@ final class LibraryViewModel {
     /// Decks expanded in the search results view.
     var expandedSearchDecks: Set<PersistentIdentifier> = []
 
+    @ObservationIgnored
     private var searchTask: Task<Void, Never>?
+    @ObservationIgnored
     private var inputDebounceTask: Task<Void, Never>?
+    @ObservationIgnored
     private var cacheTask: Task<Void, Never>? // tracks in-flight cache builds
+    @ObservationIgnored
     private var groupingTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var searchGeneration = 0
     
+    @ObservationIgnored
     private let searchEngine = SearchEngine()
 
     /// The payload cache holding data used for swift searching without hitting the database repeatedly.
@@ -114,6 +134,11 @@ final class LibraryViewModel {
     /// Tracks which deck IDs were used to build the current cache.
     /// Deduplication check survives across view re-renders, tab switches, etc.
     var cachedDeckIDs: Set<PersistentIdentifier> = []
+
+    var searchPresentation: LibrarySearchPresentation {
+        guard isSearching else { return .browse }
+        return renderedSearchQuery.isEmpty ? .searchEmpty : .searchResults
+    }
 
     // MARK: - Import/Export States
     
@@ -151,6 +176,13 @@ final class LibraryViewModel {
     var exportErrorMessage = ""
 
     // MARK: - Lifecycle
+
+    deinit {
+        cacheTask?.cancel()
+        searchTask?.cancel()
+        inputDebounceTask?.cancel()
+        groupingTask?.cancel()
+    }
 
     /// Called when a folder LibraryView is popped (folderContext != nil).
     /// Clears all cached SwiftData references and cancels in-flight async work.
@@ -211,7 +243,15 @@ final class LibraryViewModel {
         // (iOS 17 has no ModelContext.reset()).
 
         // Capture simple structs from the main context
-        let deckInfos = decks.map { (id: $0.persistentModelID, title: $0.title, icon: $0.icon, colorHex: $0.colorHex) }
+        let deckInfos = decks.map {
+            (
+                id: $0.persistentModelID,
+                title: $0.title,
+                colorHex: $0.colorHex,
+                cardCount: $0.cardCount,
+                editedAt: $0.editedAt
+            )
+        }
 
         cacheTask = Task { [weak self] in
             // Sleep on a background thread so the tab-switch animation is never
@@ -245,9 +285,11 @@ final class LibraryViewModel {
 
     /// Clears the input and toggles off search state safely.
     func clearSearch() {
+        searchGeneration += 1
         inputDebounceTask?.cancel()
         searchTask?.cancel()
         searchText = ""
+        renderedSearchQuery = ""
         isSearching = false
         isSearchLoading = false
         searchResults = []
@@ -260,8 +302,10 @@ final class LibraryViewModel {
         searchText = newValue
 
         if newValue.trimmingCharacters(in: .whitespaces).isEmpty {
+            searchGeneration += 1
             searchTask?.cancel()
             isSearchLoading = false
+            renderedSearchQuery = ""
             searchResults = []
             expandedSearchDecks.removeAll()
             return
@@ -282,41 +326,39 @@ final class LibraryViewModel {
         let trimmedQuery = query.trimmingCharacters(in: .whitespaces)
 
         if trimmedQuery.isEmpty {
-            isSearching = false
+            renderedSearchQuery = ""
             isSearchLoading = false
             searchResults = []
             return
         }
 
-        isSearching = true
+        searchGeneration += 1
+        let generation = searchGeneration
         isSearchLoading = true
-        searchResults = []
 
         let payloadsToSearch = self.cachedSearchPayloads
 
         searchTask = Task {
-            defer {
-                if !Task.isCancelled {
-                    Task { @MainActor in self.isSearchLoading = false }
-                }
-            }
-
             guard !Task.isCancelled else { return }
 
             let stream = searchEngine.performSearchStream(
                 query: trimmedQuery, in: payloadsToSearch
             )
 
+            var latestResults: [DeckSearchResultItem] = []
             for await resultsChunk in stream {
                 guard !Task.isCancelled else { break }
-                await MainActor.run {
-                    self.searchResults = resultsChunk
-                    
-                    // Auto-collapse logic when search results shrink drastically
-                    if self.searchResults.count < self.expandedSearchDecks.count - 5 {
-                        self.expandedSearchDecks.removeAll()
-                    }
-                }
+                latestResults = resultsChunk
+            }
+
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                guard generation == self.searchGeneration else { return }
+                self.searchResults = latestResults
+                self.renderedSearchQuery = trimmedQuery
+                self.isSearchLoading = false
+                self.expandedSearchDecks.removeAll()
             }
         }
     }

@@ -697,7 +697,6 @@ extension AIWorkspaceCoordinator {
 
             let newDeck = DeckModel(
                 title: title,
-                icon: sourceDeck.icon,
                 colorHex: sourceDeck.colorHex
             )
             newDeck.cardGroupingMode = sourceDeck.cardGroupingMode

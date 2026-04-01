@@ -13,7 +13,7 @@ import SwiftData
 final class MatchConversionPipelineTests: XCTestCase {
     func testFilterAcceptedMatchConversionOutputsAcceptsVerbosePairsSoftlyAndPreservesSourceMapping() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Algorithms", icon: "book", colorHex: "#112233")
+        let deck = DeckModel(title: "Algorithms", colorHex: "#112233")
         let compactSource = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "BFS", back: "Breadth-first search"),
             cardNumber: 1
@@ -70,7 +70,7 @@ final class MatchConversionPipelineTests: XCTestCase {
 
     func testFilterAcceptedMatchConversionOutputsRejectsDuplicateAndStructurallyBrokenPairs() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Algorithms", icon: "book", colorHex: "#112233")
+        let deck = DeckModel(title: "Algorithms", colorHex: "#112233")
         let firstSource = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "BFS", back: "Breadth-first search"),
             cardNumber: 1
@@ -121,7 +121,7 @@ final class MatchConversionPipelineTests: XCTestCase {
 
     func testFilterAcceptedWriteConversionOutputsRejectsUnanchoredBlanksAndPreservesSourceMapping() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Algorithms", icon: "book", colorHex: "#112233")
+        let deck = DeckModel(title: "Algorithms", colorHex: "#112233")
         let validSource = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "BFS", back: "Breadth-first search"),
             cardNumber: 1

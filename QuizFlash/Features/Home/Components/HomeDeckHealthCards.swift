@@ -68,16 +68,6 @@ private struct HomeDeckHealthCard: View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top, spacing: 14) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(accentColor.opacity(0.16))
-
-                        Image(systemName: summary.icon)
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(accentColor)
-                    }
-                    .frame(width: usesRegularMetrics ? 60 : 56, height: usesRegularMetrics ? 60 : 56)
-
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Text(summary.title)

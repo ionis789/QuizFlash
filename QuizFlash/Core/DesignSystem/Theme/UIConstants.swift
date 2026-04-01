@@ -217,7 +217,7 @@ enum UIConstants {
 
         /// Top shadow/vignette height for screens with floating chrome.
         static var topEdgeShadowHeight: CGFloat {
-            UIConstants.isPad ? 52 : 40
+            UIConstants.isPad ? 40 : 80
         }
 
         /// Expanded top padding for the Home calendar header.

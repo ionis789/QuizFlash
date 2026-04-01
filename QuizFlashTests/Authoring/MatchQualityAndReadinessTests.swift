@@ -61,7 +61,7 @@ final class MatchQualityAndReadinessTests: XCTestCase {
 
     func testDeckSurfaceSummaryHidesMatchReadinessButKeepsWriteWarnings() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Algorithms", icon: "book.closed.fill", colorHex: "#112233")
+        let deck = DeckModel(title: "Algorithms", colorHex: "#112233")
         let matchCard = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.match(
                 prompt: "Explain how the adjacency matrix representation behaves for dense directed graphs",

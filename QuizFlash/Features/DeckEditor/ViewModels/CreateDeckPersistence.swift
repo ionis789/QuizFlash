@@ -233,7 +233,7 @@ extension CreateDeckViewModel {
 
         } else {
             // ── CREATE NEW DECK ───────────────────────────────────────────────
-            let newDeck = DeckModel(title: trimmedTitle, icon: "book.closed.fill", colorHex: "#FFFFFF")
+            let newDeck = DeckModel(title: trimmedTitle, colorHex: "#FFFFFF")
             context.insert(newDeck)
             newDeck.folder = selectedFolder
             selectedFolder?.deckCount += 1

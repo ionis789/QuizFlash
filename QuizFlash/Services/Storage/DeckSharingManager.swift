@@ -116,7 +116,6 @@ struct ExportableCard: Codable {
 struct ExportableDeck: Codable {
     var id: UUID
     var title: String
-    var icon: String
     var colorHex: String
     var createdAt: Date
     var editedAt: Date
@@ -243,7 +242,6 @@ final class DeckSharingManager: ObservableObject {
         let exportableDeck = ExportableDeck(
             id: UUID(),
             title: deck.title,
-            icon: deck.icon,
             colorHex: deck.colorHex,
             createdAt: deck.createdAt,
             editedAt: deck.editedAt,
@@ -342,7 +340,6 @@ final class DeckSharingManager: ObservableObject {
         // 6. Create new DeckModel
         let newDeck = DeckModel(
             title: exportedDeck.title,
-            icon: exportedDeck.icon,
             colorHex: exportedDeck.colorHex
         )
         newDeck.createdAt = Date()
@@ -453,8 +450,8 @@ final class StorageManager: ObservableObject {
         var totalBytes: Int64 = 0
         var imageCount = 0
 
-        // Calculate metadata size (title, icon, dates, etc.)
-        let metadataSize: Int64 = Int64(deck.title.utf8.count + deck.icon.utf8.count + deck.colorHex.utf8.count + 100)
+        // Calculate metadata size (title, color, dates, etc.)
+        let metadataSize: Int64 = Int64(deck.title.utf8.count + deck.colorHex.utf8.count + 100)
         totalBytes += metadataSize
 
         // Calculate each card's storage

@@ -114,7 +114,7 @@ struct LibraryModalsAndDialogs: ViewModifier {
             if !folders.isEmpty {
                 Divider()
 
-                ForEach(folders) { folder in
+                ForEach(folders, id: \.persistentModelID) { folder in
                     Button(folder.title) {
                         viewModel.moveSelectedDecks(from: decks, to: folder, context: context)
                     }

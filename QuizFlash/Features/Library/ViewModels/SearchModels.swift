@@ -45,8 +45,9 @@ struct DeckSearchPayload: Sendable {
     /// The deck's `PersistentIdentifier` — used to look up the live model after search completes.
     let id: PersistentIdentifier
     let title: String
-    let icon: String
     let colorHex: String
+    let cardCount: Int
+    let editedAt: Date
     /// Pre-extracted plain-text snapshots for each card in the deck.
     let cards: [CardSearchPayload]
 }
@@ -66,8 +67,9 @@ struct CardSearchPayload: Sendable {
 struct DeckSearchResultItem: Identifiable, Sendable, Equatable {
     let id: PersistentIdentifier
     let deckTitle: String
-    let deckIcon: String
     let deckColorHex: String
+    let cardCount: Int
+    let editedAt: Date
     /// `true` if the search query matched the deck's title directly.
     let titleMatches: Bool
     /// All matched cards, up to `SearchEngineConfig.previewCardCap`.

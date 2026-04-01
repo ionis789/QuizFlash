@@ -13,7 +13,7 @@ import SwiftData
 final class DeckViewModelMutationTests: XCTestCase {
     func testUpdateGroupingModePersistsDeckPreference() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Grouped", icon: "book", colorHex: "#FFFFFF")
+        let deck = DeckModel(title: "Grouped", colorHex: "#FFFFFF")
         context.insert(deck)
         try context.save()
 
@@ -25,7 +25,7 @@ final class DeckViewModelMutationTests: XCTestCase {
 
     func testAddCardPersistsCardAndIncrementsCounters() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Add Card", icon: "book", colorHex: "#FFFFFF")
+        let deck = DeckModel(title: "Add Card", colorHex: "#FFFFFF")
         context.insert(deck)
         try context.save()
 
@@ -45,7 +45,7 @@ final class DeckViewModelMutationTests: XCTestCase {
 
     func testTogglePinnedStatePersistsCardPinning() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Pins", icon: "book", colorHex: "#FFFFFF")
+        let deck = DeckModel(title: "Pins", colorHex: "#FFFFFF")
         let card = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "Q", back: "A"),
             cardNumber: 1
@@ -67,7 +67,7 @@ final class DeckViewModelMutationTests: XCTestCase {
 
     func testDeleteCardRemovesCardAndDecrementsCount() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Delete One", icon: "book", colorHex: "#FFFFFF")
+        let deck = DeckModel(title: "Delete One", colorHex: "#FFFFFF")
         let card = TestMutationFactory.makePersistedCard(
             content: TestMutationFactory.flashcard(front: "Remove", back: "Me"),
             cardNumber: 1
@@ -91,7 +91,7 @@ final class DeckViewModelMutationTests: XCTestCase {
 
     func testDeleteSelectedCardsRemovesEntireSelection() throws {
         let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Delete Many", icon: "book", colorHex: "#FFFFFF")
+        let deck = DeckModel(title: "Delete Many", colorHex: "#FFFFFF")
 
         let cards = [
             TestMutationFactory.makePersistedCard(
