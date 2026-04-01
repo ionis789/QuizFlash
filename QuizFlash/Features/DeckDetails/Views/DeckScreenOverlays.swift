@@ -165,8 +165,11 @@ extension DeckContentView {
 
     func startDeckSeededConversion() {
         exitSelectionModeForExternalAction()
-        aiWorkspaceCoordinator.openWorkspace(router: router)
         aiWorkspaceCoordinator.startConversion(context: context)
+        Task { @MainActor in
+            await Task.yield()
+            router.showCreateDeckEditor(for: deck.persistentModelID)
+        }
     }
 
     func presentActionMenu(for id: PersistentIdentifier) {

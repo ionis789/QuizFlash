@@ -114,11 +114,6 @@ struct LibraryView: View {
         .onChange(of: sharedViewModel.searchText) { _, newValue in
             sharedViewModel.debounceSearchInput(newValue)
         }
-        .onChange(of: sharedViewModel.isSearching) { _, active in
-            if !active {
-                sharedViewModel.clearSearch()
-            }
-        }
         // tearDown() is intentionally omitted for the root Library tab.
         // The sharedViewModel is injected from MainAppView and lives for the
         // full app session — destroying its cache on every tab switch would

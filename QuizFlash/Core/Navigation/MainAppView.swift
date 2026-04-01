@@ -91,7 +91,7 @@ struct MainAppView: View {
     }
 
     private var isAIWorkspaceVisible: Bool {
-        router.activeTab == .create && router.createPath.isEmpty
+        router.activeTab == .create
     }
 
     /// The raw `TabView` selection binding. Tab semantics such as reselect and
@@ -332,8 +332,14 @@ struct MainAppView: View {
 
             // CREATE TAB
             NavigationStack(path: $router.createPath) {
-                CreateDeckView(isAIWorkspaceHost: true)
+                CreateDeckView()
                     .toolbar(.hidden, for: .tabBar)
+                    .navigationDestination(for: CreateDeckEditorRoute.self) { route in
+                        if let deck = modelContext.safeModel(for: route.deckID, as: DeckModel.self) {
+                            CreateDeckView(deckToEdit: deck)
+                                .toolbar(.hidden, for: .navigationBar)
+                        }
+                    }
                     .navigationDestination(for: DeckNavigationValue.self) { value in
                         if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
                             DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .create)
@@ -363,6 +369,8 @@ struct MainAppView: View {
         switch route {
         case .createDeck:
             CreateDeckView()
+        case .generateDeck:
+            CreateDeckView(launchAction: .showAIGenerationOptions)
         case .settings:
             SettingsView(allowsSwipeBack: true)
         case .folder(let folder, let backLabel):

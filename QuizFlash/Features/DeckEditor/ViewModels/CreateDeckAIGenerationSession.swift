@@ -23,12 +23,11 @@ extension CreateDeckViewModel {
         cancelAIGenerationTask()
         resetAIGenerationRevealPipeline()
         clearAIGenerationPauseState()
-        aiSessionDraftCardIDs.removeAll()
         let sessionID = UUID()
         aiGenerationSessionID = sessionID
 
         if shouldResetProgress {
-            aiRevealedGeneratedCardIDs.removeAll()
+            aiSessionDraftCardIDs.removeAll()
             aiGenerationBaseCardCount = draftCards.count
             aiTargetCardCount = targetCardCount
             aiGeneratedCardCount = 0
@@ -161,13 +160,13 @@ extension CreateDeckViewModel {
     func revealDelayNanoseconds(for targetCardCount: Int) -> UInt64 {
         switch targetCardCount {
         case 0...12:
-            return 220_000_000
+            return 340_000_000
         case 13...30:
-            return 150_000_000
+            return 250_000_000
         case 31...60:
-            return 90_000_000
+            return 180_000_000
         default:
-            return 55_000_000
+            return 130_000_000
         }
     }
 
@@ -176,27 +175,12 @@ extension CreateDeckViewModel {
         pendingCount: Int,
         isAwaitingMoreCards: Bool
     ) -> UInt64 {
-        guard isAwaitingMoreCards else { return base }
-
-        let multiplier: Double
-        switch pendingCount {
-        case ...1:
-            multiplier = 2.6
-        case 2...3:
-            multiplier = 1.9
-        case 4...6:
-            multiplier = 1.35
-        default:
-            multiplier = 1
-        }
-
-        return UInt64(Double(base) * multiplier)
+        let _ = pendingCount
+        let _ = isAwaitingMoreCards
+        return base
     }
 
-    func appendGeneratedCard(
-        _ generatedCard: AIFlashcard,
-        markRevealAsCompleted: Bool = false
-    ) throws {
+    func appendGeneratedCard(_ generatedCard: AIFlashcard) throws {
         let draftContent = try makeDraftContent(from: generatedCard)
         let draft = DraftCard(
             cardNumber: allocateNextDraftCardNumber(),
@@ -212,9 +196,6 @@ extension CreateDeckViewModel {
 
         draftCards.append(draft)
         registerSessionDraftID(draft.id, marksAsAI: true)
-        if markRevealAsCompleted {
-            aiRevealedGeneratedCardIDs.insert(draft.id)
-        }
         aiGeneratedCardCount = updatedCount
         aiState = .generatingCards(progress: progress, foundCount: updatedCount)
     }
@@ -274,6 +255,7 @@ extension CreateDeckViewModel {
 
         aiState = .idle
         pdfAnalysis = nil
+        integrateAllDraftCardsIntoBaseline()
         
         Task {
             try? await AIGenerationSessionStore.shared.clearSession()
@@ -288,7 +270,6 @@ extension CreateDeckViewModel {
         aiGeneratedShortfallCount = 0
         aiGenerationStartedAt = nil
         aiAccumulatedGenerationDuration = 0
-        aiRevealedGeneratedCardIDs.removeAll()
         clearAIGenerationPauseState()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
@@ -325,7 +306,6 @@ extension CreateDeckViewModel {
         aiGeneratedShortfallCount = 0
         aiGenerationStartedAt = nil
         aiAccumulatedGenerationDuration = 0
-        aiRevealedGeneratedCardIDs.removeAll()
         clearAIGenerationPauseState()
         aiState = .error(error.localizedDescription)
     }
@@ -359,6 +339,8 @@ extension CreateDeckViewModel {
             draftCards = Array(draftCards.prefix(preservedCount))
             let preservedIDs = Set(draftCards.map(\.id))
             sessionDraftCardIDs.formIntersection(preservedIDs)
+        } else {
+            integrateAllDraftCardsIntoBaseline()
         }
 
         pdfAnalysis = nil
@@ -372,7 +354,6 @@ extension CreateDeckViewModel {
         aiGeneratedShortfallCount = 0
         aiGenerationStartedAt = nil
         aiAccumulatedGenerationDuration = 0
-        aiRevealedGeneratedCardIDs.removeAll()
         aiSessionDraftCardIDs.removeAll()
         clearAIGenerationPauseState()
         aiState = .idle
@@ -387,7 +368,6 @@ extension CreateDeckViewModel {
     func pauseAIGeneration(isBackgroundTimeout: Bool = false) {
         guard let sessionID = aiGenerationSessionID else { return }
         flushPendingGeneratedCards()
-        markCurrentGeneratedCardsAsRevealed()
         aiBackgroundCoordinator.endSession(id: sessionID)
         aiGenerationSessionID = nil
         aiGenerationTask?.cancel()
@@ -488,7 +468,6 @@ extension CreateDeckViewModel {
         self.baseDraftCardIDs = baseDraftIDs
         self.sessionDraftCardIDs = sessionDraftIDs
         self.aiSessionDraftCardIDs = sessionDraftIDs
-        markCurrentGeneratedCardsAsRevealed()
 
         switch session.sourceMode {
         case .pdf(let bookmarkData, let analysis):
@@ -544,17 +523,6 @@ extension CreateDeckViewModel {
         isAIGenerationPaused = false
         isAIGenerationPausedForBackground = false
         isManualPauseInProgress = false
-    }
-
-    /// Returns `true` once a generated card already completed its first reveal.
-    func hasCompletedAIGeneratedCardReveal(id: UUID) -> Bool {
-        aiRevealedGeneratedCardIDs.contains(id)
-    }
-
-    /// Marks a generated card as already materialized so it is shown statically
-    /// if the generation UI is rebuilt during pause/resume.
-    func markAIGeneratedCardRevealCompleted(id: UUID) {
-        aiRevealedGeneratedCardIDs.insert(id)
     }
 
     func confirmAIGenerationFromSheet() {
@@ -923,7 +891,6 @@ extension CreateDeckViewModel {
         clearAIGenerationPauseState()
         preparedAISource = nil
         manualAISourceAllocations = []
-        aiRevealedGeneratedCardIDs.removeAll()
         aiSessionDraftCardIDs.removeAll()
         pdfAnalysis = nil
         withAnimation { aiState = .idle }
@@ -972,20 +939,11 @@ extension CreateDeckViewModel {
 
         for card in queuedCards {
             do {
-                try appendGeneratedCard(card, markRevealAsCompleted: true)
+                try appendGeneratedCard(card)
             } catch {
                 aiState = .error(error.localizedDescription)
                 break
             }
         }
     }
-
-    /// Freezes the current streamed cards in their final visual state before a
-    /// pause/resume transition rebuilds the list.
-    func markCurrentGeneratedCardsAsRevealed() {
-        let cappedBaseCount = min(aiGenerationBaseCardCount, draftCards.count)
-        let generatedCards = draftCards.dropFirst(cappedBaseCount)
-        aiRevealedGeneratedCardIDs.formUnion(generatedCards.map(\.id))
-    }
-
 }

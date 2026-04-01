@@ -162,7 +162,7 @@ final class AIJobSessionStoreTests: XCTestCase {
             selectedSources: [],
             singleSources: [],
             scope: .wholeDeck,
-            sourceKindFilters: [.flashcard, .match],
+            sourceKind: .flashcard,
             targetKind: .write,
             destination: .newDeck,
             newDeckTitle: "Algorithms Write"

@@ -251,4 +251,133 @@ final class CreateDeckViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isEditingExistingDeck)
         XCTAssertFalse(viewModel.hasUnsavedChanges)
     }
+
+    func testIntegrateAllDraftCardsIntoBaselineClearsInlineAISessionState() {
+        let viewModel = CreateDeckViewModel(deckToEdit: nil)
+        let existingDraft = DraftCard(
+            cardNumber: 1,
+            content: TestMutationFactory.flashcard(front: "Cell", back: "Basic unit"),
+            isPinned: false,
+            creationSource: .manual,
+            createdAt: Date(),
+            editedAt: Date()
+        )
+        let generatedDraft = DraftCard(
+            cardNumber: 2,
+            content: TestMutationFactory.flashcard(front: "ATP", back: "Energy molecule"),
+            isPinned: false,
+            creationSource: .ai,
+            createdAt: Date(),
+            editedAt: Date()
+        )
+
+        viewModel.draftCards = [existingDraft, generatedDraft]
+        viewModel.replaceDraftSessionBaseline(with: [existingDraft])
+        viewModel.registerSessionDraftID(generatedDraft.id, marksAsAI: true)
+
+        XCTAssertEqual(viewModel.baseDraftCards.count, 1)
+        XCTAssertEqual(viewModel.aiSessionDraftCards.count, 1)
+
+        viewModel.integrateAllDraftCardsIntoBaseline()
+
+        XCTAssertFalse(viewModel.hasAISessionDraftCards)
+        XCTAssertEqual(viewModel.baseDraftCards.count, 2)
+        XCTAssertEqual(viewModel.sessionDraftCards.count, 0)
+        XCTAssertEqual(viewModel.draftCards.count, 2)
+    }
+
+    func testCompleteAIGenerationMovesGeneratedCardsIntoBaseline() {
+        let viewModel = CreateDeckViewModel(deckToEdit: nil)
+        let existingDraft = DraftCard(
+            cardNumber: 1,
+            content: TestMutationFactory.flashcard(front: "Cell", back: "Basic unit"),
+            isPinned: false,
+            creationSource: .manual,
+            createdAt: Date(),
+            editedAt: Date()
+        )
+        let generatedDraft = DraftCard(
+            cardNumber: 2,
+            content: TestMutationFactory.flashcard(front: "ATP", back: "Energy molecule"),
+            isPinned: false,
+            creationSource: .ai,
+            createdAt: Date(),
+            editedAt: Date()
+        )
+
+        viewModel.draftCards = [existingDraft, generatedDraft]
+        viewModel.replaceDraftSessionBaseline(with: [existingDraft])
+        viewModel.registerSessionDraftID(generatedDraft.id, marksAsAI: true)
+        viewModel.aiGeneratedCardCount = 1
+        viewModel.aiTargetCardCount = 1
+        viewModel.aiState = .generatingCards(progress: 1, foundCount: 1)
+
+        viewModel.completeAIGeneration()
+
+        XCTAssertEqual(viewModel.baseDraftCards.count, 2)
+        XCTAssertEqual(viewModel.sessionDraftCards.count, 0)
+        XCTAssertFalse(viewModel.hasAISessionDraftCards)
+        XCTAssertEqual(viewModel.aiGeneratedCardCount, 0)
+        XCTAssertEqual(viewModel.aiTargetCardCount, 0)
+        XCTAssertEqual(viewModel.aiState, .idle)
+    }
+
+    func testBeginAIGenerationSessionForResumeKeepsExistingAISessionCardsVisible() {
+        let viewModel = CreateDeckViewModel(deckToEdit: nil)
+        let existingDraft = DraftCard(
+            cardNumber: 1,
+            content: TestMutationFactory.flashcard(front: "Cell", back: "Basic unit"),
+            isPinned: false,
+            creationSource: .manual,
+            createdAt: Date(),
+            editedAt: Date()
+        )
+        let generatedDraft = DraftCard(
+            cardNumber: 2,
+            content: TestMutationFactory.flashcard(front: "ATP", back: "Energy molecule"),
+            isPinned: false,
+            creationSource: .ai,
+            createdAt: Date(),
+            editedAt: Date()
+        )
+
+        viewModel.draftCards = [existingDraft, generatedDraft]
+        viewModel.replaceDraftSessionBaseline(with: [existingDraft])
+        viewModel.registerSessionDraftID(generatedDraft.id, marksAsAI: true)
+        viewModel.aiGeneratedCardCount = 1
+        viewModel.aiTargetCardCount = 3
+
+        viewModel.beginAIGenerationSession(targetCardCount: 2, shouldResetProgress: false)
+
+        XCTAssertEqual(viewModel.aiGeneratedCardCount, 1)
+        XCTAssertEqual(viewModel.aiTargetCardCount, 3)
+        XCTAssertEqual(viewModel.aiSessionDraftCards.map(\.id), [generatedDraft.id])
+    }
+
+    func testFlushPendingGeneratedCardsPromotesQueuedCardsIntoActiveAISession() throws {
+        let viewModel = CreateDeckViewModel(deckToEdit: nil)
+        let existingDraft = DraftCard(
+            cardNumber: 1,
+            content: TestMutationFactory.flashcard(front: "Cell", back: "Basic unit"),
+            isPinned: false,
+            creationSource: .manual,
+            createdAt: Date(),
+            editedAt: Date()
+        )
+
+        viewModel.draftCards = [existingDraft]
+        viewModel.replaceDraftSessionBaseline(with: [existingDraft])
+        viewModel.aiTargetCardCount = 2
+        viewModel.pendingAIGeneratedCards = [
+            AIFlashcard(question: "Q1", answer: "A1"),
+            AIFlashcard(question: "Q2", answer: "A2")
+        ]
+
+        viewModel.flushPendingGeneratedCards()
+
+        XCTAssertTrue(viewModel.pendingAIGeneratedCards.isEmpty)
+        XCTAssertEqual(viewModel.aiGeneratedCardCount, 2)
+        XCTAssertEqual(viewModel.aiSessionDraftCards.count, 2)
+        XCTAssertEqual(viewModel.draftCards.count, 3)
+    }
 }

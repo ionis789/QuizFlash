@@ -35,7 +35,7 @@ final class DeckConversionPersistenceTests: XCTestCase {
             selectedSources: [],
             singleSources: [],
             scope: .wholeDeck,
-            sourceKindFilters: [.flashcard],
+            sourceKind: .flashcard,
             targetKind: .match,
             destination: .sameDeck,
             newDeckTitle: ""
@@ -53,9 +53,9 @@ final class DeckConversionPersistenceTests: XCTestCase {
         var destinationDeck: DeckModel?
         let batchID = UUID()
         let convertedAt = Date()
-        let viewModel = DeckViewModel()
+        let coordinator = AIWorkspaceCoordinator()
 
-        let persistedCount = try viewModel.persistConvertedOutputs(
+        let persistedCount = try coordinator.persistConvertedOutputs(
             [output],
             request: request,
             sourcesByID: [sourceSnapshot.id: sourceSnapshot],
@@ -120,7 +120,7 @@ final class DeckConversionPersistenceTests: XCTestCase {
             selectedSources: [],
             singleSources: [],
             scope: .wholeDeck,
-            sourceKindFilters: [.flashcard],
+            sourceKind: .flashcard,
             targetKind: .match,
             destination: .newDeck,
             newDeckTitle: "Graphs Match"
@@ -138,9 +138,9 @@ final class DeckConversionPersistenceTests: XCTestCase {
         var destinationDeck: DeckModel?
         let batchID = UUID()
         let convertedAt = Date()
-        let viewModel = DeckViewModel()
+        let coordinator = AIWorkspaceCoordinator()
 
-        let persistedCount = try viewModel.persistConvertedOutputs(
+        let persistedCount = try coordinator.persistConvertedOutputs(
             [output],
             request: request,
             sourcesByID: [sourceSnapshot.id: sourceSnapshot],

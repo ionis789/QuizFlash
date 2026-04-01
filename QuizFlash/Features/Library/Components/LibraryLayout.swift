@@ -59,7 +59,7 @@ struct LibraryLayout: View {
 
     private var backgroundTheme: Color { themeManager.screenBackground }
     private var searchTransition: Animation {
-            .spring(response: UIConstants.Animation.instant, dampingFraction: 0.92)
+        .easeOut(duration: 0.16)
     }
     private var searchContentMaxWidth: CGFloat { UIConstants.Layout.librarySearchContentMaxWidth }
     private var searchPromptTopPadding: CGFloat {
@@ -195,7 +195,7 @@ struct LibraryLayout: View {
                 )
                     .frame(width: 0, height: 0)
 
-                if !isSearching && decks.isEmpty && viewModel.cachedGroupedDecks.isEmpty {
+                if decks.isEmpty && viewModel.cachedGroupedDecks.isEmpty {
                     Spacer().frame(height: 40)
                 }
 
@@ -249,9 +249,7 @@ struct LibraryLayout: View {
     @ViewBuilder
     private var stackContent: some View {
         LazyVStack(spacing: 0) {
-            if !isSearching {
-                libraryHeroTitle
-            }
+            libraryHeroTitle
             deckListContent
         }
     }
@@ -324,7 +322,6 @@ struct LibraryLayout: View {
         }
         .compositingGroup()
         .opacity(viewModel.isSearching ? 1 : 0)
-        .offset(y: viewModel.isSearching ? 0 : -UIConstants.Spacing.small)
         .allowsHitTesting(viewModel.isSearching)
         .accessibilityHidden(!viewModel.isSearching)
         .animation(searchTransition, value: viewModel.isSearching)

@@ -13,7 +13,7 @@ import SwiftData
 struct FloatingAIWorkspaceStatusMenu: View {
     let status: AIWorkspaceFloatingStatus
     var bottomPadding: CGFloat
-    let onOpenWorkspace: () -> Void
+    var onOpenWorkspace: (() -> Void)? = nil
     var onPauseResume: (() -> Void)? = nil
     var onCancel: (() -> Void)? = nil
 
@@ -45,11 +45,15 @@ struct FloatingAIWorkspaceStatusMenu: View {
     private var workspaceButton: some View {
         FloatingAIWorkspaceCapsuleContainer {
             HStack(spacing: UIConstants.Spacing.small) {
-                Button(action: onOpenWorkspace) {
+                if let onOpenWorkspace {
+                    Button(action: onOpenWorkspace) {
+                        compactContent
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open AI workspace")
+                } else {
                     compactContent
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open AI workspace")
 
                 if let onPauseResume {
                     Button(action: onPauseResume) {
@@ -159,26 +163,18 @@ private struct FloatingAIWorkspaceStatusIndicator: View {
     }
 }
 
-// MARK: - Conversion Configuration
+// MARK: - Create Workspace
 
-private let kAIWorkspaceConversionChromeSpace = "AIWorkspaceConversionChromeSpace"
-
-struct AIWorkspaceConversionSheetView: View {
+struct CreateWorkspaceRootView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(NavigationManager.self) private var router
+    @Environment(AIWorkspaceCoordinator.self) private var coordinator
+    @Environment(ThemeManager.self) private var themeManager
 
-    @Bindable var coordinator: AIWorkspaceCoordinator
-    let sourceDecks: [DeckModel]
-    let onSelectSourceDeck: (DeckModel) -> Void
-    let onStart: () -> Void
-
-    @State private var headerHeight: CGFloat = 0
+    @Query(sort: \DeckModel.editedAt, order: .reverse) private var sourceDecks: [DeckModel]
 
     private var accent: Color {
         ThemeManager.shared.accentColor.color
-    }
-
-    private var conversionTint: Color {
-        .orange
     }
 
     private var horizontalInset: CGFloat {
@@ -187,152 +183,84 @@ struct AIWorkspaceConversionSheetView: View {
             : UIConstants.Layout.screenEdgeInset
     }
 
-    private var maxContentWidth: CGFloat {
-        UIConstants.isPad ? 820 : .infinity
-    }
-
-    private var sheetBackground: some View {
-        ZStack {
-            Color(uiColor: .secondarySystemGroupedBackground)
-
-            LinearGradient(
-                colors: [
-                    Color.white.opacity(0.045),
-                    Color.clear
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            StandardSheetTopStripBackground()
-                .opacity(0.34)
-        }
-    }
-
-    private var currentRequest: DeckCardConversionRequest? {
-        coordinator.conversionSeed?.request
-    }
-
-    private var selectedSourceDeck: DeckModel? {
-        guard let sourceDeckID = coordinator.conversionSeed?.sourceDeckID else { return nil }
-        return sourceDecks.first(where: { $0.persistentModelID == sourceDeckID })
+    private var actionColumns: [GridItem] {
+        horizontalSizeClass == .compact
+            ? [GridItem(.flexible())]
+            : [GridItem(.flexible()), GridItem(.flexible())]
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                sheetBackground
-                    .ignoresSafeArea()
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+                headerCard
 
-                contentScroll
-            }
-            .overlay(alignment: .top) {
-                header(safeTopInset: proxy.safeAreaInsets.top)
-            }
-            .overlay(alignment: .bottomTrailing) {
-                if let request = currentRequest {
-                    floatingStartButton(
-                        request: request,
-                        bottomInset: max(proxy.safeAreaInsets.bottom, UIConstants.Spacing.large)
+                if let status = coordinator.generationStatus,
+                   status.phase != .completed {
+                    generationStatusCard(status)
+                }
+
+                if coordinator.conversionProgress != nil
+                    || coordinator.conversionSummary != nil
+                    || coordinator.conversionErrorMessage != nil {
+                    AIWorkspaceRuntimeCard(coordinator: coordinator)
+                }
+
+                LazyVGrid(columns: actionColumns, spacing: UIConstants.Spacing.medium) {
+                    CreateWorkspaceActionCard(
+                        title: "New Deck",
+                        detail: "Open the classic editor and build cards by hand.",
+                        systemImage: "square.and.pencil",
+                        tint: accent,
+                        action: { router.append(AppRoute.createDeck) }
+                    )
+
+                    CreateWorkspaceActionCard(
+                        title: "Generate",
+                        detail: "Start the deck editor with AI generation ready.",
+                        systemImage: "wand.and.stars",
+                        tint: accent,
+                        action: { router.append(AppRoute.generateDeck) }
+                    )
+
+                    CreateWorkspaceActionCard(
+                        title: "Convert",
+                        detail: sourceDecks.isEmpty
+                            ? "Add at least one deck before converting cards."
+                            : "Pick any saved deck and convert one card type at a time.",
+                        systemImage: "arrow.triangle.2.circlepath",
+                        tint: .orange,
+                        isDisabled: sourceDecks.isEmpty,
+                        action: { router.createWorkspaceMode = .convert }
                     )
                 }
             }
-            .coordinateSpace(name: kAIWorkspaceConversionChromeSpace)
-        }
-    }
-
-    private var contentScroll: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                if let request = currentRequest {
-                    overviewCard(request)
-                    sourceDeckSection
-                    scopeSection(request)
-                    sourceTypesSection(request)
-                    targetTypeSection(request)
-                    destinationSection(request)
-                } else {
-                    unavailableState
-                }
-            }
-            .frame(maxWidth: maxContentWidth)
             .padding(.horizontal, horizontalInset)
-            .padding(.top, headerHeight + UIConstants.Spacing.large)
-            .padding(.bottom, 120)
-            .frame(maxWidth: .infinity, alignment: .top)
+            .padding(.vertical, UIConstants.Spacing.large)
         }
-        .scrollIndicators(.hidden)
+        .background(themeManager.groupedScreenBackground.ignoresSafeArea())
+        .navigationTitle("Create")
+        .navigationBarTitleDisplayMode(.large)
     }
 
-    private func header(safeTopInset: CGFloat) -> some View {
-        VStack(spacing: UIConstants.Spacing.small) {
-            Capsule()
-                .fill(Color.white.opacity(0.22))
-                .frame(width: 48, height: 5)
-                .accessibilityHidden(true)
-
-            CollapsibleTitleNavigationBar(
-                coordinateSpaceName: kAIWorkspaceConversionChromeSpace,
-                horizontalInset: 0,
-                appliesTopNavigationChrome: false,
-                onHeightChange: { newHeight in
-                    if abs(headerHeight - newHeight) > 0.5 {
-                        headerHeight = newHeight
-                    }
-                }
-            ) {
-                ChromeCirclePlaceholder()
-            } center: { maxWidth in
-                CollapsibleTitlePill(
-                    title: "Convert Cards",
-                    maxWidth: maxWidth,
-                    isVisible: true,
-                    fallbackTitle: "Convert Cards"
-                )
-            } trailing: {
-                ChromeCircleIconButton(systemName: "xmark") {
-                    coordinator.dismissConversionConfiguration()
-                }
-            }
-        }
-        .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
-        .padding(.horizontal, horizontalInset)
-    }
-
-    private func overviewCard(_ request: DeckCardConversionRequest) -> some View {
+    private var headerCard: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            Text("AI WORKSPACE")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+            Text("Build, generate, or convert")
+                .font(.system(size: 32, weight: .black, design: .rounded))
+                .foregroundStyle(.primary)
+
+            Text("The Create tab is now the workspace hub. Open the editor for new decks, launch AI generation, or convert cards from any existing deck.")
+                .font(.system(size: 15, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
-                .tracking(0.45)
-
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                Text("Convert Cards")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
-                    .foregroundStyle(.primary)
-
-                Text(overviewSubtitle(for: request))
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: UIConstants.Spacing.small) {
-                summaryChip(
-                    "\(request.sourceCount) cards",
-                    systemImage: "rectangle.stack.fill"
-                )
-                .statusTextMotion(trigger: request.sourceCount)
-
-                summaryChip(
-                    request.scope.title,
-                    systemImage: "line.3.horizontal.decrease.circle.fill"
-                )
-
-                summaryChip(
-                    request.targetKind.displayTitle,
-                    systemImage: request.targetKind.conversionSystemImage
-                )
+                conversionSummaryChip("\(sourceDecks.count) deck\(sourceDecks.count == 1 ? "" : "s")", systemImage: "rectangle.stack.fill")
+                if coordinator.conversionProgress != nil || coordinator.conversionSummary != nil {
+                    conversionSummaryChip("Conversion active", systemImage: "sparkles")
+                }
+                if coordinator.generationStatus != nil {
+                    conversionSummaryChip("Generation active", systemImage: "wand.and.stars")
+                }
             }
         }
         .padding(UIConstants.Spacing.large)
@@ -344,17 +272,351 @@ struct AIWorkspaceConversionSheetView: View {
         }
     }
 
-    private var sourceDeckSection: some View {
-        sectionCard(
-            title: "Source Deck",
-            subtitle: "Choose which saved deck should feed the conversion."
-        ) {
+    @ViewBuilder
+    private func generationStatusCard(_ status: AIWorkspaceGenerationStatus) -> some View {
+        switch status.phase {
+        case .paused:
+            AIPausedResumeCard(
+                foundCount: status.foundCount,
+                targetCount: status.targetCount,
+                remainingCount: max(status.targetCount - status.foundCount, 0),
+                progress: status.progress,
+                title: status.title,
+                subtitle: status.message
+            ) {
+                router.append(AppRoute.generateDeck)
+            }
+        case .preparing, .running:
+            AIStreamingProgressCard(
+                foundCount: status.foundCount,
+                targetCount: status.targetCount,
+                progress: status.progress,
+                title: status.title,
+                subtitleOverride: status.message,
+                accentColor: accent,
+                footnote: "Open Generate to continue in the deck editor"
+            )
+        case .failed:
+            AIWorkspaceFailureCard(
+                title: status.title,
+                message: status.message,
+                tint: .red,
+                onRetry: { router.append(AppRoute.generateDeck) },
+                onDismiss: { coordinator.generationStatus = nil }
+            )
+        case .completed:
+            EmptyView()
+        }
+    }
+}
+
+private struct CreateWorkspaceActionCard: View {
+    let title: String
+    let detail: String
+    let systemImage: String
+    let tint: Color
+    var isDisabled: Bool = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(tint.opacity(0.14))
+                        .frame(width: 52, height: 52)
+
+                    Image(systemName: systemImage)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(tint)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+
+                    Text(detail)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(UIConstants.Spacing.large)
+            .frame(maxWidth: .infinity, minHeight: 176, alignment: .leading)
+            .widgetStyle(cornerRadius: UIConstants.Radius.large)
+            .overlay {
+                RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.5 : 1)
+    }
+}
+
+// MARK: - Global Convert
+
+struct CreateWorkspaceConvertView: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(NavigationManager.self) private var router
+    @Environment(AIWorkspaceCoordinator.self) private var coordinator
+    @Environment(ThemeManager.self) private var themeManager
+
+    private var horizontalInset: CGFloat {
+        horizontalSizeClass == .compact
+            ? UIConstants.Layout.compactScreenEdgeInset
+            : UIConstants.Layout.screenEdgeInset
+    }
+
+    private var currentRequest: DeckCardConversionRequest? {
+        coordinator.conversionSeed?.request
+    }
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            CreateWorkspaceConvertEditor(
+                managesSeedFromDeckList: true,
+                showsDeckPicker: true,
+                showsRuntimeSummary: true
+            )
+            .padding(.horizontal, horizontalInset)
+            .padding(.top, UIConstants.Spacing.large)
+            .padding(.bottom, 120)
+        }
+        .background(themeManager.groupedScreenBackground.ignoresSafeArea())
+        .navigationTitle("Convert")
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
+            if let request = currentRequest {
+                ConversionStartBar(
+                    request: request,
+                    tint: .orange,
+                    horizontalInset: horizontalInset,
+                    action: startConversion
+                )
+            }
+        }
+    }
+
+    private func startConversion() {
+        coordinator.startConversion(context: context)
+        router.createPath = NavigationPath()
+    }
+}
+
+// MARK: - Local Convert Sheet
+
+struct DeckConversionSheetView: View {
+    @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(ThemeManager.self) private var themeManager
+
+    @Bindable var coordinator: AIWorkspaceCoordinator
+    let safeAreaInsets: UIEdgeInsets
+    let onStart: () -> Void
+
+    @State private var headerHeight: CGFloat = 0
+
+    private var horizontalInset: CGFloat {
+        horizontalSizeClass == .compact
+            ? UIConstants.Layout.compactScreenEdgeInset
+            : UIConstants.Layout.screenEdgeInset
+    }
+
+    private var currentRequest: DeckCardConversionRequest? {
+        coordinator.conversionSeed?.request
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let resolvedSafeTopInset = max(safeAreaInsets.top, geo.safeAreaInsets.top)
+            let resolvedSafeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
+
+            ZStack(alignment: .top) {
+                if fullScreenSheetDismiss == nil {
+                    themeManager.groupedScreenBackground
+                        .ignoresSafeArea()
+                }
+
+                ScrollView(.vertical, showsIndicators: false) {
+                    if currentRequest != nil {
+                        CreateWorkspaceConvertEditor(
+                            managesSeedFromDeckList: false,
+                            showsDeckPicker: false,
+                            showsRuntimeSummary: false
+                        )
+                        .padding(.horizontal, horizontalInset)
+                        .padding(.top, headerHeight + UIConstants.Spacing.large)
+                        .padding(.bottom, resolvedSafeBottomInset + 120)
+                    } else {
+                        ConversionUnavailableCard(
+                            title: "Conversion unavailable",
+                            message: "Reopen the sheet and try again."
+                        )
+                        .padding(.horizontal, horizontalInset)
+                        .padding(.top, headerHeight + UIConstants.Spacing.large)
+                    }
+                }
+
+                header(safeTopInset: resolvedSafeTopInset)
+            }
+            .safeAreaInset(edge: .bottom) {
+                if let request = currentRequest {
+                    ConversionStartBar(
+                        request: request,
+                        tint: .orange,
+                        horizontalInset: horizontalInset,
+                        action: onStart
+                    )
+                    .padding(.bottom, max(resolvedSafeBottomInset, UIConstants.Spacing.large) - UIConstants.Spacing.small)
+                }
+            }
+            .fullScreenSheetDragActivationHeight(headerHeight)
+        }
+    }
+
+    private func header(safeTopInset: CGFloat) -> some View {
+        VStack(spacing: UIConstants.Spacing.small) {
+            Capsule()
+                .fill(Color.white.opacity(0.22))
+                .frame(width: 56, height: 5)
+                .accessibilityHidden(true)
+
+            ZStack {
+                Text("Convert Cards")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                HStack {
+                    Spacer(minLength: 0)
+                    dismissButton
+                        .frame(width: UIConstants.Size.actionButton, alignment: .trailing)
+                }
+            }
+            .frame(height: UIConstants.Size.capsuleHeight)
+        }
+        .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
+        .padding(.horizontal, horizontalInset)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { newHeight in
+            if abs(headerHeight - newHeight) > 0.5 {
+                headerHeight = newHeight
+            }
+        }
+    }
+
+    private var dismissButton: some View {
+        Button(action: dismissSheet) {
+            Image(systemName: "xmark")
+                .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
+                .foregroundStyle(.primary)
+                .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+                .glassButton(shape: .circle)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func dismissSheet() {
+        if let fullScreenSheetDismiss {
+            fullScreenSheetDismiss()
+        } else {
+            coordinator.dismissConversionConfiguration()
+        }
+    }
+}
+
+// MARK: - Shared Convert Editor
+
+struct CreateWorkspaceConvertEditor: View {
+    @Environment(AIWorkspaceCoordinator.self) private var coordinator
+
+    @Query(sort: \DeckModel.editedAt, order: .reverse) private var sourceDecks: [DeckModel]
+
+    let managesSeedFromDeckList: Bool
+    let showsDeckPicker: Bool
+    let showsRuntimeSummary: Bool
+
+    private var currentRequest: DeckCardConversionRequest? {
+        coordinator.conversionSeed?.request
+    }
+
+    private var selectedSourceDeck: DeckModel? {
+        guard let sourceDeckID = coordinator.conversionSeed?.sourceDeckID else { return nil }
+        return sourceDecks.first(where: { $0.persistentModelID == sourceDeckID })
+    }
+
+    private var sourceDeckFingerprint: [Int] {
+        sourceDecks.map { $0.persistentModelID.hashValue }
+    }
+
+    var body: some View {
+        Group {
+            if managesSeedFromDeckList && sourceDecks.isEmpty {
+                ConversionUnavailableCard(
+                    title: "No decks available",
+                    message: "Create at least one deck before converting cards."
+                )
+            } else if let request = currentRequest {
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+                    if showsRuntimeSummary,
+                       coordinator.conversionProgress != nil
+                        || coordinator.conversionSummary != nil
+                        || coordinator.conversionErrorMessage != nil {
+                        AIWorkspaceRuntimeCard(coordinator: coordinator)
+                    }
+
+                    if showsDeckPicker {
+                        sourceDeckPicker
+                    }
+
+                    ConversionSourceSection(
+                        request: request,
+                        tint: .orange,
+                        onSelect: updateSourceKind
+                    )
+                    ConversionTargetSection(
+                        request: request,
+                        tint: .orange,
+                        onSelect: updateTargetKind
+                    )
+                    ConversionDestinationSection(
+                        request: request,
+                        tint: .orange,
+                        onSelect: updateDestination,
+                        onUpdateTitle: updateNewDeckTitle
+                    )
+                }
+            } else {
+                ConversionUnavailableCard(
+                    title: "Conversion unavailable",
+                    message: managesSeedFromDeckList
+                        ? "Pick a source deck to continue."
+                        : "Reopen the sheet and try again."
+                )
+            }
+        }
+        .onAppear {
+            seedInitialDeckIfNeeded()
+        }
+        .onChange(of: sourceDeckFingerprint) { _, _ in
+            seedInitialDeckIfNeeded()
+        }
+    }
+
+    @ViewBuilder
+    private var sourceDeckPicker: some View {
+        ConversionSectionCard(title: "Deck") {
             if let seed = coordinator.conversionSeed {
                 if sourceDecks.count > 1 {
                     Menu {
                         ForEach(sourceDecks) { deck in
                             Button {
-                                onSelectSourceDeck(deck)
+                                seedConversion(for: deck)
                             } label: {
                                 if deck.persistentModelID == seed.sourceDeckID {
                                     Label(deck.title, systemImage: "checkmark")
@@ -364,217 +626,236 @@ struct AIWorkspaceConversionSheetView: View {
                             }
                         }
                     } label: {
-                        sourceDeckRow(seed: seed, showsDisclosure: true)
+                        ConversionDeckRow(
+                            title: seed.sourceDeckTitle,
+                            subtitle: "\(selectedSourceDeck?.cardCount ?? 0) cards",
+                            showsDisclosure: true
+                        )
                     }
                     .buttonStyle(.plain)
                 } else {
-                    sourceDeckRow(seed: seed, showsDisclosure: false)
+                    ConversionDeckRow(
+                        title: seed.sourceDeckTitle,
+                        subtitle: "\(selectedSourceDeck?.cardCount ?? 0) cards",
+                        showsDisclosure: false
+                    )
                 }
-            } else {
-                optionRow(
-                    title: "No deck selected",
-                    subtitle: "Pick a source deck to continue.",
-                    systemImage: "rectangle.stack.fill",
-                    isSelected: false,
-                    action: {}
+            }
+        }
+    }
+
+    private func seedInitialDeckIfNeeded() {
+        guard managesSeedFromDeckList else { return }
+        guard !sourceDecks.isEmpty else {
+            coordinator.dismissConversionConfiguration()
+            return
+        }
+
+        if let selectedSourceDeck {
+            if currentRequest == nil {
+                seedConversion(for: selectedSourceDeck)
+            }
+            return
+        }
+
+        if let firstDeck = sourceDecks.first {
+            seedConversion(for: firstDeck)
+        }
+    }
+
+    private func seedConversion(for deck: DeckModel) {
+        let orderedCards = deck.cards.sorted {
+            if $0.cardNumber == $1.cardNumber {
+                return $0.createdAt < $1.createdAt
+            }
+            return $0.cardNumber < $1.cardNumber
+        }
+        let sources = orderedCards.map {
+            DeckCardConversionSourceDescriptor(id: $0.persistentModelID, kind: $0.kind)
+        }
+        guard let request = DeckCardConversionRequest.makeWholeDeckRequest(
+            sources: sources,
+            deckTitle: deck.title,
+            preferredSourceKind: currentRequest?.sourceKind,
+            preferredTargetKind: currentRequest?.targetKind,
+            existingRequest: currentRequest
+        ) else {
+            return
+        }
+
+        _ = coordinator.seedConversion(
+            request: request,
+            sourceDeck: deck,
+            showsConfiguration: false,
+            activatesWorkspaceContext: false
+        )
+    }
+
+    private func updateSourceKind(_ kind: CardKind) {
+        coordinator.updateConversionDraft { draft in
+            draft.selectSourceKind(kind)
+        }
+    }
+
+    private func updateTargetKind(_ kind: CardKind) {
+        coordinator.updateConversionDraft { draft in
+            draft.updateTargetKind(kind)
+        }
+    }
+
+    private func updateDestination(_ destination: DeckCardConversionDestinationOption) {
+        coordinator.updateConversionDraft { draft in
+            draft.destination = destination
+        }
+    }
+
+    private func updateNewDeckTitle(_ title: String) {
+        coordinator.updateConversionDraft { draft in
+            draft.newDeckTitle = title
+        }
+    }
+}
+
+// MARK: - Shared Conversion UI
+
+private struct ConversionSourceSection: View {
+    let request: DeckCardConversionRequest
+    let tint: Color
+    let onSelect: (CardKind) -> Void
+
+    var body: some View {
+        ConversionSectionCard(title: "Source") {
+            if request.availableSourceKinds.count == 1,
+               let sourceKind = request.selectedSourceKind {
+                ConversionStaticSourceRow(
+                    kind: sourceKind,
+                    subtitle: "\(request.sourceCount(for: sourceKind)) card\(request.sourceCount(for: sourceKind) == 1 ? "" : "s")",
+                    tint: tint
                 )
-                .allowsHitTesting(false)
-            }
-        }
-    }
-
-    private func sourceDeckRow(
-        seed: AIWorkspaceConversionSeed,
-        showsDisclosure: Bool
-    ) -> some View {
-        HStack(spacing: UIConstants.Spacing.medium) {
-            optionIcon(
-                systemImage: "rectangle.stack.fill",
-                tint: accent
-            )
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(seed.sourceDeckTitle)
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-
-                Text("\(selectedSourceDeck?.cardCount ?? 0) cards available")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
-
-            if showsDisclosure {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(selectionBackgroundColor(isSelected: true))
-        }
-        .overlay {
-            selectionBorder(isSelected: true)
-        }
-    }
-
-    private func scopeSection(_ request: DeckCardConversionRequest) -> some View {
-        sectionCard(
-            title: "What To Convert",
-            subtitle: "Choose the slice of cards that should be sent to AI."
-        ) {
-            VStack(spacing: UIConstants.Spacing.small) {
-                ForEach(request.availableScopes) { scope in
-                    optionRow(
-                        title: scope.title,
-                        subtitle: scope.subtitle,
-                        systemImage: "line.3.horizontal.decrease.circle.fill",
-                        badgeText: scopeSummary(scope, request: request),
-                        isSelected: request.scope == scope
-                    ) {
-                        coordinator.updateConversionDraft { draft in
-                            draft.updateScope(scope)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func sourceTypesSection(_ request: DeckCardConversionRequest) -> some View {
-        sectionCard(
-            title: "Source Types",
-            subtitle: "Keep only the source card kinds you want to transform."
-        ) {
-            if request.eligibleSourceKinds.isEmpty {
-                Text("No compatible source kinds remain for this target.")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                LazyVGrid(columns: gridColumns, spacing: UIConstants.Spacing.small) {
-                    ForEach(request.eligibleSourceKinds, id: \.self) { kind in
-                        kindTile(
+                VStack(spacing: 10) {
+                    ForEach(request.availableSourceKinds, id: \.self) { kind in
+                        ConversionKindRow(
                             kind: kind,
                             subtitle: "\(request.sourceCount(for: kind)) card\(request.sourceCount(for: kind) == 1 ? "" : "s")",
-                            isSelected: request.normalizedSourceKindFilters.contains(kind)
-                        ) {
-                            coordinator.updateConversionDraft { draft in
-                                draft.toggleSourceKind(kind)
-                            }
-                        }
+                            isSelected: request.selectedSourceKind == kind,
+                            tint: tint,
+                            action: { onSelect(kind) }
+                        )
                     }
                 }
             }
         }
     }
+}
 
-    private func targetTypeSection(_ request: DeckCardConversionRequest) -> some View {
-        sectionCard(
-            title: "Convert Into",
-            subtitle: "Pick the destination format the model should generate."
-        ) {
-            LazyVGrid(columns: gridColumns, spacing: UIConstants.Spacing.small) {
+private struct ConversionTargetSection: View {
+    let request: DeckCardConversionRequest
+    let tint: Color
+    let onSelect: (CardKind) -> Void
+
+    var body: some View {
+        ConversionSectionCard(title: "Convert Into") {
+            VStack(spacing: 10) {
                 ForEach(CardKind.allCases, id: \.self) { kind in
-                    kindTile(
+                    let isAvailable = request.isTargetKindAvailable(kind)
+                    ConversionKindRow(
                         kind: kind,
-                        subtitle: targetKindSubtitle(kind),
-                        isSelected: request.targetKind == kind
-                    ) {
-                        coordinator.updateConversionDraft { draft in
-                            draft.updateTargetKind(kind)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func destinationSection(_ request: DeckCardConversionRequest) -> some View {
-        sectionCard(
-            title: "Save Result",
-            subtitle: "Keep the converted cards in the same deck or send them into a sibling deck."
-        ) {
-            VStack(spacing: UIConstants.Spacing.small) {
-                ForEach(DeckCardConversionDestinationOption.allCases) { option in
-                    optionRow(
-                        title: option.title,
-                        subtitle: option.subtitle,
-                        systemImage: option == .sameDeck ? "square.stack.3d.up.fill" : "square.stack.3d.up.badge.a.fill",
-                        isSelected: request.destination == option
-                    ) {
-                        coordinator.updateConversionDraft { draft in
-                            draft.destination = option
-                        }
-                    }
-                }
-            }
-
-            if request.destination == .newDeck {
-                TextField(
-                    "New deck title",
-                    text: Binding(
-                        get: { coordinator.conversionSeed?.request.newDeckTitle ?? "" },
-                        set: { newValue in
-                            coordinator.updateConversionDraft { draft in
-                                draft.newDeckTitle = newValue
-                            }
+                        subtitle: conversionTargetSubtitle(kind),
+                        isSelected: request.targetKind == kind,
+                        isDisabled: !isAvailable,
+                        tint: tint,
+                        action: {
+                            guard isAvailable else { return }
+                            onSelect(kind)
                         }
                     )
-                )
-                .textInputAutocapitalization(.words)
-                .autocorrectionDisabled()
-                .padding(.horizontal, 16)
-                .frame(height: 50)
-                .background {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(selectionBackgroundColor(isSelected: true))
-                }
-                .overlay {
-                    selectionBorder(isSelected: true)
                 }
             }
         }
     }
+}
 
-    private func floatingStartButton(
-        request: DeckCardConversionRequest,
-        bottomInset: CGFloat
-    ) -> some View {
-        HStack {
-            Spacer()
+private struct ConversionDestinationSection: View {
+    let request: DeckCardConversionRequest
+    let tint: Color
+    let onSelect: (DeckCardConversionDestinationOption) -> Void
+    let onUpdateTitle: (String) -> Void
 
-            Button(action: onStart) {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Convert")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-
-                        Text(buttonSubtitle(for: request))
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                            .textCase(.uppercase)
-                    }
-
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+    var body: some View {
+        ConversionSectionCard(title: "Save Result") {
+            VStack(spacing: UIConstants.Spacing.small) {
+                ForEach(DeckCardConversionDestinationOption.allCases) { option in
+                    ConversionOptionRow(
+                        title: option.title,
+                        subtitle: option.subtitle,
+                        systemImage: option == .sameDeck
+                            ? "square.stack.3d.up.fill"
+                            : "square.stack.3d.up.badge.a.fill",
+                        isSelected: request.destination == option,
+                        tint: tint,
+                        action: { onSelect(option) }
+                    )
                 }
-                .foregroundStyle(request.canStart ? conversionTint : .secondary)
-                .padding(.horizontal, 18)
-                .frame(height: 58)
-                .glassButton(shape: .capsule)
+
+                if request.destination == .newDeck {
+                    TextField(
+                        "New deck title",
+                        text: Binding(
+                            get: { request.newDeckTitle },
+                            set: onUpdateTitle
+                        )
+                    )
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+                    .padding(.horizontal, 16)
+                    .frame(height: 52)
+                    .background {
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(Color.white.opacity(0.05))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 0.8)
+                    }
+                }
             }
-            .buttonStyle(.plain)
-            .disabled(!request.canStart)
-            .opacity(request.canStart ? 1 : 0.58)
         }
+    }
+}
+
+struct ConversionStartBar: View {
+    let request: DeckCardConversionRequest
+    let tint: Color
+    let horizontalInset: CGFloat
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: UIConstants.Spacing.small) {
+                Text("Convert")
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+
+                Spacer(minLength: 0)
+
+                Text("\(request.sourceCount) card\(request.sourceCount == 1 ? "" : "s")")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(request.canStart ? .white.opacity(0.88) : .secondary)
+            }
+            .foregroundStyle(request.canStart ? .white : .secondary)
+            .padding(.horizontal, 18)
+            .frame(height: 56)
+            .frame(maxWidth: .infinity)
+            .background(buttonBackground)
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(buttonBorder, lineWidth: 0.8)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(!request.canStart)
         .padding(.horizontal, horizontalInset)
-        .padding(.bottom, bottomInset)
+        .padding(.bottom, UIConstants.Spacing.large)
         .background(alignment: .bottom) {
             LinearGradient(
                 colors: [
@@ -588,234 +869,309 @@ struct AIWorkspaceConversionSheetView: View {
         }
     }
 
-    private var unavailableState: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            Text("Conversion Unavailable")
-                .font(.system(size: 24, weight: .bold, design: .rounded))
+    private var buttonBackground: some View {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(
+                request.canStart
+                    ? tint
+                    : Color(uiColor: .tertiarySystemFill)
+            )
+    }
+
+    private var buttonBorder: Color {
+        request.canStart
+            ? tint.opacity(0.35)
+            : Color.white.opacity(0.06)
+    }
+}
+
+private struct ConversionUnavailableCard: View {
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundStyle(.primary)
 
-            Text("The conversion request is no longer available. Reopen the flow and try again.")
-                .font(.subheadline.weight(.medium))
+            Text(message)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(UIConstants.Spacing.large)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .widgetStyle(cornerRadius: 30)
+        .background(sectionBackground)
     }
+}
 
-    private var gridColumns: [GridItem] {
-        [GridItem(.flexible()), GridItem(.flexible())]
-    }
+private struct ConversionSectionCard<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
 
-    private func sectionCard<Content: View>(
-        title: String,
-        subtitle: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-
-                Text(subtitle)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.45)
 
             content()
         }
-        .padding(UIConstants.Spacing.large)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .widgetStyle(cornerRadius: UIConstants.Radius.large)
-        .overlay {
-            RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        }
+        .background(sectionBackground)
     }
+}
 
-    private func optionRow(
-        title: String,
-        subtitle: String,
-        systemImage: String,
-        badgeText: String? = nil,
-        isSelected: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
+private struct ConversionDeckRow: View {
+    let title: String
+    let subtitle: String
+    let showsDisclosure: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            conversionOptionIcon(systemImage: "rectangle.stack.fill", tint: ThemeManager.shared.accentColor.color)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+
+                Text(subtitle)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+
+            if showsDisclosure {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(rowBackground)
+    }
+}
+
+private struct ConversionStaticSourceRow: View {
+    let kind: CardKind
+    let subtitle: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 12) {
+            conversionOptionIcon(systemImage: kind.conversionSystemImage, tint: tint)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(kind.displayTitle)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+
+                Text(subtitle)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+
+            Text("Auto")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(rowBackground)
+    }
+}
+
+private struct ConversionOptionRow: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let isSelected: Bool
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
         Button(action: action) {
-            HStack(spacing: UIConstants.Spacing.medium) {
-                optionIcon(
-                    systemImage: systemImage,
-                    tint: isSelected ? conversionTint : .secondary
-                )
+            HStack(spacing: 12) {
+                conversionOptionIcon(systemImage: systemImage, tint: isSelected ? tint : .secondary)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundStyle(.primary)
 
                     Text(subtitle)
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.leading)
                 }
 
                 Spacer(minLength: 0)
 
-                if let badgeText {
-                    summaryChip(badgeText, systemImage: nil)
-                }
-
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(isSelected ? conversionTint : .secondary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(selectionBackgroundColor(isSelected: isSelected))
-            }
-            .overlay {
-                selectionBorder(isSelected: isSelected)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func kindTile(
-        kind: CardKind,
-        subtitle: String,
-        isSelected: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    optionIcon(
-                        systemImage: kind.conversionSystemImage,
-                        tint: isSelected ? conversionTint : .secondary
-                    )
-
-                    Spacer(minLength: 0)
-
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(isSelected ? conversionTint : .secondary)
-                }
-
-                Text(kind.displayTitle)
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Text(subtitle)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(isSelected ? tint : .secondary)
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, minHeight: 108, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(selectionBackgroundColor(isSelected: isSelected))
-            }
-            .overlay {
-                selectionBorder(isSelected: isSelected)
-            }
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                rowBackground(
+                    isSelected: isSelected,
+                    tint: tint
+                )
+            )
         }
         .buttonStyle(.plain)
     }
+}
 
-    private func optionIcon(
-        systemImage: String,
-        tint: Color
-    ) -> some View {
-        ZStack {
-            Circle()
-                .fill(tint.opacity(0.14))
-                .frame(width: 34, height: 34)
+private struct ConversionKindRow: View {
+    let kind: CardKind
+    let subtitle: String
+    let isSelected: Bool
+    var isDisabled: Bool = false
+    let tint: Color
+    let action: () -> Void
 
-            Image(systemName: systemImage)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(tint)
-        }
-    }
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                conversionOptionIcon(
+                    systemImage: kind.conversionSystemImage,
+                    tint: isDisabled ? .secondary.opacity(0.65) : (isSelected ? tint : .secondary)
+                )
 
-    private func selectionBackgroundColor(isSelected: Bool) -> Color {
-        isSelected ? Color.white.opacity(0.09) : Color.white.opacity(0.04)
-    }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(kind.displayTitle)
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
 
-    private func selectionBorder(isSelected: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .stroke(
-                isSelected ? Color.white.opacity(0.14) : Color.white.opacity(0.06),
-                lineWidth: 0.8
-            )
-    }
+                    Text(isDisabled ? "Unavailable" : subtitle)
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-    private func summaryChip(
-        _ text: String,
-        systemImage: String?
-    ) -> some View {
-        HStack(spacing: 6) {
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                Spacer(minLength: 0)
+
+                Image(systemName: indicatorSymbol)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(indicatorTint)
             }
-
-            Text(text)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .lineLimit(1)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                rowBackground(
+                    isSelected: isSelected,
+                    tint: tint
+                )
+            )
         }
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.05), in: Capsule())
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.56 : 1)
     }
 
-    private func overviewSubtitle(for request: DeckCardConversionRequest) -> String {
-        let deckTitle = selectedSourceDeck?.title ?? coordinator.conversionSeed?.sourceDeckTitle ?? "your deck"
-        return "Choose the exact scope, source types, and destination for converting cards from \(deckTitle) into \(request.targetKind.displayTitle.lowercased()) cards."
-    }
-
-    private func buttonSubtitle(for request: DeckCardConversionRequest) -> String {
-        let typeCount = request.normalizedSourceKindFilters.count
-        let noun = typeCount == 1 ? "type" : "types"
-        return "\(request.sourceCount) cards · \(typeCount) \(noun)"
-    }
-
-    private func targetKindSubtitle(_ kind: CardKind) -> String {
-        switch kind {
-        case .flashcard:
-            return "Question and answer"
-        case .match:
-            return "Prompt and pair"
-        case .quiz:
-            return "Multiple choice"
-        case .write:
-            return "Typed answer"
+    private var indicatorSymbol: String {
+        if isDisabled {
+            return "slash.circle.fill"
         }
+        return isSelected ? "checkmark.circle.fill" : "circle"
     }
 
-    private func scopeSummary(
-        _ scope: DeckCardConversionScopeOption,
-        request: DeckCardConversionRequest
-    ) -> String {
-        switch scope {
-        case .wholeDeck:
-            return "\(request.wholeDeckSources.count) cards"
-        case .recommendedCards:
-            return "\(request.recommendedCardCount) cards"
-        case .selectedCards:
-            return "\(request.selectedCardCount) cards"
-        case .singleCard:
-            return "\(request.singleSources.count) card"
+    private var indicatorTint: Color {
+        if isDisabled {
+            return .secondary
         }
+        return isSelected ? tint : .secondary
     }
+}
+
+private func conversionOptionIcon(systemImage: String, tint: Color) -> some View {
+    ZStack {
+        Circle()
+            .fill(tint.opacity(0.14))
+            .frame(width: 30, height: 30)
+
+        Image(systemName: systemImage)
+            .font(.system(size: 13, weight: .bold, design: .rounded))
+            .foregroundStyle(tint)
+    }
+}
+
+private func conversionSummaryChip(_ text: String, systemImage: String?) -> some View {
+    HStack(spacing: 6) {
+        if let systemImage {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+        }
+
+        Text(text)
+            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .lineLimit(1)
+    }
+    .foregroundStyle(.secondary)
+    .padding(.horizontal, 10)
+    .padding(.vertical, 8)
+    .background(Color.white.opacity(0.05), in: Capsule())
+}
+
+private func conversionTargetSubtitle(_ kind: CardKind) -> String {
+    switch kind {
+    case .flashcard:
+        return "Question and answer"
+    case .match:
+        return "Prompt and pair"
+    case .quiz:
+        return "Multiple choice"
+    case .write:
+        return "Typed answer"
+    }
+}
+
+private var sectionBackground: some View {
+    RoundedRectangle(cornerRadius: 22, style: .continuous)
+        .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.05), lineWidth: 0.8)
+        }
+}
+
+private var rowBackground: some View {
+    RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .fill(Color(uiColor: .tertiarySystemFill))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.04), lineWidth: 0.6)
+        }
+}
+
+private func rowBackground(isSelected: Bool, tint: Color) -> some View {
+    RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .fill(isSelected ? tint.opacity(0.16) : Color(uiColor: .tertiarySystemFill))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(
+                    isSelected ? tint.opacity(0.28) : Color.white.opacity(0.04),
+                    lineWidth: 0.8
+                )
+        }
 }
 
 struct AIWorkspaceFailureCard: View {
@@ -900,15 +1256,16 @@ struct AIWorkspaceRuntimeCard: View {
     }
 
     private func progressCard(_ progress: DeckCardConversionProgress) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            Text("AI WORKSPACE")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Conversion")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(.secondary)
+                .textCase(.uppercase)
                 .tracking(0.45)
 
             HStack(alignment: .firstTextBaseline, spacing: UIConstants.Spacing.small) {
                 Text(coordinator.canResumeConversion ? "Conversion paused" : "Converting cards")
-                    .font(.system(size: 24, weight: .black, design: .rounded))
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
 
                 Spacer(minLength: 0)
@@ -955,21 +1312,22 @@ struct AIWorkspaceRuntimeCard: View {
                 .font(.system(size: 14, weight: .bold, design: .rounded))
             }
         }
-        .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: UIConstants.Radius.large)
+        .padding(18)
+        .background(sectionBackground)
     }
 
     private func summaryCard(_ summary: DeckCardConversionSummary) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            Text("AI WORKSPACE")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Conversion")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(.secondary)
+                .textCase(.uppercase)
                 .tracking(0.45)
 
             Text(summary.createdCount == 1
                  ? "1 \(summary.targetKind.displayTitle) card created"
                  : "\(summary.createdCount) \(summary.targetKind.displayTitle) cards created")
-                .font(.system(size: 24, weight: .black, design: .rounded))
+                .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -1006,19 +1364,20 @@ struct AIWorkspaceRuntimeCard: View {
             }
             .font(.system(size: 14, weight: .bold, design: .rounded))
         }
-        .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: UIConstants.Radius.large)
+        .padding(18)
+        .background(sectionBackground)
     }
 
     private func errorCard(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            Text("AI WORKSPACE")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Conversion")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(.secondary)
+                .textCase(.uppercase)
                 .tracking(0.45)
 
             Text("Conversion stopped")
-                .font(.system(size: 24, weight: .black, design: .rounded))
+                .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundStyle(.primary)
 
             Text(message)
@@ -1047,8 +1406,8 @@ struct AIWorkspaceRuntimeCard: View {
             }
             .font(.system(size: 14, weight: .bold, design: .rounded))
         }
-        .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: UIConstants.Radius.large)
+        .padding(18)
+        .background(sectionBackground)
     }
 
     private func runtimeChip(_ text: String, tint: Color) -> some View {

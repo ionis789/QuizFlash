@@ -288,7 +288,6 @@ final class CreateDeckViewModel {
     @ObservationIgnored var clearsPendingAISourceOnSheetDismiss = false
     @ObservationIgnored var aiGenerationSessionID: UUID?
     var remainingAIAllocations: [AISourceRangeAllocation] = []
-    var aiRevealedGeneratedCardIDs: Set<UUID> = []
     var isAIGenerationPausedForBackground = false
     var isAIGenerationPaused = false
     var isManualPauseInProgress = false

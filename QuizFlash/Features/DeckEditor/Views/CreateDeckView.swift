@@ -15,10 +15,8 @@ import UniformTypeIdentifiers
 
 let kCreateDeckChromeSpace = "CreateDeckChromeSpace"
 
-struct CreateDeckWorkspaceSeedSignature: Equatable {
-    let sourceDeckID: PersistentIdentifier
-    let destination: DeckCardConversionDestinationOption
-    let liveDeckID: PersistentIdentifier?
+enum CreateDeckLaunchAction: Equatable {
+    case showAIGenerationOptions
 }
 
 struct CreateDeckView: View {
@@ -35,7 +33,6 @@ struct CreateDeckView: View {
 
     /// Fetches all available folders to populate the destination picker.
     @Query(sort: \FolderModel.createdAt, order: .reverse) var folders: [FolderModel]
-    @Query(sort: \DeckModel.editedAt, order: .reverse) var sourceDecks: [DeckModel]
 
     // MARK: - State
     @State var viewModel: CreateDeckViewModel
@@ -50,8 +47,7 @@ struct CreateDeckView: View {
     @State var allowDismissWithoutConfirmation = false
     @State var hasCapturedPhysicalSafeBottom = false
     @State var isHistoricalCardsCollapsed = true
-    @State var hasSeededWorkspaceEditorState = false
-    @State var workspaceSeedSignature: CreateDeckWorkspaceSeedSignature?
+    @State var hasHandledLaunchAction = false
 
     /// Tracks the focus state of the deck title text field.
     /// Drives the tab bar visibility rule reactively.
@@ -59,7 +55,8 @@ struct CreateDeckView: View {
 
     // MARK: - Input
     let presentedSafeAreaInsets: UIEdgeInsets?
-    let isAIWorkspaceHost: Bool
+    let launchAction: CreateDeckLaunchAction?
+    let workspaceMode: Binding<CreateWorkspaceMode>?
 
     // MARK: - Computed Properties
     var accent: Color { ThemeManager.shared.accentColor.color }
@@ -71,10 +68,6 @@ struct CreateDeckView: View {
         return hasTitle && !viewModel.draftCards.isEmpty
     }
     var collapsedDeckTitle: String {
-        if let workspaceTitle = conversionWorkspaceContext?.displayTitle,
-           !workspaceTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return workspaceTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
         return viewModel.deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     var destinationTitle: String {
@@ -86,9 +79,6 @@ struct CreateDeckView: View {
 
     var draftDeckReadinessSummary: DeckReadinessSummary {
         derivedDeckState.readinessSummary
-    }
-    var draftReadinessRecommendedTargets: [CardKind] {
-        draftDeckReadinessSummary.recommendedConversions.map(\.targetKind)
     }
     var aiToolbarStatusText: String? {
         switch viewModel.aiState {
@@ -148,42 +138,21 @@ struct CreateDeckView: View {
             return "\(viewModel.aiGeneratedCardCount)/\(max(viewModel.aiTargetCardCount, 1))"
         }
     }
-    var conversionWorkspaceContext: AIWorkspaceDeckContext? {
-        guard isAIWorkspaceHost else { return nil }
-        return aiWorkspaceCoordinator.workspaceDeckContext
-    }
-    var isShowingConversionWorkspace: Bool { conversionWorkspaceContext != nil }
-    var isShowingConversionConfiguration: Bool {
-        aiWorkspaceCoordinator.conversionSheetToken != nil && aiWorkspaceCoordinator.conversionSeed != nil
-    }
-    var conversionConfigurationSheetBinding: Binding<AIWorkspaceConversionSheetToken?> {
-        Binding(
-            get: { aiWorkspaceCoordinator.conversionSheetToken },
-            set: { newValue in
-                if newValue == nil {
-                    aiWorkspaceCoordinator.dismissConversionConfiguration()
-                } else {
-                    aiWorkspaceCoordinator.conversionSheetToken = newValue
-                }
-            }
-        )
-    }
     var tabBarOffset: CGFloat {
         max(0, viewSafeBottom - physicalSafeBottom)
     }
     var canStartLocalGeneration: Bool {
         !hasUnifiedAISession
-            && (!isAIWorkspaceHost || !aiWorkspaceCoordinator.hasBlockingJob || aiWorkspaceCoordinator.generationStatus != nil)
     }
     var shouldShowFloatingGenerate: Bool {
-        scrollState.pillVisible
+        !isShowingWorkspaceConvert
+            && scrollState.pillVisible
             && !viewModel.draftCards.isEmpty
             && !viewModel.isSelectingCards
             && !isTitleFocused
             && viewModel.aiSheetDestination == nil
             && !viewModel.showSuccessOverlay
             && !hasUnifiedAISession
-            && !isShowingConversionConfiguration
     }
     var shouldShowCollapsedTitle: Bool {
         scrollState.pillVisible && !viewModel.draftCards.isEmpty && !collapsedDeckTitle.isEmpty
@@ -194,7 +163,6 @@ struct CreateDeckView: View {
             && !viewModel.showSuccessOverlay
             && !isTitleFocused
             && !hasUnifiedAISession
-            && !isShowingConversionConfiguration
     }
     var swipeBackEnabled: Bool {
         fullScreenSheetDismiss != nil ? canUseInteractiveDismiss : true
@@ -208,32 +176,81 @@ struct CreateDeckView: View {
     /// Forces the tab bar to hide only while the keyboard is active.
     /// Materialization (card reveal animation) intentionally leaves the bar visible.
     var tabRule: TabBarVisibilityRule {
-        if isTitleFocused || viewModel.aiSheetDestination != nil || viewModel.isSelectingCards || isShowingConversionConfiguration {
+        if isShowingWorkspaceConvert {
+            return .implicit
+        }
+        if isTitleFocused || viewModel.aiSheetDestination != nil || viewModel.isSelectingCards {
             return .hidden
         }
         return .implicit
     }
 
-    var canOpenConversionMenu: Bool {
-        !sourceDecks.isEmpty
-            && !viewModel.isGenerating
-            && (!isAIWorkspaceHost || !aiWorkspaceCoordinator.hasBlockingJob || isShowingConversionConfiguration || isShowingConversionWorkspace)
-    }
     var hasActiveGenerationRuntime: Bool {
         if case .extractingText = viewModel.aiState { return true }
         if case .generatingCards = viewModel.aiState { return true }
         return viewModel.hasPausedAIGeneration
     }
 
-    var hasActiveConversionRuntime: Bool {
-        aiWorkspaceCoordinator.conversionProgress != nil || aiWorkspaceCoordinator.canResumeConversion
+    var activeEditorConversionProgress: DeckCardConversionProgress? {
+        guard hostsSourceDeckConversionRuntime else { return nil }
+        return aiWorkspaceCoordinator.conversionProgress
+    }
+
+    var activeEditorPausedConversionProgress: DeckCardConversionProgress? {
+        guard hostsSourceDeckConversionRuntime else { return nil }
+        return aiWorkspaceCoordinator.pausedConversionSession?.progress
+    }
+
+    var showsInlineConversionSessionCards: Bool {
+        hostsSourceDeckConversionRuntime
+            && aiWorkspaceCoordinator.workspaceDeckContext?.destination == .sameDeck
+            && (activeEditorConversionProgress != nil || activeEditorPausedConversionProgress != nil)
     }
 
     var hasUnifiedAISession: Bool {
         hasActiveGenerationRuntime
-            || hasActiveConversionRuntime
+            || showsInlineConversionSessionCards
             || viewModel.hasAISessionDraftCards
-            || isShowingConversionWorkspace
+    }
+
+    var hostsSourceDeckConversionRuntime: Bool {
+        guard aiWorkspaceCoordinator.hasVisibleConversionWorkspaceState else { return false }
+        return viewModel.resolvedEditingDeckID == aiWorkspaceCoordinator.workspaceDeckContext?.sourceDeckID
+    }
+
+    var shouldShowCreateTabConversionRuntime: Bool {
+        fullScreenSheetDismiss == nil
+            && router.activeTab == .create
+            && !viewModel.isEditingExistingDeck
+            && aiWorkspaceCoordinator.hasVisibleConversionWorkspaceState
+    }
+
+    var tracksWorkspaceGenerationStatus: Bool {
+        fullScreenSheetDismiss == nil && router.activeTab == .create
+    }
+
+    var effectiveWorkspaceMode: CreateWorkspaceMode {
+        workspaceMode?.wrappedValue ?? .create
+    }
+
+    var isWorkspaceRoot: Bool {
+        workspaceMode != nil
+    }
+
+    var isShowingWorkspaceConvert: Bool {
+        effectiveWorkspaceMode == .convert
+    }
+
+    var workspaceModeSelection: Binding<CreateWorkspaceMode>? {
+        guard let workspaceMode else { return nil }
+        return Binding(
+            get: { workspaceMode.wrappedValue },
+            set: { newValue in
+                isTitleFocused = false
+                exitDraftSelectionModeForExternalAction()
+                workspaceMode.wrappedValue = newValue
+            }
+        )
     }
 
     var displayedDraftCards: [DraftCard] {
@@ -247,7 +264,7 @@ struct CreateDeckView: View {
         guard hasUnifiedAISession else {
             return displayedDraftCards
         }
-        guard hasActiveGenerationRuntime || hasActiveConversionRuntime else {
+        guard hasActiveGenerationRuntime || showsInlineConversionSessionCards else {
             return displayedDraftCards
         }
         return displayedDraftCards.filter { !viewModel.aiSessionDraftCardIDs.contains($0.id) }
@@ -255,7 +272,7 @@ struct CreateDeckView: View {
 
     var displayedHistoricalDraftCards: [DraftCard] {
         guard hasUnifiedAISession, !isHistoricalCardsCollapsed else { return [] }
-        return sortDraftCards(viewModel.baseDraftCards)
+        return sortDraftCards(resolvedHistoricalDraftCards)
     }
 
     var sortedAISessionDraftCards: [DraftCard] {
@@ -263,52 +280,52 @@ struct CreateDeckView: View {
     }
 
     var canToggleHistoricalSessionCards: Bool {
-        hasUnifiedAISession && !viewModel.baseDraftCards.isEmpty
+        hasUnifiedAISession && historicalSessionCardsCount > 0
     }
 
     var hiddenSessionCardsCount: Int {
         guard hasUnifiedAISession, isHistoricalCardsCollapsed else { return 0 }
-        return viewModel.baseDraftCards.count
+        return historicalSessionCardsCount
+    }
+
+    var historicalSessionCardsCount: Int {
+        resolvedHistoricalDraftCards.count
+    }
+
+    var resolvedHistoricalDraftCards: [DraftCard] {
+        if !viewModel.baseDraftCards.isEmpty {
+            return viewModel.baseDraftCards
+        }
+
+        guard showsInlineConversionSessionCards,
+              let destinationBaseCardIDs = aiWorkspaceCoordinator.workspaceDeckContext?.destinationBaseCardIDs,
+              !destinationBaseCardIDs.isEmpty else {
+            return []
+        }
+
+        let baselineOriginalIDs = Set(destinationBaseCardIDs)
+        return viewModel.draftCards.filter { draft in
+            guard let originalCardID = draft.originalCardID else { return false }
+            return baselineOriginalIDs.contains(originalCardID)
+                && !viewModel.sessionDraftCardIDs.contains(draft.id)
+        }
     }
 
     // MARK: - Initialization
-    init(deckToEdit: DeckModel? = nil, safeAreaInsets: UIEdgeInsets? = nil) {
-        self.isAIWorkspaceHost = false
-        self.presentedSafeAreaInsets = safeAreaInsets
-        _viewModel = State(initialValue: CreateDeckViewModel(deckToEdit: deckToEdit))
-    }
-
     init(
         deckToEdit: DeckModel? = nil,
         safeAreaInsets: UIEdgeInsets? = nil,
-        isAIWorkspaceHost: Bool
+        launchAction: CreateDeckLaunchAction? = nil,
+        workspaceMode: Binding<CreateWorkspaceMode>? = nil
     ) {
-        self.isAIWorkspaceHost = isAIWorkspaceHost
         self.presentedSafeAreaInsets = safeAreaInsets
+        self.launchAction = launchAction
+        self.workspaceMode = workspaceMode
         _viewModel = State(initialValue: CreateDeckViewModel(deckToEdit: deckToEdit))
     }
 
     var body: some View {
-        conversionStateSyncedContent
-    }
-
-    var conversionStateSyncedContent: some View {
         generationStateSyncedContent
-            .onChange(of: aiWorkspaceCoordinator.workspaceDeckContext) { _, _ in
-                refreshWorkspaceDeckPresentation()
-            }
-            .onChange(of: aiWorkspaceCoordinator.conversionProgress) { _, _ in
-                refreshWorkspaceDeckPresentation()
-            }
-            .onChange(of: aiWorkspaceCoordinator.conversionSummary) { _, _ in
-                refreshWorkspaceDeckPresentation()
-            }
-            .onChange(of: aiWorkspaceCoordinator.conversionErrorMessage) { _, _ in
-                refreshWorkspaceDeckPresentation()
-            }
-            .onChange(of: aiWorkspaceCoordinator.conversionSheetToken) { _, _ in
-                refreshSessionPresentationState()
-            }
     }
 
     var generationStateSyncedContent: some View {
@@ -347,6 +364,15 @@ struct CreateDeckView: View {
                     isHistoricalCardsCollapsed = false
                 }
             }
+            .onChange(of: aiWorkspaceCoordinator.conversionProgress) { _, _ in
+                syncActiveConversionEditorState()
+            }
+            .onChange(of: aiWorkspaceCoordinator.conversionSummary) { _, _ in
+                syncActiveConversionEditorState()
+            }
+            .onChange(of: aiWorkspaceCoordinator.workspaceDeckContext) { _, _ in
+                syncActiveConversionEditorState()
+            }
     }
 
     var appearanceBoundContent: some View {
@@ -364,9 +390,10 @@ struct CreateDeckView: View {
             }
             .onAppear {
                 refreshDerivedDeckState()
-                refreshWorkspaceDeckPresentation()
                 refreshSessionPresentationState()
                 syncAIWorkspaceGenerationState()
+                syncActiveConversionEditorState()
+                performLaunchActionIfNeeded()
                 fullScreenSheetDismissCoordinator?.shouldAllowDismiss = {
                     attemptInteractiveDismissValidation()
                 }
@@ -413,21 +440,6 @@ struct CreateDeckView: View {
             } background: {
                 AIGenerationSheetBackground()
             }
-            .sheet(item: conversionConfigurationSheetBinding) { _ in
-                AIWorkspaceConversionSheetView(
-                    coordinator: aiWorkspaceCoordinator,
-                    sourceDecks: sourceDecks,
-                    onSelectSourceDeck: { deck in
-                        reseedConversion(for: deck)
-                    }
-                ) {
-                    aiWorkspaceCoordinator.startConversion(context: context)
-                }
-                .presentationDetents([.fraction(0.6)])
-                .presentationDragIndicator(.hidden)
-                .presentationCornerRadius(34)
-                .presentationBackground(.clear)
-            }
     }
 
     @ViewBuilder
@@ -442,8 +454,11 @@ struct CreateDeckView: View {
                     + UIConstants.Spacing.small
                     + UIConstants.Size.capsuleHeight
                 let sheetHeroTopPadding = max(navigationBarHeight, estimatedSheetChromeHeight) + UIConstants.Spacing.large
-                let standardHeroTopPadding = UIConstants.Layout.createDeckPinnedToolbarTopInset
-                    + UIConstants.Layout.createDeckHeroTopPadding
+                let rootWorkspaceHeroTopPadding = navigationBarHeight + UIConstants.Spacing.small
+                let standardHeroTopPadding = isWorkspaceRoot
+                    ? rootWorkspaceHeroTopPadding
+                    : UIConstants.Layout.createDeckPinnedToolbarTopInset
+                        + UIConstants.Layout.createDeckHeroTopPadding
                 let heroTopPadding = fullScreenSheetDismiss != nil ? sheetHeroTopPadding : standardHeroTopPadding
                 let sheetDragActivationHeight = fullScreenSheetDismiss != nil
                     ? heroTopPadding + 180
@@ -461,9 +476,20 @@ struct CreateDeckView: View {
                         VStack(spacing: 0) {
                             heroHeader(topPadding: heroTopPadding)
 
-                            cardsListContent(using: scrollProxy)
-                                .padding(.top, UIConstants.Spacing.large)
+                            if isShowingWorkspaceConvert && isWorkspaceRoot {
+                                CreateWorkspaceConvertEditor(
+                                    managesSeedFromDeckList: true,
+                                    showsDeckPicker: true,
+                                    showsRuntimeSummary: true
+                                )
+                                .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
+                                .padding(.top, UIConstants.Spacing.small)
                                 .padding(.bottom, 132)
+                            } else {
+                                cardsListContent(using: scrollProxy)
+                                    .padding(.top, UIConstants.Spacing.large)
+                                    .padding(.bottom, 132)
+                            }
                         }
                         .frame(minHeight: outer.size.height, alignment: .top)
                     }
@@ -491,10 +517,16 @@ struct CreateDeckView: View {
                     )
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    floatingGenerateAction(bottomInset: resolvedSafeBottomInset)
+                    if !isShowingWorkspaceConvert || !isWorkspaceRoot {
+                        floatingGenerateAction(bottomInset: resolvedSafeBottomInset)
+                    }
                 }
                 .overlay(alignment: .bottom) {
-                    draftSelectionBottomBar
+                    if isShowingWorkspaceConvert && isWorkspaceRoot {
+                        EmptyView()
+                    } else {
+                        draftSelectionBottomBar
+                    }
                 }
                 .coordinateSpace(name: kCreateDeckChromeSpace)
                 .fullScreenSheetDragActivationHeight(sheetDragActivationHeight)

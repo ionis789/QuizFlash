@@ -29,7 +29,6 @@ extension AIWorkspaceCoordinator {
         guard let seed = conversionSeed, seed.request.canStart else { return }
 
         conversionTask?.cancel()
-        conversionSheetToken = nil
         conversionSummary = nil
         conversionErrorMessage = nil
         shouldShowConversionOutcome = false
@@ -39,6 +38,19 @@ extension AIWorkspaceCoordinator {
         let request = seed.request
         let sourceDeckID = seed.sourceDeckID
 
+        pausedConversionSession = makePreparingConversionSession(
+            request: request,
+            sourceDeckID: sourceDeckID,
+            sourceDeckTitle: seed.sourceDeckTitle
+        )
+        conversionProgress = DeckCardConversionProgress(
+            totalCount: request.sourceCount,
+            completedCount: 0,
+            createdCount: 0,
+            skippedCount: 0,
+            failedCount: 0,
+            statusMessage: "Preparing source cards"
+        )
         conversionSeed = nil
         if let sourceDeck = context.safeModel(for: sourceDeckID, as: DeckModel.self) {
             workspaceDeckContext = makeWorkspaceDeckContext(
@@ -61,20 +73,27 @@ extension AIWorkspaceCoordinator {
                     sourceDeckID: sourceDeckID,
                     context: context
                 )
+                self.conversionSeed = nil
                 try await self.persistPausedConversionSession(session)
                 try await self.continueConversion(
                     from: session,
                     context: context
                 )
             } catch is CancellationError {
+                self.logger.debug(
+                    "Conversion start task entered paused state. pausedSessionVisible=\(self.pausedConversionSession != nil, privacy: .public) progressVisible=\(self.conversionProgress != nil, privacy: .public)"
+                )
                 self.conversionProgress = self.pausedConversionSession?.progress
             } catch {
+                self.conversionProgress = nil
                 self.conversionErrorMessage = error.localizedDescription
                 self.shouldShowConversionOutcome = true
             }
 
             self.conversionTask = nil
         }
+
+        conversionSheetToken = nil
     }
 
     func resumeConversion(context: ModelContext) {
@@ -90,11 +109,27 @@ extension AIWorkspaceCoordinator {
             guard let self else { return }
 
             do {
+                let resumeSession: AIPausedConversionSession
+                if self.needsFreshSourceSnapshot(session) {
+                    let refreshedSession = try await self.makeFreshConversionSession(
+                        request: session.request,
+                        sourceDeckID: session.sourceDeckID,
+                        context: context
+                    )
+                    self.conversionSeed = nil
+                    try await self.persistPausedConversionSession(refreshedSession)
+                    resumeSession = refreshedSession
+                } else {
+                    resumeSession = session
+                }
                 try await self.continueConversion(
-                    from: session,
+                    from: resumeSession,
                     context: context
                 )
             } catch is CancellationError {
+                self.logger.debug(
+                    "Conversion resume task entered paused state. pausedSessionVisible=\(self.pausedConversionSession != nil, privacy: .public) progressVisible=\(self.conversionProgress != nil, privacy: .public)"
+                )
                 self.conversionProgress = self.pausedConversionSession?.progress
             } catch {
                 self.conversionErrorMessage = error.localizedDescription
@@ -107,8 +142,12 @@ extension AIWorkspaceCoordinator {
 
     func pauseConversion() {
         guard canPauseConversion else { return }
+        logger.debug(
+            "Pause conversion requested. completed=\(self.conversionProgress?.completedCount ?? 0, privacy: .public)/\(self.conversionProgress?.totalCount ?? 0, privacy: .public) pausedSessionVisible=\(self.pausedConversionSession != nil, privacy: .public)"
+        )
         conversionTask?.cancel()
         conversionTask = nil
+        conversionProgress = pausedConversionSession?.progress ?? conversionProgress
     }
 
     func requestConversionCancel() {
@@ -249,6 +288,38 @@ extension AIWorkspaceCoordinator {
         return session
     }
 
+    func makePreparingConversionSession(
+        request: DeckCardConversionRequest,
+        sourceDeckID: PersistentIdentifier,
+        sourceDeckTitle: String
+    ) -> AIPausedConversionSession {
+        AIPausedConversionSession(
+            sourceDeckID: sourceDeckID,
+            sourceDeckTitle: sourceDeckTitle,
+            request: request,
+            destinationBaseCardIDs: [],
+            remainingSources: [],
+            totalCount: request.sourceCount,
+            completedCount: 0,
+            createdCount: 0,
+            skippedCount: 0,
+            failedCount: 0,
+            statusMessage: "Preparing source cards",
+            destinationDeckID: nil,
+            providerProfileID: nil,
+            batchID: UUID(),
+            convertedAt: Date()
+        )
+    }
+
+    func needsFreshSourceSnapshot(_ session: AIPausedConversionSession) -> Bool {
+        session.remainingSources.isEmpty
+            && session.completedCount == 0
+            && session.createdCount == 0
+            && session.skippedCount == 0
+            && session.failedCount == 0
+    }
+
     func continueConversion(
         from session: AIPausedConversionSession,
         context: ModelContext
@@ -384,12 +455,17 @@ extension AIWorkspaceCoordinator {
                         statusMessage: runtimeSession.statusMessage
                     )
                 }
+                logger.debug(
+                    "Conversion stream finished for \(sourceKind.displayTitle, privacy: .public). taskCancelled=\(Task.isCancelled, privacy: .public)"
+                )
+                try Task.checkCancellation()
             } catch {
                 logger.error("Conversion stream stopped early: \(error.localizedDescription, privacy: .public)")
                 throw error
             }
         }
 
+        try Task.checkCancellation()
         pausedConversionSession = nil
         try? await jobSessionStore.clearSession()
         conversionProgress = nil

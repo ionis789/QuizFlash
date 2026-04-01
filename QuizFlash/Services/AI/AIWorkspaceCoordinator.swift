@@ -291,8 +291,15 @@ final class AIWorkspaceCoordinator {
     }
 
     func dismissConversionConfiguration() {
+        let shouldPreserveRuntimeState = conversionTask != nil
+            || conversionProgress != nil
+            || pausedConversionSession != nil
+            || conversionSummary != nil
+            || conversionErrorMessage != nil
+            || shouldShowConversionOutcome
         conversionSheetToken = nil
         conversionSeed = nil
+        guard !shouldPreserveRuntimeState else { return }
         activeConversionTargetKind = nil
         if conversionProgress == nil, conversionSummary == nil, conversionErrorMessage == nil {
             workspaceDeckContext = nil
@@ -324,8 +331,14 @@ final class AIWorkspaceCoordinator {
     }
 
     func openWorkspace(router: NavigationManager) {
-        router.createPath = NavigationPath()
-        router.activeTab = .create
+        guard generationStatus != nil || hasVisibleConversionWorkspaceState else { return }
+
+        if let sourceDeckID = workspaceDeckContext?.sourceDeckID {
+            router.showCreateDeckEditor(for: sourceDeckID)
+            return
+        }
+
+        router.showCreateRoot()
     }
 
     func syncGenerationState(

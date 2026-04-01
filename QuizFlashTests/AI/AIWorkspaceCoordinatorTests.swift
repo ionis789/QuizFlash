@@ -8,6 +8,7 @@
 import Foundation
 import XCTest
 import SwiftData
+import SwiftUI
 @testable import QuizFlash
 
 @MainActor
@@ -67,7 +68,7 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
             selectedSources: [],
             singleSources: [],
             scope: .wholeDeck,
-            sourceKindFilters: [],
+            sourceKind: nil,
             targetKind: .write,
             destination: .newDeck,
             newDeckTitle: "Converted Graphs"
@@ -81,6 +82,68 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
 
         XCTAssertNil(coordinator.workspaceDeckContext)
         XCTAssertNil(coordinator.conversionSeed)
+    }
+
+    func testDismissConversionConfigurationPreservesRuntimeStateOnceConversionHasStarted() async throws {
+        let directoryURL = try TestFileSystemFactory.makeTemporaryDirectory(prefix: "AIWorkspaceCoordinatorTests")
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let store = AIJobSessionStore(fileManager: .default, rootDirectoryURL: directoryURL)
+        let coordinator = AIWorkspaceCoordinator(jobSessionStore: store)
+        let context = try TestModelContainerFactory.makeContext()
+        let deck = DeckModel(title: "Graphs", icon: "book", colorHex: "#112233")
+        let card = TestMutationFactory.makePersistedCard(
+            content: TestMutationFactory.flashcard(front: "DFS", back: "Depth-first search"),
+            cardNumber: 1
+        )
+        context.insert(deck)
+        context.insert(card)
+        deck.cards = [card]
+        deck.cardCount = 1
+        deck.lastAssignedCardNumber = 1
+        try context.save()
+
+        let request = DeckCardConversionRequest(
+            availableScopes: [.wholeDeck],
+            wholeDeckSources: [
+                DeckCardConversionSourceDescriptor(
+                    id: card.persistentModelID,
+                    kind: .flashcard
+                )
+            ],
+            recommendedSources: [],
+            selectedSources: [],
+            singleSources: [],
+            scope: .wholeDeck,
+            sourceKind: .flashcard,
+            targetKind: .write,
+            destination: .newDeck,
+            newDeckTitle: "Converted Graphs"
+        )
+
+        XCTAssertTrue(
+            coordinator.seedConversion(
+                request: request,
+                sourceDeck: deck,
+                ownerTab: .library,
+                backLabel: "Library"
+            )
+        )
+        coordinator.conversionProgress = DeckCardConversionProgress(
+            totalCount: 1,
+            completedCount: 0,
+            createdCount: 0,
+            skippedCount: 0,
+            failedCount: 0,
+            statusMessage: "Preparing source cards"
+        )
+
+        coordinator.dismissConversionConfiguration()
+
+        XCTAssertNil(coordinator.conversionSeed)
+        XCTAssertEqual(coordinator.activeConversionTargetKind, .write)
+        XCTAssertNotNil(coordinator.workspaceDeckContext)
+        XCTAssertEqual(coordinator.conversionReturnContext?.ownerTab, .library)
     }
 
     func testSeedConversionCanKeepWorkspaceContextDetachedUntilStart() async throws {
@@ -101,7 +164,7 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
             selectedSources: [],
             singleSources: [],
             scope: .wholeDeck,
-            sourceKindFilters: [],
+            sourceKind: nil,
             targetKind: .quiz,
             destination: .sameDeck,
             newDeckTitle: ""
@@ -138,6 +201,105 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
         XCTAssertFalse(deck.cards.contains { $0.conversionMetadata?.batchID == session.batchID })
         XCTAssertNil(coordinator.workspaceDeckContext)
         XCTAssertFalse(coordinator.canCancelConversion)
+    }
+
+    func testOpenWorkspaceRoutesVisibleConversionStateToCreateDeckEditor() async throws {
+        let directoryURL = try TestFileSystemFactory.makeTemporaryDirectory(prefix: "AIWorkspaceCoordinatorTests")
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let store = AIJobSessionStore(fileManager: .default, rootDirectoryURL: directoryURL)
+        let coordinator = AIWorkspaceCoordinator(jobSessionStore: store)
+        let context = try TestModelContainerFactory.makeContext()
+        let session = try makeConversionSession(context: context)
+        let router = NavigationManager()
+
+        try await store.saveSession(.conversion(session))
+        await coordinator.restorePersistedJobIfNeeded(context: context)
+
+        coordinator.openWorkspace(router: router)
+
+        XCTAssertEqual(router.activeTab, .create)
+        XCTAssertEqual(router.createWorkspaceMode, .create)
+        XCTAssertEqual(router.createPath.count, 1)
+    }
+
+    func testOpenWorkspaceReturnsToCreateRootHostAndClearsExistingCreatePath() {
+        let coordinator = AIWorkspaceCoordinator()
+        let router = NavigationManager()
+
+        coordinator.generationStatus = AIWorkspaceGenerationStatus(
+            phase: .running,
+            title: "Generating cards",
+            foundCount: 3,
+            targetCount: 10,
+            progress: 0.3,
+            message: "Biology",
+            errorMessage: nil
+        )
+
+        router.createPath.append(AppRoute.generateDeck)
+        router.activeTab = .home
+
+        coordinator.openWorkspace(router: router)
+
+        XCTAssertEqual(router.activeTab, .create)
+        XCTAssertEqual(router.createWorkspaceMode, .create)
+        XCTAssertEqual(router.createPath.count, 0)
+    }
+
+    func testPauseConversionKeepsPreparingSessionVisibleAndResumable() throws {
+        let context = try TestModelContainerFactory.makeContext()
+        let deck = DeckModel(title: "Algorithms", icon: "book", colorHex: "#112233")
+        let matchCard = TestMutationFactory.makePersistedCard(
+            content: TestMutationFactory.match(prompt: "DFS", answer: "Depth-first search"),
+            cardNumber: 1
+        )
+        context.insert(deck)
+        context.insert(matchCard)
+        deck.cards = [matchCard]
+        deck.cardCount = 1
+        deck.lastAssignedCardNumber = 1
+        try context.save()
+
+        let coordinator = AIWorkspaceCoordinator()
+        let request = DeckCardConversionRequest(
+            availableScopes: [.wholeDeck],
+            wholeDeckSources: [
+                DeckCardConversionSourceDescriptor(id: matchCard.persistentModelID, kind: .match)
+            ],
+            recommendedSources: [],
+            selectedSources: [],
+            singleSources: [],
+            scope: .wholeDeck,
+            sourceKind: .match,
+            targetKind: .write,
+            destination: .sameDeck,
+            newDeckTitle: ""
+        )
+
+        coordinator.pausedConversionSession = coordinator.makePreparingConversionSession(
+            request: request,
+            sourceDeckID: deck.persistentModelID,
+            sourceDeckTitle: deck.title
+        )
+        coordinator.conversionProgress = coordinator.pausedConversionSession?.progress
+        coordinator.workspaceDeckContext = coordinator.makeWorkspaceDeckContext(
+            sourceDeckID: deck.persistentModelID,
+            sourceDeckTitle: deck.title,
+            request: request,
+            liveDeckID: deck.persistentModelID,
+            destinationBaseCardIDs: []
+        )
+        coordinator.activeConversionTargetKind = .write
+        coordinator.conversionTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(30))
+        }
+
+        coordinator.pauseConversion()
+
+        XCTAssertTrue(coordinator.canResumeConversion)
+        XCTAssertEqual(coordinator.conversionProgress?.statusMessage, "Preparing source cards")
+        XCTAssertEqual(coordinator.pausedConversionSession?.request, request)
     }
 
     private func makeGenerationSession() -> AIPausedSession {
@@ -205,7 +367,7 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
             selectedSources: [],
             singleSources: [],
             scope: .wholeDeck,
-            sourceKindFilters: [.match],
+            sourceKind: .match,
             targetKind: .write,
             destination: .sameDeck,
             newDeckTitle: ""

@@ -96,7 +96,7 @@ nonisolated struct DeckCardConversionRequest: Identifiable, Equatable, Codable, 
     let selectedSources: [DeckCardConversionSourceDescriptor]
     let singleSources: [DeckCardConversionSourceDescriptor]
     var scope: DeckCardConversionScopeOption
-    var sourceKindFilters: Set<CardKind>
+    var sourceKind: CardKind?
     var targetKind: CardKind
     var destination: DeckCardConversionDestinationOption
     var newDeckTitle: String
@@ -108,7 +108,7 @@ nonisolated struct DeckCardConversionRequest: Identifiable, Equatable, Codable, 
         selectedSources: [DeckCardConversionSourceDescriptor],
         singleSources: [DeckCardConversionSourceDescriptor],
         scope: DeckCardConversionScopeOption,
-        sourceKindFilters: Set<CardKind>,
+        sourceKind: CardKind?,
         targetKind: CardKind,
         destination: DeckCardConversionDestinationOption,
         newDeckTitle: String
@@ -120,7 +120,7 @@ nonisolated struct DeckCardConversionRequest: Identifiable, Equatable, Codable, 
         self.selectedSources = selectedSources
         self.singleSources = singleSources
         self.scope = scope
-        self.sourceKindFilters = sourceKindFilters
+        self.sourceKind = sourceKind
         self.targetKind = targetKind
         self.destination = destination
         self.newDeckTitle = newDeckTitle
@@ -148,30 +148,33 @@ nonisolated struct DeckCardConversionRequest: Identifiable, Equatable, Codable, 
         }
     }
 
-    var eligibleSourceKinds: [CardKind] {
-        CardKind.allCases.filter { kind in
-            kind != targetKind && currentScopeSources.contains(where: { $0.kind == kind })
+    var availableSourceKinds: [CardKind] {
+        currentScopeSources.reduce(into: []) { result, descriptor in
+            guard !result.contains(descriptor.kind) else { return }
+            result.append(descriptor.kind)
         }
+    }
+
+    var selectedSourceKind: CardKind? {
+        guard let sourceKind else { return nil }
+        return availableSourceKinds.contains(sourceKind) ? sourceKind : nil
+    }
+
+    var isSourceSelectionLocked: Bool {
+        availableSourceKinds.count <= 1
     }
 
     var availableSourceKindCounts: [CardKind: Int] {
         var counts: [CardKind: Int] = [:]
-        for descriptor in currentScopeSources where descriptor.kind != targetKind {
+        for descriptor in currentScopeSources {
             counts[descriptor.kind, default: 0] += 1
         }
         return counts
     }
 
     var filteredSources: [DeckCardConversionSourceDescriptor] {
-        let filters = normalizedSourceKindFilters
-        guard !filters.isEmpty else { return [] }
-        return currentScopeSources.filter { filters.contains($0.kind) }
-    }
-
-    var normalizedSourceKindFilters: Set<CardKind> {
-        let eligibleKinds = Set(eligibleSourceKinds)
-        let filteredKinds = sourceKindFilters.intersection(eligibleKinds)
-        return filteredKinds.isEmpty ? eligibleKinds : filteredKinds
+        guard let selectedSourceKind else { return [] }
+        return currentScopeSources.filter { $0.kind == selectedSourceKind }
     }
 
     var sourceCount: Int {
@@ -185,11 +188,19 @@ nonisolated struct DeckCardConversionRequest: Identifiable, Equatable, Codable, 
     }
 
     var canStart: Bool {
-        sourceCount > 0 && (destination == .sameDeck || destinationDeckTitle != nil)
+        guard let selectedSourceKind else { return false }
+        return sourceCount > 0
+            && targetKind != selectedSourceKind
+            && (destination == .sameDeck || destinationDeckTitle != nil)
     }
 
     func sourceCount(for kind: CardKind) -> Int {
         availableSourceKindCounts[kind] ?? 0
+    }
+
+    func isTargetKindAvailable(_ kind: CardKind) -> Bool {
+        guard let selectedSourceKind else { return false }
+        return kind != selectedSourceKind
     }
 
     mutating func updateScope(_ scope: DeckCardConversionScopeOption) {
@@ -202,18 +213,10 @@ nonisolated struct DeckCardConversionRequest: Identifiable, Equatable, Codable, 
         normalizeSelections()
     }
 
-    mutating func toggleSourceKind(_ kind: CardKind) {
+    mutating func selectSourceKind(_ kind: CardKind) {
         guard availableSourceKindCounts[kind] != nil else { return }
-
-        if sourceKindFilters.contains(kind) {
-            sourceKindFilters.remove(kind)
-        } else {
-            sourceKindFilters.insert(kind)
-        }
-
-        if normalizedSourceKindFilters.isEmpty {
-            sourceKindFilters = Set(eligibleSourceKinds)
-        }
+        sourceKind = kind
+        normalizeSelections()
     }
 
     func resolvedCardIDs() -> [PersistentIdentifier] {
@@ -221,11 +224,64 @@ nonisolated struct DeckCardConversionRequest: Identifiable, Equatable, Codable, 
     }
 
     mutating func normalizeSelections() {
-        let eligibleKinds = Set(eligibleSourceKinds)
-        sourceKindFilters = sourceKindFilters.intersection(eligibleKinds)
-        if sourceKindFilters.isEmpty {
-            sourceKindFilters = eligibleKinds
+        let availableSourceKinds = availableSourceKinds
+        if let sourceKind, availableSourceKinds.contains(sourceKind) {
+            self.sourceKind = sourceKind
+        } else {
+            self.sourceKind = availableSourceKinds.first
         }
+
+        guard let selectedSourceKind else { return }
+        if targetKind == selectedSourceKind {
+            targetKind = Self.defaultTargetKind(for: selectedSourceKind)
+        }
+    }
+
+    static func makeWholeDeckRequest(
+        sources: [DeckCardConversionSourceDescriptor],
+        deckTitle: String,
+        preferredSourceKind: CardKind? = nil,
+        preferredTargetKind: CardKind? = nil,
+        existingRequest: DeckCardConversionRequest? = nil,
+        destination: DeckCardConversionDestinationOption? = nil
+    ) -> DeckCardConversionRequest? {
+        guard !sources.isEmpty else { return nil }
+
+        let availableSourceKinds = sources.reduce(into: [CardKind]()) { result, descriptor in
+            guard !result.contains(descriptor.kind) else { return }
+            result.append(descriptor.kind)
+        }
+        let resolvedSourceKind = preferredSourceKind
+            ?? existingRequest?.sourceKind
+            ?? availableSourceKinds.first
+
+        let fallbackTargetKind = defaultTargetKind(for: resolvedSourceKind ?? .flashcard)
+        let resolvedTargetKind = {
+            let candidate = preferredTargetKind ?? existingRequest?.targetKind ?? fallbackTargetKind
+            if candidate == resolvedSourceKind {
+                return fallbackTargetKind
+            }
+            return candidate
+        }()
+
+        let request = DeckCardConversionRequest(
+            availableScopes: [.wholeDeck],
+            wholeDeckSources: sources,
+            recommendedSources: [],
+            selectedSources: [],
+            singleSources: [],
+            scope: .wholeDeck,
+            sourceKind: resolvedSourceKind,
+            targetKind: resolvedTargetKind,
+            destination: destination ?? existingRequest?.destination ?? .sameDeck,
+            newDeckTitle: existingRequest?.newDeckTitle ?? "\(deckTitle) \(resolvedTargetKind.displayTitle)s"
+        )
+        return request.sourceCount > 0 ? request : nil
+    }
+
+    private static func defaultTargetKind(for sourceKind: CardKind) -> CardKind {
+        let orderedTargets: [CardKind] = [.match, .quiz, .write, .flashcard]
+        return orderedTargets.first(where: { $0 != sourceKind }) ?? .match
     }
 }
 

@@ -33,7 +33,6 @@ final class HomeViewModelTests: XCTestCase {
         viewModel.updateExamGoalsCache(goals: [])
         viewModel.refreshDashboardSnapshot(
             selectedDate: selectedDate,
-            dailyLogs: [selectedLog, previousLog],
             examGoals: [],
             userProfile: profile
         )
@@ -74,7 +73,6 @@ final class HomeViewModelTests: XCTestCase {
         viewModel.updateExamGoalsCache(goals: [goal])
         viewModel.refreshDashboardSnapshot(
             selectedDate: selectedDate,
-            dailyLogs: [],
             examGoals: [goal],
             userProfile: nil
         )
@@ -154,7 +152,6 @@ final class HomeViewModelTests: XCTestCase {
         viewModel.updateExamGoalsCache(goals: [])
         viewModel.refreshDashboardSnapshot(
             selectedDate: today,
-            dailyLogs: [log],
             examGoals: [],
             userProfile: nil
         )
@@ -286,7 +283,6 @@ final class HomeViewModelTests: XCTestCase {
         viewModel.updateExamGoalsCache(goals: [])
         viewModel.refreshDashboardSnapshot(
             selectedDate: today,
-            dailyLogs: [log],
             examGoals: [],
             userProfile: nil
         )

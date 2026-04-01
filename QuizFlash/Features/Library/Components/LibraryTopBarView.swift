@@ -31,6 +31,7 @@ struct LibraryTopBarView: View {
     @State private var ellipsisOpacity: CGFloat = 1
     @State private var showsEllipsis = true
     @State private var ellipsisHideTask: Task<Void, Never>?
+    @State private var searchDismissTask: Task<Void, Never>?
     @FocusState private var isSearchFocused: Bool
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -42,13 +43,10 @@ struct LibraryTopBarView: View {
         retractionDuration - ellipsisFadeInDelay
     }
     private var retractionTransition: Animation {
-        .linear(duration: retractionDuration)
+        .easeOut(duration: retractionDuration)
     }
     private var expansionTransition: Animation {
-        .interactiveSpring(response: 0.18, dampingFraction: 0.86, blendDuration: 0.04)
-    }
-    private var iconPressTransition: Animation {
-        .easeOut(duration: 0.06)
+        .snappy(duration: 0.2, extraBounce: 0.02)
     }
     private var cancelFadeTransition: Animation {
         .linear(duration: cancelFadeOutDuration)
@@ -93,17 +91,23 @@ struct LibraryTopBarView: View {
         .onChange(of: viewModel.isSearching) { _, active in
             isSearchFocused = active
             if active {
+                searchDismissTask?.cancel()
+                searchDismissTask = nil
                 cancelOpacity = 1
             } else {
                 searchIconBackgroundScale = 1
-                withAnimation(cancelFadeTransition) {
-                    cancelOpacity = 0
+                if searchDismissTask == nil {
+                    withAnimation(cancelFadeTransition) {
+                        cancelOpacity = 0
+                    }
+                    beginEllipsisFadeIn()
                 }
-                beginEllipsisFadeIn()
             }
         }
         .onDisappear {
             ellipsisHideTask?.cancel()
+            searchDismissTask?.cancel()
+            isSearchFocused = false
         }
     }
 
@@ -171,14 +175,7 @@ struct LibraryTopBarView: View {
                 isSource: viewModel.isSearching
             )
 
-            TextField("Search decks, cards, answers", text: $viewModel.searchText)
-                .focused($isSearchFocused)
-                .submitLabel(.search)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundStyle(.primary)
-                .tint(accent)
+            searchFieldContent
 
             trailingAccessory
         }
@@ -188,14 +185,34 @@ struct LibraryTopBarView: View {
         .background {
             searchFieldBackground(isSource: viewModel.isSearching)
         }
+        .clipShape(Capsule())
+        .compositingGroup()
+    }
+
+    @ViewBuilder
+    private var searchFieldContent: some View {
+        if viewModel.isSearching {
+            TextField("Search decks, cards, answers", text: $viewModel.searchText)
+                .focused($isSearchFocused)
+                .submitLabel(.search)
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .foregroundStyle(.primary)
+                .tint(accent)
+        } else {
+            Text(viewModel.searchText.isEmpty ? "Search decks, cards, answers" : viewModel.searchText)
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .foregroundStyle(viewModel.searchText.isEmpty ? .secondary : .primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(1)
+                .allowsHitTesting(false)
+        }
     }
 
     private var cancelButton: some View {
         Button {
-            withAnimation(retractionTransition) {
-                viewModel.clearSearch()
-                isSearchFocused = false
-            }
+            dismissSearch()
         } label: {
             Text("Cancel")
                 .font(.system(size: 16, weight: .medium))
@@ -305,22 +322,54 @@ struct LibraryTopBarView: View {
     }
 
     @MainActor
+    private func dismissSearch() {
+        guard viewModel.isSearching else { return }
+
+        searchDismissTask?.cancel()
+        isSearchFocused = false
+
+        withAnimation(cancelFadeTransition) {
+            cancelOpacity = 0
+        }
+        beginEllipsisFadeIn()
+
+        withAnimation(retractionTransition) {
+            viewModel.isSearching = false
+        }
+
+        searchDismissTask = Task { @MainActor in
+            defer { searchDismissTask = nil }
+
+            try? await Task.sleep(
+                for: .milliseconds(Int((retractionDuration * 1000).rounded(.up)) + 24)
+            )
+            guard !Task.isCancelled else { return }
+
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
+                viewModel.clearSearch()
+            }
+        }
+    }
+
+    @MainActor
     private func activateSearch() {
         guard !viewModel.isSearching else { return }
 
         cancelOpacity = 1
         beginEllipsisFadeOut()
-        withAnimation(iconPressTransition) {
-            searchIconBackgroundScale = 0.96
+        searchDismissTask?.cancel()
+
+        withAnimation(expansionTransition) {
+            searchIconBackgroundScale = 1
+            viewModel.isSearching = true
         }
 
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(18))
-            withAnimation(expansionTransition) {
-                searchIconBackgroundScale = 1
-                viewModel.isSearching = true
-                isSearchFocused = true
-            }
+            await Task.yield()
+            guard viewModel.isSearching else { return }
+            isSearchFocused = true
         }
     }
 

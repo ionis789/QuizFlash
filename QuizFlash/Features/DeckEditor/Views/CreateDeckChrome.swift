@@ -11,18 +11,30 @@ extension CreateDeckView {
 
     // MARK: 1. Header Chrome
     func heroHeader(topPadding: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-            TextField("Untitled Deck", text: $viewModel.deckTitle, axis: .vertical)
-                .font(.system(size: 42, weight: .heavy, design: .rounded))
-                .textFieldStyle(.plain)
-                .foregroundStyle(.primary)
-                .lineLimit(1...2)
-                .layoutPriority(1)
-                .focused($isTitleFocused)
-                .submitLabel(.done)
-                .onSubmit { isTitleFocused = false }
+        VStack(alignment: .leading, spacing: isWorkspaceRoot ? UIConstants.Spacing.medium : UIConstants.Spacing.large) {
+            if let workspaceModeSelection {
+                HStack {
+                    Spacer(minLength: 0)
+                    workspaceModeSwitcher(selection: workspaceModeSelection)
+                    Spacer(minLength: 0)
+                }
+            }
 
-            headerMetadataRow
+            if isShowingWorkspaceConvert && isWorkspaceRoot {
+                workspaceConvertHero
+            } else {
+                TextField("Untitled Deck", text: $viewModel.deckTitle, axis: .vertical)
+                    .font(.system(size: 42, weight: .heavy, design: .rounded))
+                    .textFieldStyle(.plain)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1...2)
+                    .layoutPriority(1)
+                    .focused($isTitleFocused)
+                    .submitLabel(.done)
+                    .onSubmit { isTitleFocused = false }
+
+                headerMetadataRow
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
@@ -64,18 +76,95 @@ extension CreateDeckView {
                 }
             }
         ) {
-            doneButton
-        } center: { maxTitleWidth in
-            CreateDeckCollapsedTitlePill(
-                title: collapsedDeckTitle,
-                maxWidth: maxTitleWidth,
-                isVisible: shouldShowCollapsedTitle
-            )
-        } trailing: {
-            HStack(spacing: UIConstants.Spacing.small) {
-                addCardButton
-                moreActionsButton
+            if isShowingWorkspaceConvert && isWorkspaceRoot {
+                Color.clear
+                    .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+            } else {
+                doneButton
             }
+        } center: { maxTitleWidth in
+            if isShowingWorkspaceConvert && isWorkspaceRoot {
+                EmptyView()
+            } else {
+                CreateDeckCollapsedTitlePill(
+                    title: collapsedDeckTitle,
+                    maxWidth: maxTitleWidth,
+                    isVisible: shouldShowCollapsedTitle
+                )
+            }
+        } trailing: {
+            if isShowingWorkspaceConvert && isWorkspaceRoot {
+                headerConvertActionControl
+            } else {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    addCardButton
+                    moreActionsButton
+                }
+            }
+        }
+    }
+
+    private func workspaceModeSwitcher(selection: Binding<CreateWorkspaceMode>) -> some View {
+        CapsuleSelectionControl(
+            options: CreateWorkspaceMode.allCases,
+            selection: selection.wrappedValue,
+            onSelection: { selection.wrappedValue = $0 },
+            itemHeight: 34,
+            controlHeight: 42,
+            minItemWidth: 92,
+            maxItemWidth: 140,
+            horizontalPadding: 4,
+            verticalPadding: 4
+        ) { mode, isSelected in
+            Text(mode.title)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(isSelected ? .primary : .secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(width: 240)
+    }
+
+    private var workspaceConvertHero: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+            Text("Convert Cards")
+                .font(.system(size: 34, weight: .heavy, design: .rounded))
+                .foregroundStyle(.primary)
+
+            Text("Choose one source type, convert into another, and save the result with minimal setup.")
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var headerConvertActionControl: some View {
+        let request = aiWorkspaceCoordinator.conversionSeed?.request
+        let canStart = request?.canStart ?? false
+
+        CreateDeckCapsuleButton(
+            action: startWorkspaceConversion,
+            isEnabled: canStart,
+            accessibilityLabel: "Start conversion"
+        ) {
+            HStack(spacing: UIConstants.Spacing.small) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+
+                Text("Convert")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+
+                if let request {
+                    Text("\(request.sourceCount)")
+                        .font(.system(size: 11, weight: .bold, design: .rounded).monospacedDigit())
+                        .padding(.horizontal, 7)
+                        .frame(height: 22)
+                        .background(Color.white.opacity(0.16), in: Capsule())
+                }
+            }
+            .foregroundStyle(.orange)
         }
     }
 
@@ -90,7 +179,6 @@ extension CreateDeckView {
                 HStack(spacing: UIConstants.Spacing.small) {
                     mockAIActionControl
                     generateActionControl
-                    convertActionControl
                 }
                 .opacity(shouldShowInlineHeaderActions ? 1 : 0)
                 .allowsHitTesting(shouldShowInlineHeaderActions)
@@ -99,9 +187,6 @@ extension CreateDeckView {
 
             if !viewModel.draftCards.isEmpty {
                 headerStatsStrip
-                if !isShowingConversionWorkspace && !draftReadinessRecommendedTargets.isEmpty {
-                    draftReadinessMenuStrip
-                }
             }
         }
         .background {
@@ -118,10 +203,10 @@ extension CreateDeckView {
     }
 
     var shouldShowInlineHeaderActions: Bool {
-        !hasUnifiedAISession
+        !isShowingWorkspaceConvert
+            && !hasUnifiedAISession
             && !viewModel.isSelectingCards
             && !shouldShowFloatingGenerate
-            && !isShowingConversionConfiguration
     }
 
     var destinationMetadataControl: some View {
@@ -195,39 +280,6 @@ extension CreateDeckView {
                         text: item.title,
                         tint: item.kind.tint
                     )
-                }
-            }
-            .padding(.vertical, 2)
-        }
-        .scrollIndicators(.hidden)
-    }
-
-    var draftReadinessMenuStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: UIConstants.Spacing.small) {
-                ForEach(draftReadinessRecommendedTargets, id: \.self) { targetKind in
-                    let recommendedCards = recommendedDraftCards(for: targetKind)
-                    if !recommendedCards.isEmpty {
-                        Menu {
-                            ForEach(recommendedCards, id: \.id) { card in
-                                Button {
-                                    presentDraftRecommendedConversion(for: card, targetKind: targetKind)
-                                } label: {
-                                    Label(
-                                        "Card \(card.cardNumber > 0 ? card.cardNumber : 0)",
-                                        systemImage: targetKind.conversionSystemImage
-                                    )
-                                }
-                            }
-                        } label: {
-                            CreateDeckHeaderStatChip(
-                                symbol: targetKind.conversionSystemImage,
-                                text: "Convert \(recommendedCards.count) to \(targetKind.displayTitle)",
-                                tint: targetKind == .match ? .orange : accent
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
                 }
             }
             .padding(.vertical, 2)
@@ -328,26 +380,6 @@ extension CreateDeckView {
                         .lineLimit(1)
                 }
                 .foregroundStyle(accent)
-            }
-        }
-    }
-
-    @ViewBuilder
-    var convertActionControl: some View {
-        if !viewModel.isGenerating && !viewModel.isSelectingCards {
-            CreateDeckCapsuleButton(
-                action: presentConversionConfiguration,
-                isEnabled: canOpenConversionMenu,
-                accessibilityLabel: "Convert cards with AI"
-            ) {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                    Text("Convert")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .lineLimit(1)
-                }
-                .foregroundStyle(.orange)
             }
         }
     }

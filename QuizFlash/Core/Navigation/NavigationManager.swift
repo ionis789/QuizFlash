@@ -43,6 +43,9 @@ final class NavigationManager {
     /// update this before calling `append(_:)` so the route lands on the correct stack.
     var activeTab: AppTabBar = .home
 
+    /// The selected root surface inside the Create tab.
+    var createWorkspaceMode: CreateWorkspaceMode = .create
+
     // MARK: - Navigation Actions
 
     /// Pops the active tab's navigation stack back to its root view.
@@ -67,6 +70,39 @@ final class NavigationManager {
         case .settings: settingsPath.append(route)
         }
     }
+
+    /// Activates the Create tab and resets its stack back to the root editor.
+    func showCreateRoot() {
+        activeTab = .create
+        createWorkspaceMode = .create
+        createPath = NavigationPath()
+    }
+
+    /// Activates the Create tab and pushes the editor for an existing deck.
+    ///
+    /// - Parameter deckID: The persisted deck identifier that should host the editor runtime.
+    func showCreateDeckEditor(for deckID: PersistentIdentifier) {
+        showCreateRoot()
+        createPath.append(CreateDeckEditorRoute(deckID: deckID))
+    }
+}
+
+// MARK: - Create Workspace Mode
+
+enum CreateWorkspaceMode: String, CaseIterable, Identifiable {
+    case create
+    case convert
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .create:
+            return "Create"
+        case .convert:
+            return "Convert"
+        }
+    }
 }
 
 // MARK: - App Route
@@ -75,6 +111,8 @@ final class NavigationManager {
 enum AppRoute {
     /// Navigates to the deck creation flow.
     case createDeck
+    /// Navigates to the deck creation flow and immediately foregrounds AI generation.
+    case generateDeck
     /// Navigates to the app settings screen.
     case settings
     /// Navigates into a folder's deck list.
@@ -90,6 +128,7 @@ extension AppRoute: Equatable {
     static func == (lhs: AppRoute, rhs: AppRoute) -> Bool {
         switch (lhs, rhs) {
         case (.createDeck, .createDeck): return true
+        case (.generateDeck, .generateDeck): return true
         case (.settings, .settings):     return true
         // `backLabel` is intentionally excluded — two pushes to the same folder
         // are the same route regardless of which tab initiated them.
@@ -104,11 +143,19 @@ extension AppRoute: Hashable {
     func hash(into hasher: inout Hasher) {
         switch self {
         case .createDeck:       hasher.combine(0)
-        case .settings:         hasher.combine(1)
+        case .generateDeck:     hasher.combine(1)
+        case .settings:         hasher.combine(2)
         // `backLabel` excluded — consistent with `Equatable` above.
-        case .folder(let f, _): hasher.combine(2); hasher.combine(f.persistentModelID)
+        case .folder(let f, _): hasher.combine(3); hasher.combine(f.persistentModelID)
         }
     }
+}
+
+// MARK: - Create Deck Editor Route
+
+/// A type-safe route that opens the Create-tab editor for an existing deck.
+struct CreateDeckEditorRoute: Hashable {
+    let deckID: PersistentIdentifier
 }
 
 // MARK: - Deck Search Route

@@ -157,11 +157,6 @@ struct FolderView: View {
             rebuildCacheIfNeeded(newDecks)
         }
         // MARK: Search State Management
-        .onChange(of: viewModel.isSearching) { _, active in
-            if !active {
-                viewModel.clearSearch()
-            }
-        }
         .onChange(of: viewModel.searchText) { _, newValue in
             viewModel.debounceSearchInput(newValue)
         }

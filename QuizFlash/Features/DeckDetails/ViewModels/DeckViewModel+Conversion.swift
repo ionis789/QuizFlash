@@ -13,161 +13,95 @@ extension DeckViewModel {
         for deck: DeckModel,
         preferredTargetKind: CardKind? = nil
     ) -> DeckCardConversionRequest? {
-        makeConversionRequest(
-            for: deck,
-            preferredScope: .wholeDeck,
-            singleCardID: nil,
-            preferredTargetKind: preferredTargetKind,
-            recommendedCardIDs: []
-        )
+        makeWholeDeckConversionRequest(for: deck, preferredTargetKind: preferredTargetKind)
     }
 
-    /// Opens the conversion flow starting from the current multi-card selection.
+    /// All deck-detail entry points converge into the same deck-scoped conversion draft.
     func presentSelectionConversion(
         for deck: DeckModel,
         preferredTargetKind: CardKind? = nil
     ) -> DeckCardConversionRequest? {
-        guard !orderedSelectedCardIDs().isEmpty else { return nil }
-        return makeConversionRequest(
+        let selectedSources = allCardInfos
+            .filter { selectedCards.contains($0.id) }
+            .map(conversionSourceDescriptor(from:))
+        return makeScopedConversionRequest(
             for: deck,
-            preferredScope: .selectedCards,
-            singleCardID: nil,
-            preferredTargetKind: preferredTargetKind,
-            recommendedCardIDs: []
+            scope: .selectedCards,
+            scopedSources: selectedSources,
+            preferredTargetKind: preferredTargetKind
         )
     }
 
-    /// Opens the conversion flow starting from one specific card.
+    /// Single-card entry points freeze the currently opened card as the only source.
     func presentSingleCardConversion(
         for cardID: PersistentIdentifier,
         in deck: DeckModel,
         preferredTargetKind: CardKind? = nil
     ) -> DeckCardConversionRequest? {
-        makeConversionRequest(
+        let singleSources = allCardInfos
+            .filter { $0.id == cardID }
+            .map(conversionSourceDescriptor(from:))
+        return makeScopedConversionRequest(
             for: deck,
-            preferredScope: .singleCard,
-            singleCardID: cardID,
-            preferredTargetKind: preferredTargetKind,
-            recommendedCardIDs: []
+            scope: .singleCard,
+            scopedSources: singleSources,
+            preferredTargetKind: preferredTargetKind
         )
     }
 
-    /// Opens the conversion flow for cards specifically flagged by readiness diagnostics.
+    /// Readiness entry points reuse the same deck-level editor but keep the preferred target kind.
     func presentReadinessConversion(
         for targetKind: CardKind,
         in deck: DeckModel
     ) -> DeckCardConversionRequest? {
-        let recommendedCardIDs = recommendedConversionCardIDs(for: targetKind)
-        guard !recommendedCardIDs.isEmpty else { return nil }
+        makeWholeDeckConversionRequest(for: deck, preferredTargetKind: targetKind)
+    }
 
-        return makeConversionRequest(
-            for: deck,
-            preferredScope: .recommendedCards,
-            singleCardID: nil,
-            preferredTargetKind: targetKind,
-            recommendedCardIDs: recommendedCardIDs
+    private func makeWholeDeckConversionRequest(
+        for deck: DeckModel,
+        preferredTargetKind: CardKind?
+    ) -> DeckCardConversionRequest? {
+        let wholeDeckSources = allCardInfos.map(conversionSourceDescriptor(from:))
+        return DeckCardConversionRequest.makeWholeDeckRequest(
+            sources: wholeDeckSources,
+            deckTitle: deck.title,
+            preferredTargetKind: preferredTargetKind
         )
     }
 
-    private func makeConversionRequest(
+    private func makeScopedConversionRequest(
         for deck: DeckModel,
-        preferredScope: DeckCardConversionScopeOption,
-        singleCardID: PersistentIdentifier?,
-        preferredTargetKind: CardKind?,
-        recommendedCardIDs: [PersistentIdentifier]
+        scope: DeckCardConversionScopeOption,
+        scopedSources: [DeckCardConversionSourceDescriptor],
+        preferredTargetKind: CardKind?
     ) -> DeckCardConversionRequest? {
-        let selectedIDs = orderedSelectedCardIDs()
-        let selectedIDSet = Set(selectedIDs)
-        let recommendedIDSet = Set(recommendedCardIDs)
-        let visibleCards = visibleCardsInDisplayOrder()
+        guard !scopedSources.isEmpty else { return nil }
 
-        let wholeDeckSources = allCardInfos.map {
-            DeckCardConversionSourceDescriptor(id: $0.id, kind: $0.kind)
-        }
-        let selectedSources = visibleCards
-            .filter { selectedIDSet.contains($0.id) }
-            .map { DeckCardConversionSourceDescriptor(id: $0.id, kind: $0.kind) }
-        let recommendedSources = visibleCards
-            .filter { recommendedIDSet.contains($0.id) }
-            .map { DeckCardConversionSourceDescriptor(id: $0.id, kind: $0.kind) }
-        let singleSources = singleCardID.flatMap { id in
-            allCardInfos
-                .first(where: { $0.id == id })
-                .map { [DeckCardConversionSourceDescriptor(id: $0.id, kind: $0.kind)] }
-        } ?? []
-
-        var availableScopes: [DeckCardConversionScopeOption] = [.wholeDeck]
-        if !recommendedCardIDs.isEmpty {
-            availableScopes.insert(.recommendedCards, at: 0)
-        }
-        if !selectedIDs.isEmpty {
-            availableScopes.append(.selectedCards)
-        }
-        if singleCardID != nil {
-            availableScopes.insert(.singleCard, at: 0)
-        }
-
-        guard availableScopes.contains(preferredScope) else { return nil }
-
-        let currentSources: [DeckCardConversionSourceDescriptor]
-        switch preferredScope {
-        case .wholeDeck:
-            currentSources = wholeDeckSources
-        case .recommendedCards:
-            currentSources = recommendedSources
-        case .selectedCards:
-            currentSources = selectedSources
-        case .singleCard:
-            currentSources = singleSources
-        }
-
-        let sourceKinds = currentSources.map(\.kind)
-        guard !sourceKinds.isEmpty else { return nil }
-
-        let targetKind = preferredTargetKind ?? defaultConversionTargetKind(for: sourceKinds)
-        let sourceKindFilters = Set(
-            currentSources
-                .map(\.kind)
-                .filter { $0 != targetKind }
-        )
-        let newDeckTitle = "\(deck.title) \(targetKind.displayTitle)s"
+        let wholeDeckSources = allCardInfos.map(conversionSourceDescriptor(from:))
+        let preferredSourceKind = scopedSources.first?.kind
+        let resolvedTargetKind = preferredTargetKind
+            ?? defaultTargetKind(for: preferredSourceKind ?? .flashcard)
 
         return DeckCardConversionRequest(
-            availableScopes: availableScopes,
+            availableScopes: [scope],
             wholeDeckSources: wholeDeckSources,
-            recommendedSources: recommendedSources,
-            selectedSources: selectedSources,
-            singleSources: singleSources,
-            scope: preferredScope,
-            sourceKindFilters: sourceKindFilters,
-            targetKind: targetKind,
+            recommendedSources: scope == .recommendedCards ? scopedSources : [],
+            selectedSources: scope == .selectedCards ? scopedSources : [],
+            singleSources: scope == .singleCard ? scopedSources : [],
+            scope: scope,
+            sourceKind: preferredSourceKind,
+            targetKind: resolvedTargetKind,
             destination: .sameDeck,
-            newDeckTitle: newDeckTitle
+            newDeckTitle: "\(deck.title) \(resolvedTargetKind.displayTitle)s"
         )
     }
 
-    private func defaultConversionTargetKind(for sourceKinds: [CardKind]) -> CardKind {
-        let sourceKindSet = Set(sourceKinds)
+    private func conversionSourceDescriptor(from info: GridCardInfo) -> DeckCardConversionSourceDescriptor {
+        DeckCardConversionSourceDescriptor(id: info.id, kind: info.kind)
+    }
+
+    private func defaultTargetKind(for sourceKind: CardKind) -> CardKind {
         let orderedTargets: [CardKind] = [.match, .quiz, .write, .flashcard]
-        return orderedTargets.first(where: { !sourceKindSet.contains($0) }) ?? .match
-    }
-
-    private func orderedSelectedCardIDs() -> [PersistentIdentifier] {
-        visibleCardsInDisplayOrder()
-            .filter { selectedCards.contains($0.id) }
-            .map(\.id)
-    }
-
-    private func recommendedConversionCardIDs(for targetKind: CardKind) -> [PersistentIdentifier] {
-        visibleCardsInDisplayOrder()
-            .filter { card in
-                CardReadinessDiagnostics.diagnostics(for: card)
-                    .contains { $0.recommendedConversionTargetKind == targetKind }
-            }
-            .map(\.id)
-    }
-
-    private func visibleCardsInDisplayOrder() -> [GridCardInfo] {
-        cachedGroupedCards.flatMap(\.cards)
+        return orderedTargets.first(where: { $0 != sourceKind }) ?? .match
     }
 }

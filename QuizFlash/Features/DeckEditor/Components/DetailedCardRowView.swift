@@ -34,7 +34,8 @@ struct DetailedCardRowView: View, Equatable {
         Group {
             if let fixedHeight {
                 cardContent
-                    .padding(18)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
                     .frame(
                         maxWidth: .infinity,
                         minHeight: fixedHeight,
@@ -49,6 +50,7 @@ struct DetailedCardRowView: View, Equatable {
         }
         .widgetStyle(cornerRadius: 30)
         .scaleEffect(isSelected ? 0.9 : 1, anchor: .center)
+        .animation(.spring(response: 0.46, dampingFraction: 0.8, blendDuration: 0.08), value: isCompactPreview)
         .animation(.easeInOut(duration: 0.18), value: isSelected)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -59,7 +61,7 @@ struct DetailedCardRowView: View, Equatable {
     private var cardContent: some View {
         let summary = DraftCardContentSummary(card: card)
 
-        return VStack(alignment: .leading, spacing: isCompactPreview ? 14 : 18) {
+        return VStack(alignment: .leading, spacing: isCompactPreview ? 10 : 18) {
             header
 
             if !isCompactPreview {
@@ -67,14 +69,23 @@ struct DetailedCardRowView: View, Equatable {
             }
 
             previewSurface(summary: summary)
-            footer
+
+            if !isCompactPreview {
+                footer
+            }
         }
     }
 
     private var header: some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
             Text("Card \(displayCardNumber)")
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(
+                    .system(
+                        size: isCompactPreview ? 14 : 18,
+                        weight: isCompactPreview ? .semibold : .bold,
+                        design: .rounded
+                    )
+                )
                 .foregroundStyle(.primary.opacity(0.92))
 
             if card.isPinned && !isCompactPreview {
@@ -87,7 +98,7 @@ struct DetailedCardRowView: View, Equatable {
 
             trailingAccessory
         }
-        .frame(minHeight: trailingAccessorySize, alignment: .center)
+        .frame(minHeight: isCompactPreview ? 24 : trailingAccessorySize, alignment: .center)
     }
 
     @ViewBuilder
@@ -135,7 +146,7 @@ struct DetailedCardRowView: View, Equatable {
     }
 
     private func previewSurface(summary: DraftCardContentSummary) -> some View {
-        VStack(alignment: .leading, spacing: isCompactPreview ? 12 : 16) {
+        VStack(alignment: .leading, spacing: isCompactPreview ? 10 : 16) {
             ForEach(Array(previewPanels(summary: summary).enumerated()), id: \.offset) { index, panel in
                 if index > 0 {
                     Divider()
@@ -179,7 +190,11 @@ struct DetailedCardRowView: View, Equatable {
             }
 
             Text(text)
-                .font(isCompactPreview ? .subheadline : .system(size: 19, weight: .medium, design: .rounded))
+                .font(
+                    isCompactPreview
+                        ? .system(size: 15, weight: .medium, design: .rounded)
+                        : .system(size: 19, weight: .medium, design: .rounded)
+                )
                 .foregroundStyle(hasContent ? .primary : .secondary)
                 .lineLimit(lineLimit)
                 .fixedSize(horizontal: false, vertical: !isCompactPreview)
@@ -283,16 +298,16 @@ struct DetailedCardRowView: View, Equatable {
                 PreviewPanel(
                     title: "Question",
                     symbol: "q.circle",
-                    text: previewText(for: content.frontZone, maxLength: isCompactPreview ? 140 : 360),
+                    text: previewText(for: content.frontZone, maxLength: isCompactPreview ? 180 : 360),
                     hasContent: summary.sections[safe: 0]?.metrics.hasContent ?? false,
-                    lineLimit: isCompactPreview ? 2 : 5
+                    lineLimit: isCompactPreview ? 3 : 5
                 ),
                 PreviewPanel(
                     title: "Answer",
                     symbol: "a.circle",
-                    text: previewText(for: content.backZone, maxLength: isCompactPreview ? 180 : 460),
+                    text: previewText(for: content.backZone, maxLength: isCompactPreview ? 220 : 460),
                     hasContent: summary.sections[safe: 1]?.metrics.hasContent ?? false,
-                    lineLimit: isCompactPreview ? 3 : 7
+                    lineLimit: isCompactPreview ? 4 : 7
                 )
             ]
         case .match(let content):

@@ -59,6 +59,11 @@ extension CreateDeckViewModel {
         aiSessionDraftCardIDs.removeAll()
     }
 
+    /// Ends any inline session grouping and shows the full draft deck as one list again.
+    func integrateAllDraftCardsIntoBaseline() {
+        replaceDraftSessionBaseline(with: draftCards)
+    }
+
     func registerSessionDraftID(
         _ draftID: UUID,
         marksAsAI: Bool = false

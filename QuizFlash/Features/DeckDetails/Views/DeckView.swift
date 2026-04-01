@@ -215,18 +215,19 @@ struct DeckContentView: View {
             .sheet(isPresented: $viewModel.showShareSheet) {
                 if let url = viewModel.exportedURL { ShareSheet(items: [url]) }
             }
-            .sheet(item: conversionConfigurationSheetBinding) { _ in
-                AIWorkspaceConversionSheetView(
+            .fullScreenSheet(
+                ignoresSafeArea: true,
+                item: conversionConfigurationSheetBinding,
+                backgroundReceivesDragProgress: true
+            ) { _, safeArea in
+                DeckConversionSheetView(
                     coordinator: aiWorkspaceCoordinator,
-                    sourceDecks: [deck],
-                    onSelectSourceDeck: { _ in }
+                    safeAreaInsets: safeArea
                 ) {
                     startDeckSeededConversion()
                 }
-                .presentationDetents([.fraction(0.6)])
-                .presentationDragIndicator(.hidden)
-                .presentationCornerRadius(34)
-                .presentationBackground(.clear)
+            } background: {
+                CardPreviewModeBackground()
             }
             .alert("Export Error", isPresented: $viewModel.showExportError) {
                 Button("OK", role: .cancel) { }
