@@ -17,8 +17,6 @@ struct LibraryTopBarView: View {
     @Bindable var viewModel: LibraryViewModel
     let coordinateSpaceName: String
     let isCollapsedTitleVisible: Bool
-
-    var isScrolled: Bool = false
     /// When non-nil, a back button is shown on the left instead of the deck-count pill.
     var onBack: (() -> Void)? = nil
     /// Text shown inside the back button pill. Only used when `onBack != nil`.
@@ -58,16 +56,7 @@ struct LibraryTopBarView: View {
         .linear(duration: ellipsisFadeInDuration)
             .delay(ellipsisFadeInDelay)
     }
-    private var searchGlyphSize: CGFloat { UIConstants.Size.actionIcon }
-    private var searchGlyphFrame: CGFloat { UIConstants.Size.actionIcon }
-    private var trailingControlReservation: CGFloat {
-        UIConstants.Size.buttonHeight
-            + UIConstants.Layout.compactScreenEdgeInset
-            + UIConstants.Spacing.small
-    }
-    private var searchButtonHitSize: CGFloat {
-        UIConstants.Size.actionButton
-    }
+
     var body: some View {
         ZStack(alignment: .top) {
             idleChromeRow
@@ -147,10 +136,20 @@ struct LibraryTopBarView: View {
     @ViewBuilder
     private var leadingControl: some View {
         if let onBackAction = onBack {
-            backButton(action: onBackAction)
+            LibraryTopBarBackButton(
+                accent: accent,
+                label: backLabel,
+                action: onBackAction
+            )
                 .id("topbar.leading.back")
         } else {
-            searchIcon
+            LibraryTopBarSearchIconButton(
+                accent: accent,
+                namespace: searchTransitionNamespace,
+                isSearching: viewModel.isSearching,
+                backgroundScale: searchIconBackgroundScale,
+                action: activateSearch
+            )
                 .id("topbar.leading.search")
         }
     }
@@ -169,8 +168,9 @@ struct LibraryTopBarView: View {
 
     private var searchField: some View {
         HStack(spacing: UIConstants.Spacing.small + 2) {
-            searchGlyph(
+            LibraryTopBarSearchGlyph(
                 color: isSearchFocused ? accent : Color.secondary,
+                namespace: searchTransitionNamespace,
                 isSource: viewModel.isSearching
             )
 
@@ -182,7 +182,10 @@ struct LibraryTopBarView: View {
         .frame(height: UIConstants.Size.capsuleHeight)
         .contentShape(Capsule())
         .background {
-            searchFieldBackground(isSource: viewModel.isSearching)
+            LibraryTopBarSearchFieldBackground(
+                namespace: searchTransitionNamespace,
+                isSource: viewModel.isSearching
+            )
         }
         .clipShape(Capsule())
         .compositingGroup()
@@ -230,94 +233,15 @@ struct LibraryTopBarView: View {
 
     @ViewBuilder
     private var trailingAccessory: some View {
-        if viewModel.searchText.isEmpty {
-            VoiceCommandGlyph(isActive: isSearchFocused)
-                .accessibilityHidden(true)
-        } else {
-            Button {
+        LibraryTopBarTrailingAccessory(
+            searchText: viewModel.searchText,
+            isSearchFocused: isSearchFocused,
+            clearAction: {
                 withAnimation(.easeInOut(duration: UIConstants.Animation.instant)) {
                     viewModel.searchText = ""
                 }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
-                    .background {
-                        Circle()
-                            .fill(Color(uiColor: .tertiarySystemFill))
-                    }
             }
-            .buttonStyle(ScaleButtonStyle())
-            .accessibilityLabel("Clear search text")
-        }
-    }
-
-    private func searchGlyph(color: Color, isSource: Bool) -> some View {
-        Image(systemName: "magnifyingglass")
-            .font(.system(size: searchGlyphSize, weight: .semibold))
-            .foregroundStyle(color)
-            .frame(width: searchGlyphFrame, height: searchGlyphFrame)
-            .matchedGeometryEffect(
-                id: "library.topbar.searchGlyph",
-                in: searchTransitionNamespace,
-                isSource: isSource
-            )
-    }
-    private var searchIcon: some View {
-        Button {
-            activateSearch()
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(.clear)
-                searchIconBackground
-                    .frame(
-                        width: UIConstants.Size.actionButton,
-                        height: UIConstants.Size.actionButton
-                    )
-                    .scaleEffect(searchIconBackgroundScale)
-                searchGlyph(color: accent, isSource: !viewModel.isSearching)
-            }
-            .frame(
-                width: searchButtonHitSize,
-                height: searchButtonHitSize
-            )
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .contentShape(Circle())
-        .accessibilityLabel("Search")
-    }
-
-    private var moreSettingsButton: some View {
-        Menu { menuContent } label: {
-            ZStack {
-                Circle()
-                    .fill(.clear)
-                floatingCircleBackground
-                    .frame(
-                        width: UIConstants.Size.actionButton,
-                        height: UIConstants.Size.actionButton
-                    )
-                Image(systemName: "ellipsis")
-                    .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
-                    .foregroundStyle(accent)
-            }
-            .frame(
-                width: searchButtonHitSize,
-                height: searchButtonHitSize
-            )
-            .overlay {
-                Circle()
-                    .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
-            }
-            .clipShape(Circle())
-            .compositingGroup()
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .contentShape(Circle())
+        )
     }
 
     @MainActor
@@ -401,119 +325,13 @@ struct LibraryTopBarView: View {
         }
     }
 
-    private var floatingCircleBackground: some View {
-        Circle()
-            .fill(.clear)
-            .glassButton(shape: .circle)
-    }
-
-    private var searchIconBackground: some View {
-        Circle()
-            .fill(.clear)
-            .glassButton(shape: .circle)
-            .matchedGeometryEffect(
-                id: "library.topbar.searchBackground",
-                in: searchTransitionNamespace,
-                isSource: !viewModel.isSearching
-            )
-    }
-
-    private func searchFieldBackground(isSource: Bool) -> some View {
-        Capsule()
-            .fill(.clear)
-            .glassButton(shape: .capsule)
-            .matchedGeometryEffect(
-                id: "library.topbar.searchBackground",
-                in: searchTransitionNamespace,
-                isSource: isSource
-            )
-    }
-
-    // MARK: - Menu Content
-
-    @ViewBuilder
-    private var menuContent: some View {
-        Button { viewModel.showFileImporter = true } label: {
-            Label("Import Deck", systemImage: "square.and.arrow.down")
-        }
-
-        Button {
-            withBottomChromeAnimation {
-                viewModel.enterSelectionMode()
-            }
-        } label: {
-            Label("Select", systemImage: "checkmark.circle")
-        }
-        .disabled(viewModel.isSelecting || viewModel.isSearching)
-
-        Divider()
-
-        Menu {
-            ForEach(SortOrder.allCases, id: \.self) { order in
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                        viewModel.sortOrder = order
-                    }
-                } label: {
-                    if viewModel.sortOrder == order {
-                        Label(order.rawValue, systemImage: "checkmark")
-                    } else {
-                        Label(order.rawValue, systemImage: order.icon)
-                    }
+    private var moreSettingsButton: some View {
+        LibraryTopBarMoreSettingsButton(accent: accent) {
+            LibraryTopBarMenuContent(viewModel: viewModel) {
+                withBottomChromeAnimation {
+                    viewModel.enterSelectionMode()
                 }
             }
-        } label: {
-            Label("Sort By", systemImage: "arrow.up.arrow.down")
         }
-
-        Menu {
-
-        } label: {
-            Label("Group By", systemImage: "arrow.up.arrow.down")
-        }
-    }
-
-    // MARK: - Back Button
-
-    private func backButton(action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: "chevron.compact.left")
-                    .font(.system(size: UIConstants.Size.navigationChromeIcon, weight: .bold))
-                    .fontDesign(.rounded)
-                Text(backLabel)
-                    .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold))
-                    .fontDesign(.rounded)
-            }
-            .fixedSize(horizontal: true, vertical: false)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .frame(height: UIConstants.Size.capsuleHeight)
-            .foregroundStyle(accent)
-            .glassButton(shape: .capsule)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - VoiceCommandGlyph
-
-private struct VoiceCommandGlyph: View {
-    let isActive: Bool
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 2.5) {
-            Capsule().frame(width: 3, height: 9)
-            Capsule().frame(width: 3, height: 14)
-            Capsule().frame(width: 3, height: 11)
-        }
-        .foregroundStyle(isActive ? .primary : .secondary)
-        .frame(width: 28, height: 28)
-        .background {
-            Circle()
-                .fill(Color(uiColor: .tertiarySystemFill))
-        }
-        .scaleEffect(isActive ? 1.02 : 1)
-        .animation(.easeInOut(duration: UIConstants.Animation.instant), value: isActive)
     }
 }

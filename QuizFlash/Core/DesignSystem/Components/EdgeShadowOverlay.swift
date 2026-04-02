@@ -60,7 +60,7 @@ struct EdgeShadowOverlay: View {
     var bottomHeight: CGFloat = 0
 
     /// Intensity of the top shadow. `0.0` = invisible, `1.0` = fully opaque black.
-    var kMaxAlphaTop: CGFloat = 0.95
+    var kMaxAlphaTop: CGFloat = 0.9
 
     /// Intensity of the bottom shadow. `0.0` = invisible, `1.0` = fully opaque black.
     var kMaxAlphaBottom: CGFloat = 0.5
@@ -170,14 +170,14 @@ private struct _CAGradientView: UIViewRepresentable {
                 alphas = [maxAlpha,
                           maxAlpha * 0.90,
                           maxAlpha * 0.65,
-                          maxAlpha * 0.25,
+                          maxAlpha * 0.45,
                           maxAlpha * 0.05,
                           0.0]
             case .bottom:
                 // clear → solid  (content → bottom of screen)
                 alphas = [0.0,
                           maxAlpha * 0.05,
-                          maxAlpha * 0.25,
+                          maxAlpha * 0.45,
                           maxAlpha * 0.65,
                           maxAlpha * 0.90,
                           maxAlpha]

@@ -1,47 +1,21 @@
 //
-//  LibraryContentViews.swift
+//  LibraryDeckListViews.swift
 //  QuizFlash
 //
-//  Contains: LibraryListView, LibraryDeckListRow,
-//            LibrarySectionHeader, LibraryEmptyStateView,
-//            LibrarySelectionIndicator, LibraryLoadingOverlay
+//  Deck list rendering for the Library domain:
+//  - grouped list wiring
+//  - deck rows
+//  - row metadata
+//  - row separator
+//  - long-press action menu
 //
-//  Performance architecture:
-//  ─────────────────────────────────────────────────────────────────────────────
-//  • LibraryDeckListRow accepts only PRIMITIVES and CLOSURES — zero @Observable
-//    property reads. This eliminates per-row observation registrations that leak
-//    on iOS 17 during tab switches.
-//  • The LazyVStack is FLAT — every row is an independent lazy item. The previous
-//    nested VStack inside Section forced all rows in a section to materialize
-//    simultaneously, blocking the main thread.
-//  • No per-row @State animation. The jelly bounce is applied at the list level
-//    in LibraryLayout for a single, lightweight animation.
-//
-//  Scroll-proximity effect:
-//  ─────────────────────────────────────────────────────────────────────────────
-//  Each row reads its own minY from the "libraryScroll" coordinate space
-//  via .visualEffect. The effect fires ONLY when minY < kAbsoluteTopZone —
-//  i.e. only in the final pixels before the row exits at the absolute screen top.
-//  The row travels completely invisibly behind the floating header until that point.
 
 import SwiftUI
 import SwiftData
 
-// MARK: - Scroll-Proximity Effect Constants
-
-/// Height of the dissolve zone measured from absolute y = 0 (top of screen).
-/// The effect is completely INACTIVE for any row with minY ≥ this value.
-/// Rows behind the floating header (pills/title) have large positive minY —
-/// they are never affected during that journey. Only the final pixels before
-/// the row exits at the top of the screen trigger the dissolve.
-/// Tune range: 20–80 pt.
-
-
 // MARK: - Coordinate Space Name
 
-/// Named by LibraryLayout on its ScrollView; read here by .visualEffect.
-/// Origin y = 0 is the absolute top of the screen (ScrollView uses
-/// .ignoresSafeArea(.container, edges: .top) so it starts behind the status bar).
+/// Named by LibraryLayout on its ScrollView; read here by row-level visual effects.
 let kLibraryScrollSpace = "libraryScroll"
 
 // MARK: - List View
@@ -53,11 +27,11 @@ struct LibraryListView: View {
     let isSelecting: Bool
     let selectedDeckIDs: Set<PersistentIdentifier>
     let activeActionMenuDeckID: PersistentIdentifier?
-    let onNavigate: (DeckModel) -> Void
-    let onToggleSelection: (DeckModel) -> Void
+    let onNavigate: (PersistentIdentifier) -> Void
+    let onToggleSelection: (PersistentIdentifier) -> Void
     let onToggleActionMenu: (PersistentIdentifier?) -> Void
-    let onEditColor: (DeckModel) -> Void
-    let onDelete: (DeckModel) -> Void
+    let onEditColor: (LibraryDeckActionTarget) -> Void
+    let onDelete: (LibraryDeckActionTarget) -> Void
 
     var body: some View {
         ForEach(groupedDecks) { section in
@@ -69,21 +43,20 @@ struct LibraryListView: View {
                         isSelecting: isSelecting,
                         isSelected: selectedDeckIDs.contains(deck.id),
                         showActionMenu: activeActionMenuDeckID == deck.id,
-                        onNavigate: { onNavigate(deck) },
-                        onToggleSelection: { onToggleSelection(deck) },
+                        onNavigate: { onNavigate(deck.id) },
+                        onToggleSelection: { onToggleSelection(deck.id) },
                         onToggleActionMenu: { show in onToggleActionMenu(show ? deck.id : nil) },
-                        onEditColor: { onEditColor(deck) },
-                        onDelete: { onDelete(deck) }
+                        onEditColor: { onEditColor(LibraryDeckActionTarget(id: deck.id, title: deck.title)) },
+                        onDelete: { onDelete(LibraryDeckActionTarget(id: deck.id, title: deck.title)) }
                     )
+                    .equatable()
                     .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
                     .padding(.top, index == 0 ? 0 : 2)
                     .padding(.bottom, 2)
                     .id(deck.id)
                 }
             } header: {
-                LibrarySectionHeader(
-                    title: section.title
-                )
+                LibrarySectionHeader(title: section.title)
                     .id("header-\(section.id)")
             }
         }
@@ -98,8 +71,8 @@ struct LibraryListView: View {
 
 /// A single row representing a deck in the library.
 /// Uses primitive values and closures to maintain high scroll performance without observing state.
-struct LibraryDeckListRow: View {
-    let deck: DeckModel
+struct LibraryDeckListRow: View, Equatable {
+    let deck: LibraryDeckRowSnapshot
     let isFirstInSection: Bool
     let isSelecting: Bool
     let isSelected: Bool
@@ -115,6 +88,14 @@ struct LibraryDeckListRow: View {
         formatter.unitsStyle = .abbreviated
         return formatter
     }()
+
+    static func == (lhs: LibraryDeckListRow, rhs: LibraryDeckListRow) -> Bool {
+        lhs.deck == rhs.deck &&
+        lhs.isFirstInSection == rhs.isFirstInSection &&
+        lhs.isSelecting == rhs.isSelecting &&
+        lhs.isSelected == rhs.isSelected &&
+        lhs.showActionMenu == rhs.showActionMenu
+    }
 
     private var deckTint: Color {
         Color(hex: deck.colorHex) ?? ThemeManager.shared.accentColor.color
@@ -169,10 +150,10 @@ struct LibraryDeckListRow: View {
                                 text: timeAgoString
                             )
 
-                            if let folder = deck.folder {
+                            if let folderTitle = deck.folderTitle {
                                 LibraryDeckMetaLabel(
                                     systemImage: "folder",
-                                    text: folder.title
+                                    text: folderTitle
                                 )
                             }
 
@@ -194,19 +175,10 @@ struct LibraryDeckListRow: View {
                     LibraryRowSeparator(tint: deckTint)
                         .padding(.top, 10)
                 }
-                    .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(.plain)
             .contentShape(Rectangle())
-            // ── Long-Press Action Menu ──────────────────────────────────────
-            // NOT WORKING NOW 
-            // .contextMenu is intentionally absent.
-            //
-            // On iOS 17, SwiftUI's .contextMenu always uses UIContextMenuInteraction
-            // internally, which injects _UIReparentingView into UIHostingController.view
-            // regardless of whether a custom preview: block is present. This corrupts
-            // the scroll view's UIKit hierarchy and is explicitly unsupported by UIKit.
-            // Replaced with a pure-SwiftUI long-press + overlay menu.
             .onLongPressGesture(minimumDuration: 0.4) {
                 guard !isSelecting else { return }
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
@@ -217,8 +189,6 @@ struct LibraryDeckListRow: View {
         .scaleEffect(isSelecting && isSelected ? 0.9 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelected)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelecting)
-        // The overlay menu is anchored to the row itself so it always positions
-        // correctly relative to the card, even when the list is scrolled.
         .overlay(alignment: .bottom) {
             if showActionMenu {
                 DeckActionMenu(
@@ -226,8 +196,6 @@ struct LibraryDeckListRow: View {
                         withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                             onToggleActionMenu(false)
                         }
-                        // Slight delay lets the dismiss animation complete before
-                        // presenting the color picker sheet.
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                             onEditColor()
                         }
@@ -250,7 +218,6 @@ struct LibraryDeckListRow: View {
                 .zIndex(100)
             }
         }
-        // Tap outside the menu to dismiss it.
         .background {
             if showActionMenu {
                 Color.clear
@@ -318,24 +285,18 @@ struct LibraryRowSeparator: View {
                     .frame(maxWidth: 168)
                     .blur(radius: 1.6)
             }
-        .frame(height: 2)
-        .clipShape(Capsule(style: .continuous))
-        .opacity(0.88)
+            .frame(height: 2)
+            .clipShape(Capsule(style: .continuous))
+            .opacity(0.88)
     }
 }
 
 // MARK: - Deck Action Menu
-//
-// Pure SwiftUI replacement for UIContextMenuInteraction.
-// Renders as a floating pill anchored below the long-pressed row.
-// No UIKit interaction machinery — zero risk of _UIReparentingView injection.
 
 private struct DeckActionMenu: View {
     let onEditColor: () -> Void
     let onDelete: () -> Void
     let onDismiss: () -> Void
-
-    private var accent: Color { ThemeManager.shared.accentColor.color }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -372,155 +333,5 @@ private struct DeckActionMenu: View {
         .frame(width: 220)
         .offset(y: 8)
         .allowsHitTesting(true)
-    }
-}
-
-// MARK: - Section Header
-
-/// Header for grouped library sections.
-struct LibrarySectionHeader: View {
-    let title: String
-
-    var body: some View {
-        LibrarySectionHeaderLabel(title: title)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.vertical, LibrarySectionHeaderMetrics.inlineOuterVerticalPadding)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-            .textCase(nil)
-            .visualEffect { content, proxy in
-                content.opacity(Self.stickyVisibilityOpacity(for: proxy.frame(in: .named("libraryScroll")).minY))
-            }
-    }
-
-    private nonisolated static func stickyVisibilityOpacity(for minY: CGFloat) -> CGFloat {
-        let fadeStart: CGFloat = -2
-        let fadeEnd: CGFloat = -18
-
-        guard minY < fadeStart else { return 1 }
-        guard minY > fadeEnd else { return 0 }
-
-        let progress = (minY - fadeEnd) / (fadeStart - fadeEnd)
-        let eased = progress * progress * (3 - 2 * progress)
-        return eased
-    }
-}
-
-struct LibrarySectionHeaderLabel: View {
-    let title: String
-
-    var body: some View {
-        Text(title)
-            .font(.system(size: 12, weight: .bold, design: .rounded))
-            .foregroundStyle(Color.white.opacity(0.76))
-            .lineLimit(1)
-            .minimumScaleFactor(0.88)
-            .padding(.horizontal, 8)
-            .padding(.vertical, LibrarySectionHeaderMetrics.labelVerticalPadding)
-            .shadow(color: .black.opacity(0.92), radius: 18, x: 0, y: 0)
-            .shadow(color: .black.opacity(0.85), radius: 7, x: 0, y: 1)
-            .shadow(color: .black.opacity(0.7), radius: 1.5, x: 0, y: 0)
-    }
-}
-
-enum LibrarySectionHeaderMetrics {
-    static let defaultHeight: CGFloat = 24
-    static let inlineOuterVerticalPadding: CGFloat = 16
-    static let labelVerticalPadding: CGFloat = 2
-    static let firstDeckTopPadding: CGFloat = 0
-    static let regularDeckTopPadding: CGFloat = 14
-}
-
-// MARK: - Empty State
-
-/// View shown when there are no decks available in the library yet.
-struct LibraryEmptyStateView: View {
-    private var accent: Color { ThemeManager.shared.accentColor.color }
-
-    var body: some View {
-        VStack(spacing: 20) {
-            ZStack {
-                Circle()
-                    .fill(accent.opacity(0.1))
-                    .frame(width: 80, height: 80)
-                Image(systemName: "rectangle.stack")
-                    .font(.system(size: 34, weight: .light))
-                    .foregroundStyle(accent.opacity(0.8))
-            }
-
-            VStack(spacing: 8) {
-                Text("No Decks Yet")
-                    .font(.title3.weight(.semibold))
-                Text("Tap Create to make your first deck\nand start learning.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-        }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 90)
-            .padding(.horizontal, 40)
-    }
-}
-
-// MARK: - Selection Indicator
-
-/// Circle checkmark indicator for deck selection mode.
-struct LibrarySelectionIndicator: View {
-    let isSelected: Bool
-    let onToggle: () -> Void
-
-    private var accent: Color { ThemeManager.shared.accentColor.color }
-
-    var body: some View {
-        Button(action: onToggle) {
-            ZStack {
-                Circle()
-                    .fill(isSelected ? accent : Color.primary.opacity(0.08))
-                    .frame(width: 26, height: 26)
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
-                        .transition(.scale.combined(with: .opacity))
-                } else {
-                    Circle()
-                        .strokeBorder(Color.secondary.opacity(0.4), lineWidth: 1.5)
-                        .frame(width: 26, height: 26)
-                }
-            }
-        }
-            .buttonStyle(ScaleButtonStyle())
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)
-    }
-}
-
-// MARK: - Loading Overlay
-
-/// Semi-transparent loading overlay with spinner used for operations like import and export.
-struct LibraryLoadingOverlay: View {
-    let message: String
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.35).ignoresSafeArea()
-
-            VStack(spacing: 16) {
-                ProgressView()
-                    .scaleEffect(1.4)
-                    .tint(.primary)
-                Text(message)
-                    .font(.subheadline.weight(.medium))
-            }
-                .padding(.horizontal, 32)
-                .padding(.vertical, 28)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
-            )
-                .shadow(color: .black.opacity(0.2), radius: 20)
-        }
-            .transition(.opacity)
     }
 }

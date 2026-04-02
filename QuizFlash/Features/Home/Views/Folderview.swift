@@ -130,12 +130,12 @@ struct FolderView: View {
                     viewModel.editingCardFromSearch = .edit(DraftCard.from(card))
                 }
             },
-            onDeckNavigate: { deck in
+            onDeckNavigate: { deckID in
                 // Back label is the folder title — the user navigates back to this folder,
                 // not to a tab. Frozen at push time inside DeckNavigationValue so it is
                 // immune to any subsequent router state mutations.
                 router.append(DeckNavigationValue(
-                    deckID: deck.persistentModelID,
+                    deckID: deckID,
                     backLabel: folder.title
                 ))
             },

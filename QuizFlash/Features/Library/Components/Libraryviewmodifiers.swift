@@ -6,7 +6,7 @@
 //  Shared ViewModifier structs for the Library domain.
 //
 //  These were previously private structs inside LibraryView.swift. They are
-//  extracted into a dedicated file because both LibraryView (root tab) and
+//  extracted into a dedicated shared file because both LibraryView (root tab) and
 //  FolderView (pushed folder screen) require identical modal and alert behaviour.
 //  Extraction avoids duplication while keeping MVVM boundaries intact — both
 //  modifiers operate on LibraryViewModel and carry no navigation knowledge.
@@ -28,103 +28,95 @@ struct LibraryModalsAndDialogs: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-        // NavigationStack must not be the direct root of fullScreenCover.
-        // When NavigationStack is the immediate child of the UIHostingController
-        // that fullScreenCover creates, UIKit's transition machinery injects
-        // _UIReparentingView as a direct subview of UIHostingController.view —
-        // an unsupported configuration that corrupts the UIKit view hierarchy.
-        // Wrapping in ZStack interposes a standard UIView between
-        // UIHostingController.view and NavigationStack's internal
-        // UINavigationController, preventing the reparenting attempt.
-        .fullScreenCover(item: $viewModel.editingCardFromSearch) { destination in
-            ZStack {
-                CardEditorView(
-                    destination: destination,
-                    searchQuery: viewModel.searchText
-                ) { content in
-                    guard case .edit(let draftCard) = destination,
-                          let cardID = draftCard.originalCardID,
-                          let card = context.model(for: cardID) as? CardModel else {
+            .fullScreenCover(item: $viewModel.editingCardFromSearch) { destination in
+                ZStack {
+                    CardEditorView(
+                        destination: destination,
+                        searchQuery: viewModel.searchText
+                    ) { content in
+                        guard case .edit(let draftCard) = destination,
+                              let cardID = draftCard.originalCardID,
+                              let card = context.model(for: cardID) as? CardModel else {
+                            viewModel.editingCardFromSearch = nil
+                            return
+                        }
+
+                        if card.cardContent != content {
+                            card.cardContent = content
+                            card.editedAt = Date()
+                            card.deck?.editedAt = Date()
+                            try? context.save()
+                            viewModel.debounceSearchInput(viewModel.searchText)
+                        }
+
                         viewModel.editingCardFromSearch = nil
-                        return
                     }
-
-                    if card.cardContent != content {
-                        card.cardContent = content
-                        card.editedAt = Date()
-                        card.deck?.editedAt = Date()
-                        try? context.save()
-                        viewModel.debounceSearchInput(viewModel.searchText)
-                    }
-
-                    viewModel.editingCardFromSearch = nil
                 }
             }
-        }
             .sheet(isPresented: $viewModel.showShareSheet) {
-            ShareSheet(items: viewModel.exportedURLs)
-        }
+                ShareSheet(items: viewModel.exportedURLs)
+            }
             .fileImporter(
-            isPresented: $viewModel.showFileImporter,
-            allowedContentTypes: [.data],
-            allowsMultipleSelection: true
-        ) { result in
-            viewModel.handleFileImport(result, context: context)
-        }
-            .confirmationDialog(
-            "Delete \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")?",
-            isPresented: $viewModel.showDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                    viewModel.deleteSelectedDecks(from: decks, context: context)
-                }
+                isPresented: $viewModel.showFileImporter,
+                allowedContentTypes: [.data],
+                allowsMultipleSelection: true
+            ) { result in
+                viewModel.handleFileImport(result, context: context)
             }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This action cannot be undone.")
-        }
             .confirmationDialog(
-            "Delete \"\(viewModel.deckToDelete?.title ?? "")\"?",
-            isPresented: Binding(
-                get: { viewModel.deckToDelete != nil },
-                set: { if !$0 { viewModel.deckToDelete = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                    viewModel.confirmSingleDeletion(context: context)
-                }
-            }
-            Button("Cancel", role: .cancel) { viewModel.deckToDelete = nil }
-        } message: {
-            Text("This deck and all its cards will be deleted.")
-        }
-            .confirmationDialog(
-            "Move \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")",
-            isPresented: $viewModel.showMoveConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Library (All Decks)") {
-                viewModel.moveSelectedDecks(from: decks, to: nil, context: context)
-            }
-
-            if !folders.isEmpty {
-                Divider()
-
-                ForEach(folders, id: \.persistentModelID) { folder in
-                    Button(folder.title) {
-                        viewModel.moveSelectedDecks(from: decks, to: folder, context: context)
+                "Delete \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")?",
+                isPresented: $viewModel.showDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        viewModel.deleteSelectedDecks(from: decks, context: context)
                     }
                 }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This action cannot be undone.")
             }
+            .confirmationDialog(
+                "Delete \"\(viewModel.deckToDelete?.title ?? "")\"?",
+                isPresented: Binding(
+                    get: { viewModel.deckToDelete != nil },
+                    set: { if !$0 { viewModel.deckToDelete = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        viewModel.confirmSingleDeletion(context: context)
+                    }
+                }
+                Button("Cancel", role: .cancel) { viewModel.deckToDelete = nil }
+            } message: {
+                Text("This deck and all its cards will be deleted.")
+            }
+            .confirmationDialog(
+                "Move \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")",
+                isPresented: $viewModel.showMoveConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Library (All Decks)") {
+                    viewModel.moveSelectedDecks(from: decks, to: nil, context: context)
+                }
 
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Choose where the selected decks should go.")
-        }
+                if !folders.isEmpty {
+                    Divider()
+
+                    ForEach(folders, id: \.persistentModelID) { folder in
+                        Button(folder.title) {
+                            viewModel.moveSelectedDecks(from: decks, to: folder, context: context)
+                        }
+                    }
+                }
+
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Choose where the selected decks should go.")
+            }
     }
 }
 
@@ -138,24 +130,24 @@ struct LibraryAlerts: ViewModifier {
     func body(content: Content) -> some View {
         content
             .alert("Import Error", isPresented: $viewModel.showImportError) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(viewModel.importErrorMessage)
-        }
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(viewModel.importErrorMessage)
+            }
             .alert("Import Successful", isPresented: $viewModel.showImportSuccess) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("\(viewModel.importedDeckName) imported successfully.")
-        }
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("\(viewModel.importedDeckName) imported successfully.")
+            }
             .alert("Export Error", isPresented: $viewModel.showExportError) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(viewModel.exportErrorMessage)
-        }
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(viewModel.exportErrorMessage)
+            }
             .alert("Move Error", isPresented: $viewModel.showMoveError) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(viewModel.moveErrorMessage)
-        }
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(viewModel.moveErrorMessage)
+            }
     }
 }

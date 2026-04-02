@@ -86,11 +86,11 @@ struct LibraryView: View {
                     sharedViewModel.editingCardFromSearch = .edit(DraftCard.from(card))
                 }
             },
-            onDeckNavigate: { deck in
+            onDeckNavigate: { deckID in
                 // Back label is the active tab name, frozen at push time.
                 // router.activeTab is always .library while LibraryView is visible.
                 router.append(DeckNavigationValue(
-                    deckID: deck.persistentModelID,
+                    deckID: deckID,
                     backLabel: router.activeTab.rawValue
                 ))
             },

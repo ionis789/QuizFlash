@@ -52,7 +52,10 @@ final class LibraryViewModelMutationTests: XCTestCase {
         try context.save()
 
         let viewModel = LibraryViewModel()
-        viewModel.deckToDelete = deck
+        viewModel.deckToDelete = LibraryDeckActionTarget(
+            id: deck.persistentModelID,
+            title: deck.title
+        )
 
         viewModel.confirmSingleDeletion(context: context)
 

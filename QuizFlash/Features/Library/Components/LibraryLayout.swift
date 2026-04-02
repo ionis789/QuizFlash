@@ -27,7 +27,7 @@ struct LibraryLayout: View {
     let title: String
 
     let onCardTap: (PersistentIdentifier) -> Void
-    let onDeckNavigate: (DeckModel) -> Void
+    let onDeckNavigate: (PersistentIdentifier) -> Void
     let onDeleteSelected: () -> Void
     /// Non-nil when the layout is hosted inside a pushed screen (e.g. FolderView).
     /// Wired to the host's dismiss action so LibraryTopBarView can render a back button.
@@ -128,7 +128,6 @@ struct LibraryLayout: View {
                 viewModel: viewModel,
                 coordinateSpaceName: kLibraryChromeSpace,
                 isCollapsedTitleVisible: heroCollapsedTitleReady,
-                isScrolled: viewModel.savedScrollOffset > 10,
                 onBack: onBack,
                 backLabel: backLabel,
                 onBottomChange: { newBottom in
@@ -294,19 +293,19 @@ struct LibraryLayout: View {
                 isSelecting: viewModel.isSelecting,
                 selectedDeckIDs: viewModel.selectedDecks,
                 activeActionMenuDeckID: viewModel.activeActionMenuDeckID,
-                onNavigate: { deck in
-                    onDeckNavigate(deck)
+                onNavigate: { deckID in
+                    onDeckNavigate(deckID)
                 },
-                onToggleSelection: { deck in
+                onToggleSelection: { deckID in
                     withAnimation(.spring(response: 0.28, dampingFraction: 0.75)) {
-                        viewModel.toggleSelection(for: deck)
+                        viewModel.toggleSelection(for: deckID)
                     }
                 },
                 onToggleActionMenu: { id in
                     viewModel.activeActionMenuDeckID = id
                 },
-                onEditColor: { deck in viewModel.deckToEditColor = deck },
-                onDelete: { deck in viewModel.deckToDelete = deck }
+                onEditColor: { target in viewModel.deckToEditColor = target },
+                onDelete: { target in viewModel.deckToDelete = target }
             )
             .id("LibraryList-\(viewModel.cachedGroupedDecks.count)")
         }
