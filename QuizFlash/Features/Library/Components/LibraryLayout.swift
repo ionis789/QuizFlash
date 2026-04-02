@@ -41,10 +41,8 @@ struct LibraryLayout: View {
     // ── State ──
 
     /// Height of LibraryTopBarView measured live.
-    @State private var headerHeight: CGFloat = 0
     @State private var navigationBarBottomY: CGFloat = 0
-    @State private var isCollapsedTitleVisible = false
-    @State private var lastLoggedNavigationBarBottomY: CGFloat = -.greatestFiniteMagnitude
+    @State private var heroCollapsedTitleReady = false
     /// safeAreaInsets.top captured from the root body context (non-zero here).
     @State private var safeTop: CGFloat = 0
 
@@ -62,6 +60,14 @@ struct LibraryLayout: View {
         .easeOut(duration: 0.16)
     }
     private var searchContentMaxWidth: CGFloat { UIConstants.Layout.librarySearchContentMaxWidth }
+    private var topChromeInsetSpacing: CGFloat {
+        switch viewModel.searchPresentation {
+        case .browse, .searchEmpty:
+            return -32
+        case .searchResults:
+            return 0
+        }
+    }
     private var libraryCollapsedTitleRevealClearance: CGFloat {
         UIConstants.Layout.deckHeroPillRevealClearance + 28
     }
@@ -115,13 +121,13 @@ struct LibraryLayout: View {
         }
         .coordinateSpace(name: kLibraryChromeSpace)
             .animation(.bottomChromeSpring, value: viewModel.isSelecting)
-            .safeAreaInset(edge: .top, spacing: 0) {
+            .safeAreaInset(edge: .top, spacing: topChromeInsetSpacing) {
             LibraryTopBarView(
                 title: title,
                 deckCount: decks.count,
                 viewModel: viewModel,
                 coordinateSpaceName: kLibraryChromeSpace,
-                isCollapsedTitleVisible: isCollapsedTitleVisible,
+                isCollapsedTitleVisible: heroCollapsedTitleReady,
                 isScrolled: viewModel.savedScrollOffset > 10,
                 onBack: onBack,
                 backLabel: backLabel,
@@ -129,21 +135,8 @@ struct LibraryLayout: View {
                     if abs(navigationBarBottomY - newBottom) > 0.5 {
                         navigationBarBottomY = newBottom
                     }
-                    #if DEBUG
-                    if abs(lastLoggedNavigationBarBottomY - newBottom) >= 8 {
-                        lastLoggedNavigationBarBottomY = newBottom
-                        let bottomText = String(format: "%.1f", newBottom)
-                        let heightText = String(format: "%.1f", headerHeight)
-                        print("[LibraryStickyDebug] chrome.bottomY=\(bottomText) headerHeight=\(heightText) collapsedTitleVisible=\(isCollapsedTitleVisible)")
-                    }
-                    #endif
                 }
             )
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.size.height
-            } action: { newHeight in
-                if headerHeight != newHeight { headerHeight = newHeight }
-            }
             .zIndex(6)
         }
             .background {
@@ -267,7 +260,7 @@ struct LibraryLayout: View {
             in: kLibraryChromeSpace,
             navigationBarBottomY: navigationBarBottomY,
             revealClearance: libraryCollapsedTitleRevealClearance,
-            isVisible: $isCollapsedTitleVisible
+            isVisible: $heroCollapsedTitleReady
         )
     }
 
@@ -318,4 +311,5 @@ struct LibraryLayout: View {
             .id("LibraryList-\(viewModel.cachedGroupedDecks.count)")
         }
     }
+
 }

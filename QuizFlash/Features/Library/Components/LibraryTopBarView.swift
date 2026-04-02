@@ -68,7 +68,6 @@ struct LibraryTopBarView: View {
     private var searchButtonHitSize: CGFloat {
         UIConstants.Size.actionButton
     }
-
     var body: some View {
         ZStack(alignment: .top) {
             idleChromeRow

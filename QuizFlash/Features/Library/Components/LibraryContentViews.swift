@@ -62,9 +62,10 @@ struct LibraryListView: View {
     var body: some View {
         ForEach(groupedDecks) { section in
             Section {
-                ForEach(section.decks) { deck in
+                ForEach(Array(section.decks.enumerated()), id: \.element.id) { index, deck in
                     LibraryDeckListRow(
                         deck: deck,
+                        isFirstInSection: index == 0,
                         isSelecting: isSelecting,
                         isSelected: selectedDeckIDs.contains(deck.id),
                         showActionMenu: activeActionMenuDeckID == deck.id,
@@ -75,7 +76,8 @@ struct LibraryListView: View {
                         onDelete: { onDelete(deck) }
                     )
                     .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
-                    .padding(.vertical, 2)
+                    .padding(.top, index == 0 ? 0 : 2)
+                    .padding(.bottom, 2)
                     .id(deck.id)
                 }
             } header: {
@@ -98,6 +100,7 @@ struct LibraryListView: View {
 /// Uses primitive values and closures to maintain high scroll performance without observing state.
 struct LibraryDeckListRow: View {
     let deck: DeckModel
+    let isFirstInSection: Bool
     let isSelecting: Bool
     let isSelected: Bool
     let showActionMenu: Bool
@@ -119,6 +122,12 @@ struct LibraryDeckListRow: View {
 
     private var timeAgoString: String {
         Self.relativeFormatter.localizedString(for: deck.editedAt, relativeTo: Date())
+    }
+
+    private var topContentPadding: CGFloat {
+        isFirstInSection
+            ? LibrarySectionHeaderMetrics.firstDeckTopPadding
+            : LibrarySectionHeaderMetrics.regularDeckTopPadding
     }
 
     var body: some View {
@@ -179,7 +188,8 @@ struct LibraryDeckListRow: View {
                         .padding(.top, 4)
                 }
                 .padding(.horizontal, 4)
-                .padding(.vertical, 14)
+                .padding(.top, topContentPadding)
+                .padding(.bottom, 14)
                 .overlay(alignment: .bottom) {
                     LibraryRowSeparator(tint: deckTint)
                         .padding(.top, 10)
@@ -314,21 +324,6 @@ struct LibraryRowSeparator: View {
     }
 }
 
-struct LibrarySectionHeaderSnapshot: Equatable {
-    let id: String
-    let title: String
-    let minY: CGFloat
-    let height: CGFloat
-}
-
-struct LibrarySectionHeaderPreferenceKey: PreferenceKey {
-    static var defaultValue: [LibrarySectionHeaderSnapshot] = []
-
-    static func reduce(value: inout [LibrarySectionHeaderSnapshot], nextValue: () -> [LibrarySectionHeaderSnapshot]) {
-        value.append(contentsOf: nextValue())
-    }
-}
-
 // MARK: - Deck Action Menu
 //
 // Pure SwiftUI replacement for UIContextMenuInteraction.
@@ -389,10 +384,25 @@ struct LibrarySectionHeader: View {
     var body: some View {
         LibrarySectionHeaderLabel(title: title)
             .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.vertical, 2)
+            .padding(.vertical, LibrarySectionHeaderMetrics.inlineOuterVerticalPadding)
             .frame(maxWidth: .infinity)
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
             .textCase(nil)
+            .visualEffect { content, proxy in
+                content.opacity(Self.stickyVisibilityOpacity(for: proxy.frame(in: .named("libraryScroll")).minY))
+            }
+    }
+
+    private nonisolated static func stickyVisibilityOpacity(for minY: CGFloat) -> CGFloat {
+        let fadeStart: CGFloat = -2
+        let fadeEnd: CGFloat = -18
+
+        guard minY < fadeStart else { return 1 }
+        guard minY > fadeEnd else { return 0 }
+
+        let progress = (minY - fadeEnd) / (fadeStart - fadeEnd)
+        let eased = progress * progress * (3 - 2 * progress)
+        return eased
     }
 }
 
@@ -402,24 +412,23 @@ struct LibrarySectionHeaderLabel: View {
     var body: some View {
         Text(title)
             .font(.system(size: 12, weight: .bold, design: .rounded))
-            .foregroundStyle(Color.white.opacity(0.72))
+            .foregroundStyle(Color.white.opacity(0.76))
             .lineLimit(1)
             .minimumScaleFactor(0.88)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 3)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.07))
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
-                    }
-            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, LibrarySectionHeaderMetrics.labelVerticalPadding)
+            .shadow(color: .black.opacity(0.92), radius: 18, x: 0, y: 0)
+            .shadow(color: .black.opacity(0.85), radius: 7, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.7), radius: 1.5, x: 0, y: 0)
     }
 }
 
 enum LibrarySectionHeaderMetrics {
     static let defaultHeight: CGFloat = 24
+    static let inlineOuterVerticalPadding: CGFloat = 16
+    static let labelVerticalPadding: CGFloat = 2
+    static let firstDeckTopPadding: CGFloat = 0
+    static let regularDeckTopPadding: CGFloat = 14
 }
 
 // MARK: - Empty State
