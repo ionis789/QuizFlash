@@ -22,6 +22,8 @@ struct CollapsibleTitlePill: View {
     let maxWidth: CGFloat
     let isVisible: Bool
     var fallbackTitle: String = ""
+    var coordinateSpaceName: String? = nil
+    var onContentFrameChange: ((CGRect) -> Void)? = nil
 
     private var resolvedTitle: String {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -51,6 +53,17 @@ struct CollapsibleTitlePill: View {
         .opacity(isVisible ? 1 : 0)
         .scaleEffect(isVisible ? 1 : CollapsibleTitleChromeMetrics.hiddenScale, anchor: .top)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isVisible)
+        .overlay {
+            if isVisible, hasTitle, let coordinateSpaceName {
+                Color.clear
+                    .allowsHitTesting(false)
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named(coordinateSpaceName))
+                    } action: { newFrame in
+                        onContentFrameChange?(newFrame)
+                    }
+            }
+        }
         .accessibilityLabel(resolvedTitle.isEmpty ? fallbackTitle : resolvedTitle)
     }
 }

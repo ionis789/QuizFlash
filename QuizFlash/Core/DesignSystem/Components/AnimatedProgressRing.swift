@@ -89,7 +89,7 @@ struct AnimatedProgressRing<CenterContent: View>: View {
 
             switch plan.style {
             case .settle:
-                withAnimation(.spring(response: 0.9, dampingFraction: 0.84)) {
+                withAnimation(.circularProgressSpring) {
                     animatedProgress = plan.targetProgress
                 }
 

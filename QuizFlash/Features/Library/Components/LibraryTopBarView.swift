@@ -22,37 +22,38 @@ struct LibraryTopBarView: View {
     /// Text shown inside the back button pill. Only used when `onBack != nil`.
     var backLabel: String = "Library"
     var onBottomChange: (CGFloat) -> Void = { _ in }
+    var onCollapsedTitleFrameChange: (CGRect) -> Void = { _ in }
 
-    @Namespace private var searchTransitionNamespace
-    @State private var searchIconBackgroundScale: CGFloat = 1
-    @State private var cancelOpacity: CGFloat = 0
-    @State private var ellipsisOpacity: CGFloat = 1
-    @State private var showsEllipsis = true
-    @State private var ellipsisHideTask: Task<Void, Never>?
-    @State private var searchDismissTask: Task<Void, Never>?
-    @FocusState private var isSearchFocused: Bool
+    @Namespace var searchTransitionNamespace
+    @State var searchIconBackgroundScale: CGFloat = 1
+    @State var cancelOpacity: CGFloat = 0
+    @State var ellipsisOpacity: CGFloat = 1
+    @State var showsEllipsis = true
+    @State var ellipsisHideTask: Task<Void, Never>?
+    @State var searchDismissTask: Task<Void, Never>?
+    @FocusState var isSearchFocused: Bool
 
-    private var accent: Color { ThemeManager.shared.accentColor.color }
-    private var retractionDuration: Double { 0.12 }
-    private var cancelFadeOutDuration: Double { 0.05 }
-    private var ellipsisFadeOutDuration: Double { 0.08 }
-    private var ellipsisFadeInDelay: Double { 0.04 }
-    private var ellipsisFadeInDuration: Double {
+    var accent: Color { ThemeManager.shared.accentColor.color }
+    var retractionDuration: Double { 0.12 }
+    var cancelFadeOutDuration: Double { 0.05 }
+    var ellipsisFadeOutDuration: Double { 0.08 }
+    var ellipsisFadeInDelay: Double { 0.04 }
+    var ellipsisFadeInDuration: Double {
         retractionDuration - ellipsisFadeInDelay
     }
-    private var retractionTransition: Animation {
+    var retractionTransition: Animation {
         .easeOut(duration: retractionDuration)
     }
-    private var expansionTransition: Animation {
+    var expansionTransition: Animation {
         .snappy(duration: 0.2, extraBounce: 0.02)
     }
-    private var cancelFadeTransition: Animation {
+    var cancelFadeTransition: Animation {
         .linear(duration: cancelFadeOutDuration)
     }
-    private var ellipsisFadeOutTransition: Animation {
+    var ellipsisFadeOutTransition: Animation {
         .linear(duration: ellipsisFadeOutDuration)
     }
-    private var ellipsisFadeInTransition: Animation {
+    var ellipsisFadeInTransition: Animation {
         .linear(duration: ellipsisFadeInDuration)
             .delay(ellipsisFadeInDelay)
     }
@@ -99,153 +100,8 @@ struct LibraryTopBarView: View {
         }
     }
 
-    private var idleChromeRow: some View {
-        CollapsibleTitleNavigationBar(
-            coordinateSpaceName: coordinateSpaceName,
-            onBottomChange: onBottomChange
-        ) {
-            leadingControl
-                .fixedSize()
-        } center: { maxTitleWidth in
-            CollapsibleTitlePill(
-                title: title,
-                maxWidth: maxTitleWidth,
-                isVisible: isCollapsedTitleVisible,
-                fallbackTitle: "Library"
-            )
-        } trailing: {
-            ZStack {
-                ChromeCirclePlaceholder()
-
-                if showsEllipsis {
-                    moreSettingsButton
-                        .opacity(ellipsisOpacity)
-                        .allowsHitTesting(!viewModel.isSearching && ellipsisOpacity > 0.01)
-                        .accessibilityHidden(viewModel.isSearching)
-                        .transition(.identity)
-                        .transaction { transaction in
-                            transaction.animation = nil
-                        }
-                }
-            }
-        }
-    }
-
-    // MARK: - Leading Control
-
-    @ViewBuilder
-    private var leadingControl: some View {
-        if let onBackAction = onBack {
-            LibraryTopBarBackButton(
-                accent: accent,
-                label: backLabel,
-                action: onBackAction
-            )
-                .id("topbar.leading.back")
-        } else {
-            LibraryTopBarSearchIconButton(
-                accent: accent,
-                namespace: searchTransitionNamespace,
-                isSearching: viewModel.isSearching,
-                backgroundScale: searchIconBackgroundScale,
-                action: activateSearch
-            )
-                .id("topbar.leading.search")
-        }
-    }
-
-    // MARK: - Search Bar
-
-    private var searchBar: some View {
-        HStack(spacing: UIConstants.Spacing.small + 2) {
-            searchField
-            cancelButton
-        }
-        .frame(maxWidth: .infinity)
-        .topNavigationChrome()
-        .sensoryFeedback(.selection, trigger: isSearchFocused)
-    }
-
-    private var searchField: some View {
-        HStack(spacing: UIConstants.Spacing.small + 2) {
-            LibraryTopBarSearchGlyph(
-                color: isSearchFocused ? accent : Color.secondary,
-                namespace: searchTransitionNamespace,
-                isSource: viewModel.isSearching
-            )
-
-            searchFieldContent
-
-            trailingAccessory
-        }
-        .padding(.horizontal, UIConstants.Spacing.standard)
-        .frame(height: UIConstants.Size.capsuleHeight)
-        .contentShape(Capsule())
-        .background {
-            LibraryTopBarSearchFieldBackground(
-                namespace: searchTransitionNamespace,
-                isSource: viewModel.isSearching
-            )
-        }
-        .clipShape(Capsule())
-        .compositingGroup()
-    }
-
-    @ViewBuilder
-    private var searchFieldContent: some View {
-        if viewModel.isSearching {
-            TextField("Search decks, cards, answers", text: $viewModel.searchText)
-                .focused($isSearchFocused)
-                .submitLabel(.search)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundStyle(.primary)
-                .tint(accent)
-        } else {
-            Text(viewModel.searchText.isEmpty ? "Search decks, cards, answers" : viewModel.searchText)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundStyle(viewModel.searchText.isEmpty ? .secondary : .primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .lineLimit(1)
-                .allowsHitTesting(false)
-        }
-    }
-
-    private var cancelButton: some View {
-        Button {
-            dismissSearch()
-        } label: {
-            Text("Cancel")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(accent)
-                .padding(.horizontal, UIConstants.Spacing.standard)
-                .frame(minWidth: 84, minHeight: UIConstants.Size.buttonHeight)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .contentShape(Rectangle())
-        .opacity(cancelOpacity)
-        .allowsHitTesting(cancelOpacity > 0.01)
-        .transition(.opacity)
-        .accessibilityLabel("Cancel search")
-    }
-
-    @ViewBuilder
-    private var trailingAccessory: some View {
-        LibraryTopBarTrailingAccessory(
-            searchText: viewModel.searchText,
-            isSearchFocused: isSearchFocused,
-            clearAction: {
-                withAnimation(.easeInOut(duration: UIConstants.Animation.instant)) {
-                    viewModel.searchText = ""
-                }
-            }
-        )
-    }
-
     @MainActor
-    private func dismissSearch() {
+    func dismissSearch() {
         guard viewModel.isSearching else { return }
 
         searchDismissTask?.cancel()
@@ -277,7 +133,7 @@ struct LibraryTopBarView: View {
     }
 
     @MainActor
-    private func activateSearch() {
+    func activateSearch() {
         guard !viewModel.isSearching else { return }
 
         cancelOpacity = 1
@@ -297,7 +153,7 @@ struct LibraryTopBarView: View {
     }
 
     @MainActor
-    private func beginEllipsisFadeOut() {
+    func beginEllipsisFadeOut() {
         ellipsisHideTask?.cancel()
         showsEllipsis = true
 
@@ -315,23 +171,13 @@ struct LibraryTopBarView: View {
     }
 
     @MainActor
-    private func beginEllipsisFadeIn() {
+    func beginEllipsisFadeIn() {
         ellipsisHideTask?.cancel()
         showsEllipsis = true
         ellipsisOpacity = 0
 
         withAnimation(ellipsisFadeInTransition) {
             ellipsisOpacity = 1
-        }
-    }
-
-    private var moreSettingsButton: some View {
-        LibraryTopBarMoreSettingsButton(accent: accent) {
-            LibraryTopBarMenuContent(viewModel: viewModel) {
-                withBottomChromeAnimation {
-                    viewModel.enterSelectionMode()
-                }
-            }
         }
     }
 }

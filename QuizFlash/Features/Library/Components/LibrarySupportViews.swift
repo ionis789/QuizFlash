@@ -56,21 +56,21 @@ struct LibrarySelectionIndicator: View {
             ZStack {
                 Circle()
                     .fill(isSelected ? accent : Color.primary.opacity(0.08))
-                    .frame(width: 26, height: 26)
+                    .frame(width: 24, height: 24)
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.white)
                         .transition(.scale.combined(with: .opacity))
                 } else {
                     Circle()
                         .strokeBorder(Color.secondary.opacity(0.4), lineWidth: 1.5)
-                        .frame(width: 26, height: 26)
+                        .frame(width: 24, height: 24)
                 }
             }
         }
         .buttonStyle(ScaleButtonStyle())
-        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isSelected)
+        .animation(.circularSelectionSpring, value: isSelected)
     }
 }
 

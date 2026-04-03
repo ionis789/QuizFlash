@@ -121,6 +121,7 @@ struct HomeView: View {
                         .frame(minHeight: proxy.size.height - calendarLayout.compactHeight)
                         .zIndex(1)
                     }
+                    .tabBarAutoHideOnScroll()
                     .frame(maxWidth: .infinity, alignment: .top)
                 }
                 .scrollIndicators(.hidden)

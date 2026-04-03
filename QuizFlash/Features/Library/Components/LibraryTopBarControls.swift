@@ -125,6 +125,7 @@ struct LibraryTopBarTrailingAccessory: View {
 struct LibraryTopBarMoreSettingsButton<MenuContent: View>: View {
     let accent: Color
     private let menuContent: () -> MenuContent
+    private let hitTargetSize = UIConstants.Size.actionButton + 16
 
     init(
         accent: Color,
@@ -140,7 +141,8 @@ struct LibraryTopBarMoreSettingsButton<MenuContent: View>: View {
         } label: {
             ZStack {
                 Circle()
-                    .fill(.clear)
+                    .fill(Color.black.opacity(0.001))
+                    .frame(width: hitTargetSize, height: hitTargetSize)
 
                 Circle()
                     .fill(.clear)
@@ -164,9 +166,11 @@ struct LibraryTopBarMoreSettingsButton<MenuContent: View>: View {
             }
             .clipShape(Circle())
             .compositingGroup()
+            .frame(width: hitTargetSize, height: hitTargetSize)
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .frame(width: hitTargetSize, height: hitTargetSize)
         .contentShape(Circle())
     }
 }

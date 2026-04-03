@@ -15,6 +15,19 @@ extension Animation {
         .spring(response: 0.36, dampingFraction: 0.92)
     }
 
+    /// Shared spring used by circular selection and accent-tracking motion.
+    ///
+    /// Use this when the effect should feel like the app's circular control
+    /// family: stable, soft, and slightly elastic without overshooting hard.
+    static var circularSelectionSpring: Animation {
+        .spring(response: 0.34, dampingFraction: 0.84)
+    }
+
+    /// Shared spring used by circular progress and ring-style reveal motion.
+    static var circularProgressSpring: Animation {
+        .spring(response: 0.9, dampingFraction: 0.84)
+    }
+
     /// Shared spring used for compact selection-toolbar state changes.
     static var selectionToolbarSpring: Animation {
         .spring(response: 0.3, dampingFraction: 0.9)

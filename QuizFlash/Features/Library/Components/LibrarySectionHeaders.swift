@@ -9,32 +9,51 @@ import SwiftUI
 
 // MARK: - Section Header
 
+struct LibrarySectionHeaderFrame: Equatable {
+    let id: String
+    let title: String
+    let minY: CGFloat
+    let maxY: CGFloat
+}
+
+struct LibrarySectionHeaderFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [LibrarySectionHeaderFrame] = []
+
+    static func reduce(value: inout [LibrarySectionHeaderFrame], nextValue: () -> [LibrarySectionHeaderFrame]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
 /// Header for grouped library sections.
 struct LibrarySectionHeader: View {
+    let id: String
     let title: String
+    var isHidden: Bool = false
 
     var body: some View {
         LibrarySectionHeaderLabel(title: title)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: LibrarySectionHeaderFramePreferenceKey.self,
+                        value: [
+                            LibrarySectionHeaderFrame(
+                                id: id,
+                                title: title,
+                                minY: proxy.frame(in: .named(kLibraryChromeSpace)).minY,
+                                maxY: proxy.frame(in: .named(kLibraryChromeSpace)).maxY
+                            )
+                        ]
+                    )
+                }
+            }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, LibrarySectionHeaderMetrics.inlineOuterVerticalPadding)
             .frame(maxWidth: .infinity)
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .opacity(isHidden ? 0 : 1)
+            .animation(.circularProgressSpring, value: isHidden)
             .textCase(nil)
-            .visualEffect { content, proxy in
-                content.opacity(Self.stickyVisibilityOpacity(for: proxy.frame(in: .named("libraryScroll")).minY))
-            }
-    }
-
-    private nonisolated static func stickyVisibilityOpacity(for minY: CGFloat) -> CGFloat {
-        let fadeStart: CGFloat = -2
-        let fadeEnd: CGFloat = -18
-
-        guard minY < fadeStart else { return 1 }
-        guard minY > fadeEnd else { return 0 }
-
-        let progress = (minY - fadeEnd) / (fadeStart - fadeEnd)
-        let eased = progress * progress * (3 - 2 * progress)
-        return eased
     }
 }
 
@@ -56,9 +75,9 @@ struct LibrarySectionHeaderLabel: View {
 }
 
 enum LibrarySectionHeaderMetrics {
-    static let defaultHeight: CGFloat = 24
-    static let inlineOuterVerticalPadding: CGFloat = 16
-    static let labelVerticalPadding: CGFloat = 2
-    static let firstDeckTopPadding: CGFloat = 0
-    static let regularDeckTopPadding: CGFloat = 14
+    static let defaultHeight = LibraryStickyBehavior.SectionHeader.defaultHeight
+    static let inlineOuterVerticalPadding = LibraryStickyBehavior.SectionHeader.inlineOuterVerticalPadding
+    static let labelVerticalPadding = LibraryStickyBehavior.SectionHeader.labelVerticalPadding
+    static let firstDeckTopPadding = LibraryStickyBehavior.SectionHeader.firstDeckTopPadding
+    static let regularDeckTopPadding = LibraryStickyBehavior.SectionHeader.regularDeckTopPadding
 }

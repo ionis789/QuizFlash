@@ -78,6 +78,9 @@ struct BottomChromeContainer<Content: View>: View {
     var isVisible: Bool = true
     var hiddenOffset: CGFloat = 80
     var ignoresBottomSafeArea: Bool = false
+    var minimumHeightOverride: CGFloat? = nil
+    var innerHorizontalPaddingOverride: CGFloat? = nil
+    var innerVerticalPaddingOverride: CGFloat? = nil
     @ViewBuilder let content: () -> Content
 
     private var shape: AnyShape {
@@ -85,6 +88,9 @@ struct BottomChromeContainer<Content: View>: View {
     }
 
     private var minimumHeight: CGFloat {
+        if let minimumHeightOverride {
+            return minimumHeightOverride
+        }
         switch kind {
         case .persistent:
             return UIConstants.Size.bottomChromeBarHeight
@@ -94,6 +100,9 @@ struct BottomChromeContainer<Content: View>: View {
     }
 
     private var innerHorizontalPadding: CGFloat {
+        if let innerHorizontalPaddingOverride {
+            return innerHorizontalPaddingOverride
+        }
         switch kind {
         case .persistent:
             return UIConstants.Layout.bottomChromeInnerHorizontalPadding / 2
@@ -103,6 +112,9 @@ struct BottomChromeContainer<Content: View>: View {
     }
 
     private var innerVerticalPadding: CGFloat {
+        if let innerVerticalPaddingOverride {
+            return innerVerticalPaddingOverride
+        }
         switch kind {
         case .persistent:
             return UIConstants.Layout.bottomChromeInnerVerticalPadding

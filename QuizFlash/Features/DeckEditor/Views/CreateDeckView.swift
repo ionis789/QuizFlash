@@ -491,6 +491,7 @@ struct CreateDeckView: View {
                                     .padding(.bottom, 132)
                             }
                         }
+                        .tabBarAutoHideOnScroll(enabled: tabRule != .hidden)
                         .frame(minHeight: outer.size.height, alignment: .top)
                     }
                     .scrollIndicators(.hidden)

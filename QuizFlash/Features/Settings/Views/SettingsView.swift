@@ -47,6 +47,7 @@ struct SettingsView: View {
                     supportSection
                     accountSection
                 }
+                .tabBarAutoHideOnScroll()
                 .padding(.horizontal, UIConstants.Spacing.large)
                 .padding(.top, UIConstants.Spacing.large)
                 .padding(.bottom, keyboardMonitor.isVisible ? UIConstants.Spacing.large : UIConstants.Spacing.huge * 1.5)

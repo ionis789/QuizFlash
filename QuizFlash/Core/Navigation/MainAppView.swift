@@ -49,6 +49,8 @@ struct MainAppView: View {
 
     /// The visibility rule currently reported by the frontmost child view.
     @State private var tabBarRule: TabBarVisibilityRule = .implicit
+    /// User-driven auto-hide state sourced from the active scroll surface.
+    @State private var isTabBarAutoHiddenByScroll = false
 
     // MARK: - Init
 
@@ -84,9 +86,9 @@ struct MainAppView: View {
     private var isTabBarVisible: Bool {
         guard !keyboardMonitor.isVisible else { return false }
         switch tabBarRule {
-        case .visible:  return true
+        case .visible:  return !isTabBarAutoHiddenByScroll
         case .hidden:   return false
-        case .implicit: return true
+        case .implicit: return !isTabBarAutoHiddenByScroll
         }
     }
 
@@ -121,6 +123,30 @@ struct MainAppView: View {
         }
     }
 
+    private func handleTabBarAutoHideAction(_ action: TabBarAutoHideAction) {
+        switch action {
+        case .show:
+            guard isTabBarAutoHiddenByScroll else { return }
+            withAnimation(.bottomChromeSpring) {
+                isTabBarAutoHiddenByScroll = false
+            }
+        case .hide:
+            guard !isTabBarAutoHiddenByScroll else { return }
+            guard !keyboardMonitor.isVisible else { return }
+            guard tabBarRule != .hidden else { return }
+            withAnimation(.bottomChromeSpring) {
+                isTabBarAutoHiddenByScroll = true
+            }
+        }
+    }
+
+    private func resetTabBarAutoHideIfNeeded() {
+        guard isTabBarAutoHiddenByScroll else { return }
+        withAnimation(.bottomChromeSpring) {
+            isTabBarAutoHiddenByScroll = false
+        }
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -135,6 +161,8 @@ struct MainAppView: View {
 
                 // ── Navigation Layer ─────────────────────────────────────────────
                 rootTabView
+                .environment(\.tabBarScrollAutoHideAction, handleTabBarAutoHideAction)
+                .environment(\.bottomChromeIsVisible, isTabBarVisible)
                 .ignoresSafeArea(.keyboard, edges: .bottom)
                 .dismissKeyboardOnBackgroundTap(enabled: keyboardMonitor.isVisible)
                 // Propagate tab bar visibility changes with an explicit spring so the
@@ -156,8 +184,25 @@ struct MainAppView: View {
                 // the existing object so that safe area recalculates immediately and
                 // hit-testing is disabled, preventing phantom _tabBarItemClicked: events.
                 .configureNativeTabBar(visible: isTabBarVisible)
+                .onChange(of: router.activeTab) { _, _ in
+                    resetTabBarAutoHideIfNeeded()
+                }
+                .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
+                    if isVisible {
+                        resetTabBarAutoHideIfNeeded()
+                    }
+                }
+                .onChange(of: tabBarRule) { _, rule in
+                    if rule == .hidden {
+                        resetTabBarAutoHideIfNeeded()
+                    }
+                }
 
-                EdgeShadowOverlay(topHeight: 60, bottomHeight: 60)
+                EdgeShadowOverlay(
+                    topHeight: 60,
+                    bottomHeight: isTabBarVisible ? 60 : 0
+                )
+                .animation(.bottomChromeSpring, value: isTabBarVisible)
 
                 // ── Custom Tab Bar Layer ─────────────────────────────────────────
                 // The bar is always present in the view hierarchy. Visibility is
@@ -267,6 +312,7 @@ struct MainAppView: View {
 
         let bar = CustomTabBar(activeTab: router.activeTab, onTabSelection: handleTabActivation)
             .frame(width: barWidth)
+            .offset(y: UIConstants.Layout.bottomChromeVisualBottomOffset)
             .ignoresSafeArea(.container, edges: isPad ? .bottom : [.horizontal, .bottom])
             .bottomChromeVisibility(isTabBarVisible)
 

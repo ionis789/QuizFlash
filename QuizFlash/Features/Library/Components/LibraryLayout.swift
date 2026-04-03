@@ -13,7 +13,8 @@ let kLibraryChromeSpace = "libraryChrome"
 /// Handles coordinate spaces, structural overlays, safe area computation,
 /// and delegates all business logic to `LibraryViewModel`.
 struct LibraryLayout: View {
-    @Environment(ThemeManager.self) private var themeManager
+    @Environment(\.bottomChromeIsVisible) var isBottomChromeVisible
+    @Environment(ThemeManager.self) var themeManager
 
     let decks: [DeckModel]
     let folders: [FolderModel]
@@ -41,36 +42,78 @@ struct LibraryLayout: View {
     // ── State ──
 
     /// Height of LibraryTopBarView measured live.
-    @State private var navigationBarBottomY: CGFloat = 0
-    @State private var heroCollapsedTitleReady = false
+    @State var navigationBarBottomY: CGFloat = 0
+    @State var collapsedTitleFrame: CGRect = .zero
+    @State var heroCollapsedTitleReady = false
+    @State var heroCollapsedTitleFallbackReady = false
+    @State var heroCollapsedBaselineMaxY: CGFloat = 0
+    @State var stickyDebugLastScrollOffset: CGFloat?
+    @State var hiddenSectionHeaderIDs: Set<String> = []
+    @State var pinnedStartDebugSectionID: String?
+    @State var passedCompactTitleDebugSectionID: String?
     /// safeAreaInsets.top captured from the root body context (non-zero here).
-    @State private var safeTop: CGFloat = 0
+    @State var safeTop: CGFloat = 0
 
     /// Safe-area bottom reported by SwiftUI at the ZStack level.
     /// Inside TabView this includes the UITabBar height (~49 pt) on top of the
     /// physical home-indicator inset, regardless of whether UITabBar is hidden.
-    @State private var viewSafeBottom: CGFloat = 0
+    @State var viewSafeBottom: CGFloat = 0
 
     /// Physical screen safe-area bottom (home indicator only, ~34 pt).
     /// Read directly from UIWindow so it is never inflated by TabView's layout.
-    @State private var physicalSafeBottom: CGFloat = 0
-
-    private var backgroundTheme: Color { themeManager.screenBackground }
-    private var searchTransition: Animation {
+    @State var physicalSafeBottom: CGFloat = 0
+    var backgroundTheme: Color { themeManager.screenBackground }
+    var searchTransition: Animation {
         .easeOut(duration: 0.16)
     }
-    private var searchContentMaxWidth: CGFloat { UIConstants.Layout.librarySearchContentMaxWidth }
-    private var topChromeInsetSpacing: CGFloat {
+    var searchContentMaxWidth: CGFloat { UIConstants.Layout.librarySearchContentMaxWidth }
+    var topChromeInsetSpacing: CGFloat {
         switch viewModel.searchPresentation {
         case .browse, .searchEmpty:
-            return -32
+            return libraryCompactDateContentSpacing
         case .searchResults:
             return 0
         }
     }
-    private var libraryCollapsedTitleRevealClearance: CGFloat {
-        UIConstants.Layout.deckHeroPillRevealClearance + 28
+    var libraryHeroTopPadding: CGFloat {
+        UIConstants.Spacing.extraLarge
+            + LibraryStickyBehavior.Chrome.heroTopPaddingBase
+            + abs(min(0, libraryCompactDateContentSpacing))
     }
+    var browseContentTopLift: CGFloat {
+        0
+    }
+    var libraryCompactDateContentSpacing: CGFloat {
+        LibraryStickyBehavior.Chrome.compactDateSpacing
+    }
+    var libraryCollapsedTitleRevealClearance: CGFloat {
+        UIConstants.Layout.deckHeroPillRevealClearance
+            + LibraryStickyBehavior.Chrome.collapsedTitleRevealExtraClearance
+    }
+
+    var isCollapsedTitleVisible: Bool {
+        heroCollapsedTitleReady || heroCollapsedTitleFallbackReady
+    }
+
+    var collapsedTitleFallbackShowThreshold: CGFloat {
+        guard heroCollapsedBaselineMaxY > 0 else { return .greatestFiniteMagnitude }
+        let revealLine = navigationBarBottomY - libraryCollapsedTitleRevealClearance
+        return max(
+            0,
+            heroCollapsedBaselineMaxY
+                - revealLine
+                + LibraryStickyBehavior.Chrome.collapsedTitleFallbackShowOffset
+        )
+    }
+
+    var collapsedTitleFallbackHideThreshold: CGFloat {
+        max(
+            0,
+            collapsedTitleFallbackShowThreshold
+                - LibraryStickyBehavior.Chrome.collapsedTitleFallbackHideHysteresis
+        )
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -89,14 +132,21 @@ struct LibraryLayout: View {
             // Tune kShadowRadius in EdgeShadowOverlay.swift to adjust both edges.
             EdgeShadowOverlay(
                 topHeight: safeTop + UIConstants.Layout.topEdgeShadowHeight,
-                bottomHeight: 60
+                bottomHeight: isBottomChromeVisible ? 60 : 0
             )
+                .animation(.bottomChromeSpring, value: isBottomChromeVisible)
                 .zIndex(5)
 
             if viewModel.isSelecting && !isSearching {
                 BottomChromeContainer(
                     kind: .selection,
-                    bottomPadding: BottomChromeInsets.persistent
+                    bottomPadding: BottomChromeInsets.selection(
+                        physicalSafeBottom: physicalSafeBottom
+                    ),
+                    ignoresBottomSafeArea: true,
+                    minimumHeightOverride: 62,
+                    innerHorizontalPaddingOverride: 10,
+                    innerVerticalPaddingOverride: 7
                 ) {
                     LibrarySelectionBarView(
                         viewModel: viewModel,
@@ -127,12 +177,17 @@ struct LibraryLayout: View {
                 deckCount: decks.count,
                 viewModel: viewModel,
                 coordinateSpaceName: kLibraryChromeSpace,
-                isCollapsedTitleVisible: heroCollapsedTitleReady,
+                isCollapsedTitleVisible: isCollapsedTitleVisible,
                 onBack: onBack,
                 backLabel: backLabel,
                 onBottomChange: { newBottom in
                     if abs(navigationBarBottomY - newBottom) > 0.5 {
                         navigationBarBottomY = newBottom
+                    }
+                },
+                onCollapsedTitleFrameChange: { newFrame in
+                    if collapsedTitleFrame.integral != newFrame.integral {
+                        collapsedTitleFrame = newFrame
                     }
                 }
             )
@@ -162,152 +217,6 @@ struct LibraryLayout: View {
                         .safeAreaInsets.bottom ?? 0
                 }
             }
-        }
-    }
-
-    // MARK: - Main Scroll Area
-
-    private var mainScrollArea: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                // ── Scroll Position Restoration ───────────────────────────────
-                ScrollPositionRestorer(
-                    getOffset: { viewModel.savedScrollOffset },
-                    onOffsetChange: { offset in
-                        guard !isSearching else { return }
-                        viewModel.savedScrollOffset = offset
-                    }
-                )
-                    .frame(width: 0, height: 0)
-
-                if decks.isEmpty && viewModel.cachedGroupedDecks.isEmpty {
-                    Spacer().frame(height: 40)
-                }
-
-                stackContent
-            }
-                .safeAreaInset(edge: .bottom) {
-                Color.clear
-                    .frame(height: 100)
-                    .animation(.bottomChromeSpring, value: viewModel.isSelecting)
-            }
-        }
-        // ── Selection mode dismiss on empty-space tap ─────────────────────
-        // .gesture (not .simultaneousGesture, not .highPriorityGesture) on a
-        // parent view loses to any gesture on a child view.
-        //
-        //   • Tap on a deck row → the row's Button (child of ScrollView) wins,
-        //     this gesture never fires → only toggleSelection runs.
-        //   • Tap on empty space between cards or below the last card → no
-        //     child Button covers that point → this gesture fires → dismiss.
-        //
-        // Using .gesture on ScrollView instead of .background on VStack solves
-        // the "short list" problem: the ScrollView always fills the full screen
-        // area regardless of content height, so the gesture is reachable even
-        // when 1–2 cards leave large empty space below them. No minHeight
-        // inflation needed → no unwanted scroll created.
-        .gesture(
-            TapGesture().onEnded {
-                guard viewModel.isSelecting && !isSearching else { return }
-                withBottomChromeAnimation {
-                    viewModel.exitSelectionMode()
-                }
-            }
-        )
-            .coordinateSpace(name: kLibraryScrollSpace)
-            .onAppear { viewModel.updateGroupedDecks(from: decks) }
-            .onChange(of: decks) { _, newDecks in viewModel.updateGroupedDecks(from: newDecks) }
-            .onChange(of: viewModel.sortOrder) { _, _ in viewModel.updateGroupedDecks(from: decks) }
-    }
-
-    // MARK: - Scroll content
-
-    @ViewBuilder
-    private var stackContent: some View {
-        switch viewModel.searchPresentation {
-        case .browse, .searchEmpty:
-            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                if viewModel.searchPresentation == .browse {
-                    libraryHeroTitle
-                }
-                contentList
-            }
-            .animation(searchTransition, value: viewModel.searchPresentation)
-            .animation(searchTransition, value: viewModel.renderedSearchQuery)
-        case .searchResults:
-            LazyVStack(spacing: 0) {
-                contentList
-            }
-            .animation(searchTransition, value: viewModel.searchPresentation)
-            .animation(searchTransition, value: viewModel.renderedSearchQuery)
-        }
-    }
-
-    private var libraryHeroTitle: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            LargeScreenTitle(title: title)
-
-            Text(decks.count == 0 ? "No Decks" : "\(decks.count) Deck\(decks.count == 1 ? "" : "s")")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
-        .padding(.top, UIConstants.Spacing.large + 8)
-        .padding(.bottom, UIConstants.Spacing.extraLarge)
-        .collapsibleTitleRevealAnchor(
-            in: kLibraryChromeSpace,
-            navigationBarBottomY: navigationBarBottomY,
-            revealClearance: libraryCollapsedTitleRevealClearance,
-            isVisible: $heroCollapsedTitleReady
-        )
-    }
-
-    @ViewBuilder
-    private var contentList: some View {
-        switch viewModel.searchPresentation {
-        case .browse, .searchEmpty:
-            browseListContent
-                .transition(.opacity)
-        case .searchResults:
-            SearchResultsView(
-                results: viewModel.searchResults,
-                query: viewModel.renderedSearchQuery,
-                isSearchLoading: viewModel.isSearchLoading,
-                onCardTap: onCardTap
-            )
-            .frame(maxWidth: searchContentMaxWidth, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .top)
-            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-            .transition(.opacity)
-        }
-    }
-
-    @ViewBuilder
-    private var browseListContent: some View {
-        if viewModel.cachedGroupedDecks.isEmpty {
-            LibraryEmptyStateView().transition(.opacity)
-        } else {
-            LibraryListView(
-                groupedDecks: viewModel.cachedGroupedDecks,
-                isSelecting: viewModel.isSelecting,
-                selectedDeckIDs: viewModel.selectedDecks,
-                activeActionMenuDeckID: viewModel.activeActionMenuDeckID,
-                onNavigate: { deckID in
-                    onDeckNavigate(deckID)
-                },
-                onToggleSelection: { deckID in
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.75)) {
-                        viewModel.toggleSelection(for: deckID)
-                    }
-                },
-                onToggleActionMenu: { id in
-                    viewModel.activeActionMenuDeckID = id
-                },
-                onEditColor: { target in viewModel.deckToEditColor = target },
-                onDelete: { target in viewModel.deckToDelete = target }
-            )
-            .id("LibraryList-\(viewModel.cachedGroupedDecks.count)")
         }
     }
 

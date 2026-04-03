@@ -158,8 +158,29 @@ enum UIConstants {
 
         /// Shared bottom spacing above the home indicator for floating bottom chrome.
         static var bottomChromeBottomPadding: CGFloat {
-            UIConstants.isPad ? UIConstants.Spacing.small : 3
+            UIConstants.isPad ? UIConstants.Spacing.small : 0
         }
+
+        /// Visual bottom correction for the persistent tab bar on iPhone.
+        ///
+        /// The floating bar is aligned in a root chrome layer that still honors the
+        /// TabView-safe layout box. A small downward visual offset keeps the capsule
+        /// closer to the screen edge on iPhone without disturbing iPad placement.
+        static var bottomChromeVisualBottomOffset: CGFloat {
+            UIConstants.isPad ? 0 : 6
+        }
+
+        /// Minimum cumulative downward drag before the floating tab bar yields.
+        static let bottomChromeAutoHideDownwardThreshold: CGFloat = 30
+
+        /// Minimum upward drag needed to immediately reveal the floating tab bar again.
+        static let bottomChromeAutoRevealUpwardThreshold: CGFloat = 1
+
+        /// Tolerance used to keep the floating tab bar visible when the scroll view is effectively at the top.
+        static let bottomChromeAutoRevealTopTolerance: CGFloat = 1
+
+        /// Bottom-edge tolerance used to suppress auto-hide when the scroll view no longer has useful downward range.
+        static let bottomChromeAutoHideBottomTolerance: CGFloat = 2
 
         /// Shared corner radius for floating bottom chrome containers.
         static let bottomChromeCornerRadius: CGFloat = 31

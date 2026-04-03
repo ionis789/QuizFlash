@@ -341,6 +341,7 @@ extension DeckContentView {
                 .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
+            .tabBarAutoHideOnScroll(enabled: !viewModel.isSelecting)
             .background {
                 themeManager.groupedScreenBackground
 
