@@ -92,6 +92,21 @@
 
 import SwiftUI
 
+/// An explicit programmatic scroll command consumed by `ScrollPositionRestorer`.
+///
+/// This lets a feature request an intentional scroll change without being
+/// misclassified as SwiftUI's unwanted contentOffset reset on iOS 17.
+enum ScrollPositionRequestTarget: Equatable {
+    case offset(CGFloat)
+    case top
+}
+
+struct ScrollPositionRequest: Equatable {
+    let id: Int
+    let target: ScrollPositionRequestTarget
+    let animated: Bool
+}
+
 struct ScrollPositionRestorer: UIViewRepresentable {
 
     // MARK: - Interface
@@ -103,6 +118,19 @@ struct ScrollPositionRestorer: UIViewRepresentable {
     /// Invoked on every user-driven contentOffset change.
     /// Never called during restoration or when a SwiftUI reset is detected.
     let onOffsetChange: (CGFloat) -> Void
+
+    /// Optional explicit programmatic scroll request.
+    let scrollRequest: ScrollPositionRequest?
+
+    init(
+        getOffset: @escaping () -> CGFloat,
+        onOffsetChange: @escaping (CGFloat) -> Void,
+        scrollRequest: ScrollPositionRequest? = nil
+    ) {
+        self.getOffset = getOffset
+        self.onOffsetChange = onOffsetChange
+        self.scrollRequest = scrollRequest
+    }
 
     // MARK: - Detection Thresholds
 
@@ -120,6 +148,7 @@ struct ScrollPositionRestorer: UIViewRepresentable {
         _ProbeView(
             getOffset: getOffset,
             onOffsetChange: onOffsetChange,
+            scrollRequest: scrollRequest,
             resetDelta: ScrollPositionRestorer.kResetDeltaThreshold,
             resetTop: ScrollPositionRestorer.kResetTopThreshold
         )
@@ -130,6 +159,7 @@ struct ScrollPositionRestorer: UIViewRepresentable {
     func updateUIView(_ uiView: _ProbeView, context: Context) {
         uiView.getOffset = getOffset
         uiView.onOffsetChange = onOffsetChange
+        uiView.applyScrollRequest(scrollRequest)
     }
 
     // MARK: - Probe View
@@ -140,6 +170,7 @@ struct ScrollPositionRestorer: UIViewRepresentable {
 
         var getOffset: () -> CGFloat
         var onOffsetChange: (CGFloat) -> Void
+        private var latestScrollRequest: ScrollPositionRequest?
 
         // MARK: Configuration
 
@@ -169,17 +200,21 @@ struct ScrollPositionRestorer: UIViewRepresentable {
         private weak var scrollView: UIScrollView?
         private var offsetObservation: NSKeyValueObservation?
         private var contentSizeObservation: NSKeyValueObservation?
+        private var activeProgrammaticScrollTarget: CGFloat?
+        private var lastHandledScrollRequestID: Int?
 
         // MARK: Init
 
         init(
             getOffset: @escaping () -> CGFloat,
             onOffsetChange: @escaping (CGFloat) -> Void,
+            scrollRequest: ScrollPositionRequest?,
             resetDelta: CGFloat,
             resetTop: CGFloat
         ) {
             self.getOffset = getOffset
             self.onOffsetChange = onOffsetChange
+            self.latestScrollRequest = scrollRequest
             self.resetDelta = resetDelta
             self.resetTop = resetTop
             super.init(frame: .zero)
@@ -262,6 +297,16 @@ struct ScrollPositionRestorer: UIViewRepresentable {
                 let newY = change.newValue?.y ?? 0
                 let oldY = change.oldValue?.y ?? 0
 
+                if let programmaticTarget = self.activeProgrammaticScrollTarget {
+                    self.lastKnownOffset = newY
+                    self.onOffsetChange(newY)
+
+                    if abs(newY - programmaticTarget) <= 1 {
+                        self.activeProgrammaticScrollTarget = nil
+                    }
+                    return
+                }
+
                 // SwiftUI post-pop reconciliation produces a large, instantaneous
                 // jump to zero with zero user-touch indicators. Detect and override.
                 let isSuddenProgrammaticReset =
@@ -305,6 +350,7 @@ struct ScrollPositionRestorer: UIViewRepresentable {
 
             // Attempt immediately — contentSize may already be sufficient.
             attemptRestore()
+            applyScrollRequestIfNeeded()
         }
 
         // MARK: - Initial Restoration
@@ -370,6 +416,56 @@ struct ScrollPositionRestorer: UIViewRepresentable {
             contentSizeObservation?.invalidate()
             contentSizeObservation = nil
             scrollView = nil
+        }
+
+        func applyScrollRequest(_ request: ScrollPositionRequest?) {
+            latestScrollRequest = request
+            applyScrollRequestIfNeeded()
+        }
+
+        private func applyScrollRequestIfNeeded() {
+            guard let request = latestScrollRequest else { return }
+            guard lastHandledScrollRequestID != request.id else { return }
+            guard let scrollView else { return }
+
+            let resolvedTarget = resolveTargetOffset(for: request.target, in: scrollView)
+
+            lastHandledScrollRequestID = request.id
+            activeProgrammaticScrollTarget = resolvedTarget
+            targetOffset = resolvedTarget
+            hasRestored = true
+            lastKnownOffset = resolvedTarget
+
+            if request.animated {
+                scrollView.setContentOffset(
+                    CGPoint(x: 0, y: resolvedTarget),
+                    animated: true
+                )
+            } else {
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                UIView.performWithoutAnimation {
+                    scrollView.setContentOffset(
+                        CGPoint(x: 0, y: resolvedTarget),
+                        animated: false
+                    )
+                }
+                CATransaction.commit()
+                onOffsetChange(resolvedTarget)
+                activeProgrammaticScrollTarget = nil
+            }
+        }
+
+        private func resolveTargetOffset(
+            for target: ScrollPositionRequestTarget,
+            in scrollView: UIScrollView
+        ) -> CGFloat {
+            switch target {
+            case .offset(let rawOffset):
+                return rawOffset
+            case .top:
+                return -scrollView.adjustedContentInset.top
+            }
         }
 
         deinit { detachObservations() }

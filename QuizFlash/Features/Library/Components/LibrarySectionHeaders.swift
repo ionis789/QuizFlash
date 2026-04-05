@@ -52,7 +52,9 @@ struct LibrarySectionHeader: View {
             .frame(maxWidth: .infinity)
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
             .opacity(isHidden ? 0 : 1)
-            .animation(.circularProgressSpring, value: isHidden)
+            .transaction { transaction in
+                transaction.animation = isHidden ? .easeInOut(duration: 0.18) : nil
+            }
             .textCase(nil)
     }
 }

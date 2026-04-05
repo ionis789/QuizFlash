@@ -19,6 +19,11 @@ enum LibraryStickyBehavior {
         /// More negative values pull the content closer to the compact title.
         static let compactDateSpacing: CGFloat = -25
 
+        /// Visual gap between the search field chrome and the pinned date section.
+        /// Kept separate from the compact Library spacing so search mode can breathe
+        /// a bit more without affecting browse-mode sticky timing.
+        static let searchDateSpacing: CGFloat = 8
+
         /// Base top breathing room for the large Library hero title.
         static let heroTopPaddingBase: CGFloat = 20
 

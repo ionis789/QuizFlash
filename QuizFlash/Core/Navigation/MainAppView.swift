@@ -127,23 +127,29 @@ struct MainAppView: View {
         switch action {
         case .show:
             guard isTabBarAutoHiddenByScroll else { return }
-            withAnimation(.bottomChromeSpring) {
-                isTabBarAutoHiddenByScroll = false
+            Task { @MainActor in
+                withAnimation(.bottomChromeSpring) {
+                    isTabBarAutoHiddenByScroll = false
+                }
             }
         case .hide:
             guard !isTabBarAutoHiddenByScroll else { return }
             guard !keyboardMonitor.isVisible else { return }
             guard tabBarRule != .hidden else { return }
-            withAnimation(.bottomChromeSpring) {
-                isTabBarAutoHiddenByScroll = true
+            Task { @MainActor in
+                withAnimation(.bottomChromeSpring) {
+                    isTabBarAutoHiddenByScroll = true
+                }
             }
         }
     }
 
     private func resetTabBarAutoHideIfNeeded() {
         guard isTabBarAutoHiddenByScroll else { return }
-        withAnimation(.bottomChromeSpring) {
-            isTabBarAutoHiddenByScroll = false
+        Task { @MainActor in
+            withAnimation(.bottomChromeSpring) {
+                isTabBarAutoHiddenByScroll = false
+            }
         }
     }
 
@@ -172,7 +178,7 @@ struct MainAppView: View {
                 // decoupled from the .animation modifier on the ZStack — the tab bar
                 // would snap instead of spring.
                 .onPreferenceChange(TabBarVisibilityKey.self) { rule in
-                    DispatchQueue.main.async {
+                    Task { @MainActor in
                         withAnimation(.bottomChromeSpring) {
                             self.tabBarRule = rule
                         }

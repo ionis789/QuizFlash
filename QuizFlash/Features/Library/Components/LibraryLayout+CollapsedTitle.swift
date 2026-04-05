@@ -9,6 +9,7 @@ import SwiftUI
 
 extension LibraryLayout {
     func updateHeroCollapsedBaseline(with heroMaxY: CGFloat) {
+        guard !showsSearchContent else { return }
         guard heroMaxY > 0 else { return }
         let currentOffset = max(viewModel.savedScrollOffset, 0)
         let candidateBaseline = heroMaxY + currentOffset
@@ -17,10 +18,20 @@ extension LibraryLayout {
         guard currentOffset <= 1 || heroCollapsedBaselineMaxY == 0 else { return }
         guard abs(heroCollapsedBaselineMaxY - candidateBaseline) > 0.5 else { return }
 
-        heroCollapsedBaselineMaxY = candidateBaseline
+        Task { @MainActor in
+            heroCollapsedBaselineMaxY = candidateBaseline
+        }
     }
 
     func updateCollapsedTitleFallback(for offset: CGFloat) {
+        guard !showsSearchContent else {
+            guard heroCollapsedTitleFallbackReady else { return }
+            Task { @MainActor in
+                heroCollapsedTitleFallbackReady = false
+            }
+            return
+        }
+
         let shouldReveal: Bool
         if heroCollapsedTitleFallbackReady {
             shouldReveal = offset > collapsedTitleFallbackHideThreshold
@@ -29,6 +40,8 @@ extension LibraryLayout {
         }
 
         guard heroCollapsedTitleFallbackReady != shouldReveal else { return }
-        heroCollapsedTitleFallbackReady = shouldReveal
+        Task { @MainActor in
+            heroCollapsedTitleFallbackReady = shouldReveal
+        }
     }
 }

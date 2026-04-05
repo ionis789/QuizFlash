@@ -6,81 +6,106 @@
 //
 
 import SwiftUI
+import UIKit
 
 extension LibraryLayout {
     var mainScrollArea: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                ScrollPositionRestorer(
-                    getOffset: { viewModel.savedScrollOffset },
-                    onOffsetChange: { offset in
-                        guard !isSearching else { return }
-                        viewModel.savedScrollOffset = offset
-                        updateCollapsedTitleFallback(for: offset)
+        ScrollViewReader { scrollProxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    Color.clear
+                        .frame(height: 0)
+                        .id(kLibraryTopAnchorID)
+
+                    ScrollPositionRestorer(
+                        getOffset: { viewModel.savedScrollOffset },
+                        onOffsetChange: { offset in
+                            guard !viewModel.isSearching && !showsSearchContent else { return }
+                            viewModel.savedScrollOffset = offset
+                            updateCollapsedTitleFallback(for: offset)
+                        }
+                    )
+                    .frame(width: 0, height: 0)
+
+                    if decks.isEmpty && viewModel.cachedGroupedDecks.isEmpty {
+                        Spacer().frame(height: 40)
                     }
-                )
-                .frame(width: 0, height: 0)
 
-                if decks.isEmpty && viewModel.cachedGroupedDecks.isEmpty {
-                    Spacer().frame(height: 40)
+                    stackContent
                 }
-
-                stackContent
-            }
-            .tabBarAutoHideOnScroll(enabled: !viewModel.isSearching && !viewModel.isSelecting)
-            .safeAreaInset(edge: .bottom) {
-                Color.clear
-                    .frame(height: 100)
-                    .animation(.bottomChromeSpring, value: viewModel.isSelecting)
-            }
-        }
-        .gesture(
-            TapGesture().onEnded {
-                guard viewModel.isSelecting && !isSearching else { return }
-                withBottomChromeAnimation {
-                    viewModel.exitSelectionMode()
+                .tabBarAutoHideOnScroll(enabled: !viewModel.isSearching && !viewModel.isSelecting)
+                .safeAreaInset(edge: .bottom) {
+                    Color.clear
+                        .frame(height: 100)
+                        .animation(.bottomChromeSpring, value: viewModel.isSelecting)
                 }
             }
-        )
-        .coordinateSpace(name: kLibraryScrollSpace)
-        .onPreferenceChange(LibrarySectionHeaderFramePreferenceKey.self) { frames in
-            handleSectionHeaderDebugFrames(frames)
-        }
-        .onAppear { viewModel.updateGroupedDecks(from: decks) }
-        .onChange(of: decks) { _, newDecks in viewModel.updateGroupedDecks(from: newDecks) }
-        .onChange(of: viewModel.sortOrder) { _, _ in viewModel.updateGroupedDecks(from: decks) }
-        .onChange(of: viewModel.isSearching) { _, isSearching in
-            if isSearching {
-                heroCollapsedTitleFallbackReady = false
-            } else {
-                updateCollapsedTitleFallback(for: viewModel.savedScrollOffset)
+            .gesture(
+                TapGesture().onEnded {
+                    guard viewModel.isSelecting && !isSearching else { return }
+                    withBottomChromeAnimation {
+                        viewModel.exitSelectionMode()
+                    }
+                }
+            )
+            .coordinateSpace(name: kLibraryScrollSpace)
+            .background {
+                LibraryScrollViewResolver { scrollView in
+                    resolvedLibraryScrollView = scrollView
+                }
             }
-        }
-        .onChange(of: isCollapsedTitleVisible) { _, isVisible in
-            if !isVisible {
-                collapsedTitleFrame = .zero
+            .overlay {
+                if let searchTransitionSnapshot {
+                    Image(uiImage: searchTransitionSnapshot)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                        .opacity(searchTransitionSnapshotOpacity)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            .onPreferenceChange(LibrarySectionHeaderFramePreferenceKey.self) { frames in
+                handleSectionHeaderDebugFrames(frames)
+            }
+            .onAppear {
+                showsSearchContent = viewModel.isSearching
+                viewModel.updateGroupedDecks(from: decks)
+            }
+            .onChange(of: decks) { _, newDecks in viewModel.updateGroupedDecks(from: newDecks) }
+            .onChange(of: viewModel.sortOrder) { _, _ in viewModel.updateGroupedDecks(from: decks) }
+            .onChange(of: viewModel.isSearching) { _, isSearching in
+                hiddenSectionHeaderIDs = []
+                visualPassedCompactTitleSectionID = nil
+                runSearchSurfaceTransition(using: scrollProxy, isSearching: isSearching)
+            }
+            .onChange(of: isCollapsedTitleVisible) { _, isVisible in
+                if !isVisible {
+                    Task { @MainActor in
+                        collapsedTitleFrame = .zero
+                    }
+                }
             }
         }
     }
 
     @ViewBuilder
     var stackContent: some View {
-        switch viewModel.searchPresentation {
-        case .browse, .searchEmpty:
+        switch activeLayoutPresentation {
+        case .browse:
             LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                if viewModel.searchPresentation == .browse {
-                    libraryHeroTitle
-                }
-                contentList
+                libraryHeroTitle
+                browseListContent
             }
-            .animation(searchTransition, value: viewModel.searchPresentation)
-            .animation(searchTransition, value: viewModel.renderedSearchQuery)
+        case .searchEmpty:
+            LazyVStack(spacing: 0) {
+                searchDeckListContent
+            }
         case .searchResults:
             LazyVStack(spacing: 0) {
-                contentList
+                searchResultsContent
             }
-            .animation(searchTransition, value: viewModel.searchPresentation)
-            .animation(searchTransition, value: viewModel.renderedSearchQuery)
         }
     }
 
@@ -111,26 +136,49 @@ extension LibraryLayout {
                     updateCollapsedTitleFallback(for: viewModel.savedScrollOffset)
                 }
         }
+        .transition(.opacity)
     }
 
     @ViewBuilder
-    var contentList: some View {
-        switch viewModel.searchPresentation {
-        case .browse, .searchEmpty:
-            browseListContent
+    var searchDeckListContent: some View {
+        if flatSearchDecks.isEmpty {
+            LibraryEmptyStateView()
                 .transition(.opacity)
-        case .searchResults:
-            SearchResultsView(
-                results: viewModel.searchResults,
-                query: viewModel.renderedSearchQuery,
-                isSearchLoading: viewModel.isSearchLoading,
-                onCardTap: onCardTap
+        } else {
+            LibraryFlatListView(
+                decks: flatSearchDecks,
+                isSelecting: viewModel.isSelecting,
+                selectedDeckIDs: viewModel.selectedDecks,
+                activeActionMenuDeckID: viewModel.activeActionMenuDeckID,
+                onNavigate: { deckID in
+                    onDeckNavigate(deckID)
+                },
+                onToggleSelection: { deckID in
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.75)) {
+                        viewModel.toggleSelection(for: deckID)
+                    }
+                },
+                onToggleActionMenu: { id in
+                    viewModel.activeActionMenuDeckID = id
+                },
+                onEditColor: { target in viewModel.deckToEditColor = target },
+                onDelete: { target in viewModel.deckToDelete = target }
             )
-            .frame(maxWidth: searchContentMaxWidth, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .top)
-            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .padding(.top, UIConstants.Spacing.small)
             .transition(.opacity)
         }
+    }
+
+    var searchResultsContent: some View {
+        SearchResultsView(
+            results: viewModel.searchResults,
+            query: viewModel.renderedSearchQuery,
+            isSearchLoading: viewModel.isSearchLoading,
+            onCardTap: onCardTap
+        )
+        .frame(maxWidth: searchContentMaxWidth, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
     }
 
     @ViewBuilder
@@ -140,7 +188,9 @@ extension LibraryLayout {
         } else {
             LibraryListView(
                 groupedDecks: viewModel.cachedGroupedDecks,
-                hiddenSectionHeaderIDs: hiddenSectionHeaderIDs,
+                hiddenSectionHeaderIDs: activeLayoutPresentation == .browse
+                    ? hiddenSectionHeaderIDs
+                    : [],
                 isSelecting: viewModel.isSelecting,
                 selectedDeckIDs: viewModel.selectedDecks,
                 activeActionMenuDeckID: viewModel.activeActionMenuDeckID,
@@ -160,10 +210,95 @@ extension LibraryLayout {
             )
             .id("LibraryList-\(viewModel.cachedGroupedDecks.count)")
             .padding(.top, browseContentTopLift)
+            .transition(.opacity)
+        }
+    }
+
+    var flatSearchDecks: [LibraryDeckRowSnapshot] {
+        viewModel.cachedGroupedDecks.flatMap(\.decks)
+    }
+
+    func jumpToTop(using proxy: ScrollViewProxy) async {
+        viewModel.savedScrollOffset = 0
+        stickyDebugLastScrollOffset = 0
+        let scrollToTop = {
+            var transaction = Transaction()
+            transaction.animation = nil
+
+            withTransaction(transaction) {
+                proxy.scrollTo(kLibraryTopAnchorID, anchor: .top)
+            }
+        }
+
+        scrollToTop()
+        await Task.yield()
+        scrollToTop()
+        try? await Task.sleep(for: .milliseconds(16))
+        scrollToTop()
+    }
+
+    func captureSearchTransitionSnapshot() -> UIImage? {
+        resolvedLibraryScrollView?.visibleSnapshotImage()
+    }
+
+    func runSearchSurfaceTransition(using proxy: ScrollViewProxy, isSearching: Bool) {
+        Task { @MainActor in
+            var instantTransaction = Transaction()
+            instantTransaction.animation = nil
+            let snapshot = captureSearchTransitionSnapshot()
+
+            withTransaction(instantTransaction) {
+                searchTransitionSnapshot = snapshot
+                searchTransitionSnapshotOpacity = snapshot == nil ? 0 : 1
+            }
+
+            if isSearching {
+                heroCollapsedTitleReady = false
+                heroCollapsedTitleFallbackReady = false
+            }
+
+            await jumpToTop(using: proxy)
+            guard viewModel.isSearching == isSearching else {
+                withTransaction(instantTransaction) {
+                    searchTransitionSnapshot = nil
+                    searchTransitionSnapshotOpacity = 0
+                }
+                return
+            }
+
+            withTransaction(instantTransaction) {
+                showsSearchContent = isSearching
+            }
+
+            await Task.yield()
+
+            if !isSearching {
+                updateCollapsedTitleFallback(for: viewModel.savedScrollOffset)
+            }
+
+            try? await Task.sleep(for: .milliseconds(16))
+            guard viewModel.isSearching == isSearching else {
+                withTransaction(instantTransaction) {
+                    searchTransitionSnapshot = nil
+                    searchTransitionSnapshotOpacity = 0
+                }
+                return
+            }
+
+            withAnimation(.easeOut(duration: 0.2)) {
+                searchTransitionSnapshotOpacity = 0
+            }
+
+            try? await Task.sleep(for: .milliseconds(220))
+
+            withTransaction(instantTransaction) {
+                searchTransitionSnapshot = nil
+            }
         }
     }
 
     func handleSectionHeaderDebugFrames(_ frames: [LibrarySectionHeaderFrame]) {
+        guard !showsSearchContent else { return }
         // The real "push start" is when the native pinned section-header container
         // reaches the top of the scroll host and begins to be held in place by
         // LazyVStack(pinnedViews:). Measuring against the compact Library title was
@@ -171,10 +306,6 @@ extension LibraryLayout {
         let pushStartThresholdY = LibraryStickyBehavior.Debug.pinnedStartThresholdY
         let passedCompactTitleThresholdY = LibraryStickyBehavior.Debug.passedCompactTitleThresholdY
         let pushStartHeaderTopInset = LibraryStickyBehavior.Debug.pinnedStartHeaderTopInset
-        let visualHideThresholdY =
-            passedCompactTitleThresholdY + LibraryStickyBehavior.Handoff.compactTitleHideLeadDistance
-        let visualRevealThresholdY =
-            passedCompactTitleThresholdY + LibraryStickyBehavior.Handoff.compactTitleRevealLagDistance
         let currentScrollOffset = viewModel.savedScrollOffset
         let scrollDelta = currentScrollOffset - (stickyDebugLastScrollOffset ?? currentScrollOffset)
         let isScrollingUp = scrollDelta < -0.25
@@ -212,19 +343,30 @@ extension LibraryLayout {
             .filter { $0.minY <= passedCompactTitleThresholdY + 0.5 }
             .max(by: { $0.minY < $1.minY })
 
-        if let topVisibleCandidate {
-            if isScrollingUp {
-                if hiddenSectionHeaderIDs.contains(topVisibleCandidate.id),
-                   topVisibleCandidate.minY >= visualRevealThresholdY - 0.5 {
-                    withAnimation(.circularProgressSpring) {
-                        hiddenSectionHeaderIDs.remove(topVisibleCandidate.id)
-                    }
-                }
-            } else if topVisibleCandidate.minY <= visualHideThresholdY + 0.5 {
-                withAnimation(.circularProgressSpring) {
-                    hiddenSectionHeaderIDs.insert(topVisibleCandidate.id)
-                }
-            }
+        let visualPassedCompactTitleThresholdY =
+            passedCompactTitleThresholdY
+                + (isScrollingUp
+                    ? LibraryStickyBehavior.Handoff.compactTitleRevealLagDistance
+                    : LibraryStickyBehavior.Handoff.compactTitleHideLeadDistance)
+        let visualPassedCompactTitleCandidate = flattenedCandidates
+            .filter { $0.minY <= visualPassedCompactTitleThresholdY + 0.5 }
+            .max(by: { $0.minY < $1.minY })
+
+        let nextVisualPassedCompactTitleSectionID = viewModel.isSearching
+            ? nil
+            : visualPassedCompactTitleCandidate?.id
+
+        if visualPassedCompactTitleSectionID != nextVisualPassedCompactTitleSectionID {
+            visualPassedCompactTitleSectionID = nextVisualPassedCompactTitleSectionID
+        }
+
+        let targetHiddenSectionHeaderIDs: Set<String> = {
+            guard let visualPassedCompactTitleSectionID else { return [] }
+            return [visualPassedCompactTitleSectionID]
+        }()
+
+        if hiddenSectionHeaderIDs != targetHiddenSectionHeaderIDs {
+            hiddenSectionHeaderIDs = targetHiddenSectionHeaderIDs
         }
 
         let previousPinnedSectionID = pinnedStartDebugSectionID
@@ -319,5 +461,59 @@ extension LibraryLayout {
         print(
             "[LibraryStickyDebug] event=passedCompactTitle id=\"\(passedCompactTitleCandidate.id)\" title=\"\(passedCompactTitleCandidate.title)\" labelMinY=\(labelMinY) thresholdY=\(threshold) frames=[\(candidateFrames)]"
         )
+    }
+}
+
+// MARK: - LibraryScrollViewResolver
+
+private struct LibraryScrollViewResolver: UIViewRepresentable {
+    let onResolve: @MainActor (UIScrollView) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        UIView(frame: .zero)
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        Task { @MainActor in
+            guard let scrollView = uiView.enclosingScrollView else { return }
+            guard context.coordinator.resolvedScrollView !== scrollView else { return }
+
+            context.coordinator.resolvedScrollView = scrollView
+            onResolve(scrollView)
+        }
+    }
+
+    final class Coordinator {
+        weak var resolvedScrollView: UIScrollView?
+    }
+}
+
+private extension UIView {
+    var enclosingScrollView: UIScrollView? {
+        sequence(first: superview, next: { $0?.superview })
+            .first(where: { $0 is UIScrollView }) as? UIScrollView
+    }
+}
+
+private extension UIScrollView {
+    func visibleSnapshotImage() -> UIImage? {
+        let renderSize = bounds.size
+        guard renderSize.width > 0, renderSize.height > 0 else { return nil }
+
+        let rendererFormat = UIGraphicsImageRendererFormat.default()
+        rendererFormat.opaque = true
+
+        let renderer = UIGraphicsImageRenderer(size: renderSize, format: rendererFormat)
+        let renderBounds = CGRect(origin: .zero, size: renderSize)
+
+        return renderer.image { context in
+            if drawHierarchy(in: renderBounds, afterScreenUpdates: false) == false {
+                layer.render(in: context.cgContext)
+            }
+        }
     }
 }

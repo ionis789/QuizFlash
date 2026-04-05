@@ -4,10 +4,12 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 // MARK: - LibraryLayout
 
 let kLibraryChromeSpace = "libraryChrome"
+let kLibraryTopAnchorID = "libraryTopAnchor"
 
 /// Shared layout engine for `LibraryView` and `FolderView`.
 /// Handles coordinate spaces, structural overlays, safe area computation,
@@ -49,10 +51,15 @@ struct LibraryLayout: View {
     @State var heroCollapsedBaselineMaxY: CGFloat = 0
     @State var stickyDebugLastScrollOffset: CGFloat?
     @State var hiddenSectionHeaderIDs: Set<String> = []
+    @State var visualPassedCompactTitleSectionID: String?
     @State var pinnedStartDebugSectionID: String?
     @State var passedCompactTitleDebugSectionID: String?
     /// safeAreaInsets.top captured from the root body context (non-zero here).
     @State var safeTop: CGFloat = 0
+    @State var showsSearchContent = false
+    @State var searchTransitionSnapshot: UIImage?
+    @State var searchTransitionSnapshotOpacity: Double = 0
+    @State var resolvedLibraryScrollView: UIScrollView?
 
     /// Safe-area bottom reported by SwiftUI at the ZStack level.
     /// Inside TabView this includes the UITabBar height (~49 pt) on top of the
@@ -63,15 +70,16 @@ struct LibraryLayout: View {
     /// Read directly from UIWindow so it is never inflated by TabView's layout.
     @State var physicalSafeBottom: CGFloat = 0
     var backgroundTheme: Color { themeManager.screenBackground }
-    var searchTransition: Animation {
-        .easeOut(duration: 0.16)
-    }
     var searchContentMaxWidth: CGFloat { UIConstants.Layout.librarySearchContentMaxWidth }
+    var activeLayoutPresentation: LibrarySearchPresentation {
+        guard showsSearchContent else { return .browse }
+        return viewModel.renderedSearchQuery.isEmpty ? .searchEmpty : .searchResults
+    }
     var topChromeInsetSpacing: CGFloat {
-        switch viewModel.searchPresentation {
-        case .browse, .searchEmpty:
+        switch activeLayoutPresentation {
+        case .browse:
             return libraryCompactDateContentSpacing
-        case .searchResults:
+        case .searchEmpty, .searchResults:
             return 0
         }
     }
@@ -92,7 +100,8 @@ struct LibraryLayout: View {
     }
 
     var isCollapsedTitleVisible: Bool {
-        heroCollapsedTitleReady || heroCollapsedTitleFallbackReady
+        guard !showsSearchContent else { return false }
+        return heroCollapsedTitleReady || heroCollapsedTitleFallbackReady
     }
 
     var collapsedTitleFallbackShowThreshold: CGFloat {

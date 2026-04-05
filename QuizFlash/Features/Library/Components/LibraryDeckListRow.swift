@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import UIKit
+import CoreText
 
 struct LibraryDeckListRow: View, Equatable {
     let deck: LibraryDeckRowSnapshot
@@ -24,6 +26,8 @@ struct LibraryDeckListRow: View, Equatable {
         formatter.unitsStyle = .abbreviated
         return formatter
     }()
+
+    @State private var titleAvailableWidth: CGFloat = 0
 
     static func == (lhs: LibraryDeckListRow, rhs: LibraryDeckListRow) -> Bool {
         lhs.deck == rhs.deck &&
@@ -64,7 +68,6 @@ struct LibraryDeckListRow: View, Equatable {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
             .accessibilityAddTraits(.isButton)
             .overlay(alignment: .bottom) {
                 if showActionMenu {
@@ -117,6 +120,16 @@ struct LibraryDeckListRow: View, Equatable {
             .padding(.top, topContentPadding)
             .padding(.bottom, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .trailing) {
+                if isSelecting {
+                    LibraryRowAccessory(
+                        isSelecting: isSelecting,
+                        isSelected: isSelected,
+                        accent: selectionAccent
+                    )
+                    .offset(x: 10)
+                }
+            }
             .overlay(alignment: .bottom) {
                 LibraryRowSeparator(
                     tint: isSelected ? selectionAccent : deckTint,
@@ -127,45 +140,45 @@ struct LibraryDeckListRow: View, Equatable {
     }
 
     private var rowMainLine: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(deck.title)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 8) {
+            LibraryDeckTitleLabel(
+                title: deck.title,
+                availableWidth: titleAvailableWidth
+            )
+                .layoutPriority(1)
 
-                HStack(spacing: 12) {
+            HStack(spacing: 12) {
+                LibraryDeckMetaLabel(
+                    systemImage: "rectangle.stack.fill",
+                    text: "\(deck.cardCount) card\(deck.cardCount == 1 ? "" : "s")"
+                )
+
+                LibraryDeckMetaLabel(
+                    systemImage: "clock",
+                    text: timeAgoString
+                )
+
+                if let folderTitle = deck.folderTitle {
                     LibraryDeckMetaLabel(
-                        systemImage: "rectangle.stack.fill",
-                        text: "\(deck.cardCount) card\(deck.cardCount == 1 ? "" : "s")"
+                        systemImage: "folder",
+                        text: folderTitle
                     )
-
-                    LibraryDeckMetaLabel(
-                        systemImage: "clock",
-                        text: timeAgoString
-                    )
-
-                    if let folderTitle = deck.folderTitle {
-                        LibraryDeckMetaLabel(
-                            systemImage: "folder",
-                            text: folderTitle
-                        )
-                    }
-
-                    Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-
-            LibraryRowAccessory(
-                isSelecting: isSelecting,
-                isSelected: isSelected,
-                accent: selectionAccent
-            )
-            .padding(.top, 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            Color.clear
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.width
+                } action: { newWidth in
+                    if abs(titleAvailableWidth - newWidth) > 0.5 {
+                        titleAvailableWidth = newWidth
+                    }
+                }
         }
         .transaction { transaction in
             transaction.animation = nil
@@ -192,12 +205,6 @@ private struct LibraryRowAccessory: View {
 
     var body: some View {
         ZStack {
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.tertiary)
-                .opacity(isSelecting ? 0 : 1)
-                .scaleEffect(isSelecting ? 0.92 : 1)
-
             Circle()
                 .strokeBorder(Color.secondary.opacity(0.35), lineWidth: 1.6)
                 .opacity(isSelecting && !isSelected ? 1 : 0)
@@ -215,6 +222,7 @@ private struct LibraryRowAccessory: View {
         }
         .frame(width: Self.size, height: Self.size)
         .contentShape(Rectangle())
+        .opacity(isSelecting ? 1 : 0)
         .animation(.easeInOut(duration: 0.16), value: isSelecting)
         .animation(.easeInOut(duration: 0.16), value: isSelected)
     }
@@ -233,6 +241,76 @@ struct LibraryDeckMetaLabel: View {
         }
         .font(.system(size: 13, weight: .medium, design: .rounded))
         .foregroundStyle(.secondary)
+    }
+}
+
+private struct LibraryDeckTitleLabel: View {
+    let title: String
+    let availableWidth: CGFloat
+
+    var body: some View {
+        Text(verbatim: renderedTitle)
+            .font(.system(size: 22, weight: .bold, design: .rounded))
+            .foregroundStyle(Color("DeckTitle"))
+            .lineLimit(2)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var renderedTitle: String {
+        guard availableWidth > 0 else { return title }
+        let normalizedTitle = title
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        guard !normalizedTitle.isEmpty else { return title }
+
+        let words = normalizedTitle.split(separator: " ").map(String.init)
+        guard words.count > 1 else { return normalizedTitle }
+
+        let greedyLineWidth = availableWidth + 4
+        var firstLineWords: [String] = []
+
+        for word in words {
+            let candidateWords = firstLineWords + [word]
+            let candidateLine = candidateWords.joined(separator: " ")
+            if Self.lineWidth(for: candidateLine) <= greedyLineWidth {
+                firstLineWords = candidateWords
+            } else {
+                break
+            }
+        }
+
+        guard !firstLineWords.isEmpty, firstLineWords.count < words.count else {
+            return normalizedTitle
+        }
+
+        let firstLine = firstLineWords.joined(separator: " ")
+        let secondLine = words.dropFirst(firstLineWords.count).joined(separator: " ")
+
+        guard Self.lineWidth(for: secondLine) <= greedyLineWidth else {
+            return normalizedTitle
+        }
+
+        return "\(firstLine)\n\(secondLine)"
+    }
+
+    private static let titleFont: UIFont = {
+        let fallback = UIFont.systemFont(ofSize: 22, weight: .bold)
+        guard let descriptor = fallback.fontDescriptor.withDesign(.rounded) else {
+            return fallback
+        }
+        return UIFont(descriptor: descriptor, size: 22)
+    }()
+
+    private static func lineWidth(for text: String) -> CGFloat {
+        let attributedText = NSAttributedString(
+            string: text,
+            attributes: [.font: titleFont]
+        )
+        let line = CTLineCreateWithAttributedString(attributedText)
+        return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
     }
 }
 
