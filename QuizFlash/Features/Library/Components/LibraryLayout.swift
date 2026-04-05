@@ -4,12 +4,10 @@
 
 import SwiftUI
 import SwiftData
-import UIKit
 
 // MARK: - LibraryLayout
 
 let kLibraryChromeSpace = "libraryChrome"
-let kLibraryTopAnchorID = "libraryTopAnchor"
 
 /// Shared layout engine for `LibraryView` and `FolderView`.
 /// Handles coordinate spaces, structural overlays, safe area computation,
@@ -56,10 +54,6 @@ struct LibraryLayout: View {
     @State var passedCompactTitleDebugSectionID: String?
     /// safeAreaInsets.top captured from the root body context (non-zero here).
     @State var safeTop: CGFloat = 0
-    @State var showsSearchContent = false
-    @State var searchTransitionSnapshot: UIImage?
-    @State var searchTransitionSnapshotOpacity: Double = 0
-    @State var resolvedLibraryScrollView: UIScrollView?
 
     /// Safe-area bottom reported by SwiftUI at the ZStack level.
     /// Inside TabView this includes the UITabBar height (~49 pt) on top of the
@@ -71,9 +65,17 @@ struct LibraryLayout: View {
     @State var physicalSafeBottom: CGFloat = 0
     var backgroundTheme: Color { themeManager.screenBackground }
     var searchContentMaxWidth: CGFloat { UIConstants.Layout.librarySearchContentMaxWidth }
+    var trimmedSearchText: String {
+        viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    var isSearchResultsPresented: Bool {
+        viewModel.isSearching && !trimmedSearchText.isEmpty
+    }
+    var isSearchBrowseFrozen: Bool {
+        viewModel.isSearching && trimmedSearchText.isEmpty
+    }
     var activeLayoutPresentation: LibrarySearchPresentation {
-        guard showsSearchContent else { return .browse }
-        return viewModel.renderedSearchQuery.isEmpty ? .searchEmpty : .searchResults
+        isSearchResultsPresented ? .searchResults : .browse
     }
     var topChromeInsetSpacing: CGFloat {
         switch activeLayoutPresentation {
@@ -100,7 +102,7 @@ struct LibraryLayout: View {
     }
 
     var isCollapsedTitleVisible: Bool {
-        guard !showsSearchContent else { return false }
+        guard !viewModel.isSearching else { return false }
         return heroCollapsedTitleReady || heroCollapsedTitleFallbackReady
     }
 

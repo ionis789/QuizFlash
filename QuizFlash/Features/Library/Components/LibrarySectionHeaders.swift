@@ -29,6 +29,7 @@ struct LibrarySectionHeader: View {
     let id: String
     let title: String
     var isHidden: Bool = false
+    var animateVisibility = true
 
     var body: some View {
         LibrarySectionHeaderLabel(title: title)
@@ -53,7 +54,9 @@ struct LibrarySectionHeader: View {
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
             .opacity(isHidden ? 0 : 1)
             .transaction { transaction in
-                transaction.animation = isHidden ? .easeInOut(duration: 0.18) : nil
+                transaction.animation = animateVisibility && isHidden
+                    ? .easeInOut(duration: 0.18)
+                    : nil
             }
             .textCase(nil)
     }

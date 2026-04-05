@@ -24,80 +24,63 @@ struct LibraryTopBarView: View {
     var onBottomChange: (CGFloat) -> Void = { _ in }
     var onCollapsedTitleFrameChange: (CGRect) -> Void = { _ in }
 
-    @Namespace var searchTransitionNamespace
-    @State var searchIconBackgroundScale: CGFloat = 1
-    @State var cancelOpacity: CGFloat = 0
-    @State var ellipsisOpacity: CGFloat = 1
-    @State var showsEllipsis = true
-    @State var ellipsisHideTask: Task<Void, Never>?
     @State var searchDismissTask: Task<Void, Never>?
+    @State var searchFieldActivationTask: Task<Void, Never>?
+    @State var searchFieldExpansionProgress: CGFloat = 0
+    @State var isSearchFieldInteractive = false
+    @State var leadingControlWidth: CGFloat = LibraryTopBarChromeMetrics.expandedHitTargetSize
+    @State var trailingControlWidth: CGFloat = LibraryTopBarChromeMetrics.expandedHitTargetSize
     @FocusState var isSearchFocused: Bool
 
     var accent: Color { ThemeManager.shared.accentColor.color }
-    var retractionDuration: Double { 0.12 }
-    var cancelFadeOutDuration: Double { 0.05 }
-    var ellipsisFadeOutDuration: Double { 0.08 }
-    var ellipsisFadeInDelay: Double { 0.04 }
-    var ellipsisFadeInDuration: Double {
-        retractionDuration - ellipsisFadeInDelay
+    var searchChromeTransitionDuration: Double { 0.2 }
+    var searchFieldActivationDelay: Double { searchChromeTransitionDuration * 0.9 }
+    var searchChromeTransition: Animation {
+        .snappy(duration: searchChromeTransitionDuration, extraBounce: 0)
     }
-    var retractionTransition: Animation {
-        .easeOut(duration: retractionDuration)
+    var chromeContainerHeight: CGFloat {
+        UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.capsuleHeight
     }
-    var expansionTransition: Animation {
-        .snappy(duration: 0.2, extraBounce: 0.02)
-    }
-    var cancelFadeTransition: Animation {
-        .linear(duration: cancelFadeOutDuration)
-    }
-    var ellipsisFadeOutTransition: Animation {
-        .linear(duration: ellipsisFadeOutDuration)
-    }
-    var ellipsisFadeInTransition: Animation {
-        .linear(duration: ellipsisFadeInDuration)
-            .delay(ellipsisFadeInDelay)
+    var searchProgress: CGFloat {
+        min(max(searchFieldExpansionProgress, 0), 1)
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            idleChromeRow
-                .opacity(viewModel.isSearching ? 0 : 1)
-                .allowsHitTesting(!viewModel.isSearching)
-                .accessibilityHidden(viewModel.isSearching)
-
-            searchBar
-                .opacity(viewModel.isSearching ? 1 : 0)
-                .allowsHitTesting(viewModel.isSearching)
-                .accessibilityHidden(!viewModel.isSearching)
-        }
-        .frame(maxWidth: .infinity, alignment: .top)
-        .onAppear {
-            isSearchFocused = viewModel.isSearching
-            cancelOpacity = viewModel.isSearching ? 1 : 0
-            showsEllipsis = !viewModel.isSearching
-            ellipsisOpacity = viewModel.isSearching ? 0 : 1
-        }
-        .onChange(of: viewModel.isSearching) { _, active in
-            isSearchFocused = active
-            if active {
-                searchDismissTask?.cancel()
-                searchDismissTask = nil
-                cancelOpacity = 1
-            } else {
-                searchIconBackgroundScale = 1
-                if searchDismissTask == nil {
-                    withAnimation(cancelFadeTransition) {
-                        cancelOpacity = 0
-                    }
-                    beginEllipsisFadeIn()
+        chromeRow
+            .topNavigationChrome(horizontalInset: UIConstants.Layout.compactScreenEdgeInset)
+            .frame(maxWidth: .infinity, alignment: .top)
+            .frame(height: chromeContainerHeight, alignment: .top)
+            .background {
+            Color.clear
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.frame(in: .named(coordinateSpaceName)).maxY
+                } action: { newBottom in
+                    onBottomChange(newBottom)
                 }
             }
-        }
-        .onDisappear {
-            ellipsisHideTask?.cancel()
-            searchDismissTask?.cancel()
-            isSearchFocused = false
-        }
+            .onAppear {
+                searchFieldExpansionProgress = viewModel.isSearching ? 1 : 0
+                isSearchFieldInteractive = viewModel.isSearching
+                isSearchFocused = false
+            }
+            .onChange(of: viewModel.isSearching) { _, active in
+                guard !active else {
+                    scheduleSearchFieldActivation()
+                    return
+                }
+
+                searchFieldActivationTask?.cancel()
+                searchFieldActivationTask = nil
+                searchFieldExpansionProgress = 0
+                isSearchFieldInteractive = false
+                isSearchFocused = false
+            }
+            .onDisappear {
+                searchDismissTask?.cancel()
+                searchFieldActivationTask?.cancel()
+                isSearchFieldInteractive = false
+                isSearchFocused = false
+            }
     }
 
     @MainActor
@@ -105,28 +88,28 @@ struct LibraryTopBarView: View {
         guard viewModel.isSearching else { return }
 
         searchDismissTask?.cancel()
+        searchFieldActivationTask?.cancel()
+        isSearchFieldInteractive = false
         isSearchFocused = false
 
-        withAnimation(cancelFadeTransition) {
-            cancelOpacity = 0
-        }
-        beginEllipsisFadeIn()
-
-        withAnimation(retractionTransition) {
-            viewModel.isSearching = false
+        withAnimation(searchChromeTransition) {
+            searchFieldExpansionProgress = 0
         }
 
         searchDismissTask = Task { @MainActor in
             defer { searchDismissTask = nil }
 
             try? await Task.sleep(
-                for: .milliseconds(Int((retractionDuration * 1000).rounded(.up)) + 24)
+                for: .milliseconds(Int((searchChromeTransitionDuration * 1000).rounded(.up)) + 24)
             )
             guard !Task.isCancelled else { return }
 
             var transaction = Transaction()
             transaction.animation = nil
             withTransaction(transaction) {
+                searchFieldExpansionProgress = 0
+                isSearchFieldInteractive = false
+                viewModel.isSearching = false
                 viewModel.clearSearch()
             }
         }
@@ -136,48 +119,40 @@ struct LibraryTopBarView: View {
     func activateSearch() {
         guard !viewModel.isSearching else { return }
 
-        cancelOpacity = 1
-        beginEllipsisFadeOut()
         searchDismissTask?.cancel()
-
-        withAnimation(expansionTransition) {
-            searchIconBackgroundScale = 1
+        searchFieldActivationTask?.cancel()
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
             viewModel.isSearching = true
         }
+        searchFieldExpansionProgress = 0
 
-        Task { @MainActor in
-            await Task.yield()
-            guard viewModel.isSearching else { return }
-            isSearchFocused = true
+        withAnimation(searchChromeTransition) {
+            searchFieldExpansionProgress = 1
         }
+        scheduleSearchFieldActivation()
     }
 
     @MainActor
-    func beginEllipsisFadeOut() {
-        ellipsisHideTask?.cancel()
-        showsEllipsis = true
+    func scheduleSearchFieldActivation() {
+        searchFieldActivationTask?.cancel()
+        isSearchFieldInteractive = false
 
-        withAnimation(ellipsisFadeOutTransition) {
-            ellipsisOpacity = 0
-        }
+        searchFieldActivationTask = Task { @MainActor in
+            defer { searchFieldActivationTask = nil }
 
-        ellipsisHideTask = Task { @MainActor in
             try? await Task.sleep(
-                for: .milliseconds(Int((ellipsisFadeOutDuration * 1000).rounded(.up)))
+                for: .milliseconds(Int((searchFieldActivationDelay * 1000).rounded(.up)))
             )
-            guard !Task.isCancelled else { return }
-            showsEllipsis = false
-        }
-    }
+            guard !Task.isCancelled, viewModel.isSearching else { return }
 
-    @MainActor
-    func beginEllipsisFadeIn() {
-        ellipsisHideTask?.cancel()
-        showsEllipsis = true
-        ellipsisOpacity = 0
-
-        withAnimation(ellipsisFadeInTransition) {
-            ellipsisOpacity = 1
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
+                isSearchFieldInteractive = true
+            }
+            isSearchFocused = true
         }
     }
 }

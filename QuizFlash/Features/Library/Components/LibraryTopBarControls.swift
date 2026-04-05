@@ -7,23 +7,49 @@
 
 import SwiftUI
 
+// MARK: - Top Bar Button Style
+
+struct LibraryTopBarNoHighlightButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+    }
+}
+
+// MARK: - Top Bar Metrics
+
+enum LibraryTopBarChromeMetrics {
+    static let expandedHitTargetSize = UIConstants.Size.actionButton + 16
+    static let searchFieldRevealThreshold: CGFloat = 0.18
+}
+
 // MARK: - Search Glyph
 
 struct LibraryTopBarSearchGlyph: View {
     let color: Color
-    let namespace: Namespace.ID
-    let isSource: Bool
 
     var body: some View {
         Image(systemName: "magnifyingglass")
             .font(.system(size: UIConstants.Size.actionIcon, weight: .semibold))
             .foregroundStyle(color)
             .frame(width: UIConstants.Size.actionIcon, height: UIConstants.Size.actionIcon)
-            .matchedGeometryEffect(
-                id: "library.topbar.searchGlyph",
-                in: namespace,
-                isSource: isSource
+    }
+}
+
+private struct LibraryTopBarGlassCircleShell: View {
+    var body: some View {
+        Circle()
+            .fill(.clear)
+            .glassButton(shape: .circle)
+            .frame(
+                width: UIConstants.Size.actionButton,
+                height: UIConstants.Size.actionButton
             )
+            .overlay {
+                Circle()
+                    .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
+            }
+            .clipShape(Circle())
+            .compositingGroup()
     }
 }
 
@@ -31,64 +57,74 @@ struct LibraryTopBarSearchGlyph: View {
 
 struct LibraryTopBarSearchIconButton: View {
     let accent: Color
-    let namespace: Namespace.ID
-    let isSearching: Bool
-    let backgroundScale: CGFloat
     let action: () -> Void
+    private let hitTargetSize = LibraryTopBarChromeMetrics.expandedHitTargetSize
 
     var body: some View {
         Button(action: action) {
             ZStack {
-                Circle()
-                    .fill(.clear)
+                Color.clear
+                    .frame(width: hitTargetSize, height: hitTargetSize)
 
-                Circle()
-                    .fill(.clear)
-                    .glassButton(shape: .circle)
-                    .matchedGeometryEffect(
-                        id: "library.topbar.searchBackground",
-                        in: namespace,
-                        isSource: !isSearching
-                    )
-                    .frame(
-                        width: UIConstants.Size.actionButton,
-                        height: UIConstants.Size.actionButton
-                    )
-                    .scaleEffect(backgroundScale)
+                LibraryTopBarGlassCircleShell()
 
-                LibraryTopBarSearchGlyph(
-                    color: accent,
-                    namespace: namespace,
-                    isSource: !isSearching
-                )
+                LibraryTopBarSearchGlyph(color: accent)
             }
-            .frame(
-                width: UIConstants.Size.actionButton,
-                height: UIConstants.Size.actionButton
-            )
+            .frame(width: hitTargetSize, height: hitTargetSize)
             .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(LibraryTopBarNoHighlightButtonStyle())
         .contentShape(Circle())
         .accessibilityLabel("Search")
+    }
+}
+
+// MARK: - Trailing Mode Controls
+
+private struct LibraryTopBarTrailingModeGlyph: View {
+    let systemName: String
+    let accent: Color
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
+            .foregroundStyle(accent)
+    }
+}
+
+struct LibraryTopBarTrailingControlShell: View {
+    let accent: Color
+    let glyphName: String
+    let hitTargetSize: CGFloat
+
+    var body: some View {
+        ZStack {
+            Color.clear
+                .frame(width: hitTargetSize, height: hitTargetSize)
+
+            LibraryTopBarGlassCircleShell()
+
+            LibraryTopBarTrailingModeGlyph(
+                systemName: glyphName,
+                accent: accent
+            )
+        }
+        .frame(
+            width: UIConstants.Size.actionButton,
+            height: UIConstants.Size.actionButton
+        )
+        .frame(width: hitTargetSize, height: hitTargetSize)
+        .contentShape(Circle())
     }
 }
 
 // MARK: - Search Field Background
 
 struct LibraryTopBarSearchFieldBackground: View {
-    let namespace: Namespace.ID
-    let isSource: Bool
-
     var body: some View {
         Capsule()
             .fill(.clear)
             .glassButton(shape: .capsule)
-            .matchedGeometryEffect(
-                id: "library.topbar.searchBackground",
-                in: namespace,
-                isSource: isSource
-            )
     }
 }
 
@@ -101,8 +137,7 @@ struct LibraryTopBarTrailingAccessory: View {
 
     var body: some View {
         if searchText.isEmpty {
-            LibraryVoiceCommandGlyph(isActive: isSearchFocused)
-                .accessibilityHidden(true)
+            EmptyView()
         } else {
             Button(action: clearAction) {
                 Image(systemName: "xmark")
@@ -114,7 +149,7 @@ struct LibraryTopBarTrailingAccessory: View {
                             .fill(Color(uiColor: .tertiarySystemFill))
                     }
             }
-            .buttonStyle(ScaleButtonStyle())
+            .buttonStyle(LibraryTopBarNoHighlightButtonStyle())
             .accessibilityLabel("Clear search text")
         }
     }
@@ -125,7 +160,7 @@ struct LibraryTopBarTrailingAccessory: View {
 struct LibraryTopBarMoreSettingsButton<MenuContent: View>: View {
     let accent: Color
     private let menuContent: () -> MenuContent
-    private let hitTargetSize = UIConstants.Size.actionButton + 16
+    private let hitTargetSize = LibraryTopBarChromeMetrics.expandedHitTargetSize
 
     init(
         accent: Color,
@@ -139,39 +174,50 @@ struct LibraryTopBarMoreSettingsButton<MenuContent: View>: View {
         Menu {
             menuContent()
         } label: {
-            ZStack {
-                Circle()
-                    .fill(Color.black.opacity(0.001))
-                    .frame(width: hitTargetSize, height: hitTargetSize)
-
-                Circle()
-                    .fill(.clear)
-                    .glassButton(shape: .circle)
-                    .frame(
-                        width: UIConstants.Size.actionButton,
-                        height: UIConstants.Size.actionButton
-                    )
-
-                Image(systemName: "ellipsis")
-                    .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
-                    .foregroundStyle(accent)
-            }
-            .frame(
-                width: UIConstants.Size.actionButton,
-                height: UIConstants.Size.actionButton
-            )
-            .overlay {
-                Circle()
-                    .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
-            }
-            .clipShape(Circle())
-            .compositingGroup()
-            .frame(width: hitTargetSize, height: hitTargetSize)
-            .contentShape(Circle())
+            Circle()
+                .fill(Color.black.opacity(0.001))
+                .frame(width: hitTargetSize, height: hitTargetSize)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(LibraryTopBarNoHighlightButtonStyle())
         .frame(width: hitTargetSize, height: hitTargetSize)
         .contentShape(Circle())
+        .overlay {
+            LibraryTopBarTrailingControlShell(
+                accent: accent,
+                glyphName: "ellipsis",
+                hitTargetSize: hitTargetSize
+            )
+            .allowsHitTesting(false)
+        }
+    }
+}
+
+struct LibraryTopBarDismissSearchButton: View {
+    let accent: Color
+    let action: () -> Void
+
+    private let hitTargetSize = LibraryTopBarChromeMetrics.expandedHitTargetSize
+
+    var body: some View {
+        Button(action: action) {
+            Circle()
+                .fill(Color.black.opacity(0.001))
+                .frame(width: hitTargetSize, height: hitTargetSize)
+        }
+        .buttonStyle(LibraryTopBarNoHighlightButtonStyle())
+        .overlay {
+            LibraryTopBarTrailingControlShell(
+                accent: accent,
+                glyphName: "xmark",
+                hitTargetSize: hitTargetSize
+            )
+            .frame(width: hitTargetSize, height: hitTargetSize)
+            .contentShape(Circle())
+            .allowsHitTesting(false)
+        }
+        .frame(width: hitTargetSize, height: hitTargetSize)
+        .contentShape(Circle())
+        .accessibilityLabel("Close search")
     }
 }
 

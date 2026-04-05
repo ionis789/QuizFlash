@@ -25,6 +25,7 @@ let kLibraryScrollSpace = "libraryScroll"
 struct LibraryListView: View {
     let groupedDecks: [DeckSection]
     let hiddenSectionHeaderIDs: Set<String>
+    var animateHiddenSectionHeaders = true
     let isSelecting: Bool
     let selectedDeckIDs: Set<PersistentIdentifier>
     let activeActionMenuDeckID: PersistentIdentifier?
@@ -60,7 +61,8 @@ struct LibraryListView: View {
                 LibrarySectionHeader(
                     id: section.id,
                     title: section.title,
-                    isHidden: hiddenSectionHeaderIDs.contains(section.id)
+                    isHidden: hiddenSectionHeaderIDs.contains(section.id),
+                    animateVisibility: animateHiddenSectionHeaders
                 )
                     .id("header-\(section.id)")
             }

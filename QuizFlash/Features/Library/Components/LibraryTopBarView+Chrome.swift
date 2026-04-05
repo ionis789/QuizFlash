@@ -2,51 +2,80 @@
 //  LibraryTopBarView+Chrome.swift
 //  QuizFlash
 //
-//  Idle chrome composition for LibraryTopBarView.
+//  Single-chrome composition for LibraryTopBarView.
 //
 
 import SwiftUI
 
 extension LibraryTopBarView {
-    var idleChromeRow: some View {
-        CollapsibleTitleNavigationBar(
-            coordinateSpaceName: coordinateSpaceName,
-            onBottomChange: onBottomChange
-        ) {
-            leadingControl
-                .fixedSize()
-        } center: { maxTitleWidth in
-            CollapsibleTitlePill(
-                title: title,
-                maxWidth: maxTitleWidth,
-                isVisible: isCollapsedTitleVisible,
-                fallbackTitle: "Library",
-                coordinateSpaceName: coordinateSpaceName,
-                onContentFrameChange: onCollapsedTitleFrameChange
+    var chromeRow: some View {
+        GeometryReader { proxy in
+            let isSearchChromeVisible = viewModel.isSearching || searchProgress > 0.001
+            let availableWidth = max(
+                0,
+                proxy.size.width - (UIConstants.Layout.compactScreenEdgeInset * 2)
             )
-        } trailing: {
-            ZStack {
-                ChromeCirclePlaceholder()
-                    .frame(width: moreSettingsSlotSize, height: moreSettingsSlotSize)
+            let resolvedTrailingWidth = max(
+                trailingControlWidth,
+                LibraryTopBarChromeMetrics.expandedHitTargetSize
+            )
+            let searchTrailingVisualOverlap = isSearchChromeVisible
+                ? ((LibraryTopBarChromeMetrics.expandedHitTargetSize - UIConstants.Size.actionButton) / 2)
+                : 0
+            let maxLeadingSearchWidth = max(
+                UIConstants.Size.actionButton,
+                availableWidth - resolvedTrailingWidth + searchTrailingVisualOverlap
+            )
+            let sideReserve = max(leadingControlWidth, resolvedTrailingWidth)
+            let maxCenterWidth = max(
+                UIConstants.Size.capsuleHeight,
+                availableWidth - (sideReserve * 2) - (UIConstants.Spacing.medium * 2)
+            )
 
-                if showsEllipsis {
-                    moreSettingsButton
-                        .opacity(ellipsisOpacity)
-                        .allowsHitTesting(!viewModel.isSearching && ellipsisOpacity > 0.01)
-                        .accessibilityHidden(viewModel.isSearching)
-                        .transition(.identity)
-                        .transaction { transaction in
-                            transaction.animation = nil
+            ZStack(alignment: .center) {
+                CollapsibleTitlePill(
+                    title: title,
+                    maxWidth: maxCenterWidth,
+                    isVisible: shouldShowCollapsedTitlePill,
+                    fallbackTitle: "Library",
+                    coordinateSpaceName: coordinateSpaceName,
+                    onContentFrameChange: onCollapsedTitleFrameChange
+                )
+                .offset(y: CollapsibleTitleChromeMetrics.floatingTitleVerticalOffset)
+                .allowsHitTesting(false)
+
+                HStack(alignment: .center) {
+                    leadingControl(maxSearchFieldWidth: maxLeadingSearchWidth)
+                        .onGeometryChange(for: CGFloat.self) { proxy in
+                            proxy.size.width
+                        } action: { newWidth in
+                            if abs(leadingControlWidth - newWidth) > 0.5 {
+                                leadingControlWidth = newWidth
+                            }
+                        }
+
+                    Spacer(minLength: 0)
+
+                    trailingControl
+                        .onGeometryChange(for: CGFloat.self) { proxy in
+                            proxy.size.width
+                        } action: { newWidth in
+                            if abs(trailingControlWidth - newWidth) > 0.5 {
+                                trailingControlWidth = newWidth
+                            }
                         }
                 }
             }
-            .frame(width: moreSettingsSlotSize, height: moreSettingsSlotSize)
-            .contentShape(Circle())
         }
+        .frame(height: UIConstants.Size.capsuleHeight)
+    }
+
+    var shouldShowCollapsedTitlePill: Bool {
+        isCollapsedTitleVisible && !viewModel.isSearching && searchProgress <= 0.001
     }
 
     @ViewBuilder
-    var leadingControl: some View {
+    func leadingControl(maxSearchFieldWidth: CGFloat) -> some View {
         if let onBackAction = onBack {
             LibraryTopBarBackButton(
                 accent: accent,
@@ -55,14 +84,17 @@ extension LibraryTopBarView {
             )
             .id("topbar.leading.back")
         } else {
-            LibraryTopBarSearchIconButton(
-                accent: accent,
-                namespace: searchTransitionNamespace,
-                isSearching: viewModel.isSearching,
-                backgroundScale: searchIconBackgroundScale,
-                action: activateSearch
-            )
-            .id("topbar.leading.search")
+            searchLeadingControl(maxWidth: maxSearchFieldWidth)
+                .id("topbar.leading.search")
+        }
+    }
+
+    @ViewBuilder
+    var trailingControl: some View {
+        if viewModel.isSearching || searchProgress > 0.001 {
+            dismissSearchButton
+        } else {
+            moreSettingsButton
         }
     }
 
@@ -74,9 +106,5 @@ extension LibraryTopBarView {
                 }
             }
         }
-    }
-
-    var moreSettingsSlotSize: CGFloat {
-        UIConstants.Size.actionButton + 16
     }
 }

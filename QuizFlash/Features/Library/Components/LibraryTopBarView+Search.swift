@@ -2,85 +2,108 @@
 //  LibraryTopBarView+Search.swift
 //  QuizFlash
 //
-//  Search-mode composition and transitions for LibraryTopBarView.
+//  Search control composition for LibraryTopBarView.
 //
 
 import SwiftUI
 
 extension LibraryTopBarView {
-    var searchBar: some View {
-        HStack(spacing: UIConstants.Spacing.small + 2) {
-            searchField
-            cancelButton
+    @ViewBuilder
+    func searchLeadingControl(maxWidth: CGFloat) -> some View {
+        if viewModel.isSearching || searchProgress > 0.001 {
+            searchFieldVisual(maxWidth: maxWidth)
+                .frame(width: searchFieldContainerWidth(maxWidth: maxWidth), alignment: .leading)
+                .contentShape(Capsule())
+        } else {
+            Button(action: activateSearch) {
+                searchFieldVisual(maxWidth: maxWidth)
+                    .frame(width: searchFieldContainerWidth(maxWidth: maxWidth), alignment: .leading)
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(LibraryTopBarNoHighlightButtonStyle())
+            .accessibilityLabel("Search")
         }
-        .frame(maxWidth: .infinity)
-        .topNavigationChrome()
-        .sensoryFeedback(.selection, trigger: isSearchFocused)
     }
 
-    var searchField: some View {
+    func searchFieldVisual(maxWidth: CGFloat) -> some View {
         HStack(spacing: UIConstants.Spacing.small + 2) {
-            LibraryTopBarSearchGlyph(
-                color: isSearchFocused ? accent : Color.secondary,
-                namespace: searchTransitionNamespace,
-                isSource: viewModel.isSearching
-            )
+            LibraryTopBarSearchGlyph(color: accent)
+                .frame(
+                    width: UIConstants.Size.actionButton,
+                    height: UIConstants.Size.capsuleHeight
+                )
 
             searchFieldContent
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             trailingAccessory
         }
-        .padding(.horizontal, UIConstants.Spacing.standard)
-        .frame(height: UIConstants.Size.capsuleHeight)
-        .contentShape(Capsule())
+        .padding(.trailing, UIConstants.Spacing.standard)
+        .frame(
+            width: searchFieldVisualWidth(maxWidth: maxWidth),
+            height: UIConstants.Size.capsuleHeight,
+            alignment: .leading
+        )
         .background {
-            LibraryTopBarSearchFieldBackground(
-                namespace: searchTransitionNamespace,
-                isSource: viewModel.isSearching
-            )
+            LibraryTopBarSearchFieldBackground()
         }
         .clipShape(Capsule())
-        .compositingGroup()
+    }
+
+    func searchFieldVisualWidth(maxWidth: CGFloat) -> CGFloat {
+        let expandedWidth = max(UIConstants.Size.actionButton, maxWidth)
+        return UIConstants.Size.actionButton
+            + ((expandedWidth - UIConstants.Size.actionButton) * searchProgress)
+    }
+
+    func searchFieldContainerWidth(maxWidth: CGFloat) -> CGFloat {
+        searchFieldVisualWidth(maxWidth: maxWidth)
+            + ((LibraryTopBarChromeMetrics.expandedHitTargetSize - UIConstants.Size.actionButton) * (1 - searchProgress))
     }
 
     @ViewBuilder
     var searchFieldContent: some View {
-        if viewModel.isSearching {
-            TextField("Search decks, cards, answers", text: $viewModel.searchText)
-                .focused($isSearchFocused)
-                .submitLabel(.search)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundStyle(.primary)
-                .tint(accent)
+        if viewModel.isSearching && isSearchFieldInteractive {
+            ZStack(alignment: .leading) {
+                if viewModel.searchText.isEmpty {
+                    Text("Search decks, cards, answers")
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .allowsHitTesting(false)
+                }
+
+                TextField("", text: $viewModel.searchText)
+                    .focused($isSearchFocused)
+                    .submitLabel(.search)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .tint(accent)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .disabled(!isSearchFieldInteractive)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         } else {
-            Text(viewModel.searchText.isEmpty ? "Search decks, cards, answers" : viewModel.searchText)
+            Text("Search decks, cards, answers")
                 .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundStyle(viewModel.searchText.isEmpty ? .secondary : .primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .allowsHitTesting(false)
         }
     }
 
-    var cancelButton: some View {
-        Button {
-            dismissSearch()
-        } label: {
-            Text("Cancel")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(accent)
-                .padding(.horizontal, UIConstants.Spacing.standard)
-                .frame(minWidth: 84, minHeight: UIConstants.Size.buttonHeight)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .contentShape(Rectangle())
-        .opacity(cancelOpacity)
-        .allowsHitTesting(cancelOpacity > 0.01)
-        .transition(.opacity)
-        .accessibilityLabel("Cancel search")
+    var dismissSearchButton: some View {
+        LibraryTopBarDismissSearchButton(
+            accent: accent,
+            action: dismissSearch
+        )
     }
 
     @ViewBuilder

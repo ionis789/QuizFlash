@@ -6,85 +6,86 @@
 //
 
 import SwiftUI
-import UIKit
 
 extension LibraryLayout {
     var mainScrollArea: some View {
-        ScrollViewReader { scrollProxy in
-            ScrollView {
-                VStack(spacing: 0) {
-                    Color.clear
-                        .frame(height: 0)
-                        .id(kLibraryTopAnchorID)
-
-                    ScrollPositionRestorer(
-                        getOffset: { viewModel.savedScrollOffset },
-                        onOffsetChange: { offset in
-                            guard !viewModel.isSearching && !showsSearchContent else { return }
-                            viewModel.savedScrollOffset = offset
-                            updateCollapsedTitleFallback(for: offset)
-                        }
-                    )
-                    .frame(width: 0, height: 0)
-
-                    if decks.isEmpty && viewModel.cachedGroupedDecks.isEmpty {
-                        Spacer().frame(height: 40)
+        ScrollView {
+            VStack(spacing: 0) {
+                ScrollPositionRestorer(
+                    getOffset: { viewModel.savedScrollOffset },
+                    onOffsetChange: { offset in
+                        guard !viewModel.isSearching else { return }
+                        viewModel.savedScrollOffset = offset
+                        updateCollapsedTitleFallback(for: offset)
                     }
+                )
+                .frame(width: 0, height: 0)
 
-                    stackContent
+                if decks.isEmpty && viewModel.cachedGroupedDecks.isEmpty {
+                    Spacer().frame(height: 40)
                 }
-                .tabBarAutoHideOnScroll(enabled: !viewModel.isSearching && !viewModel.isSelecting)
-                .safeAreaInset(edge: .bottom) {
-                    Color.clear
-                        .frame(height: 100)
-                        .animation(.bottomChromeSpring, value: viewModel.isSelecting)
+
+                stackContent
+            }
+            .tabBarAutoHideOnScroll(enabled: !viewModel.isSearching && !viewModel.isSelecting)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear
+                    .frame(height: 100)
+                    .animation(.bottomChromeSpring, value: viewModel.isSelecting)
+            }
+        }
+        .gesture(
+            TapGesture().onEnded {
+                guard viewModel.isSelecting && !isSearching else { return }
+                withBottomChromeAnimation {
+                    viewModel.exitSelectionMode()
                 }
             }
-            .gesture(
-                TapGesture().onEnded {
-                    guard viewModel.isSelecting && !isSearching else { return }
-                    withBottomChromeAnimation {
-                        viewModel.exitSelectionMode()
-                    }
-                }
-            )
-            .coordinateSpace(name: kLibraryScrollSpace)
-            .background {
-                LibraryScrollViewResolver { scrollView in
-                    resolvedLibraryScrollView = scrollView
-                }
-            }
-            .overlay {
-                if let searchTransitionSnapshot {
-                    Image(uiImage: searchTransitionSnapshot)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
-                        .opacity(searchTransitionSnapshotOpacity)
-                        .allowsHitTesting(false)
+        )
+        .coordinateSpace(name: kLibraryScrollSpace)
+        .overlay {
+            ZStack(alignment: .top) {
+                if isSearchBrowseFrozen {
+                    backgroundTheme
+                        .opacity(0.46)
+                        .allowsHitTesting(true)
                         .accessibilityHidden(true)
+                        .transition(.opacity)
+                }
+
+                if isSearchResultsPresented {
+                    searchResultsOverlay
+                        .transition(.opacity)
                 }
             }
-            .onPreferenceChange(LibrarySectionHeaderFramePreferenceKey.self) { frames in
-                handleSectionHeaderDebugFrames(frames)
-            }
-            .onAppear {
-                showsSearchContent = viewModel.isSearching
-                viewModel.updateGroupedDecks(from: decks)
-            }
-            .onChange(of: decks) { _, newDecks in viewModel.updateGroupedDecks(from: newDecks) }
-            .onChange(of: viewModel.sortOrder) { _, _ in viewModel.updateGroupedDecks(from: decks) }
-            .onChange(of: viewModel.isSearching) { _, isSearching in
+            .animation(.easeInOut(duration: 0.18), value: isSearchBrowseFrozen)
+            .animation(.easeInOut(duration: 0.18), value: isSearchResultsPresented)
+        }
+        .onPreferenceChange(LibrarySectionHeaderFramePreferenceKey.self) { frames in
+            handleSectionHeaderDebugFrames(frames)
+        }
+        .onAppear {
+            viewModel.updateGroupedDecks(from: decks)
+        }
+        .onChange(of: decks) { _, newDecks in viewModel.updateGroupedDecks(from: newDecks) }
+        .onChange(of: viewModel.sortOrder) { _, _ in viewModel.updateGroupedDecks(from: decks) }
+        .onChange(of: viewModel.isSearching) { _, isSearching in
+            if isSearching {
+                hiddenSectionHeaderIDs = {
+                    guard let visualPassedCompactTitleSectionID else { return [] }
+                    return [visualPassedCompactTitleSectionID]
+                }()
+                heroCollapsedTitleReady = false
+                heroCollapsedTitleFallbackReady = false
+            } else {
                 hiddenSectionHeaderIDs = []
-                visualPassedCompactTitleSectionID = nil
-                runSearchSurfaceTransition(using: scrollProxy, isSearching: isSearching)
+                updateCollapsedTitleFallback(for: viewModel.savedScrollOffset)
             }
-            .onChange(of: isCollapsedTitleVisible) { _, isVisible in
-                if !isVisible {
-                    Task { @MainActor in
-                        collapsedTitleFrame = .zero
-                    }
+        }
+        .onChange(of: isCollapsedTitleVisible) { _, isVisible in
+            if !isVisible {
+                Task { @MainActor in
+                    collapsedTitleFrame = .zero
                 }
             }
         }
@@ -92,20 +93,9 @@ extension LibraryLayout {
 
     @ViewBuilder
     var stackContent: some View {
-        switch activeLayoutPresentation {
-        case .browse:
-            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                libraryHeroTitle
-                browseListContent
-            }
-        case .searchEmpty:
-            LazyVStack(spacing: 0) {
-                searchDeckListContent
-            }
-        case .searchResults:
-            LazyVStack(spacing: 0) {
-                searchResultsContent
-            }
+        LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+            libraryHeroTitle
+            browseListContent
         }
     }
 
@@ -191,6 +181,7 @@ extension LibraryLayout {
                 hiddenSectionHeaderIDs: activeLayoutPresentation == .browse
                     ? hiddenSectionHeaderIDs
                     : [],
+                animateHiddenSectionHeaders: !viewModel.isSearching,
                 isSelecting: viewModel.isSelecting,
                 selectedDeckIDs: viewModel.selectedDecks,
                 activeActionMenuDeckID: viewModel.activeActionMenuDeckID,
@@ -218,87 +209,17 @@ extension LibraryLayout {
         viewModel.cachedGroupedDecks.flatMap(\.decks)
     }
 
-    func jumpToTop(using proxy: ScrollViewProxy) async {
-        viewModel.savedScrollOffset = 0
-        stickyDebugLastScrollOffset = 0
-        let scrollToTop = {
-            var transaction = Transaction()
-            transaction.animation = nil
-
-            withTransaction(transaction) {
-                proxy.scrollTo(kLibraryTopAnchorID, anchor: .top)
-            }
+    var searchResultsOverlay: some View {
+        ScrollView {
+            searchResultsContent
+                .frame(maxWidth: .infinity, alignment: .top)
         }
-
-        scrollToTop()
-        await Task.yield()
-        scrollToTop()
-        try? await Task.sleep(for: .milliseconds(16))
-        scrollToTop()
-    }
-
-    func captureSearchTransitionSnapshot() -> UIImage? {
-        resolvedLibraryScrollView?.visibleSnapshotImage()
-    }
-
-    func runSearchSurfaceTransition(using proxy: ScrollViewProxy, isSearching: Bool) {
-        Task { @MainActor in
-            var instantTransaction = Transaction()
-            instantTransaction.animation = nil
-            let snapshot = captureSearchTransitionSnapshot()
-
-            withTransaction(instantTransaction) {
-                searchTransitionSnapshot = snapshot
-                searchTransitionSnapshotOpacity = snapshot == nil ? 0 : 1
-            }
-
-            if isSearching {
-                heroCollapsedTitleReady = false
-                heroCollapsedTitleFallbackReady = false
-            }
-
-            await jumpToTop(using: proxy)
-            guard viewModel.isSearching == isSearching else {
-                withTransaction(instantTransaction) {
-                    searchTransitionSnapshot = nil
-                    searchTransitionSnapshotOpacity = 0
-                }
-                return
-            }
-
-            withTransaction(instantTransaction) {
-                showsSearchContent = isSearching
-            }
-
-            await Task.yield()
-
-            if !isSearching {
-                updateCollapsedTitleFallback(for: viewModel.savedScrollOffset)
-            }
-
-            try? await Task.sleep(for: .milliseconds(16))
-            guard viewModel.isSearching == isSearching else {
-                withTransaction(instantTransaction) {
-                    searchTransitionSnapshot = nil
-                    searchTransitionSnapshotOpacity = 0
-                }
-                return
-            }
-
-            withAnimation(.easeOut(duration: 0.2)) {
-                searchTransitionSnapshotOpacity = 0
-            }
-
-            try? await Task.sleep(for: .milliseconds(220))
-
-            withTransaction(instantTransaction) {
-                searchTransitionSnapshot = nil
-            }
-        }
+        .background(backgroundTheme)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     func handleSectionHeaderDebugFrames(_ frames: [LibrarySectionHeaderFrame]) {
-        guard !showsSearchContent else { return }
+        guard !viewModel.isSearching else { return }
         // The real "push start" is when the native pinned section-header container
         // reaches the top of the scroll host and begins to be held in place by
         // LazyVStack(pinnedViews:). Measuring against the compact Library title was
@@ -461,59 +382,5 @@ extension LibraryLayout {
         print(
             "[LibraryStickyDebug] event=passedCompactTitle id=\"\(passedCompactTitleCandidate.id)\" title=\"\(passedCompactTitleCandidate.title)\" labelMinY=\(labelMinY) thresholdY=\(threshold) frames=[\(candidateFrames)]"
         )
-    }
-}
-
-// MARK: - LibraryScrollViewResolver
-
-private struct LibraryScrollViewResolver: UIViewRepresentable {
-    let onResolve: @MainActor (UIScrollView) -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeUIView(context: Context) -> UIView {
-        UIView(frame: .zero)
-    }
-
-    func updateUIView(_ uiView: UIView, context: Context) {
-        Task { @MainActor in
-            guard let scrollView = uiView.enclosingScrollView else { return }
-            guard context.coordinator.resolvedScrollView !== scrollView else { return }
-
-            context.coordinator.resolvedScrollView = scrollView
-            onResolve(scrollView)
-        }
-    }
-
-    final class Coordinator {
-        weak var resolvedScrollView: UIScrollView?
-    }
-}
-
-private extension UIView {
-    var enclosingScrollView: UIScrollView? {
-        sequence(first: superview, next: { $0?.superview })
-            .first(where: { $0 is UIScrollView }) as? UIScrollView
-    }
-}
-
-private extension UIScrollView {
-    func visibleSnapshotImage() -> UIImage? {
-        let renderSize = bounds.size
-        guard renderSize.width > 0, renderSize.height > 0 else { return nil }
-
-        let rendererFormat = UIGraphicsImageRendererFormat.default()
-        rendererFormat.opaque = true
-
-        let renderer = UIGraphicsImageRenderer(size: renderSize, format: rendererFormat)
-        let renderBounds = CGRect(origin: .zero, size: renderSize)
-
-        return renderer.image { context in
-            if drawHierarchy(in: renderBounds, afterScreenUpdates: false) == false {
-                layer.render(in: context.cgContext)
-            }
-        }
     }
 }
