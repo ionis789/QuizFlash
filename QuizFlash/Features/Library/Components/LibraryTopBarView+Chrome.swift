@@ -37,6 +37,8 @@ extension LibraryTopBarView {
                     title: title,
                     maxWidth: maxCenterWidth,
                     isVisible: shouldShowCollapsedTitlePill,
+                    animateVisibility: animateCollapsedTitleVisibility
+                        && !(viewModel.isSearching || searchProgress > 0.001),
                     fallbackTitle: "Library",
                     coordinateSpaceName: coordinateSpaceName,
                     onContentFrameChange: onCollapsedTitleFrameChange

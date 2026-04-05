@@ -49,6 +49,8 @@ struct LibraryLayout: View {
     @State var heroCollapsedBaselineMaxY: CGFloat = 0
     @State var stickyDebugLastScrollOffset: CGFloat?
     @State var hiddenSectionHeaderIDs: Set<String> = []
+    @State var compactChromeAnimationResetTask: Task<Void, Never>?
+    @State var areCompactChromeVisibilityAnimationsEnabled = true
     @State var visualPassedCompactTitleSectionID: String?
     @State var pinnedStartDebugSectionID: String?
     @State var passedCompactTitleDebugSectionID: String?
@@ -189,6 +191,7 @@ struct LibraryLayout: View {
                 viewModel: viewModel,
                 coordinateSpaceName: kLibraryChromeSpace,
                 isCollapsedTitleVisible: isCollapsedTitleVisible,
+                animateCollapsedTitleVisibility: areCompactChromeVisibilityAnimationsEnabled,
                 onBack: onBack,
                 backLabel: backLabel,
                 onBottomChange: { newBottom in

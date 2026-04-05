@@ -21,6 +21,7 @@ struct CollapsibleTitlePill: View {
     let title: String
     let maxWidth: CGFloat
     let isVisible: Bool
+    var animateVisibility = true
     var fallbackTitle: String = ""
     var coordinateSpaceName: String? = nil
     var onContentFrameChange: ((CGRect) -> Void)? = nil
@@ -52,7 +53,10 @@ struct CollapsibleTitlePill: View {
             .frame(height: UIConstants.Size.capsuleHeight)
         .opacity(isVisible ? 1 : 0)
         .scaleEffect(isVisible ? 1 : CollapsibleTitleChromeMetrics.hiddenScale, anchor: .top)
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isVisible)
+        .animation(
+            animateVisibility ? .spring(response: 0.35, dampingFraction: 0.8) : nil,
+            value: isVisible
+        )
         .overlay {
             if isVisible, hasTitle, let coordinateSpaceName {
                 Color.clear

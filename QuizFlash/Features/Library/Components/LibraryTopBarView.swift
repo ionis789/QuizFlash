@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - LibraryTopBarView
 
@@ -17,6 +18,7 @@ struct LibraryTopBarView: View {
     @Bindable var viewModel: LibraryViewModel
     let coordinateSpaceName: String
     let isCollapsedTitleVisible: Bool
+    var animateCollapsedTitleVisibility = true
     /// When non-nil, a back button is shown on the left instead of the deck-count pill.
     var onBack: (() -> Void)? = nil
     /// Text shown inside the back button pill. Only used when `onBack != nil`.
@@ -91,6 +93,7 @@ struct LibraryTopBarView: View {
         searchFieldActivationTask?.cancel()
         isSearchFieldInteractive = false
         isSearchFocused = false
+        emitDismissSearchHaptic()
 
         withAnimation(searchChromeTransition) {
             searchFieldExpansionProgress = 0
@@ -100,7 +103,7 @@ struct LibraryTopBarView: View {
             defer { searchDismissTask = nil }
 
             try? await Task.sleep(
-                for: .milliseconds(Int((searchChromeTransitionDuration * 1000).rounded(.up)) + 24)
+                for: .milliseconds(Int((searchChromeTransitionDuration * 1000).rounded(.up)))
             )
             guard !Task.isCancelled else { return }
 
@@ -127,6 +130,7 @@ struct LibraryTopBarView: View {
             viewModel.isSearching = true
         }
         searchFieldExpansionProgress = 0
+        emitActivateSearchHaptic()
 
         withAnimation(searchChromeTransition) {
             searchFieldExpansionProgress = 1
@@ -154,5 +158,17 @@ struct LibraryTopBarView: View {
             }
             isSearchFocused = true
         }
+    }
+
+    func emitActivateSearchHaptic() {
+        let feedback = UIImpactFeedbackGenerator(style: .soft)
+        feedback.prepare()
+        feedback.impactOccurred(intensity: 0.55)
+    }
+
+    func emitDismissSearchHaptic() {
+        let feedback = UIImpactFeedbackGenerator(style: .light)
+        feedback.prepare()
+        feedback.impactOccurred(intensity: 0.5)
     }
 }

@@ -70,16 +70,27 @@ extension LibraryLayout {
         .onChange(of: decks) { _, newDecks in viewModel.updateGroupedDecks(from: newDecks) }
         .onChange(of: viewModel.sortOrder) { _, _ in viewModel.updateGroupedDecks(from: decks) }
         .onChange(of: viewModel.isSearching) { _, isSearching in
+            compactChromeAnimationResetTask?.cancel()
+            areCompactChromeVisibilityAnimationsEnabled = false
+
             if isSearching {
-                hiddenSectionHeaderIDs = {
-                    guard let visualPassedCompactTitleSectionID else { return [] }
-                    return [visualPassedCompactTitleSectionID]
-                }()
+                hiddenSectionHeaderIDs = Set(
+                    [pinnedStartDebugSectionID, visualPassedCompactTitleSectionID].compactMap { $0 }
+                )
                 heroCollapsedTitleReady = false
                 heroCollapsedTitleFallbackReady = false
             } else {
                 hiddenSectionHeaderIDs = []
                 updateCollapsedTitleFallback(for: viewModel.savedScrollOffset)
+            }
+
+            compactChromeAnimationResetTask = Task { @MainActor in
+                defer { compactChromeAnimationResetTask = nil }
+
+                try? await Task.sleep(for: .milliseconds(isSearching ? 220 : 90))
+                guard !Task.isCancelled else { return }
+
+                areCompactChromeVisibilityAnimationsEnabled = true
             }
         }
         .onChange(of: isCollapsedTitleVisible) { _, isVisible in
@@ -88,6 +99,11 @@ extension LibraryLayout {
                     collapsedTitleFrame = .zero
                 }
             }
+        }
+        .onDisappear {
+            compactChromeAnimationResetTask?.cancel()
+            compactChromeAnimationResetTask = nil
+            areCompactChromeVisibilityAnimationsEnabled = true
         }
     }
 
@@ -181,7 +197,7 @@ extension LibraryLayout {
                 hiddenSectionHeaderIDs: activeLayoutPresentation == .browse
                     ? hiddenSectionHeaderIDs
                     : [],
-                animateHiddenSectionHeaders: !viewModel.isSearching,
+                animateHiddenSectionHeaders: areCompactChromeVisibilityAnimationsEnabled && !viewModel.isSearching,
                 isSelecting: viewModel.isSelecting,
                 selectedDeckIDs: viewModel.selectedDecks,
                 activeActionMenuDeckID: viewModel.activeActionMenuDeckID,
