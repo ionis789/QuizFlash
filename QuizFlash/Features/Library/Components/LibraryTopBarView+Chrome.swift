@@ -40,6 +40,7 @@ extension LibraryTopBarView {
                     animateVisibility: animateCollapsedTitleVisibility
                         && !(viewModel.isSearching || searchProgress > 0.001),
                     fallbackTitle: "Library",
+                    visibilityAnimation: compactChromeVisibilityAnimation,
                     coordinateSpaceName: coordinateSpaceName,
                     onContentFrameChange: onCollapsedTitleFrameChange
                 )
@@ -73,7 +74,10 @@ extension LibraryTopBarView {
     }
 
     var shouldShowCollapsedTitlePill: Bool {
-        isCollapsedTitleVisible && !viewModel.isSearching && searchProgress <= 0.001
+        isCollapsedTitleVisible
+            && isCompactChromeRecoveryVisible
+            && !viewModel.isSearching
+            && searchProgress <= 0.001
     }
 
     @ViewBuilder

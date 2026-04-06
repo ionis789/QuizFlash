@@ -23,6 +23,7 @@ struct CollapsibleTitlePill: View {
     let isVisible: Bool
     var animateVisibility = true
     var fallbackTitle: String = ""
+    var visibilityAnimation: Animation? = nil
     var coordinateSpaceName: String? = nil
     var onContentFrameChange: ((CGRect) -> Void)? = nil
 
@@ -54,7 +55,9 @@ struct CollapsibleTitlePill: View {
         .opacity(isVisible ? 1 : 0)
         .scaleEffect(isVisible ? 1 : CollapsibleTitleChromeMetrics.hiddenScale, anchor: .top)
         .animation(
-            animateVisibility ? .spring(response: 0.35, dampingFraction: 0.8) : nil,
+            animateVisibility
+                ? (visibilityAnimation ?? .spring(response: 0.35, dampingFraction: 0.8))
+                : nil,
             value: isVisible
         )
         .overlay {

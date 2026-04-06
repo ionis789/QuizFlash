@@ -18,7 +18,10 @@ struct LibraryTopBarView: View {
     @Bindable var viewModel: LibraryViewModel
     let coordinateSpaceName: String
     let isCollapsedTitleVisible: Bool
+    let isCompactChromeRecoveryVisible: Bool
+    let compactChromeVisibilityAnimation: Animation?
     var animateCollapsedTitleVisibility = true
+    var dismissSearchRequestID = 0
     /// When non-nil, a back button is shown on the left instead of the deck-count pill.
     var onBack: (() -> Void)? = nil
     /// Text shown inside the back button pill. Only used when `onBack != nil`.
@@ -76,6 +79,10 @@ struct LibraryTopBarView: View {
                 searchFieldExpansionProgress = 0
                 isSearchFieldInteractive = false
                 isSearchFocused = false
+            }
+            .onChange(of: dismissSearchRequestID) { _, _ in
+                guard viewModel.isSearching else { return }
+                dismissSearch()
             }
             .onDisappear {
                 searchDismissTask?.cancel()

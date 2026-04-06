@@ -163,7 +163,10 @@ private struct SearchDeckResultRow: View {
         .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset + 4)
         .padding(.vertical, 14)
         .overlay(alignment: .bottom) {
-            LibraryRowSeparator(tint: deckTint)
+            LibraryRowSeparator(
+                baseTint: deckTint,
+                highlightTint: ThemeManager.shared.accentColor.color
+            )
                 .padding(.top, 10)
         }
     }

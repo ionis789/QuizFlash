@@ -95,12 +95,19 @@ struct LibraryModalsAndDialogs: ViewModifier {
                 Text("This deck and all its cards will be deleted.")
             }
             .confirmationDialog(
-                "Move \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")",
-                isPresented: $viewModel.showMoveConfirmation,
+                moveDialogTitle,
+                isPresented: Binding(
+                    get: { viewModel.showMoveConfirmation || viewModel.deckToMove != nil },
+                    set: { isPresented in
+                        guard !isPresented else { return }
+                        viewModel.showMoveConfirmation = false
+                        viewModel.deckToMove = nil
+                    }
+                ),
                 titleVisibility: .visible
             ) {
                 Button("Library (All Decks)") {
-                    viewModel.moveSelectedDecks(from: decks, to: nil, context: context)
+                    performMove(to: nil)
                 }
 
                 if !folders.isEmpty {
@@ -108,15 +115,40 @@ struct LibraryModalsAndDialogs: ViewModifier {
 
                     ForEach(folders, id: \.persistentModelID) { folder in
                         Button(folder.title) {
-                            viewModel.moveSelectedDecks(from: decks, to: folder, context: context)
+                            performMove(to: folder)
                         }
                     }
                 }
 
-                Button("Cancel", role: .cancel) { }
+                Button("Cancel", role: .cancel) {
+                    viewModel.showMoveConfirmation = false
+                    viewModel.deckToMove = nil
+                }
             } message: {
-                Text("Choose where the selected decks should go.")
+                Text(moveDialogMessage)
             }
+    }
+
+    private var moveDialogTitle: String {
+        if let target = viewModel.deckToMove {
+            return "Move \"\(target.title)\""
+        }
+        return "Move \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")"
+    }
+
+    private var moveDialogMessage: String {
+        if viewModel.deckToMove != nil {
+            return "Choose where this deck should go."
+        }
+        return "Choose where the selected decks should go."
+    }
+
+    private func performMove(to folder: FolderModel?) {
+        if viewModel.deckToMove != nil {
+            viewModel.moveSingleDeck(from: decks, to: folder, context: context)
+        } else {
+            viewModel.moveSelectedDecks(from: decks, to: folder, context: context)
+        }
     }
 }
 

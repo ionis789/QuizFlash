@@ -73,14 +73,11 @@ final class LibraryViewModel {
     /// The specific deck marked for deletion.
     var deckToDelete: LibraryDeckActionTarget?
 
-    /// The specific deck marked for color editing.
-    var deckToEditColor: LibraryDeckActionTarget?
+    /// The specific deck marked for folder moving.
+    var deckToMove: LibraryDeckActionTarget?
 
     /// The card editor destination currently presented from the search results.
     var editingCardFromSearch: CardEditorDestination?
-
-    /// The identifier of the deck whose action menu is currently open.
-    var activeActionMenuDeckID: PersistentIdentifier?
 
     /// Shows the move error alert.
     var showMoveError = false

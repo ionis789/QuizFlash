@@ -65,42 +65,71 @@ struct EdgeShadowOverlay: View {
     /// Intensity of the bottom shadow. `0.0` = invisible, `1.0` = fully opaque black.
     var kMaxAlphaBottom: CGFloat = 0.5
 
+    /// Extra fullscreen dim layer that grows downward from the top edge.
+    /// Keeps the top vignette visually dominant while softly defocusing the
+    /// rest of the screen during transient states such as frozen search browse.
+    var fullScreenFillProgress: CGFloat = 0
+
+    /// Opacity applied to the fullscreen dim layer once it has expanded.
+    var fullScreenDimOpacity: CGFloat = 0
+
+    private var clampedFullScreenFillProgress: CGFloat {
+        min(max(fullScreenFillProgress, 0), 1)
+    }
+
     // MARK: - Body
 
     var body: some View {
-        ZStack {
-            if topHeight > 0 {
-                VStack(spacing: 0) {
-                    _CAGradientView(
-                        direction: .top,
-                        height: topHeight,
-                        maxAlpha: kMaxAlphaTop
+        GeometryReader { _ in
+            ZStack(alignment: .top) {
+                Rectangle()
+                    .fill(Color.black.opacity(fullScreenDimOpacity))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .scaleEffect(
+                        x: 1,
+                        y: max(clampedFullScreenFillProgress, 0.001),
+                        anchor: .top
                     )
-                    .frame(height: topHeight)
-                    .ignoresSafeArea(.all, edges: .top)
+                    .opacity(clampedFullScreenFillProgress > 0.001 ? 1 : 0)
+                    .ignoresSafeArea(.all)
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
                     .allowsHitTesting(false)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(false)
-            }
 
-            if bottomHeight > 0 {
-                VStack(spacing: 0) {
-                    Spacer()
-                    _CAGradientView(
-                        direction: .bottom,
-                        height: bottomHeight,
-                        maxAlpha: kMaxAlphaBottom
-                    )
-                    .frame(height: bottomHeight)
+                if topHeight > 0 {
+                    VStack(spacing: 0) {
+                        _CAGradientView(
+                            direction: .top,
+                            height: topHeight,
+                            maxAlpha: kMaxAlphaTop
+                        )
+                        .frame(height: topHeight)
+                        .ignoresSafeArea(.all, edges: .top)
+                        .allowsHitTesting(false)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+                }
+
+                if bottomHeight > 0 {
+                    VStack(spacing: 0) {
+                        Spacer()
+                        _CAGradientView(
+                            direction: .bottom,
+                            height: bottomHeight,
+                            maxAlpha: kMaxAlphaBottom
+                        )
+                        .frame(height: bottomHeight)
+                        .ignoresSafeArea(.all, edges: .bottom)
+                        .allowsHitTesting(false)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea(.all, edges: .bottom)
                     .allowsHitTesting(false)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .ignoresSafeArea(.all, edges: .bottom)
-                .allowsHitTesting(false)
             }
+            .animation(.easeInOut(duration: 0.22), value: clampedFullScreenFillProgress)
+            .animation(.easeInOut(duration: 0.22), value: fullScreenDimOpacity)
         }
         .allowsHitTesting(false)
     }

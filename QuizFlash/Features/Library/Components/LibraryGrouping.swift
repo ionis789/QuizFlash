@@ -26,6 +26,8 @@ struct LibraryDeckRowSnapshot: Identifiable, Equatable, Sendable {
     let createdAt: Date
     /// Last edit date used by section sorting and metadata display.
     let editedAt: Date
+    /// Last-opened date shown in row metadata when available.
+    let lastOpenedAt: Date?
     /// Denormalized card count, projected once on the main context.
     let cardCount: Int
     /// Optional parent folder title rendered as secondary metadata.
@@ -69,6 +71,7 @@ nonisolated enum LibraryGrouping {
                 colorHex: deck.colorHex,
                 createdAt: deck.createdAt,
                 editedAt: deck.editedAt,
+                lastOpenedAt: deck.lastOpenedAt,
                 cardCount: deck.cardCount,
                 folderTitle: deck.folder?.title
             )

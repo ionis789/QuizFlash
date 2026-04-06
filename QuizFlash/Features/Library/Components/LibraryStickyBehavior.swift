@@ -70,10 +70,26 @@ enum LibraryStickyBehavior {
     enum Handoff {
         /// Start the visual disappearance a little before the compact title has
         /// fully passed the current date section.
-        static let compactTitleHideLeadDistance: CGFloat = 5
+        static let compactTitleHideLeadDistance: CGFloat = 15
 
         /// Delay the visual reappearance slightly when scrolling back upward so the
         /// fade-in is visible instead of happening exactly on the threshold line.
-        static let compactTitleRevealLagDistance: CGFloat = 5
+        static let compactTitleRevealLagDistance: CGFloat = 15
+
+        /// Faster, low-bounce animation profile for regular scroll-driven compact
+        /// chrome visibility changes.
+        static let compactChromeScrollAnimationDuration: Double = 0.14
+
+        /// Time after dismissing search before the compact chrome returns to the
+        /// regular scroll animation profile.
+        static let compactChromeRecoverySettleDurationMs: UInt64 = 420
+
+        /// Subtle shrink used when the sticky date capsule hands off under the
+        /// compact Library title during normal scroll.
+        static let compactDateCapsuleHiddenScale: CGFloat = 0.84
+
+        /// Gentle fade/scale timing for the sticky date capsule during normal
+        /// passedCompactTitle/returnedBelowCompactTitle handoff events.
+        static let compactDateCapsuleScrollAnimationDuration: Double = 0.16
     }
 }

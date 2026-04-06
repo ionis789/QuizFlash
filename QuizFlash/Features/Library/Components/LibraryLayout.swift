@@ -51,9 +51,13 @@ struct LibraryLayout: View {
     @State var hiddenSectionHeaderIDs: Set<String> = []
     @State var compactChromeAnimationResetTask: Task<Void, Never>?
     @State var areCompactChromeVisibilityAnimationsEnabled = true
+    @State var isCompactChromeRecoveryVisible = true
+    @State var isCompactChromeSearchRecoveryAnimating = false
+    @State var compactChromeRecoverySectionHeaderID: String?
     @State var visualPassedCompactTitleSectionID: String?
     @State var pinnedStartDebugSectionID: String?
     @State var passedCompactTitleDebugSectionID: String?
+    @State var searchDismissRequestID = 0
     /// safeAreaInsets.top captured from the root body context (non-zero here).
     @State var safeTop: CGFloat = 0
 
@@ -75,6 +79,27 @@ struct LibraryLayout: View {
     }
     var isSearchBrowseFrozen: Bool {
         viewModel.isSearching && trimmedSearchText.isEmpty
+    }
+    var searchBrowseFreezeDimOpacity: CGFloat {
+        0.26
+    }
+    var browseStickyHiddenSectionHeaderIDs: Set<String> {
+        Set([visualPassedCompactTitleSectionID].compactMap { $0 })
+    }
+    var searchStickyHiddenSectionHeaderIDs: Set<String> {
+        Set(
+            [
+                pinnedStartDebugSectionID,
+                visualPassedCompactTitleSectionID,
+                passedCompactTitleDebugSectionID
+            ].compactMap { $0 }
+        )
+    }
+    var edgeShadowTopHeight: CGFloat {
+        max(
+            safeTop + UIConstants.Layout.topEdgeShadowHeight,
+            navigationBarBottomY + UIConstants.Spacing.large
+        )
     }
     var activeLayoutPresentation: LibrarySearchPresentation {
         isSearchResultsPresented ? .searchResults : .browse
@@ -101,6 +126,10 @@ struct LibraryLayout: View {
     var libraryCollapsedTitleRevealClearance: CGFloat {
         UIConstants.Layout.deckHeroPillRevealClearance
             + LibraryStickyBehavior.Chrome.collapsedTitleRevealExtraClearance
+    }
+    var compactChromeVisibilityAnimation: Animation? {
+        guard areCompactChromeVisibilityAnimationsEnabled else { return nil }
+        return isCompactChromeSearchRecoveryAnimating ? .circularProgressSpring : nil
     }
 
     var isCollapsedTitleVisible: Bool {
@@ -144,8 +173,10 @@ struct LibraryLayout: View {
             // ── Edge shadows — top + bottom vignette ─────────────────────────
             // Tune kShadowRadius in EdgeShadowOverlay.swift to adjust both edges.
             EdgeShadowOverlay(
-                topHeight: safeTop + UIConstants.Layout.topEdgeShadowHeight,
-                bottomHeight: isBottomChromeVisible ? 60 : 0
+                topHeight: edgeShadowTopHeight,
+                bottomHeight: isBottomChromeVisible ? 60 : 0,
+                fullScreenFillProgress: isSearchBrowseFrozen ? 1 : 0,
+                fullScreenDimOpacity: isSearchBrowseFrozen ? searchBrowseFreezeDimOpacity : 0
             )
                 .animation(.bottomChromeSpring, value: isBottomChromeVisible)
                 .zIndex(5)
@@ -191,7 +222,10 @@ struct LibraryLayout: View {
                 viewModel: viewModel,
                 coordinateSpaceName: kLibraryChromeSpace,
                 isCollapsedTitleVisible: isCollapsedTitleVisible,
+                isCompactChromeRecoveryVisible: isCompactChromeRecoveryVisible,
+                compactChromeVisibilityAnimation: compactChromeVisibilityAnimation,
                 animateCollapsedTitleVisibility: areCompactChromeVisibilityAnimationsEnabled,
+                dismissSearchRequestID: searchDismissRequestID,
                 onBack: onBack,
                 backLabel: backLabel,
                 onBottomChange: { newBottom in

@@ -12,11 +12,12 @@ import SwiftData
 
 extension LibraryViewModel {
 
+    func triggerDeckImport() {
+        showFileImporter = true
+    }
+
     func deleteSelectedDecks(from allDecks: [DeckModel], context: ModelContext) {
-        for deck in allDecks where selectedDecks.contains(deck.id) {
-            deck.folder?.deckCount -= 1
-            context.delete(deck)
-        }
+        deleteDecks(with: selectedDecks, from: allDecks, context: context)
         selectedDecks.removeAll()
         isSelecting = false
     }
@@ -30,64 +31,36 @@ extension LibraryViewModel {
         deckToDelete = nil
     }
 
+    func moveSingleDeck(
+        from allDecks: [DeckModel],
+        to destinationFolder: FolderModel?,
+        context: ModelContext
+    ) {
+        showMoveConfirmation = false
+        guard let target = deckToMove else { return }
+        moveDecks(
+            with: [target.id],
+            from: allDecks,
+            to: destinationFolder,
+            context: context,
+            exitsSelectionModeOnSuccess: false
+        )
+        deckToMove = nil
+    }
+
     func moveSelectedDecks(
         from allDecks: [DeckModel],
         to destinationFolder: FolderModel?,
         context: ModelContext
     ) {
         showMoveConfirmation = false
-
-        let decksToMove = allDecks.filter { selectedDecks.contains($0.id) }
-        guard !decksToMove.isEmpty else { return }
-
-        let affectedFolders = uniqueFolders(
-            from: decksToMove.compactMap(\.folder) + (destinationFolder.map { [$0] } ?? [])
+        moveDecks(
+            with: selectedDecks,
+            from: allDecks,
+            to: destinationFolder,
+            context: context,
+            exitsSelectionModeOnSuccess: true
         )
-        let originalFolderCounts = Dictionary(
-            uniqueKeysWithValues: affectedFolders.map { ($0.persistentModelID, $0.deckCount) }
-        )
-        let originalDeckFolders = Dictionary(uniqueKeysWithValues: decksToMove.map { ($0.id, $0.folder) })
-        let originalEditedAt = Dictionary(uniqueKeysWithValues: decksToMove.map { ($0.id, $0.editedAt) })
-
-        var movedDecks: [DeckModel] = []
-
-        for deck in decksToMove {
-            if deck.folder?.persistentModelID == destinationFolder?.persistentModelID {
-                continue
-            }
-
-            deck.folder?.deckCount -= 1
-            destinationFolder?.deckCount += 1
-            deck.folder = destinationFolder
-            deck.editedAt = Date()
-            movedDecks.append(deck)
-        }
-
-        guard !movedDecks.isEmpty else {
-            exitSelectionMode()
-            return
-        }
-
-        do {
-            try context.save()
-            exitSelectionMode()
-        } catch {
-            for deck in movedDecks {
-                deck.folder = originalDeckFolders[deck.id] ?? nil
-                if let editedAt = originalEditedAt[deck.id] {
-                    deck.editedAt = editedAt
-                }
-            }
-
-            for folder in affectedFolders {
-                if let count = originalFolderCounts[folder.persistentModelID] {
-                    folder.deckCount = count
-                }
-            }
-
-            moveErrorMessage = "Couldn't move the selected decks right now."
-            showMoveError = true
-        }
     }
 
     func handleFileImport(_ result: Result<[URL], Error>, context: ModelContext) {
@@ -166,6 +139,81 @@ extension LibraryViewModel {
 // MARK: - Helpers
 
 private extension LibraryViewModel {
+
+    func deleteDecks(
+        with ids: Set<PersistentIdentifier>,
+        from allDecks: [DeckModel],
+        context: ModelContext
+    ) {
+        for deck in allDecks where ids.contains(deck.id) {
+            deck.folder?.deckCount -= 1
+            context.delete(deck)
+        }
+    }
+
+    func moveDecks(
+        with ids: Set<PersistentIdentifier>,
+        from allDecks: [DeckModel],
+        to destinationFolder: FolderModel?,
+        context: ModelContext,
+        exitsSelectionModeOnSuccess: Bool
+    ) {
+        let decksToMove = allDecks.filter { ids.contains($0.id) }
+        guard !decksToMove.isEmpty else { return }
+
+        let affectedFolders = uniqueFolders(
+            from: decksToMove.compactMap(\.folder) + (destinationFolder.map { [$0] } ?? [])
+        )
+        let originalFolderCounts = Dictionary(
+            uniqueKeysWithValues: affectedFolders.map { ($0.persistentModelID, $0.deckCount) }
+        )
+        let originalDeckFolders = Dictionary(uniqueKeysWithValues: decksToMove.map { ($0.id, $0.folder) })
+        let originalEditedAt = Dictionary(uniqueKeysWithValues: decksToMove.map { ($0.id, $0.editedAt) })
+
+        var movedDecks: [DeckModel] = []
+
+        for deck in decksToMove {
+            if deck.folder?.persistentModelID == destinationFolder?.persistentModelID {
+                continue
+            }
+
+            deck.folder?.deckCount -= 1
+            destinationFolder?.deckCount += 1
+            deck.folder = destinationFolder
+            deck.editedAt = Date()
+            movedDecks.append(deck)
+        }
+
+        guard !movedDecks.isEmpty else {
+            if exitsSelectionModeOnSuccess {
+                exitSelectionMode()
+            }
+            return
+        }
+
+        do {
+            try context.save()
+            if exitsSelectionModeOnSuccess {
+                exitSelectionMode()
+            }
+        } catch {
+            for deck in movedDecks {
+                deck.folder = originalDeckFolders[deck.id] ?? nil
+                if let editedAt = originalEditedAt[deck.id] {
+                    deck.editedAt = editedAt
+                }
+            }
+
+            for folder in affectedFolders {
+                if let count = originalFolderCounts[folder.persistentModelID] {
+                    folder.deckCount = count
+                }
+            }
+
+            moveErrorMessage = "Couldn't move the selected decks right now."
+            showMoveError = true
+        }
+    }
 
     func uniqueFolders(from folders: [FolderModel]) -> [FolderModel] {
         var seen = Set<PersistentIdentifier>()

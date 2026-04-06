@@ -46,11 +46,13 @@ extension LibraryLayout {
         .overlay {
             ZStack(alignment: .top) {
                 if isSearchBrowseFrozen {
-                    backgroundTheme
-                        .opacity(0.46)
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            searchDismissRequestID += 1
+                        }
                         .allowsHitTesting(true)
                         .accessibilityHidden(true)
-                        .transition(.opacity)
                 }
 
                 if isSearchResultsPresented {
@@ -58,39 +60,65 @@ extension LibraryLayout {
                         .transition(.opacity)
                 }
             }
-            .animation(.easeInOut(duration: 0.18), value: isSearchBrowseFrozen)
             .animation(.easeInOut(duration: 0.18), value: isSearchResultsPresented)
         }
         .onPreferenceChange(LibrarySectionHeaderFramePreferenceKey.self) { frames in
             handleSectionHeaderDebugFrames(frames)
         }
         .onAppear {
+            isCompactChromeRecoveryVisible = !viewModel.isSearching
+            isCompactChromeSearchRecoveryAnimating = false
+            compactChromeRecoverySectionHeaderID = nil
             viewModel.updateGroupedDecks(from: decks)
         }
         .onChange(of: decks) { _, newDecks in viewModel.updateGroupedDecks(from: newDecks) }
         .onChange(of: viewModel.sortOrder) { _, _ in viewModel.updateGroupedDecks(from: decks) }
         .onChange(of: viewModel.isSearching) { _, isSearching in
             compactChromeAnimationResetTask?.cancel()
-            areCompactChromeVisibilityAnimationsEnabled = false
 
             if isSearching {
-                hiddenSectionHeaderIDs = Set(
-                    [pinnedStartDebugSectionID, visualPassedCompactTitleSectionID].compactMap { $0 }
-                )
-                heroCollapsedTitleReady = false
-                heroCollapsedTitleFallbackReady = false
-            } else {
-                hiddenSectionHeaderIDs = []
-                updateCollapsedTitleFallback(for: viewModel.savedScrollOffset)
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    areCompactChromeVisibilityAnimationsEnabled = false
+                    isCompactChromeRecoveryVisible = false
+                    isCompactChromeSearchRecoveryAnimating = false
+                    compactChromeRecoverySectionHeaderID = nil
+                    hiddenSectionHeaderIDs = searchStickyHiddenSectionHeaderIDs
+                    heroCollapsedTitleReady = false
+                    heroCollapsedTitleFallbackReady = false
+                }
+                compactChromeAnimationResetTask = Task { @MainActor in
+                    defer { compactChromeAnimationResetTask = nil }
+
+                    try? await Task.sleep(for: .milliseconds(220))
+                    guard !Task.isCancelled else { return }
+
+                    areCompactChromeVisibilityAnimationsEnabled = true
+                }
+                return
+            }
+
+            compactChromeRecoverySectionHeaderID = visualPassedCompactTitleSectionID
+            hiddenSectionHeaderIDs = browseStickyHiddenSectionHeaderIDs
+            updateCollapsedTitleFallback(for: viewModel.savedScrollOffset)
+            areCompactChromeVisibilityAnimationsEnabled = true
+            isCompactChromeSearchRecoveryAnimating = true
+            withAnimation(.circularProgressSpring) {
+                isCompactChromeRecoveryVisible = true
             }
 
             compactChromeAnimationResetTask = Task { @MainActor in
                 defer { compactChromeAnimationResetTask = nil }
 
-                try? await Task.sleep(for: .milliseconds(isSearching ? 220 : 90))
+                try? await Task.sleep(
+                    for: .milliseconds(
+                        Int(LibraryStickyBehavior.Handoff.compactChromeRecoverySettleDurationMs)
+                    )
+                )
                 guard !Task.isCancelled else { return }
 
-                areCompactChromeVisibilityAnimationsEnabled = true
+                isCompactChromeSearchRecoveryAnimating = false
             }
         }
         .onChange(of: isCollapsedTitleVisible) { _, isVisible in
@@ -104,6 +132,7 @@ extension LibraryLayout {
             compactChromeAnimationResetTask?.cancel()
             compactChromeAnimationResetTask = nil
             areCompactChromeVisibilityAnimationsEnabled = true
+            isCompactChromeSearchRecoveryAnimating = false
         }
     }
 
@@ -155,7 +184,6 @@ extension LibraryLayout {
                 decks: flatSearchDecks,
                 isSelecting: viewModel.isSelecting,
                 selectedDeckIDs: viewModel.selectedDecks,
-                activeActionMenuDeckID: viewModel.activeActionMenuDeckID,
                 onNavigate: { deckID in
                     onDeckNavigate(deckID)
                 },
@@ -164,10 +192,8 @@ extension LibraryLayout {
                         viewModel.toggleSelection(for: deckID)
                     }
                 },
-                onToggleActionMenu: { id in
-                    viewModel.activeActionMenuDeckID = id
-                },
-                onEditColor: { target in viewModel.deckToEditColor = target },
+                onImport: { viewModel.triggerDeckImport() },
+                onMoveToFolder: { target in viewModel.deckToMove = target },
                 onDelete: { target in viewModel.deckToDelete = target }
             )
             .padding(.top, UIConstants.Spacing.small)
@@ -197,10 +223,12 @@ extension LibraryLayout {
                 hiddenSectionHeaderIDs: activeLayoutPresentation == .browse
                     ? hiddenSectionHeaderIDs
                     : [],
+                compactChromeRecoverySectionHeaderID: compactChromeRecoverySectionHeaderID,
+                isCompactChromeRecoveryVisible: isCompactChromeRecoveryVisible,
+                compactChromeVisibilityAnimation: compactChromeVisibilityAnimation,
                 animateHiddenSectionHeaders: areCompactChromeVisibilityAnimationsEnabled && !viewModel.isSearching,
                 isSelecting: viewModel.isSelecting,
                 selectedDeckIDs: viewModel.selectedDecks,
-                activeActionMenuDeckID: viewModel.activeActionMenuDeckID,
                 onNavigate: { deckID in
                     onDeckNavigate(deckID)
                 },
@@ -209,10 +237,8 @@ extension LibraryLayout {
                         viewModel.toggleSelection(for: deckID)
                     }
                 },
-                onToggleActionMenu: { id in
-                    viewModel.activeActionMenuDeckID = id
-                },
-                onEditColor: { target in viewModel.deckToEditColor = target },
+                onImport: { viewModel.triggerDeckImport() },
+                onMoveToFolder: { target in viewModel.deckToMove = target },
                 onDelete: { target in viewModel.deckToDelete = target }
             )
             .id("LibraryList-\(viewModel.cachedGroupedDecks.count)")

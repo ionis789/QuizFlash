@@ -8,24 +8,18 @@
 import SwiftUI
 import UIKit
 import CoreText
+import SwiftData
 
 struct LibraryDeckListRow: View, Equatable {
     let deck: LibraryDeckRowSnapshot
     let isFirstInSection: Bool
     let isSelecting: Bool
     let isSelected: Bool
-    let showActionMenu: Bool
     let onNavigate: () -> Void
     let onToggleSelection: () -> Void
-    let onToggleActionMenu: (Bool) -> Void
-    let onEditColor: () -> Void
+    let onImport: () -> Void
+    let onMoveToFolder: () -> Void
     let onDelete: () -> Void
-
-    private static let relativeFormatter: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter
-    }()
 
     @State private var titleAvailableWidth: CGFloat = 0
 
@@ -33,8 +27,7 @@ struct LibraryDeckListRow: View, Equatable {
         lhs.deck == rhs.deck &&
         lhs.isFirstInSection == rhs.isFirstInSection &&
         lhs.isSelecting == rhs.isSelecting &&
-        lhs.isSelected == rhs.isSelected &&
-        lhs.showActionMenu == rhs.showActionMenu
+        lhs.isSelected == rhs.isSelected
     }
 
     private var deckTint: Color {
@@ -45,8 +38,8 @@ struct LibraryDeckListRow: View, Equatable {
         ThemeManager.shared.accentColor.color
     }
 
-    private var timeAgoString: String {
-        Self.relativeFormatter.localizedString(for: deck.editedAt, relativeTo: Date())
+    private var separatorSeed: UInt64 {
+        UInt64(bitPattern: Int64(deck.id.hashValue))
     }
 
     private var topContentPadding: CGFloat {
@@ -61,56 +54,23 @@ struct LibraryDeckListRow: View, Equatable {
             .onTapGesture {
                 handlePrimaryTap()
             }
-            .onLongPressGesture(minimumDuration: 0.4) {
-                guard !isSelecting else { return }
-                withAnimation(.circularSelectionSpring) {
-                    onToggleActionMenu(true)
+            .contextMenu {
+                Button("Import", systemImage: "square.and.arrow.down") {
+                    onImport()
+                }
+
+                Button("Move to Folder", systemImage: "folder") {
+                    onMoveToFolder()
+                }
+
+                Divider()
+
+                Button("Delete", systemImage: "trash", role: .destructive) {
+                    onDelete()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isButton)
-            .overlay(alignment: .bottom) {
-                if showActionMenu {
-                    DeckActionMenu(
-                        onEditColor: {
-                            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                                onToggleActionMenu(false)
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                                onEditColor()
-                            }
-                        },
-                        onDelete: {
-                            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                                onToggleActionMenu(false)
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                                onDelete()
-                            }
-                        },
-                        onDismiss: {
-                            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                                onToggleActionMenu(false)
-                            }
-                        }
-                    )
-                    .transition(.scale(scale: 0.85, anchor: .bottom).combined(with: .opacity))
-                    .zIndex(100)
-                }
-            }
-            .background {
-                if showActionMenu {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            withAnimation(.circularSelectionSpring) {
-                                onToggleActionMenu(false)
-                            }
-                        }
-                        .ignoresSafeArea()
-                        .zIndex(99)
-                }
-            }
     }
 
     private var rowContent: some View {
@@ -120,20 +80,13 @@ struct LibraryDeckListRow: View, Equatable {
             .padding(.top, topContentPadding)
             .padding(.bottom, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(alignment: .trailing) {
-                if isSelecting {
-                    LibraryRowAccessory(
-                        isSelecting: isSelecting,
-                        isSelected: isSelected,
-                        accent: selectionAccent
-                    )
-                    .offset(x: 10)
-                }
-            }
             .overlay(alignment: .bottom) {
                 LibraryRowSeparator(
-                    tint: isSelected ? selectionAccent : deckTint,
-                    isHighlighted: isSelected
+                    baseTint: deckTint,
+                    highlightTint: selectionAccent,
+                    seed: separatorSeed,
+                    isHighlighted: isSelected,
+                    isBreathing: isSelecting && !isSelected
                 )
                 .padding(.top, 10)
             }
@@ -147,27 +100,10 @@ struct LibraryDeckListRow: View, Equatable {
             )
                 .layoutPriority(1)
 
-            HStack(spacing: 12) {
-                LibraryDeckMetaLabel(
-                    systemImage: "rectangle.stack.fill",
-                    text: "\(deck.cardCount) card\(deck.cardCount == 1 ? "" : "s")"
-                )
-
-                LibraryDeckMetaLabel(
-                    systemImage: "clock",
-                    text: timeAgoString
-                )
-
-                if let folderTitle = deck.folderTitle {
-                    LibraryDeckMetaLabel(
-                        systemImage: "folder",
-                        text: folderTitle
-                    )
-                }
-
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Text("\(deck.cardCount) card\(deck.cardCount == 1 ? "" : "s")")
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
@@ -196,38 +132,6 @@ struct LibraryDeckListRow: View, Equatable {
     }
 }
 
-private struct LibraryRowAccessory: View {
-    private static let size: CGFloat = 24
-
-    let isSelecting: Bool
-    let isSelected: Bool
-    let accent: Color
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .strokeBorder(Color.secondary.opacity(0.35), lineWidth: 1.6)
-                .opacity(isSelecting && !isSelected ? 1 : 0)
-
-            Circle()
-                .fill(accent)
-                .scaleEffect(isSelected ? 1 : 0.86)
-                .opacity(isSelected ? 1 : 0)
-
-            Image(systemName: "checkmark")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.white)
-                .scaleEffect(isSelected ? 1 : 0.92)
-                .opacity(isSelected ? 1 : 0)
-        }
-        .frame(width: Self.size, height: Self.size)
-        .contentShape(Rectangle())
-        .opacity(isSelecting ? 1 : 0)
-        .animation(.easeInOut(duration: 0.16), value: isSelecting)
-        .animation(.easeInOut(duration: 0.16), value: isSelected)
-    }
-}
-
 struct LibraryDeckMetaLabel: View {
     let systemImage: String
     let text: String
@@ -241,6 +145,7 @@ struct LibraryDeckMetaLabel: View {
         }
         .font(.system(size: 13, weight: .medium, design: .rounded))
         .foregroundStyle(.secondary)
+        .fixedSize(horizontal: true, vertical: false)
     }
 }
 
@@ -315,105 +220,413 @@ private struct LibraryDeckTitleLabel: View {
 }
 
 struct LibraryRowSeparator: View {
-    let tint: Color
+    let baseTint: Color
+    let highlightTint: Color
+    var seed: UInt64? = nil
     var isHighlighted: Bool = false
+    var isBreathing: Bool = false
+
+    @State private var waveAmplitude: CGFloat = 0
+    @State private var tintBlendProgress: CGFloat = 0
+    @State private var lineWidth: CGFloat = 1.7
+    @State private var lineOpacity: CGFloat = 0.58
+    @State private var glowOpacity: CGFloat = 0.10
+    @State private var glowRadius: CGFloat = 0.7
+    @State private var waveProfile = OrganicWaveProfile.randomized(seed: UInt64.random(in: 1 ... .max))
+    @State private var appliedSeed: UInt64?
+    @State private var waveEntryProgress: CGFloat = 1
+    @State private var liveWaveTime: Double = 0
+
+    private var lineToggleSpring: Animation {
+        .circularProgressSpring.speed(1.52)
+    }
+
+    private let waveEntryDuration: Double = 0.44
+
+    private var waveDriverID: String {
+        "\(appliedSeed ?? 0)-\(isBreathing)-\(isHighlighted)"
+    }
 
     var body: some View {
-        Capsule(style: .continuous)
-            .fill(
-                LinearGradient(
-                    stops: [
-                        .init(color: tint.opacity(0.20), location: 0.0),
-                        .init(color: Color.white.opacity(0.145), location: 0.18),
-                        .init(color: Color.white.opacity(0.12), location: 0.42),
-                        .init(color: Color.white.opacity(0.085), location: 0.68),
-                        .init(color: Color.white.opacity(0.045), location: 0.88),
-                        .init(color: .clear, location: 1.0)
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .overlay(alignment: .leading) {
-                Capsule(style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            stops: [
-                                .init(color: tint.opacity(0.11), location: 0.0),
-                                .init(color: Color.white.opacity(0.075), location: 0.45),
-                                .init(color: .clear, location: 1.0)
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(maxWidth: 168)
-                    .blur(radius: 1.6)
+        separatorShape()
+        .frame(height: waveProfile.baseHeight)
+        .clipShape(Rectangle())
+        .opacity(0.92)
+        .onAppear {
+            refreshWaveProfileIfNeeded(force: true)
+            syncSeparatorState(isInitialMount: true)
+        }
+        .onChange(of: seed) { _, _ in
+            refreshWaveProfileIfNeeded()
+        }
+        .onChange(of: isBreathing) { _, _ in
+            syncSeparatorState()
+        }
+        .onChange(of: isHighlighted) { _, _ in
+            syncSeparatorState()
+        }
+        .task(id: waveDriverID) {
+            await driveWaveClock()
+        }
+    }
+
+    @ViewBuilder
+    private func separatorShape() -> some View {
+        OrganicWaveSeparatorShape(
+            profile: waveProfile,
+            elapsed: liveWaveTime,
+            overallAmplitude: currentWaveAmplitude
+        )
+        .stroke(currentTint.opacity(lineOpacity), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+        .shadow(color: currentTint.opacity(glowOpacity), radius: glowRadius, x: 0, y: 0)
+    }
+
+    private func syncSeparatorState(isInitialMount: Bool = false) {
+        refreshWaveProfileIfNeeded()
+        let target = targetVisualState
+        let wasHighlighted = lineOpacity > 0.6
+
+        if isInitialMount {
+            applyVisualState(target, animation: nil)
+            return
+        }
+
+        if wasHighlighted && !isHighlighted && !isBreathing {
+            applyVisualState(target, animation: .easeInOut(duration: 0.18))
+            return
+        }
+
+        if isBreathing && !isHighlighted {
+            let isStartingWave = waveAmplitude <= 0.01
+            applyVisualState(target, animation: nil) {
+                if isStartingWave {
+                    waveEntryProgress = 0
+                } else {
+                    waveEntryProgress = 1
+                }
             }
-            .overlay {
-                Capsule(style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            stops: [
-                                .init(color: tint.opacity(0.96), location: 0.0),
-                                .init(color: tint.opacity(0.82), location: 0.58),
-                                .init(color: tint.opacity(0.16), location: 1.0)
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .scaleEffect(x: isHighlighted ? 1 : 0.18, y: 1, anchor: .leading)
-                    .opacity(isHighlighted ? 1 : 0)
-                    .blur(radius: isHighlighted ? 0.2 : 0)
-                    .animation(.circularSelectionSpring, value: isHighlighted)
+
+            withAnimation(.linear(duration: waveEntryDuration)) {
+                waveEntryProgress = 1
             }
-            .frame(height: 2)
-            .clipShape(Capsule(style: .continuous))
-            .opacity(0.88)
-            .animation(.circularSelectionSpring, value: isHighlighted)
+            return
+        }
+
+        applyVisualState(target, animation: lineToggleSpring)
+    }
+
+    private var targetVisualState: SeparatorVisualState {
+        if isHighlighted {
+            return .highlighted
+        }
+        if isBreathing {
+            return .breathing
+        }
+        return .passive
+    }
+
+    private var currentWaveAmplitude: CGFloat {
+        guard isBreathing && !isHighlighted else { return 0 }
+        return waveAmplitude * waveEntryProgress
+    }
+
+    private var currentTint: Color {
+        let base = UIColor(baseTint)
+        let highlight = UIColor(highlightTint)
+        var baseRed: CGFloat = 0
+        var baseGreen: CGFloat = 0
+        var baseBlue: CGFloat = 0
+        var baseAlpha: CGFloat = 0
+        var highlightRed: CGFloat = 0
+        var highlightGreen: CGFloat = 0
+        var highlightBlue: CGFloat = 0
+        var highlightAlpha: CGFloat = 0
+
+        guard base.getRed(&baseRed, green: &baseGreen, blue: &baseBlue, alpha: &baseAlpha),
+              highlight.getRed(&highlightRed, green: &highlightGreen, blue: &highlightBlue, alpha: &highlightAlpha) else {
+            return isHighlighted ? highlightTint : baseTint
+        }
+
+        let progress = tintBlendProgress
+        return Color(
+            red: baseRed + ((highlightRed - baseRed) * progress),
+            green: baseGreen + ((highlightGreen - baseGreen) * progress),
+            blue: baseBlue + ((highlightBlue - baseBlue) * progress),
+            opacity: baseAlpha + ((highlightAlpha - baseAlpha) * progress)
+        )
+    }
+
+    private func refreshWaveProfileIfNeeded(force: Bool = false) {
+        let resolvedSeed = seed ?? appliedSeed ?? UInt64.random(in: 1 ... .max)
+        guard force || appliedSeed != resolvedSeed else { return }
+        appliedSeed = resolvedSeed
+        applyWithoutAnimation {
+            waveProfile = OrganicWaveProfile.randomized(seed: resolvedSeed)
+        }
+    }
+
+    private func driveWaveClock() async {
+        await MainActor.run {
+            liveWaveTime = 0
+        }
+        let startTime = CACurrentMediaTime()
+        while !Task.isCancelled {
+            let shouldContinue = await MainActor.run {
+                isBreathing || waveAmplitude > 0.01
+            }
+            guard shouldContinue else { break }
+
+            let elapsed = CACurrentMediaTime() - startTime
+            await MainActor.run {
+                liveWaveTime = elapsed
+            }
+
+            try? await Task.sleep(for: .milliseconds(33))
+        }
+    }
+
+    private func applyVisualState(
+        _ state: SeparatorVisualState,
+        animation: Animation?,
+        extraChanges: (() -> Void)? = nil
+    ) {
+        if let animation {
+            withAnimation(animation) {
+                assignVisualState(state)
+                extraChanges?()
+            }
+        } else {
+            applyWithoutAnimation {
+                assignVisualState(state)
+                extraChanges?()
+            }
+        }
+    }
+
+    private func assignVisualState(_ state: SeparatorVisualState) {
+        waveAmplitude = state.amplitude
+        tintBlendProgress = state.tintBlendProgress
+        lineWidth = state.lineWidth
+        lineOpacity = state.opacity
+        glowOpacity = state.glowOpacity
+        glowRadius = state.glowRadius
+        if !isBreathing || isHighlighted {
+            waveEntryProgress = 1
+        }
+    }
+
+    private func applyWithoutAnimation(_ changes: () -> Void) {
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            changes()
+        }
+    }
+
+    private enum SeparatorVisualState {
+        case passive
+        case breathing
+        case highlighted
+
+        var amplitude: CGFloat {
+            switch self {
+            case .passive, .highlighted:
+                0
+            case .breathing:
+                2.05
+            }
+        }
+
+        var lineWidth: CGFloat {
+            switch self {
+            case .passive, .breathing, .highlighted:
+                1.55
+            }
+        }
+
+        var tintBlendProgress: CGFloat {
+            switch self {
+            case .passive, .breathing:
+                0
+            case .highlighted:
+                1
+            }
+        }
+
+        var opacity: CGFloat {
+            switch self {
+            case .passive:
+                0.16
+            case .breathing:
+                0.16
+            case .highlighted:
+                0.72
+            }
+        }
+
+        var glowOpacity: CGFloat {
+            switch self {
+            case .passive:
+                0.10
+            case .breathing:
+                0.10
+            case .highlighted:
+                0.12
+            }
+        }
+
+        var glowRadius: CGFloat {
+            switch self {
+            case .passive:
+                0.7
+            case .breathing:
+                0.85
+            case .highlighted:
+                0.9
+            }
+        }
     }
 }
 
-private struct DeckActionMenu: View {
-    let onEditColor: () -> Void
-    let onDelete: () -> Void
-    let onDismiss: () -> Void
+private struct OrganicWaveSeparatorShape: Shape {
+    let profile: OrganicWaveProfile
+    let elapsed: Double
+    let overallAmplitude: CGFloat
 
-    var body: some View {
-        VStack(spacing: 0) {
-            Button(action: onEditColor) {
-                Label("Change Color", systemImage: "paintpalette")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 13)
-            }
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard rect.width > 0 else { return path }
 
-            Divider()
-                .padding(.horizontal, 12)
+        let midY = rect.midY
+        let sampleCount = profile.sampleCount
+        path.move(to: CGPoint(x: rect.minX, y: midY))
 
-            Button(action: onDelete) {
-                Label("Delete", systemImage: "trash")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 13)
-            }
+        for sampleIndex in 1 ... sampleCount {
+            let progress = Double(sampleIndex) / Double(sampleCount)
+            let x = rect.minX + (rect.width * CGFloat(progress))
+            let y = midY + profile.verticalOffset(
+                at: progress,
+                elapsed: elapsed,
+                width: rect.width,
+                overallAmplitude: overallAmplitude
+            )
+            path.addLine(to: CGPoint(x: x, y: y))
         }
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.18), radius: 16, x: 0, y: 6)
+
+        return path
+    }
+}
+
+private struct OrganicWaveProfile {
+    let seed: UInt64
+    let baseHeight: CGFloat
+    let sampleCount: Int
+    let cycleCount: Double
+    let travelAngularVelocity: Double
+    let travelPhase: Double
+    let secondaryPhase: Double
+    let tertiaryPhase: Double
+    let secondaryFrequencyMultiplier: Double
+    let tertiaryFrequencyMultiplier: Double
+    let lobeCount: Int
+    let lobeBases: [Double]
+    let lobeDepths: [Double]
+    let lobePhases: [Double]
+    let envelopeAngularVelocity: Double
+    let globalEnvelopePhase: Double
+    let globalEnvelopeDepth: Double
+
+    static func randomized(seed: UInt64) -> OrganicWaveProfile {
+        var generator = WaveIntervalRandomizer(seed: seed)
+        let lobeCount = Int(generator.nextDouble(in: 6 ... 8).rounded())
+        return OrganicWaveProfile(
+            seed: seed,
+            baseHeight: generator.nextCGFloat(in: 9.8 ... 11.0),
+            sampleCount: 72,
+            cycleCount: generator.nextDouble(in: 5.3 ... 6.4),
+            travelAngularVelocity: generator.nextDouble(in: 3.1 ... 3.6),
+            travelPhase: generator.nextDouble(in: 0 ... (.pi * 2)),
+            secondaryPhase: generator.nextDouble(in: 0 ... (.pi * 2)),
+            tertiaryPhase: generator.nextDouble(in: 0 ... (.pi * 2)),
+            secondaryFrequencyMultiplier: generator.nextDouble(in: 1.9 ... 2.2),
+            tertiaryFrequencyMultiplier: generator.nextDouble(in: 2.8 ... 3.2),
+            lobeCount: lobeCount,
+            lobeBases: (0 ..< lobeCount).map { _ in generator.nextDouble(in: 0.84 ... 1.08) },
+            lobeDepths: (0 ..< lobeCount).map { _ in generator.nextDouble(in: 0.07 ... 0.14) },
+            lobePhases: (0 ..< lobeCount).map { _ in generator.nextDouble(in: 0 ... (.pi * 2)) },
+            envelopeAngularVelocity: generator.nextDouble(in: 0.54 ... 0.72),
+            globalEnvelopePhase: generator.nextDouble(in: 0 ... (.pi * 2)),
+            globalEnvelopeDepth: generator.nextDouble(in: 0.04 ... 0.09)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
-        )
-        .frame(width: 220)
-        .offset(y: 8)
-        .allowsHitTesting(true)
+    }
+
+    func verticalOffset(
+        at progress: Double,
+        elapsed: Double,
+        width: CGFloat,
+        overallAmplitude: CGFloat
+    ) -> CGFloat {
+        guard overallAmplitude > 0.001 else { return 0 }
+
+        let spatialPhase = progress * cycleCount * (.pi * 2)
+        let travelPhase = (elapsed * travelAngularVelocity) + self.travelPhase
+        let primary = sin(spatialPhase + travelPhase)
+        let secondary = 0.22 * sin((spatialPhase * secondaryFrequencyMultiplier) + (travelPhase * 1.04) + secondaryPhase)
+        let tertiary = 0.11 * sin((spatialPhase * tertiaryFrequencyMultiplier) + (travelPhase * 0.92) + tertiaryPhase)
+        let localEnvelope = envelope(at: progress, elapsed: elapsed)
+        let edgeFade = edgeFadeFactor(for: progress)
+        return CGFloat((primary + secondary + tertiary) * localEnvelope * edgeFade) * overallAmplitude
+    }
+
+    private func envelope(at progress: Double, elapsed: Double) -> Double {
+        let scaled = max(0, min(progress, 1)) * Double(max(lobeCount - 1, 1))
+        let lowerIndex = min(max(Int(floor(scaled)), 0), lobeCount - 1)
+        let upperIndex = min(lowerIndex + 1, lobeCount - 1)
+        let mix = smoothstep(scaled - floor(scaled))
+        let lowerValue = lobeValue(at: lowerIndex, elapsed: elapsed)
+        let upperValue = lobeValue(at: upperIndex, elapsed: elapsed)
+        let local = lowerValue + ((upperValue - lowerValue) * mix)
+        let global = 1 + (sin((elapsed * envelopeAngularVelocity) + globalEnvelopePhase) * globalEnvelopeDepth)
+        return max(0.72, local * global)
+    }
+
+    private func lobeValue(at index: Int, elapsed: Double) -> Double {
+        lobeBases[index] + (sin((elapsed * envelopeAngularVelocity) + lobePhases[index]) * lobeDepths[index])
+    }
+
+    private func edgeFadeFactor(for progress: Double) -> Double {
+        let leading = min(1, progress / 0.08)
+        let trailing = min(1, (1 - progress) / 0.08)
+        return smoothstep(min(leading, trailing))
+    }
+
+    private func smoothstep(_ value: Double) -> Double {
+        let clamped = max(0, min(value, 1))
+        return clamped * clamped * (3 - (2 * clamped))
+    }
+}
+
+private struct WaveIntervalRandomizer {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        state = seed == 0 ? 0x9E3779B97F4A7C15 : seed
+    }
+
+    mutating func nextUnit() -> Double {
+        state &+= 0x9E3779B97F4A7C15
+        var value = state
+        value = (value ^ (value >> 30)) &* 0xBF58476D1CE4E5B9
+        value = (value ^ (value >> 27)) &* 0x94D049BB133111EB
+        value = value ^ (value >> 31)
+        return Double(value) / Double(UInt64.max)
+    }
+
+    mutating func nextDouble(in range: ClosedRange<Double>) -> Double {
+        range.lowerBound + ((range.upperBound - range.lowerBound) * nextUnit())
+    }
+
+    mutating func nextCGFloat(in range: ClosedRange<CGFloat>) -> CGFloat {
+        CGFloat(nextDouble(in: Double(range.lowerBound) ... Double(range.upperBound)))
     }
 }
