@@ -40,7 +40,6 @@ struct DeckContentView: View {
     @State var unavailablePlayMode: DeckPlayModeDestination? = nil
     @State var showAddCardTypeDialog = false
     @State var pendingDeleteCardID: PersistentIdentifier? = nil
-    @State var activeActionMenuCardID: PersistentIdentifier? = nil
     @State var playModeRecentUsageSnapshot: [DeckPlayModeDestination: Date] = [:]
     @Bindable var viewModel: DeckViewModel
     @State var hasLoadedInitialSnapshot = false
@@ -99,17 +98,6 @@ struct DeckContentView: View {
         f.timeStyle = .none
         return f
     }()
-    let actionMenuTopClearance: CGFloat = 10
-    let actionMenuBottomClearance: CGFloat = 10
-    var activeActionMenuCard: GridCardInfo? {
-        guard let id = activeActionMenuCardID else { return nil }
-        for section in viewModel.cachedGroupedCards {
-            if let card = section.cards.first(where: { $0.id == id }) {
-                return card
-            }
-        }
-        return nil
-    }
 
     // MARK: - Body
 

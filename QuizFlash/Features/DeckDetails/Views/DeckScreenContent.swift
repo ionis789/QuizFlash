@@ -42,9 +42,6 @@ extension DeckContentView {
         }
             .coordinateSpace(name: kDeckChromeSpace)
             .overlay(alignment: .top) { measuredNavigationBar }
-            .overlayPreferenceValue(DeckGridCardBoundsPreferenceKey.self) { preferences in
-                actionMenuOverlay(preferences: preferences)
-            }
             .swipeBack(
                 enabled: !viewModel.showShareSheet
                     && !isPresentingEdit
@@ -53,7 +50,6 @@ extension DeckContentView {
                     && previewedCard == nil
                     && cardEditorDestination == nil
                     && unavailablePlayMode == nil
-                    && activeActionMenuCardID == nil
             ) { dismiss() }
             .animation(.bottomChromeSpring, value: viewModel.isSelecting)
             .environment(scrollState)
@@ -334,9 +330,7 @@ extension DeckContentView {
                     onEditCard: handleEditCard(_:),
                     onConvertCard: handleConvertCard(_:),
                     onTogglePinned: handleTogglePinned(_:),
-                    onDeleteCard: handleDeleteCard(_:),
-                    onPresentActionMenu: presentActionMenu(for:),
-                    onDismissActionMenu: dismissActiveActionMenu
+                    onDeleteCard: handleDeleteCard(_:)
                 )
                 .padding(.top, 4)
             }

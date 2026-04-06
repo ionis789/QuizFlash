@@ -7,23 +7,18 @@
 
 import SwiftUI
 import SwiftData
-import UIKit
-
 extension DeckContentView {
     func handleEditCard(_ gridCard: GridCardInfo) {
-        dismissActiveActionMenu()
         if let model = context.model(for: gridCard.id) as? CardModel {
             presentCardEditor(for: model)
         }
     }
 
     func handleTogglePinned(_ gridCard: GridCardInfo) {
-        dismissActiveActionMenu()
         viewModel.togglePinnedState(for: gridCard.id, in: deck, context: context)
     }
 
     func handleConvertCard(_ gridCard: GridCardInfo) {
-        dismissActiveActionMenu()
         presentConversionConfiguration(
             viewModel.presentSingleCardConversion(for: gridCard.id, in: deck)
         )
@@ -49,7 +44,6 @@ extension DeckContentView {
     }
 
     func presentUnavailablePlayMode(_ mode: DeckPlayModeDestination) {
-        dismissActiveActionMenu()
         withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
             unavailablePlayMode = mode
         }
@@ -85,7 +79,6 @@ extension DeckContentView {
     }
 
     func handleDeleteCard(_ gridCard: GridCardInfo) {
-        dismissActiveActionMenu()
         pendingDeleteCardID = gridCard.id
     }
 
@@ -134,7 +127,6 @@ extension DeckContentView {
     }
 
     func presentDeckConversion() {
-        dismissActiveActionMenu()
         exitSelectionModeForExternalAction()
         presentConversionConfiguration(
             viewModel.presentDeckConversion(for: deck)
@@ -142,7 +134,6 @@ extension DeckContentView {
     }
 
     func presentSelectionConversion() {
-        dismissActiveActionMenu()
         presentConversionConfiguration(
             viewModel.presentSelectionConversion(for: deck)
         )
@@ -169,118 +160,6 @@ extension DeckContentView {
         Task { @MainActor in
             await Task.yield()
             router.showCreateDeckEditor(for: deck.persistentModelID)
-        }
-    }
-
-    func presentActionMenu(for id: PersistentIdentifier) {
-        let generator = UIImpactFeedbackGenerator(style: .soft)
-        generator.prepare()
-        generator.impactOccurred(intensity: 0.9)
-        withAnimation(.spring(response: 0.24, dampingFraction: 0.82)) {
-            activeActionMenuCardID = id
-        }
-    }
-
-    func dismissActiveActionMenu() {
-        guard activeActionMenuCardID != nil else { return }
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
-            activeActionMenuCardID = nil
-        }
-    }
-
-    @ViewBuilder
-    func actionMenuOverlay(
-        preferences: [PersistentIdentifier: Anchor<CGRect>]
-    ) -> some View {
-        GeometryReader { proxy in
-            if let card = activeActionMenuCard,
-               let anchor = preferences[card.id],
-               !viewModel.isSelecting,
-               !isSuspended {
-                let rect = proxy[anchor]
-                let menuWidth = DeckGridCardMetrics.headerMenuWidth
-                let menuHeight = DeckGridCardMetrics.headerMenuHeight
-                let floatingGap = DeckGridCardMetrics.headerMenuFloatingGap
-                let horizontalClearance = DeckGridCardMetrics.headerMenuHorizontalClearance
-                let topLimit = navigationBarBottomY + actionMenuTopClearance
-                let bottomLimit = proxy.size.height - actionMenuBottomClearance
-                let preferredX = rect.minX + DeckGridCardMetrics.sideInset
-                let clampedX = min(
-                    max(preferredX, horizontalClearance),
-                    max(horizontalClearance, proxy.size.width - horizontalClearance - menuWidth)
-                )
-                let topY = rect.minY - menuHeight - floatingGap
-                let bottomY = rect.maxY + floatingGap
-                let topSpace = rect.minY - topLimit - floatingGap
-                let bottomSpace = bottomLimit - rect.maxY - floatingGap
-                let placement: ActionMenuPlacement =
-                    (topSpace >= menuHeight || topSpace >= bottomSpace) ? .top : .bottom
-                let clampedY = placement == .top
-                    ? max(topLimit, topY)
-                    : min(bottomY, max(topLimit, bottomLimit - menuHeight))
-                let transitionAnchor = UnitPoint(
-                    x: clampedX > preferredX ? 1 : 0,
-                    y: placement == .top ? 1 : 0
-                )
-
-                Color.black.opacity(0.001)
-                    .ignoresSafeArea()
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        dismissActiveActionMenu()
-                    }
-                    .simultaneousGesture(
-                        DragGesture(minimumDistance: 4)
-                            .onChanged { _ in
-                                dismissActiveActionMenu()
-                            }
-                    )
-                    .zIndex(199)
-
-                DeckGridHeaderActionMenu(
-                    isPinned: card.isPinned,
-                    accent: ThemeManager.shared.accentColor.color,
-                    onTogglePinned: {
-                        dismissActiveActionMenu()
-                        handleTogglePinned(card)
-                    },
-                    onEdit: {
-                        dismissActiveActionMenu()
-                        handleEditCard(card)
-                    },
-                    onConvert: {
-                        dismissActiveActionMenu()
-                        handleConvertCard(card)
-                    },
-                    onDelete: {
-                        dismissActiveActionMenu()
-                        handleDeleteCard(card)
-                    }
-                )
-                .offset(
-                    x: clampedX,
-                    y: clampedY
-                )
-                .transition(
-                    .asymmetric(
-                        insertion: .opacity
-                            .combined(
-                                with: .scale(
-                                    scale: 0.84,
-                                    anchor: transitionAnchor
-                                )
-                            ),
-                        removal: .opacity
-                            .combined(
-                                with: .scale(
-                                    scale: 0.94,
-                                    anchor: transitionAnchor
-                                )
-                            )
-                    )
-                )
-                .zIndex(200)
-            }
         }
     }
 
@@ -327,11 +206,6 @@ extension DeckContentView {
             }
             .zIndex(260)
         }
-    }
-
-    enum ActionMenuPlacement {
-        case top
-        case bottom
     }
 
     struct PlayModeUnavailableCard: View {

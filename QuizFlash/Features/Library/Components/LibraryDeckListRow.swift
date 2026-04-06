@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import UIKit
 import CoreText
 import SwiftData
 
@@ -22,7 +21,6 @@ struct LibraryDeckListRow: View, Equatable {
     let onDelete: () -> Void
 
     @State private var titleAvailableWidth: CGFloat = 0
-
     static func == (lhs: LibraryDeckListRow, rhs: LibraryDeckListRow) -> Bool {
         lhs.deck == rhs.deck &&
         lhs.isFirstInSection == rhs.isFirstInSection &&
@@ -54,23 +52,36 @@ struct LibraryDeckListRow: View, Equatable {
             .onTapGesture {
                 handlePrimaryTap()
             }
-            .contextMenu {
-                Button("Import", systemImage: "square.and.arrow.down") {
-                    onImport()
-                }
-
-                Button("Move to Folder", systemImage: "folder") {
-                    onMoveToFolder()
-                }
-
-                Divider()
-
-                Button("Delete", systemImage: "trash", role: .destructive) {
-                    onDelete()
-                }
-            }
+            .contextMenu(menuItems: {
+                contextMenuItems
+            }, preview: {
+                LibraryContextMenuTitlePreview(title: deck.title)
+            })
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isButton)
+    }
+
+    @ViewBuilder
+    private var contextMenuItems: some View {
+        if !isSelecting {
+            Button {
+                onImport()
+            } label: {
+                Label("Import", systemImage: "square.and.arrow.down")
+            }
+
+            Button {
+                onMoveToFolder()
+            } label: {
+                Label("Move to Folder", systemImage: "folder")
+            }
+
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 
     private var rowContent: some View {
@@ -129,6 +140,23 @@ struct LibraryDeckListRow: View, Equatable {
         } else {
             onNavigate()
         }
+    }
+}
+
+private struct LibraryContextMenuTitlePreview: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 22, weight: .bold, design: .rounded))
+            .foregroundStyle(Color("DeckTitle"))
+            .lineLimit(2)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: 320, alignment: .leading)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.clear)
     }
 }
 
