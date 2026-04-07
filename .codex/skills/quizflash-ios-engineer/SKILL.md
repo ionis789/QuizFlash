@@ -1,0 +1,191 @@
+---
+name: quizflash-ios-engineer
+description: Project-specific engineering guide for QuizFlash, a SwiftUI flashcard app targeting iOS 17+ with Swift 6, SwiftData, and `@Observable`. Use when Codex writes, reviews, debugs, or refactors code in this repository, especially for SwiftUI views, view models, SwiftData models, background fetch actors, navigation, theming, memory/performance work, and QuizFlash file-format or output conventions.
+---
+
+# QuizFlash iOS Engineer
+
+## Overview
+
+Write and review code for QuizFlash using the repository's architecture rules instead of generic SwiftUI defaults. Optimize for the smallest safe context: start from the target file, load the paired owner file next, and pull longer references only when the task actually crosses those boundaries. Treat the standards in `references/architecture.md` as the target for new code even when older files still contain legacy patterns.
+
+QuizFlash now has a dedicated feature-testing flow. When the user explicitly asks to prototype or iterate inside the feature-testing area first, do the work there before integrating anything into production screens. Treat the test surface as the place to validate geometry, animation, interaction, and visual feel; only wire the result into the main app after the user confirms the lab result is correct.
+
+## Quick Start
+
+1. Read `references/task-routing.md`.
+2. Open the target file first.
+3. Open the smallest paired owner file next.
+   - `Features/*/Views/*.swift`: pull the paired `ViewModels/` file only if the change touches state, async work, persistence, derived data, or navigation owned outside the view.
+   - `Features/*/Components/*.swift`: pull the parent view or local layout/helper file only if the component does not fully explain the behavior by itself.
+   - `Features/*/ViewModels/*.swift`: pull the paired root `Views/` file only if UI wiring or presentation behavior changes.
+4. Read `references/project-map.md` only when ownership is unclear or you are adding or moving types.
+5. Read only the relevant parts of `references/architecture.md` when the task touches:
+   - SwiftData fetches, saves, model-graph access, or memory-sensitive reads
+   - Stored tasks, async pipelines, actor boundaries, or cancellation
+   - Navigation, `fullScreenSheet`, sticky chrome, long scroll surfaces, or adaptive layout infrastructure
+   - Shared design-system behavior, tokens, or reusable cross-screen presentation rules
+   - Multi-layer refactors or reviews that cross feature boundaries
+6. Verify `references/component-catalog.md` only before creating a new reusable UI component.
+7. Reuse existing project primitives before introducing new abstractions:
+   - `NavigationManager`
+   - `UIConstants`
+   - `ThemeManager`
+   - `ModelContext.safeModel(for:as:)`
+   - `CardFetchActor`
+   - `ImageCache`
+   - `MathWebViewPool`
+   - `ScrollPositionRestorer`
+   - `fullScreenSheet` from `Core/DesignSystem/Modifiers/View+FullScreenSheet.swift`
+   - `StandardSheetTopStripBackground` for immersive dark sheets that react to drag-dismiss progress
+
+## Context Loading Rules
+
+- Prefer the smallest viable read set for edits to existing files.
+- Do not preload unrelated feature clusters just because the repo has shared architecture docs.
+- Escalate from local files to shared references only when the task crosses a boundary that the local files do not explain safely.
+- Examples:
+  - `CreateDeckView.swift` copy, spacing, or overlay tweaks should start in `CreateDeckView.swift`; do not read `AIFlashcardService.swift` unless the change reaches AI pipeline behavior.
+  - `HomeCalendarSectionView.swift` spacing or compact-calendar tweaks should start in `HomeCalendarSectionView.swift` plus `HomeCalendarAdaptiveLayout.swift`; pull `HomeViewModel.swift` only if the change touches summaries or derived data.
+  - `DeckView.swift` dialog, toolbar, or overlay copy tweaks should start in `DeckView.swift`; pull `DeckViewModel.swift` only if the action, mutation, or state flow changes.
+
+## Workflow
+
+1. Identify the ownership layer first from the file path and local neighbors.
+   - Keep `Domain/Models/` data-oriented.
+   - Keep `Features/*/ViewModels/` focused on business logic and async orchestration.
+   - Keep `Views/` and `Components/` focused on rendering and event forwarding.
+2. Escalate references on demand, not by default.
+   - Use `references/task-routing.md` for the smallest safe starting set.
+   - Use `references/project-map.md` only when ownership, placement, or feature boundaries are unclear.
+   - Use the specific sections of `references/architecture.md` that match the task, not an automatic full read for local UI or copy edits.
+3. Follow the repository's data-access rules before changing SwiftData code.
+   - Prefer denormalized counters over relationship `.count`.
+   - Route heavy card-content reads through `CardFetchActor`.
+   - Save mutations explicitly and surface failures.
+4. Match the project's UI system before changing presentation code.
+   - Use `UIConstants` tokens instead of magic numbers.
+   - Prefer semantic colors and existing theme plumbing.
+   - Prefer shared design-system modifiers and components such as `widgetStyle`, `glassButton`, shared rings, and existing chrome containers over ad-hoc overlays, borders, shadows, or custom surface treatments.
+   - Match the app's visual voice: large rounded typography, minimal copy, sparse supporting text, and only the UI needed for the interaction. Do not add filler descriptions, dashboard-like info cards, or extra widgets just to "complete" a screen.
+   - New screens and labs should start visually minimal. Add secondary text only when it is functionally necessary for understanding or debugging.
+   - When motion matters, prefer the app's existing motion language and `PZCircularControl`-based animations over generic SwiftUI springs or decorative transitions.
+   - Keep navigation programmatic through `NavigationManager`.
+   - Treat long scrolling surfaces and immersive modal flows as architecture-sensitive code paths, not local view tweaks.
+   - On iPad and other resizable environments, derive layout from the container geometry and available width instead of `UIScreen` assumptions. Expect split view, Stage Manager, and future resizable iPad windows to expose widths that differ materially from full-screen iPad.
+   - On drag-heavy or scroll-heavy surfaces, do not leave expensive collection-wide work in view `computed` properties.
+   - If a value walks many cards, zones, diagnostics, or summaries, cache it in local state or move it out of the hot render path, then recompute only when the source collection actually changes.
+   - Prefer `Equatable` row views and other diff-friendly techniques for large editor/deck lists so parent refreshes do not rebuild every row.
+5. Preserve the repo's file hygiene when generating or rewriting files.
+   - Keep Apple-style file headers.
+   - Keep `// MARK: -` sections.
+   - Keep DocC comments on new internal and public declarations.
+   - Remove `TODO:`, `FIXME:`, and commented-out code from generated output.
+
+## Testing Expectations
+
+1. Treat data-flow regressions as testable by default.
+   - When a change creates, edits, deletes, imports, exports, converts, or otherwise mutates persisted app data, add or update automated tests unless the user explicitly says not to.
+2. Prefer logic and persistence tests over UI automation.
+   - Use `XCTest` suites in `QuizFlashTests/` to validate models, view models, stores, import/export, and detached persistence flows.
+   - Leave UI validation to manual verification unless the task explicitly asks for UI tests.
+3. Use deterministic in-memory fixtures for SwiftData.
+   - Prefer a dedicated in-memory `ModelContainer` test helper over production storage.
+   - Seed relationships in the direction the production code actually reads (`deck.cards`, `deck.folder`, etc.) to avoid SwiftData registration traps.
+4. Verify tests conservatively on one simulator at a time.
+   - Prefer `build-for-testing` once, then `test-without-building` per suite or class.
+   - Disable parallel testing for local verification unless the user explicitly wants parallel runs.
+   - Unless the user explicitly asks for a different target, default to the currently active simulator set for this repo: `iPhone 15 Pro (iOS 17.5)`.
+   - When reporting verification, prefer targeted `xcodebuild` test runs against that active simulator instead of broader generic destinations.
+   - For app run verification after a code change, prefer physical-device `build + install + launch` when the user's wired device `iPhoneIS` is connected:
+     `iPhone 13 Pro`
+     Xcode destination id: `00008110-00041841340A401E`
+     CoreDevice identifier: `C0558BFB-25CA-5399-A247-927C3D727AA7`
+   - On that device path, build with `xcodebuild` for the device destination, then install and launch with `xcrun devicectl device install app` and `xcrun devicectl device process launch`.
+   - If that device is not connected, fall back to `build + run` on the currently active simulator instead of asking the user to press Run in Xcode.
+   - For layout-sensitive UI work, also do a manual visual pass on iPad-sized and resizable widths when the changed screen supports them, especially for sticky headers, compact calendar states, floating chrome, and multi-column/dashboard surfaces.
+5. Extend the regression net when fixing a bug.
+   - If a data-flow bug is discovered while testing, fix the fixture or production code at the root cause and keep the new test as a permanent guardrail.
+
+## Decision Points
+
+- Read `references/task-routing.md` first for existing-file tasks when the smallest safe context is not obvious.
+- Inspect `references/project-map.md` before adding a new type only if you are not sure where it belongs.
+- Read the relevant sections of `references/architecture.md` before touching navigation, concurrency, SwiftData, or performance-sensitive code.
+- Read `references/architecture.md` end to end only for new features, large refactors, or reviews that cross multiple layers.
+- Read the scroll and presentation guidance in `references/architecture.md` before changing any large `ScrollView`, sticky hero, floating top chrome, or custom full-screen presentation.
+- Prefer the standards in this skill for new code. If a surrounding file still uses an older pattern, keep the change narrow unless the task explicitly asks for cleanup.
+- If the user asks to explore a risky interaction or new UI behavior first, build and iterate inside the feature-testing area before touching `Library`, `DeckView`, or other production screens.
+- Read `../../../quizflash_mcp_prompt.md` only when you need the original long-form source prompt that this skill was derived from.
+
+## References
+
+- `references/task-routing.md`: Smallest safe starting points and escalation triggers for local tasks.
+- `references/project-map.md`: Real repo layout, important files, and common starting points.
+- `references/architecture.md`: Project rules for architecture, concurrency, SwiftData safety, navigation, design tokens, code style, and review checks.
+- `references/examples/ViewModel.swift.example`: Canonical QuizFlash-flavored view-model skeleton for new code.
+- `references/examples/View.swift.example`: Canonical QuizFlash-flavored root-view skeleton for new screens.
+- `references/component-catalog.md`: Reusable UI inventory; check this before creating a new component.
+- `references/antipatterns.md`: Concrete "before/after" guidance for patterns that still appear in older files.
+- `references/new-feature-template.md`: End-to-end feature scaffold and implementation order.
+- `references/universal_prompt.md`: Copy-paste prompt template for other agents/tools.
+
+## Before Writing Any New Feature
+
+For new screens or end-to-end features, deeper loading is expected than for local edits.
+
+1. Read `references/project-map.md` to confirm the ownership layer and target folder.
+2. Read `references/component-catalog.md` before creating any new card, row, toolbar, menu, overlay, or modal.
+3. Read `references/architecture.md` before touching navigation, concurrency, SwiftData, scroll behavior, or design-system-sensitive UI.
+4. Read `references/antipatterns.md` if the surrounding files are older or you need to avoid repeating legacy patterns.
+5. Read `references/examples/ViewModel.swift.example` and `references/examples/View.swift.example` when starting a new screen or refactoring one toward the current architecture.
+6. Read `references/new-feature-template.md` when building a feature end to end or wiring multiple new files together.
+7. If the user wants to validate a feature in isolation first, start from the feature-testing area instead of integrating directly into production flows.
+
+## UI Style Guardrails
+
+- Favor big rounded titles and compact supporting text.
+- Prefer clean black-space layouts over busy compositions.
+- Avoid placeholder copy, explanatory filler paragraphs, and stacks of decorative cards.
+- Do not add multiple helper widgets unless the user explicitly asks for them.
+- Keep experiment screens visually aligned with the app; "lab" does not mean throwaway styling.
+
+## Using This Skill With Other Agents
+
+This skill is intentionally written to be mostly agent-agnostic:
+- `SKILL.md` + `references/` are the *core* rules (architecture + repo conventions).
+- `agents/*.yaml` are *adapters* (short, tool/platform-specific wrapper prompts).
+- `references/universal_prompt.md` is a copy-paste prompt template you can reuse in other AI tools.
+
+### What To Share With Another Agent
+
+When you use Claude/ChatGPT/Cursor/etc. outside Codex, paste or attach first:
+- `SKILL.md`
+- `references/task-routing.md`
+
+Add these only when the task needs them:
+- `references/architecture.md`
+- `references/project-map.md`
+- `references/component-catalog.md`
+
+If the agent cannot access your repo directly, also paste:
+- the exact file paths involved
+- the repro steps and expected behavior
+- any console logs / screenshots
+
+### Tool Capability Adaptation
+
+- Agents *with* a terminal + repo access:
+  ask for a patch (file edits) + a build (`xcodebuild`) verification.
+- Agents *without* a terminal:
+  require they propose changes with exact file + symbol targets and ask you to run `xcodebuild` and paste the failure output for iteration.
+
+### Adapter Files
+
+If you want this skill to show up in multiple agent runtimes, add more small adapter files:
+- `agents/openai.yaml` (already present)
+- `agents/anthropic.yaml` (Claude)
+- `agents/cursor.yaml`
+- `agents/generic.yaml`
+
+Each adapter should keep the `default_prompt` short and reference this skill as the canonical source of truth.
