@@ -50,37 +50,37 @@ extension Animation {
 
     /// Shared spring used for the initial preview lift.
     static var contextMenuLiftSpring: Animation {
-        .spring(response: 0.18, dampingFraction: 0.96)
+        .circularProgressSpring.speed(4.3)
     }
 
     /// Shared spring used while the pressed source scales back to its final size.
     static var contextMenuPreviewScaleBackSpring: Animation {
-        .spring(response: 0.28, dampingFraction: 0.92)
+        .circularProgressSpring.speed(2.8)
     }
 
     /// Shared spring used when the lifted preview settles into place.
     static var contextMenuSettleSpring: Animation {
-        .spring(response: 0.20, dampingFraction: 0.82)
+        .circularProgressSpring.speed(3.9)
     }
 
     /// Shared spring used when the preview has to travel vertically to fit the menu.
     static var contextMenuPreviewPushSpring: Animation {
-        .spring(response: 0.24, dampingFraction: 0.76)
+        .circularProgressSpring.speed(3.3)
     }
 
     /// Shared spring used while dismissing the custom context menu.
     static var contextMenuDismissSpring: Animation {
-        .spring(response: 0.18, dampingFraction: 0.98)
+        .circularProgressSpring.speed(4.0)
     }
 
     /// Shared spring used by the context-menu card and row cascade.
     static var contextMenuMenuSpring: Animation {
-        .spring(response: 0.20, dampingFraction: 0.82)
+        .circularProgressSpring.speed(4.0)
     }
 
     /// Shared spring used when the main context-menu card pops in under the source preview.
     static var contextMenuMenuPopSpring: Animation {
-        .spring(response: 0.24, dampingFraction: 0.74)
+        .circularProgressSpring.speed(3.6)
     }
 }
 

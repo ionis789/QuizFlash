@@ -50,7 +50,7 @@ struct CustomContextMenuConfig {
     var menuRevealDelay: Double = 0.065
     var rowStagger: Double = 0.032
     var menuCornerRadius: CGFloat = 32
-    var isLoggingEnabled = true
+    var isLoggingEnabled = false
 }
 
 enum CustomContextMenuPhase: Equatable {
@@ -115,6 +115,27 @@ private enum CustomContextMenuDebugConsole {
         guard let activeSourceID else { return true }
         guard let sourceID else { return true }
         return sourceID == activeSourceID
+    }
+}
+
+@MainActor
+private enum CustomContextMenuMenuSizeCache {
+    private static var sizes: [String: CGSize] = [:]
+
+    static func key(for actions: [CustomContextMenuAction]) -> String {
+        actions.map {
+            "\($0.role)|\($0.systemImage)|\($0.title)"
+        }
+        .joined(separator: "||")
+    }
+
+    static func size(for key: String) -> CGSize? {
+        sizes[key]
+    }
+
+    static func store(_ size: CGSize, for key: String) {
+        guard size != .zero else { return }
+        sizes[key] = size
     }
 }
 
@@ -187,12 +208,16 @@ final class CustomContextMenuCoordinator {
 
     var presentation: Presentation?
     var phase: CustomContextMenuPhase = .idle
+    private var hiddenSourceID: AnyHashable?
 
     @ObservationIgnored
     private var dismissTask: Task<Void, Never>?
 
     @ObservationIgnored
     private var phaseTask: Task<Void, Never>?
+
+    @ObservationIgnored
+    private var sourceRevealTask: Task<Void, Never>?
 
     @ObservationIgnored
     private weak var lockedScrollView: UIScrollView?
@@ -225,6 +250,8 @@ final class CustomContextMenuCoordinator {
 
         dismissTask?.cancel()
         phaseTask?.cancel()
+        sourceRevealTask?.cancel()
+        hiddenSourceID = request.sourceID
 
         let sourceDescription = String(describing: request.sourceID)
 
@@ -327,8 +354,7 @@ final class CustomContextMenuCoordinator {
 
     /// Returns true while the given source view should remain visually hidden in-place.
     func isSourceHidden<ID: Hashable>(_ id: ID) -> Bool {
-        guard let presentation else { return false }
-        return presentation.sourceID == AnyHashable(id)
+        hiddenSourceID == AnyHashable(id)
     }
 
     private func dismiss(after action: (@MainActor () -> Void)?) {
@@ -336,6 +362,7 @@ final class CustomContextMenuCoordinator {
 
         dismissTask?.cancel()
         phaseTask?.cancel()
+        sourceRevealTask?.cancel()
 
         let presentationID = currentPresentation.id
         let sourceDescription = String(describing: currentPresentation.sourceID)
@@ -354,6 +381,27 @@ final class CustomContextMenuCoordinator {
             details: "phase=\(phase)"
         )
 
+        let revealDelayMilliseconds: UInt64 = {
+            let previewOffset = currentPresentation.layout.previewOffset
+            let hasPositionPush = abs(previewOffset.width) > 0.5 || abs(previewOffset.height) > 0.5
+            return hasPositionPush ? 168 : 148
+        }()
+
+        sourceRevealTask = Task { @MainActor in
+            if revealDelayMilliseconds > 0 {
+                try? await Task.sleep(for: .milliseconds(revealDelayMilliseconds))
+            }
+            guard !Task.isCancelled else { return }
+            guard presentation?.id == presentationID else { return }
+            hiddenSourceID = nil
+            CustomContextMenuDebugConsole.log(
+                enabled: loggingEnabled,
+                sourceID: sourceDescription,
+                event: "CoordinatorSourceRevealHandoff",
+                details: "delayMs=\(revealDelayMilliseconds)"
+            )
+        }
+
         dismissTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(220))
             guard !Task.isCancelled else { return }
@@ -363,6 +411,7 @@ final class CustomContextMenuCoordinator {
                 sourceDescription: sourceDescription,
                 config: currentPresentation.config
             )
+            hiddenSourceID = nil
             presentation = nil
             phase = .idle
             CustomContextMenuDebugConsole.log(
@@ -723,6 +772,7 @@ private struct CustomContextMenuOverlay: View {
     @State private var backdropWashOpacity = 0.0
     @State private var previewScale: CGFloat = 1
     @State private var previewOffset: CGSize = .zero
+    @State private var previewOpacity = 1.0
     @State private var previewShadowOpacity = 0.08
     @State private var previewShadowRadius: CGFloat = 12
     @State private var previewShadowYOffset: CGFloat = 4
@@ -778,6 +828,12 @@ private struct CustomContextMenuOverlay: View {
         return hasPositionPush ? .contextMenuPreviewPushSpring : .contextMenuLiftSpring
     }
 
+    private var sourceRevealHandoffDelayMilliseconds: UInt64 {
+        let previewOffset = presentation.layout.previewOffset
+        let hasPositionPush = abs(previewOffset.width) > 0.5 || abs(previewOffset.height) > 0.5
+        return hasPositionPush ? 168 : 148
+    }
+
     var body: some View {
         GeometryReader { proxy in
             let hostFrame = proxy.frame(in: .global)
@@ -815,6 +871,7 @@ private struct CustomContextMenuOverlay: View {
                         alignment: .topLeading
                     )
                     .compositingGroup()
+                    .opacity(previewOpacity)
                     .scaleEffect(previewScale, anchor: .topLeading)
                     .shadow(
                         color: .black.opacity(previewShadowOpacity),
@@ -836,6 +893,8 @@ private struct CustomContextMenuOverlay: View {
                     cornerRadius: presentation.config.menuCornerRadius,
                     revealedActionIDs: revealedActionIDs,
                     isInteractive: phase == .expanded
+                    ,
+                    showsChrome: true
                 ) { action in
                     onSelect(action)
                 }
@@ -875,6 +934,7 @@ private struct CustomContextMenuOverlay: View {
         backdropWashOpacity = 0
         previewScale = presentation.config.pressScale
         previewOffset = .zero
+        previewOpacity = 1
         previewShadowOpacity = 0.02
         previewShadowRadius = 6
         previewShadowYOffset = 2
@@ -979,10 +1039,24 @@ private struct CustomContextMenuOverlay: View {
             previewOffset = .zero
         }
 
-        withAnimation(.contextMenuDismissSpring) {
-            previewShadowOpacity = 0.02
-            previewShadowRadius = 6
-            previewShadowYOffset = 2
+        withAnimation(.easeOut(duration: 0.1)) {
+            previewShadowOpacity = 0
+            previewShadowRadius = 0
+            previewShadowYOffset = 0
+        }
+
+        dismissAnimationTask = Task { @MainActor in
+            if sourceRevealHandoffDelayMilliseconds > 0 {
+                try? await Task.sleep(for: .milliseconds(sourceRevealHandoffDelayMilliseconds))
+            }
+            guard !Task.isCancelled else { return }
+            logTimeline(
+                "DismissSourceHandoff",
+                details: "delayMs=\(sourceRevealHandoffDelayMilliseconds)"
+            )
+            withTransaction(Transaction(animation: nil)) {
+                previewOpacity = 0
+            }
         }
     }
 
@@ -1474,21 +1548,40 @@ private struct CustomContextMenuModifier<ID: Hashable, Preview: View>: ViewModif
     @State private var measuredMenuSize: CGSize = .zero
     @State private var isPressing = false
 
+    private var hiddenSourceOpacity: Double {
+        coordinator.isSourceHidden(id) ? 0.001 : 1
+    }
+
+    private var menuSizeCacheKey: String {
+        CustomContextMenuMenuSizeCache.key(for: actions)
+    }
+
+    private var resolvedMenuSize: CGSize {
+        if measuredMenuSize != .zero {
+            return measuredMenuSize
+        }
+
+        return CustomContextMenuMenuSizeCache.size(for: menuSizeCacheKey) ?? .zero
+    }
+
     func body(content: Content) -> some View {
         content
-            .opacity(coordinator.isSourceHidden(id) ? 0 : 1)
+            .opacity(hiddenSourceOpacity)
             .transaction { transaction in
                 transaction.animation = nil
             }
             .scaleEffect(isPressing ? config.pressScale : 1, anchor: .topLeading)
             .background(alignment: .topLeading) {
-                CustomContextMenuMenuMeasure(actions: actions) { newSize in
-                    if shouldUpdateMenuSize(with: newSize) {
-                        measuredMenuSize = newSize
+                if resolvedMenuSize == .zero {
+                    CustomContextMenuMenuMeasure(actions: actions) { newSize in
+                        if shouldUpdateMenuSize(with: newSize) {
+                            measuredMenuSize = newSize
+                            CustomContextMenuMenuSizeCache.store(newSize, for: menuSizeCacheKey)
+                        }
                     }
+                    .hidden()
+                    .allowsHitTesting(false)
                 }
-                .hidden()
-                .allowsHitTesting(false)
             }
             .background {
                 CustomContextMenuSourceAttachment(
@@ -1544,7 +1637,7 @@ private struct CustomContextMenuModifier<ID: Hashable, Preview: View>: ViewModif
 [CustomContextMenu][TriggerDebug]
 sourceID=\(String(describing: id))
 sourceFrame=(x:\(String(format: "%.1f", sourceGlobalFrame.minX)), y:\(String(format: "%.1f", sourceGlobalFrame.minY)), w:\(String(format: "%.1f", sourceGlobalFrame.width)), h:\(String(format: "%.1f", sourceGlobalFrame.height)))
-measuredMenuSize=(w:\(String(format: "%.1f", measuredMenuSize.width)), h:\(String(format: "%.1f", measuredMenuSize.height)))
+measuredMenuSize=(w:\(String(format: "%.1f", resolvedMenuSize.width)), h:\(String(format: "%.1f", resolvedMenuSize.height)))
 actionsCount=\(actions.count)
 """
         if config.isLoggingEnabled {
@@ -1558,7 +1651,7 @@ actionsCount=\(actions.count)
                 sourceFrame: sourceGlobalFrame,
                 preview: AnyView(preview()),
                 actions: actions,
-                measuredMenuSize: measuredMenuSize,
+                measuredMenuSize: resolvedMenuSize,
                 config: config
             )
         )
@@ -1599,6 +1692,7 @@ private struct CustomContextMenuMenuCard: View {
     let cornerRadius: CGFloat
     let revealedActionIDs: Set<UUID>
     let isInteractive: Bool
+    let showsChrome: Bool
     let onSelect: (CustomContextMenuAction) -> Void
 
     private var normalActions: [CustomContextMenuAction] {
@@ -1637,12 +1731,12 @@ private struct CustomContextMenuMenuCard: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: true, vertical: true)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.8)
-        }
-        .shadow(color: .black.opacity(0.22), radius: 24, y: 10)
+        .modifier(
+            CustomContextMenuCardChrome(
+                cornerRadius: cornerRadius,
+                isEnabled: showsChrome
+            )
+        )
         .allowsHitTesting(isInteractive)
     }
 
@@ -1697,6 +1791,28 @@ private struct CustomContextMenuMenuCard: View {
     }
 }
 
+private struct CustomContextMenuCardChrome: ViewModifier {
+    let cornerRadius: CGFloat
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .background(
+                    .ultraThinMaterial,
+                    in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.8)
+                }
+                .shadow(color: .black.opacity(0.22), radius: 24, y: 10)
+        } else {
+            content
+        }
+    }
+}
+
 /// Hidden measure surface that gives source views the real menu card size before presentation.
 private struct CustomContextMenuMenuMeasure: View {
     let actions: [CustomContextMenuAction]
@@ -1708,6 +1824,7 @@ private struct CustomContextMenuMenuMeasure: View {
             cornerRadius: 32,
             revealedActionIDs: Set(actions.map(\.id)),
             isInteractive: false,
+            showsChrome: false,
             onSelect: { _ in }
         )
         .background {
