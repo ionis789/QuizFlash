@@ -38,29 +38,49 @@ extension Animation {
         .spring(response: 0.32, dampingFraction: 0.9)
     }
 
-    /// Shared spring used while a context-menu source compresses under the finger.
-    static var contextMenuPressSpring: Animation {
-        .spring(response: 0.20, dampingFraction: 0.76)
+    /// Shared animation used while a context-menu source compresses under the finger.
+    static var contextMenuPressIn: Animation {
+        .timingCurve(0.42, 0.0, 0.20, 1.0, duration: 0.22)
+    }
+
+    /// Shared animation used when a pending press is released before opening the menu.
+    static var contextMenuPressOut: Animation {
+        .easeOut(duration: 0.08)
     }
 
     /// Shared spring used for the initial preview lift.
     static var contextMenuLiftSpring: Animation {
-        .spring(response: 0.22, dampingFraction: 0.74)
+        .spring(response: 0.18, dampingFraction: 0.96)
+    }
+
+    /// Shared spring used while the pressed source scales back to its final size.
+    static var contextMenuPreviewScaleBackSpring: Animation {
+        .spring(response: 0.28, dampingFraction: 0.92)
     }
 
     /// Shared spring used when the lifted preview settles into place.
     static var contextMenuSettleSpring: Animation {
-        .spring(response: 0.26, dampingFraction: 0.82)
+        .spring(response: 0.20, dampingFraction: 0.82)
+    }
+
+    /// Shared spring used when the preview has to travel vertically to fit the menu.
+    static var contextMenuPreviewPushSpring: Animation {
+        .spring(response: 0.24, dampingFraction: 0.76)
     }
 
     /// Shared spring used while dismissing the custom context menu.
     static var contextMenuDismissSpring: Animation {
-        .spring(response: 0.24, dampingFraction: 0.84)
+        .spring(response: 0.18, dampingFraction: 0.98)
     }
 
     /// Shared spring used by the context-menu card and row cascade.
     static var contextMenuMenuSpring: Animation {
-        .spring(response: 0.22, dampingFraction: 0.86)
+        .spring(response: 0.20, dampingFraction: 0.82)
+    }
+
+    /// Shared spring used when the main context-menu card pops in under the source preview.
+    static var contextMenuMenuPopSpring: Animation {
+        .spring(response: 0.24, dampingFraction: 0.74)
     }
 }
 

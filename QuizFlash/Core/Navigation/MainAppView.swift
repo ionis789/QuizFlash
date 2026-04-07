@@ -41,6 +41,7 @@ struct MainAppView: View {
     @State private var aiWorkspaceCoordinator = AIWorkspaceCoordinator()
     @State private var keyboardMonitor = KeyboardMonitor.shared
     @State private var customContextMenuCoordinator = CustomContextMenuCoordinator()
+    @State private var customContextMenuSourceRegistry = CustomContextMenuSourceRegistry()
 
     /// The long-lived view model for the Library tab.
     /// Instantiated at the root level and injected into the environment so that
@@ -269,6 +270,7 @@ struct MainAppView: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .environment(customContextMenuCoordinator)
+        .environment(customContextMenuSourceRegistry)
         .environment(keyboardMonitor)
         .environment(router)
         .environment(aiWorkspaceCoordinator)
