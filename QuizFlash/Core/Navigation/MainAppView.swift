@@ -40,6 +40,7 @@ struct MainAppView: View {
     @State private var router = NavigationManager()
     @State private var aiWorkspaceCoordinator = AIWorkspaceCoordinator()
     @State private var keyboardMonitor = KeyboardMonitor.shared
+    @State private var customContextMenuCoordinator = CustomContextMenuCoordinator()
 
     /// The long-lived view model for the Library tab.
     /// Instantiated at the root level and injected into the environment so that
@@ -77,19 +78,30 @@ struct MainAppView: View {
         UIDevice.current.userInterfaceIdiom == .pad
     }
 
+    private var isCustomContextMenuVisible: Bool {
+        customContextMenuCoordinator.presentation != nil
+    }
+
     /// Resolves the active tab bar visibility rule to a Bool.
     ///
     /// Decision table:
     ///   `.visible`  → always show  (e.g. FolderView, which is always pushed)
     ///   `.hidden`   → always hide  (e.g. DeckView, full-screen flows)
     ///   `.implicit` → show by default
-    private var isTabBarVisible: Bool {
+    private var isTabBarLayoutVisible: Bool {
         guard !keyboardMonitor.isVisible else { return false }
         switch tabBarRule {
         case .visible:  return !isTabBarAutoHiddenByScroll
         case .hidden:   return false
         case .implicit: return !isTabBarAutoHiddenByScroll
         }
+    }
+
+    /// Visual visibility for the floating custom tab bar.
+    /// During a context menu we hide only the overlay chrome, not the structural
+    /// UITabBar safe-area contribution, so source rows do not reflow mid-press.
+    private var isFloatingTabBarVisible: Bool {
+        isTabBarLayoutVisible && !isCustomContextMenuVisible
     }
 
     private var isAIWorkspaceVisible: Bool {
@@ -111,7 +123,7 @@ struct MainAppView: View {
         // Block all native UITabBar events when the custom bar is not visible.
         // The hidden UITabBar still receives taps and would otherwise fire
         // popToRoot() or switch tabs unexpectedly.
-        guard isTabBarVisible else { return }
+        guard isFloatingTabBarVisible else { return }
 
         if tappedTab == router.activeTab {
             // Re-tap: pop to root without leaving the tab.
@@ -168,7 +180,7 @@ struct MainAppView: View {
                 // ── Navigation Layer ─────────────────────────────────────────────
                 rootTabView
                 .environment(\.tabBarScrollAutoHideAction, handleTabBarAutoHideAction)
-                .environment(\.bottomChromeIsVisible, isTabBarVisible)
+                .environment(\.bottomChromeIsVisible, isTabBarLayoutVisible)
                 .ignoresSafeArea(.keyboard, edges: .bottom)
                 .dismissKeyboardOnBackgroundTap(enabled: keyboardMonitor.isVisible)
                 // Propagate tab bar visibility changes with an explicit spring so the
@@ -189,7 +201,7 @@ struct MainAppView: View {
                 // this configurator applies isHidden and isUserInteractionEnabled on
                 // the existing object so that safe area recalculates immediately and
                 // hit-testing is disabled, preventing phantom _tabBarItemClicked: events.
-                .configureNativeTabBar(visible: isTabBarVisible)
+                .configureNativeTabBar(visible: isTabBarLayoutVisible)
                 .onChange(of: router.activeTab) { _, _ in
                     resetTabBarAutoHideIfNeeded()
                 }
@@ -206,9 +218,9 @@ struct MainAppView: View {
 
                 EdgeShadowOverlay(
                     topHeight: 60,
-                    bottomHeight: isTabBarVisible ? 60 : 0
+                    bottomHeight: isTabBarLayoutVisible ? 60 : 0
                 )
-                .animation(.bottomChromeSpring, value: isTabBarVisible)
+                .animation(.bottomChromeSpring, value: isTabBarLayoutVisible)
 
                 // ── Custom Tab Bar Layer ─────────────────────────────────────────
                 // The bar is always present in the view hierarchy. Visibility is
@@ -229,7 +241,7 @@ struct MainAppView: View {
                    aiWorkspaceCoordinator.shouldShowFloatingStatus(isWorkspaceVisible: isAIWorkspaceVisible) {
                     FloatingAIWorkspaceStatusMenu(
                         status: status,
-                        bottomPadding: isTabBarVisible
+                        bottomPadding: isTabBarLayoutVisible
                             ? UIConstants.Layout.bottomChromeBottomPadding
                                 + UIConstants.Size.bottomChromeBarHeight
                                 + UIConstants.Spacing.medium
@@ -250,9 +262,13 @@ struct MainAppView: View {
                     )
                     .zIndex(2)
                 }
+
+                CustomContextMenuHost()
+                    .zIndex(10)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
+        .environment(customContextMenuCoordinator)
         .environment(keyboardMonitor)
         .environment(router)
         .environment(aiWorkspaceCoordinator)
@@ -320,7 +336,7 @@ struct MainAppView: View {
             .frame(width: barWidth)
             .offset(y: UIConstants.Layout.bottomChromeVisualBottomOffset)
             .ignoresSafeArea(.container, edges: isPad ? .bottom : [.horizontal, .bottom])
-            .bottomChromeVisibility(isTabBarVisible)
+            .bottomChromeVisibility(isFloatingTabBarVisible)
 
         if usesDetachedPadTabBar {
             HStack(spacing: 0) {
@@ -381,6 +397,19 @@ struct MainAppView: View {
                     }
             }
             .tag(AppTabBar.library)
+
+            // LABS TAB
+            NavigationStack(path: $router.labsPath) {
+                FeatureLabView()
+                    .toolbar(.hidden, for: .tabBar)
+                    .navigationDestination(for: FeatureLabRoute.self) { route in
+                        switch route {
+                        case .contextMenu:
+                            ContextMenuLabView()
+                        }
+                    }
+            }
+            .tag(AppTabBar.labs)
 
             // CREATE TAB
             NavigationStack(path: $router.createPath) {

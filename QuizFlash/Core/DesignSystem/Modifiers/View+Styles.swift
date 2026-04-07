@@ -37,6 +37,31 @@ extension Animation {
     static var tabItemSpring: Animation {
         .spring(response: 0.32, dampingFraction: 0.9)
     }
+
+    /// Shared spring used while a context-menu source compresses under the finger.
+    static var contextMenuPressSpring: Animation {
+        .spring(response: 0.20, dampingFraction: 0.76)
+    }
+
+    /// Shared spring used for the initial preview lift.
+    static var contextMenuLiftSpring: Animation {
+        .spring(response: 0.22, dampingFraction: 0.74)
+    }
+
+    /// Shared spring used when the lifted preview settles into place.
+    static var contextMenuSettleSpring: Animation {
+        .spring(response: 0.26, dampingFraction: 0.82)
+    }
+
+    /// Shared spring used while dismissing the custom context menu.
+    static var contextMenuDismissSpring: Animation {
+        .spring(response: 0.24, dampingFraction: 0.84)
+    }
+
+    /// Shared spring used by the context-menu card and row cascade.
+    static var contextMenuMenuSpring: Animation {
+        .spring(response: 0.22, dampingFraction: 0.86)
+    }
 }
 
 /// Wraps bottom-chrome state swaps in the shared animation transaction.

@@ -29,6 +29,9 @@ final class NavigationManager {
     /// The navigation stack for the **Library** tab.
     var libraryPath = NavigationPath()
 
+    /// The navigation stack for the **Labs** tab.
+    var labsPath = NavigationPath()
+
     /// The navigation stack for the **Create** tab.
     var createPath = NavigationPath()
 
@@ -53,6 +56,7 @@ final class NavigationManager {
         switch activeTab {
         case .home:    homePath    = NavigationPath()
         case .library: libraryPath = NavigationPath()
+        case .labs:    labsPath    = NavigationPath()
         case .create:  createPath  = NavigationPath()
         case .settings: settingsPath = NavigationPath()
         }
@@ -66,6 +70,7 @@ final class NavigationManager {
         switch activeTab {
         case .home:    homePath.append(route)
         case .library: libraryPath.append(route)
+        case .labs:    labsPath.append(route)
         case .create:  createPath.append(route)
         case .settings: settingsPath.append(route)
         }
@@ -156,6 +161,13 @@ extension AppRoute: Hashable {
 /// A type-safe route that opens the Create-tab editor for an existing deck.
 struct CreateDeckEditorRoute: Hashable {
     let deckID: PersistentIdentifier
+}
+
+// MARK: - Feature Lab Route
+
+/// Routes owned by the dedicated feature-lab tab.
+enum FeatureLabRoute: Hashable {
+    case contextMenu
 }
 
 // MARK: - Deck Search Route

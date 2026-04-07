@@ -52,36 +52,39 @@ struct LibraryDeckListRow: View, Equatable {
             .onTapGesture {
                 handlePrimaryTap()
             }
-            .contextMenu(menuItems: {
-                contextMenuItems
-            }, preview: {
-                LibraryContextMenuTitlePreview(title: deck.title)
-            })
+            .customContextMenu(
+                id: deck.id,
+                isEnabled: !isSelecting,
+                actions: contextMenuActions
+            ) {
+                rowContent
+            }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isButton)
     }
 
-    @ViewBuilder
-    private var contextMenuItems: some View {
-        if !isSelecting {
-            Button {
-                onImport()
-            } label: {
-                Label("Import", systemImage: "square.and.arrow.down")
-            }
-
-            Button {
-                onMoveToFolder()
-            } label: {
-                Label("Move to Folder", systemImage: "folder")
-            }
-
-            Button(role: .destructive) {
-                onDelete()
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        }
+    private var contextMenuActions: [CustomContextMenuAction] {
+        guard !isSelecting else { return [] }
+        return [
+            CustomContextMenuAction(
+                title: "Import",
+                systemImage: "square.and.arrow.down",
+                role: .normal,
+                action: onImport
+            ),
+            CustomContextMenuAction(
+                title: "Move to Folder",
+                systemImage: "folder",
+                role: .normal,
+                action: onMoveToFolder
+            ),
+            CustomContextMenuAction(
+                title: "Delete",
+                systemImage: "trash",
+                role: .destructive,
+                action: onDelete
+            )
+        ]
     }
 
     private var rowContent: some View {

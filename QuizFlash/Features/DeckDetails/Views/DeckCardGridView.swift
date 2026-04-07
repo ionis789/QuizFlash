@@ -345,36 +345,47 @@ private struct DeckGridCardCell: View {
                 .onTapGesture {
                     handleTap()
                 }
-                .contextMenu(menuItems: {
-                    Button {
-                        onTogglePinned(card)
-                    } label: {
-                        Label(card.isPinned ? "Unpin" : "Pin", systemImage: card.isPinned ? "pin.slash.fill" : "pin.fill")
-                    }
-
-                    Button {
-                        onEditCard(card)
-                    } label: {
-                        Label("Edit", systemImage: "pencil")
-                    }
-
-                    Button {
-                        onConvertCard(card)
-                    } label: {
-                        Label("Convert", systemImage: "arrow.triangle.2.circlepath")
-                    }
-
-                    Divider()
-
-                    Button(role: .destructive) {
-                        onDeleteCard(card)
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                }, preview: {
+                .customContextMenu(
+                    id: card.id,
+                    isEnabled: !isSelecting && !isSuspended,
+                    actions: contextMenuActions
+                ) {
                     contextMenuPreview
-                })
+                }
         }
+    }
+
+    private var contextMenuActions: [CustomContextMenuAction] {
+        [
+            CustomContextMenuAction(
+                title: card.isPinned ? "Unpin" : "Pin",
+                systemImage: card.isPinned ? "pin.slash.fill" : "pin.fill",
+                role: .normal
+            ) {
+                onTogglePinned(card)
+            },
+            CustomContextMenuAction(
+                title: "Edit",
+                systemImage: "pencil",
+                role: .normal
+            ) {
+                onEditCard(card)
+            },
+            CustomContextMenuAction(
+                title: "Convert",
+                systemImage: "arrow.triangle.2.circlepath",
+                role: .normal
+            ) {
+                onConvertCard(card)
+            },
+            CustomContextMenuAction(
+                title: "Delete",
+                systemImage: "trash",
+                role: .destructive
+            ) {
+                onDeleteCard(card)
+            }
+        ]
     }
 
     private var contextMenuPreview: some View {
