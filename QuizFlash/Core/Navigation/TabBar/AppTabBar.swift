@@ -14,6 +14,14 @@ enum AppTabBar: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    static var visibleTabs: [AppTabBar] {
+        if AppBuildConfiguration.current.showsDevelopmentTools {
+            return [.home, .library, .labs, .create, .settings]
+        }
+
+        return [.home, .library, .create, .settings]
+    }
+
     var title: String {
         switch self {
         case .home: return "Home"
@@ -35,6 +43,6 @@ enum AppTabBar: String, CaseIterable, Identifiable {
     }
 
     var index: Int {
-        Self.allCases.firstIndex(of: self) ?? 0
+        Self.visibleTabs.firstIndex(of: self) ?? 0
     }
 }

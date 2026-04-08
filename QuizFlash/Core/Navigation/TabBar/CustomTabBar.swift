@@ -22,7 +22,7 @@ struct CustomTabBar: View {
 
     var body: some View {
         CapsuleSelectionControl(
-            options: AppTabBar.allCases,
+            options: AppTabBar.visibleTabs,
             selection: activeTab,
             onSelection: onTabSelection,
             onReselect: onTabSelection

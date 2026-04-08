@@ -9,6 +9,8 @@ description: Project-specific engineering guide for QuizFlash, a SwiftUI flashca
 
 Write and review code for QuizFlash using the repository's architecture rules instead of generic SwiftUI defaults. Optimize for the smallest safe context: start from the target file, load the paired owner file next, and pull longer references only when the task actually crosses those boundaries. Treat the standards in `references/architecture.md` as the target for new code even when older files still contain legacy patterns.
 
+Keep UI copy terse. Do not add explanatory filler, repeated titles, helper paragraphs, or decorative subtitles unless they are necessary for the screen to function. This applies especially to development/internal screens and settings surfaces.
+
 ## Quick Start
 
 1. Read `references/task-routing.md`.

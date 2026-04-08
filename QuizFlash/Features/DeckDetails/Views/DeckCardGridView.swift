@@ -472,6 +472,7 @@ private struct MiniCardPreview: View {
     var isSelected: Bool = false
     var isSuspended: Bool = false
 
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(\.colorScheme) private var colorScheme
     @State private var renderedTextSize: CGSize = .zero
 
@@ -635,11 +636,8 @@ private struct MiniCardPreview: View {
     }
 
     private var showsLayoutDebug: Bool {
-#if DEBUG
-        true
-#else
-        false
-#endif
+        AppBuildConfiguration.current.showsDevelopmentTools
+            && appPreferences.deckGridTextLayoutDebugEnabled
     }
 
     private func roundedUIFont(size: CGFloat, weight: UIFont.Weight) -> UIFont {

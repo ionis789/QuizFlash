@@ -241,7 +241,7 @@ struct AIProviderProfile: Identifiable, Equatable, Codable, Sendable {
             return editorValidationMessage
         }
         if trimmedAPIKey.isEmpty {
-            return "Add an API key in Settings > Developer AI."
+            return "Add an API key in Labs > Development Settings > Developer AI."
         }
         return nil
     }

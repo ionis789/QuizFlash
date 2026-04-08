@@ -15,7 +15,6 @@ private let kSettingsInfoChromeSpace = "SettingsInfoChromeSpace"
 
 struct SettingsView: View {
     @Environment(AuthManager.self) private var authManager
-    @Environment(AIProviderStore.self) private var aiProviderStore
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
@@ -301,23 +300,6 @@ struct SettingsView: View {
                 )
             }
             .buttonStyle(.plain)
-
-            #if DEBUG
-            SettingsCardDivider()
-
-            NavigationLink {
-                AIProviderSettingsView()
-            } label: {
-                SettingsNavigationRow(
-                    icon: "sparkles.rectangle.stack.fill",
-                    tint: .purple,
-                    title: "Developer AI",
-                    detail: nil,
-                    value: aiProviderStore.activeProfile?.trimmedName ?? "Not Configured"
-                )
-            }
-            .buttonStyle(.plain)
-            #endif
         }
     }
 

@@ -267,7 +267,13 @@ actor AIDebugTraceStore {
     }
 
     func isEnabled() -> Bool {
-        UserDefaults.standard.object(forKey: AIDebugTracePreferenceKeys.debugTracingEnabled) as? Bool ?? true
+        guard AppBuildConfiguration.current.showsDevelopmentTools else {
+            return false
+        }
+
+        return UserDefaults.standard.object(
+            forKey: AIDebugTracePreferenceKeys.debugTracingEnabled
+        ) as? Bool ?? true
     }
 
     func startRun(_ descriptor: AIDebugTraceRunDescriptor) async -> AIDebugTraceScope? {

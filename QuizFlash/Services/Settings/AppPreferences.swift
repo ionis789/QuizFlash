@@ -181,6 +181,7 @@ final class AppPreferences {
         static let writeKeepsKeyboardVisibleBetweenPrompts = "preferences.playMode.write.keepsKeyboardVisibleBetweenPrompts"
         static let writeShowsAnswerLengthHint = "preferences.playMode.write.showsAnswerLengthHint"
         static let aiDebugTracingEnabled = AIDebugTracePreferenceKeys.debugTracingEnabled
+        static let deckGridTextLayoutDebugEnabled = "preferences.development.deckGridTextLayoutDebugEnabled"
     }
 
     private let userDefaults: UserDefaults
@@ -375,6 +376,16 @@ final class AppPreferences {
         }
     }
 
+    /// Shows the MiniCardPreview text measurement guides used during deck-grid layout tuning.
+    var deckGridTextLayoutDebugEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                deckGridTextLayoutDebugEnabled,
+                forKey: Keys.deckGridTextLayoutDebugEnabled
+            )
+        }
+    }
+
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.weekStartDay = AppWeekStartDayPreference(
@@ -433,7 +444,10 @@ final class AppPreferences {
         ) as? Bool ?? true
         self.aiDebugTracingEnabled = userDefaults.object(
             forKey: Keys.aiDebugTracingEnabled
-        ) as? Bool ?? true
+        ) as? Bool ?? AppBuildConfiguration.current.showsDevelopmentTools
+        self.deckGridTextLayoutDebugEnabled = userDefaults.object(
+            forKey: Keys.deckGridTextLayoutDebugEnabled
+        ) as? Bool ?? false
     }
 
     /// Resolves the app's effective calendar based on the stored weekday preference.

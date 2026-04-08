@@ -13,7 +13,6 @@ private let kAIProviderSettingsChromeSpace = "AIProviderSettingsChromeSpace"
 
 struct AIProviderSettingsView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(AppPreferences.self) private var appPreferences
     @Environment(AIProviderStore.self) private var aiProviderStore
     @Environment(ThemeManager.self) private var themeManager
     @State private var isCollapsedTitleVisible = false
@@ -34,7 +33,6 @@ struct AIProviderSettingsView: View {
                         )
 
                     activeProfileSection
-                    debugTracingSection
                     savedProfilesSection
                     syntaxSection
                 }
@@ -205,68 +203,6 @@ struct AIProviderSettingsView: View {
         }
     }
 
-    private var debugTracingSection: some View {
-        SettingsSectionCard(
-            title: "Debug Tracing",
-            subtitle: "Capture every AI step during generation and conversion: prompts, payloads, retries, malformed responses, decode failures, and filtering decisions."
-        ) {
-            SettingsToggleRow(
-                icon: "waveform.and.magnifyingglass",
-                tint: .orange,
-                title: "Verbose AI Trace",
-                detail: "When enabled, QuizFlash writes a structured trace for each AI run and echoes step summaries to the console. Vision requests redact raw base64 images but keep the rest of the payload.",
-                isOn: aiDebugTracingEnabledBinding
-            )
-
-            SettingsCardDivider()
-
-            NavigationLink {
-                AIDebugTraceHistoryView()
-            } label: {
-                SettingsNavigationRow(
-                    icon: "clock.arrow.circlepath",
-                    tint: .blue,
-                    title: "Trace History",
-                    detail: "Browse every saved AI generation and conversion run, then open any entry as full JSON for debugging and prompt correction.",
-                    value: nil
-                )
-            }
-            .buttonStyle(.plain)
-
-            SettingsCardDivider()
-
-            NavigationLink {
-                LatexSymbolLabView()
-            } label: {
-                SettingsNavigationRow(
-                    icon: "function",
-                    tint: .green,
-                    title: "LaTeX Symbol Lab",
-                    detail: "Inspect risky symbols, compare visual variants, and paste any custom LaTeX sample into a live preview surface.",
-                    value: nil
-                )
-            }
-            .buttonStyle(.plain)
-
-            SettingsCardDivider()
-
-            Button(role: .destructive) {
-                Task {
-                    await AIDebugTraceStore.shared.clearAllTraces()
-                }
-            } label: {
-                SettingsNavigationRow(
-                    icon: "trash.fill",
-                    tint: .red,
-                    title: "Clear Trace Files",
-                    detail: "Remove all persisted AI trace runs from local app storage.",
-                    value: nil
-                )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
     private var syntaxSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             Text("Universal OpenAI-Compatible Setup")
@@ -342,13 +278,6 @@ struct AIProviderSettingsView: View {
                     .fill(Color(uiColor: .secondarySystemGroupedBackground))
             )
         }
-    }
-
-    private var aiDebugTracingEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { appPreferences.aiDebugTracingEnabled },
-            set: { appPreferences.aiDebugTracingEnabled = $0 }
-        )
     }
 
     private func profilePill(title: String, value: String, icon: String) -> some View {

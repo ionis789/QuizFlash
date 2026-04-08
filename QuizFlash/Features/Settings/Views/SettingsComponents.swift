@@ -150,7 +150,7 @@ struct SettingsToggleRow: View {
     let icon: String
     let tint: Color
     let title: String
-    let detail: String
+    let detail: String?
     @Binding var isOn: Bool
 
     var body: some View {
@@ -163,10 +163,12 @@ struct SettingsToggleRow: View {
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.primary)
 
-                    Text(detail)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if let detail, !detail.isEmpty {
+                        Text(detail)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
         }

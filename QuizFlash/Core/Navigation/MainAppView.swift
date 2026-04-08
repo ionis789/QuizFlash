@@ -401,19 +401,23 @@ struct MainAppView: View {
             .tag(AppTabBar.library)
 
             // LABS TAB
-            NavigationStack(path: $router.labsPath) {
-                FeatureLabView()
-                    .toolbar(.hidden, for: .tabBar)
-                    .navigationDestination(for: FeatureLabRoute.self) { route in
-                        switch route {
-                        case .sharedUICatalog:
-                            SharedUICatalogView()
-                        case .contextMenu:
-                            ContextMenuLabView()
+            if AppBuildConfiguration.current.showsDevelopmentTools {
+                NavigationStack(path: $router.labsPath) {
+                    FeatureLabView()
+                        .toolbar(.hidden, for: .tabBar)
+                        .navigationDestination(for: FeatureLabRoute.self) { route in
+                            switch route {
+                            case .developmentSettings:
+                                DevelopmentSettingsView()
+                            case .sharedUICatalog:
+                                SharedUICatalogView()
+                            case .contextMenu:
+                                ContextMenuLabView()
+                            }
                         }
-                    }
+                }
+                .tag(AppTabBar.labs)
             }
-            .tag(AppTabBar.labs)
 
             // CREATE TAB
             NavigationStack(path: $router.createPath) {

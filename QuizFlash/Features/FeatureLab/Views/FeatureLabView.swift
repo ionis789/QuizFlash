@@ -10,15 +10,22 @@ import SwiftUI
 struct FeatureLabView: View {
     private let entries: [FeatureLabEntry] = [
         .init(
+            title: "Development Settings",
+            subtitle: "AI, traces, debug toggles.",
+            icon: "slider.horizontal.3",
+            tint: .purple,
+            route: .developmentSettings
+        ),
+        .init(
             title: "Shared UI Catalog",
-            subtitle: "Browse the shared views, modifiers, source files, and live demos that drive the app's reusable UI.",
+            subtitle: "Shared views and modifiers.",
             icon: "square.grid.2x2",
             tint: .cyan,
             route: .sharedUICatalog
         ),
         .init(
             title: "Context Menu Lab",
-            subtitle: "Experiment with custom context menu positioning, preview motion, and test surfaces in isolation.",
+            subtitle: "Context menu test surfaces.",
             icon: "ellipsis.rectangle",
             tint: .red,
             route: .contextMenu
