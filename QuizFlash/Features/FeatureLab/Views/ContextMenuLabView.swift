@@ -6,10 +6,8 @@
 //
 
 import SwiftUI
-import SwiftData
-
 struct ContextMenuLabView: View {
-    private let runtime = ContextMenuLabRuntime.shared
+    private let runtime = FeatureLabFixtures.shared
 
     @State private var lastActionSummary = "Long press a surface"
 
@@ -47,7 +45,6 @@ struct ContextMenuLabView: View {
         .background(Color.black.ignoresSafeArea())
         .navigationTitle("Context Menu Lab")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\.modelContext, runtime.container.mainContext)
     }
 
     @ViewBuilder
@@ -89,37 +86,7 @@ private struct ContextMenuLabSurface: Identifiable {
         }
     }
 
-    static func makeFixtures(runtime: ContextMenuLabRuntime.Runtime) -> [ContextMenuLabSurface] {
-        let recentDeck = makeDeck(
-            title: "Discrete Math Sprint",
-            colorHex: "#FF6B4A",
-            cardCount: 48,
-            lastOpenedAt: .now.addingTimeInterval(-60 * 42)
-        )
-
-        let folder = FolderModel(title: "Semester Finals", colorHex: "#F5A623")
-        folder.deckCount = 6
-
-        let editorCard = DraftCard(
-            cardNumber: 12,
-            content: .quiz(
-                QuizCardContent(
-                    questionZone: .text("Which protocol upgrades an HTTP connection into a persistent full-duplex channel?"),
-                    choices: [
-                        QuizChoiceDraft(contentZone: .text("WebSocket"), isCorrect: true),
-                        QuizChoiceDraft(contentZone: .text("SMTP"), isCorrect: false),
-                        QuizChoiceDraft(contentZone: .text("FTP"), isCorrect: false)
-                    ],
-                    explanationZone: .text("WebSocket starts with HTTP and upgrades the same TCP connection for two-way messaging."),
-                    allowsMultipleCorrect: false
-                )
-            ),
-            isPinned: true,
-            creationSource: .manual,
-            createdAt: .now.addingTimeInterval(-60 * 60 * 26),
-            editedAt: .now.addingTimeInterval(-60 * 13)
-        )
-
+    static func makeFixtures(runtime: FeatureLabFixtures.Runtime) -> [ContextMenuLabSurface] {
         return [
             .init(
                 id: "library-row",
@@ -139,7 +106,7 @@ private struct ContextMenuLabSurface: Identifiable {
                 id: "recent-deck",
                 title: "Home recent deck card",
                 subtitle: "Compact ticket surface from Home for top-area menu anchoring.",
-                payload: .recentDeck(recentDeck),
+                payload: .recentDeck(runtime.recentDeck),
                 actions: [
                     .init(title: "Open Deck", systemImage: "arrow.up.right", role: .normal),
                     .init(title: "Move to Folder", systemImage: "folder", role: .normal),
@@ -167,7 +134,7 @@ private struct ContextMenuLabSurface: Identifiable {
                 id: "folder-card",
                 title: "Home folder card",
                 subtitle: "Folder object with native card depth and a shorter tap target.",
-                payload: .folder(folder),
+                payload: .folder(runtime.folder),
                 actions: [
                     .init(title: "Open Folder", systemImage: "folder", role: .normal),
                     .init(title: "Rename", systemImage: "pencil", role: .normal),
@@ -178,7 +145,7 @@ private struct ContextMenuLabSurface: Identifiable {
                 id: "editor-card",
                 title: "Deck editor draft card",
                 subtitle: "Rich authoring preview with stacked content, chips, and text density.",
-                payload: .draftCard(editorCard),
+                payload: .draftCard(runtime.draftCard),
                 actions: [
                     .init(title: "Edit", systemImage: "pencil", role: .normal),
                     .init(title: "Convert", systemImage: "arrow.triangle.2.circlepath", role: .normal),
@@ -204,194 +171,6 @@ private struct ContextMenuLabSurface: Identifiable {
                 ]
             )
         ]
-    }
-
-    private static func makeDeck(
-        title: String,
-        colorHex: String,
-        cardCount: Int,
-        lastOpenedAt: Date?
-    ) -> DeckModel {
-        let deck = DeckModel(title: title, colorHex: colorHex)
-        deck.cardCount = cardCount
-        deck.lastOpenedAt = lastOpenedAt
-        deck.editedAt = .now.addingTimeInterval(-60 * 18)
-        return deck
-    }
-}
-
-private enum ContextMenuLabRuntime {
-    struct Runtime {
-        let container: ModelContainer
-        let libraryDeckRow: LibraryDeckRowSnapshot
-        let deckGridSections: [DeckCardGridView.CardSection]
-    }
-
-    static let shared: Runtime = {
-        do {
-            let schema = Schema([
-                FolderModel.self,
-                DeckModel.self,
-                CardModel.self,
-                ReviewEvent.self,
-                UserProfile.self,
-                DailyActivityLog.self,
-                ExamGoalModel.self,
-                DeckPlayModeSettingsModel.self
-            ])
-            let configuration = ModelConfiguration(
-                schema: schema,
-                isStoredInMemoryOnly: true
-            )
-            let container = try ModelContainer(for: schema, configurations: configuration)
-            let context = container.mainContext
-
-            let libraryDeck = DeckModel(title: "Operating Systems Crash Course", colorHex: "#FF6B4A")
-            libraryDeck.cardCount = 32
-            libraryDeck.lastOpenedAt = .now.addingTimeInterval(-60 * 35)
-            libraryDeck.editedAt = .now.addingTimeInterval(-60 * 11)
-            context.insert(libraryDeck)
-
-            let deckGridDeck = DeckModel(title: "API Design Interviews", colorHex: "#0EA5E9")
-            deckGridDeck.cardCount = 4
-            deckGridDeck.lastOpenedAt = .now.addingTimeInterval(-60 * 90)
-            deckGridDeck.editedAt = .now.addingTimeInterval(-60 * 7)
-            context.insert(deckGridDeck)
-
-            let flashcard = CardModel(
-                frontZone: .text("Define idempotency in REST APIs."),
-                backZone: .text("The same repeated request leaves server state unchanged after the first success."),
-                cardNumber: 1,
-                isPinned: true,
-                creationSource: .manual
-            )
-            flashcard.deck = deckGridDeck
-            flashcard.interval = 21
-            flashcard.consecutiveCorrectAnswers = 4
-
-            let quizCard = CardModel(
-                content: .quiz(
-                    QuizCardContent(
-                        questionZone: .text("Which data structure usually provides O(1) average lookup?"),
-                        choices: [
-                            QuizChoiceDraft(contentZone: .text("Hash table"), isCorrect: true),
-                            QuizChoiceDraft(contentZone: .text("Linked list"), isCorrect: false),
-                            QuizChoiceDraft(contentZone: .text("Binary heap"), isCorrect: false)
-                        ],
-                        explanationZone: .text("Hashing trades ordered traversal for very fast direct access on average."),
-                        allowsMultipleCorrect: false
-                    )
-                ),
-                cardNumber: 2,
-                isPinned: false,
-                creationSource: .ai
-            )
-            quizCard.deck = deckGridDeck
-            quizCard.interval = 3
-            quizCard.consecutiveCorrectAnswers = 1
-
-            let writeSource = ZoneModel.text("HTTP status 429 means too many ____.")
-            let writeCard = CardModel(
-                content: .write(
-                    WriteCardContent(
-                        sourceZone: writeSource,
-                        blankSelection: .init(
-                            zoneID: writeSource.id,
-                            utf16Range: 27..<35,
-                            omittedText: "requests"
-                        )
-                    )
-                ),
-                cardNumber: 3,
-                isPinned: false,
-                creationSource: .manual
-            )
-            writeCard.deck = deckGridDeck
-            writeCard.interval = 0
-
-            let matchCard = CardModel(
-                content: .match(
-                    MatchCardContent(
-                        prompt: "TCP handshake",
-                        answer: "SYN, SYN-ACK, ACK"
-                    )
-                ),
-                cardNumber: 4,
-                isPinned: false,
-                creationSource: .manual
-            )
-            matchCard.deck = deckGridDeck
-            matchCard.interval = 8
-            matchCard.consecutiveCorrectAnswers = 2
-
-            for card in [flashcard, quizCard, writeCard, matchCard] {
-                context.insert(card)
-            }
-
-            try context.save()
-
-            let libraryDeckRow = LibraryDeckRowSnapshot(
-                id: libraryDeck.persistentModelID,
-                title: libraryDeck.title,
-                colorHex: libraryDeck.colorHex,
-                createdAt: libraryDeck.createdAt,
-                editedAt: libraryDeck.editedAt,
-                lastOpenedAt: libraryDeck.lastOpenedAt,
-                cardCount: libraryDeck.cardCount,
-                folderTitle: nil
-            )
-
-            let pinnedCard = makeGridCardInfo(flashcard, reviewHistoryIsEmpty: false)
-            let gridCards = [
-                makeGridCardInfo(quizCard, reviewHistoryIsEmpty: false),
-                makeGridCardInfo(writeCard, reviewHistoryIsEmpty: true),
-                makeGridCardInfo(matchCard, reviewHistoryIsEmpty: false)
-            ]
-
-            let deckGridSections = [
-                DeckCardGridView.CardSection(
-                    id: "pinned",
-                    title: "Pinned",
-                    cards: [pinnedCard]
-                ),
-                DeckCardGridView.CardSection(
-                    id: "recent",
-                    title: "Recent",
-                    cards: gridCards
-                )
-            ]
-
-            return Runtime(
-                container: container,
-                libraryDeckRow: libraryDeckRow,
-                deckGridSections: deckGridSections
-            )
-        } catch {
-            fatalError("Failed to create ContextMenuLab runtime: \(error)")
-        }
-    }()
-
-    private static func makeGridCardInfo(
-        _ card: CardModel,
-        reviewHistoryIsEmpty: Bool
-    ) -> GridCardInfo {
-        GridCardInfo(
-            id: card.persistentModelID,
-            kind: card.kind,
-            creationSource: card.creationSource,
-            conversionMetadata: card.conversionMetadata,
-            cardNumber: card.cardNumber,
-            interval: card.interval,
-            reviewHistoryIsEmpty: reviewHistoryIsEmpty,
-            isPinned: card.isPinned,
-            frontText: card.frontText,
-            backText: card.backText,
-            frontPreviewText: card.frontText,
-            backPreviewText: card.backText,
-            searchDocumentText: "\(card.frontText) \(card.backText)",
-            createdAt: card.createdAt,
-            editedAt: card.editedAt
-        )
     }
 }
 

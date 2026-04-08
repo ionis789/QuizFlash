@@ -303,17 +303,10 @@ struct DeckCardGridView: View {
 }
 
 enum DeckGridCardMetrics {
-    static let headerRegionHeight: CGFloat = 22
-    static let headerTopInset: CGFloat = 8
-    static let sideInset: CGFloat = 18
-    static let bottomInset: CGFloat = 16
-    static let contentTopPadding: CGFloat = 2
-    static let mediaThumbnailSize: CGFloat = 34
-    static let mediaBadgeSize: CGFloat = 22
-    static let mediaInsetCompensation: CGFloat = 42
-    static let statusDotSize: CGFloat = 6
+    static let headerTopInset: CGFloat = 12
+    static let sideInset: CGFloat = 14
+    static let statusDotSize: CGFloat = 8
     static let selectionIndicatorSize: CGFloat = 30
-    static let overflowIndicatorBottomInset: CGFloat = 2
 }
 
 private struct DeckGridCardCell: View {
@@ -348,11 +341,36 @@ private struct DeckGridCardCell: View {
                 .customContextMenu(
                     id: card.id,
                     isEnabled: !isSelecting && !isSuspended,
+                    infoRows: contextMenuInfoRows,
                     actions: contextMenuActions
                 ) {
                     contextMenuPreview
                 }
         }
+    }
+
+    private var contextMenuInfoRows: [CustomContextMenuInfoRow] {
+        var rows: [CustomContextMenuInfoRow] = [
+            .init(label: "Card", value: "#\(card.cardNumber)"),
+            .init(label: "Type", value: card.kindContextMenuTitle),
+            .init(label: "Source", value: card.creationSourceContextMenuTitle),
+            .init(label: "State", value: card.reviewStateContextMenuTitle),
+            .init(label: "Interval", value: card.intervalContextMenuTitle)
+        ]
+
+        if card.isPinned {
+            rows.append(.init(label: "Pinned", value: "Yes"))
+        }
+
+        if card.isConverted {
+            rows.append(.init(label: "Converted", value: "Yes"))
+        }
+
+        if isSuspended {
+            rows.append(.init(label: "Status", value: "Suspended"))
+        }
+
+        return rows
     }
 
     private var contextMenuActions: [CustomContextMenuAction] {
@@ -391,9 +409,7 @@ private struct DeckGridCardCell: View {
     private var contextMenuPreview: some View {
         MiniCardPreview(
             card: card,
-            accent: accent,
             isSelected: false,
-            isSelectionMode: false,
             isSuspended: isSuspended
         )
         .frame(
@@ -408,9 +424,7 @@ private struct DeckGridCardCell: View {
     private var cardBody: some View {
         MiniCardPreview(
             card: card,
-            accent: accent,
             isSelected: isSelecting && isSelected,
-            isSelectionMode: isSelecting,
             isSuspended: isSuspended
         )
         .contentShape(RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
@@ -455,40 +469,14 @@ private struct DeckGridCardCell: View {
 
 private struct MiniCardPreview: View {
     let card: GridCardInfo
-    let accent: Color
     var isSelected: Bool = false
-    var isSelectionMode: Bool = false
     var isSuspended: Bool = false
 
-    @Environment(\.colorScheme)  private var colorScheme
-    @Environment(\.modelContext) private var context
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var renderedTextSize: CGSize = .zero
 
-    @State private var thumbnail:      UIImage? = nil
-    @State private var hasFrontImage:  Bool     = false
-    @State private var hasFrontSketch: Bool     = false
-    @State private var didLoad:        Bool     = false
-
-    init(
-        card: GridCardInfo,
-        accent: Color,
-        isSelected: Bool = false,
-        isSelectionMode: Bool = false,
-        isSuspended: Bool = false
-    ) {
-        self.card = card
-        self.accent = accent
-        self.isSelected = isSelected
-        self.isSelectionMode = isSelectionMode
-        self.isSuspended = isSuspended
-
-        let initialPayload = CardPreviewCache.shared.payload(for: card.id)
-        _thumbnail = State(initialValue: initialPayload.flatMap { payload in
-            payload.thumbnailData.flatMap(UIImage.init(data:))
-        })
-        _hasFrontImage = State(initialValue: initialPayload?.hasFrontImage ?? false)
-        _hasFrontSketch = State(initialValue: initialPayload?.hasFrontSketch ?? false)
-        _didLoad = State(initialValue: initialPayload != nil)
-    }
+    private let titleFontSize: CGFloat = 20
+    private let contentPadding = UIConstants.Spacing.medium
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
@@ -498,352 +486,171 @@ private struct MiniCardPreview: View {
         card.frontPreviewText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var backText: String {
-        card.backPreviewText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var hasQuestionText: Bool {
+    private var hasFrontText: Bool {
         !frontText.isEmpty
     }
 
-    private var hasAnswerText: Bool {
-        !backText.isEmpty
+    private var titleText: String {
+        if hasFrontText { return frontText }
+        let backText = card.backPreviewText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !backText.isEmpty { return backText }
+        return "Empty card"
     }
 
-    private var primaryText: String {
-        hasQuestionText ? frontText : backText
-    }
-
-    private var primaryTrailingInset: CGFloat {
-        hasFooterVisual && !isSuspended ? DeckGridCardMetrics.mediaInsetCompensation : 0
+    private var surfaceFill: Color {
+        Color(uiColor: colorScheme == .dark ? .secondarySystemGroupedBackground : .secondarySystemBackground)
     }
 
     var body: some View {
-        ZStack {
-            cardBackground
+        GeometryReader { proxy in
+            let availableWidth = max(proxy.size.width - (contentPadding * 2), 1)
+            let textBlockSize = resolvedTextBlockSize(forWidth: availableWidth)
+            let textTopInset = centeredTextTopInset(
+                in: proxy.size,
+                textHeight: textBlockSize.height
+            )
+            let textLeadingInset = centeredTextLeadingInset(
+                availableWidth: availableWidth,
+                textWidth: textBlockSize.width
+            )
 
-            GeometryReader { proxy in
-                let horizontalInset = DeckGridCardMetrics.sideInset
-                let availableWidth = max(0, proxy.size.width - (horizontalInset * 2))
-                let contentWidth = max(0, availableWidth - primaryTrailingInset)
-                let contentTop = DeckGridCardMetrics.headerTopInset
-                    + DeckGridCardMetrics.headerRegionHeight
-                    + DeckGridCardMetrics.contentTopPadding
-                let availableContentHeight = max(
-                    0,
-                    proxy.size.height - contentTop - DeckGridCardMetrics.bottomInset
-                )
-
-                ZStack(alignment: .topLeading) {
-                    topBar
-                .frame(
-                    width: availableWidth,
-                    height: DeckGridCardMetrics.headerRegionHeight,
-                    alignment: .leading
-                )
-                .offset(
-                    x: horizontalInset,
-                    y: DeckGridCardMetrics.headerTopInset
+            ZStack(alignment: .topLeading) {
+                if showsLayoutDebug {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(
+                            Color.cyan.opacity(0.9),
+                            style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
                         )
-
-                    contentZones(
-                        availableHeight: availableContentHeight,
-                        contentWidth: contentWidth
-                    )
-                        .frame(
-                            width: availableWidth,
-                            height: availableContentHeight,
-                            alignment: .center
-                        )
-                        .offset(x: horizontalInset, y: contentTop)
+                        .padding(contentPadding)
+                        .allowsHitTesting(false)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+                if showsLayoutDebug {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(
+                            Color.orange.opacity(0.95),
+                            style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])
+                        )
+                        .frame(
+                            width: min(max(textBlockSize.width, 1), availableWidth),
+                            height: max(textBlockSize.height, 1),
+                            alignment: .topLeading
+                        )
+                        .padding(.leading, contentPadding)
+                        .padding(.top, contentPadding + textTopInset)
+                        .offset(x: textLeadingInset)
+                        .allowsHitTesting(false)
+                }
+
+                titleView
+                    .padding(.horizontal, contentPadding)
+                    .padding(.top, contentPadding + textTopInset)
+                    .offset(x: textLeadingInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: UIConstants.Size.deckGridCardHeight)
-        .widgetStyle(cornerRadius: UIConstants.Radius.large)
-        .overlay(alignment: .bottomTrailing) {
-            if hasFooterVisual && !isSuspended {
-                mediaOverlay
-                    .padding(.trailing, DeckGridCardMetrics.sideInset)
-                    .padding(.bottom, DeckGridCardMetrics.bottomInset)
-            }
-        }
-        .shadow(
-            color: Color.black.opacity(colorScheme == .dark ? 0.24 : 0.08),
-            radius: isSelected ? 6 : 4,
-            y: isSelected ? 5 : 3
+        .frame(height: UIConstants.Size.deckGridCardHeight, alignment: .topLeading)
+        .background(
+            cardShape
+                .fill(surfaceFill)
         )
-        .task(id: "\(card.id.hashValue)-\(isSuspended ? 1 : 0)") {
-            guard !isSuspended else {
-                thumbnail = nil
-                hasFrontImage = false
-                hasFrontSketch = false
-                didLoad = false
-                return
-            }
-            if let cached = CardPreviewCache.shared.payload(for: card.id) {
-                applyPayload(cached)
-                return
-            }
-            if let payload = await CardPreviewCache.shared.loadPayload(
-                for: card.id,
-                container: context.container
-            ) {
-                await MainActor.run { applyPayload(payload) }
-            } else {
-                await MainActor.run { didLoad = true }
-            }
-        }
-        .onChange(of: isSuspended) { _, suspended in
-            guard suspended else { return }
-            thumbnail = nil
-            hasFrontImage = false
-            hasFrontSketch = false
-        }
-        // Release the decoded image when the cell leaves the viewport.
-        // NSCache retains the compressed Data; only the UIImage is freed here,
-        // recovering the decoded pixel buffer memory (~4 bytes/pixel uncompressed).
-        .onDisappear {
-            thumbnail = nil
-        }
+        .clipShape(cardShape)
+        .opacity(isSuspended ? 0.72 : 1)
         .contentShape(RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
     }
 
-    private var topBar: some View {
-        normalHeader
-        .frame(height: DeckGridCardMetrics.headerRegionHeight, alignment: .center)
-    }
-
-    private var normalHeader: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(card.deckStatusColor)
-                .frame(
-                    width: DeckGridCardMetrics.statusDotSize,
-                    height: DeckGridCardMetrics.statusDotSize
+    private var titleView: some View {
+        titleTextContent
+            .onGeometryChange(for: CGSize.self) { proxy in
+                proxy.size
+            } action: { newSize in
+                let clampedSize = CGSize(
+                    width: ceil(newSize.width),
+                    height: ceil(newSize.height)
                 )
 
-            Text("\(card.cardNumber)")
-                .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
-                .foregroundStyle(.secondary)
-
-            Text(card.kindDisplayTitle)
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundStyle(card.kindAccentColor)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(card.kindAccentColor.opacity(0.12), in: Capsule())
-
-            if card.isConverted {
-                Text(card.conversionDisplayTitle)
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .foregroundStyle(card.conversionAccentColor)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(card.conversionAccentColor.opacity(0.12), in: Capsule())
-            }
-
-            Text(card.creationSourceDisplayTitle)
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundStyle(card.creationSourceAccentColor)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(card.creationSourceAccentColor.opacity(0.12), in: Capsule())
-
-            Spacer(minLength: 0)
-        }
-    }
-
-    private var hasFooterVisual: Bool {
-        thumbnail != nil || hasFrontImage || hasFrontSketch
-    }
-
-    @ViewBuilder
-    private func contentZones(
-        availableHeight: CGFloat,
-        contentWidth: CGFloat
-    ) -> some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 0)
-            primaryZone(
-                availableHeight: availableHeight,
-                contentWidth: contentWidth
-            )
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-    }
-
-    @ViewBuilder
-    private func primaryZone(
-        availableHeight: CGFloat,
-        contentWidth: CGFloat
-    ) -> some View {
-        if !primaryText.isEmpty {
-            OverflowFadedDeckText(
-                text: primaryText,
-                fontSize: hasQuestionText ? 18 : 16.5,
-                textColor: .primary,
-                width: contentWidth,
-                maxHeight: availableHeight
-            )
-            .frame(width: contentWidth, alignment: .leading)
-        } else if didLoad && thumbnail == nil {
-            emptyPlaceholder
-        }
-    }
-
-    private var emptyPlaceholder: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny) {
-            Text("Empty card")
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .foregroundStyle(.secondary)
-
-            Text("Add text, math, or media.")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.tertiary)
-        }
-    }
-
-    @ViewBuilder
-    private var mediaOverlay: some View {
-        if let img = thumbnail {
-            Image(uiImage: img)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(
-                    width: DeckGridCardMetrics.mediaThumbnailSize,
-                    height: DeckGridCardMetrics.mediaThumbnailSize
-                )
-                .clipShape(RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous)
-                        .stroke(Color.white.opacity(colorScheme == .dark ? 0.12 : 0.58), lineWidth: 0.75)
-                }
-        } else {
-            HStack(spacing: UIConstants.Spacing.tiny) {
-                if hasFrontImage {
-                    mediaBadge(symbol: "photo")
-                }
-                if hasFrontSketch {
-                    mediaBadge(symbol: "scribble.variable")
+                if abs(renderedTextSize.width - clampedSize.width) > 0.5
+                    || abs(renderedTextSize.height - clampedSize.height) > 0.5 {
+                    renderedTextSize = clampedSize
                 }
             }
-        }
-    }
-
-    private func mediaBadge(symbol: String) -> some View {
-        Image(systemName: symbol)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .frame(
-                width: DeckGridCardMetrics.mediaBadgeSize,
-                height: DeckGridCardMetrics.mediaBadgeSize
-            )
-            .background(
-                Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.045),
-                in: RoundedRectangle(cornerRadius: UIConstants.Radius.small, style: .continuous)
-            )
-    }
-
-    private func applyPayload(_ payload: CardPreviewPayload) {
-        hasFrontImage  = payload.hasFrontImage
-        hasFrontSketch = payload.hasFrontSketch
-        didLoad        = true
-        if let data = payload.thumbnailData {
-            thumbnail = UIImage(data: data)
-        }
-    }
-
-    private var cardBackground: some View {
-        let topHighlight = Color.white.opacity(colorScheme == .dark ? 0.026 : 0.18)
-        let bottomVignette = Color.black.opacity(colorScheme == .dark ? 0.05 : 0.012)
-
-        return ZStack {
-            cardShape
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            topHighlight,
-                            .clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                )
-
-            cardShape
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            .clear,
-                            .clear,
-                            bottomVignette
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-        }
-    }
-}
-
-private struct OverflowFadedDeckText: View {
-    let text: String
-    let fontSize: CGFloat
-    let textColor: Color
-    let width: CGFloat
-    let maxHeight: CGFloat
-
-    @State private var measuredHeight: CGFloat = 0
-
-    private var textView: some View {
-        Text(verbatim: text)
-            .font(.system(size: fontSize, weight: .medium, design: .rounded))
-            .foregroundStyle(textColor)
-            .multilineTextAlignment(.leading)
-            .lineSpacing(3)
-            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var isOverflowing: Bool {
-        measuredHeight > maxHeight + 1
-    }
-
-    private var estimatedLineHeight: CGFloat {
-        fontSize + 6
-    }
-
-    private var visibleLineCount: Int {
-        max(2, Int(maxHeight / estimatedLineHeight))
-    }
-
-    var body: some View {
-        textView
-            .frame(width: width, alignment: .leading)
-            .frame(maxHeight: maxHeight, alignment: .center)
-            .lineLimit(visibleLineCount)
+    private var titleTextContent: some View {
+        Text(titleText)
+            .font(.system(size: titleFontSize, weight: .bold, design: .rounded))
+            .foregroundStyle(.primary)
+            .lineLimit(6)
             .truncationMode(.tail)
-            .clipped()
-            .background(alignment: .topLeading) {
-                textView
-                    .frame(width: width, alignment: .leading)
-                    .hidden()
-                    .background {
-                        GeometryReader { proxy in
-                            Color.clear
-                                .onAppear {
-                                    measuredHeight = proxy.size.height
-                                }
-                                .onChange(of: proxy.size.height) { _, newHeight in
-                                    measuredHeight = newHeight
-                                }
-                        }
-                    }
-            }
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func centeredTextTopInset(in size: CGSize, textHeight: CGFloat) -> CGFloat {
+        let availableHeight = max(size.height - (contentPadding * 2), 1)
+        let remainingHeight = availableHeight - textHeight
+        let centeredInset = remainingHeight / 2
+
+        return centeredInset >= 6 ? centeredInset : 0
+    }
+
+    private func centeredTextLeadingInset(availableWidth: CGFloat, textWidth: CGFloat) -> CGFloat {
+        max((availableWidth - textWidth) / 2, 0)
+    }
+
+    private var maxTextHeight: CGFloat {
+        let font = roundedUIFont(size: titleFontSize, weight: .bold)
+        return ceil(font.lineHeight * 6)
+    }
+
+    private func resolvedTextBlockSize(forWidth width: CGFloat) -> CGSize {
+        if renderedTextSize.width > 0, renderedTextSize.height > 0 {
+            return CGSize(
+                width: min(renderedTextSize.width, width),
+                height: renderedTextSize.height
+            )
+        }
+
+        return estimatedTextBlockSize(forWidth: width)
+    }
+
+    private func estimatedTextBlockSize(forWidth width: CGFloat) -> CGSize {
+        let font = roundedUIFont(size: titleFontSize, weight: .bold)
+        let label = UILabel()
+        label.numberOfLines = 6
+        label.lineBreakMode = .byTruncatingTail
+        label.font = font
+        label.text = titleText
+
+        let fittedSize = label.sizeThatFits(
+            CGSize(width: width, height: .greatestFiniteMagnitude)
+        )
+
+        return CGSize(
+            width: min(ceil(fittedSize.width), width),
+            height: min(ceil(fittedSize.height), maxTextHeight)
+        )
+    }
+
+    private var showsLayoutDebug: Bool {
+#if DEBUG
+        true
+#else
+        false
+#endif
+    }
+
+    private func roundedUIFont(size: CGFloat, weight: UIFont.Weight) -> UIFont {
+        let baseFont = UIFont.systemFont(ofSize: size, weight: weight)
+        guard
+            let descriptor = baseFont.fontDescriptor.withDesign(.rounded)
+        else {
+            return baseFont
+        }
+
+        return UIFont(descriptor: descriptor, size: size)
     }
 }
 
@@ -897,6 +704,40 @@ extension GridCardInfo {
         case .ai:
             return ThemeManager.shared.accentColor.color
         }
+    }
+
+    var kindContextMenuTitle: String {
+        switch kind {
+        case .flashcard:
+            return "Flashcard"
+        case .match:
+            return "Match"
+        case .quiz:
+            return "Quiz"
+        case .write:
+            return "Write"
+        }
+    }
+
+    var creationSourceContextMenuTitle: String {
+        switch creationSource {
+        case .manual:
+            return "Manual"
+        case .ai:
+            return "AI"
+        }
+    }
+
+    var reviewStateContextMenuTitle: String {
+        if reviewHistoryIsEmpty { return "New" }
+        if interval >= 14 { return "Mastered" }
+        if interval == 0 { return "Relearning" }
+        return "Learning"
+    }
+
+    var intervalContextMenuTitle: String {
+        if reviewHistoryIsEmpty { return "None" }
+        return "\(interval)d"
     }
 
     var conversionDisplayTitle: String {

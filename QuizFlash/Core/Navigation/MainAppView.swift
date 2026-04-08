@@ -406,6 +406,8 @@ struct MainAppView: View {
                     .toolbar(.hidden, for: .tabBar)
                     .navigationDestination(for: FeatureLabRoute.self) { route in
                         switch route {
+                        case .sharedUICatalog:
+                            SharedUICatalogView()
                         case .contextMenu:
                             ContextMenuLabView()
                         }

@@ -10,6 +10,13 @@ import SwiftUI
 struct FeatureLabView: View {
     private let entries: [FeatureLabEntry] = [
         .init(
+            title: "Shared UI Catalog",
+            subtitle: "Browse the shared views, modifiers, source files, and live demos that drive the app's reusable UI.",
+            icon: "square.grid.2x2",
+            tint: .cyan,
+            route: .sharedUICatalog
+        ),
+        .init(
             title: "Context Menu Lab",
             subtitle: "Experiment with custom context menu positioning, preview motion, and test surfaces in isolation.",
             icon: "ellipsis.rectangle",

@@ -167,6 +167,7 @@ struct CreateDeckEditorRoute: Hashable {
 
 /// Routes owned by the dedicated feature-lab tab.
 enum FeatureLabRoute: Hashable {
+    case sharedUICatalog
     case contextMenu
 }
 
