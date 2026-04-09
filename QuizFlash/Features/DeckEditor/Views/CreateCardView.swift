@@ -109,10 +109,8 @@ struct CreateCardView: View {
                 .onChange(of: selectedPhoto) { _, item in addPhoto(item) }
                 .fullScreenCover(isPresented: $showSketchModal) { CanvasModalView { data in addSketch(data) } }
                 .fullScreenSheet(
-                    ignoresSafeArea: true,
                     isPresented: $showPreview,
-                    backgroundReceivesDragProgress: true,
-                    dragDismissActivationHeight: 180
+                    configuration: .sheet(dragActivationArea: .fixed(180))
                 ) { safeArea in
                     CardPreviewModeView(
                         front: frontZoneContent,

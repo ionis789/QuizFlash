@@ -1,12 +1,12 @@
 //
-//  CreateDeckDerivedStateBuilder.swift
+//  DeckWorkspaceDerivedStateBuilder.swift
 //  QuizFlash
 //
 
 import SwiftUI
 import SwiftData
 
-extension CreateDeckViewModel {
+extension DeckWorkspaceViewModel {
     func resetForm() {
         deckTitle = ""
         selectedFolder = nil
@@ -45,7 +45,7 @@ extension CreateDeckViewModel {
         initialDeckTitle = title
         initialDraftCards = draftCards
         initialSelectedFolder = selectedFolder
-        initialSnapshot = CreateDeckStateSnapshot(
+        initialSnapshot = DeckWorkspaceStateSnapshot(
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             selectedFolderID: selectedFolder?.persistentModelID,
             draftCards: draftCards.map(DraftCardChangeSnapshot.init)
@@ -75,8 +75,8 @@ extension CreateDeckViewModel {
         }
     }
 
-    var currentSnapshot: CreateDeckStateSnapshot {
-        CreateDeckStateSnapshot(
+    var currentSnapshot: DeckWorkspaceStateSnapshot {
+        DeckWorkspaceStateSnapshot(
             title: deckTitle.trimmingCharacters(in: .whitespacesAndNewlines),
             selectedFolderID: selectedFolder?.persistentModelID,
             draftCards: draftCards.map(DraftCardChangeSnapshot.init)

@@ -74,10 +74,11 @@ final class ThemeManager {
     /// The application-wide shared instance.
     static let shared = ThemeManager()
 
-    // MARK: - Persistence
+    private enum Keys {
+        static let accentColor = "selectedAccentColor"
+    }
 
-    /// The `UserDefaults` key used to persist the selected accent colour across launches.
-    private let accentColorKey = "selectedAccentColor"
+    private let userDefaults: UserDefaults
 
     // MARK: - Properties
 
@@ -87,7 +88,7 @@ final class ThemeManager {
     /// via the `didSet` observer and propagates the change to all observing views.
     var accentColor: AccentColorOption {
         didSet {
-            UserDefaults.standard.set(accentColor.rawValue, forKey: accentColorKey)
+            userDefaults.set(accentColor.rawValue, forKey: Keys.accentColor)
         }
     }
 
@@ -111,8 +112,9 @@ final class ThemeManager {
     // MARK: - Initializer
 
     /// Restores the last saved accent colour from `UserDefaults`, falling back to `.blue`.
-    private init() {
-        if let savedValue = UserDefaults.standard.string(forKey: accentColorKey),
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+        if let savedValue = userDefaults.string(forKey: Keys.accentColor),
            let savedColor = AccentColorOption(rawValue: savedValue) {
             self.accentColor = savedColor
         } else {

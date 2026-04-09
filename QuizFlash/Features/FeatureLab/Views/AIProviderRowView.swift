@@ -2,7 +2,7 @@
 //  AIProviderRowView.swift
 //  QuizFlash
 //
-//  Saved AI provider profile row used inside settings.
+//  Development-only AI provider profile row used inside labs.
 //
 
 import SwiftUI

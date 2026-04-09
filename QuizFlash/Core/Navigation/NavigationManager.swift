@@ -35,6 +35,15 @@ final class NavigationManager {
     /// The navigation stack for the **Create** tab.
     var createPath = NavigationPath()
 
+    /// The existing deck currently loaded into the Create-tab root workspace.
+    ///
+    /// `nil` means the root workspace should render an empty create session.
+    var createWorkspaceEditingDeckID: PersistentIdentifier? = nil
+
+    /// Stable identity used to reconstruct the Create-tab root workspace only
+    /// when the root editing context is intentionally replaced.
+    var createWorkspaceRootIdentity = UUID()
+
     /// The navigation stack for the **Settings** tab.
     var settingsPath = NavigationPath()
 
@@ -45,9 +54,6 @@ final class NavigationManager {
     /// Cross-feature navigations (e.g. a Today widget tapping into a deck) must
     /// update this before calling `append(_:)` so the route lands on the correct stack.
     var activeTab: AppTabBar = .home
-
-    /// The selected root surface inside the Create tab.
-    var createWorkspaceMode: CreateWorkspaceMode = .create
 
     // MARK: - Navigation Actions
 
@@ -79,33 +85,38 @@ final class NavigationManager {
     /// Activates the Create tab and resets its stack back to the root editor.
     func showCreateRoot() {
         activeTab = .create
-        createWorkspaceMode = .create
         createPath = NavigationPath()
     }
 
-    /// Activates the Create tab and pushes the editor for an existing deck.
-    ///
-    /// - Parameter deckID: The persisted deck identifier that should host the editor runtime.
-    func showCreateDeckEditor(for deckID: PersistentIdentifier) {
+    /// Activates the Create tab and resets the root workspace back to an empty create session.
+    func showEmptyCreateWorkspace() {
         showCreateRoot()
-        createPath.append(CreateDeckEditorRoute(deckID: deckID))
+        createWorkspaceEditingDeckID = nil
+        createWorkspaceRootIdentity = UUID()
     }
-}
 
-// MARK: - Create Workspace Mode
+    /// Activates the Create tab and replaces the root workspace with an existing deck session.
+    ///
+    /// - Parameter deckID: The persisted deck identifier that should host the workspace runtime.
+    func showDeckWorkspace(for deckID: PersistentIdentifier) {
+        showCreateRoot()
+        createWorkspaceEditingDeckID = deckID
+        createWorkspaceRootIdentity = UUID()
+    }
 
-enum CreateWorkspaceMode: String, CaseIterable, Identifiable {
-    case create
-    case convert
+    /// Releases any stale root editing context without reconstructing the visible workspace.
+    func clearCreateWorkspaceEditingContext() {
+        createWorkspaceEditingDeckID = nil
+    }
 
-    var id: String { rawValue }
+    /// Clears labs-only state when the current build does not ship development tooling.
+    func sanitizeForFeatures(_ features: AppFeatures = .current) {
+        guard !features.showsLabsTab else { return }
 
-    var title: String {
-        switch self {
-        case .create:
-            return "Create"
-        case .convert:
-            return "Convert"
+        labsPath = NavigationPath()
+
+        if activeTab == .labs {
+            activeTab = .home
         }
     }
 }
@@ -156,20 +167,74 @@ extension AppRoute: Hashable {
     }
 }
 
-// MARK: - Create Deck Editor Route
-
-/// A type-safe route that opens the Create-tab editor for an existing deck.
-struct CreateDeckEditorRoute: Hashable {
-    let deckID: PersistentIdentifier
-}
-
 // MARK: - Feature Lab Route
 
 /// Routes owned by the dedicated feature-lab tab.
-enum FeatureLabRoute: Hashable {
+enum FeatureLabRoute: Hashable, CaseIterable {
     case developmentSettings
     case sharedUICatalog
     case contextMenu
+}
+
+extension FeatureLabRoute {
+    /// Returns `true` when the route should be reachable in the current feature set.
+    func isAvailable(in features: AppFeatures) -> Bool {
+        switch self {
+        case .developmentSettings:
+            return features.allowsDevelopmentRoutes
+        case .sharedUICatalog, .contextMenu:
+            return features.showsInternalLabs
+        }
+    }
+
+    /// Visible labs destinations for one build flavor.
+    static func visibleRoutes(in features: AppFeatures) -> [FeatureLabRoute] {
+        allCases.filter { $0.isAvailable(in: features) }
+    }
+
+    var title: String {
+        switch self {
+        case .developmentSettings:
+            return "Development Settings"
+        case .sharedUICatalog:
+            return "Shared UI Catalog"
+        case .contextMenu:
+            return "Context Menu Lab"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .developmentSettings:
+            return "AI, traces, debug toggles."
+        case .sharedUICatalog:
+            return "Shared views and modifiers."
+        case .contextMenu:
+            return "Context menu test surfaces."
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .developmentSettings:
+            return "slider.horizontal.3"
+        case .sharedUICatalog:
+            return "square.grid.2x2"
+        case .contextMenu:
+            return "ellipsis.rectangle"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .developmentSettings:
+            return .purple
+        case .sharedUICatalog:
+            return .cyan
+        case .contextMenu:
+            return .red
+        }
+    }
 }
 
 // MARK: - Deck Search Route

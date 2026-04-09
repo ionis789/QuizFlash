@@ -9,6 +9,7 @@ import Foundation
 import UIKit
 import PDFKit
 import Vision
+import OSLog
 
 // MARK: - ExtractionMethod
 
@@ -422,23 +423,23 @@ actor DocumentTextExtractor {
 ///
 /// Intended for debugging and internal diagnostics.
 struct PDFKitDiagnostic {
+    private static let logger = QuizFlashLog.make("PDFKitDiagnostic")
     
     static func run(for url: URL) async {
-        
-        print("\n===== PDFKit Diagnostic =====")
-        print("File: \(url.lastPathComponent)")
+        logger.notice("===== PDFKit Diagnostic =====")
+        logger.notice("File: \(url.lastPathComponent, privacy: .public)")
         
         guard let pdf = PDFDocument(url: url) else {
-            print("Could not open PDF.")
+            logger.error("Could not open PDF.")
             return
         }
         
         let pageCount = pdf.pageCount
-        print("Pages: \(pageCount)")
+        logger.notice("Pages: \(pageCount)")
         
         guard let fullText = pdf.string else {
-            print("No embedded text detected. Likely scanned PDF.")
-            print("Recommendation: Vision OCR or GPT Vision.")
+            logger.notice("No embedded text detected. Likely scanned PDF.")
+            logger.notice("Recommendation: Vision OCR or GPT Vision.")
             return
         }
         
@@ -446,9 +447,9 @@ struct PDFKitDiagnostic {
         let avgPerPage = totalChars / max(pageCount, 1)
         let quality = DocumentTextExtractor.pdfKitQuality(for: url)
         
-        print("Total characters: \(totalChars)")
-        print("Average per page: \(avgPerPage)")
-        print("Quality score: \(Int(quality * 100))%")
+        logger.notice("Total characters: \(totalChars)")
+        logger.notice("Average per page: \(avgPerPage)")
+        logger.notice("Quality score: \(Int(quality * 100))%")
         
         for index in 0..<min(3, pageCount) {
             if let page = pdf.page(at: index),
@@ -457,19 +458,19 @@ struct PDFKitDiagnostic {
                 let preview = String(pageText.prefix(150))
                     .replacingOccurrences(of: "\n", with: " ")
                 
-                print("Page \(index + 1) preview: \"\(preview)...\"")
+                logger.notice("Page \(index + 1) preview: \"\(preview, privacy: .public)...\"")
             }
         }
         
         switch quality {
         case 0.8...:
-            print("Excellent quality — use PDFKit directly.")
+            logger.notice("Excellent quality. Use PDFKit directly.")
         case 0.5...:
-            print("Medium quality — PDFKit usable, GPT correction recommended.")
+            logger.notice("Medium quality. PDFKit usable, GPT correction recommended.")
         default:
-            print("Poor quality — switch to Vision OCR.")
+            logger.notice("Poor quality. Switch to Vision OCR.")
         }
-        
-        print("=============================\n")
+
+        logger.notice("=============================")
     }
 }

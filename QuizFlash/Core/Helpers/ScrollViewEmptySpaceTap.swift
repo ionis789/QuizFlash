@@ -41,10 +41,12 @@
 
 import SwiftUI
 import UIKit
+import OSLog
 
 // MARK: - ScrollViewEmptySpaceTap
 
 struct ScrollViewEmptySpaceTap: UIViewRepresentable {
+    private static let logger = QuizFlashLog.make("ScrollViewEmptySpaceTap")
 
     /// When `false` the recognizer never begins, leaving all touch handling untouched.
     var isActive: Bool
@@ -159,7 +161,9 @@ struct ScrollViewEmptySpaceTap: UIViewRepresentable {
             // Tap on a deck card  → should print a leaf class (RBDrawingView, etc.)
             // Tap on empty space  → should print PlatformGroupContainer
             let className = String(describing: type(of: hitView))
-            print("[SVEST] hitTest: \(className) | isContainer: \(isKnownEmptySpaceView(hitView)) | isBlocked: \(isReparentingArtifact(hitView))")
+            ScrollViewEmptySpaceTap.logger.debug(
+                "[SVEST] hitTest: \(className, privacy: .public) | isContainer: \(self.isKnownEmptySpaceView(hitView)) | isBlocked: \(self.isReparentingArtifact(hitView))"
+            )
             #endif
 
             // UIKit reparenting artifacts appear inside deck rows when a
@@ -241,24 +245,32 @@ struct ScrollViewEmptySpaceTap: UIViewRepresentable {
     /// UIKit hierarchy inside-out. At `didMoveToSuperview` time the UIScrollView
     /// ancestor is not yet attached above AnchorView in the chain.
     /// `didMoveToWindow` fires after the complete hierarchy is connected to the
-    /// window. `DispatchQueue.main.async` defers by one run-loop cycle to let
+    /// window. A main-actor task yield defers by one run-loop cycle to let
     /// SwiftUI finish any pending layout pass before we walk the superview chain.
     final class AnchorView: UIView {
 
         weak var coordinator: Coordinator?
+        private var attachmentTask: Task<Void, Never>?
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
+            attachmentTask?.cancel()
             guard window != nil else {
                 coordinator?.detach()
                 return
             }
-            DispatchQueue.main.async { [weak self] in
+
+            attachmentTask = Task { @MainActor [weak self] in
+                await Task.yield()
                 guard let self, self.window != nil else { return }
                 if let sv = self.nearestAncestorScrollView() {
                     self.coordinator?.attach(to: sv)
                 }
             }
+        }
+
+        deinit {
+            attachmentTask?.cancel()
         }
 
         private func nearestAncestorScrollView() -> UIScrollView? {

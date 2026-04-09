@@ -190,12 +190,11 @@ struct MixedMathTextView: View {
 //
 // Design constraints:
 //
-// 1. SHARED WKProcessPool
-//    By default every WKWebView spawns its own WebKit subprocess. On a device
-//    with 6 pooled views that is 6 separate OS-level processes, each consuming
-//    ~15-25 MB of RAM independently of any content they render.
-//    A single shared WKProcessPool collapses all WebViews into ONE subprocess,
-//    cutting baseline WebKit memory from O(n) to O(1).
+// 1. REUSED WKWEBVIEWS
+//    On iOS 15+ a custom WKProcessPool no longer changes WebKit process
+//    behaviour. The real win here is reusing already initialised WKWebView
+//    instances so KaTeX assets, DOM scaffolding, and renderer warm-up are paid
+//    once instead of on every card appearance.
 //
 // 2. BOUNDED POOL SIZE (maxPoolSize)
 //    Without a cap, enqueue() grows the pool indefinitely. Opening a deck with
@@ -235,11 +234,6 @@ class MathWebViewPool {
     // Increased to 12 to support scrolling through grid view with KaTeX
     // while maintaining a stable process limit.
     private static let maxPoolSize = 12
-
-    // One process pool shared across every WKWebView instance.
-    // This is the single most impactful memory optimization available for
-    // multi-WebView scenarios on iOS.
-    private let sharedProcessPool = WKProcessPool()
 
     private var pool: [WKWebView] = []
     private var isPrewarmed = false
@@ -305,9 +299,6 @@ class MathWebViewPool {
 
     private func create() -> WKWebView {
         let config = WKWebViewConfiguration()
-        // Assign the shared process pool so all WebViews in the app share a
-        // single WebKit subprocess rather than each spawning their own.
-        config.processPool = sharedProcessPool
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.isOpaque = false

@@ -77,19 +77,6 @@ extension Date {
         return days
     }
 
-    // MARK: - Formatting
-
-    /// Formats the date using the given `DateFormatter` format string and returns
-    /// the result as a `String`.
-    ///
-    /// - Parameter format: A `DateFormatter`-compatible format string, e.g. `"dd MMM yyyy"`.
-    /// - Returns: The formatted date string.
-    func string(_ format: String) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = format
-        return formatter.string(from: self)
-    }
-
     // MARK: - Comparison
 
     /// Returns `true` if `self` and `date` fall on the same calendar day.

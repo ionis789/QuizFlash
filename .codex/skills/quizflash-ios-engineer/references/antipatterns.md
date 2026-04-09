@@ -137,7 +137,7 @@ private static let createdAtFormatter: DateFormatter = {
 Găsit în:
 - `QuizFlash/Features/Home/Views/HomeView.swift`
 - `QuizFlash/Features/DeckDetails/Views/DeckView.swift`
-- `QuizFlash/Features/Library/Components/Libraryviewmodifiers.swift`
+- `QuizFlash/Features/Library/Components/LibraryViewModifiers.swift`
 
 **Nu face:**
 ```swift
@@ -201,7 +201,7 @@ final class MyFeatureViewModel { ... }
 ## ❌ `try? context.save()` sau erori de save înghițite
 
 Găsit în:
-- `QuizFlash/Features/Library/Components/Libraryviewmodifiers.swift`
+- `QuizFlash/Features/Library/Components/LibraryViewModifiers.swift`
 - `QuizFlash/Features/DeckEditor/ViewModels/CreateDeckViewModel.swift`
 
 **Nu face:**

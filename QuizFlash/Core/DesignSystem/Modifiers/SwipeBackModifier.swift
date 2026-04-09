@@ -57,6 +57,7 @@ private struct SwipeBackModifier: ViewModifier {
     @State private var viewSize: CGSize = .zero // Replaced deprecated UIScreen.main
     @State private var isFinishingGesture = false
     @State private var didTriggerThresholdHaptic = false
+    @State private var finishingResetTask: Task<Void, Never>?
 
     // MARK: - Constants
 
@@ -113,12 +114,17 @@ private struct SwipeBackModifier: ViewModifier {
                     .zIndex(999)
                 }
             }
+            .onDisappear {
+                finishingResetTask?.cancel()
+                finishingResetTask = nil
+            }
     }
 
     // MARK: - Handlers
     
     private func handleCommit() {
         guard !isFinishingGesture else { return }
+        finishingResetTask?.cancel()
         isFinishingGesture = true
         if !didTriggerThresholdHaptic {
             haptic()
@@ -126,20 +132,27 @@ private struct SwipeBackModifier: ViewModifier {
         withAnimation(.spring(response: 0.18, dampingFraction: 0.9)) {
             dragOffset = edge == .leading ? viewSize.width : -viewSize.width
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        finishingResetTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            guard !Task.isCancelled else { return }
             action()
             resetState()
+            finishingResetTask = nil
         }
     }
     
     private func handleCancel() {
         guard !isFinishingGesture else { return }
+        finishingResetTask?.cancel()
         isFinishingGesture = true
         withAnimation(.spring(response: 0.22, dampingFraction: 0.65)) {
             dragOffset = 0
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+        finishingResetTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
             if dragOffset == 0 { resetState() }
+            finishingResetTask = nil
         }
     }
 
@@ -150,6 +163,8 @@ private struct SwipeBackModifier: ViewModifier {
     }
 
     private func resetState() {
+        finishingResetTask?.cancel()
+        finishingResetTask = nil
         isActive = false
         dragOffset = 0
         startY = 0

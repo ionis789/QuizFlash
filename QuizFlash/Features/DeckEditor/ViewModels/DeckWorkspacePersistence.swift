@@ -1,12 +1,12 @@
 //
-//  CreateDeckPersistence.swift
+//  DeckWorkspacePersistence.swift
 //  QuizFlash
 //
 
 import SwiftUI
 import SwiftData
 
-extension CreateDeckViewModel {
+extension DeckWorkspaceViewModel {
     // MARK: - Card Actions
     // =========================================================================
 

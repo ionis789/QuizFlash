@@ -1,5 +1,5 @@
 //
-//  CreateDeckAISourcePreparation.swift
+//  DeckWorkspaceAISourcePreparation.swift
 //  QuizFlash
 //
 
@@ -8,7 +8,7 @@ import SwiftData
 import PhotosUI
 import PDFKit
 
-extension CreateDeckViewModel {
+extension DeckWorkspaceViewModel {
     // MARK: - Workspace Seeding
 
     /// Re-seeds the editor so the Create tab can behave like a normal deck

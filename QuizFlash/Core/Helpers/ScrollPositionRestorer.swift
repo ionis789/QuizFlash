@@ -321,7 +321,8 @@ struct ScrollPositionRestorer: UIViewRepresentable {
                     // Override asynchronously: mutating contentOffset synchronously
                     // from within a KVO observation of contentOffset is undefined.
                     let restore = self.lastKnownOffset
-                    DispatchQueue.main.async { [weak scrollView] in
+                    Task { @MainActor [weak scrollView] in
+                        await Task.yield()
                         CATransaction.begin()
                         CATransaction.setDisableActions(true)
                         UIView.performWithoutAnimation {

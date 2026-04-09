@@ -2,7 +2,7 @@
 //  LatexSymbolLabView.swift
 //  QuizFlash
 //
-//  Visual regression lab for high-risk LaTeX symbols and expressions.
+//  Development-only visual regression lab for high-risk LaTeX symbols and expressions.
 //
 
 import SwiftUI

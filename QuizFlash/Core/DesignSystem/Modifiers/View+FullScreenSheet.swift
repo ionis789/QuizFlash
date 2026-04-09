@@ -59,23 +59,117 @@ final class FullScreenSheetDismissCoordinator {
     var shouldAllowDismiss: (() -> Bool)?
 }
 
+// MARK: - Sheet Configuration
+
+/// Available presentation heights for the shared QuizFlash sheet surface.
+enum FullScreenSheetHeightMode: Sendable {
+    case fullScreen
+    case medium
+    case small
+    case custom(CGFloat)
+
+    fileprivate func resolvedHeight(in containerHeight: CGFloat) -> CGFloat {
+        let fraction: CGFloat
+        switch self {
+        case .fullScreen:
+            fraction = 1
+        case .medium:
+            fraction = 0.7
+        case .small:
+            fraction = 0.5
+        case .custom(let value):
+            fraction = min(max(value, 0.2), 1)
+        }
+
+        return max(containerHeight * fraction, 1)
+    }
+}
+
+/// Defines the area near the sheet's top edge that can start drag-dismiss.
+enum FullScreenSheetDragActivationArea: Sendable {
+    case fullSurface
+    case fixed(CGFloat)
+    case fraction(CGFloat)
+
+    fileprivate func resolvedHeight(sheetHeight: CGFloat) -> CGFloat? {
+        switch self {
+        case .fullSurface:
+            return nil
+        case .fixed(let value):
+            return max(value, 0)
+        case .fraction(let value):
+            return max(sheetHeight * min(max(value, 0), 1), 0)
+        }
+    }
+}
+
+/// Shared presentation configuration for `fullScreenSheet`.
+struct FullScreenSheetConfiguration: Sendable {
+    var ignoresSafeArea: Bool = true
+    var heightMode: FullScreenSheetHeightMode = .fullScreen
+    var topCornerRadius: CGFloat = UIConstants.Radius.maximum
+    var dragActivationArea: FullScreenSheetDragActivationArea = .fraction(0.22)
+    var showsDragIndicator: Bool = true
+    var dragIndicatorTopPadding: CGFloat = UIConstants.Spacing.extraLarge
+    var backgroundReceivesDragProgress: Bool = true
+    var appliesDefaultDragTopOverlay: Bool = false
+
+    /// Standard rounded QuizFlash sheet with drag indicator and clipped top corners.
+    static func sheet(
+        ignoresSafeArea: Bool = true,
+        heightMode: FullScreenSheetHeightMode = .fullScreen,
+        topCornerRadius: CGFloat = UIConstants.Radius.maximum,
+        dragActivationArea: FullScreenSheetDragActivationArea = .fixed(180),
+        showsDragIndicator: Bool = true,
+        dragIndicatorTopPadding: CGFloat = UIConstants.Spacing.extraLarge,
+        backgroundReceivesDragProgress: Bool = true
+    ) -> FullScreenSheetConfiguration {
+        FullScreenSheetConfiguration(
+            ignoresSafeArea: ignoresSafeArea,
+            heightMode: heightMode,
+            topCornerRadius: topCornerRadius,
+            dragActivationArea: dragActivationArea,
+            showsDragIndicator: showsDragIndicator,
+            dragIndicatorTopPadding: dragIndicatorTopPadding,
+            backgroundReceivesDragProgress: backgroundReceivesDragProgress,
+            appliesDefaultDragTopOverlay: false
+        )
+    }
+
+    /// Full-height rounded sheet used by immersive surfaces that already own their top chrome.
+    static func chrome(
+        ignoresSafeArea: Bool = true,
+        heightMode: FullScreenSheetHeightMode = .fullScreen,
+        topCornerRadius: CGFloat = UIConstants.Radius.maximum,
+        dragActivationArea: FullScreenSheetDragActivationArea = .fullSurface,
+        backgroundReceivesDragProgress: Bool = true
+    ) -> FullScreenSheetConfiguration {
+        FullScreenSheetConfiguration(
+            ignoresSafeArea: ignoresSafeArea,
+            heightMode: heightMode,
+            topCornerRadius: topCornerRadius,
+            dragActivationArea: dragActivationArea,
+            showsDragIndicator: false,
+            dragIndicatorTopPadding: UIConstants.Spacing.extraLarge,
+            backgroundReceivesDragProgress: backgroundReceivesDragProgress,
+            appliesDefaultDragTopOverlay: false
+        )
+    }
+}
+
 // MARK: - View Extension
 
 extension View {
     @ViewBuilder
     func fullScreenSheet<Content: View, Background: View>(
-        ignoresSafeArea: Bool = false,
         isPresented: Binding<Bool>,
-        backgroundReceivesDragProgress: Bool = false,
-        dragDismissActivationHeight: CGFloat? = nil,
+        configuration: FullScreenSheetConfiguration = .sheet(),
         @ViewBuilder content: @escaping (UIEdgeInsets) -> Content,
         @ViewBuilder background: @escaping () -> Background
     ) -> some View {
         fullScreenCover(isPresented: isPresented) {
             FullScreenSheetContainer(
-                ignoresSafeArea: ignoresSafeArea,
-                backgroundReceivesDragProgress: backgroundReceivesDragProgress,
-                dragDismissActivationHeight: dragDismissActivationHeight,
+                configuration: configuration,
                 content: content,
                 background: background
             )
@@ -84,18 +178,14 @@ extension View {
 
     @ViewBuilder
     func fullScreenSheet<Item: Identifiable, Content: View, Background: View>(
-        ignoresSafeArea: Bool = false,
         item: Binding<Item?>,
-        backgroundReceivesDragProgress: Bool = false,
-        dragDismissActivationHeight: CGFloat? = nil,
+        configuration: FullScreenSheetConfiguration = .sheet(),
         @ViewBuilder content: @escaping (Item, UIEdgeInsets) -> Content,
         @ViewBuilder background: @escaping () -> Background
     ) -> some View {
         fullScreenCover(item: item) { wrappedItem in
             FullScreenSheetContainer(
-                ignoresSafeArea: ignoresSafeArea,
-                backgroundReceivesDragProgress: backgroundReceivesDragProgress,
-                dragDismissActivationHeight: dragDismissActivationHeight,
+                configuration: configuration,
                 content: { insets in content(wrappedItem, insets) },
                 background: background
             )
@@ -110,13 +200,12 @@ extension View {
 // MARK: - Full Screen Sheet Container
 
 private struct FullScreenSheetContainer<Content: View, Background: View>: View {
-    let ignoresSafeArea: Bool
-    let backgroundReceivesDragProgress: Bool
-    let dragDismissActivationHeight: CGFloat?
+    let configuration: FullScreenSheetConfiguration
     @ViewBuilder var content: (UIEdgeInsets) -> Content
     @ViewBuilder var background: Background
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var offset: CGFloat = 0
     @State private var scrollDisabled = false
@@ -128,61 +217,97 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             .snappy(duration: UIConstants.Animation.medium, extraBounce: 0)
     }
 
-    private var dragProgress: CGFloat {
-        min(max(offset / max(windowSize.height, 1), 0), 1)
-    }
-
-    private var activeSheetCornerRadius: CGFloat {
-        guard offset > 0 else { return 0 }
-//        return UIConstants.isPad ? 32 : 28
-        return 50
+    private var dragIndicatorHeight: CGFloat { 6 }
+    private var dragIndicatorWidth: CGFloat { 54 }
+    private var dragIndicatorTopPadding: CGFloat { configuration.dragIndicatorTopPadding }
+    private var dragIndicatorBottomPadding: CGFloat { UIConstants.Spacing.medium }
+    private var dragIndicatorInset: CGFloat {
+        configuration.showsDragIndicator
+            ? dragIndicatorTopPadding + dragIndicatorHeight + dragIndicatorBottomPadding
+            : 0
     }
 
     var body: some View {
+        let containerHeight = max(windowSize.height, 1)
+        let containerWidth = max(windowSize.width, 1)
+        let sheetHeight = configuration.heightMode.resolvedHeight(in: containerHeight)
+        let sheetTopY = max(containerHeight - sheetHeight, 0)
+        let contentSafeAreaInsets = resolvedContentSafeAreaInsets(
+            sheetTopY: sheetTopY,
+            additionalTopInset: dragIndicatorInset
+        )
+        let dragProgress = min(max(offset / containerHeight, 0), 1)
         let sheetShape = UnevenRoundedRectangle(
             cornerRadii: .init(
-                topLeading: activeSheetCornerRadius,
+                topLeading: configuration.topCornerRadius,
                 bottomLeading: 0,
                 bottomTrailing: 0,
-                topTrailing: activeSheetCornerRadius
+                topTrailing: configuration.topCornerRadius
             ),
             style: .continuous
         )
 
-        let baseView = ZStack {
-            // Background only is clipped — content frame never changes so
-            // text/cards never reflow during drag. Shadow removed entirely.
-            backgroundView
+        let sheetSurface = ZStack(alignment: .top) {
+            backgroundView(dragProgress: dragProgress)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipShape(sheetShape)
+
+            if configuration.appliesDefaultDragTopOverlay {
+                defaultDragTopOverlay(dragProgress: dragProgress)
+                    .allowsHitTesting(false)
+            }
 
             StableHostedSheetContent(
+                topCornerRadius: configuration.topCornerRadius,
                 interactionDisabled: scrollDisabled,
-                makeRootView: { content(safeAreaInsets) }
+                makeRootView: { content(contentSafeAreaInsets) }
             )
-            .environment(\.fullScreenSheetDragProgress, dragProgress)
-        }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(.rect)
-            .offset(y: offset)
-            .presentationBackground { Color.clear }
-            .ignoresSafeArea(.container, edges: ignoresSafeArea ? .all : [])
-            .environment(\.fullScreenSheetDismiss, FullScreenSheetDismissAction { animateDismiss() })
-            .environment(\.fullScreenSheetDismissCoordinator, dismissCoordinator)
-            .onPreferenceChange(FullScreenSheetDragActivationHeightPreferenceKey.self) {
+            .environment(\.fullScreenSheetDragProgress, dragProgress)
+
+            if configuration.showsDragIndicator {
+                Capsule()
+                    .fill(Color.white.opacity(colorScheme == .dark ? 0.18 : 0.32))
+                    .frame(width: dragIndicatorWidth, height: dragIndicatorHeight)
+                    .padding(.top, dragIndicatorTopPadding)
+                    .allowsHitTesting(false)
+            }
+        }
+        .compositingGroup()
+        .clipShape(sheetShape)
+        .frame(width: containerWidth, height: sheetHeight, alignment: .topLeading)
+        .offset(y: offset)
+
+        let baseView = ZStack(alignment: .bottom) {
+            sheetSurface
+        }
+        .frame(width: containerWidth, height: containerHeight, alignment: .bottom)
+        .contentShape(.rect)
+        .presentationBackground { Color.clear }
+        .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
+        .environment(
+            \.fullScreenSheetDismiss,
+            FullScreenSheetDismissAction {
+                animateDismiss(containerHeight: containerHeight)
+            }
+        )
+        .environment(\.fullScreenSheetDismissCoordinator, dismissCoordinator)
+        .onPreferenceChange(FullScreenSheetDragActivationHeightPreferenceKey.self) {
             preferredDragActivationHeight = $0
         }
 
         if #available(iOS 18.0, *) {
             baseView.gesture(
                 CustomPanGesture { [self] gesture in
-                    let translation = clampedTranslation(gesture.translation(in: gesture.view).y)
+                    let translation = clampedTranslation(
+                        gesture.translation(in: gesture.view).y,
+                        containerHeight: containerHeight
+                    )
                     let locationY = gesture.location(in: gesture.view).y
                     let velocityY = gesture.velocity(in: gesture.view).y
 
                     switch gesture.state {
                     case .began:
-                        guard canStartDismiss(at: locationY) else { return }
+                        guard canStartDismiss(at: locationY, sheetTopY: sheetTopY, sheetHeight: sheetHeight) else { return }
                         scrollDisabled = true
                         offset = translation
 
@@ -194,31 +319,42 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                         if scrollDisabled {
                             gesture.isEnabled = false
                             let predictedEnd = translation + max(velocityY * 0.28, 0)
-                            finalizeDrag(translation: translation, predictedEnd: predictedEnd) {
+                            finalizeDrag(
+                                translation: translation,
+                                predictedEnd: predictedEnd,
+                                containerHeight: containerHeight
+                            ) {
                                 gesture.isEnabled = true
                             }
                         } else {
                             let startY = gesture.location(in: gesture.view).y - translation
                             let isDownwardFlick = velocityY > 500
-                                && canStartDismiss(at: startY)
+                                && canStartDismiss(at: startY, sheetTopY: sheetTopY, sheetHeight: sheetHeight)
                                 && abs(gesture.translation(in: gesture.view).y)
                             >= abs(gesture.translation(in: gesture.view).x)
                             if isDownwardFlick {
                                 gesture.isEnabled = false
-                                animateDismiss { gesture.isEnabled = true }
+                                animateDismiss(containerHeight: containerHeight) {
+                                    gesture.isEnabled = true
+                                }
                             }
                         }
 
-                    default: ()
+                    default:
+                        ()
                     }
                 }
             )
         } else {
             baseView.background {
                 LegacySheetPanBridge(
-                    activationHeight: preferredDragActivationHeight ?? dragDismissActivationHeight
+                    sheetTopY: sheetTopY,
+                    activationHeight: resolvedDragActivationHeight(sheetHeight: sheetHeight)
                 ) { [self] gesture in
-                    let translation = clampedTranslation(gesture.translation(in: gesture.view).y)
+                    let translation = clampedTranslation(
+                        gesture.translation(in: gesture.view).y,
+                        containerHeight: containerHeight
+                    )
                     let velocityY = gesture.velocity(in: gesture.view).y
 
                     switch gesture.state {
@@ -234,7 +370,11 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                         guard scrollDisabled else { return }
                         gesture.isEnabled = false
                         let predictedEnd = translation + max(velocityY * 0.28, 0)
-                        finalizeDrag(translation: translation, predictedEnd: predictedEnd) {
+                        finalizeDrag(
+                            translation: translation,
+                            predictedEnd: predictedEnd,
+                            containerHeight: containerHeight
+                        ) {
                             gesture.isEnabled = true
                         }
 
@@ -242,14 +382,14 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                         break
                     }
                 }
-                    .frame(width: 0, height: 0)
+                .frame(width: 0, height: 0)
             }
         }
     }
 
     @ViewBuilder
-    private var backgroundView: some View {
-        if backgroundReceivesDragProgress {
+    private func backgroundView(dragProgress: CGFloat) -> some View {
+        if configuration.backgroundReceivesDragProgress {
             background
                 .environment(\.fullScreenSheetDragProgress, dragProgress)
         } else {
@@ -257,18 +397,26 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         }
     }
 
+    private func defaultDragTopOverlay(dragProgress: CGFloat) -> some View {
+        topOverlayTint
+            .opacity(topOverlayOpacity(for: dragProgress))
+            .mask(topOverlayMask)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     // MARK: - Dismiss Logic
 
     private func finalizeDrag(
         translation: CGFloat,
         predictedEnd: CGFloat,
+        containerHeight: CGFloat,
         completion: (() -> Void)?
     ) {
-        if predictedEnd > windowSize.height * 0.28 {
-            animateDismiss(completion: completion)
+        if predictedEnd > containerHeight * 0.28 {
+            animateDismiss(containerHeight: containerHeight, completion: completion)
         } else {
             withAnimation(dismissalAnimation) { offset = 0 }
-            if translation < windowSize.height * 0.05 {
+            if translation < containerHeight * 0.05 {
                 scrollDisabled = false
                 completion?()
             } else {
@@ -281,7 +429,10 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         }
     }
 
-    private func animateDismiss(completion: (() -> Void)? = nil) {
+    private func animateDismiss(
+        containerHeight: CGFloat,
+        completion: (() -> Void)? = nil
+    ) {
         guard !isAnimatingDismiss else { return }
         guard dismissCoordinator.shouldAllowDismiss?() ?? true else {
             scrollDisabled = false
@@ -291,7 +442,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         isAnimatingDismiss = true
         scrollDisabled = true
 
-        withAnimation(dismissalAnimation) { offset = windowSize.height }
+        withAnimation(dismissalAnimation) { offset = containerHeight }
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))
@@ -306,33 +457,90 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 
     // MARK: - Helpers
 
-    private var windowSize: CGSize {
-        keyWindow?.bounds.size ?? UIScreen.main.bounds.size
+    private func canStartDismiss(
+        at locationY: CGFloat,
+        sheetTopY: CGFloat,
+        sheetHeight: CGFloat
+    ) -> Bool {
+        guard locationY >= sheetTopY else { return false }
+        guard let activationHeight = resolvedDragActivationHeight(sheetHeight: sheetHeight) else {
+            return locationY <= sheetTopY + sheetHeight
+        }
+        return locationY <= sheetTopY + activationHeight
     }
 
-    private var safeAreaInsets: UIEdgeInsets {
-        keyWindow?.safeAreaInsets ?? .zero
-    }
-
-    private var keyWindow: UIWindow? {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first(where: \.isKeyWindow)
-    }
-
-    private func canStartDismiss(at locationY: CGFloat) -> Bool {
-        let h = preferredDragActivationHeight ?? dragDismissActivationHeight
-        guard let h else { return true }
-        return locationY <= h
-    }
-
-    private func clampedTranslation(_ raw: CGFloat) -> CGFloat {
-        min(max(raw, 0), windowSize.height)
+    private func clampedTranslation(
+        _ raw: CGFloat,
+        containerHeight: CGFloat
+    ) -> CGFloat {
+        min(max(raw, 0), containerHeight)
     }
 
     private var animationDurationMilliseconds: Int {
         Int(UIConstants.Animation.medium * 1_000)
+    }
+
+    private func resolvedDragActivationHeight(sheetHeight: CGFloat) -> CGFloat? {
+        if let preferredDragActivationHeight {
+            return preferredDragActivationHeight
+        }
+
+        return configuration.dragActivationArea.resolvedHeight(sheetHeight: sheetHeight)
+    }
+
+    private func resolvedContentSafeAreaInsets(
+        sheetTopY: CGFloat,
+        additionalTopInset: CGFloat
+    ) -> UIEdgeInsets {
+        UIEdgeInsets(
+            top: (sheetTopY <= windowSafeAreaInsets.top + 1 ? windowSafeAreaInsets.top : 0) + additionalTopInset,
+            left: windowSafeAreaInsets.left,
+            bottom: windowSafeAreaInsets.bottom,
+            right: windowSafeAreaInsets.right
+        )
+    }
+
+    private var topOverlayMask: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .white, location: 0.00),
+                .init(color: .white, location: 0.06),
+                .init(color: .clear, location: 0.30)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var topOverlayTint: Color {
+        colorScheme == .dark ? .white : .white
+    }
+
+    private func topOverlayOpacity(for dragProgress: CGFloat) -> Double {
+        let progress = min(max(dragProgress / 0.08, 0), 1)
+        let maxOpacity = colorScheme == .dark ? 0.16 : 0.08
+        return progress * maxOpacity
+    }
+
+    private var windowSize: CGSize {
+        if let size = keyWindow?.bounds.size, size != .zero {
+            return size
+        }
+        return activeWindowScene?.screen.bounds.size ?? .zero
+    }
+
+    private var windowSafeAreaInsets: UIEdgeInsets {
+        keyWindow?.safeAreaInsets ?? .zero
+    }
+
+    private var activeWindowScene: UIWindowScene? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first(where: { $0.activationState == .foregroundActive })
+    }
+
+    private var keyWindow: UIWindow? {
+        activeWindowScene?.windows.first(where: \.isKeyWindow)
     }
 }
 
@@ -342,20 +550,32 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 /// so drag offset updates on the outer container do not force the entire content
 /// tree to be rebuilt every frame.
 private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentable {
+    let topCornerRadius: CGFloat
     let interactionDisabled: Bool
     let makeRootView: () -> Root
 
-    func makeUIViewController(context: Context) -> SheetHostingController {
-        let controller = SheetHostingController(rootView: hostedRootView)
-        controller.view.backgroundColor = .clear
-        controller.view.isOpaque = false
-        controller.view.clipsToBounds = false
-        controller.view.insetsLayoutMarginsFromSafeArea = false
+    func makeUIViewController(context: Context) -> SheetHostingContainerController {
+        let controller = SheetHostingContainerController(
+            rootView: hostedRootView,
+            topCornerRadius: topCornerRadius
+        )
         return controller
     }
 
-    func updateUIViewController(_ uiViewController: SheetHostingController, context: Context) {
+    func updateUIViewController(_ uiViewController: SheetHostingContainerController, context: Context) {
+        uiViewController.updateTopCornerRadius(topCornerRadius)
         uiViewController.setSheetInteractionDisabled(interactionDisabled)
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiViewController: SheetHostingContainerController,
+        context: Context
+    ) -> CGSize? {
+        guard let width = proposal.width, let height = proposal.height else {
+            return nil
+        }
+        return CGSize(width: width, height: height)
     }
 
     private var hostedRootView: AnyView {
@@ -364,6 +584,67 @@ private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentab
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .ignoresSafeArea(.container, edges: .all)
         )
+    }
+}
+
+private final class SheetHostingContainerController: UIViewController {
+    private let hostingController: SheetHostingController
+
+    init(rootView: AnyView, topCornerRadius: CGFloat) {
+        self.hostingController = SheetHostingController(rootView: rootView)
+        super.init(nibName: nil, bundle: nil)
+        updateTopCornerRadius(topCornerRadius)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .clear
+        view.isOpaque = false
+        view.clipsToBounds = true
+        view.insetsLayoutMarginsFromSafeArea = false
+
+        hostingController.view.backgroundColor = .clear
+        hostingController.view.isOpaque = false
+        hostingController.view.clipsToBounds = true
+        hostingController.view.insetsLayoutMarginsFromSafeArea = false
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+
+        addChild(hostingController)
+        view.addSubview(hostingController.view)
+        NSLayoutConstraint.activate([
+            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
+            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+        hostingController.didMove(toParent: self)
+    }
+
+    func setSheetInteractionDisabled(_ disabled: Bool) {
+        hostingController.setSheetInteractionDisabled(disabled)
+    }
+
+    func updateTopCornerRadius(_ radius: CGFloat) {
+        let resolvedRadius = max(radius, 0)
+        let maskedCorners: CACornerMask = [
+            .layerMinXMinYCorner,
+            .layerMaxXMinYCorner
+        ]
+
+        view.layer.cornerCurve = .continuous
+        view.layer.cornerRadius = resolvedRadius
+        view.layer.maskedCorners = maskedCorners
+        view.layer.masksToBounds = resolvedRadius > 0
+
+        hostingController.view.layer.cornerCurve = .continuous
+        hostingController.view.layer.cornerRadius = resolvedRadius
+        hostingController.view.layer.maskedCorners = maskedCorners
+        hostingController.view.layer.masksToBounds = resolvedRadius > 0
     }
 }
 
@@ -443,22 +724,26 @@ private final class SheetHostingController: UIHostingController<AnyView> {
 // MARK: - Legacy Sheet Pan Bridge (iOS 17)
 
 private struct LegacySheetPanBridge: UIViewRepresentable {
+    let sheetTopY: CGFloat
     let activationHeight: CGFloat?
     let onPan: (UIPanGestureRecognizer) -> Void
 
     func makeUIView(context: Context) -> ProbeView {
         let view = ProbeView()
+        view.sheetTopY = sheetTopY
         view.activationHeight = activationHeight
         view.onPan = onPan
         return view
     }
 
     func updateUIView(_ uiView: ProbeView, context: Context) {
+        uiView.sheetTopY = sheetTopY
         uiView.activationHeight = activationHeight
         uiView.onPan = onPan
     }
 
     final class ProbeView: UIView, UIGestureRecognizerDelegate {
+        var sheetTopY: CGFloat = 0
         var activationHeight: CGFloat?
         var onPan: ((UIPanGestureRecognizer) -> Void)?
 
@@ -506,7 +791,8 @@ private struct LegacySheetPanBridge: UIViewRepresentable {
                 let host = hostView else { return false }
 
             let location = pan.location(in: host)
-            if let activationHeight, location.y > activationHeight {
+            guard location.y >= sheetTopY else { return false }
+            if let activationHeight, location.y > sheetTopY + activationHeight {
                 return false
             }
 

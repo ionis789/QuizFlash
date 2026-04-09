@@ -2,7 +2,7 @@
 //  AIDebugTraceHistoryView.swift
 //  QuizFlash
 //
-//  History browser for persisted AI generation and conversion traces.
+//  Development-only history browser for persisted AI generation and conversion traces.
 //
 
 import SwiftUI
@@ -192,4 +192,3 @@ struct AIDebugTraceHistoryView: View {
         return formatter
     }()
 }
-

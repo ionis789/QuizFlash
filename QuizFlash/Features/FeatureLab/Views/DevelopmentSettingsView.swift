@@ -8,15 +8,19 @@
 import SwiftUI
 
 struct DevelopmentSettingsView: View {
-    @Environment(AppPreferences.self) private var appPreferences
+    @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(AIProviderStore.self) private var aiProviderStore
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
                 buildModeSection
-                visualDebuggingSection
-                aiToolingSection
+                if AppFeatures.current.showsVisualDebugOverlays {
+                    visualDebuggingSection
+                }
+                if AppFeatures.current.enablesAITraceTooling {
+                    aiToolingSection
+                }
             }
             .padding(.horizontal, UIConstants.Spacing.large)
             .padding(.top, UIConstants.Spacing.large)
@@ -155,15 +159,15 @@ struct DevelopmentSettingsView: View {
 
     private var deckGridTextLayoutDebugBinding: Binding<Bool> {
         Binding(
-            get: { appPreferences.deckGridTextLayoutDebugEnabled },
-            set: { appPreferences.deckGridTextLayoutDebugEnabled = $0 }
+            get: { developmentPreferences.deckGridTextLayoutDebugEnabled },
+            set: { developmentPreferences.deckGridTextLayoutDebugEnabled = $0 }
         )
     }
 
     private var aiDebugTracingEnabledBinding: Binding<Bool> {
         Binding(
-            get: { appPreferences.aiDebugTracingEnabled },
-            set: { appPreferences.aiDebugTracingEnabled = $0 }
+            get: { developmentPreferences.aiDebugTracingEnabled },
+            set: { developmentPreferences.aiDebugTracingEnabled = $0 }
         )
     }
 }

@@ -15,6 +15,7 @@
 
 import SwiftUI
 import SwiftData
+import OSLog
 
 // MARK: - Exam Goal Sheet Presentation
 
@@ -47,6 +48,7 @@ enum ExamGoalSheetPresentation: Identifiable, Equatable {
 @Observable
 @MainActor
 final class HomeViewModel {
+    private let logger = QuizFlashLog.make("HomeViewModel")
 
     // MARK: - Sheet State
 
@@ -515,7 +517,9 @@ final class HomeViewModel {
             newFolderTitle = ""
             showCreateFolder = false
         } catch {
-            print("[HomeViewModel] Failed to create folder: \(error)")
+            logger.error(
+                "Failed to create folder: \(String(describing: error), privacy: .public)"
+            )
         }
     }
 
@@ -596,7 +600,9 @@ final class HomeViewModel {
             try context.save()
             dismissExamGoalEditor()
         } catch {
-            print("[HomeViewModel] Failed to save exam goal: \(error)")
+            logger.error(
+                "Failed to save exam goal: \(String(describing: error), privacy: .public)"
+            )
         }
     }
 
@@ -618,7 +624,9 @@ final class HomeViewModel {
         do {
             try context.save()
         } catch {
-            print("[HomeViewModel] Failed to update exam goal status: \(error)")
+            logger.error(
+                "Failed to update exam goal status: \(String(describing: error), privacy: .public)"
+            )
         }
     }
 

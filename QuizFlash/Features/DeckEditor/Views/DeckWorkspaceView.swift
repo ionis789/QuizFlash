@@ -1,10 +1,10 @@
 //
-//  CreateDeckView.swift
+//  DeckWorkspaceView.swift
 //  QuizFlash
 //
 //  Abstract:
 //  Primary entry point for creating or editing a deck.
-//  Delegates all state and business logic to `CreateDeckViewModel`.
+//  Delegates all state and business logic to `DeckWorkspaceViewModel`.
 //  Manages only local UI concerns: keyboard focus and tab-bar visibility.
 //
 
@@ -13,18 +13,16 @@ import SwiftData
 import PhotosUI
 import UniformTypeIdentifiers
 
-let kCreateDeckChromeSpace = "CreateDeckChromeSpace"
+let kDeckWorkspaceChromeSpace = "DeckWorkspaceChromeSpace"
 
-enum CreateDeckLaunchAction: Equatable {
+enum DeckWorkspaceLaunchAction: Equatable {
     case showAIGenerationOptions
 }
 
-struct CreateDeckView: View {
+struct DeckWorkspaceView: View {
     // MARK: - Environment
     @Environment(\.modelContext) var context
     @Environment(\.dismiss) var dismiss
-    @Environment(\.fullScreenSheetDismiss) var fullScreenSheetDismiss
-    @Environment(\.fullScreenSheetDismissCoordinator) var fullScreenSheetDismissCoordinator
     @Environment(\.scenePhase) var scenePhase
     @Environment(NavigationManager.self) var router
     @Environment(AIWorkspaceCoordinator.self) var aiWorkspaceCoordinator
@@ -33,11 +31,12 @@ struct CreateDeckView: View {
 
     /// Fetches all available folders to populate the destination picker.
     @Query(sort: \FolderModel.createdAt, order: .reverse) var folders: [FolderModel]
+    @Query(sort: \DeckModel.editedAt, order: .reverse) var sourceDecks: [DeckModel]
 
     // MARK: - State
-    @State var viewModel: CreateDeckViewModel
-    @State var scrollState = CreateDeckScrollState()
-    @State var derivedDeckState = CreateDeckDerivedState.empty
+    @State var viewModel: DeckWorkspaceViewModel
+    @State var scrollState = DeckWorkspaceScrollState()
+    @State var derivedDeckState = DeckWorkspaceDerivedState.empty
     @State var navigationBarHeight: CGFloat = UIConstants.Size.actionButton
     @State var viewSafeBottom: CGFloat = 0
     @State var physicalSafeBottom: CGFloat = 0
@@ -54,12 +53,10 @@ struct CreateDeckView: View {
     @FocusState var isTitleFocused: Bool
 
     // MARK: - Input
-    let presentedSafeAreaInsets: UIEdgeInsets?
-    let launchAction: CreateDeckLaunchAction?
-    let workspaceMode: Binding<CreateWorkspaceMode>?
+    let launchAction: DeckWorkspaceLaunchAction?
 
     // MARK: - Computed Properties
-    var accent: Color { ThemeManager.shared.accentColor.color }
+    var accent: Color { themeManager.accentColor.color }
     var canSave: Bool {
         let hasTitle = !viewModel.deckTitle.trimmingCharacters(in: .whitespaces).isEmpty
         if viewModel.isEditingExistingDeck {
@@ -123,7 +120,7 @@ struct CreateDeckView: View {
         return trimmedTitle.isEmpty ? "Untitled Deck" : trimmedTitle
     }
     var successOverlayTopPadding: CGFloat {
-        navigationBarHeight + (fullScreenSheetDismiss == nil ? UIConstants.Spacing.large : UIConstants.Spacing.extraLarge)
+        navigationBarHeight + UIConstants.Spacing.large
     }
     var successOverlayAnimation: Animation {
         .smooth(duration: UIConstants.Animation.medium, extraBounce: 0)
@@ -157,18 +154,11 @@ struct CreateDeckView: View {
     var shouldShowCollapsedTitle: Bool {
         scrollState.pillVisible && !viewModel.draftCards.isEmpty && !collapsedDeckTitle.isEmpty
     }
-    var canUseInteractiveDismiss: Bool {
-        fullScreenSheetDismiss != nil
-            && viewModel.aiSheetDestination == nil
+    var swipeBackEnabled: Bool {
+        viewModel.aiSheetDestination == nil
             && !viewModel.showSuccessOverlay
             && !isTitleFocused
             && !hasUnifiedAISession
-    }
-    var swipeBackEnabled: Bool {
-        fullScreenSheetDismiss != nil ? canUseInteractiveDismiss : true
-    }
-    var swipeBackAttachment: SwipeBackAttachment {
-        fullScreenSheetDismiss != nil ? .localHost : .window
     }
 
     /// Contextual rule for tab bar visibility.
@@ -218,39 +208,16 @@ struct CreateDeckView: View {
         return viewModel.resolvedEditingDeckID == aiWorkspaceCoordinator.workspaceDeckContext?.sourceDeckID
     }
 
-    var shouldShowCreateTabConversionRuntime: Bool {
-        fullScreenSheetDismiss == nil
-            && router.activeTab == .create
-            && !viewModel.isEditingExistingDeck
-            && aiWorkspaceCoordinator.hasVisibleConversionWorkspaceState
-    }
-
     var tracksWorkspaceGenerationStatus: Bool {
-        fullScreenSheetDismiss == nil && router.activeTab == .create
-    }
-
-    var effectiveWorkspaceMode: CreateWorkspaceMode {
-        workspaceMode?.wrappedValue ?? .create
-    }
-
-    var isWorkspaceRoot: Bool {
-        workspaceMode != nil
+        router.activeTab == .create
     }
 
     var isShowingWorkspaceConvert: Bool {
-        effectiveWorkspaceMode == .convert
-    }
-
-    var workspaceModeSelection: Binding<CreateWorkspaceMode>? {
-        guard let workspaceMode else { return nil }
-        return Binding(
-            get: { workspaceMode.wrappedValue },
-            set: { newValue in
-                isTitleFocused = false
-                exitDraftSelectionModeForExternalAction()
-                workspaceMode.wrappedValue = newValue
-            }
-        )
+        guard viewModel.isEditingExistingDeck,
+              let sourceDeckID = aiWorkspaceCoordinator.conversionSeed?.sourceDeckID else {
+            return false
+        }
+        return sourceDeckID == viewModel.resolvedEditingDeckID
     }
 
     var displayedDraftCards: [DraftCard] {
@@ -314,14 +281,10 @@ struct CreateDeckView: View {
     // MARK: - Initialization
     init(
         deckToEdit: DeckModel? = nil,
-        safeAreaInsets: UIEdgeInsets? = nil,
-        launchAction: CreateDeckLaunchAction? = nil,
-        workspaceMode: Binding<CreateWorkspaceMode>? = nil
+        launchAction: DeckWorkspaceLaunchAction? = nil
     ) {
-        self.presentedSafeAreaInsets = safeAreaInsets
         self.launchAction = launchAction
-        self.workspaceMode = workspaceMode
-        _viewModel = State(initialValue: CreateDeckViewModel(deckToEdit: deckToEdit))
+        _viewModel = State(initialValue: DeckWorkspaceViewModel(deckToEdit: deckToEdit))
     }
 
     var body: some View {
@@ -384,7 +347,7 @@ struct CreateDeckView: View {
             }
             .swipeBack(
                 enabled: swipeBackEnabled,
-                attachment: swipeBackAttachment
+                attachment: .window
             ) {
                 requestDismiss()
             }
@@ -394,20 +357,25 @@ struct CreateDeckView: View {
                 syncAIWorkspaceGenerationState()
                 syncActiveConversionEditorState()
                 performLaunchActionIfNeeded()
-                fullScreenSheetDismissCoordinator?.shouldAllowDismiss = {
-                    attemptInteractiveDismissValidation()
-                }
             }
             .onChange(of: viewModel.draftCards) { _, _ in
                 refreshDerivedDeckState()
             }
             .onDisappear {
-                if fullScreenSheetDismissCoordinator?.shouldAllowDismiss != nil {
-                    fullScreenSheetDismissCoordinator?.shouldAllowDismiss = nil
+                if isShowingWorkspaceConvert {
+                    aiWorkspaceCoordinator.dismissConversionConfiguration()
                 }
                 guard viewModel.aiSheetDestination == nil,
                       viewModel.cardEditorDestination == nil else { return }
                 ImageCache.shared.clearCache()
+            }
+            .onChange(of: viewModel.isEditingExistingDeck) { oldValue, newValue in
+                guard oldValue,
+                      !newValue,
+                      router.activeTab == .create,
+                      router.createPath.isEmpty,
+                      router.createWorkspaceEditingDeckID != nil else { return }
+                router.clearCreateWorkspaceEditingContext()
             }
             .customTabBarVisibility(tabRule)
     }
@@ -423,9 +391,8 @@ struct CreateDeckView: View {
     var generationSheetContent: some View {
         viewContent
             .fullScreenSheet(
-                ignoresSafeArea: true,
                 item: $viewModel.aiSheetDestination,
-                dragDismissActivationHeight: 180
+                configuration: .chrome(dragActivationArea: .fixed(180))
             ) { _, safeArea in
                 AIGenerationSheetView(
                     viewModel: viewModel,
@@ -446,41 +413,25 @@ struct CreateDeckView: View {
     var viewContent: some View {
         ScrollViewReader { scrollProxy in
             GeometryReader { outer in
-                let resolvedSafeTopInset = max(presentedSafeAreaInsets?.top ?? 0, outer.safeAreaInsets.top)
-                let resolvedSafeBottomInset = max(presentedSafeAreaInsets?.bottom ?? 0, outer.safeAreaInsets.bottom)
-                let estimatedSheetChromeHeight = resolvedSafeTopInset
-                    + UIConstants.Spacing.tiny
-                    + 5
-                    + UIConstants.Spacing.small
-                    + UIConstants.Size.capsuleHeight
-                let sheetHeroTopPadding = max(navigationBarHeight, estimatedSheetChromeHeight) + UIConstants.Spacing.large
-                let rootWorkspaceHeroTopPadding = navigationBarHeight + UIConstants.Spacing.small
-                let standardHeroTopPadding = isWorkspaceRoot
-                    ? rootWorkspaceHeroTopPadding
-                    : UIConstants.Layout.createDeckPinnedToolbarTopInset
-                        + UIConstants.Layout.createDeckHeroTopPadding
-                let heroTopPadding = fullScreenSheetDismiss != nil ? sheetHeroTopPadding : standardHeroTopPadding
-                let sheetDragActivationHeight = fullScreenSheetDismiss != nil
-                    ? heroTopPadding + 180
-                    : nil
+                let resolvedSafeTopInset = outer.safeAreaInsets.top
+                let resolvedSafeBottomInset = outer.safeAreaInsets.bottom
+                let heroTopPadding = UIConstants.Layout.createDeckPinnedToolbarTopInset
+                    + UIConstants.Layout.createDeckHeroTopPadding
 
                 ZStack {
-                    if fullScreenSheetDismiss != nil {
-                        Color.clear
-                    } else {
-                        themeManager.groupedScreenBackground
-                            .ignoresSafeArea()
-                    }
+                    themeManager.groupedScreenBackground
+                        .ignoresSafeArea()
 
                     ScrollView {
                         VStack(spacing: 0) {
                             heroHeader(topPadding: heroTopPadding)
 
-                            if isShowingWorkspaceConvert && isWorkspaceRoot {
-                                CreateWorkspaceConvertEditor(
-                                    managesSeedFromDeckList: true,
-                                    showsDeckPicker: true,
-                                    showsRuntimeSummary: true
+                            if isShowingWorkspaceConvert {
+                                DeckConversionEditor(
+                                    sourceDecks: sourceDecks,
+                                    managesSeedFromDeckList: false,
+                                    showsDeckPicker: false,
+                                    showsRuntimeSummary: false
                                 )
                                 .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
                                 .padding(.top, UIConstants.Spacing.small)
@@ -503,14 +454,6 @@ struct CreateDeckView: View {
                     successOverlay
                         .zIndex(100)
                 }
-                .overlay {
-                    if fullScreenSheetDismiss != nil {
-                        CreateDeckSheetEdgeShadow(
-                            topHeight: resolvedSafeTopInset + navigationBarHeight + 28
-                        )
-                        .allowsHitTesting(false)
-                    }
-                }
                 .overlay(alignment: .top) {
                     navigationChrome(
                         containerWidth: outer.size.width,
@@ -518,19 +461,18 @@ struct CreateDeckView: View {
                     )
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    if !isShowingWorkspaceConvert || !isWorkspaceRoot {
+                    if !isShowingWorkspaceConvert {
                         floatingGenerateAction(bottomInset: resolvedSafeBottomInset)
                     }
                 }
                 .overlay(alignment: .bottom) {
-                    if isShowingWorkspaceConvert && isWorkspaceRoot {
+                    if isShowingWorkspaceConvert {
                         EmptyView()
                     } else {
                         draftSelectionBottomBar
                     }
                 }
-                .coordinateSpace(name: kCreateDeckChromeSpace)
-                .fullScreenSheetDragActivationHeight(sheetDragActivationHeight)
+                .coordinateSpace(name: kDeckWorkspaceChromeSpace)
             }
         }
         .background {

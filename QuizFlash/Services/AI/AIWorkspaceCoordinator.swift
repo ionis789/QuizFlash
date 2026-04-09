@@ -334,7 +334,7 @@ final class AIWorkspaceCoordinator {
         guard generationStatus != nil || hasVisibleConversionWorkspaceState else { return }
 
         if let sourceDeckID = workspaceDeckContext?.sourceDeckID {
-            router.showCreateDeckEditor(for: sourceDeckID)
+            router.showDeckWorkspace(for: sourceDeckID)
             return
         }
 

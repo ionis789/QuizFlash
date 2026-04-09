@@ -1,12 +1,12 @@
 //
-//  CreateDeckContent.swift
+//  DeckWorkspaceContent.swift
 //  QuizFlash
 //
 
 import SwiftUI
 import SwiftData
 
-extension CreateDeckView {
+extension DeckWorkspaceView {
     var runtimeCardTransition: AnyTransition { .opacity }
 
     func updateViewSafeBottom(using viewInset: CGFloat) {
@@ -17,11 +17,6 @@ extension CreateDeckView {
     func capturePhysicalSafeBottomIfNeeded() {
         guard !hasCapturedPhysicalSafeBottom else { return }
         hasCapturedPhysicalSafeBottom = true
-
-        if let presentedBottomInset = presentedSafeAreaInsets?.bottom, presentedBottomInset > 0 {
-            physicalSafeBottom = presentedBottomInset
-            return
-        }
 
         physicalSafeBottom = UIApplication.shared
             .connectedScenes
@@ -34,17 +29,15 @@ extension CreateDeckView {
     @ViewBuilder
     var draftSelectionBottomBar: some View {
         if !isShowingWorkspaceConvert && viewModel.isSelectingCards && !viewModel.draftCards.isEmpty {
-            let isPresentedInFullScreenSheet = fullScreenSheetDismiss != nil
             BottomChromeContainer(
                 kind: .selection,
                 bottomPadding: BottomChromeInsets.selectionInEditor(
                     viewSafeBottom: viewSafeBottom,
                     physicalSafeBottom: physicalSafeBottom,
-                    isPresentedInFullScreenSheet: isPresentedInFullScreenSheet
-                ),
-                ignoresBottomSafeArea: isPresentedInFullScreenSheet
+                    isPresentedInFullScreenSheet: false
+                )
             ) {
-                CreateDeckSelectionBottomBar(
+                DeckWorkspaceSelectionBottomBar(
                     selectedCount: viewModel.selectedDraftCardCount,
                     allSelected: viewModel.areAllDraftCardsSelected,
                     onDone: {
@@ -449,7 +442,9 @@ extension CreateDeckView {
     }
 
     func startWorkspaceConversion() {
-        return
+        isTitleFocused = false
+        exitDraftSelectionModeForExternalAction()
+        aiWorkspaceCoordinator.startConversion(context: context)
     }
 
     func handleDeleteDeck() {
@@ -499,11 +494,23 @@ extension CreateDeckView {
     }
 
     func dismissPresentation() {
-        if let fullScreenSheetDismiss {
-            fullScreenSheetDismiss()
-        } else {
-            dismiss()
+        if isShowingWorkspaceConvert {
+            aiWorkspaceCoordinator.dismissConversionConfiguration()
         }
+
+        let shouldResetCreateWorkspace =
+            router.activeTab == .create
+            && router.createPath.isEmpty
+            && viewModel.isEditingExistingDeck
+
+        if shouldResetCreateWorkspace {
+            withAnimation(.circularProgressSpring) {
+                router.showEmptyCreateWorkspace()
+            }
+            return
+        }
+
+        dismiss()
     }
 
     func syncAIWorkspaceGenerationState() {
@@ -538,7 +545,7 @@ extension CreateDeckView {
     }
 
     func refreshDerivedDeckState() {
-        derivedDeckState = CreateDeckDerivedState(cards: viewModel.draftCards)
+        derivedDeckState = DeckWorkspaceDerivedState(cards: viewModel.draftCards)
     }
 
     func exitDraftSelectionModeForExternalAction() {
@@ -598,12 +605,12 @@ extension CreateDeckView {
     }
 }
 
- struct CreateDeckDerivedState: Equatable {
+ struct DeckWorkspaceDerivedState: Equatable {
     let contentSummary: DraftDeckContentSummary
     let readinessSummary: DeckReadinessSummary
     let recommendedCards: [CardKind: [DraftCard]]
 
-    static let empty = CreateDeckDerivedState(cards: [])
+    static let empty = DeckWorkspaceDerivedState(cards: [])
 
     init(cards: [DraftCard]) {
         contentSummary = DraftDeckContentSummary(cards: cards)
@@ -624,6 +631,6 @@ extension CreateDeckView {
 }
 
 @Observable
-final class CreateDeckScrollState {
+final class DeckWorkspaceScrollState {
     var pillVisible: Bool = false
 }

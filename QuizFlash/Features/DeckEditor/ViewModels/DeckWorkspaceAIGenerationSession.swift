@@ -1,5 +1,5 @@
 //
-//  CreateDeckAIGenerationSession.swift
+//  DeckWorkspaceAIGenerationSession.swift
 //  QuizFlash
 //
 
@@ -8,7 +8,7 @@ import SwiftData
 import PhotosUI
 import PDFKit
 
-extension CreateDeckViewModel {
+extension DeckWorkspaceViewModel {
     // MARK: - Progressive AI Save
     // =========================================================================
 

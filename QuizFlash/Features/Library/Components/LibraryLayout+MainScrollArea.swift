@@ -6,8 +6,11 @@
 //
 
 import SwiftUI
+import OSLog
 
 extension LibraryLayout {
+    private static let stickyDebugLogger = QuizFlashLog.make("LibraryStickyLayout")
+
     var mainScrollArea: some View {
         ScrollView {
             VStack(spacing: 0) {
@@ -348,7 +351,7 @@ extension LibraryLayout {
                 .map { String(format: "%.1f", $0.minY) }
                 .joined(separator: ",")
 
-            print(
+            Self.stickyDebugLogger.debug(
                 "[LibraryStickyDebug] event=releasedFromPinned id=\"\(releasedCandidate.id)\" title=\"\(releasedCandidate.title)\" labelMinY=\(labelMinY) labelMaxY=\(labelMaxY) containerMinY=\(containerMinY) thresholdY=\(threshold) frames=[\(candidateFrames)]"
             )
         }
@@ -388,7 +391,7 @@ extension LibraryLayout {
                     (nextBelowCollapsedTitleCandidate?.minY ?? .nan) - pushStartThresholdY
                 )
 
-                print(
+                Self.stickyDebugLogger.debug(
                     "[LibraryStickyDebug] event=pinnedStart id=\"\(pushStartCandidate.id)\" title=\"\(pushStartCandidate.title)\" labelMinY=\(labelMinY) labelMaxY=\(labelMaxY) containerMinY=\(containerMinY) compactMinY=\(compactMinY) compactMaxY=\(compactMaxY) compactHeight=\(compactHeight) thresholdY=\(threshold) distanceToCompactBottom=\(distanceToCompactBottom) nextTitle=\"\(nextTitle)\" nextMinY=\(nextMinY) nextMaxY=\(nextMaxY) nextDistanceToCompactBottom=\(distanceToNext) frames=[\(candidateFrames)]"
                 )
             }
@@ -405,7 +408,7 @@ extension LibraryLayout {
                 .map { String(format: "%.1f", $0.minY) }
                 .joined(separator: ",")
 
-            print(
+            Self.stickyDebugLogger.debug(
                 "[LibraryStickyDebug] event=returnedBelowCompactTitle id=\"\(returnedCandidate.id)\" title=\"\(returnedCandidate.title)\" labelMinY=\(labelMinY) thresholdY=\(threshold) frames=[\(candidateFrames)]"
             )
         }
@@ -421,7 +424,7 @@ extension LibraryLayout {
             .map { String(format: "%.1f", $0.minY) }
             .joined(separator: ",")
 
-        print(
+        Self.stickyDebugLogger.debug(
             "[LibraryStickyDebug] event=passedCompactTitle id=\"\(passedCompactTitleCandidate.id)\" title=\"\(passedCompactTitleCandidate.title)\" labelMinY=\(labelMinY) thresholdY=\(threshold) frames=[\(candidateFrames)]"
         )
     }

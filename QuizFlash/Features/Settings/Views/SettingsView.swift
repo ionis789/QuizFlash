@@ -17,6 +17,7 @@ struct SettingsView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(CardAppearancePreferences.self) private var cardAppearancePreferences
     @Environment(\.dismiss) private var dismiss
 
     @State private var keyboardMonitor = KeyboardMonitor.shared
@@ -26,7 +27,6 @@ struct SettingsView: View {
     @State private var navigationBarBottomY: CGFloat = 0
     @Query private var decks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
-    @AppStorage(CardContentMode.storageKey) private var rawCardContentMode = CardContentMode.scaleToFit.rawValue
 
     let allowsSwipeBack: Bool
 
@@ -409,7 +409,7 @@ struct SettingsView: View {
     }
 
     private var currentCardAppearanceTitle: String {
-        CardContentMode(rawValue: rawCardContentMode)?.label ?? CardContentMode.scaleToFit.label
+        cardAppearancePreferences.cardContentMode.label
     }
 
     private var flashcardsSummary: String {
@@ -623,8 +623,8 @@ private struct SettingsInfoDetailView: View {
 #Preview {
     SettingsView()
         .environment(AuthManager.shared)
-        .environment(AIProviderStore.shared)
         .environment(ThemeManager.shared)
         .environment(AppPreferences.shared)
+        .environment(CardAppearancePreferences.shared)
         .modelContainer(for: [DeckModel.self, CardModel.self], inMemory: true)
 }

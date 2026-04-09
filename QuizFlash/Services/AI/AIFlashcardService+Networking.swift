@@ -3,6 +3,14 @@ import UIKit
 import SwiftData
 
 extension AIFlashcardService {
+    private static let retryAfterDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
+        return formatter
+    }()
+
     func sendRequest(
         messages: [[String: Any]],
         model: String,
@@ -934,12 +942,7 @@ extension AIFlashcardService {
             return seconds
         }
 
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
-
-        guard let date = formatter.date(from: rawValue) else {
+        guard let date = Self.retryAfterDateFormatter.date(from: rawValue) else {
             return nil
         }
 

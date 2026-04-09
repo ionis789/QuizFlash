@@ -2,7 +2,7 @@
 //  AIProviderEditorView.swift
 //  QuizFlash
 //
-//  Editor for creating and updating saved AI provider profiles.
+//  Development-only editor for creating and updating saved AI provider profiles.
 //
 
 import SwiftUI

@@ -28,4 +28,5 @@ struct RootView: View {
 #Preview {
     RootView()
         .environment(AuthManager.shared)
+        .environment(ThemeManager.shared)
 }

@@ -1,5 +1,5 @@
 //
-//  CreateDeckViewModel.swift
+//  DeckWorkspaceViewModel.swift
 //  QuizFlash
 //
 //  Manages all state and business logic for the deck creation and editing flow.
@@ -113,7 +113,7 @@ struct DraftCardChangeSnapshot: Equatable {
     }
 }
 
-struct CreateDeckStateSnapshot: Equatable {
+struct DeckWorkspaceStateSnapshot: Equatable {
     let title: String
     let selectedFolderID: PersistentIdentifier?
     let draftCards: [DraftCardChangeSnapshot]
@@ -121,11 +121,11 @@ struct CreateDeckStateSnapshot: Equatable {
 
 // MARK: - Create Deck View Model
 
-/// The ViewModel for `CreateDeckView`, managing draft card state, AI generation,
+/// The ViewModel for `DeckWorkspaceView`, managing draft card state, AI generation,
 /// and deck persistence for both new deck creation and existing deck editing.
 @Observable
 @MainActor
-final class CreateDeckViewModel {
+final class DeckWorkspaceViewModel {
 
     // MARK: - AI State
     var aiState: AIGenerationState = .idle
@@ -307,7 +307,7 @@ final class CreateDeckViewModel {
     var selectedDraftCardIDs: Set<UUID> = []
     var showDeleteSelectedCardsConfirmation = false
     let deckToEdit: DeckModel?
-    var initialSnapshot: CreateDeckStateSnapshot
+    var initialSnapshot: DeckWorkspaceStateSnapshot
     @ObservationIgnored var initialDeckTitle: String
     @ObservationIgnored var initialDraftCards: [DraftCard]
     @ObservationIgnored var initialSelectedFolder: FolderModel?
@@ -399,7 +399,7 @@ final class CreateDeckViewModel {
             initialDrafts = []
         }
 
-        initialSnapshot = CreateDeckStateSnapshot(
+        initialSnapshot = DeckWorkspaceStateSnapshot(
             title: initialTitle.trimmingCharacters(in: .whitespacesAndNewlines),
             selectedFolderID: initialFolder?.persistentModelID,
             draftCards: initialDrafts.map(DraftCardChangeSnapshot.init)

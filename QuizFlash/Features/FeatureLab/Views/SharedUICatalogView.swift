@@ -8,6 +8,7 @@
 import SwiftUI
 struct SharedUICatalogView: View {
     private let runtime = FeatureLabFixtures.shared
+    private let horizontalInset = UIConstants.Spacing.large
 
     @State private var searchText = ""
     @State private var filter: SharedUICatalogFilter = .all
@@ -49,63 +50,70 @@ struct SharedUICatalogView: View {
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                LargeScreenTitle(title: "Shared UI Catalog")
+        GeometryReader { proxy in
+            let contentWidth = max(proxy.size.width - (horizontalInset * 2), 0)
 
-                SharedUICatalogIntroCard(
-                    trackedViewCount: trackedViewCount,
-                    trackedModifierCount: trackedModifierCount,
-                    featuredCount: featuredCount
-                )
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+                    LargeScreenTitle(title: "Shared UI Catalog")
 
-                filterSection
-
-                if featuredViewEntries.isEmpty && featuredModifierEntries.isEmpty && registrySections.isEmpty {
-                    SharedUICatalogEmptyState(query: query)
-                } else {
-                    if !featuredViewEntries.isEmpty {
-                        SharedUICatalogSectionHeader(
-                            title: "Featured Views",
-                            subtitle: "Live demos for the shared surfaces you are most likely to tweak globally."
-                        )
-
-                        ForEach(featuredViewEntries) { entry in
-                            SharedUICatalogShowcaseCard(entry: entry) {
-                                demo(for: entry)
-                            }
-                        }
-                    }
-
-                    if !featuredModifierEntries.isEmpty {
-                        SharedUICatalogSectionHeader(
-                            title: "Featured Modifiers",
-                            subtitle: "Interactive samples for the styling and presentation primitives reused across the app."
-                        )
-
-                        ForEach(featuredModifierEntries) { entry in
-                            SharedUICatalogShowcaseCard(entry: entry) {
-                                demo(for: entry)
-                            }
-                        }
-                    }
-
-                    SharedUICatalogSectionHeader(
-                        title: "Registry",
-                        subtitle: "Single-source inventory of shared views and modifiers with their edit locations."
+                    SharedUICatalogIntroCard(
+                        trackedViewCount: trackedViewCount,
+                        trackedModifierCount: trackedModifierCount,
+                        featuredCount: featuredCount
                     )
 
-                    ForEach(registrySections) { section in
-                        SharedUICatalogRegistryCard(
-                            section: section,
-                            entries: filteredEntries.filter { $0.section == section }
+                    filterSection
+
+                    if featuredViewEntries.isEmpty && featuredModifierEntries.isEmpty && registrySections.isEmpty {
+                        SharedUICatalogEmptyState(query: query)
+                    } else {
+                        if !featuredViewEntries.isEmpty {
+                            SharedUICatalogSectionHeader(
+                                title: "Featured Views",
+                                subtitle: "Live demos for the shared surfaces you are most likely to tweak globally."
+                            )
+
+                            ForEach(featuredViewEntries) { entry in
+                                SharedUICatalogShowcaseCard(entry: entry) {
+                                    demo(for: entry)
+                                }
+                            }
+                        }
+
+                        if !featuredModifierEntries.isEmpty {
+                            SharedUICatalogSectionHeader(
+                                title: "Featured Modifiers",
+                                subtitle: "Interactive samples for the styling and presentation primitives reused across the app."
+                            )
+
+                            ForEach(featuredModifierEntries) { entry in
+                                SharedUICatalogShowcaseCard(entry: entry) {
+                                    demo(for: entry)
+                                }
+                            }
+                        }
+
+                        SharedUICatalogSectionHeader(
+                            title: "Registry",
+                            subtitle: "Single-source inventory of shared views and modifiers with their edit locations."
                         )
+
+                        ForEach(registrySections) { section in
+                            SharedUICatalogRegistryCard(
+                                section: section,
+                                entries: filteredEntries.filter { $0.section == section }
+                            )
+                        }
                     }
                 }
+                .frame(width: contentWidth, alignment: .leading)
+                .padding(.horizontal, horizontalInset)
+                .padding(.top, UIConstants.Spacing.large)
+                .padding(.bottom, UIConstants.Size.bottomChromeBarHeight + 120)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .padding(.horizontal, UIConstants.Spacing.large)
-            .padding(.top, UIConstants.Spacing.large)
-            .padding(.bottom, UIConstants.Size.bottomChromeBarHeight + 120)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .background(Color.black.ignoresSafeArea())
         .navigationTitle("Shared UI")
@@ -819,7 +827,9 @@ private struct SharedUICatalogShowcaseCard<Demo: View>: View {
             SharedUICatalogMetadataBlock(entry: entry)
 
             demo()
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(UIConstants.Spacing.large)
         .background(
             RoundedRectangle(cornerRadius: UIConstants.Radius.maximum, style: .continuous)
@@ -899,6 +909,7 @@ private struct SharedUICatalogRegistryCard: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(UIConstants.Spacing.large)
         .background(
             RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
@@ -1235,8 +1246,75 @@ private struct SharedUICatalogSelectionToolbarDemo: View {
     }
 }
 
-private struct SharedUICatalogFullScreenSheetDemo: View {
+struct SharedUICatalogFullScreenSheetDemo: View {
+    enum HeightPreset: String, CaseIterable, Identifiable {
+        case full
+        case medium
+        case small
+        case custom
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .full: return "Full"
+            case .medium: return "Medium"
+            case .small: return "Small"
+            case .custom: return "Custom"
+            }
+        }
+    }
+
+    enum BackgroundPreset: String, CaseIterable, Identifiable {
+        case black
+        case slate
+        case ember
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .black: return "Black"
+            case .slate: return "Slate"
+            case .ember: return "Ember"
+            }
+        }
+    }
+
     @State private var isPresented = false
+    @State private var heightPreset: HeightPreset = .medium
+    @State private var customHeightFraction: Double = 0.76
+    @State private var topCornerRadius: Double = UIConstants.Radius.maximum
+    @State private var dragActivationFraction: Double = 0.22
+    @State private var showsDragIndicator = true
+    @State private var dragIndicatorTopPadding: Double = UIConstants.Spacing.extraLarge
+    @State private var backgroundPreset: BackgroundPreset = .black
+
+    private var sheetConfiguration: FullScreenSheetConfiguration {
+        FullScreenSheetConfiguration(
+            ignoresSafeArea: true,
+            heightMode: resolvedHeightMode,
+            topCornerRadius: CGFloat(topCornerRadius),
+            dragActivationArea: .fraction(CGFloat(dragActivationFraction)),
+            showsDragIndicator: showsDragIndicator,
+            dragIndicatorTopPadding: CGFloat(dragIndicatorTopPadding),
+            backgroundReceivesDragProgress: true,
+            appliesDefaultDragTopOverlay: false
+        )
+    }
+
+    private var resolvedHeightMode: FullScreenSheetHeightMode {
+        switch heightPreset {
+        case .full:
+            return .fullScreen
+        case .medium:
+            return .medium
+        case .small:
+            return .small
+        case .custom:
+            return .custom(CGFloat(customHeightFraction))
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
@@ -1255,59 +1333,225 @@ private struct SharedUICatalogFullScreenSheetDemo: View {
             }
             .buttonStyle(.plain)
 
-            Text("Launches a real `fullScreenSheet` so you can verify drag-dismiss and environment wiring from one place.")
+            Text("Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .fullScreenSheet(isPresented: $isPresented) { safeAreaInsets in
-            SharedUICatalogSampleSheet(safeAreaInsets: safeAreaInsets)
+        .fullScreenSheet(
+            isPresented: $isPresented,
+            configuration: sheetConfiguration
+        ) { safeAreaInsets in
+            SharedUICatalogSampleSheet(
+                safeAreaInsets: safeAreaInsets,
+                heightPreset: $heightPreset,
+                customHeightFraction: $customHeightFraction,
+                topCornerRadius: $topCornerRadius,
+                dragActivationFraction: $dragActivationFraction,
+                showsDragIndicator: $showsDragIndicator,
+                dragIndicatorTopPadding: $dragIndicatorTopPadding,
+                backgroundPreset: $backgroundPreset
+            )
         } background: {
+            SharedUICatalogSheetDemoBackground(preset: backgroundPreset)
+        }
+    }
+}
+
+private struct SharedUICatalogSheetDemoBackground: View {
+    let preset: SharedUICatalogFullScreenSheetDemo.BackgroundPreset
+
+    @Environment(\.fullScreenSheetDragProgress) private var dragProgress
+
+    private var overlayOpacity: Double {
+        min(dragProgress / 0.10, 1.0)
+    }
+
+    var body: some View {
+        ZStack {
+            baseBackground
+
+            topOverlay
+                .opacity(overlayOpacity)
+        }
+    }
+
+    @ViewBuilder
+    private var baseBackground: some View {
+        switch preset {
+        case .black:
             Color.black
+        case .slate:
+            LinearGradient(
+                colors: [Color(red: 0.05, green: 0.08, blue: 0.16), Color(red: 0.10, green: 0.14, blue: 0.24)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .ember:
+            LinearGradient(
+                colors: [Color(red: 0.24, green: 0.10, blue: 0.06), Color(red: 0.56, green: 0.22, blue: 0.08)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+
+    private var topOverlay: some View {
+        LinearGradient(
+            stops: [
+                .init(color: topOverlayColor.opacity(0.92), location: 0.00),
+                .init(color: topOverlayColor.opacity(0.72), location: 0.06),
+                .init(color: .clear, location: 0.30)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var topOverlayColor: Color {
+        switch preset {
+        case .black:
+            return Color(red: 0.12, green: 0.12, blue: 0.12)
+        case .slate:
+            return Color(red: 0.16, green: 0.20, blue: 0.30)
+        case .ember:
+            return Color(red: 0.38, green: 0.17, blue: 0.08)
         }
     }
 }
 
 private struct SharedUICatalogSampleSheet: View {
     let safeAreaInsets: UIEdgeInsets
+    @Binding var heightPreset: SharedUICatalogFullScreenSheetDemo.HeightPreset
+    @Binding var customHeightFraction: Double
+    @Binding var topCornerRadius: Double
+    @Binding var dragActivationFraction: Double
+    @Binding var showsDragIndicator: Bool
+    @Binding var dragIndicatorTopPadding: Double
+    @Binding var backgroundPreset: SharedUICatalogFullScreenSheetDemo.BackgroundPreset
 
     @Environment(\.fullScreenSheetDismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-            Capsule()
-                .fill(Color.white.opacity(0.18))
-                .frame(width: 54, height: 6)
-                .frame(maxWidth: .infinity)
-                .padding(.top, safeAreaInsets.top + 10)
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+                    Text("Shared Sheet Playground")
+                        .font(.system(size: 28, weight: .black, design: .rounded))
+                        .foregroundStyle(.primary)
 
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-                Text("Sample Full Screen Sheet")
-                    .font(.system(size: 28, weight: .black, design: .rounded))
-                    .foregroundStyle(.primary)
+                    Text("Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, safeAreaInsets.top + UIConstants.Spacing.large)
 
-                Text("This lightweight sheet exists only to validate the shared presentation modifier from the catalog.")
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                demoCard(title: "Height Mode") {
+                    Picker("Height Mode", selection: $heightPreset) {
+                        ForEach(SharedUICatalogFullScreenSheetDemo.HeightPreset.allCases) { preset in
+                            Text(preset.title).tag(preset)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    if heightPreset == .custom {
+                        demoSliderRow(
+                            title: "Custom Height",
+                            valueLabel: "\(Int(customHeightFraction * 100))%"
+                        )
+                        Slider(value: $customHeightFraction, in: 0.35 ... 1)
+                    }
+                }
+
+                demoCard(title: "Top Surface") {
+                    demoSliderRow(
+                        title: "Top Corner Radius",
+                        valueLabel: "\(Int(topCornerRadius)) pt"
+                    )
+                    Slider(value: $topCornerRadius, in: 0 ... 60)
+
+                    Toggle("Show Drag Indicator", isOn: $showsDragIndicator)
+                        .tint(ThemeManager.shared.accentColor.color)
+
+                    if showsDragIndicator {
+                        demoSliderRow(
+                            title: "Indicator Top Padding",
+                            valueLabel: "\(Int(dragIndicatorTopPadding)) pt"
+                        )
+                        Slider(value: $dragIndicatorTopPadding, in: 12 ... 40)
+                    }
+                }
+
+                demoCard(title: "Drag") {
+                    demoSliderRow(
+                        title: "Drag Activation Zone",
+                        valueLabel: "\(Int(dragActivationFraction * 100))%"
+                    )
+                    Slider(value: $dragActivationFraction, in: 0.08 ... 1)
+                }
+
+                demoCard(title: "Background") {
+                    Picker("Background", selection: $backgroundPreset) {
+                        ForEach(SharedUICatalogFullScreenSheetDemo.BackgroundPreset.allCases) { preset in
+                            Text(preset.title).tag(preset)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Text("Background is rendered inside the shared sheet surface and clipped by the top corner radius.")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Button("Dismiss") {
+                    dismiss?()
+                }
+                .buttonStyle(.plain)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 18)
+                .frame(height: 48)
+                .glassButton(shape: .capsule)
             }
-            .padding(.horizontal, UIConstants.Spacing.large)
-
-            Spacer(minLength: 0)
-
-            Button("Dismiss") {
-                dismiss?()
-            }
-            .buttonStyle(.plain)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 18)
-            .frame(height: 48)
-            .glassButton(shape: .capsule)
             .padding(.horizontal, UIConstants.Spacing.large)
             .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.large))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.black.ignoresSafeArea())
+    }
+
+    @ViewBuilder
+    private func demoCard<Content: View>(
+        title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            Text(title)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.primary)
+
+            content()
+        }
+        .padding(UIConstants.Spacing.large)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
+        }
+    }
+
+    private func demoSliderRow(title: String, valueLabel: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            Spacer(minLength: UIConstants.Spacing.medium)
+
+            Text(valueLabel)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+        }
     }
 }

@@ -180,8 +180,6 @@ final class AppPreferences {
         static let writeAutoFocusesAnswerField = "preferences.playMode.write.autoFocusesAnswerField"
         static let writeKeepsKeyboardVisibleBetweenPrompts = "preferences.playMode.write.keepsKeyboardVisibleBetweenPrompts"
         static let writeShowsAnswerLengthHint = "preferences.playMode.write.showsAnswerLengthHint"
-        static let aiDebugTracingEnabled = AIDebugTracePreferenceKeys.debugTracingEnabled
-        static let deckGridTextLayoutDebugEnabled = "preferences.development.deckGridTextLayoutDebugEnabled"
     }
 
     private let userDefaults: UserDefaults
@@ -366,26 +364,6 @@ final class AppPreferences {
         }
     }
 
-    /// Enables verbose AI generation/conversion tracing for developer debugging.
-    var aiDebugTracingEnabled: Bool {
-        didSet {
-            userDefaults.set(
-                aiDebugTracingEnabled,
-                forKey: Keys.aiDebugTracingEnabled
-            )
-        }
-    }
-
-    /// Shows the MiniCardPreview text measurement guides used during deck-grid layout tuning.
-    var deckGridTextLayoutDebugEnabled: Bool {
-        didSet {
-            userDefaults.set(
-                deckGridTextLayoutDebugEnabled,
-                forKey: Keys.deckGridTextLayoutDebugEnabled
-            )
-        }
-    }
-
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.weekStartDay = AppWeekStartDayPreference(
@@ -442,12 +420,6 @@ final class AppPreferences {
         self.writeShowsAnswerLengthHint = userDefaults.object(
             forKey: Keys.writeShowsAnswerLengthHint
         ) as? Bool ?? true
-        self.aiDebugTracingEnabled = userDefaults.object(
-            forKey: Keys.aiDebugTracingEnabled
-        ) as? Bool ?? AppBuildConfiguration.current.showsDevelopmentTools
-        self.deckGridTextLayoutDebugEnabled = userDefaults.object(
-            forKey: Keys.deckGridTextLayoutDebugEnabled
-        ) as? Bool ?? false
     }
 
     /// Resolves the app's effective calendar based on the stored weekday preference.

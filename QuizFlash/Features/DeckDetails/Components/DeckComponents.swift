@@ -17,6 +17,12 @@ import SwiftUI
 /// Used at the top of a deck row or sheet header — not in the main `DeckView`
 /// scroll canvas (which uses the larger inline hero layout instead).
 struct DeckHeaderView: View {
+    private static let creationDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
 
     // MARK: - Inputs
 
@@ -39,9 +45,7 @@ struct DeckHeaderView: View {
 
     /// Deck creation date formatted as a medium-style string (e.g. "Feb 8, 2026").
     private var formattedCreationDate: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        return formatter.string(from: deck.createdAt)
+        Self.creationDateFormatter.string(from: deck.createdAt)
     }
 
     // MARK: - Body

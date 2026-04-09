@@ -42,9 +42,19 @@ public struct ScrollProximityModifier: ViewModifier {
     /// The axis direction of the 3D fold effect.
     var direction: Scroll3DDirection
 
+    private var rotationAxisX: CGFloat {
+        switch direction {
+        case .forward:
+            1.0
+        case .backward:
+            -1.0
+        }
+    }
+
     // MARK: - Body
 
     public func body(content: Content) -> some View {
+        let axisX = rotationAxisX
         content
             .visualEffect { view, proxy in
                 let minY = proxy.frame(in: .global).minY
@@ -53,9 +63,6 @@ public struct ScrollProximityModifier: ViewModifier {
 
                 // Ease-in curve: effect accelerates as the view exits the trigger zone.
                 let eased = raw * raw
-
-                // Compute the X-axis direction based on the chosen rotation direction.
-                let axisX: CGFloat = direction == .backward ? -1.0 : 1.0
 
                 return view
                     .rotation3DEffect(

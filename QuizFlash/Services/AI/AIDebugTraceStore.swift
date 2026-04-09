@@ -223,6 +223,13 @@ private nonisolated struct AIDebugTimedOperationKey: Hashable, Sendable {
 }
 
 actor AIDebugTraceStore {
+    private static let runDirectoryTimestampFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter
+    }()
+
     static let shared = AIDebugTraceStore()
 
     private let logger = Logger(
@@ -230,6 +237,7 @@ actor AIDebugTraceStore {
         category: "AIDebugTrace"
     )
     private let fileManager: FileManager
+    private let userDefaults: UserDefaults
     private let encoder: JSONEncoder
     private let eventEncoder: JSONEncoder
     private let decoder: JSONDecoder
@@ -239,9 +247,11 @@ actor AIDebugTraceStore {
 
     init(
         fileManager: FileManager = .default,
-        rootDirectoryURL: URL? = nil
+        rootDirectoryURL: URL? = nil,
+        userDefaults: UserDefaults = .standard
     ) {
         self.fileManager = fileManager
+        self.userDefaults = userDefaults
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -267,11 +277,11 @@ actor AIDebugTraceStore {
     }
 
     func isEnabled() -> Bool {
-        guard AppBuildConfiguration.current.showsDevelopmentTools else {
+        guard AppFeatures.current.enablesAITraceTooling else {
             return false
         }
 
-        return UserDefaults.standard.object(
+        return userDefaults.object(
             forKey: AIDebugTracePreferenceKeys.debugTracingEnabled
         ) as? Bool ?? true
     }
@@ -381,7 +391,7 @@ actor AIDebugTraceStore {
             }
 
             let prefix = String(scope.runID.uuidString.prefix(8))
-            print("[AITrace][\(prefix)][\(stage.rawValue)] \(message)")
+            logger.debug("[AITrace][\(prefix, privacy: .public)][\(stage.rawValue, privacy: .public)] \(message, privacy: .public)")
             registerTimingStartIfNeeded(for: stage, scope: scope, timestamp: timestamp)
         } catch {
             logger.error("Failed to write AI debug trace event: \(error.localizedDescription, privacy: .public)")
@@ -389,6 +399,7 @@ actor AIDebugTraceStore {
     }
 
     func clearAllTraces() async {
+        guard AppFeatures.current.enablesAITraceTooling else { return }
         guard fileManager.fileExists(atPath: rootDirectoryURL.path) else { return }
         do {
             try fileManager.removeItem(at: rootDirectoryURL)
@@ -400,6 +411,7 @@ actor AIDebugTraceStore {
     }
 
     func listRuns() async -> [AIDebugTraceRunSummary] {
+        guard AppFeatures.current.enablesAITraceTooling else { return [] }
         guard fileManager.fileExists(atPath: rootDirectoryURL.path) else { return [] }
 
         do {
@@ -426,6 +438,7 @@ actor AIDebugTraceStore {
     }
 
     func loadRunDetail(id: UUID) async -> AIDebugTraceRunDetail? {
+        guard AppFeatures.current.enablesAITraceTooling else { return nil }
         do {
             let directoryURL = try directoryURL(for: id)
             let metadataURL = directoryURL.appendingPathComponent("metadata.json")
@@ -450,7 +463,9 @@ actor AIDebugTraceStore {
     }
 
     private func runDirectoryURL(for runID: UUID, kind: AIDebugRunKind) -> URL {
-        let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let timestamp = Self.runDirectoryTimestampFormatter
+            .string(from: Date())
+            .replacingOccurrences(of: ":", with: "-")
         return rootDirectoryURL.appendingPathComponent("\(timestamp)_\(kind.rawValue)_\(runID.uuidString)", isDirectory: true)
     }
 

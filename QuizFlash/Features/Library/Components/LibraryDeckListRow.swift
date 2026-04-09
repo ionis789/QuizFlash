@@ -14,12 +14,13 @@ struct LibraryDeckListRow: View, Equatable {
     let isFirstInSection: Bool
     let isSelecting: Bool
     let isSelected: Bool
-    let onNavigate: () -> Void
-    let onToggleSelection: () -> Void
-    let onImport: () -> Void
-    let onMoveToFolder: () -> Void
-    let onDelete: () -> Void
+    let onNavigate: @MainActor @Sendable () -> Void
+    let onToggleSelection: @MainActor @Sendable () -> Void
+    let onImport: @MainActor @Sendable () -> Void
+    let onMoveToFolder: @MainActor @Sendable () -> Void
+    let onDelete: @MainActor @Sendable () -> Void
 
+    @Environment(ThemeManager.self) private var themeManager
     @State private var titleAvailableWidth: CGFloat = 0
     static func == (lhs: LibraryDeckListRow, rhs: LibraryDeckListRow) -> Bool {
         lhs.deck == rhs.deck &&
@@ -29,11 +30,11 @@ struct LibraryDeckListRow: View, Equatable {
     }
 
     private var deckTint: Color {
-        Color(hex: deck.colorHex) ?? ThemeManager.shared.accentColor.color
+        Color(hex: deck.colorHex) ?? themeManager.accentColor.color
     }
 
     private var selectionAccent: Color {
-        ThemeManager.shared.accentColor.color
+        themeManager.accentColor.color
     }
 
     private var separatorSeed: UInt64 {
@@ -70,19 +71,19 @@ struct LibraryDeckListRow: View, Equatable {
                 title: "Import",
                 systemImage: "square.and.arrow.down",
                 role: .normal,
-                action: onImport
+                action: { onImport() }
             ),
             CustomContextMenuAction(
                 title: "Move to Folder",
                 systemImage: "folder",
                 role: .normal,
-                action: onMoveToFolder
+                action: { onMoveToFolder() }
             ),
             CustomContextMenuAction(
                 title: "Delete",
                 systemImage: "trash",
                 role: .destructive,
-                action: onDelete
+                action: { onDelete() }
             )
         ]
     }

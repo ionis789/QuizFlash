@@ -1,29 +1,9 @@
 //
-//  CreateDeckDialogs.swift
+//  DeckWorkspaceDialogs.swift
 //  QuizFlash
 //
 
 import SwiftUI
-
-struct CreateDeckSheetEdgeShadow: View {
-    let topHeight: CGFloat
-
-    @Environment(\.fullScreenSheetDragProgress) var fullScreenSheetDragProgress
-
-    var opacity: Double {
-        1 - min(fullScreenSheetDragProgress / 0.025, 1.0)
-    }
-
-    var body: some View {
-        EdgeShadowOverlay(
-            topHeight: topHeight,
-            bottomHeight: 0,
-            kMaxAlphaTop: 0.68,
-            kMaxAlphaBottom: 0
-        )
-        .opacity(opacity)
-    }
-}
 
 struct AISourcePreparationOverlay: View {
     let state: AISourcePreparationState
@@ -182,16 +162,7 @@ struct AIPreparationIndeterminateBar: View {
     }
 }
 
-// MARK: - Create Deck Sheet Background
-
-struct CreateDeckSheetBackground: View {
-    var body: some View {
-        StandardSheetTopStripBackground()
-            .ignoresSafeArea()
-    }
-}
-
-struct CreateDeckSelectionBottomBar: View {
+struct DeckWorkspaceSelectionBottomBar: View {
     let selectedCount: Int
     let allSelected: Bool
     let onDone: () -> Void

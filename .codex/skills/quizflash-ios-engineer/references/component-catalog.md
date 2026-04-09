@@ -63,8 +63,8 @@ This catalog lists the reusable UI pieces that already exist in QuizFlash. Treat
 | Componentă | Fișier | Parametri cheie | Când se folosește |
 |---|---|---|---|
 | `ShareSheet` | `QuizFlash/Features/DeckDetails/Components/DeckSharingViews.swift` | `items` | Native iOS activity sheet wrapper |
-| `LibraryModalsAndDialogs` | `QuizFlash/Features/Library/Components/Libraryviewmodifiers.swift` | `viewModel`, `context`, `decks` | Reusable modifier bundle for Library sheets, importers, and confirmation dialogs |
-| `LibraryAlerts` | `QuizFlash/Features/Library/Components/Libraryviewmodifiers.swift` | `viewModel` | Shared alert modifier bundle for Library success/error alerts |
+| `LibraryModalsAndDialogs` | `QuizFlash/Features/Library/Components/LibraryViewModifiers.swift` | `viewModel`, `context`, `decks` | Reusable modifier bundle for Library sheets, importers, and confirmation dialogs |
+| `LibraryAlerts` | `QuizFlash/Features/Library/Components/LibraryViewModifiers.swift` | `viewModel` | Shared alert modifier bundle for Library success/error alerts |
 | `fullScreenSheet` | `QuizFlash/Core/DesignSystem/Modifiers/View+FullScreenSheet.swift` | `isPresented` or `item`, `ignoresSafeArea`, `backgroundReceivesDragProgress`, `dragDismissActivationHeight`, `content`, `background` | QuizFlash-standard immersive presentations with custom drag-dismiss |
 | `StandardSheetTopStripBackground` | `QuizFlash/Features/DeckEditor/Views/CardPreviewModeView.swift` | none | Shared dark immersive sheet backdrop with the standardized top-only drag strip used by card preview and deck edit/create flows |
 | `StandardCardContextMenu` | `QuizFlash/Core/DesignSystem/Components/StandardCardContextMenu.swift` | `title`, `summary`, `indicatorTint`, `isPinned`, action closures | The only custom menu surface used for card-level actions across deck detail and deck editor |

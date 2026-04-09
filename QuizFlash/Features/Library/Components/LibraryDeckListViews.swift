@@ -30,11 +30,11 @@ struct LibraryListView: View {
     var animateHiddenSectionHeaders = true
     let isSelecting: Bool
     let selectedDeckIDs: Set<PersistentIdentifier>
-    let onNavigate: (PersistentIdentifier) -> Void
-    let onToggleSelection: (PersistentIdentifier) -> Void
-    let onImport: () -> Void
-    let onMoveToFolder: (LibraryDeckActionTarget) -> Void
-    let onDelete: (LibraryDeckActionTarget) -> Void
+    let onNavigate: @MainActor @Sendable (PersistentIdentifier) -> Void
+    let onToggleSelection: @MainActor @Sendable (PersistentIdentifier) -> Void
+    let onImport: @MainActor @Sendable () -> Void
+    let onMoveToFolder: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
+    let onDelete: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
 
     func isSectionHeaderRecoveryVisible(for sectionID: String) -> Bool {
         sectionID != compactChromeRecoverySectionHeaderID || isCompactChromeRecoveryVisible
@@ -54,7 +54,7 @@ struct LibraryListView: View {
                     isSelected: selectedDeckIDs.contains(deck.id),
                     onNavigate: { onNavigate(deck.id) },
                     onToggleSelection: { onToggleSelection(deck.id) },
-                    onImport: onImport,
+                    onImport: { onImport() },
                     onMoveToFolder: { onMoveToFolder(LibraryDeckActionTarget(id: deck.id, title: deck.title)) },
                     onDelete: { onDelete(LibraryDeckActionTarget(id: deck.id, title: deck.title)) }
                 )
@@ -90,11 +90,11 @@ struct LibraryFlatListView: View {
     let decks: [LibraryDeckRowSnapshot]
     let isSelecting: Bool
     let selectedDeckIDs: Set<PersistentIdentifier>
-    let onNavigate: (PersistentIdentifier) -> Void
-    let onToggleSelection: (PersistentIdentifier) -> Void
-    let onImport: () -> Void
-    let onMoveToFolder: (LibraryDeckActionTarget) -> Void
-    let onDelete: (LibraryDeckActionTarget) -> Void
+    let onNavigate: @MainActor @Sendable (PersistentIdentifier) -> Void
+    let onToggleSelection: @MainActor @Sendable (PersistentIdentifier) -> Void
+    let onImport: @MainActor @Sendable () -> Void
+    let onMoveToFolder: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
+    let onDelete: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
 
     var body: some View {
         ForEach(Array(decks.enumerated()), id: \.element.id) { index, deck in
@@ -105,7 +105,7 @@ struct LibraryFlatListView: View {
                 isSelected: selectedDeckIDs.contains(deck.id),
                 onNavigate: { onNavigate(deck.id) },
                 onToggleSelection: { onToggleSelection(deck.id) },
-                onImport: onImport,
+                onImport: { onImport() },
                 onMoveToFolder: { onMoveToFolder(LibraryDeckActionTarget(id: deck.id, title: deck.title)) },
                 onDelete: { onDelete(LibraryDeckActionTarget(id: deck.id, title: deck.title)) }
             )

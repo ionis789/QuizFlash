@@ -15,6 +15,9 @@ struct QuizFlashApp: App {
     @State private var themeManager = ThemeManager.shared
     @State private var aiProviderStore = AIProviderStore.shared
     @State private var appPreferences = AppPreferences.shared
+    @State private var developmentPreferences = DevelopmentPreferences.shared
+    @State private var cardAppearancePreferences = CardAppearancePreferences.shared
+    @State private var appMigrationStore = AppMigrationStore.shared
 
     init() {
         //
@@ -28,6 +31,9 @@ struct QuizFlashApp: App {
                 .environment(themeManager)
                 .environment(aiProviderStore)
                 .environment(appPreferences)
+                .environment(developmentPreferences)
+                .environment(cardAppearancePreferences)
+                .environment(appMigrationStore)
                 .tint(themeManager.accentColor.color)
                 .preferredColorScheme(.dark)
                 .onAppear {

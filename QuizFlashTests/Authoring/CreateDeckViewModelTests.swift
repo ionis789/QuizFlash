@@ -17,7 +17,7 @@ final class CreateDeckViewModelTests: XCTestCase {
         context.insert(folder)
         try context.save()
 
-        let viewModel = CreateDeckViewModel(deckToEdit: nil)
+        let viewModel = DeckWorkspaceViewModel(deckToEdit: nil)
         viewModel.deckTitle = "  Biology  "
         viewModel.selectedFolder = folder
         viewModel.addCard(content: TestMutationFactory.flashcard(front: "Cell", back: "Basic unit"))
@@ -82,7 +82,7 @@ final class CreateDeckViewModelTests: XCTestCase {
             context.model(for: deck.persistentModelID) as? DeckModel
         )
 
-        let viewModel = CreateDeckViewModel(deckToEdit: editableDeck)
+        let viewModel = DeckWorkspaceViewModel(deckToEdit: editableDeck)
         viewModel.deckTitle = "Updated Deck"
         viewModel.selectedFolder = destinationFolder
 
@@ -123,7 +123,7 @@ final class CreateDeckViewModelTests: XCTestCase {
         deck.folder = folder
         try context.save()
 
-        let viewModel = CreateDeckViewModel(deckToEdit: deck)
+        let viewModel = DeckWorkspaceViewModel(deckToEdit: deck)
         let didDelete = viewModel.deleteDeck(
             context: context,
             router: NavigationManager(),
@@ -136,7 +136,7 @@ final class CreateDeckViewModelTests: XCTestCase {
     }
 
     func testDeleteSelectedDraftCardsRemovesOnlyChosenDrafts() {
-        let viewModel = CreateDeckViewModel(deckToEdit: nil)
+        let viewModel = DeckWorkspaceViewModel(deckToEdit: nil)
         viewModel.addCard(content: TestMutationFactory.flashcard(front: "One", back: "1"))
         viewModel.addCard(content: TestMutationFactory.flashcard(front: "Two", back: "2"))
         viewModel.addCard(content: TestMutationFactory.write(prompt: "Three", answer: "3"))
@@ -173,7 +173,7 @@ final class CreateDeckViewModelTests: XCTestCase {
         try context.save()
 
         let editableDeck = try XCTUnwrap(context.model(for: deck.persistentModelID) as? DeckModel)
-        let viewModel = CreateDeckViewModel(deckToEdit: editableDeck)
+        let viewModel = DeckWorkspaceViewModel(deckToEdit: editableDeck)
         let originalDraftID = try XCTUnwrap(viewModel.draftCards.first?.id)
 
         viewModel.deckTitle = "Changed"
@@ -200,7 +200,7 @@ final class CreateDeckViewModelTests: XCTestCase {
         context.insert(folder)
         try context.save()
 
-        let viewModel = CreateDeckViewModel(deckToEdit: nil)
+        let viewModel = DeckWorkspaceViewModel(deckToEdit: nil)
         viewModel.deckTitle = "Physics"
         viewModel.selectedFolder = folder
         viewModel.addCard(content: TestMutationFactory.flashcard(front: "Mass", back: "Matter amount"))
@@ -233,7 +233,7 @@ final class CreateDeckViewModelTests: XCTestCase {
         try context.save()
 
         let editableDeck = try XCTUnwrap(context.model(for: deck.persistentModelID) as? DeckModel)
-        let viewModel = CreateDeckViewModel(deckToEdit: editableDeck)
+        let viewModel = DeckWorkspaceViewModel(deckToEdit: editableDeck)
         viewModel.deckTitle = "Updated"
         let draft = try XCTUnwrap(viewModel.draftCards.first)
         viewModel.updateCard(
@@ -253,7 +253,7 @@ final class CreateDeckViewModelTests: XCTestCase {
     }
 
     func testIntegrateAllDraftCardsIntoBaselineClearsInlineAISessionState() {
-        let viewModel = CreateDeckViewModel(deckToEdit: nil)
+        let viewModel = DeckWorkspaceViewModel(deckToEdit: nil)
         let existingDraft = DraftCard(
             cardNumber: 1,
             content: TestMutationFactory.flashcard(front: "Cell", back: "Basic unit"),
@@ -287,7 +287,7 @@ final class CreateDeckViewModelTests: XCTestCase {
     }
 
     func testCompleteAIGenerationMovesGeneratedCardsIntoBaseline() {
-        let viewModel = CreateDeckViewModel(deckToEdit: nil)
+        let viewModel = DeckWorkspaceViewModel(deckToEdit: nil)
         let existingDraft = DraftCard(
             cardNumber: 1,
             content: TestMutationFactory.flashcard(front: "Cell", back: "Basic unit"),
@@ -323,7 +323,7 @@ final class CreateDeckViewModelTests: XCTestCase {
     }
 
     func testBeginAIGenerationSessionForResumeKeepsExistingAISessionCardsVisible() {
-        let viewModel = CreateDeckViewModel(deckToEdit: nil)
+        let viewModel = DeckWorkspaceViewModel(deckToEdit: nil)
         let existingDraft = DraftCard(
             cardNumber: 1,
             content: TestMutationFactory.flashcard(front: "Cell", back: "Basic unit"),
@@ -355,7 +355,7 @@ final class CreateDeckViewModelTests: XCTestCase {
     }
 
     func testFlushPendingGeneratedCardsPromotesQueuedCardsIntoActiveAISession() throws {
-        let viewModel = CreateDeckViewModel(deckToEdit: nil)
+        let viewModel = DeckWorkspaceViewModel(deckToEdit: nil)
         let existingDraft = DraftCard(
             cardNumber: 1,
             content: TestMutationFactory.flashcard(front: "Cell", back: "Basic unit"),

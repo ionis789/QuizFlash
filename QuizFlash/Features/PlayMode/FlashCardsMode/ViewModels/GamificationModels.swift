@@ -70,6 +70,11 @@ class UserProfile {
 /// for large history tables.
 @Model
 class DailyActivityLog {
+    private static let dateStringFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
     // MARK: - Stored Properties
 
@@ -111,8 +116,6 @@ class DailyActivityLog {
         self.date      = date
         self.dailyGoal = dailyGoal
         // Build the unique string key once at insertion time.
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        self.dateString = formatter.string(from: date)
+        self.dateString = Self.dateStringFormatter.string(from: date)
     }
 }

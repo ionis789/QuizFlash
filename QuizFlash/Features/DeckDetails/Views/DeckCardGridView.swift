@@ -180,7 +180,8 @@ struct DeckCardGridView: View {
     var onDeleteCard: (GridCardInfo) -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    private var accent: Color { ThemeManager.shared.accentColor.color }
+    @Environment(ThemeManager.self) private var themeManager
+    private var accent: Color { themeManager.accentColor.color }
     private var columnsCount: Int { horizontalSizeClass == .regular ? 4 : 2 }
     private var gridColumns: [GridItem] {
         Array(
@@ -472,7 +473,7 @@ private struct MiniCardPreview: View {
     var isSelected: Bool = false
     var isSuspended: Bool = false
 
-    @Environment(AppPreferences.self) private var appPreferences
+    @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(\.colorScheme) private var colorScheme
     @State private var renderedTextSize: CGSize = .zero
 
@@ -504,14 +505,21 @@ private struct MiniCardPreview: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let availableWidth = max(proxy.size.width - (contentPadding * 2), 1)
-            let textBlockSize = resolvedTextBlockSize(forWidth: availableWidth)
-            let textTopInset = centeredTextTopInset(
-                in: proxy.size,
+            let layoutCalculator = MiniCardPreviewLayoutCalculator(
+                containerSize: proxy.size,
+                contentPadding: contentPadding
+            )
+            let estimatedTextSize = estimatedTextBlockSize(
+                forWidth: layoutCalculator.availableTextWidth
+            )
+            let textBlockSize = layoutCalculator.resolvedTextBlockSize(
+                renderedTextSize: renderedTextSize,
+                estimatedTextSize: estimatedTextSize
+            )
+            let textTopInset = layoutCalculator.centeredTextTopInset(
                 textHeight: textBlockSize.height
             )
-            let textLeadingInset = centeredTextLeadingInset(
-                availableWidth: availableWidth,
+            let textLeadingInset = layoutCalculator.centeredTextLeadingInset(
                 textWidth: textBlockSize.width
             )
 
@@ -533,7 +541,7 @@ private struct MiniCardPreview: View {
                             style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])
                         )
                         .frame(
-                            width: min(max(textBlockSize.width, 1), availableWidth),
+                            width: min(max(textBlockSize.width, 1), layoutCalculator.availableTextWidth),
                             height: max(textBlockSize.height, 1),
                             alignment: .topLeading
                         )
@@ -589,32 +597,9 @@ private struct MiniCardPreview: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func centeredTextTopInset(in size: CGSize, textHeight: CGFloat) -> CGFloat {
-        let availableHeight = max(size.height - (contentPadding * 2), 1)
-        let remainingHeight = availableHeight - textHeight
-        let centeredInset = remainingHeight / 2
-
-        return centeredInset >= 6 ? centeredInset : 0
-    }
-
-    private func centeredTextLeadingInset(availableWidth: CGFloat, textWidth: CGFloat) -> CGFloat {
-        max((availableWidth - textWidth) / 2, 0)
-    }
-
     private var maxTextHeight: CGFloat {
         let font = roundedUIFont(size: titleFontSize, weight: .bold)
         return ceil(font.lineHeight * 6)
-    }
-
-    private func resolvedTextBlockSize(forWidth width: CGFloat) -> CGSize {
-        if renderedTextSize.width > 0, renderedTextSize.height > 0 {
-            return CGSize(
-                width: min(renderedTextSize.width, width),
-                height: renderedTextSize.height
-            )
-        }
-
-        return estimatedTextBlockSize(forWidth: width)
     }
 
     private func estimatedTextBlockSize(forWidth width: CGFloat) -> CGSize {
@@ -636,8 +621,8 @@ private struct MiniCardPreview: View {
     }
 
     private var showsLayoutDebug: Bool {
-        AppBuildConfiguration.current.showsDevelopmentTools
-            && appPreferences.deckGridTextLayoutDebugEnabled
+        AppFeatures.current.showsVisualDebugOverlays
+            && developmentPreferences.deckGridTextLayoutDebugEnabled
     }
 
     private func roundedUIFont(size: CGFloat, weight: UIFont.Weight) -> UIFont {
@@ -692,15 +677,6 @@ extension GridCardInfo {
             return "MANUAL"
         case .ai:
             return "AI"
-        }
-    }
-
-    var creationSourceAccentColor: Color {
-        switch creationSource {
-        case .manual:
-            return .secondary
-        case .ai:
-            return ThemeManager.shared.accentColor.color
         }
     }
 

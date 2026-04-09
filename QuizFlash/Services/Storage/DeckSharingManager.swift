@@ -8,6 +8,7 @@ import SwiftData
 import UniformTypeIdentifiers
 import Combine
 import Compression
+import OSLog
 
 // MARK: - Exportable Models (Codable versions for JSON)
 ///  Professional Export/Import system for sharing decks between users.
@@ -188,6 +189,7 @@ final class DeckSharingManager: ObservableObject {
     private let fileExtension = "qflash"
     private let metadataFileName = "metadata.json"
     private let assetsFolder = "assets"
+    private let logger = QuizFlashLog.make("DeckSharingManager")
 
     private init() { }
 
@@ -273,7 +275,9 @@ final class DeckSharingManager: ObservableObject {
         progress = 1.0
         currentOperation = "Export complete!"
 
-        print("DEBUG: Exported deck '\(deck.title)' - \(exportData.count) bytes, \(exportableCards.count) cards")
+        logger.debug(
+            "Exported deck '\(deck.title, privacy: .public)' - \(exportData.count) bytes, \(exportableCards.count) cards"
+        )
 
         return archiveURL
     }
@@ -317,7 +321,7 @@ final class DeckSharingManager: ObservableObject {
 
         // 3. Read JSON data directly from file
         let jsonData = try Data(contentsOf: url)
-        print("DEBUG: Read \(jsonData.count) bytes from file")
+        logger.debug("Read \(jsonData.count) bytes from import file")
 
         progress = 0.4
         currentOperation = "Parsing data..."
@@ -327,7 +331,9 @@ final class DeckSharingManager: ObservableObject {
         decoder.dateDecodingStrategy = .iso8601
         let exportedDeck = try decoder.decode(ExportableDeck.self, from: jsonData)
 
-        print("DEBUG: Decoded deck '\(exportedDeck.title)' with \(exportedDeck.cards.count) cards")
+        logger.debug(
+            "Decoded deck '\(exportedDeck.title, privacy: .public)' with \(exportedDeck.cards.count) cards"
+        )
 
         // 5. Validate format version
         if exportedDeck.formatVersion > 2 {
@@ -383,7 +389,9 @@ final class DeckSharingManager: ObservableObject {
         progress = 1.0
         currentOperation = "Import complete!"
 
-        print("DEBUG: Successfully imported deck '\(newDeck.title)' with \(newDeck.cards.count) cards")
+        logger.debug(
+            "Successfully imported deck '\(newDeck.title, privacy: .public)' with \(newDeck.cards.count) cards"
+        )
 
         return newDeck
     }
@@ -527,6 +535,7 @@ final class GarbageCollector: ObservableObject {
     @Published var isRunning = false
     @Published var lastCleanupDate: Date?
     @Published var bytesFreed: Int64 = 0
+    private let logger = QuizFlashLog.make("GarbageCollector")
 
     private init() { }
 
@@ -611,7 +620,7 @@ final class GarbageCollector: ObservableObject {
             lastCleanupDate = Date()
 
         } catch {
-            print("Cleanup error: \(error)")
+            logger.error("Cleanup error: \(String(describing: error), privacy: .public)")
         }
     }
 

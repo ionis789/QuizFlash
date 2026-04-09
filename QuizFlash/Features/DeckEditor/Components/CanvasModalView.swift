@@ -84,7 +84,7 @@ struct CanvasModalView: View {
 
         let image = canvasView.drawing.image(
             from: paddedBounds,
-            scale: UIScreen.main.scale
+            scale: canvasView.window?.screen.scale ?? canvasView.contentScaleFactor
         )
 
         if let pngData = image.pngData() {

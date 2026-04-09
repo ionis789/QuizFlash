@@ -36,6 +36,7 @@ struct MainAppView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(AppMigrationStore.self) private var appMigrationStore
 
     @State private var router = NavigationManager()
     @State private var aiWorkspaceCoordinator = AIWorkspaceCoordinator()
@@ -107,6 +108,10 @@ struct MainAppView: View {
 
     private var isAIWorkspaceVisible: Bool {
         router.activeTab == .create
+    }
+
+    private var appFeatures: AppFeatures {
+        .current
     }
 
     /// The raw `TabView` selection binding. Tab semantics such as reselect and
@@ -312,13 +317,29 @@ struct MainAppView: View {
             }
         }
         .task {
+            router.sanitizeForFeatures(appFeatures)
             await aiWorkspaceCoordinator.restorePersistedJobIfNeeded(context: modelContext)
 
             // One-time migration: removed logic based on cardCount and deckCount.
-            let key = "didMigrateCardCount_v1"
-            guard !UserDefaults.standard.bool(forKey: key) else { return }
-            try? modelContext.save()
-            UserDefaults.standard.set(true, forKey: key)
+            try? appMigrationStore.runLegacyCardCountCleanupIfNeeded {
+                try modelContext.save()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func featureLabDestination(for route: FeatureLabRoute) -> some View {
+        if route.isAvailable(in: appFeatures) {
+            switch route {
+            case .developmentSettings:
+                DevelopmentSettingsView()
+            case .sharedUICatalog:
+                SharedUICatalogView()
+            case .contextMenu:
+                ContextMenuLabView()
+            }
+        } else {
+            EmptyView()
         }
     }
 
@@ -401,19 +422,12 @@ struct MainAppView: View {
             .tag(AppTabBar.library)
 
             // LABS TAB
-            if AppBuildConfiguration.current.showsDevelopmentTools {
+            if appFeatures.showsLabsTab {
                 NavigationStack(path: $router.labsPath) {
                     FeatureLabView()
                         .toolbar(.hidden, for: .tabBar)
                         .navigationDestination(for: FeatureLabRoute.self) { route in
-                            switch route {
-                            case .developmentSettings:
-                                DevelopmentSettingsView()
-                            case .sharedUICatalog:
-                                SharedUICatalogView()
-                            case .contextMenu:
-                                ContextMenuLabView()
-                            }
+                            featureLabDestination(for: route)
                         }
                 }
                 .tag(AppTabBar.labs)
@@ -421,14 +435,8 @@ struct MainAppView: View {
 
             // CREATE TAB
             NavigationStack(path: $router.createPath) {
-                CreateDeckView()
+                createWorkspaceRootView
                     .toolbar(.hidden, for: .tabBar)
-                    .navigationDestination(for: CreateDeckEditorRoute.self) { route in
-                        if let deck = modelContext.safeModel(for: route.deckID, as: DeckModel.self) {
-                            CreateDeckView(deckToEdit: deck)
-                                .toolbar(.hidden, for: .navigationBar)
-                        }
-                    }
                     .navigationDestination(for: DeckNavigationValue.self) { value in
                         if let deck = modelContext.safeModel(for: value.deckID, as: DeckModel.self) {
                             DeckView(deck: deck, backLabel: value.backLabel, ownerTab: .create)
@@ -457,9 +465,9 @@ struct MainAppView: View {
     private func appRouteDestination(for route: AppRoute) -> some View {
         switch route {
         case .createDeck:
-            CreateDeckView()
+            DeckWorkspaceView()
         case .generateDeck:
-            CreateDeckView(launchAction: .showAIGenerationOptions)
+            DeckWorkspaceView(launchAction: .showAIGenerationOptions)
         case .settings:
             SettingsView(allowsSwipeBack: true)
         case .folder(let folder, let backLabel):
@@ -467,5 +475,27 @@ struct MainAppView: View {
             // FolderView stores it as a constant — never reads router.activeTab reactively.
             FolderView(folder: folder, backLabel: backLabel)
         }
+    }
+
+    @ViewBuilder
+    private var createWorkspaceRootView: some View {
+        ZStack {
+            if let deckID = router.createWorkspaceEditingDeckID,
+               let deck = modelContext.safeModel(for: deckID, as: DeckModel.self) {
+                DeckWorkspaceView(deckToEdit: deck)
+                    .id(router.createWorkspaceRootIdentity)
+                    .transition(createWorkspaceRootTransition)
+            } else {
+                DeckWorkspaceView()
+                    .id(router.createWorkspaceRootIdentity)
+                    .transition(createWorkspaceRootTransition)
+            }
+        }
+        .animation(.circularProgressSpring, value: router.createWorkspaceRootIdentity)
+    }
+
+    private var createWorkspaceRootTransition: AnyTransition {
+        .opacity
+            .combined(with: .scale(scale: 0.985, anchor: .top))
     }
 }

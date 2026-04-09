@@ -19,10 +19,6 @@ nonisolated enum AppBuildFlavor: String, Sendable {
             return "Production"
         }
     }
-
-    var showsDevelopmentTools: Bool {
-        self == .development
-    }
 }
 
 nonisolated enum AppBuildConfiguration {

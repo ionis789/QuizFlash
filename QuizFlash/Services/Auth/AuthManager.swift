@@ -27,21 +27,33 @@ final class AuthManager {
     /// The app-wide singleton.
     static let shared = AuthManager()
 
+    private enum Keys {
+        static let isAuthenticated = "is_authenticated"
+    }
+
+    private let userDefaults: UserDefaults
+    private let simulatedLoginDelay: Duration
+
     // MARK: - State
 
     /// Whether a user is currently authenticated.
     ///
-    /// Persisted in `UserDefaults` under the key `"is_authenticated"`.
+    /// Persisted in the manager's injected `UserDefaults` store.
     private(set) var isAuthenticated: Bool {
         didSet {
-            UserDefaults.standard.set(isAuthenticated, forKey: "is_authenticated")
+            userDefaults.set(isAuthenticated, forKey: Keys.isAuthenticated)
         }
     }
 
     // MARK: - Init
 
-    private init() {
-        self.isAuthenticated = UserDefaults.standard.bool(forKey: "is_authenticated")
+    init(
+        userDefaults: UserDefaults = .standard,
+        simulatedLoginDelay: Duration = .seconds(1)
+    ) {
+        self.userDefaults = userDefaults
+        self.simulatedLoginDelay = simulatedLoginDelay
+        self.isAuthenticated = userDefaults.object(forKey: Keys.isAuthenticated) as? Bool ?? false
     }
 
     // MARK: - Public Interface
@@ -52,7 +64,7 @@ final class AuthManager {
     /// The method is `async` so call-sites can `await` completion without
     /// blocking the main thread.
     func loginWithGoogle() async {
-        try? await Task.sleep(for: .seconds(1))
+        try? await Task.sleep(for: simulatedLoginDelay)
         isAuthenticated = true
     }
 

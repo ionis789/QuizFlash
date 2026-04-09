@@ -16,6 +16,11 @@ import SwiftUI
 /// This is a pure display component: all data arrives via `let` properties injected
 /// by the parent view. No `@Query`, `@Environment`, or network calls are made here.
 struct LearningHabitView: View {
+    private static let logDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
     // MARK: - Inputs
 
@@ -44,12 +49,11 @@ struct LearningHabitView: View {
     private var last28Days: [DayCell] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        let fmt = DateFormatter(); fmt.dateFormat = "yyyy-MM-dd"
         let dict = Dictionary(uniqueKeysWithValues: activityLogs.map { ($0.dateString, $0) })
 
         return (0..<28).reversed().map { ago in
             let date = calendar.date(byAdding: .day, value: -ago, to: today)!
-            let log = dict[fmt.string(from: date)]
+            let log = dict[Self.logDateFormatter.string(from: date)]
             return DayCell(
                 date: date,
                 cardsReviewed: log?.cardsReviewed ?? 0,
@@ -322,4 +326,3 @@ private extension Array {
         }
     }
 }
-

@@ -44,7 +44,6 @@ extension DeckContentView {
             .overlay(alignment: .top) { measuredNavigationBar }
             .swipeBack(
                 enabled: !viewModel.showShareSheet
-                    && !isPresentingEdit
                     && selectedPlayMode == nil
                     && selectedPlayModeSettings == nil
                     && previewedCard == nil
@@ -111,18 +110,8 @@ extension DeckContentView {
     var mainContentWithCovers: some View {
         mainContent
             .fullScreenSheet(
-                ignoresSafeArea: true,
-                isPresented: $isPresentingEdit,
-                backgroundReceivesDragProgress: true
-            ) { safeArea in
-                CreateDeckView(deckToEdit: deck, safeAreaInsets: safeArea)
-            } background: {
-                CreateDeckSheetBackground()
-            }
-            .fullScreenSheet(
-                ignoresSafeArea: true,
                 item: $selectedPlayMode,
-                backgroundReceivesDragProgress: true
+                configuration: .chrome(backgroundReceivesDragProgress: true)
             ) { mode, safeArea in
                 mode.playSheetView(
                     for: deck,
@@ -133,8 +122,8 @@ extension DeckContentView {
                 CardPreviewModeBackground()
             }
             .fullScreenSheet(
-                ignoresSafeArea: true,
-                item: $selectedPlayModeSettings
+                item: $selectedPlayModeSettings,
+                configuration: .chrome(backgroundReceivesDragProgress: false)
             ) { mode, safeArea in
                 mode.settingsSheetView(
                     for: deck,
@@ -149,10 +138,8 @@ extension DeckContentView {
                 }
             }
             .fullScreenSheet(
-                ignoresSafeArea: true,
                 item: $previewedCard,
-                backgroundReceivesDragProgress: true,
-                dragDismissActivationHeight: 180
+                configuration: .sheet(dragActivationArea: .fixed(180))
             ) { card, safeArea in
                 DeckCardPreviewSheetView(
                     card: card,
@@ -227,7 +214,8 @@ extension DeckContentView {
                                     .minimumScaleFactor(0.7)
 
                                 Button {
-                                    isPresentingEdit = true
+                                    exitSelectionModeForExternalAction()
+                                    router.showDeckWorkspace(for: deck.persistentModelID)
                                 } label: {
                                     let deckColor = Color(hex: deck.colorHex) ?? .blue
                                     Label("Edit", systemImage: "square.and.pencil")

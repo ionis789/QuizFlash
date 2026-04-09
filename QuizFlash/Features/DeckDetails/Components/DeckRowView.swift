@@ -173,7 +173,7 @@ struct DeckRowView: View {
     /// Uses a singleton actor to prevent iOS 17 executor queues from leaking on
     /// every scroll-cell `Task`.
     private static func fetchNewCardCount(deckID: PersistentIdentifier, container: ModelContainer) async -> Int {
-        let actor = await getSharedActor(container: container)
+        let actor = getSharedActor(container: container)
         return await actor.countNewCards(for: deckID)
     }
 }

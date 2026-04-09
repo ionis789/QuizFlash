@@ -14,12 +14,16 @@ enum AppTabBar: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    static var visibleTabs: [AppTabBar] {
-        if AppBuildConfiguration.current.showsDevelopmentTools {
+    static func visibleTabs(features: AppFeatures) -> [AppTabBar] {
+        if features.showsLabsTab {
             return [.home, .library, .labs, .create, .settings]
         }
 
         return [.home, .library, .create, .settings]
+    }
+
+    static var visibleTabs: [AppTabBar] {
+        visibleTabs(features: .current)
     }
 
     var title: String {

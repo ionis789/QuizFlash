@@ -2,7 +2,7 @@
 //  AIProviderSettingsView.swift
 //  QuizFlash
 //
-//  Settings surface for saving, switching, and editing AI provider profiles.
+//  Development-only surface for saving, switching, and editing AI provider profiles.
 //
 
 import SwiftUI

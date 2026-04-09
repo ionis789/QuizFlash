@@ -2,7 +2,7 @@
 //  AIDebugTraceRunDetailView.swift
 //  QuizFlash
 //
-//  JSON viewer for a persisted AI debug trace run.
+//  Development-only JSON viewer for a persisted AI debug trace run.
 //
 
 import SwiftUI

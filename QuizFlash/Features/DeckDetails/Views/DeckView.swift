@@ -32,7 +32,6 @@ struct DeckContentView: View {
     // Never read from router state — immune to cross-tab mutation.
     let backLabel: String
 
-    @State var isPresentingEdit = false
     @State var selectedPlayMode: DeckPlayModeDestination? = nil
     @State var selectedPlayModeSettings: DeckPlayModeDestination? = nil
     @State var previewedCard: CardModel? = nil
@@ -54,19 +53,6 @@ struct DeckContentView: View {
 
     var isSuspended: Bool {
         router.activeTab != ownerTab
-    }
-
-    var conversionConfigurationSheetBinding: Binding<AIWorkspaceConversionSheetToken?> {
-        Binding(
-            get: { aiWorkspaceCoordinator.conversionSheetToken },
-            set: { newValue in
-                if newValue == nil {
-                    aiWorkspaceCoordinator.dismissConversionConfiguration()
-                } else {
-                    aiWorkspaceCoordinator.conversionSheetToken = newValue
-                }
-            }
-        )
     }
 
     /// Reserved top spacing that keeps the hero content below the floating chrome.
@@ -118,8 +104,7 @@ struct DeckContentView: View {
                 )
             }
             .onDisappear {
-                guard !isPresentingEdit,
-                      selectedPlayMode == nil,
+                guard selectedPlayMode == nil,
                       selectedPlayModeSettings == nil,
                       previewedCard == nil,
                       cardEditorDestination == nil else { return }
@@ -202,20 +187,6 @@ struct DeckContentView: View {
             }
             .sheet(isPresented: $viewModel.showShareSheet) {
                 if let url = viewModel.exportedURL { ShareSheet(items: [url]) }
-            }
-            .fullScreenSheet(
-                ignoresSafeArea: true,
-                item: conversionConfigurationSheetBinding,
-                backgroundReceivesDragProgress: true
-            ) { _, safeArea in
-                DeckConversionSheetView(
-                    coordinator: aiWorkspaceCoordinator,
-                    safeAreaInsets: safeArea
-                ) {
-                    startDeckSeededConversion()
-                }
-            } background: {
-                CardPreviewModeBackground()
             }
             .alert("Export Error", isPresented: $viewModel.showExportError) {
                 Button("OK", role: .cancel) { }

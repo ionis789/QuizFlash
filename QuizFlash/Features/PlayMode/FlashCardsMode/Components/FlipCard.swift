@@ -113,9 +113,9 @@ private struct FlipFaceModifier: AnimatableModifier {
 /// Renders the question and answer faces of a flashcard using either a 3D
 /// flip or a static content swap controlled by the `isFlipped` binding.
 ///
-/// The view exposes two overflow modes via `CardContentMode` (stored in
-/// `@AppStorage`), allowing users to choose between proportional scaling and
-/// a scrollable layout without restarting the session.
+/// The view exposes two overflow modes via `CardContentMode`, allowing users
+/// to choose between proportional scaling and a scrollable layout without
+/// restarting the session.
 ///
 /// ## Performance Notes
 /// - 3D flip visibility is gated by the live rotation angle so front/back text
@@ -168,15 +168,7 @@ struct FlipCard: View {
     // MARK: - Environment
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
-    // MARK: - AppStorage
-
-    /// Reads the user's chosen overflow mode from `UserDefaults`.
-    ///
-    /// Reacts automatically when the user changes the setting in Settings,
-    /// without requiring the session to be restarted.
-    @AppStorage(CardContentMode.storageKey)
-    private var rawContentMode: String = CardContentMode.scaleToFit.rawValue
+    @Environment(CardAppearancePreferences.self) private var cardAppearancePreferences
 
     // MARK: - State
 
@@ -189,7 +181,7 @@ struct FlipCard: View {
     // MARK: - Convenience
 
     private var contentMode: CardContentMode {
-        CardContentMode(rawValue: rawContentMode) ?? .scaleToFit
+        cardAppearancePreferences.cardContentMode
     }
 
     private var isCompact: Bool { horizontalSizeClass == .compact }

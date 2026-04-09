@@ -1,5 +1,5 @@
 //
-//  CreateDeckChrome.swift
+//  DeckWorkspaceChrome.swift
 //  QuizFlash
 //
 
@@ -7,20 +7,12 @@ import SwiftUI
 import SwiftData
 
 // MARK: - Subviews
-extension CreateDeckView {
+extension DeckWorkspaceView {
 
     // MARK: 1. Header Chrome
     func heroHeader(topPadding: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: isWorkspaceRoot ? UIConstants.Spacing.medium : UIConstants.Spacing.large) {
-            if let workspaceModeSelection {
-                HStack {
-                    Spacer(minLength: 0)
-                    workspaceModeSwitcher(selection: workspaceModeSelection)
-                    Spacer(minLength: 0)
-                }
-            }
-
-            if isShowingWorkspaceConvert && isWorkspaceRoot {
+        VStack(alignment: .leading, spacing: isShowingWorkspaceConvert ? UIConstants.Spacing.medium : UIConstants.Spacing.large) {
+            if isShowingWorkspaceConvert {
                 workspaceConvertHero
             } else {
                 TextField("Untitled Deck", text: $viewModel.deckTitle, axis: .vertical)
@@ -45,29 +37,16 @@ extension CreateDeckView {
     @ViewBuilder
     func navigationChrome(
         containerWidth _: CGFloat,
-        safeTopInset: CGFloat
+        safeTopInset _: CGFloat
     ) -> some View {
         let horizontalInset = UIConstants.Layout.compactScreenEdgeInset
 
-        if fullScreenSheetDismiss != nil {
-            VStack(spacing: UIConstants.Spacing.small) {
-                Capsule()
-                    .fill(Color.white.opacity(0.22))
-                    .frame(width: 56, height: 5)
-                    .accessibilityHidden(true)
-
-                navigationBarContent(horizontalInset: 0, appliesTopNavigationChrome: false)
-            }
-            .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
-            .padding(.horizontal, horizontalInset)
-        } else {
-            navigationBarContent(horizontalInset: horizontalInset, appliesTopNavigationChrome: true)
-        }
+        navigationBarContent(horizontalInset: horizontalInset, appliesTopNavigationChrome: true)
     }
 
     func navigationBarContent(horizontalInset: CGFloat, appliesTopNavigationChrome: Bool) -> some View {
         CollapsibleTitleNavigationBar(
-            coordinateSpaceName: kCreateDeckChromeSpace,
+            coordinateSpaceName: kDeckWorkspaceChromeSpace,
             horizontalInset: horizontalInset,
             appliesTopNavigationChrome: appliesTopNavigationChrome,
             onHeightChange: { newHeight in
@@ -76,14 +55,9 @@ extension CreateDeckView {
                 }
             }
         ) {
-            if isShowingWorkspaceConvert && isWorkspaceRoot {
-                Color.clear
-                    .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-            } else {
-                doneButton
-            }
+            workspaceLeadingControl
         } center: { maxTitleWidth in
-            if isShowingWorkspaceConvert && isWorkspaceRoot {
+            if isShowingWorkspaceConvert {
                 EmptyView()
             } else {
                 CreateDeckCollapsedTitlePill(
@@ -93,7 +67,7 @@ extension CreateDeckView {
                 )
             }
         } trailing: {
-            if isShowingWorkspaceConvert && isWorkspaceRoot {
+            if isShowingWorkspaceConvert {
                 headerConvertActionControl
             } else {
                 HStack(spacing: UIConstants.Spacing.small) {
@@ -104,24 +78,15 @@ extension CreateDeckView {
         }
     }
 
-    private func workspaceModeSwitcher(selection: Binding<CreateWorkspaceMode>) -> some View {
-        CapsuleSelectionControl(
-            options: CreateWorkspaceMode.allCases,
-            selection: selection.wrappedValue,
-            onSelection: { selection.wrappedValue = $0 },
-            itemHeight: 34,
-            controlHeight: 42,
-            minItemWidth: 92,
-            maxItemWidth: 140,
-            horizontalPadding: 4,
-            verticalPadding: 4
-        ) { mode, isSelected in
-            Text(mode.title)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundStyle(isSelected ? .primary : .secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+    @ViewBuilder
+    private var workspaceLeadingControl: some View {
+        if isShowingWorkspaceConvert {
+            cancelConversionButton
+        } else if viewModel.isEditingExistingDeck && !viewModel.hasUnsavedChanges {
+            dismissWorkspaceButton
+        } else {
+            doneButton
         }
-        .frame(width: 240)
     }
 
     private var workspaceConvertHero: some View {
@@ -168,6 +133,30 @@ extension CreateDeckView {
         }
     }
 
+    private var cancelConversionButton: some View {
+        CreateDeckChromeButton(
+            action: {
+                isTitleFocused = false
+                aiWorkspaceCoordinator.dismissConversionConfiguration()
+            },
+            accessibilityLabel: "Cancel conversion"
+        ) {
+            CreateDeckChromeButtonLabel(symbol: "xmark", tint: accent)
+        }
+    }
+
+    private var dismissWorkspaceButton: some View {
+        CreateDeckChromeButton(
+            action: {
+                isTitleFocused = false
+                requestDismiss()
+            },
+            accessibilityLabel: "Cancel editing deck"
+        ) {
+            CreateDeckChromeButtonLabel(symbol: "xmark", tint: .primary)
+        }
+    }
+
     var headerMetadataRow: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
@@ -192,7 +181,7 @@ extension CreateDeckView {
         .background {
             Color.clear
                 .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.frame(in: .named(kCreateDeckChromeSpace)).maxY
+                    proxy.frame(in: .named(kDeckWorkspaceChromeSpace)).maxY
                 } action: { maxY in
                     let isAbove = maxY < 0
                     if scrollState.pillVisible != isAbove {

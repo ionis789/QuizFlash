@@ -8,29 +8,9 @@
 import SwiftUI
 
 struct FeatureLabView: View {
-    private let entries: [FeatureLabEntry] = [
-        .init(
-            title: "Development Settings",
-            subtitle: "AI, traces, debug toggles.",
-            icon: "slider.horizontal.3",
-            tint: .purple,
-            route: .developmentSettings
-        ),
-        .init(
-            title: "Shared UI Catalog",
-            subtitle: "Shared views and modifiers.",
-            icon: "square.grid.2x2",
-            tint: .cyan,
-            route: .sharedUICatalog
-        ),
-        .init(
-            title: "Context Menu Lab",
-            subtitle: "Context menu test surfaces.",
-            icon: "ellipsis.rectangle",
-            tint: .red,
-            route: .contextMenu
-        )
-    ]
+    private var entries: [FeatureLabRoute] {
+        FeatureLabRoute.visibleRoutes(in: .current)
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -40,9 +20,9 @@ struct FeatureLabView: View {
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
 
-                    ForEach(entries) { entry in
-                        NavigationLink(value: entry.route) {
-                            FeatureLabEntryCard(entry: entry)
+                    ForEach(entries, id: \.self) { route in
+                        NavigationLink(value: route) {
+                            FeatureLabEntryCard(route: route)
                         }
                         .buttonStyle(.plain)
                     }
@@ -58,36 +38,27 @@ struct FeatureLabView: View {
     }
 }
 
-private struct FeatureLabEntry: Identifiable {
-    let id = UUID()
-    let title: String
-    let subtitle: String
-    let icon: String
-    let tint: Color
-    let route: FeatureLabRoute
-}
-
 private struct FeatureLabEntryCard: View {
-    let entry: FeatureLabEntry
+    let route: FeatureLabRoute
 
     var body: some View {
         HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
             ZStack {
                 RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
-                    .fill(entry.tint.opacity(0.18))
+                    .fill(route.tint.opacity(0.18))
                     .frame(width: 56, height: 56)
 
-                Image(systemName: entry.icon)
+                Image(systemName: route.icon)
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(entry.tint)
+                    .foregroundStyle(route.tint)
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(entry.title)
+                Text(route.title)
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
 
-                Text(entry.subtitle)
+                Text(route.subtitle)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

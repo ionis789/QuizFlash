@@ -144,23 +144,20 @@ extension DeckContentView {
         _ request: DeckCardConversionRequest?
     ) -> Bool {
         guard let request else { return false }
-        return aiWorkspaceCoordinator.seedConversion(
+        let didSeed = aiWorkspaceCoordinator.seedConversion(
             request: request,
             sourceDeck: deck,
             ownerTab: ownerTab,
             backLabel: backLabel,
-            showsConfiguration: true,
-            activatesWorkspaceContext: false
+            showsConfiguration: false,
+            activatesWorkspaceContext: true
         )
-    }
-
-    func startDeckSeededConversion() {
-        exitSelectionModeForExternalAction()
-        aiWorkspaceCoordinator.startConversion(context: context)
+        guard didSeed else { return false }
         Task { @MainActor in
             await Task.yield()
-            router.showCreateDeckEditor(for: deck.persistentModelID)
+            router.showDeckWorkspace(for: deck.persistentModelID)
         }
+        return true
     }
 
     @ViewBuilder
@@ -184,8 +181,8 @@ extension DeckContentView {
                     mode: unavailablePlayMode,
                     prompt: prompt,
                     tintColor: unavailablePlayMode.tintColor(
-                        deckColor: Color(hex: deck.colorHex) ?? ThemeManager.shared.accentColor.color,
-                        accentColor: ThemeManager.shared.accentColor.color
+                        deckColor: Color(hex: deck.colorHex) ?? themeManager.accentColor.color,
+                        accentColor: themeManager.accentColor.color
                     ),
                     onConvert: prompt.actionTitle == nil
                         ? nil

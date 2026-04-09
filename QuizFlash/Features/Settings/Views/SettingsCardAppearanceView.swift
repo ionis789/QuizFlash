@@ -5,52 +5,10 @@
 //  Fullscreen card appearance configurator.
 //  Presents a live mock card that responds in real time to the selected
 //  content overflow mode, so the user can see the difference before committing.
-//
-//  Storage: @AppStorage(CardContentMode.storageKey) — UserDefaults, zero
-//  SwiftData overhead. FlipCard reads the same key independently.
 
 import SwiftUI
 
 private let kCardAppearanceChromeSpace = "CardAppearanceChromeSpace"
-
-// MARK: - Card Content Mode
-
-/// Controls how FlipCard handles content that overflows the card bounds.
-enum CardContentMode: String, CaseIterable {
-
-    /// Content is scaled down proportionally to always fit inside the card.
-    /// No interaction required — everything is visible at once.
-    case scaleToFit = "scaleToFit"
-
-    /// Content scrolls vertically inside the card.
-    /// Preserves original font sizes at the cost of requiring a scroll gesture.
-    case scrollable = "scrollable"
-
-    static let storageKey = "card.contentMode"
-
-    var label: String {
-        switch self {
-        case .scaleToFit: return "Scale to Fit"
-        case .scrollable: return "Scrollable"
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .scaleToFit:
-            return "Content shrinks to always fit on screen. Best for quick review."
-        case .scrollable:
-            return "Content keeps its size and scrolls. Best for detailed notes."
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .scaleToFit: return "arrow.up.left.and.arrow.down.right"
-        case .scrollable: return "scroll.fill"
-        }
-    }
-}
 
 // MARK: - Card Appearance Setting View
 
@@ -58,16 +16,14 @@ struct SettingsCardAppearanceView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(CardAppearancePreferences.self) private var cardAppearancePreferences
     @State private var isCollapsedTitleVisible = false
     @State private var navigationBarHeight: CGFloat =
         UIConstants.Size.capsuleHeight + UIConstants.Layout.deckNavigationTopPadding
     @State private var navigationBarBottomY: CGFloat = 0
 
-    @AppStorage(CardContentMode.storageKey)
-    private var rawMode: String = CardContentMode.scaleToFit.rawValue
-
     private var selectedMode: CardContentMode {
-        CardContentMode(rawValue: rawMode) ?? .scaleToFit
+        cardAppearancePreferences.cardContentMode
     }
 
     // Controls which face of the mock card is shown
@@ -185,7 +141,7 @@ struct SettingsCardAppearanceView: View {
                         isSelected: selectedMode == mode
                     ) {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            rawMode = mode.rawValue
+                            cardAppearancePreferences.cardContentMode = mode
                         }
                     }
                 }
@@ -516,4 +472,6 @@ private struct _ScaleToFitModifier: ViewModifier {
 
 #Preview {
     SettingsCardAppearanceView()
+        .environment(ThemeManager.shared)
+        .environment(CardAppearancePreferences.shared)
 }
