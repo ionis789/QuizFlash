@@ -15,6 +15,7 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 *.dSYM
+*.codex
 
 ## Playgrounds
 timeline.xctimeline
