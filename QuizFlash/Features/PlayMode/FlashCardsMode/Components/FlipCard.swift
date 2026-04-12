@@ -159,7 +159,6 @@ struct FlipCard: View {
     ///
     /// `false` = front (question), `true` = back (answer).
     @Binding var isFlipped: Bool
-    private let swipeFeedback: SwipeCardFeedbackState
     private let tapAnimationStyle: FlashcardTapAnimationStyle
     private let staticSwapTextMotion: FlashcardStaticSwapTextMotion
     private let contentAlignment: FlashcardContentAlignment
@@ -197,7 +196,6 @@ struct FlipCard: View {
     init(
         card: PlayableCard,
         isFlipped: Binding<Bool>,
-        swipeFeedback: SwipeCardFeedbackState,
         tapAnimationStyle: FlashcardTapAnimationStyle,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
         contentAlignment: FlashcardContentAlignment = .top,
@@ -206,7 +204,6 @@ struct FlipCard: View {
         self.frontZone = card.frontZone
         self.backZone = card.backZone
         self._isFlipped = isFlipped
-        self.swipeFeedback = swipeFeedback
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
@@ -218,7 +215,6 @@ struct FlipCard: View {
         frontZone: ZoneModel,
         backZone: ZoneModel,
         isFlipped: Binding<Bool>,
-        swipeFeedback: SwipeCardFeedbackState,
         tapAnimationStyle: FlashcardTapAnimationStyle,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
         contentAlignment: FlashcardContentAlignment = .top,
@@ -227,7 +223,6 @@ struct FlipCard: View {
         self.frontZone = frontZone
         self.backZone = backZone
         self._isFlipped = isFlipped
-        self.swipeFeedback = swipeFeedback
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
@@ -308,9 +303,7 @@ struct FlipCard: View {
         .flashcardStyle(
             cornerRadius: cardCornerRadius,
             shadowRadius: isCompact ? 16 : 24,
-            borderFeedbackColor: cardFeedbackBorderColor,
-            borderFeedbackProgress: cardFeedbackProgress,
-            borderFeedbackBlurRadius: cardFeedbackBorderRadius
+            baseBorderBlurRadius: 3
         )
         .overlay(alignment: .topTrailing) {
             faceMarkerBadge(marker)
@@ -330,32 +323,6 @@ struct FlipCard: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
-    }
-
-    private var cardFeedbackBorderColor: Color? {
-        guard let direction = swipeFeedback.direction else { return nil }
-
-        let baseColor: Color = switch direction {
-        case .left:
-            Color(red: 1.0, green: 0.10, blue: 0.20)
-        case .right:
-            Color(red: 0.10, green: 1.0, blue: 0.30)
-        }
-
-        return baseColor
-    }
-
-    private var cardFeedbackProgress: CGFloat {
-        guard swipeFeedback.direction != nil else { return 0 }
-
-        let normalizedIntensity = min(max(((swipeFeedback.intensity - 0.08) / 0.92) * 1.3, 0), 1)
-        return pow(normalizedIntensity, 1.65)
-    }
-
-    private var cardFeedbackBorderRadius: CGFloat {
-        guard swipeFeedback.direction != nil else { return 0 }
-
-        return 1.6 + cardFeedbackProgress * 5.4
     }
 
     private func contentFrameAlignment(

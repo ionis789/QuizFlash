@@ -76,13 +76,13 @@ struct LibrarySectionHeaderLabel: View {
     var visibilityAnimation: Animation? = nil
 
     var body: some View {
-        let capsuleScale =
+        let labelScale =
             if !isRecoveryVisible {
             CollapsibleTitleChromeMetrics.hiddenScale
         } else {
             isHidden ? LibraryStickyBehavior.Handoff.compactDateCapsuleHiddenScale : 1
         }
-        let capsuleOpacity =
+        let labelOpacity =
             if !isRecoveryVisible {
             1.0
         } else {
@@ -94,18 +94,9 @@ struct LibrarySectionHeaderLabel: View {
             .foregroundStyle(Color.white.opacity(0.76))
             .lineLimit(1)
             .minimumScaleFactor(0.88)
-            .padding(.horizontal, 12)
             .padding(.vertical, LibrarySectionHeaderMetrics.labelVerticalPadding + 1)
-            .background {
-            Capsule(style: .continuous)
-                .fill(Color(red: 0.12, green: 0.12, blue: 0.13).opacity(0.9))
-        }
-            .overlay {
-            Capsule(style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.7)
-        }
-            .opacity(capsuleOpacity)
-            .scaleEffect(capsuleScale, anchor: .top)
+            .opacity(labelOpacity)
+            .scaleEffect(labelScale, anchor: .top)
             .animation(animateVisibility ? visibilityAnimation : nil, value: isRecoveryVisible)
             .animation(
             animateVisibility
@@ -115,9 +106,10 @@ struct LibrarySectionHeaderLabel: View {
             : nil,
             value: isHidden
         )
-            .shadow(color: .black.opacity(0.92), radius: 18, x: 0, y: 0)
-            .shadow(color: .black.opacity(0.85), radius: 7, x: 0, y: 1)
-            .shadow(color: .black.opacity(0.7), radius: 1.5, x: 0, y: 0)
+            .shadow(color: .black.opacity(0.98), radius: 24, x: 0, y: 0)
+            .shadow(color: .black.opacity(0.94), radius: 11, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.86), radius: 4, x: 0, y: 0)
+            .shadow(color: .black.opacity(0.64), radius: 1.2, x: 0, y: 0)
     }
 }
 

@@ -262,7 +262,6 @@ struct AIGenerationSheetView: View {
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(.secondary)
                     .frame(width: 38, height: 38)
-                    .glassButton(shape: .circle)
             }
             .buttonStyle(.plain)
         }
@@ -304,11 +303,7 @@ struct AIGenerationSheetView: View {
                 }
             }
             .padding(UIConstants.Spacing.large)
-            .widgetStyle(cornerRadius: 28)
-            .overlay {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
-            }
+            .flashcardStyle(cornerRadius: 28, surfaceRole: .widget)
         }
     }
 
@@ -680,7 +675,6 @@ struct AIGenerationSheetView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
-                    .glassButton(shape: .capsule)
             }
             .buttonStyle(.plain)
 

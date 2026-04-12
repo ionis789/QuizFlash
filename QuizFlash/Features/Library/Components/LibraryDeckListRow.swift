@@ -14,6 +14,7 @@ struct LibraryDeckListRow: View, Equatable {
     let isFirstInSection: Bool
     let isSelecting: Bool
     let isSelected: Bool
+    let showsContextMenu: Bool
     let onNavigate: @MainActor @Sendable () -> Void
     let onToggleSelection: @MainActor @Sendable () -> Void
     let onImport: @MainActor @Sendable () -> Void
@@ -22,11 +23,37 @@ struct LibraryDeckListRow: View, Equatable {
 
     @Environment(ThemeManager.self) private var themeManager
     @State private var titleAvailableWidth: CGFloat = 0
+
+    init(
+        deck: LibraryDeckRowSnapshot,
+        isFirstInSection: Bool,
+        isSelecting: Bool,
+        isSelected: Bool,
+        showsContextMenu: Bool = true,
+        onNavigate: @escaping @MainActor @Sendable () -> Void,
+        onToggleSelection: @escaping @MainActor @Sendable () -> Void,
+        onImport: @escaping @MainActor @Sendable () -> Void,
+        onMoveToFolder: @escaping @MainActor @Sendable () -> Void,
+        onDelete: @escaping @MainActor @Sendable () -> Void
+    ) {
+        self.deck = deck
+        self.isFirstInSection = isFirstInSection
+        self.isSelecting = isSelecting
+        self.isSelected = isSelected
+        self.showsContextMenu = showsContextMenu
+        self.onNavigate = onNavigate
+        self.onToggleSelection = onToggleSelection
+        self.onImport = onImport
+        self.onMoveToFolder = onMoveToFolder
+        self.onDelete = onDelete
+    }
+
     static func == (lhs: LibraryDeckListRow, rhs: LibraryDeckListRow) -> Bool {
         lhs.deck == rhs.deck &&
         lhs.isFirstInSection == rhs.isFirstInSection &&
         lhs.isSelecting == rhs.isSelecting &&
-        lhs.isSelected == rhs.isSelected
+        lhs.isSelected == rhs.isSelected &&
+        lhs.showsContextMenu == rhs.showsContextMenu
     }
 
     private var deckTint: Color {
@@ -48,20 +75,26 @@ struct LibraryDeckListRow: View, Equatable {
     }
 
     var body: some View {
-        rowContent
-            .contentShape(Rectangle())
-            .onTapGesture {
-                handlePrimaryTap()
-            }
-            .customContextMenu(
-                id: deck.id,
-                isEnabled: !isSelecting,
-                actions: contextMenuActions
-            ) {
+        Group {
+            if showsContextMenu {
+                rowContent
+                    .customContextMenu(
+                        id: deck.id,
+                        isEnabled: !isSelecting,
+                        actions: contextMenuActions
+                    ) {
+                        rowContent
+                    }
+            } else {
                 rowContent
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityAddTraits(.isButton)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            handlePrimaryTap()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityAddTraits(.isButton)
     }
 
     private var contextMenuActions: [CustomContextMenuAction] {

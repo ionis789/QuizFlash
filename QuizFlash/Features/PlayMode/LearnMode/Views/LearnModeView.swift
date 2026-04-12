@@ -176,7 +176,6 @@ struct LearnModeView: View {
                 .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
                 .foregroundStyle(.primary)
                 .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-                .glassButton(shape: .circle)
         }
         .buttonStyle(.plain)
     }
@@ -214,11 +213,7 @@ struct LearnModeView: View {
             }
         }
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: UIConstants.Radius.maximum)
-        .overlay {
-            RoundedRectangle(cornerRadius: UIConstants.Radius.maximum, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
-        }
+        .flashcardStyle(cornerRadius: UIConstants.Radius.maximum, surfaceRole: .widget)
         .shadow(
             color: Color.teal.opacity(0.12),
             radius: UIConstants.Shadow.heavyRadius,
@@ -312,11 +307,7 @@ struct LearnModeView: View {
             }
         }
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: UIConstants.Radius.large)
-        .overlay {
-            RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
-        }
+        .flashcardStyle(cornerRadius: UIConstants.Radius.large, surfaceRole: .widget)
     }
 
     private func insightSection(
@@ -332,11 +323,7 @@ struct LearnModeView: View {
             }
         }
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: UIConstants.Radius.large)
-        .overlay {
-            RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
-        }
+        .flashcardStyle(cornerRadius: UIConstants.Radius.large, surfaceRole: .widget)
     }
 
     private var coverageSection: some View {
@@ -357,11 +344,7 @@ struct LearnModeView: View {
             }
         }
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: UIConstants.Radius.large)
-        .overlay {
-            RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
-        }
+        .flashcardStyle(cornerRadius: UIConstants.Radius.large, surfaceRole: .widget)
     }
 
     private var loadingCard: some View {
@@ -378,7 +361,7 @@ struct LearnModeView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: UIConstants.Radius.large)
+        .flashcardStyle(cornerRadius: UIConstants.Radius.large, surfaceRole: .widget)
     }
 
     private func errorCard(message: String) -> some View {
@@ -395,7 +378,7 @@ struct LearnModeView: View {
             .tint(deckColor)
         }
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: UIConstants.Radius.large)
+        .flashcardStyle(cornerRadius: UIConstants.Radius.large, surfaceRole: .widget)
     }
 
     // MARK: - Section Helpers

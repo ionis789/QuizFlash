@@ -18,10 +18,12 @@ final class DevelopmentPreferencesTests: XCTestCase {
         let preferences = DevelopmentPreferences(userDefaults: defaults)
         preferences.aiDebugTracingEnabled = false
         preferences.deckGridTextLayoutDebugEnabled = true
+        preferences.playModeDeveloperModeEnabled = true
 
         let reloadedPreferences = DevelopmentPreferences(userDefaults: defaults)
         XCTAssertFalse(reloadedPreferences.aiDebugTracingEnabled)
         XCTAssertTrue(reloadedPreferences.deckGridTextLayoutDebugEnabled)
+        XCTAssertTrue(reloadedPreferences.playModeDeveloperModeEnabled)
     }
 
     func testDevelopmentPreferencesHydrateFromPersistedKeys() {
@@ -30,10 +32,12 @@ final class DevelopmentPreferencesTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         defaults.set(false, forKey: AIDebugTracePreferenceKeys.debugTracingEnabled)
         defaults.set(true, forKey: "preferences.development.deckGridTextLayoutDebugEnabled")
+        defaults.set(true, forKey: "preferences.development.playModeDeveloperModeEnabled")
 
         let preferences = DevelopmentPreferences(userDefaults: defaults)
 
         XCTAssertFalse(preferences.aiDebugTracingEnabled)
         XCTAssertTrue(preferences.deckGridTextLayoutDebugEnabled)
+        XCTAssertTrue(preferences.playModeDeveloperModeEnabled)
     }
 }

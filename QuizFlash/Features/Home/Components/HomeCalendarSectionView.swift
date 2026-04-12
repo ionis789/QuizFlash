@@ -150,6 +150,8 @@ struct HomeCalendarSectionView: View {
         let pagerState = layout.expanded
         let visibleGridWidth = (usesMonthPager ? pagerState.dayColumnWidth : state.dayColumnWidth) * 7
         let capsuleWidth = layout.capsuleWidth(for: progress)
+        let compactBackdropProgress = max(0, min((progress - 0.44) / 0.56, 1.0))
+        let compactContentShadowProgress = max(0, min((progress - 0.40) / 0.60, 1.0))
 
         VStack(spacing: 0) {
             weekdayLabels(state: state)
@@ -196,18 +198,38 @@ struct HomeCalendarSectionView: View {
         .padding(.vertical, state.verticalPadding)
         .frame(width: capsuleWidth, alignment: .leading)
         .background {
-            if progress > 0.001 {
-                Color.clear
-                    .glassButton(
-                        shape: RoundedRectangle(
-                            cornerRadius: state.cornerRadius,
-                            style: .continuous
-                        )
+            if compactBackdropProgress > 0.001 {
+                RoundedRectangle(cornerRadius: state.cornerRadius, style: .continuous)
+                    .fill(.thinMaterial)
+                    .opacity(compactBackdropProgress)
+                    .shadow(
+                        color: Color.black.opacity(0.18 * compactBackdropProgress),
+                        radius: 22 * compactBackdropProgress,
+                        x: 0,
+                        y: 10 * compactBackdropProgress
                     )
-                    .opacity(progress)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: state.cornerRadius, style: .continuous))
+        .compositingGroup()
+        .shadow(
+            color: Color.black.opacity(0.52 * compactContentShadowProgress),
+            radius: 16 * compactContentShadowProgress,
+            x: 0,
+            y: 6 * compactContentShadowProgress
+        )
+        .shadow(
+            color: Color.black.opacity(0.34 * compactContentShadowProgress),
+            radius: 34 * compactContentShadowProgress,
+            x: 0,
+            y: 12 * compactContentShadowProgress
+        )
+        .shadow(
+            color: Color.black.opacity(0.18 * compactContentShadowProgress),
+            radius: 58 * compactContentShadowProgress,
+            x: 0,
+            y: 20 * compactContentShadowProgress
+        )
     }
 
     @ViewBuilder

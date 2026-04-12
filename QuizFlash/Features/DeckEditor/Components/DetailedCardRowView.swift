@@ -48,7 +48,7 @@ struct DetailedCardRowView: View, Equatable {
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
-        .widgetStyle(cornerRadius: 30)
+        .flashcardStyle(cornerRadius: 30, surfaceRole: .widget)
         .scaleEffect(isSelected ? 0.9 : 1, anchor: .center)
         .animation(.spring(response: 0.46, dampingFraction: 0.8, blendDuration: 0.08), value: isCompactPreview)
         .animation(.easeInOut(duration: 0.18), value: isSelected)

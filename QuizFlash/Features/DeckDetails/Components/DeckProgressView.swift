@@ -85,7 +85,7 @@ struct DeckProgressView: View {
                 }
             }
             .padding(24)
-            .widgetStyle()
+            .flashcardStyle(surfaceRole: .widget)
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
         }
     }

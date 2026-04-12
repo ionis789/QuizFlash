@@ -312,7 +312,6 @@ private struct MatchModeSessionView: View {
                 .fontDesign(.rounded)
                 .foregroundStyle(.primary)
                 .frame(width: UIConstants.Size.capsuleHeight, height: UIConstants.Size.capsuleHeight)
-                .glassButton(shape: .circle)
         }
         .buttonStyle(.plain)
     }
@@ -602,7 +601,6 @@ private struct MatchSessionHeader<Trailing: View>: View {
         .font(.system(size: 13, weight: .black, design: .rounded))
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .glassButton(shape: .capsule)
     }
 }
 

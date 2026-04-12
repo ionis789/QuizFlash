@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Xcode local state
+xcuserdata/
+*.xcuserstate
+.build/
+
+# Codex local artifacts
+/.codex/*
+!/.codex/skills/
+!/.codex/skills/**
+/.codex/skills/**/.DS_Store
+/.codex/skills/*.zip

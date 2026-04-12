@@ -49,7 +49,8 @@ struct _SwipeHost<Content: View>: UIViewRepresentable {
     let onSwipe: (SwipeDirection) -> Void
     let onTap: (() -> Void)?
     let isInteractionEnabled: Bool
-    let onSwipeProgress: ((SwipeDirection?, CGFloat) -> Void)?
+    let gestureTuning: SwipeGestureTuning
+    let onSwipeProgress: ((SwipeProgressSnapshot) -> Void)?
     let content: () -> Content
 
     func makeCoordinator() -> Coordinator {
@@ -57,6 +58,7 @@ struct _SwipeHost<Content: View>: UIViewRepresentable {
             onSwipe: onSwipe,
             onTap: onTap,
             isInteractionEnabled: isInteractionEnabled,
+            gestureTuning: gestureTuning,
             onSwipeProgress: onSwipeProgress
         )
     }
@@ -108,6 +110,7 @@ struct _SwipeHost<Content: View>: UIViewRepresentable {
             onSwipe: onSwipe,
             onTap: onTap,
             isInteractionEnabled: isInteractionEnabled,
+            gestureTuning: gestureTuning,
             onSwipeProgress: onSwipeProgress
         )
         guard !context.coordinator.isDragging else { return }
@@ -124,8 +127,8 @@ struct _SwipeHost<Content: View>: UIViewRepresentable {
 
 extension _SwipeHost {
 
-    /// Manages gesture recognition, the spring-physics `CADisplayLink` render loop,
-    /// and velocity-preserving snap-back / exit animations.
+    /// Manages gesture recognition, the `CADisplayLink` render loop, and
+    /// velocity-preserving snap-back / exit animations.
     ///
     /// ## Rendering Pipeline
     /// 1. `handlePan(.changed)` writes `translationX` — the total cumulative
@@ -134,11 +137,10 @@ extension _SwipeHost {
     ///    integrates the tilt spring toward the `tanh`-derived target angle,
     ///    and commits position + rotation in one disabled-actions `CATransaction`.
     ///
-    /// ## Tilt Spring
-    /// The tilt spring (stiffness 220, damping 18, ratio ≈ 0.61) is slightly
-    /// underdamped. This produces a short, pleasing overshoot when the user
-    /// rapidly reverses drag direction — the card "whips" slightly, reading
-    /// as physical mass rather than a UI widget.
+    /// ## Tilt Tracking
+    /// The default path keeps the slightly underdamped spring-driven tilt. Lab
+    /// tuning can opt into direct tilt tracking so the visible card angle follows
+    /// swipe distance linearly with no lag.
     ///
     /// ## Exit / Snap-back
     /// Both use `UIViewPropertyAnimator` with `UISpringTimingParameters`.
@@ -151,8 +153,9 @@ extension _SwipeHost {
 
         var onSwipe: (SwipeDirection) -> Void
         var onTap: (() -> Void)?
-        var onSwipeProgress: ((SwipeDirection?, CGFloat) -> Void)?
+        var onSwipeProgress: ((SwipeProgressSnapshot) -> Void)?
         private var isInteractionEnabled: Bool
+        private var gestureTuning: SwipeGestureTuning
 
         weak var fixed: _FixedContainer?
         weak var draggable: UIView?
@@ -202,9 +205,7 @@ extension _SwipeHost {
         private var gestureStartScale: CGFloat = 1
         private var hapticFired = false
         private let haptic = UIImpactFeedbackGenerator(style: .medium)
-
-        /// Displacement threshold (points) at which a release commits to an exit.
-        private let threshold: CGFloat = 120
+        private var latestGestureVelocityX: CGFloat = 0
 
         private var requiredHostedPanGestureIDs: Set<ObjectIdentifier> = []
 
@@ -214,11 +215,13 @@ extension _SwipeHost {
             onSwipe: @escaping (SwipeDirection) -> Void,
             onTap: (() -> Void)?,
             isInteractionEnabled: Bool,
-            onSwipeProgress: ((SwipeDirection?, CGFloat) -> Void)?
+            gestureTuning: SwipeGestureTuning,
+            onSwipeProgress: ((SwipeProgressSnapshot) -> Void)?
         ) {
             self.onSwipe = onSwipe
             self.onTap = onTap
             self.isInteractionEnabled = isInteractionEnabled
+            self.gestureTuning = gestureTuning
             self.onSwipeProgress = onSwipeProgress
         }
 
@@ -273,11 +276,13 @@ extension _SwipeHost {
             onSwipe: @escaping (SwipeDirection) -> Void,
             onTap: (() -> Void)?,
             isInteractionEnabled: Bool,
-            onSwipeProgress: ((SwipeDirection?, CGFloat) -> Void)?
+            gestureTuning: SwipeGestureTuning,
+            onSwipeProgress: ((SwipeProgressSnapshot) -> Void)?
         ) {
             self.onSwipe = onSwipe
             self.onTap = onTap
             self.isInteractionEnabled = isInteractionEnabled
+            self.gestureTuning = gestureTuning
             self.onSwipeProgress = onSwipeProgress
             syncInteractionEnabled()
         }
@@ -396,18 +401,20 @@ extension _SwipeHost {
                 currentTilt = rotationAngle(for: visualTransform)
                 gestureStartScale = min(max(uniformScale(for: visualTransform), 0.9), 1.0)
                 tiltVelocity = 0
-                onSwipeProgress?(nil, 0)
+                latestGestureVelocityX = 0
+                onSwipeProgress?(.idle)
                 startDisplayLink()
 
             case .changed:
                 translationX = gesture.translation(in: container).x
+                latestGestureVelocityX = gesture.velocity(in: container).x
 
                 let absDx = abs(translationX)
                 if absDx > 8 && absDx < 28 { haptic.prepare() }
-                if absDx >= threshold && !hapticFired {
+                if absDx >= resolvedDismissDistanceThreshold && !hapticFired {
                     haptic.impactOccurred()
                     hapticFired = true
-                } else if absDx < threshold * 0.7 {
+                } else if absDx < resolvedDismissDistanceThreshold * 0.7 {
                     hapticFired = false
                 }
 
@@ -418,18 +425,23 @@ extension _SwipeHost {
 
                 let dx = gesture.translation(in: container).x
                 let vx = gesture.velocity(in: container).x
+                latestGestureVelocityX = vx
+                let evaluation = swipeGestureEvaluator.evaluate(displacementX: dx, velocityX: vx)
+                let commitDecision = evaluation.commitDecision
+                emitSwipeProgressSnapshot(
+                    displacementX: dx,
+                    velocityX: vx,
+                    phase: commitDecision == nil ? .cancelled : .committed,
+                    committedDirection: commitDecision?.direction,
+                    tiltAngleDegrees: rotationAngle(for: currentPresentationTransform(for: card)) * 180 / .pi
+                )
                 let shouldEmitCommitHaptic = !hapticFired
 
-                if dx > threshold || vx > 700 {
+                if let commitDecision {
                     if shouldEmitCommitHaptic {
                         haptic.impactOccurred(intensity: 1.0)
                     }
-                    commitExit(.right, velocityX: vx, card: card)
-                } else if dx < -threshold || vx < -700 {
-                    if shouldEmitCommitHaptic {
-                        haptic.impactOccurred(intensity: 1.0)
-                    }
-                    commitExit(.left, velocityX: vx, card: card)
+                    commitExit(commitDecision.direction, velocityX: vx, card: card)
                 } else {
                     snapBack(card: card, velocityX: vx)
                 }
@@ -501,6 +513,15 @@ extension _SwipeHost {
             let frame = card.layer.presentation()?.frame ?? card.frame
             let revealMargin = exitRevealMargin
             let shouldTrigger: Bool
+            let displacementX = frame.midX - homeCenter.x
+
+            emitSwipeProgressSnapshot(
+                displacementX: displacementX,
+                velocityX: latestGestureVelocityX,
+                phase: .committed,
+                committedDirection: direction,
+                tiltAngleDegrees: rotationAngle(for: currentPresentationTransform(for: card)) * 180 / .pi
+            )
 
             switch direction {
             case .right:
@@ -533,19 +554,10 @@ extension _SwipeHost {
         /// disabled-actions `CATransaction` every display frame.
         ///
         /// ## Tilt target
-        /// `pow(min(|translationX| / threshold, 1), 1.85) × 15°` ties the tilt
-        /// directly to swipe progress:
-        ///
-        /// | translationX | target tilt |
-        /// |---|---|
-        /// | ±20 px  | ±0.6° |
-        /// | ±60 px  | ±4.2° |
-        /// | ±90 px  | ±10.0° |
-        /// | ±120 px | ±15.0° |
-        /// | ±∞      | ±15.0° |
-        ///
-        /// The tilt now stays calm early in the drag, then ramps up more
-        /// aggressively as the card approaches the exit threshold.
+        /// Lab tuning can switch the card to a direct linear tilt path where
+        /// `min(|translationX| / threshold, 1) × 5°` maps swipe progress to the
+        /// visible card angle. The default production path keeps the original
+        /// eased ramp: `pow(min(|translationX| / threshold, 1), 1.85) × 5°`.
         ///
         /// ## Spring integration
         /// A simple Euler step per frame:
@@ -565,15 +577,18 @@ extension _SwipeHost {
                 1.0 / 50.0
             )
 
-            // Compute target tilt from swipe progress so the card stays flatter
-            // early in the drag and reaches full tilt near exit commitment.
             let targetTilt = tiltTargetAngle(for: dx)
             let dragScale = min(targetDragScale(for: dx), gestureStartScale)
 
-            // Spring-integrate current tilt toward target (Euler method).
-            let force = tiltStiffness * (targetTilt - currentTilt) - tiltDamping * tiltVelocity
-            tiltVelocity += force * dt
-            currentTilt  += tiltVelocity * dt
+            if usesDirectTiltTracking {
+                currentTilt = targetTilt
+                tiltVelocity = 0
+            } else {
+                // Spring-integrate current tilt toward target (Euler method).
+                let force = tiltStiffness * (targetTilt - currentTilt) - tiltDamping * tiltVelocity
+                tiltVelocity += force * dt
+                currentTilt  += tiltVelocity * dt
+            }
 
             // Position follows the finger with 1:1 fidelity — no lag on X axis.
             let newCenter = CGPoint(
@@ -589,15 +604,14 @@ extension _SwipeHost {
             card.center    = newCenter
             CATransaction.commit()
 
-            // Report progress for border feedback.
-            let intensity = min(abs(dx) / threshold, 1.0)
-            if dx > 5 {
-                onSwipeProgress?(.right, intensity)
-            } else if dx < -5 {
-                onSwipeProgress?(.left, intensity)
-            } else {
-                onSwipeProgress?(nil, 0)
-            }
+            emitSwipeProgressSnapshot(
+                displacementX: dx,
+                velocityX: latestGestureVelocityX,
+                phase: .dragging,
+                committedDirection: nil,
+                tiltAngleDegrees: currentTilt * 180 / .pi
+            )
+
         }
 
         // MARK: Snap-back
@@ -632,11 +646,11 @@ extension _SwipeHost {
             animator.addAnimations { [weak self] in
                 card.transform = .identity
                 card.center = self?.homeCenter ?? card.center
-                self?.onSwipeProgress?(nil, 0)
             }
             animator.addCompletion { [weak self, weak fixed = fixed] _ in
                 self?.activeAnimator = nil
                 fixed?.isDragging = false
+                self?.onSwipeProgress?(.idle)
             }
             activeAnimator = animator
             animator.startAnimation()
@@ -659,6 +673,10 @@ extension _SwipeHost {
         /// the card is off-screen almost immediately.
         private func commitExit(_ direction: SwipeDirection, velocityX: CGFloat, card: UIView) {
             isExiting = true
+            let evaluation = swipeGestureEvaluator.evaluate(
+                displacementX: currentPresentationCenter(for: card).x - homeCenter.x,
+                velocityX: velocityX
+            )
 
             let width = max(resolvedExitWidth(for: card), 1)
             // Exit target: one screen width plus a small overshoot so the card
@@ -673,11 +691,55 @@ extension _SwipeHost {
             let currentAngle = rotationAngle(for: currentPresentationTransform(for: card))
             let currentDisplacementX = currentX - homeCenter.x
             let releaseDisplacement = abs(currentDisplacementX)
-            let displacementProgress = min(releaseDisplacement / threshold, 1)
-            let projectedReleaseDisplacementX = currentDisplacementX + releaseVelocityLead(for: velocityX)
+            let displacementProgress = min(releaseDisplacement / resolvedDismissDistanceThreshold, 1)
+            let projectedReleaseDisplacementX = evaluation.projectedDisplacementX
             let releaseTiltAngle = tiltTargetAngle(for: projectedReleaseDisplacementX)
             let currentScale = min(max(uniformScale(for: currentPresentationTransform(for: card)), 0.9), 1.0)
             let exitScale = min(currentScale, targetDragScale(for: projectedReleaseDisplacementX))
+            let directionSign: CGFloat = direction == .right ? 1 : -1
+
+            if resolvedDismissMotionStyle == .linear {
+                let exitAngleMagnitude = max(abs(currentAngle), abs(releaseTiltAngle))
+                let exitAngle = directionSign * exitAngleMagnitude
+                let transformLeadDuration = min(
+                    resolvedDismissAnimationDuration,
+                    max(0.08, resolvedDismissAnimationDuration * 0.38)
+                )
+
+                let transformAnimator = UIViewPropertyAnimator(duration: transformLeadDuration, curve: .linear)
+                transformAnimator.addAnimations { [weak self] in
+                    guard let self else { return }
+                    card.transform = self.cardTransform(angle: exitAngle, scale: exitScale)
+                }
+                transformAnimator.startAnimation()
+
+                let animator = UIViewPropertyAnimator(duration: resolvedDismissAnimationDuration, curve: .linear)
+                animator.addAnimations { [weak self] in
+                    guard let self else { return }
+                    card.center = CGPoint(x: exitX, y: self.homeCenter.y)
+                }
+                animator.addCompletion { [weak self, weak fixed = fixed] _ in
+                    self?.activeAnimator = nil
+                    self?.isExiting = false
+                    fixed?.isDragging = false
+                }
+                activeAnimator = animator
+                animator.startAnimation()
+
+                pendingSwipeCommitTask?.cancel()
+                pendingSwipeDirection = direction
+                exitRevealMargin = -10
+                fixed?.isUserInteractionEnabled = false
+                card.isUserInteractionEnabled = false
+                startExitHandoffObservation(card: card, direction: direction)
+                let handoffDelay = max(0.10, resolvedDismissAnimationDuration * 0.62)
+                pendingSwipeCommitTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .seconds(handoffDelay))
+                    guard !Task.isCancelled else { return }
+                    self?.triggerPendingSwipeCommit()
+                }
+                return
+            }
 
             // Preserve some distinction between a controlled swipe and a fast
             // flick, while still avoiding cannon-shot exits on tiny throws.
@@ -707,13 +769,12 @@ extension _SwipeHost {
             // - Damping is reduced proportionally to preserve the same overall
             //   "thrown card" character instead of turning the exit mushy.
             let springParams = UISpringTimingParameters(
-                mass: 1.0,
-                stiffness: 108 + (18 * gestureVelocityProgress),
-                damping: 16.8 + (1.4 * gestureVelocityProgress),
+                mass: 0.96,
+                stiffness: 132 + (24 * gestureVelocityProgress),
+                damping: 18.6 + (2.0 * gestureVelocityProgress),
                 initialVelocity: CGVector(dx: normVx, dy: 0)
             )
 
-            let directionSign: CGFloat = direction == .right ? 1 : -1
             let velocityFactor: CGFloat = min(abs(exitVelocityX) / 1800, 1)
             let exitAngleBoost: CGFloat = (1.0 + (1.35 * velocityFactor)) * (.pi / 180.0)
             let maxExitAngle: CGFloat = 5.0 * (.pi / 180.0)
@@ -722,12 +783,11 @@ extension _SwipeHost {
             let unclampedExitAngle = carriedTilt + (directionSign * exitAngleBoost)
             let exitAngle = min(max(unclampedExitAngle, -maxExitAngle), maxExitAngle)
 
-            let animator = UIViewPropertyAnimator(duration: 0.5, timingParameters: springParams)
+            let animator = UIViewPropertyAnimator(duration: 0.38, timingParameters: springParams)
             animator.addAnimations { [weak self] in
                 guard let self else { return }
                 card.transform = self.cardTransform(angle: exitAngle, scale: exitScale)
                 card.center = CGPoint(x: exitX, y: self.homeCenter.y)
-                self.onSwipeProgress?(nil, 0)
             }
             animator.addCompletion { [weak self, weak fixed = fixed] _ in
                 self?.activeAnimator = nil
@@ -749,8 +809,8 @@ extension _SwipeHost {
             card.isUserInteractionEnabled = false
             startExitHandoffObservation(card: card, direction: direction)
             let handoffDelay = max(
-                0.20,
-                0.28 + (0.05 * (1 - displacementProgress)) - (0.03 * normalizedVelocity)
+                0.16,
+                0.22 + (0.04 * (1 - displacementProgress)) - (0.04 * normalizedVelocity)
             )
             pendingSwipeCommitTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(handoffDelay))
@@ -855,22 +915,91 @@ extension _SwipeHost {
         }
 
         private func dragProgress(for displacementX: CGFloat) -> CGFloat {
-            let normalizedProgress = min(abs(displacementX) / threshold, 1)
+            let normalizedProgress = min(abs(displacementX) / resolvedDismissDistanceThreshold, 1)
             return pow(normalizedProgress, 1.85)
         }
 
         private func tiltTargetAngle(for displacementX: CGFloat) -> CGFloat {
             let direction: CGFloat = displacementX >= 0 ? 1 : -1
-            return direction * dragProgress(for: displacementX) * (5.0 * .pi / 180.0)
+            let progress = usesDirectTiltTracking
+                ? min(abs(displacementX) / resolvedDismissDistanceThreshold, 1)
+                : dragProgress(for: displacementX)
+            return direction * progress * maximumTiltAngle
         }
 
         private func targetDragScale(for displacementX: CGFloat) -> CGFloat {
             1.0 - (0.10 * dragProgress(for: displacementX))
         }
 
-        private func releaseVelocityLead(for velocityX: CGFloat) -> CGFloat {
-            let unclampedLead = velocityX * 0.055
-            return min(max(unclampedLead, -threshold * 0.9), threshold * 0.9)
+        private func emitSwipeProgressSnapshot(
+            displacementX: CGFloat,
+            velocityX: CGFloat,
+            phase: SwipeProgressPhase,
+            committedDirection: SwipeDirection?,
+            tiltAngleDegrees: CGFloat
+        ) {
+            onSwipeProgress?(
+                makeSwipeProgressSnapshot(
+                    displacementX: displacementX,
+                    velocityX: velocityX,
+                    phase: phase,
+                    committedDirection: committedDirection,
+                    tiltAngleDegrees: tiltAngleDegrees
+                )
+            )
+        }
+
+        private func makeSwipeProgressSnapshot(
+            displacementX: CGFloat,
+            velocityX: CGFloat,
+            phase: SwipeProgressPhase,
+            committedDirection: SwipeDirection?,
+            tiltAngleDegrees: CGFloat
+        ) -> SwipeProgressSnapshot {
+            let evaluation = swipeGestureEvaluator.evaluate(
+                displacementX: displacementX,
+                velocityX: velocityX
+            )
+
+            return SwipeProgressSnapshot(
+                phase: phase,
+                direction: evaluation.trackingDirection,
+                projectedCommitDirection: evaluation.projectedCommitDirection,
+                committedDirection: committedDirection,
+                displacementX: displacementX,
+                distanceProgress: evaluation.distanceProgress,
+                motionCurveProgress: evaluation.motionCurveProgress,
+                velocityX: velocityX,
+                velocityProgress: evaluation.velocityProgress,
+                projectedProgress: evaluation.projectedProgress,
+                commitIntentProgress: evaluation.commitIntentProgress,
+                fastSwipeDetected: evaluation.fastSwipeDetected,
+                tiltAngleDegrees: tiltAngleDegrees
+            )
+        }
+
+        private var resolvedDismissDistanceThreshold: CGFloat {
+            min(max(gestureTuning.dismissDistanceThreshold, 72), 180)
+        }
+
+        private var usesDirectTiltTracking: Bool {
+            gestureTuning.usesDirectTiltTracking
+        }
+
+        private var resolvedDismissMotionStyle: SwipeDismissMotionStyle {
+            gestureTuning.dismissMotionStyle
+        }
+
+        private var resolvedDismissAnimationDuration: CGFloat {
+            0.34 / min(max(gestureTuning.dismissAnimationSpeed, 0.4), 2.2)
+        }
+
+        private var maximumTiltAngle: CGFloat {
+            5.0 * .pi / 180.0
+        }
+
+        private var swipeGestureEvaluator: SwipeGestureEvaluator {
+            SwipeGestureEvaluator(tuning: gestureTuning)
         }
     }
 }

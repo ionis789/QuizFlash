@@ -117,7 +117,7 @@ struct HomeCalendarOverviewCard: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(usesRegularMetrics ? 16 : 18)
-        .widgetStyle(cornerRadius: 28)
+        .flashcardStyle(cornerRadius: 28, surfaceRole: .widget)
     }
 }
 
@@ -184,7 +184,7 @@ struct HomeCalendarSetupCard: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(16)
-        .widgetStyle(cornerRadius: 28)
+        .flashcardStyle(cornerRadius: 28, surfaceRole: .widget)
     }
 }
 
@@ -239,14 +239,13 @@ struct HomeWorkspacePromptCard: View {
                         .foregroundStyle(.primary)
                         .frame(maxWidth: .infinity)
                         .frame(height: UIConstants.Size.buttonHeight)
-                        .glassButton(shape: .capsule)
                 }
                 .buttonStyle(.plain)
             }
         }
         .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 234 : 0, alignment: .topLeading)
         .padding(usesRegularMetrics ? 20 : 18)
-        .widgetStyle(cornerRadius: 26)
+        .flashcardStyle(cornerRadius: 26, surfaceRole: .widget)
     }
 }
 
@@ -364,7 +363,7 @@ struct HomeAnalyticsHeroCard: View {
         }
         .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .topLeading)
         .padding(usesRegularMetrics ? 20 : 18)
-        .widgetStyle(cornerRadius: 30)
+        .flashcardStyle(cornerRadius: 30, surfaceRole: .widget)
     }
 }
 
@@ -443,7 +442,7 @@ struct HomeWeeklyMomentumCard: View {
         }
         .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 306 : 0, alignment: .topLeading)
         .padding(usesRegularMetrics ? 20 : 18)
-        .widgetStyle(cornerRadius: 26)
+        .flashcardStyle(cornerRadius: 26, surfaceRole: .widget)
     }
 }
 
@@ -501,7 +500,7 @@ struct HomeSelectedDayInsightsCard: View {
         }
         .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 306 : 0, alignment: .topLeading)
         .padding(usesRegularMetrics ? 20 : 18)
-        .widgetStyle(cornerRadius: 26)
+        .flashcardStyle(cornerRadius: 26, surfaceRole: .widget)
     }
 }
 

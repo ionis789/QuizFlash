@@ -200,7 +200,6 @@ struct PlayModeSettingsScreen: View {
                 .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
                 .foregroundStyle(.primary)
                 .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-                .glassButton(shape: .circle)
         }
         .buttonStyle(.plain)
     }

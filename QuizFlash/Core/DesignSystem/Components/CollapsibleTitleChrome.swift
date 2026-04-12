@@ -201,7 +201,6 @@ struct ChromeCircleIconButton: View {
                 .fontDesign(.rounded)
                 .foregroundStyle(.primary)
                 .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-                .glassButton(shape: .circle)
         }
         .buttonStyle(.plain)
     }

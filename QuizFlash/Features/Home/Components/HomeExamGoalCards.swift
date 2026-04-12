@@ -34,7 +34,7 @@ struct HomeExamNarrativeCard: View {
             }
         }
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: 24)
+        .flashcardStyle(cornerRadius: 24, surfaceRole: .widget)
     }
 }
 
@@ -127,7 +127,7 @@ struct HomeExamPressureCard: View {
             }
         }
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: 24)
+        .flashcardStyle(cornerRadius: 24, surfaceRole: .widget)
     }
 
     private func pressureMetricChip(title: String, value: String, tint: Color) -> some View {
@@ -280,7 +280,7 @@ struct HomeExamGoalSummaryCard: View {
             }
         }
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: 24)
+        .flashcardStyle(cornerRadius: 24, surfaceRole: .widget)
     }
 
     private var examGoalMenu: some View {
@@ -404,7 +404,7 @@ struct HomeSelectedDayExamCard: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(UIConstants.Spacing.standard)
-        .widgetStyle(cornerRadius: 20)
+        .flashcardStyle(cornerRadius: 20, surfaceRole: .widget)
     }
 
     private func statusMenuTitle(for status: ExamGoalStatus) -> String {
@@ -448,6 +448,6 @@ struct HomeExamGoalsEmptyCard: View {
         }
         .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 210 : 0, alignment: .topLeading)
         .padding(usesRegularMetrics ? UIConstants.Spacing.extraLarge : UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: 24)
+        .flashcardStyle(cornerRadius: 24, surfaceRole: .widget)
     }
 }

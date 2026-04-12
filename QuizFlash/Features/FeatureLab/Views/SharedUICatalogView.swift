@@ -107,18 +107,18 @@ struct SharedUICatalogView: View {
                         }
                     }
                 }
-                .frame(width: contentWidth, alignment: .leading)
-                .padding(.horizontal, horizontalInset)
-                .padding(.top, UIConstants.Spacing.large)
-                .padding(.bottom, UIConstants.Size.bottomChromeBarHeight + 120)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .frame(width: contentWidth, alignment: .leading)
+                    .padding(.horizontal, horizontalInset)
+                    .padding(.top, UIConstants.Spacing.large)
+                    .padding(.bottom, UIConstants.Size.bottomChromeBarHeight + 120)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .background(Color.black.ignoresSafeArea())
-        .navigationTitle("Shared UI")
-        .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $searchText, prompt: "Search views, modifiers, or file paths")
+            .background(Color.black.ignoresSafeArea())
+            .navigationTitle("Shared UI")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, prompt: "Search views, modifiers, or file paths")
     }
 
     private var filterSection: some View {
@@ -128,15 +128,10 @@ struct SharedUICatalogView: View {
                     Text(option.title).tag(option)
                 }
             }
-            .pickerStyle(.segmented)
-
-            Text(filter.description)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .pickerStyle(.segmented)
         }
-        .padding(UIConstants.Spacing.large)
-        .background(
+            .padding(UIConstants.Spacing.large)
+            .background(
             RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
                 .fill(Color.white.opacity(0.06))
         )
@@ -167,15 +162,15 @@ struct SharedUICatalogView: View {
                 isFirstInSection: true,
                 isSelecting: false,
                 isSelected: false,
-                onNavigate: {},
-                onToggleSelection: {},
-                onImport: {},
-                onMoveToFolder: {},
-                onDelete: {}
+                onNavigate: { },
+                onToggleSelection: { },
+                onImport: { },
+                onMoveToFolder: { },
+                onDelete: { }
             )
-            .padding(UIConstants.Spacing.large)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
+                .padding(UIConstants.Spacing.large)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
                 RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
                     .fill(Color(uiColor: .secondarySystemGroupedBackground))
             )
@@ -198,14 +193,14 @@ struct SharedUICatalogView: View {
             HomeRecentDeckCardView(
                 deck: runtime.recentDeck,
                 usesRegularMetrics: false,
-                action: {}
+                action: { }
             )
 
         case .folderCardView:
             FolderCardView(
                 folder: runtime.folder,
                 usesRegularMetrics: false,
-                action: {}
+                action: { }
             )
 
         case .detailedCardRowView:
@@ -231,8 +226,8 @@ struct SharedUICatalogView: View {
                 detail: "Slim navigation row used across Settings surfaces.",
                 value: "Sunset"
             )
-            .padding(UIConstants.Spacing.large)
-            .settingsCardBackground(cornerRadius: UIConstants.Radius.large)
+                .padding(UIConstants.Spacing.large)
+                .settingsCardBackground(cornerRadius: UIConstants.Radius.large)
 
         case .deckProgressView:
             DeckProgressView(
@@ -243,12 +238,6 @@ struct SharedUICatalogView: View {
 
         case .selectionToolbarControls:
             SharedUICatalogSelectionToolbarDemo()
-
-        case .widgetStyle:
-            SharedUICatalogWidgetStyleDemo()
-
-        case .glassButton:
-            SharedUICatalogGlassButtonDemo()
 
         case .flashcardStyle:
             SharedUICatalogFlashcardStyleDemo()
@@ -288,17 +277,6 @@ private enum SharedUICatalogFilter: String, CaseIterable, Identifiable {
             "Modifiers"
         }
     }
-
-    var description: String {
-        switch self {
-        case .all:
-            "See the featured live demos first, then scan the full registry below."
-        case .views:
-            "Focus on the reusable surfaces and feature-level shared components."
-        case .modifiers:
-            "Focus on global styling, presentation, and interaction modifiers."
-        }
-    }
 }
 
 private enum SharedUICatalogEntryKind: String {
@@ -308,9 +286,9 @@ private enum SharedUICatalogEntryKind: String {
     var tint: Color {
         switch self {
         case .view:
-            .orange
+                .orange
         case .modifier:
-            .cyan
+                .cyan
         }
     }
 }
@@ -355,8 +333,6 @@ private enum SharedUICatalogDemo {
     case settingsNavigationRow
     case deckProgressView
     case selectionToolbarControls
-    case widgetStyle
-    case glassButton
     case flashcardStyle
     case topNavigationChrome
     case statusTextMotion
@@ -386,7 +362,7 @@ private struct SharedUICatalogEntry: Identifiable {
 
 private extension SharedUICatalogView {
     static let entries: [SharedUICatalogEntry] = [
-        .init(
+            .init(
             id: "library-deck-list-row",
             title: "LibraryDeckListRow",
             kind: .view,
@@ -399,7 +375,7 @@ private extension SharedUICatalogView {
             demo: .libraryDeckListRow,
             keywords: ["library", "row", "deck", "context menu", "selection"]
         ),
-        .init(
+            .init(
             id: "deck-card-grid-view",
             title: "DeckCardGridView",
             kind: .view,
@@ -412,7 +388,7 @@ private extension SharedUICatalogView {
             demo: .deckCardGridView,
             keywords: ["deck", "grid", "cards", "selection", "pinned"]
         ),
-        .init(
+            .init(
             id: "home-recent-deck-card",
             title: "HomeRecentDeckCardView",
             kind: .view,
@@ -425,7 +401,7 @@ private extension SharedUICatalogView {
             demo: .homeRecentDeckCardView,
             keywords: ["home", "recent", "deck", "ticket", "carousel"]
         ),
-        .init(
+            .init(
             id: "folder-card-view",
             title: "FolderCardView",
             kind: .view,
@@ -438,7 +414,7 @@ private extension SharedUICatalogView {
             demo: .folderCardView,
             keywords: ["folder", "home", "card", "widget"]
         ),
-        .init(
+            .init(
             id: "detailed-card-row-view",
             title: "DetailedCardRowView",
             kind: .view,
@@ -451,7 +427,7 @@ private extension SharedUICatalogView {
             demo: .detailedCardRowView,
             keywords: ["editor", "draft", "card", "row", "preview"]
         ),
-        .init(
+            .init(
             id: "settings-header-card",
             title: "SettingsHeaderCard",
             kind: .view,
@@ -464,7 +440,7 @@ private extension SharedUICatalogView {
             demo: .settingsHeaderCard,
             keywords: ["settings", "header", "badges", "hero"]
         ),
-        .init(
+            .init(
             id: "settings-navigation-row",
             title: "SettingsNavigationRow",
             kind: .view,
@@ -477,7 +453,7 @@ private extension SharedUICatalogView {
             demo: .settingsNavigationRow,
             keywords: ["settings", "row", "navigation", "value"]
         ),
-        .init(
+            .init(
             id: "deck-progress-view",
             title: "DeckProgressView",
             kind: .view,
@@ -490,7 +466,7 @@ private extension SharedUICatalogView {
             demo: .deckProgressView,
             keywords: ["progress", "deck", "stats", "mastered", "learning"]
         ),
-        .init(
+            .init(
             id: "selection-toolbar-controls",
             title: "Selection Toolbar Controls",
             kind: .view,
@@ -503,7 +479,7 @@ private extension SharedUICatalogView {
             demo: .selectionToolbarControls,
             keywords: ["selection", "toolbar", "capsule", "icon", "badge"]
         ),
-        .init(
+            .init(
             id: "bottom-chrome-container",
             title: "BottomChromeContainer",
             kind: .view,
@@ -516,7 +492,7 @@ private extension SharedUICatalogView {
             demo: nil,
             keywords: ["bottom chrome", "tab bar", "floating"]
         ),
-        .init(
+            .init(
             id: "collapsible-title-chrome",
             title: "CollapsibleTitleChrome",
             kind: .view,
@@ -529,7 +505,7 @@ private extension SharedUICatalogView {
             demo: nil,
             keywords: ["collapsible", "title", "chrome", "scroll"]
         ),
-        .init(
+            .init(
             id: "avatar-view",
             title: "AvatarView",
             kind: .view,
@@ -542,7 +518,7 @@ private extension SharedUICatalogView {
             demo: nil,
             keywords: ["avatar", "profile", "identity"]
         ),
-        .init(
+            .init(
             id: "standard-sheet-top-strip-background",
             title: "StandardSheetTopStripBackground",
             kind: .view,
@@ -555,46 +531,20 @@ private extension SharedUICatalogView {
             demo: nil,
             keywords: ["sheet", "background", "top strip", "drag progress"]
         ),
-        .init(
-            id: "glass-button",
-            title: "glassButton",
-            kind: .modifier,
-            summary: "Global glass chrome for circular and capsule actions.",
-            sourcePath: "Core/DesignSystem/Modifiers/View+Styles.swift",
-            pairedOwnerPath: nil,
-            usage: "Used across Home, Library, Deck, Create, Play Mode, and Settings action controls.",
-            section: .globalModifiers,
-            isFeatured: true,
-            demo: .glassButton,
-            keywords: ["glass", "button", "capsule", "circle"]
-        ),
-        .init(
-            id: "widget-style",
-            title: "widgetStyle",
-            kind: .modifier,
-            summary: "Shared static card treatment for dashboard cards, deck rows, info widgets, and previews.",
-            sourcePath: "Core/DesignSystem/Modifiers/View+Styles.swift",
-            pairedOwnerPath: nil,
-            usage: "Used across Home, Deck, Editor, Settings, and supporting cards.",
-            section: .globalModifiers,
-            isFeatured: true,
-            demo: .widgetStyle,
-            keywords: ["widget", "card", "style", "surface"]
-        ),
-        .init(
+            .init(
             id: "flashcard-style",
             title: "flashcardStyle",
             kind: .modifier,
-            summary: "Dedicated flashcard chrome with border-feedback support for study/play surfaces.",
+            summary: "Shared chrome for both flashcards and widget-like cards across study, deck, home, and settings surfaces.",
             sourcePath: "Core/DesignSystem/Modifiers/View+Styles.swift",
             pairedOwnerPath: nil,
-            usage: "Used by play-mode flashcard surfaces and study interactions.",
+            usage: "Used by play-mode flashcards plus dashboard, deck, editor, and settings widgets.",
             section: .globalModifiers,
             isFeatured: true,
             demo: .flashcardStyle,
-            keywords: ["flashcard", "study", "border feedback", "play mode"]
+            keywords: ["flashcard", "widget", "study", "surface", "play mode"]
         ),
-        .init(
+            .init(
             id: "top-navigation-chrome",
             title: "topNavigationChrome",
             kind: .modifier,
@@ -607,7 +557,7 @@ private extension SharedUICatalogView {
             demo: .topNavigationChrome,
             keywords: ["top navigation", "chrome", "inset", "header"]
         ),
-        .init(
+            .init(
             id: "status-text-motion",
             title: "statusTextMotion",
             kind: .modifier,
@@ -620,7 +570,7 @@ private extension SharedUICatalogView {
             demo: .statusTextMotion,
             keywords: ["status", "text", "motion", "counter", "numeric"]
         ),
-        .init(
+            .init(
             id: "bottom-chrome-visibility",
             title: "bottomChromeVisibility",
             kind: .modifier,
@@ -633,7 +583,7 @@ private extension SharedUICatalogView {
             demo: .bottomChromeVisibility,
             keywords: ["bottom chrome", "tab bar", "visibility", "animation"]
         ),
-        .init(
+            .init(
             id: "full-screen-sheet",
             title: "fullScreenSheet",
             kind: .modifier,
@@ -646,7 +596,7 @@ private extension SharedUICatalogView {
             demo: .fullScreenSheet,
             keywords: ["full screen", "sheet", "drag dismiss", "modal"]
         ),
-        .init(
+            .init(
             id: "full-screen-sheet-drag-activation-height",
             title: "fullScreenSheetDragActivationHeight",
             kind: .modifier,
@@ -659,7 +609,7 @@ private extension SharedUICatalogView {
             demo: nil,
             keywords: ["drag activation", "sheet", "dismiss"]
         ),
-        .init(
+            .init(
             id: "app-screen-background",
             title: "appScreenBackground",
             kind: .modifier,
@@ -672,7 +622,7 @@ private extension SharedUICatalogView {
             demo: nil,
             keywords: ["screen background", "theme", "root background"]
         ),
-        .init(
+            .init(
             id: "custom-context-menu",
             title: "customContextMenu",
             kind: .modifier,
@@ -685,7 +635,7 @@ private extension SharedUICatalogView {
             demo: nil,
             keywords: ["context menu", "preview", "long press", "menu"]
         ),
-        .init(
+            .init(
             id: "dismiss-keyboard-on-background-tap",
             title: "dismissKeyboardOnBackgroundTap",
             kind: .modifier,
@@ -698,7 +648,7 @@ private extension SharedUICatalogView {
             demo: nil,
             keywords: ["keyboard", "dismiss", "background tap", "text input"]
         ),
-        .init(
+            .init(
             id: "swipe-back",
             title: "swipeBack",
             kind: .modifier,
@@ -711,7 +661,7 @@ private extension SharedUICatalogView {
             demo: nil,
             keywords: ["swipe back", "gesture", "edge", "navigation"]
         ),
-        .init(
+            .init(
             id: "scroll-proximity-effect",
             title: "scrollProximityEffect",
             kind: .modifier,
@@ -734,24 +684,14 @@ private struct SharedUICatalogIntroCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-            Text("One place to inspect the shared UI building blocks that ripple across QuizFlash.")
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text("Featured cards give you live demos. The registry below tells you exactly which file to edit when you want a global visual change.")
-                .font(.body.weight(.medium))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
             HStack(spacing: UIConstants.Spacing.medium) {
                 SharedUICatalogMetricCard(value: "\(trackedViewCount)", label: "Views", tint: .orange)
                 SharedUICatalogMetricCard(value: "\(trackedModifierCount)", label: "Modifiers", tint: .cyan)
                 SharedUICatalogMetricCard(value: "\(featuredCount)", label: "Live Demos", tint: .green)
             }
         }
-        .padding(UIConstants.Spacing.large)
-        .background(
+            .padding(UIConstants.Spacing.large)
+            .background(
             RoundedRectangle(cornerRadius: UIConstants.Radius.maximum, style: .continuous)
                 .fill(Color.white.opacity(0.06))
         )
@@ -774,9 +714,9 @@ private struct SharedUICatalogMetricCard: View {
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(UIConstants.Spacing.medium)
-        .background(
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(UIConstants.Spacing.medium)
+            .background(
             RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
                 .fill(tint.opacity(0.10))
         )
@@ -829,9 +769,9 @@ private struct SharedUICatalogShowcaseCard<Demo: View>: View {
             demo()
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(UIConstants.Spacing.large)
-        .background(
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(UIConstants.Spacing.large)
+            .background(
             RoundedRectangle(cornerRadius: UIConstants.Radius.maximum, style: .continuous)
                 .fill(Color.white.opacity(0.06))
         )
@@ -909,9 +849,9 @@ private struct SharedUICatalogRegistryCard: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(UIConstants.Spacing.large)
-        .background(
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(UIConstants.Spacing.large)
+            .background(
             RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
                 .fill(Color.white.opacity(0.05))
         )
@@ -955,9 +895,9 @@ private struct SharedUICatalogRegistryRow: View {
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(UIConstants.Spacing.medium)
-        .background(
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(UIConstants.Spacing.medium)
+            .background(
             RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous)
                 .fill(Color.white.opacity(0.04))
         )
@@ -983,46 +923,13 @@ private struct SharedUICatalogEmptyState: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 48)
-        .padding(.horizontal, UIConstants.Spacing.large)
-        .background(
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 48)
+            .padding(.horizontal, UIConstants.Spacing.large)
+            .background(
             RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
                 .fill(Color.white.opacity(0.06))
         )
-    }
-}
-
-private struct SharedUICatalogWidgetStyleDemo: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Focus Streak")
-                        .font(.headline.weight(.semibold))
-                    Text("8 sessions this week")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer(minLength: 0)
-
-                Text("+12%")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.green)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.green.opacity(0.12), in: Capsule())
-            }
-
-            HStack(spacing: UIConstants.Spacing.medium) {
-                SharedUICatalogMiniStat(title: "Due", value: "9")
-                SharedUICatalogMiniStat(title: "Done", value: "27")
-                SharedUICatalogMiniStat(title: "XP", value: "1240")
-            }
-        }
-        .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: 28)
     }
 }
 
@@ -1039,42 +946,13 @@ private struct SharedUICatalogMiniStat: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct SharedUICatalogGlassButtonDemo: View {
-    var body: some View {
-        HStack(spacing: UIConstants.Spacing.medium) {
-            Button {} label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.primary)
-                    .frame(width: 48, height: 48)
-                    .glassButton(shape: .circle)
-            }
-            .buttonStyle(.plain)
-
-            Button {} label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "sparkles")
-                    Text("Generate")
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 16)
-                .frame(height: 46)
-                .glassButton(shape: .capsule)
-            }
-            .buttonStyle(.plain)
-
-            Spacer(minLength: 0)
-        }
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 private struct SharedUICatalogFlashcardStyleDemo: View {
-    @State private var feedback: CGFloat = 0.55
+    @State private var flashcardBaseBorderBlurRadius: CGFloat = 3
+    @State private var widgetBaseBorderBlurRadius: CGFloat = 1
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
@@ -1088,23 +966,80 @@ private struct SharedUICatalogFlashcardStyleDemo: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(UIConstants.Spacing.large)
-            .flashcardStyle(
+                .padding(UIConstants.Spacing.large)
+                .flashcardStyle(
                 cornerRadius: 30,
                 shadowRadius: 22,
-                borderFeedbackColor: .teal,
-                borderFeedbackProgress: feedback,
-                borderFeedbackBlurRadius: 1.2
+                baseBorderBlurRadius: flashcardBaseBorderBlurRadius
+            )
+
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Focus Streak")
+                            .font(.headline.weight(.semibold))
+                        Text("8 sessions this week")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Text("+12%")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.green.opacity(0.12), in: Capsule())
+                }
+
+                HStack(spacing: UIConstants.Spacing.medium) {
+                    SharedUICatalogMiniStat(title: "Due", value: "9")
+                    SharedUICatalogMiniStat(title: "Done", value: "27")
+                    SharedUICatalogMiniStat(title: "XP", value: "1240")
+                }
+            }
+            .padding(UIConstants.Spacing.large)
+            .flashcardStyle(
+                cornerRadius: 28,
+                surfaceRole: .widget,
+                baseBorderBlurRadius: widgetBaseBorderBlurRadius
             )
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Feedback Strength")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.tertiary)
-                    .textCase(.uppercase)
+                HStack {
+                    Text("Flashcard Border Radius")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                        .textCase(.uppercase)
 
-                Slider(value: $feedback, in: 0...1)
-                    .tint(.teal)
+                    Spacer(minLength: 0)
+
+                    Text(Double(flashcardBaseBorderBlurRadius).formatted(.number.precision(.fractionLength(1))))
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                Slider(value: $flashcardBaseBorderBlurRadius, in: 0...14)
+                    .tint(.white.opacity(0.85))
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Widget Border Radius")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                        .textCase(.uppercase)
+
+                    Spacer(minLength: 0)
+
+                    Text(Double(widgetBaseBorderBlurRadius).formatted(.number.precision(.fractionLength(1))))
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                Slider(value: $widgetBaseBorderBlurRadius, in: 0...14)
+                    .tint(.white.opacity(0.85))
             }
         }
     }
@@ -1126,11 +1061,11 @@ private struct SharedUICatalogTopNavigationChromeDemo: View {
                     .font(.system(size: 26))
                     .foregroundStyle(.secondary)
             }
-            .topNavigationChrome()
+                .topNavigationChrome()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.bottom, UIConstants.Spacing.medium)
-        .background(
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, UIConstants.Spacing.medium)
+            .background(
             RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
                 .fill(Color.white.opacity(0.04))
         )
@@ -1156,21 +1091,19 @@ private struct SharedUICatalogStatusTextMotionDemo: View {
                 Button("Decrease") {
                     dueCount = max(0, dueCount - 1)
                 }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 12)
-                .frame(height: 38)
-                .glassButton(shape: .capsule)
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .frame(height: 38)
 
                 Button("Increase") {
                     dueCount += 1
                 }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 12)
-                .frame(height: 38)
-                .glassButton(shape: .capsule)
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .frame(height: 38)
             }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.primary)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
         }
     }
 }
@@ -1185,7 +1118,7 @@ private struct SharedUICatalogBottomChromeVisibilityDemo: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
             }
-            .tint(.green)
+                .tint(.green)
 
             ZStack(alignment: .bottom) {
                 RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
@@ -1197,12 +1130,11 @@ private struct SharedUICatalogBottomChromeVisibilityDemo: View {
                     Text("Tab Bar")
                         .font(.subheadline.weight(.semibold))
                 }
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 18)
-                .frame(height: 54)
-                .glassButton(shape: .capsule)
-                .padding(.bottom, 14)
-                .bottomChromeVisibility(isVisible, hiddenOffset: 40)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 18)
+                    .frame(height: 54)
+                    .padding(.bottom, 14)
+                    .bottomChromeVisibility(isVisible, hiddenOffset: 40)
             }
         }
     }
@@ -1212,7 +1144,7 @@ private struct SharedUICatalogSelectionToolbarDemo: View {
     var body: some View {
         HStack(spacing: UIConstants.Spacing.medium) {
             SelectionToolbarCapsuleButton(
-                action: {},
+                action: { },
                 accessibilityLabel: "Move"
             ) {
                 HStack(spacing: 6) {
@@ -1220,21 +1152,21 @@ private struct SharedUICatalogSelectionToolbarDemo: View {
                     Text("Move")
                         .font(.subheadline.weight(.semibold))
                 }
-                .foregroundStyle(.primary)
+                    .foregroundStyle(.primary)
             }
 
             SelectionToolbarTextButton(
                 title: "Archive",
                 accessibilityLabel: "Archive",
                 tint: .secondary,
-                action: {}
+                action: { }
             )
 
             SelectionToolbarIconButton(
                 isEnabled: true,
                 accessibilityLabel: "Delete",
                 badgeCount: 3,
-                action: {}
+                action: { }
             ) {
                 Image(systemName: "trash")
                     .font(.system(size: 17, weight: .bold))
@@ -1325,20 +1257,19 @@ struct SharedUICatalogFullScreenSheetDemo: View {
                     Image(systemName: "rectangle.portrait.badge.plus")
                     Text("Open Sample Sheet")
                 }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 16)
-                .frame(height: 46)
-                .glassButton(shape: .capsule)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 16)
+                    .frame(height: 46)
             }
-            .buttonStyle(.plain)
+                .buttonStyle(.plain)
 
             Text("Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .fullScreenSheet(
+            .fullScreenSheet(
             isPresented: $isPresented,
             configuration: sheetConfiguration
         ) { safeAreaInsets in
@@ -1399,9 +1330,9 @@ private struct SharedUICatalogSheetDemoBackground: View {
     private var topOverlay: some View {
         LinearGradient(
             stops: [
-                .init(color: topOverlayColor.opacity(0.92), location: 0.00),
-                .init(color: topOverlayColor.opacity(0.72), location: 0.06),
-                .init(color: .clear, location: 0.30)
+                    .init(color: topOverlayColor.opacity(0.92), location: 0.00),
+                    .init(color: topOverlayColor.opacity(0.72), location: 0.06),
+                    .init(color: .clear, location: 0.30)
             ],
             startPoint: .top,
             endPoint: .bottom
@@ -1445,7 +1376,7 @@ private struct SharedUICatalogSampleSheet: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.top, safeAreaInsets.top + UIConstants.Spacing.large)
+                    .padding(.top, safeAreaInsets.top + UIConstants.Spacing.large)
 
                 demoCard(title: "Height Mode") {
                     Picker("Height Mode", selection: $heightPreset) {
@@ -1453,7 +1384,7 @@ private struct SharedUICatalogSampleSheet: View {
                             Text(preset.title).tag(preset)
                         }
                     }
-                    .pickerStyle(.segmented)
+                        .pickerStyle(.segmented)
 
                     if heightPreset == .custom {
                         demoSliderRow(
@@ -1497,7 +1428,7 @@ private struct SharedUICatalogSampleSheet: View {
                             Text(preset.title).tag(preset)
                         }
                     }
-                    .pickerStyle(.segmented)
+                        .pickerStyle(.segmented)
 
                     Text("Background is rendered inside the shared sheet surface and clipped by the top corner radius.")
                         .font(.footnote.weight(.medium))
@@ -1508,17 +1439,16 @@ private struct SharedUICatalogSampleSheet: View {
                 Button("Dismiss") {
                     dismiss?()
                 }
-                .buttonStyle(.plain)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 18)
-                .frame(height: 48)
-                .glassButton(shape: .capsule)
+                    .buttonStyle(.plain)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 18)
+                    .frame(height: 48)
             }
-            .padding(.horizontal, UIConstants.Spacing.large)
-            .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.large))
+                .padding(.horizontal, UIConstants.Spacing.large)
+                .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.large))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -1533,9 +1463,9 @@ private struct SharedUICatalogSampleSheet: View {
 
             content()
         }
-        .padding(UIConstants.Spacing.large)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
-        .overlay {
+            .padding(UIConstants.Spacing.large)
+            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+            .overlay {
             RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
                 .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
         }

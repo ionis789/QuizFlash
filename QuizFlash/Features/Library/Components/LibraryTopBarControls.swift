@@ -37,19 +37,11 @@ struct LibraryTopBarSearchGlyph: View {
 
 private struct LibraryTopBarGlassCircleShell: View {
     var body: some View {
-        Circle()
-            .fill(.clear)
-            .glassButton(shape: .circle)
+        Color.clear
             .frame(
                 width: UIConstants.Size.actionButton,
                 height: UIConstants.Size.actionButton
             )
-            .overlay {
-                Circle()
-                    .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
-            }
-            .clipShape(Circle())
-            .compositingGroup()
     }
 }
 
@@ -124,7 +116,6 @@ struct LibraryTopBarSearchFieldBackground: View {
     var body: some View {
         Capsule()
             .fill(.clear)
-            .glassButton(shape: .capsule)
     }
 }
 
@@ -243,7 +234,6 @@ struct LibraryTopBarBackButton: View {
             .padding(.vertical, 8)
             .frame(height: UIConstants.Size.capsuleHeight)
             .foregroundStyle(accent)
-            .glassButton(shape: .capsule)
         }
         .buttonStyle(.plain)
     }

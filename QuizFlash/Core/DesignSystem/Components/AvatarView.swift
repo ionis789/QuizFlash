@@ -32,7 +32,6 @@ struct HomeAvatarView: View {
                 .foregroundStyle(Color.primary.opacity(0.88))
                 .symbolRenderingMode(.hierarchical)
                 .frame(width: iconSize, height: iconSize)
-                .glassButton(shape: .circle)
         }
         .buttonStyle(.plain)
     }

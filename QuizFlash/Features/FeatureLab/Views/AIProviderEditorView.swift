@@ -92,7 +92,6 @@ struct AIProviderEditorView: View {
                     .foregroundStyle(canSave ? Color.accentColor : .secondary)
                     .padding(.horizontal, UIConstants.Spacing.standard)
                     .frame(height: UIConstants.Size.actionButton)
-                    .glassButton(shape: .capsule)
             }
             .buttonStyle(.plain)
             .disabled(!canSave)

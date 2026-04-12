@@ -1,62 +1,60 @@
 // HomeDashboardView.swift
 // QuizFlash
 //
-// Renders the scrollable dashboard content below the sticky calendar header.
-// This view is purely presentational — all state and logic live in HomeViewModel
-// and CalendarViewModel, passed in as immutable constants.
+// Renders the Home dashboard below the sticky calendar header using a small
+// set of clean sections instead of a widget stack.
 
 import SwiftUI
 import SwiftData
 
 // MARK: - Home Dashboard View
 
-/// The scrollable body of the Home screen, rendered below the collapsible calendar header.
+/// The scrollable Home body rendered below the collapsible calendar header.
 ///
-/// Displays Home's analytics and navigation surfaces in order:
-/// 1. **Overview** — the selected-day hero and momentum insights.
-/// 2. **Exam Goals** — readiness and agenda around upcoming deadlines.
-/// 3. **Deck Health** — the decks that most need attention right now.
-/// 4. **Recent Decks** — a horizontal carousel of recently opened decks.
-/// 5. **Folders** — a grid of user folders.
-///
-/// `HomeDashboardView` is a **dumb view**: it holds no `@State`, makes no decisions,
-/// and contains no formatting logic. All data arrives as `let` constants from `HomeView`.
+/// `HomeDashboardView` remains a pure rendering layer. All derived values come
+/// from `HomeViewModel` and `HomeDashboardSnapshot`.
 struct HomeDashboardView: View {
-    private let topSectionInset: CGFloat = 0
+    private let topSectionInset: CGFloat = 12
 
     // MARK: - Dependencies
 
-    /// Business logic and sheet state for the Home screen.
     let viewModel: HomeViewModel
-
-    /// The list of folders fetched by `HomeView`'s `@Query`.
     let folders: [FolderModel]
-
-    /// The top 5 recently opened decks, pre-filtered and pre-sliced by `HomeView`.
     let recentDecks: [DeckModel]
-
-    /// Shared Home adaptive layout facts derived from the real container width.
     let layoutContext: HomeAdaptiveLayoutContext
-
-    /// Resume-oriented greeting summary rendered above the main Home analytics.
-    let greetingSummary: HomeGreetingSummary
-
-    /// Total deck count fetched by `HomeView`.
     let allDeckCount: Int
-
-    /// Persisted exam goals fetched by `HomeView`.
     let examGoals: [ExamGoalModel]
-
-    /// The global navigation router for pushing deck and folder destinations.
     let router: NavigationManager
 
     @Environment(\.modelContext) private var context
 
     // MARK: - Derived Data
 
-    /// Cached analytics snapshot derived in `HomeViewModel`.
     private var dashboardSnapshot: HomeDashboardSnapshot {
         viewModel.dashboardSnapshot
+    }
+
+    private var recentDeckSnapshots: [LibraryDeckRowSnapshot] {
+        LibraryGrouping.makeDeckSnapshots(from: recentDecks)
+    }
+
+    private var accentColor: Color {
+        ThemeManager.shared.accentColor.color
+    }
+
+    private var greetingTitle: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+
+        switch hour {
+        case 5..<12:
+            return "Good morning"
+        case 12..<17:
+            return "Good afternoon"
+        case 17..<22:
+            return "Good evening"
+        default:
+            return "Good night"
+        }
     }
 
     private var contentHorizontalInset: CGFloat {
@@ -71,135 +69,65 @@ struct HomeDashboardView: View {
         HomeDashboardAdaptiveMetrics(contentWidth: availableSectionWidth)
     }
 
+    private var dashboardMaxWidth: CGFloat? {
+        layoutContext.dashboardContext.maxContentWidth
+    }
+
     private var usesDashboardColumns: Bool {
         dashboardMetrics.usesDashboardColumns
+    }
+
+    private var usesRegularMetrics: Bool {
+        dashboardMetrics.usesRegularMetrics
     }
 
     private var showsWorkspaceOnboarding: Bool {
         allDeckCount == 0
     }
 
-    private var dashboardMaxWidth: CGFloat? {
-        layoutContext.dashboardContext.maxContentWidth
+    private var showsExamGoalsSection: Bool {
+        !examGoals.isEmpty || !showsWorkspaceOnboarding
     }
 
-    private var folderColumns: [GridItem] {
-        switch dashboardMetrics.folderColumnCount {
-        case 1:
-            return [GridItem(.flexible(), spacing: 16)]
-        case 3:
-            return Array(repeating: GridItem(.flexible(), spacing: 16), count: 3)
-        default:
-            return [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
-        }
+    private var showsLibrarySection: Bool {
+        !recentDecks.isEmpty || !folders.isEmpty || (!showsWorkspaceOnboarding && allDeckCount > 0)
     }
 
-    private var recentDeckColumns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 16), count: dashboardMetrics.recentDeckColumnCount)
-    }
-
-    private var recentDeckCarouselCardWidth: CGFloat {
-        dashboardMetrics.recentDeckCarouselCardWidth
-    }
-
-    private var usesRecentDeckGrid: Bool {
-        dashboardMetrics.usesRecentDeckGrid
-    }
-
-    private var showsFoldersQuickStrip: Bool {
-        dashboardMetrics.isNarrowSection && (!folders.isEmpty || allDeckCount > 0)
-    }
-
-    private var showsFoldersSection: Bool {
-        !folders.isEmpty || (!showsFoldersQuickStrip && allDeckCount > 0)
+    private var sectionSpacing: CGFloat {
+        usesRegularMetrics ? 24 : 20
     }
 
     // MARK: - Body
 
     var body: some View {
         VStack(spacing: 0) {
-            if showsFoldersQuickStrip {
-                boundedSection(foldersQuickStripSection)
-                    .padding(.top, topSectionInset)
+            boundedSection(studySection)
+                .padding(.top, topSectionInset)
+                .padding(.horizontal, contentHorizontalInset)
+                .homeDashboardSectionMotion()
+
+            if showsLibrarySection {
+                boundedSection(librarySection)
+                    .padding(.top, sectionSpacing)
                     .padding(.horizontal, contentHorizontalInset)
                     .homeDashboardSectionMotion()
             }
 
-            boundedSection(
-                HomeGreetingCardView(
-                    summary: greetingSummary,
-                    availableWidth: availableSectionWidth,
-                    onPrimaryAction: greetingPrimaryAction
-                )
-            )
-            .padding(.top, showsFoldersQuickStrip ? UIConstants.Layout.sectionSpacing : topSectionInset)
-            .padding(.horizontal, contentHorizontalInset)
-            .homeDashboardSectionMotion()
-
-            if !recentDecks.isEmpty {
-                boundedSection(recentDecksSection)
-                    .padding(.top, UIConstants.Layout.sectionSpacing)
-                    .padding(.horizontal, contentHorizontalInset)
-                    .homeDashboardSectionMotion()
-            }
-
-            if showsFoldersSection {
-                boundedSection(foldersSection)
-                    .padding(.top, UIConstants.Layout.sectionSpacing)
+            if showsExamGoalsSection {
+                boundedSection(examGoalsSection)
+                    .padding(.top, sectionSpacing)
                     .padding(.horizontal, contentHorizontalInset)
                     .homeDashboardSectionMotion()
             }
 
             if showsWorkspaceOnboarding {
                 boundedSection(workspaceSetupSection)
-                    .padding(.top, UIConstants.Layout.sectionSpacing)
-                    .padding(.horizontal, contentHorizontalInset)
-                    .homeDashboardSectionMotion()
-            } else {
-                boundedSection(statsSection)
-                    .padding(.top, UIConstants.Layout.sectionSpacing)
+                    .padding(.top, sectionSpacing)
                     .padding(.horizontal, contentHorizontalInset)
                     .homeDashboardSectionMotion()
             }
 
-            if !showsWorkspaceOnboarding || !examGoals.isEmpty {
-                boundedSection(examGoalsSection)
-                    .padding(.top, UIConstants.Layout.sectionSpacing)
-                    .padding(.horizontal, contentHorizontalInset)
-                    .homeDashboardSectionMotion()
-            }
-
-            if !viewModel.deckHealthSummaries.isEmpty {
-                boundedSection(deckHealthSection)
-                    .padding(.top, UIConstants.Layout.sectionSpacing)
-                    .padding(.horizontal, contentHorizontalInset)
-                    .homeDashboardSectionMotion()
-            }
-
-            Spacer(minLength: 150)
-        }
-    }
-
-    private var foldersQuickStripSection: some View {
-        HomeFoldersQuickStripView(
-            folders: folders,
-            allDeckCount: allDeckCount,
-            visibleLimit: dashboardMetrics.quickStripVisibleLimit,
-            chipWidth: dashboardMetrics.quickStripChipWidth,
-            promptWidth: dashboardMetrics.quickStripPromptWidth,
-            onOpenFolder: { folder in
-                router.append(AppRoute.folder(folder, backLabel: router.activeTab.rawValue))
-            },
-            onCreateFolder: {
-                viewModel.showCreateFolder = true
-            }
-        )
-    }
-
-    private var greetingPrimaryAction: (() -> Void)? {
-        guard let action = greetingSummary.action else { return nil }
-        return {
-            handleGreetingAction(action)
+            Spacer(minLength: 170)
         }
     }
 
@@ -214,183 +142,226 @@ struct HomeDashboardView: View {
         }
     }
 
-    private func handleGreetingAction(_ action: HomeGreetingAction) {
-        switch action {
-        case .openDeck(let deckID):
-            router.append(
-                DeckNavigationValue(
-                    deckID: deckID,
-                    backLabel: router.activeTab.rawValue
-                )
+    private func openDeck(_ deckID: PersistentIdentifier) {
+        router.append(
+            DeckNavigationValue(
+                deckID: deckID,
+                backLabel: router.activeTab.rawValue
             )
-        case .switchTab(let tab):
-            router.activeTab = tab
-        case .createFolder:
-            viewModel.showCreateFolder = true
-        }
-    }
-
-    private var workspaceSetupSection: some View {
-        Group {
-            if usesDashboardColumns {
-                HStack(alignment: .top, spacing: 16) {
-                    HomeWorkspacePromptCard(
-                        eyebrow: "First Step",
-                        title: "Create a deck that matters",
-                        detail: "Start with one subject or exam topic. Home will turn that deck into daily targets, momentum and recall guidance.",
-                        icon: "rectangle.stack.badge.plus",
-                        tint: ThemeManager.shared.accentColor.color,
-                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics,
-                        buttonTitle: "Open Create",
-                        action: {
-                            router.activeTab = .create
-                        }
-                    )
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-
-                    HomeWorkspacePromptCard(
-                        eyebrow: "Structure",
-                        title: "Keep folders close",
-                        detail: "Folders now sit near the top of Home so larger libraries stay easy to scan once you begin adding decks.",
-                        icon: "folder.badge.plus",
-                        tint: .orange,
-                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics,
-                        buttonTitle: "Create Folder",
-                        action: {
-                            viewModel.showCreateFolder = true
-                        }
-                    )
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 16) {
-                    HomeWorkspacePromptCard(
-                        eyebrow: "First Step",
-                        title: "Create a deck that matters",
-                        detail: "Start with one subject or exam topic. Home will turn that deck into daily targets, momentum and recall guidance.",
-                        icon: "rectangle.stack.badge.plus",
-                        tint: ThemeManager.shared.accentColor.color,
-                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics,
-                        buttonTitle: "Open Create",
-                        action: {
-                            router.activeTab = .create
-                        }
-                    )
-
-                    HomeWorkspacePromptCard(
-                        eyebrow: "Structure",
-                        title: "Keep folders close",
-                        detail: "Folders now sit near the top of Home so larger libraries stay easy to scan once you begin adding decks.",
-                        icon: "folder.badge.plus",
-                        tint: .orange,
-                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics,
-                        buttonTitle: "Create Folder",
-                        action: {
-                            viewModel.showCreateFolder = true
-                        }
-                    )
-                }
-            }
-        }
-    }
-
-    // MARK: - Deck Health Section
-
-    /// Renders the highest-priority deck summaries so Home can steer the next study action.
-    private var deckHealthSection: some View {
-        HomeDeckHealthSection(
-            summaries: viewModel.deckHealthSummaries,
-            usesRegularMetrics: dashboardMetrics.usesRegularMetrics,
-            onOpenDeck: { deckID in
-                router.append(
-                    DeckNavigationValue(
-                        deckID: deckID,
-                        backLabel: router.activeTab.rawValue
-                    )
-                )
-            }
         )
     }
 
-    // MARK: - Exam Goals Section
+    // MARK: - Study
 
-    /// Renders Home-level upcoming exam readiness plus selected-day exam agenda.
-    private var examGoalsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Exam Goals")
-                    .font(.system(.title3, design: .rounded, weight: .bold))
-                    .foregroundStyle(.primary)
+    private var studySection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HomeDashboardSectionHeader(title: greetingTitle)
 
-                Spacer()
-
-                Button {
-                    viewModel.presentCreateExamGoal()
-                } label: {
-                    Image(systemName: "calendar.badge.plus")
-                        .font(.system(size: UIConstants.Size.actionIcon, weight: .semibold))
-                        .foregroundStyle(ThemeManager.shared.accentColor.color)
-                        .symbolRenderingMode(.hierarchical)
-                        .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-                        .glassButton(shape: .circle)
-                }
-                .buttonStyle(.plain)
-            }
-
-            if examGoals.isEmpty {
-                HomeExamGoalsEmptyCard(usesRegularMetrics: dashboardMetrics.usesRegularMetrics) {
-                    viewModel.presentCreateExamGoal()
+            if usesDashboardColumns {
+                HStack(alignment: .top, spacing: 14) {
+                    selectedDaySurface
+                    studyTrendSurface
                 }
             } else {
-                if let examPressure = dashboardSnapshot.examPressure {
-                    HomeExamPressureCard(summary: examPressure)
+                VStack(alignment: .leading, spacing: 14) {
+                    selectedDaySurface
+                    studyTrendSurface
+                }
+            }
+        }
+    }
+
+    private var selectedDaySurface: some View {
+        let overview = dashboardSnapshot.selectedDayOverview
+
+        return HomeDashboardSurface(highlight: accentColor, usesRegularMetrics: usesRegularMetrics) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top, spacing: 12) {
+                    Text("Today")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 0)
+
+                    HomeDashboardPill(
+                        text: overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal) left",
+                        tint: overview.didReachGoal ? .green : accentColor
+                    )
                 }
 
-                if let examNarrative = dashboardSnapshot.examNarrative,
-                   !examNarrative.visibleLines.isEmpty {
-                    HomeExamNarrativeCard(lines: examNarrative.visibleLines)
+                Text(overview.headline)
+                    .font(.system(size: usesRegularMetrics ? 26 : 23, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HomeDashboardProgressBar(
+                    progress: overview.goalCompletionFraction,
+                    tint: overview.didReachGoal ? .green : accentColor
+                )
+
+                HStack(spacing: 10) {
+                    HomeDashboardMiniStat(label: "Reviewed", value: "\(overview.cardsReviewed)", tint: accentColor)
+                    HomeDashboardMiniStat(label: "Goal", value: "\(overview.dailyGoal)", tint: .orange)
+                    HomeDashboardMiniStat(label: "Streak", value: "\(overview.streakCount)", tint: .green)
+                }
+            }
+        }
+    }
+
+    private var studyTrendSurface: some View {
+        let momentum = dashboardSnapshot.weeklyMomentum
+
+        return HomeDashboardSurface(highlight: .white, usesRegularMetrics: usesRegularMetrics) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text("Trend")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 0)
+
+                    HomeDashboardRangeStub()
                 }
 
-                if !dashboardSnapshot.selectedDayExamSummaries.isEmpty {
-                    VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                        Text("Selected Day")
-                            .font(.caption.weight(.black))
-                            .foregroundStyle(.secondary)
+                Text(momentum.headline)
+                    .font(.system(size: usesRegularMetrics ? 24 : 21, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                        ForEach(dashboardSnapshot.selectedDayExamSummaries) { summary in
-                            HomeSelectedDayExamCard(
-                                summary: summary,
-                                onEdit: {
-                                    guard let goal = examGoal(for: summary.id) else { return }
-                                    viewModel.presentExamGoalEditor(for: goal)
-                                },
-                                onStatusChange: { status in
-                                    guard let goal = examGoal(for: summary.id) else { return }
-                                    viewModel.updateExamGoalStatus(status, for: goal, context: context)
-                                }
-                            )
+                HomeDashboardTrendPlaceholder()
+
+                HStack(spacing: 12) {
+                    HomeDashboardMiniStat(label: "Active", value: "\(momentum.activeDays)/7", tint: accentColor)
+                    HomeDashboardMiniStat(label: "Goals", value: "\(momentum.goalHitDays)", tint: .green)
+                    HomeDashboardMiniStat(
+                        label: "Avg",
+                        value: "\(momentum.averageCardsPerActiveDay)",
+                        tint: .orange
+                    )
+                }
+
+            }
+        }
+    }
+
+    // MARK: - Exam Goals
+
+    private var examGoalsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HomeDashboardSectionHeader(
+                title: "Exams",
+                accessory: {
+                    Button {
+                        viewModel.presentCreateExamGoal()
+                    } label: {
+                        Image(systemName: "calendar.badge.plus")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(accentColor)
+                            .frame(width: 38, height: 38)
+                            .background(Color.white.opacity(0.06), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            )
+
+            if examGoals.isEmpty {
+                HomeDashboardSurface(highlight: .orange, usesRegularMetrics: usesRegularMetrics) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("No exam goals")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+
+                        Button("Create exam goal") {
+                            viewModel.presentCreateExamGoal()
+                        }
+                        .buttonStyle(.plain)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 16)
+                        .frame(height: UIConstants.Size.buttonHeight)
+                        .background(Color.white.opacity(0.06), in: Capsule())
+                    }
+                }
+            } else {
+                if let examPressure = dashboardSnapshot.examPressure
+                    ?? dashboardSnapshot.upcomingExamSummaries.first.map(Self.fallbackPressureSummary) {
+                    HomeDashboardSurface(highlight: .red, usesRegularMetrics: usesRegularMetrics) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(alignment: .top, spacing: 12) {
+                                Text("Most urgent")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+
+                                Spacer(minLength: 0)
+
+                                HomeDashboardPill(text: examPressure.countdownLabel, tint: .orange)
+                            }
+
+                            Text(examPressure.headline)
+                                .font(.system(size: usesRegularMetrics ? 22 : 20, weight: .bold, design: .rounded))
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            HStack(spacing: 12) {
+                                HomeDashboardMiniStat(label: "Ready", value: "\(Int((examPressure.readinessFraction * 100).rounded()))%", tint: .green)
+                                HomeDashboardMiniStat(label: "Pace", value: "\(examPressure.dailyPaceNeeded)/d", tint: .red)
+                                HomeDashboardMiniStat(label: "Due", value: examPressure.countdownLabel, tint: .orange)
+                            }
                         }
                     }
                 }
 
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    Text("Upcoming")
-                        .font(.caption.weight(.black))
-                        .foregroundStyle(.secondary)
+                HomeDashboardSurface(highlight: .white, usesRegularMetrics: usesRegularMetrics) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if !dashboardSnapshot.selectedDayExamSummaries.isEmpty {
+                            HomeDashboardSubsectionLabel("Selected day")
+                                .padding(.bottom, 12)
 
-                    ForEach(dashboardSnapshot.upcomingExamSummaries) { summary in
-                        HomeExamGoalSummaryCard(
-                            summary: summary,
-                            onEdit: {
-                                guard let goal = examGoal(for: summary.id) else { return }
-                                viewModel.presentExamGoalEditor(for: goal)
-                            },
-                            onStatusChange: { status in
-                                guard let goal = examGoal(for: summary.id) else { return }
-                                viewModel.updateExamGoalStatus(status, for: goal, context: context)
+                            examGoalRows(dashboardSnapshot.selectedDayExamSummaries)
+                                .padding(.bottom, dashboardSnapshot.upcomingExamSummaries.isEmpty ? 0 : 18)
+
+                            if !dashboardSnapshot.upcomingExamSummaries.isEmpty {
+                                Divider()
+                                    .overlay(Color.white.opacity(0.08))
+                                    .padding(.bottom, 18)
                             }
-                        )
+                        }
+
+                        if !dashboardSnapshot.upcomingExamSummaries.isEmpty {
+                            HomeDashboardSubsectionLabel("Upcoming")
+                                .padding(.bottom, 12)
+
+                            examGoalRows(dashboardSnapshot.upcomingExamSummaries)
+                        }
                     }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func examGoalRows(_ summaries: [HomeExamGoalSummary]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(summaries.enumerated()), id: \.element.id) { index, summary in
+                HomeDashboardExamGoalRow(
+                    summary: summary,
+                    onOpenDeck: { deckID in
+                        openDeck(deckID)
+                    },
+                    onEdit: {
+                        guard let goal = examGoal(for: summary.id) else { return }
+                        viewModel.presentExamGoalEditor(for: goal)
+                    },
+                    onStatusChange: { status in
+                        guard let goal = examGoal(for: summary.id) else { return }
+                        viewModel.updateExamGoalStatus(status, for: goal, context: context)
+                    }
+                )
+
+                if index < summaries.count - 1 {
+                    Divider()
+                        .overlay(Color.white.opacity(0.08))
+                        .padding(.vertical, 16)
                 }
             }
         }
@@ -400,137 +371,638 @@ struct HomeDashboardView: View {
         examGoals.first(where: { $0.persistentModelID == id })
     }
 
-    // MARK: - Daily Activity Section
+    // MARK: - Library
 
-    /// Renders the selected-day hero plus action-oriented learning insights.
-    private var statsSection: some View {
+    private var librarySection: some View {
         Group {
             if usesDashboardColumns {
-                HStack(alignment: .top, spacing: 16) {
-                    HomeSelectedDayInsightsCard(
-                        summary: dashboardSnapshot.selectedDayInsight,
-                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics
-                    )
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-
-                    HomeWeeklyMomentumCard(
-                        summary: dashboardSnapshot.weeklyMomentum,
-                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics
-                    )
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                HStack(alignment: .top, spacing: 14) {
+                    if !recentDecks.isEmpty {
+                        recentDecksSection
+                    }
+                    foldersSection
                 }
             } else {
-                VStack(alignment: .leading, spacing: 16) {
-                    HomeAnalyticsHeroCard(
-                        overview: dashboardSnapshot.selectedDayOverview,
-                        weeklyMomentum: dashboardSnapshot.weeklyMomentum,
-                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics
-                    )
-
-                    HomeSelectedDayInsightsCard(
-                        summary: dashboardSnapshot.selectedDayInsight,
-                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics
-                    )
-
-                    HomeWeeklyMomentumCard(
-                        summary: dashboardSnapshot.weeklyMomentum,
-                        usesRegularMetrics: dashboardMetrics.usesRegularMetrics
-                    )
+                VStack(alignment: .leading, spacing: 18) {
+                    if !recentDecks.isEmpty {
+                        recentDecksSection
+                    }
+                    foldersSection
                 }
             }
         }
     }
 
-    // MARK: - Recent Decks Section
-
-    /// Renders recent decks as a carousel on narrow widths and a grid once the
-    /// container can support stable multi-column cards.
     private var recentDecksSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Recent Decks")
-                .font(.system(.title3, design: .rounded, weight: .bold))
-                .foregroundStyle(.primary)
+        VStack(alignment: .leading, spacing: 14) {
+            HomeDashboardSectionHeader(title: "Recents")
+            recentDecksSurface
+        }
+    }
 
-            if usesRecentDeckGrid {
-                LazyVGrid(columns: recentDeckColumns, spacing: 16) {
-                    ForEach(recentDecks) { deck in
-                        recentDeckCard(deck)
+    private var recentDecksSurface: some View {
+        HomeDashboardSurface(highlight: accentColor, usesRegularMetrics: usesRegularMetrics) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(recentDeckSnapshots.enumerated()), id: \.element.id) { index, deck in
+                    HomeDashboardLibraryDeckRow(
+                        snapshot: deck,
+                        isFirst: index == 0
+                    ) {
+                        openDeck(deck.id)
                     }
-                }
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        ForEach(recentDecks) { deck in
-                            recentDeckCard(deck)
-                                .frame(width: recentDeckCarouselCardWidth, alignment: .leading)
-                        }
-                    }
-                    .padding(.bottom, 16)
-                    .padding(.top, 4)
                 }
             }
         }
     }
 
-    private func recentDeckCard(_ deck: DeckModel) -> some View {
-        HomeRecentDeckCardView(
-            deck: deck,
-            usesRegularMetrics: dashboardMetrics.usesRegularMetrics
-        ) {
-            router.append(
-                DeckNavigationValue(
-                    deckID: deck.persistentModelID,
-                    backLabel: router.activeTab.rawValue
-                )
-            )
-        }
-    }
-
-    // MARK: - Folders Section
-
-    /// Renders the folder grid, including the "add folder" header button and an empty state.
     private var foldersSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Folders")
-                    .font(.system(.title3, design: .rounded, weight: .bold))
-                    .foregroundStyle(.primary)
+        VStack(alignment: .leading, spacing: 14) {
+            HomeDashboardSectionHeader(
+                title: "Folders",
+                accessory: {
+                    HStack(spacing: 10) {
+                        if !folders.isEmpty {
+                            HomeDashboardPill(text: "\(folders.count)", tint: .orange)
+                        }
 
-                Spacer()
-
-                Button {
-                    viewModel.showCreateFolder = true
-                } label: {
-                    Image(systemName: "folder.badge.plus")
-                        .font(.system(size: UIConstants.Size.actionIcon, weight: .semibold))
-                        .foregroundStyle(ThemeManager.shared.accentColor.color)
-                        .symbolRenderingMode(.hierarchical)
-                        .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-                        .glassButton(shape: .circle)
+                        Button {
+                            viewModel.showCreateFolder = true
+                        } label: {
+                            Image(systemName: "folder.badge.plus")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(accentColor)
+                                .frame(width: 34, height: 34)
+                                .background(Color.white.opacity(0.06), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(.plain)
-            }
+            )
 
-            if folders.isEmpty {
-                EmptyStatePlaceholderFolderCard(
-                    icon: "folder.badge.plus",
-                    message: allDeckCount == 0
-                        ? "Create a folder now or after your first deck to keep Home organized."
-                        : "No folders yet. Create one to organize your decks."
-                )
-            } else {
-                LazyVGrid(
-                    columns: folderColumns,
-                    spacing: 16
-                ) {
-                    ForEach(folders) { folder in
-                        FolderCardView(folder: folder, usesRegularMetrics: dashboardMetrics.usesRegularMetrics) {
+            foldersSurface
+        }
+    }
+
+    private var foldersSurface: some View {
+        HomeDashboardSurface(highlight: .orange, usesRegularMetrics: usesRegularMetrics) {
+            VStack(alignment: .leading, spacing: 0) {
+                if folders.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("No folders yet")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.primary)
+
+                        Text("Create one from the section header.")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    ForEach(Array(folders.enumerated()), id: \.element.persistentModelID) { index, folder in
+                        HomeDashboardFolderRow(folder: folder) {
                             router.append(AppRoute.folder(folder, backLabel: router.activeTab.rawValue))
                         }
+
+                        if index < folders.count - 1 {
+                            Divider()
+                                .overlay(Color.white.opacity(0.08))
+                                .padding(.vertical, 12)
+                        }
                     }
                 }
             }
         }
+    }
+
+    // MARK: - Workspace
+
+    private var workspaceSetupSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HomeDashboardSectionHeader(title: "Get started")
+
+            if usesDashboardColumns {
+                HStack(alignment: .top, spacing: 14) {
+                    createDeckSurface
+                    workspaceWhatChangesSurface
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 14) {
+                    createDeckSurface
+                    workspaceWhatChangesSurface
+                }
+            }
+        }
+    }
+
+    private var createDeckSurface: some View {
+        HomeDashboardSurface(highlight: accentColor, usesRegularMetrics: usesRegularMetrics) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Create a deck")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+
+                Button("Open Create") {
+                    router.activeTab = .create
+                }
+                .buttonStyle(.plain)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 16)
+                .frame(height: UIConstants.Size.buttonHeight)
+                .background(Color.white.opacity(0.06), in: Capsule())
+            }
+        }
+    }
+
+    private var workspaceWhatChangesSurface: some View {
+        HomeDashboardSurface(highlight: .orange, usesRegularMetrics: usesRegularMetrics) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Next")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HomeDashboardNarrativeLine(
+                        label: "Today",
+                        text: "Progress and pace."
+                    )
+                    HomeDashboardNarrativeLine(
+                        label: "Exams",
+                        text: "Readiness and workload."
+                    )
+                    HomeDashboardNarrativeLine(
+                        label: "Library",
+                        text: "Recent decks and folders."
+                    )
+                }
+            }
+        }
+    }
+
+    nonisolated private static func fallbackPressureSummary(from summary: HomeExamGoalSummary) -> HomeExamPressureSummary {
+        let trimmedNote = summary.note.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return HomeExamPressureSummary(
+            goalID: summary.id,
+            goalTitle: summary.title,
+            countdownLabel: summary.countdownLabel,
+            readinessFraction: summary.readinessFraction,
+            headline: summary.summaryLine,
+            detailLine: trimmedNote.isEmpty ? summary.dateLabel : trimmedNote,
+            actionLine: "\(summary.dailyPaceNeeded)/day",
+            overdueCards: summary.overdueCount,
+            dailyPaceNeeded: summary.dailyPaceNeeded,
+            belowTargetDeckCount: summary.belowTargetDeckCount,
+            weakestDeckTitle: summary.weakestDeck?.title,
+            weakestDeckReadinessFraction: summary.weakestDeck?.readinessFraction
+        )
+    }
+}
+
+// MARK: - Section Header
+
+private struct HomeDashboardSectionHeader: View {
+    let title: String
+    let subtitle: String?
+    let accessory: AnyView?
+
+    init(
+        title: String,
+        subtitle: String? = nil
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.accessory = nil
+    }
+
+    init<Accessory: View>(
+        title: String,
+        subtitle: String? = nil,
+        @ViewBuilder accessory: () -> Accessory
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.accessory = AnyView(accessory())
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let accessory {
+                accessory
+            }
+        }
+    }
+}
+
+// MARK: - Dashboard Surface
+
+private struct HomeDashboardSurface<Content: View>: View {
+    let highlight: Color
+    let usesRegularMetrics: Bool
+    let content: Content
+
+    init(
+        highlight: Color,
+        usesRegularMetrics: Bool,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.highlight = highlight
+        self.usesRegularMetrics = usesRegularMetrics
+        self.content = content()
+    }
+
+    private var cornerRadius: CGFloat {
+        usesRegularMetrics ? 28 : 24
+    }
+
+    private var paddingValue: CGFloat {
+        usesRegularMetrics ? 18 : 16
+    }
+
+    var body: some View {
+        content
+            .padding(paddingValue)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.white.opacity(0.045))
+            }
+    }
+}
+
+// MARK: - Supporting Views
+
+private struct HomeDashboardProgressBar: View {
+    let progress: Double
+    let tint: Color
+
+    var body: some View {
+        GeometryReader { proxy in
+            let clampedProgress = min(max(progress, 0), 1)
+
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.white.opacity(0.06))
+
+                Capsule()
+                    .fill(tint)
+                    .frame(width: proxy.size.width * clampedProgress)
+            }
+        }
+        .frame(height: 8)
+    }
+}
+
+private struct HomeDashboardMiniStat: View {
+    let label: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 6, height: 6)
+
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(value)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct HomeDashboardRangeStub: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            HomeDashboardRangeChip(title: "Week", isActive: true)
+            HomeDashboardRangeChip(title: "Month", isActive: false)
+        }
+    }
+}
+
+private struct HomeDashboardRangeChip: View {
+    let title: String
+    let isActive: Bool
+
+    var body: some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(isActive ? .primary : .secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                (isActive ? Color.white.opacity(0.08) : Color.white.opacity(0.03)),
+                in: Capsule()
+            )
+    }
+}
+
+private struct HomeDashboardTrendPlaceholder: View {
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 10) {
+            ForEach([0.28, 0.54, 0.4, 0.76, 0.48, 0.64, 0.34], id: \.self) { value in
+                Capsule()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 28 + (value * 54))
+            }
+        }
+        .frame(height: 110, alignment: .bottom)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private struct HomeDashboardInlineBadge: View {
+    let title: String
+    let subtitle: String
+    let tint: Color
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(title)
+                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
+            Text(subtitle)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private struct HomeDashboardNarrativeLine: View {
+    let label: String
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label.uppercased())
+                .font(.caption2.weight(.black))
+                .foregroundStyle(.secondary)
+
+            Text(text)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private struct HomeDashboardSubsectionLabel: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.caption.weight(.black))
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+    }
+}
+
+private struct HomeDashboardExamGoalRow: View {
+    let summary: HomeExamGoalSummary
+    let onOpenDeck: (PersistentIdentifier) -> Void
+    let onEdit: () -> Void
+    let onStatusChange: (ExamGoalStatus) -> Void
+
+    private var deckPreviewSnapshots: [LibraryDeckRowSnapshot] {
+        summary.deckSummaries
+            .sorted { lhs, rhs in
+                if lhs.readinessFraction != rhs.readinessFraction {
+                    return lhs.readinessFraction < rhs.readinessFraction
+                }
+                return lhs.remainingCards > rhs.remainingCards
+            }
+            .prefix(2)
+            .map { deck in
+                LibraryDeckRowSnapshot(
+                    id: deck.id,
+                    title: deck.title,
+                    colorHex: deck.colorHex,
+                    createdAt: summary.date,
+                    editedAt: summary.date,
+                    lastOpenedAt: nil,
+                    cardCount: deck.totalCards,
+                    folderTitle: nil
+                )
+            }
+    }
+
+    private var remainingDeckPreviewCount: Int {
+        max(summary.deckSummaries.count - deckPreviewSnapshots.count, 0)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(summary.title)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(summary.summaryLine)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                VStack(alignment: .trailing, spacing: 10) {
+                    HomeDashboardPill(
+                        text: summary.countdownLabel,
+                        tint: summary.status == .completed ? .green : .orange
+                    )
+
+                    HStack(spacing: 8) {
+                        Button(action: onEdit) {
+                            Image(systemName: "square.and.pencil")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(.primary)
+                                .frame(width: 30, height: 30)
+                                .background(Color.white.opacity(0.06), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+
+                        Menu {
+                            ForEach(ExamGoalStatus.allCases) { status in
+                                Button {
+                                    onStatusChange(status)
+                                } label: {
+                                    Label(status.title, systemImage: status.systemImage)
+                                }
+                            }
+                        } label: {
+                            Image(systemName: summary.status.systemImage)
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(statusTint)
+                                .frame(width: 30, height: 30)
+                                .background(statusTint.opacity(0.14), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            HStack(spacing: 10) {
+                HomeDashboardPill(
+                    text: "\(Int((summary.readinessFraction * 100).rounded()))% ready",
+                    tint: .green
+                )
+                HomeDashboardPill(
+                    text: "\(summary.dailyPaceNeeded)/day",
+                    tint: .red
+                )
+            }
+
+            if !deckPreviewSnapshots.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(deckPreviewSnapshots.enumerated()), id: \.element.id) { index, deck in
+                        HomeDashboardLibraryDeckRow(
+                            snapshot: deck,
+                            isFirst: index == 0
+                        ) {
+                            onOpenDeck(deck.id)
+                        }
+                    }
+
+                    if remainingDeckPreviewCount > 0 {
+                        Text("+\(remainingDeckPreviewCount) more deck" + (remainingDeckPreviewCount == 1 ? "" : "s"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 10)
+                            .padding(.leading, 4)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    private var statusTint: Color {
+        switch summary.status {
+        case .active:
+            return .orange
+        case .completed:
+            return .green
+        case .archived:
+            return .secondary
+        }
+    }
+}
+
+private struct HomeDashboardPill: View {
+    let text: String
+    let tint: Color
+
+    var body: some View {
+        Text(text)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(tint.opacity(0.14), in: Capsule())
+    }
+}
+
+private struct HomeDashboardLibraryDeckRow: View {
+    let snapshot: LibraryDeckRowSnapshot
+    let isFirst: Bool
+    let action: @MainActor @Sendable () -> Void
+
+    var body: some View {
+        LibraryDeckListRow(
+            deck: snapshot,
+            isFirstInSection: isFirst,
+            isSelecting: false,
+            isSelected: false,
+            showsContextMenu: false,
+            onNavigate: action,
+            onToggleSelection: {},
+            onImport: {},
+            onMoveToFolder: {},
+            onDelete: {}
+        )
+    }
+}
+
+private struct HomeDashboardFolderRow: View {
+    let folder: FolderModel
+    let action: () -> Void
+
+    private var folderColor: Color {
+        Color(hex: folder.colorHex) ?? ThemeManager.shared.accentColor.color
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(folderColor.opacity(0.14))
+                    .frame(width: 44, height: 44)
+                    .overlay {
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(folderColor)
+                    }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(folder.title)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Text("\(folder.deckCount) deck" + (folder.deckCount == 1 ? "" : "s"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(folderColor)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

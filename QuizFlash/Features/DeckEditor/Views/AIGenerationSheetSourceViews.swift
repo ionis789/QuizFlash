@@ -214,11 +214,7 @@ struct ExpandableGenerationSection<Content: View>: View {
         }
         .clipped()
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: 22)
-        .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        }
+        .flashcardStyle(cornerRadius: 22, surfaceRole: .widget)
     }
 }
 

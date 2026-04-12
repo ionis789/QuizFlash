@@ -61,11 +61,7 @@ struct PlayModeSettingsOverviewCard: View {
             }
         }
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: UIConstants.Radius.maximum)
-        .overlay {
-            RoundedRectangle(cornerRadius: UIConstants.Radius.maximum, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
-        }
+        .flashcardStyle(cornerRadius: UIConstants.Radius.maximum, surfaceRole: .widget)
         .shadow(
             color: tintColor.opacity(0.12),
             radius: UIConstants.Shadow.heavyRadius,
@@ -296,11 +292,7 @@ struct PlayModeSettingsReadinessCard: View {
             }
         }
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: UIConstants.Radius.large)
-        .overlay {
-            RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
-        }
+        .flashcardStyle(cornerRadius: UIConstants.Radius.large, surfaceRole: .widget)
     }
 }
 
@@ -325,11 +317,7 @@ private struct PlayModeSettingsSectionCard<Content: View>: View {
             content()
         }
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: UIConstants.Radius.large)
-        .overlay {
-            RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
-        }
+        .flashcardStyle(cornerRadius: UIConstants.Radius.large, surfaceRole: .widget)
     }
 }
 

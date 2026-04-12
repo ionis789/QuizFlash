@@ -94,7 +94,7 @@ struct AISourcePreparationOverlay: View {
         }
         .padding(20)
         .frame(maxWidth: 360, alignment: .leading)
-        .widgetStyle(cornerRadius: 30)
+        .flashcardStyle(cornerRadius: 30, surfaceRole: .widget)
         .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
         .onAppear {
             withAnimation(.easeInOut(duration: 1.15).repeatForever(autoreverses: true)) {

@@ -58,3 +58,52 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
         XCTAssertEqual(resolvedAgain.flashcardSettings.contentAlignment, .center)
     }
 }
+
+final class SwipeGestureEvaluatorTests: XCTestCase {
+    func testSlowDragKeepsProjectedProgressBoundToActualDistance() {
+        let evaluator = SwipeGestureEvaluator(
+            tuning: SwipeGestureTuning(
+                flickSensitivity: 1.9,
+                dismissDistanceThreshold: 180
+            )
+        )
+
+        let evaluation = evaluator.evaluate(displacementX: -95, velocityX: -9)
+
+        XCTAssertEqual(evaluation.distanceProgress, 95.0 / 180.0, accuracy: 0.0001)
+        XCTAssertEqual(evaluation.projectedProgress, evaluation.distanceProgress, accuracy: 0.0001)
+        XCTAssertNil(evaluation.projectedCommitDirection)
+        XCTAssertNil(evaluation.commitDecision)
+    }
+
+    func testPullBackBeforeReleaseClearsVelocityAssist() {
+        let evaluator = SwipeGestureEvaluator(tuning: .default)
+
+        let evaluation = evaluator.evaluate(displacementX: -82, velocityX: 420)
+
+        XCTAssertEqual(evaluation.projectedProgress, evaluation.distanceProgress, accuracy: 0.0001)
+        XCTAssertNil(evaluation.projectedCommitDirection)
+        XCTAssertNil(evaluation.commitDecision)
+    }
+
+    func testShortFastFlickStillCommitsThroughVelocityLane() {
+        let evaluator = SwipeGestureEvaluator(tuning: .default)
+
+        let evaluation = evaluator.evaluate(displacementX: -24, velocityX: -1500)
+
+        XCTAssertEqual(evaluation.projectedCommitDirection, .left)
+        XCTAssertEqual(evaluation.commitDecision?.direction, .left)
+        XCTAssertEqual(evaluation.commitDecision?.reason, .flick)
+        XCTAssertTrue(evaluation.fastSwipeDetected)
+    }
+
+    func testDistanceThresholdWinsWithoutProjection() {
+        let evaluator = SwipeGestureEvaluator(tuning: .default)
+
+        let evaluation = evaluator.evaluate(displacementX: 124, velocityX: 0)
+
+        XCTAssertEqual(evaluation.commitDecision?.direction, .right)
+        XCTAssertEqual(evaluation.commitDecision?.reason, .distance)
+        XCTAssertFalse(evaluation.fastSwipeDetected)
+    }
+}

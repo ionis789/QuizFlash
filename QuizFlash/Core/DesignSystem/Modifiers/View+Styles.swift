@@ -2,7 +2,7 @@
 //  View+Styles.swift
 //  QuizFlash
 //
-//  Shared surface treatments for tappable glass chrome and static widget cards.
+//  Shared surface treatments for flashcard and widget surfaces.
 //
 
 import SwiftUI
@@ -99,132 +99,76 @@ extension AnyTransition {
     }
 }
 
-// MARK: - DesignShape
+// MARK: - FlashcardSurfaceRole
 
-/// Semantic shape options used by the shared glass chrome modifier.
-enum DesignShape {
-    case circle
-    case capsule
-
-    fileprivate var anyShape: AnyShape {
-        switch self {
-        case .circle:
-            AnyShape(Circle())
-        case .capsule:
-            AnyShape(Capsule())
-        }
-    }
-}
-
-// MARK: - GlassButtonModifier
-
-/// Applies the shared glass background used by floating action chrome and capsules.
-private struct GlassButtonModifier<BackgroundShape: Shape, BorderShape: Shape>: ViewModifier {
-    let shape: BackgroundShape
-    let borderShape: BorderShape
-
-    func body(content: Content) -> some View {
-        content.background {
-            shape
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    borderShape
-                        .fill(Color.white.opacity(0.35))
-                        .blur(radius: 10)
-                        .mask(borderShape.stroke(lineWidth: 4))
-                        .blendMode(.overlay)
-                }
-        }
-    }
-}
-
-// MARK: - WidgetStyleModifier
-
-/// Applies the shared static card treatment used by deck rows, stats widgets, and info cards.
-private struct WidgetStyleModifier: ViewModifier {
-    let cornerRadius: CGFloat
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-
-        content
-            .background {
-                shape
-                    .fill(
-                        Color.libraryDeckRow
-                            .shadow(.inner(color: Color.white.opacity(0.15), radius: 1, x: 0, y: 0))
-                    )
-            }
-            .clipShape(shape)
-    }
+/// Semantic surface roles supported by the shared flashcard/widget chrome modifier.
+enum FlashcardSurfaceRole {
+    case card
+    case widget
 }
 
 // MARK: - FlashcardSurfaceModifier
 
-/// Applies the dedicated flashcard chrome used by the play-mode card surface.
+/// Applies the shared surface chrome used by flashcards and widget-like cards.
 private struct FlashcardSurfaceModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
 
     let cornerRadius: CGFloat
     let shadowRadius: CGFloat
-    let borderFeedbackColor: Color?
-    let borderFeedbackProgress: CGFloat
-    let borderFeedbackBlurRadius: CGFloat
+    let surfaceRole: FlashcardSurfaceRole
+    let baseBorderBlurRadius: CGFloat?
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        let opacityProgress = pow(borderFeedbackProgress, 1.2)
 
         content
             .background {
                 shape
-                    .fill(cardBackground)
-                    .shadow(color: shadowColor, radius: shadowRadius, y: 8)
+                    .fill(surfaceBackground)
+                    .shadow(color: shadowColor, radius: shadowRadius, y: shadowYOffset)
             }
             .overlay {
-                shape
-                    .stroke(basePrimaryBorderColor, lineWidth: 1)
-                    .blur(radius: 2)
-                    .clipShape(shape)
-            }
-            .overlay {
-                shape
-                    .stroke(baseSecondaryBorderColor, lineWidth: 1)
-                    .blur(radius: 1)
-            }
-            .overlay {
-                if let borderFeedbackColor, borderFeedbackProgress > 0.001 {
-                    shape
-                        .stroke(
-                            borderFeedbackColor.opacity(opacityProgress * 0.82),
-                            lineWidth: 1.2
-                        )
-                        .blur(radius: 2.4 + borderFeedbackBlurRadius)
-                        .clipShape(shape)
+                if surfaceRole == .card {
+                    dynamicCardBorder(shape: shape)
+                } else {
+                    basePrimaryBorder(shape: shape)
                 }
             }
             .overlay {
-                if let borderFeedbackColor, borderFeedbackProgress > 0.001 {
-                    shape
-                        .stroke(
-                            borderFeedbackColor.opacity(opacityProgress * 0.48),
-                            lineWidth: 1.1
-                        )
-                        .blur(radius: 1.3 + borderFeedbackBlurRadius * 0.65)
-                        .clipShape(shape)
+                if surfaceRole == .widget {
+                    baseSecondaryBorder(shape: shape)
                 }
             }
             .clipShape(shape)
     }
 
-    private var cardBackground: some ShapeStyle {
-        colorScheme == .dark
-            ? Color(uiColor: .secondarySystemBackground)
-            : Color.white
+    private var surfaceBackground: AnyShapeStyle {
+        switch surfaceRole {
+        case .card:
+            AnyShapeStyle(
+                colorScheme == .dark
+                    ? Color(uiColor: .secondarySystemBackground)
+                    : Color.white
+            )
+        case .widget:
+            AnyShapeStyle(
+                Color.libraryDeckRow
+                    .shadow(.inner(color: Color.white.opacity(colorScheme == .dark ? 0.12 : 0.18), radius: 1, x: 0, y: 0))
+            )
+        }
     }
 
     private var shadowColor: Color {
-        colorScheme == .dark ? Color.black.opacity(0.4) : Color.black.opacity(0.12)
+        switch surfaceRole {
+        case .card:
+            colorScheme == .dark ? Color.black.opacity(0.4) : Color.black.opacity(0.12)
+        case .widget:
+            Color.black.opacity(colorScheme == .dark ? 0.18 : 0.08)
+        }
+    }
+
+    private var shadowYOffset: CGFloat {
+        shadowRadius > 0 ? 8 : 0
     }
 
     private var basePrimaryBorderColor: Color {
@@ -233,6 +177,70 @@ private struct FlashcardSurfaceModifier: ViewModifier {
 
     private var baseSecondaryBorderColor: Color {
         Color.white.opacity(colorScheme == .dark ? 0.08 : 0.30)
+    }
+
+    private var resolvedBaseBorderBlurRadius: CGFloat {
+        max(0, baseBorderBlurRadius ?? defaultBaseBorderBlurRadius)
+    }
+
+    private var defaultBaseBorderBlurRadius: CGFloat {
+        switch surfaceRole {
+        case .card:
+            2
+        case .widget:
+            1
+        }
+    }
+
+    private var primaryBorderLineWidth: CGFloat {
+        1 + min(resolvedBaseBorderBlurRadius * 0.08, 0.9)
+    }
+
+    private var secondaryBorderLineWidth: CGFloat {
+        1 + min(resolvedBaseBorderBlurRadius * 0.04, 0.5)
+    }
+
+    private var secondaryBorderBlurRadius: CGFloat {
+        resolvedBaseBorderBlurRadius * 0.58
+    }
+
+    private var resolvedFeedbackIntensity: CGFloat {
+        0
+    }
+
+    private var cardBorderColor: Color {
+        Color.white.opacity(colorScheme == .dark ? 0.24 : 0.62)
+    }
+
+    private var resolvedCardBorderLineWidth: CGFloat {
+        1.08 + min(resolvedBaseBorderBlurRadius * 0.16, 0.65)
+    }
+
+    private var resolvedCardBorderBlurRadius: CGFloat {
+        resolvedBaseBorderBlurRadius
+    }
+
+    private func basePrimaryBorder(shape: RoundedRectangle) -> some View {
+        shape
+            .stroke(basePrimaryBorderColor, lineWidth: primaryBorderLineWidth)
+            .blur(radius: resolvedBaseBorderBlurRadius)
+            .clipShape(shape)
+    }
+
+    private func baseSecondaryBorder(shape: RoundedRectangle) -> some View {
+        shape
+            .stroke(baseSecondaryBorderColor, lineWidth: secondaryBorderLineWidth)
+            .blur(radius: secondaryBorderBlurRadius)
+    }
+
+    private func dynamicCardBorder(shape: RoundedRectangle) -> some View {
+        shape
+            .stroke(
+                cardBorderColor,
+                lineWidth: resolvedCardBorderLineWidth
+            )
+            .blur(radius: resolvedCardBorderBlurRadius)
+            .clipShape(shape)
     }
 }
 
@@ -294,41 +302,19 @@ private struct AppScreenBackgroundModifier: ViewModifier {
 // MARK: - View Extensions
 
 extension View {
-    /// Applies the shared glass chrome used by floating action buttons and animated capsules.
-    func glassButton(shape: DesignShape) -> some View {
-        modifier(GlassButtonModifier(shape: shape.anyShape, borderShape: shape.anyShape))
-    }
-
-    /// Applies the shared glass chrome to any custom shape that needs the same treatment.
-    func glassButton<S: Shape>(shape: S) -> some View {
-        modifier(GlassButtonModifier(shape: shape, borderShape: shape))
-    }
-
-    /// Applies the shared glass chrome to a custom fill shape and a custom border mask.
-    func glassButton<S: Shape, B: Shape>(shape: S, borderShape: B) -> some View {
-        modifier(GlassButtonModifier(shape: shape, borderShape: borderShape))
-    }
-
-    /// Applies the shared static widget card style used by dashboard and deck information surfaces.
-    func widgetStyle(cornerRadius: CGFloat = 40) -> some View {
-        modifier(WidgetStyleModifier(cornerRadius: cornerRadius))
-    }
-
-    /// Applies the dedicated flashcard card chrome with optional swipe-driven border feedback.
+    /// Applies the shared flashcard/widget chrome.
     func flashcardStyle(
-        cornerRadius: CGFloat,
-        shadowRadius: CGFloat,
-        borderFeedbackColor: Color? = nil,
-        borderFeedbackProgress: CGFloat = 0,
-        borderFeedbackBlurRadius: CGFloat = 0
+        cornerRadius: CGFloat = 40,
+        shadowRadius: CGFloat = 0,
+        surfaceRole: FlashcardSurfaceRole = .card,
+        baseBorderBlurRadius: CGFloat? = nil
     ) -> some View {
         modifier(
             FlashcardSurfaceModifier(
                 cornerRadius: cornerRadius,
                 shadowRadius: shadowRadius,
-                borderFeedbackColor: borderFeedbackColor,
-                borderFeedbackProgress: borderFeedbackProgress,
-                borderFeedbackBlurRadius: borderFeedbackBlurRadius
+                surfaceRole: surfaceRole,
+                baseBorderBlurRadius: baseBorderBlurRadius
             )
         )
     }

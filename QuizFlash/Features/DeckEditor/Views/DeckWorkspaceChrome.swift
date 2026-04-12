@@ -547,13 +547,6 @@ struct CreateDeckChromeCircleSurface<Content: View>: View {
     var body: some View {
         content()
             .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-            .glassButton(shape: .circle)
-            .overlay {
-                Circle()
-                    .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
-            }
-            .clipShape(Circle())
-            .compositingGroup()
     }
 }
 
@@ -582,7 +575,6 @@ struct CreateDeckCapsuleContainer<Content: View>: View {
             .padding(.horizontal, UIConstants.Spacing.standard)
             .frame(minWidth: UIConstants.Size.capsuleHeight)
             .frame(height: UIConstants.Size.capsuleHeight)
-            .glassButton(shape: .capsule)
     }
 }
 

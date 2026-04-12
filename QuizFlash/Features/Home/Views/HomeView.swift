@@ -30,7 +30,6 @@ struct HomeView: View {
 
     // MARK: - Environment
 
-    @Environment(\.modelContext) private var context
     @Environment(NavigationManager.self) private var router
     @Environment(AppPreferences.self) private var appPreferences
 
@@ -88,12 +87,6 @@ struct HomeView: View {
                 mode: layoutContext.mode,
                 scaffold: layoutContext.headerScaffold
             )
-            let greetingSummary = viewModel.greetingSummary(
-                userProfile: profile,
-                recentDecks: recentlyOpenedDecks,
-                allDeckCount: allDecks.count,
-                folderCount: folders.count
-            )
             // MARK: Scroll Geometry
 
             // MARK: Content
@@ -113,7 +106,6 @@ struct HomeView: View {
                             folders: folders,
                             recentDecks: recentlyOpenedDecks,
                             layoutContext: layoutContext,
-                            greetingSummary: greetingSummary,
                             allDeckCount: allDecks.count,
                             examGoals: examGoals,
                             router: router
@@ -218,14 +210,6 @@ struct HomeView: View {
                         userProfile: profile
                     )
                 }
-                .task(id: deckHealthRefreshFingerprint) {
-                    await viewModel.refreshDeckHealthSummaries(
-                        decks: allDecks,
-                        recentDecks: recentlyOpenedDecks,
-                        examGoals: examGoals,
-                        container: context.container
-                    )
-                }
                 .sheet(isPresented: $viewModel.showCreateFolder) {
                     CreateFolderSheet(viewModel: viewModel)
                 }
@@ -270,42 +254,6 @@ struct HomeView: View {
         ].joined(separator: "|")
     }
 
-    /// Stable signature used to refresh Home deck-health summaries when deck-facing inputs change.
-    private var deckHealthRefreshFingerprint: Int {
-        var hasher = Hasher()
-        hasher.combine(HomeViewModel.dateKeyFormatter.string(from: Date()))
-        hasher.combine(allDecksFingerprint)
-        hasher.combine(recentDecksFingerprint)
-        hasher.combine(examGoalsTaskFingerprint)
-        return hasher.finalize()
-    }
-
-    private var allDecksFingerprint: Int {
-        var aggregate = allDecks.count &* 1_000_211
-        for deck in allDecks {
-            var hasher = Hasher()
-            hasher.combine(deck.persistentModelID.hashValue)
-            hasher.combine(deck.title)
-            hasher.combine(deck.colorHex)
-            hasher.combine(deck.cardCount)
-            hasher.combine(deck.editedAt.timeIntervalSince1970.bitPattern)
-            hasher.combine(deck.lastOpenedAt?.timeIntervalSince1970.bitPattern ?? 0)
-            aggregate ^= hasher.finalize()
-        }
-        return aggregate
-    }
-
-    private var recentDecksFingerprint: Int {
-        var aggregate = recentlyOpenedDecks.count &* 131
-        for deck in recentlyOpenedDecks {
-            var hasher = Hasher()
-            hasher.combine(deck.persistentModelID.hashValue)
-            hasher.combine(deck.lastOpenedAt?.timeIntervalSince1970.bitPattern ?? 0)
-            aggregate ^= hasher.finalize()
-        }
-        return aggregate
-    }
-
     private func calendarTransitionBand(horizontalInset: CGFloat) -> some View {
         VStack(spacing: 0) {
             Color.clear
@@ -337,22 +285,6 @@ struct HomeView: View {
             calendarInsightsCache: viewModel.calendarInsightsCache,
             calendarInsightsRevision: viewModel.calendarInsightsRevision
         )
-    }
-
-    private func handleHomeAction(_ action: HomeGreetingAction) {
-        switch action {
-        case .openDeck(let deckID):
-            router.append(
-                DeckNavigationValue(
-                    deckID: deckID,
-                    backLabel: router.activeTab.rawValue
-                )
-            )
-        case .switchTab(let tab):
-            router.activeTab = tab
-        case .createFolder:
-            viewModel.showCreateFolder = true
-        }
     }
 
     private func homeLayoutSignature(

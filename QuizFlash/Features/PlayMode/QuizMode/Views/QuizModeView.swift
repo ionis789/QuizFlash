@@ -283,7 +283,6 @@ private struct QuizModeSessionView: View {
                 .fontDesign(.rounded)
                 .foregroundStyle(.primary)
                 .frame(width: UIConstants.Size.capsuleHeight, height: UIConstants.Size.capsuleHeight)
-                .glassButton(shape: .circle)
         }
         .buttonStyle(.plain)
     }

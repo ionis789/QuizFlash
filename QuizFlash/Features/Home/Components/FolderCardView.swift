@@ -64,7 +64,7 @@ struct FolderCardView: View {
             .padding(usesRegularMetrics ? 18 : 16)
             .frame(minHeight: usesRegularMetrics ? 142 : 0, alignment: .topLeading)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .widgetStyle()
+            .flashcardStyle(surfaceRole: .widget)
         }
         .buttonStyle(.plain)
     }

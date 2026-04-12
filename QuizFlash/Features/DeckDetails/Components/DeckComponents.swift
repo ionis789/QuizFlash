@@ -338,11 +338,7 @@ private struct PlayModeCard: View {
                 .padding(12)
         }
             .opacity(canPlay ? 1 : 0.56)
-            .widgetStyle(cornerRadius: 28)
-            .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
-        }
+            .flashcardStyle(cornerRadius: 28, surfaceRole: .widget)
     }
 }
 
@@ -425,13 +421,6 @@ struct DeckActionOverlay: View {
             .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
             .foregroundStyle(tint)
             .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-            .glassButton(shape: .circle)
-            .overlay {
-            Circle()
-                .stroke(Color.white.opacity(0.06), lineWidth: 0.75)
-        }
-            .clipShape(Circle())
-            .compositingGroup()
     }
 
     // MARK: - Add Button

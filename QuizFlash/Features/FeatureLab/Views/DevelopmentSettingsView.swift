@@ -15,6 +15,9 @@ struct DevelopmentSettingsView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
                 buildModeSection
+                if AppFeatures.current.showsInternalLabs {
+                    playModeSection
+                }
                 if AppFeatures.current.showsVisualDebugOverlays {
                     visualDebuggingSection
                 }
@@ -76,6 +79,21 @@ struct DevelopmentSettingsView: View {
                 title: "Deck Grid Guides",
                 detail: nil,
                 isOn: deckGridTextLayoutDebugBinding
+            )
+        }
+    }
+
+    private var playModeSection: some View {
+        SettingsSectionCard(
+            title: "Play Mode",
+            subtitle: nil
+        ) {
+            SettingsToggleRow(
+                icon: "slider.horizontal.3",
+                tint: .mint,
+                title: "Developer Controls",
+                detail: "Shows the in-game debug settings button used for swipe-progress inspection and temporary tuning.",
+                isOn: playModeDeveloperModeEnabledBinding
             )
         }
     }
@@ -168,6 +186,13 @@ struct DevelopmentSettingsView: View {
         Binding(
             get: { developmentPreferences.aiDebugTracingEnabled },
             set: { developmentPreferences.aiDebugTracingEnabled = $0 }
+        )
+    }
+
+    private var playModeDeveloperModeEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { developmentPreferences.playModeDeveloperModeEnabled },
+            set: { developmentPreferences.playModeDeveloperModeEnabled = $0 }
         )
     }
 }

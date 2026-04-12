@@ -134,7 +134,7 @@ struct DeckRowView: View {
             }
         }
         .padding(16)
-        .widgetStyle(cornerRadius: 30)
+        .flashcardStyle(cornerRadius: 30, surfaceRole: .widget)
         .task(id: deck.persistentModelID) {
             // Use a throwaway ModelContext on a background actor to count new cards.
             // This avoids faulting any CardModel into the main context's permanent

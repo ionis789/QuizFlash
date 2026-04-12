@@ -42,7 +42,7 @@ struct HomeGreetingCardView: View {
         }
         .padding(layout.contentPadding)
         .frame(maxWidth: .infinity, minHeight: layout.minHeight, alignment: .leading)
-        .widgetStyle(cornerRadius: 30)
+        .flashcardStyle(cornerRadius: 30, surfaceRole: .widget)
     }
 
     private var padLayout: some View {
@@ -68,7 +68,6 @@ struct HomeGreetingCardView: View {
                                 .foregroundStyle(.primary)
                                 .frame(width: layout.padButtonWidth)
                                 .frame(height: UIConstants.Size.buttonHeight)
-                                .glassButton(shape: .capsule)
                         }
                         .buttonStyle(.plain)
                     }
@@ -98,7 +97,6 @@ struct HomeGreetingCardView: View {
                             .foregroundStyle(.primary)
                             .padding(.horizontal, 18)
                             .frame(height: UIConstants.Size.buttonHeight)
-                            .glassButton(shape: .capsule)
                     }
                     .buttonStyle(.plain)
                 }
@@ -127,7 +125,6 @@ struct HomeGreetingCardView: View {
                         .foregroundStyle(.primary)
                         .frame(maxWidth: .infinity)
                         .frame(height: UIConstants.Size.buttonHeight)
-                        .glassButton(shape: .capsule)
                 }
                 .buttonStyle(.plain)
             }

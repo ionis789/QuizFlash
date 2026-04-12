@@ -26,7 +26,6 @@ import UIKit
 /// `FlashCardsPlayModeViewModel.handleSwipe(_:)`, and `isFlipped` is a binding
 /// to `FlashCardsPlayModeViewModel.isFlipped`.
 struct GameplayCard: View {
-
     @Environment(AppPreferences.self) private var appPreferences
 
     // MARK: - Properties
@@ -55,11 +54,16 @@ struct GameplayCard: View {
     /// Controls how short content is positioned vertically inside the card.
     let contentAlignment: FlashcardContentAlignment
 
+    /// Optional live swipe-progress callback used by play-mode developer tooling.
+    let onSwipeProgress: ((SwipeProgressSnapshot) -> Void)?
+
+    /// Runtime tuning for velocity/projection-based swipe commits.
+    let swipeGestureTuning: SwipeGestureTuning
+
     /// Binding to the ViewModel's `isFlipped` property.
     ///
     /// When `true`, `FlipCard` shows the answer (back) face.
     @Binding var isFlipped: Bool
-    @State private var swipeFeedback = SwipeCardFeedbackState()
 
     // MARK: - Body
 
@@ -72,14 +76,12 @@ struct GameplayCard: View {
             onSwipe: onSwipe,
             onTap: tapHandler,
             isInteractionEnabled: isInteractionEnabled,
-            onSwipeProgress: { direction, intensity in
-                swipeFeedback.update(direction: direction, intensity: intensity)
-            }
+            gestureTuning: swipeGestureTuning,
+            onSwipeProgress: onSwipeProgress
         ) {
             FlipCard(
                 card: card,
                 isFlipped: $isFlipped,
-                swipeFeedback: swipeFeedback,
                 tapAnimationStyle: tapAnimationStyle,
                 staticSwapTextMotion: staticSwapTextMotion,
                 contentAlignment: contentAlignment,

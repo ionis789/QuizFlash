@@ -67,7 +67,7 @@ struct HomeRecentDeckCardView: View {
             }
             .padding(usesRegularMetrics ? 16 : 14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .widgetStyle(cornerRadius: 24)
+            .flashcardStyle(cornerRadius: 24, surfaceRole: .widget)
         }
         .buttonStyle(.plain)
     }

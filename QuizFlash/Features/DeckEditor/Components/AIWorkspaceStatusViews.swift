@@ -133,7 +133,6 @@ private struct FloatingAIWorkspaceCapsuleContainer<Content: View>: View {
             .padding(.horizontal, UIConstants.Spacing.standard)
             .frame(minWidth: UIConstants.Size.capsuleHeight)
             .frame(height: UIConstants.Size.capsuleHeight)
-            .glassButton(shape: .capsule)
     }
 }
 

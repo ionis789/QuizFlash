@@ -100,7 +100,6 @@ struct DeckCustomNavigationBar: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .frame(height: UIConstants.Size.capsuleHeight)
-            .glassButton(shape: .capsule)
         }
         .buttonStyle(.plain)
     }

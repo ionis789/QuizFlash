@@ -152,9 +152,22 @@
 		D0A100012F70000100TEST00 /* QuizFlashTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = QuizFlashTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CB27A62B2F89A0FC00666115 /* Exceptions for "QuizFlash" folder in "QuizFlashTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Features/FeatureLab/Resources/Lottie/swipe_arrow.json,
+			);
+			target = D0A100082F70000100TEST00 /* QuizFlashTests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CB5C2D762EF8A48400FB1D07 /* QuizFlash */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CB27A62B2F89A0FC00666115 /* Exceptions for "QuizFlash" folder in "QuizFlashTests" target */,
+			);
 			path = QuizFlash;
 			sourceTree = "<group>";
 		};

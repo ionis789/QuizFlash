@@ -78,30 +78,257 @@
 //
 
 import SwiftUI
-import Observation
 
 // MARK: - SwipeDirection
 
 /// The horizontal direction in which the user swiped a card.
 enum SwipeDirection { case left, right }
 
-// MARK: - SwipeCardFeedbackState
+// MARK: - SwipeProgressPhase
 
-/// Observable state used to drive the card's swipe-direction border feedback.
+/// Gesture lifecycle phase associated with a swipe-progress snapshot.
+enum SwipeProgressPhase {
+    case idle
+    case dragging
+    case cancelled
+    case committed
+}
+
+enum SwipeDismissMotionStyle {
+    case spring
+    case linear
+}
+
+// MARK: - SwipeGestureTuning
+
+/// Runtime tuning values for the swipe-recognition engine.
 ///
-/// Updated each `CADisplayLink` frame during drag. The `@Observable` macro
-/// ensures `FlipCard` reacts to changes without any manual `objectWillChange`.
-@Observable
-@MainActor
-final class SwipeCardFeedbackState {
-    private(set) var direction: SwipeDirection?
-    private(set) var intensity: CGFloat = 0
+/// `flickSensitivity` modulates the velocity-only commit lane while still
+/// sharing the same dismiss distance target used by the direct drag lane.
+/// `dismissDistanceThreshold` controls how far the card must travel before a
+/// pure distance-based dismiss commits.
+struct SwipeGestureTuning {
+    var flickSensitivity: CGFloat = 1
+    var dismissDistanceThreshold: CGFloat = 120
+    var usesDirectTiltTracking: Bool = false
+    var dismissMotionStyle: SwipeDismissMotionStyle = .spring
+    var dismissAnimationSpeed: CGFloat = 1
 
-    func update(direction: SwipeDirection?, intensity: CGFloat) {
-        let clamped = min(max(intensity, 0), 1)
-        guard self.direction != direction || abs(self.intensity - clamped) >= 0.01 else { return }
-        self.direction = direction
-        self.intensity = clamped
+    static let `default` = SwipeGestureTuning()
+}
+
+// MARK: - SwipeProgressSnapshot
+
+/// Lightweight swipe-progress payload emitted by the UIKit swipe host.
+///
+/// - `distanceProgress` is the linear distance-to-threshold value in `0...1`.
+/// - `motionCurveProgress` matches the internal drag curve used by the card motion.
+/// - `velocityProgress` normalises horizontal flick speed against the commit threshold.
+/// - `projectedProgress` estimates threshold reach only when the release velocity
+///   is strong enough to qualify as a genuine flick candidate.
+/// - `commitIntentProgress` combines the direct-distance lane with the validated
+///   flick lane without letting projection override a slow drag.
+/// - `tiltAngleDegrees` mirrors the visible card tilt at the time the snapshot was emitted.
+struct SwipeProgressSnapshot {
+    let phase: SwipeProgressPhase
+    let direction: SwipeDirection?
+    let projectedCommitDirection: SwipeDirection?
+    let committedDirection: SwipeDirection?
+    let displacementX: CGFloat
+    let distanceProgress: CGFloat
+    let motionCurveProgress: CGFloat
+    let velocityX: CGFloat
+    let velocityProgress: CGFloat
+    let projectedProgress: CGFloat
+    let commitIntentProgress: CGFloat
+    let fastSwipeDetected: Bool
+    let tiltAngleDegrees: CGFloat
+
+    static let idle = SwipeProgressSnapshot(
+        phase: .idle,
+        direction: nil,
+        projectedCommitDirection: nil,
+        committedDirection: nil,
+        displacementX: 0,
+        distanceProgress: 0,
+        motionCurveProgress: 0,
+        velocityX: 0,
+        velocityProgress: 0,
+        projectedProgress: 0,
+        commitIntentProgress: 0,
+        fastSwipeDetected: false,
+        tiltAngleDegrees: 0
+    )
+}
+
+// MARK: - SwipeGestureEvaluation
+
+enum SwipeCommitReason {
+    case distance
+    case flick
+}
+
+struct SwipeCommitDecision {
+    let direction: SwipeDirection
+    let reason: SwipeCommitReason
+}
+
+struct SwipeGestureEvaluation {
+    let trackingDirection: SwipeDirection?
+    let projectedCommitDirection: SwipeDirection?
+    let commitDecision: SwipeCommitDecision?
+    let projectedDisplacementX: CGFloat
+    let distanceProgress: CGFloat
+    let motionCurveProgress: CGFloat
+    let velocityProgress: CGFloat
+    let projectedProgress: CGFloat
+    let commitIntentProgress: CGFloat
+    let flickCommitCandidate: Bool
+
+    var fastSwipeDetected: Bool {
+        if let commitDecision {
+            return commitDecision.reason == .flick
+        }
+        return flickCommitCandidate
+    }
+}
+
+struct SwipeGestureEvaluator {
+    let tuning: SwipeGestureTuning
+
+    private let baseFlickCommitVelocityThreshold: CGFloat = 700
+    private let directionTrackingSlop: CGFloat = 5
+
+    func evaluate(displacementX: CGFloat, velocityX: CGFloat) -> SwipeGestureEvaluation {
+        let trackingDirection = resolvedDirection(forSignedValue: displacementX, slop: directionTrackingSlop)
+        let absoluteDisplacement = abs(displacementX)
+        let distanceProgress = min(absoluteDisplacement / resolvedDismissDistanceThreshold, 1)
+        let motionCurveProgress = pow(distanceProgress, 1.85)
+        let alignedVelocityX = resolvedAlignedVelocityX(displacementX: displacementX, velocityX: velocityX)
+        let velocityProgress = min(abs(alignedVelocityX) / resolvedFlickCommitVelocityThreshold, 1)
+        let projectedDisplacementX = displacementX + projectionLeadDistance(for: alignedVelocityX)
+        let projectedProgress = min(abs(projectedDisplacementX) / resolvedDismissDistanceThreshold, 1)
+        let flickTravelProgress = min(absoluteDisplacement / resolvedMinimumFlickTravel, 1)
+        let projectedCommitDirection = resolvedProjectedCommitDirection(
+            projectedDisplacementX: projectedDisplacementX,
+            alignedVelocityX: alignedVelocityX,
+            flickTravelProgress: flickTravelProgress
+        )
+        let flickCommitCandidate = projectedCommitDirection != nil
+        let commitDecision = resolvedCommitDecision(
+            displacementX: displacementX,
+            projectedCommitDirection: projectedCommitDirection
+        )
+        let flickCommitProgress = projectedProgress * velocityProgress * flickTravelProgress
+        let commitIntentProgress = min(max(distanceProgress, flickCommitProgress), 1)
+
+        return SwipeGestureEvaluation(
+            trackingDirection: trackingDirection,
+            projectedCommitDirection: projectedCommitDirection,
+            commitDecision: commitDecision,
+            projectedDisplacementX: projectedDisplacementX,
+            distanceProgress: distanceProgress,
+            motionCurveProgress: motionCurveProgress,
+            velocityProgress: velocityProgress,
+            projectedProgress: projectedProgress,
+            commitIntentProgress: commitIntentProgress,
+            flickCommitCandidate: flickCommitCandidate
+        )
+    }
+
+    private func resolvedCommitDecision(
+        displacementX: CGFloat,
+        projectedCommitDirection: SwipeDirection?
+    ) -> SwipeCommitDecision? {
+        if displacementX >= resolvedDismissDistanceThreshold {
+            return SwipeCommitDecision(direction: .right, reason: .distance)
+        }
+        if displacementX <= -resolvedDismissDistanceThreshold {
+            return SwipeCommitDecision(direction: .left, reason: .distance)
+        }
+        if let projectedCommitDirection {
+            return SwipeCommitDecision(direction: projectedCommitDirection, reason: .flick)
+        }
+        return nil
+    }
+
+    private func resolvedProjectedCommitDirection(
+        projectedDisplacementX: CGFloat,
+        alignedVelocityX: CGFloat,
+        flickTravelProgress: CGFloat
+    ) -> SwipeDirection? {
+        guard abs(alignedVelocityX) >= resolvedFlickCommitVelocityThreshold else { return nil }
+        guard flickTravelProgress >= 1 else { return nil }
+
+        if projectedDisplacementX >= resolvedDismissDistanceThreshold {
+            return .right
+        }
+        if projectedDisplacementX <= -resolvedDismissDistanceThreshold {
+            return .left
+        }
+        return nil
+    }
+
+    private func resolvedAlignedVelocityX(displacementX: CGFloat, velocityX: CGFloat) -> CGFloat {
+        guard let velocityDirection = resolvedDirection(forSignedValue: velocityX, slop: directionTrackingSlop) else {
+            return 0
+        }
+
+        if let trackingDirection = resolvedDirection(forSignedValue: displacementX, slop: directionTrackingSlop),
+           trackingDirection != velocityDirection {
+            return 0
+        }
+
+        return velocityX
+    }
+
+    private func projectionLeadDistance(for alignedVelocityX: CGFloat) -> CGFloat {
+        let absoluteVelocity = abs(alignedVelocityX)
+        guard absoluteVelocity >= resolvedFlickCommitVelocityThreshold else { return 0 }
+
+        let overdriveProgress = min(
+            (absoluteVelocity - resolvedFlickCommitVelocityThreshold)
+                / (resolvedFlickCommitVelocityThreshold * 1.10),
+            1
+        )
+        let leadProgress = 0.36 + (0.64 * pow(max(overdriveProgress, 0), 0.82))
+        let direction: CGFloat = alignedVelocityX >= 0 ? 1 : -1
+        return direction * resolvedProjectionLeadCap * leadProgress
+    }
+
+    private func resolvedDirection(forSignedValue value: CGFloat, slop: CGFloat) -> SwipeDirection? {
+        if value > slop {
+            return .right
+        }
+        if value < -slop {
+            return .left
+        }
+        return nil
+    }
+
+    private var resolvedFlickSensitivity: CGFloat {
+        min(max(tuning.flickSensitivity, 0.55), 1.9)
+    }
+
+    private var normalizedFlickSensitivity: CGFloat {
+        min(max((resolvedFlickSensitivity - 0.55) / (1.9 - 0.55), 0), 1)
+    }
+
+    private var resolvedFlickCommitVelocityThreshold: CGFloat {
+        max(baseFlickCommitVelocityThreshold / sqrt(resolvedFlickSensitivity), 420)
+    }
+
+    private var resolvedMinimumFlickTravel: CGFloat {
+        let travelRatio = 0.18 - (0.08 * normalizedFlickSensitivity)
+        return max(resolvedDismissDistanceThreshold * travelRatio, 12)
+    }
+
+    private var resolvedProjectionLeadCap: CGFloat {
+        resolvedDismissDistanceThreshold * (1.02 + (0.20 * normalizedFlickSensitivity))
+    }
+
+    private var resolvedDismissDistanceThreshold: CGFloat {
+        min(max(tuning.dismissDistanceThreshold, 72), 180)
     }
 }
 
@@ -117,14 +344,15 @@ final class SwipeCardFeedbackState {
 /// - Parameters:
 ///   - onSwipe: Called when the user completes a decisive horizontal swipe.
 ///   - onTap: Called on a single tap (typically flips the card).
-///   - onSwipeProgress: Called each display frame during drag with the current
-///     direction and a normalised intensity in `0…1` for border feedback.
+///   - onSwipeProgress: Emits live drag progress for developer tooling or
+///     alternative swipe feedback systems.
 ///   - content: The SwiftUI content displayed inside the swipeable container.
 struct SwipeableCard<Content: View>: View {
     let onSwipe: (SwipeDirection) -> Void
     let onTap: (() -> Void)?
     let isInteractionEnabled: Bool
-    let onSwipeProgress: ((SwipeDirection?, CGFloat) -> Void)?
+    let gestureTuning: SwipeGestureTuning
+    let onSwipeProgress: ((SwipeProgressSnapshot) -> Void)?
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -132,6 +360,7 @@ struct SwipeableCard<Content: View>: View {
             onSwipe: onSwipe,
             onTap: onTap,
             isInteractionEnabled: isInteractionEnabled,
+            gestureTuning: gestureTuning,
             onSwipeProgress: onSwipeProgress,
             content: content
         )

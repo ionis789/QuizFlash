@@ -333,6 +333,10 @@ struct MainAppView: View {
             switch route {
             case .developmentSettings:
                 DevelopmentSettingsView()
+            case .flashCardsPlayModeSimulation:
+                FlashCardsPlayModeSimulationView()
+            case .animatedObjectsLab:
+                AnimatedObjectsLabView()
             case .sharedUICatalog:
                 SharedUICatalogView()
             case .contextMenu:

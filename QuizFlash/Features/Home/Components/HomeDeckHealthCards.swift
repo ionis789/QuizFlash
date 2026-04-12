@@ -147,7 +147,7 @@ private struct HomeDeckHealthCard: View {
             }
             .padding(usesRegularMetrics ? 20 : 18)
             .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 250 : 0, alignment: .topLeading)
-            .widgetStyle(cornerRadius: 26)
+            .flashcardStyle(cornerRadius: 26, surfaceRole: .widget)
         }
         .buttonStyle(.plain)
     }

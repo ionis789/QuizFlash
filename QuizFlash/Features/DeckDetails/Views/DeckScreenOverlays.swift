@@ -260,11 +260,7 @@ extension DeckContentView {
                 }
             }
             .padding(UIConstants.Spacing.large)
-            .widgetStyle(cornerRadius: 30)
-            .overlay {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
-            }
+            .flashcardStyle(cornerRadius: 30, surfaceRole: .widget)
         }
     }
 
@@ -388,7 +384,6 @@ extension DeckContentView {
                             .font(.system(size: 18, weight: .bold))
                             .foregroundStyle(.primary)
                             .frame(width: 42, height: 42)
-                            .glassButton(shape: .circle)
                     }
                     .buttonStyle(.plain)
                 }
@@ -406,11 +401,7 @@ extension DeckContentView {
                 }
             }
             .padding(20)
-            .widgetStyle(cornerRadius: 30)
-            .overlay {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
-            }
+            .flashcardStyle(cornerRadius: 30, surfaceRole: .widget)
             .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
         }
 

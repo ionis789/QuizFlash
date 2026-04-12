@@ -15,6 +15,8 @@ enum FeatureLabFixtures {
         let recentDeck: DeckModel
         let folder: FolderModel
         let draftCard: DraftCard
+        let flashCardsPlayModeSimulationDeckTitle: String
+        let flashCardsPlayModeSimulationCards: [PlayableCard]
         let progress: DeckProgressStats
         let stats: DeckStats
     }
@@ -115,6 +117,66 @@ enum FeatureLabFixtures {
             editedAt: .now.addingTimeInterval(-60 * 13)
         )
 
+        let simulationDeckTitle = "Probabilistic Analysis of Algorithms"
+        let simulationCardOne = CardModel(
+            frontZone: makeSimulationFrontZone(
+                title: "What does the indicator variable $X_i$ represent?",
+                detail: "Connect the hiring-process intuition with the compact mathematical notation."
+            ),
+            backZone: makeSimulationBackZone(
+                summary: "$X_i = 1$ if candidate $i$ is hired and $0$ otherwise.",
+                insight: "This turns the total number of hires into $X = \\sum_i X_i$, which makes $\\mathbb{E}[X]$ easy to analyze."
+            ),
+            cardNumber: 1,
+            isPinned: false,
+            creationSource: .manual
+        )
+        simulationCardOne.interval = 6
+
+        let simulationCardTwo = CardModel(
+            frontZone: makeSimulationFrontZone(
+                title: "Why can a fast flick commit before distance reaches 100%?",
+                detail: "Think about predicted travel, velocity alignment, and the real dismiss distance."
+            ),
+            backZone: makeSimulationBackZone(
+                summary: "Because the commit engine validates a genuine flick lane, not just raw projection alone.",
+                insight: "Velocity, direction alignment, minimum travel, and projected reach must all agree with the same dismiss threshold."
+            ),
+            cardNumber: 2,
+            isPinned: false,
+            creationSource: .manual
+        )
+        simulationCardTwo.interval = 12
+
+        let simulationCardThree = CardModel(
+            frontZone: makeSimulationFrontZone(
+                title: "What should the swipe object animation communicate?",
+                detail: "Focus on intent confirmation, clean travel toward the edge, and a readable handoff into card dismiss."
+            ),
+            backZone: makeSimulationBackZone(
+                summary: "It should feel attached to the gesture first, then confidently peel away once dismiss is certain.",
+                insight: "Readable motion needs a short engage phase, a visible glide, and a fade that starts after movement is already legible."
+            ),
+            cardNumber: 3,
+            isPinned: true,
+            creationSource: .manual
+        )
+        simulationCardThree.interval = 18
+
+        let flashCardsPlayModeSimulationCards = [
+            simulationCardOne,
+            simulationCardTwo,
+            simulationCardThree,
+        ].map { card in
+            PlayableCard(
+                id: card.persistentModelID,
+                cardNumber: card.cardNumber,
+                frontZone: card.frontZone,
+                backZone: card.backZone,
+                interval: card.interval
+            )
+        }
+
         let libraryDeckRow = LibraryDeckRowSnapshot(
             id: libraryDeck.persistentModelID,
             title: libraryDeck.title,
@@ -169,6 +231,8 @@ enum FeatureLabFixtures {
             recentDeck: recentDeck,
             folder: folder,
             draftCard: draftCard,
+            flashCardsPlayModeSimulationDeckTitle: simulationDeckTitle,
+            flashCardsPlayModeSimulationCards: flashCardsPlayModeSimulationCards,
             progress: progress,
             stats: stats
         )
@@ -195,5 +259,43 @@ enum FeatureLabFixtures {
             createdAt: card.createdAt,
             editedAt: card.editedAt
         )
+    }
+
+    private static func makeSimulationFrontZone(title: String, detail: String) -> ZoneModel {
+        var eyebrow = ZoneModel.text("SWIPE LAB")
+        eyebrow.textStyle = .caption
+        eyebrow.fontFamily = .rounded
+        eyebrow.textColor = .orange
+        eyebrow.isBold = true
+
+        var headline = ZoneModel.text(title)
+        headline.textStyle = .headline
+        headline.fontFamily = .rounded
+        headline.isBold = true
+
+        var body = ZoneModel.text(detail)
+        body.textStyle = .body
+        body.fontFamily = .rounded
+
+        return .container(direction: .vertical, children: [eyebrow, headline, body])
+    }
+
+    private static func makeSimulationBackZone(summary: String, insight: String) -> ZoneModel {
+        var eyebrow = ZoneModel.text("ANSWER")
+        eyebrow.textStyle = .caption
+        eyebrow.fontFamily = .rounded
+        eyebrow.textColor = .green
+        eyebrow.isBold = true
+
+        var summaryZone = ZoneModel.text(summary)
+        summaryZone.textStyle = .headline
+        summaryZone.fontFamily = .rounded
+        summaryZone.isBold = true
+
+        var insightZone = ZoneModel.text(insight)
+        insightZone.textStyle = .body
+        insightZone.fontFamily = .rounded
+
+        return .container(direction: .vertical, children: [eyebrow, summaryZone, insightZone])
     }
 }

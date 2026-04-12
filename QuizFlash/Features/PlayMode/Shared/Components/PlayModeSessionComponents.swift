@@ -167,11 +167,7 @@ struct PlayModeContentCard<Content: View>: View {
             content()
         }
         .padding(UIConstants.Spacing.large)
-        .widgetStyle(cornerRadius: cornerRadius)
-        .overlay {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.75)
-        }
+        .flashcardStyle(cornerRadius: cornerRadius, surfaceRole: .widget)
     }
 }
 

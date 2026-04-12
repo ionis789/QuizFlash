@@ -394,12 +394,6 @@ private struct HomePadCalendarColumnView: View {
         .background {
             if headerState.progress > 0.001 {
                 Color.clear
-                    .glassButton(
-                        shape: RoundedRectangle(
-                            cornerRadius: headerState.calendarState.cornerRadius,
-                            style: .continuous
-                        )
-                    )
                     .opacity(headerState.progress)
             }
         }

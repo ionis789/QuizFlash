@@ -23,7 +23,6 @@ struct CardPreviewModeView: View {
 
     @State private var isFlipped = false
     @State private var topChromeHeight: CGFloat = 0
-    @State private var swipeFeedback = SwipeCardFeedbackState()
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -129,7 +128,6 @@ struct CardPreviewModeView: View {
                     frontZone: flashcardContent.frontZone,
                     backZone: flashcardContent.backZone,
                     isFlipped: $isFlipped,
-                    swipeFeedback: swipeFeedback,
                     tapAnimationStyle: .flip3D,
                     onTap: togglePreviewFlip
                 )
@@ -250,7 +248,6 @@ struct CardPreviewModeView: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(accent)
                 .frame(width: chromeButtonHeight, height: chromeButtonHeight)
-                .glassButton(shape: .circle)
         }
         .buttonStyle(.plain)
     }

@@ -11,6 +11,8 @@ Write and review code for QuizFlash using the repository's architecture rules in
 
 Keep UI copy terse. Do not add explanatory filler, repeated titles, helper paragraphs, or decorative subtitles unless they are necessary for the screen to function. This applies especially to development/internal screens and settings surfaces.
 
+When external framework or library behavior matters, prefer the best available primary documentation source before relying on memory. Use `Context7` when that MCP is available for current third-party API docs, examples, and recent usage guidance; fall back to official docs or primary sources when `Context7` is unavailable.
+
 ## Quick Start
 
 1. Read `references/task-routing.md`.
@@ -38,6 +40,11 @@ Keep UI copy terse. Do not add explanatory filler, repeated titles, helper parag
    - `ScrollPositionRestorer`
    - `fullScreenSheet` from `Core/DesignSystem/Modifiers/View+FullScreenSheet.swift`
    - `StandardSheetTopStripBackground` for immersive dark sheets that react to drag-dismiss progress
+8. For simulator-supported UI validation, prefer the `ios-simulator` MCP when it is available:
+   - inspect accessibility elements on screen
+   - verify tap/swipe/text-entry flows after UI changes
+   - capture screenshots or recordings for visual regressions
+   - use it as a fast QA pass before or alongside manual device verification
 
 ## Context Loading Rules
 
@@ -100,6 +107,7 @@ Keep UI copy terse. Do not add explanatory filler, repeated titles, helper parag
      CoreDevice identifier: `C0558BFB-25CA-5399-A247-927C3D727AA7`
    - On that device path, build with `xcodebuild` for the device destination, then install and launch with `xcrun devicectl device install app` and `xcrun devicectl device process launch`.
    - If that device is not connected, fall back to `build + run` on the currently active simulator instead of asking the user to press Run in Xcode.
+   - When the `ios-simulator` MCP is available, use it for post-build UI inspection on simulator flows that benefit from accessibility-tree validation, coordinate taps/swipes, text entry, screenshots, or screen recordings.
    - For layout-sensitive UI work, also do a manual visual pass on iPad-sized and resizable widths when the changed screen supports them, especially for sticky headers, compact calendar states, floating chrome, and multi-column/dashboard surfaces.
 5. Extend the regression net when fixing a bug.
    - If a data-flow bug is discovered while testing, fix the fixture or production code at the root cause and keep the new test as a permanent guardrail.

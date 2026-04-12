@@ -38,7 +38,6 @@ struct HomeFoldersQuickStripView: View {
                         .foregroundStyle(ThemeManager.shared.accentColor.color)
                         .symbolRenderingMode(.hierarchical)
                         .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
-                        .glassButton(shape: .circle)
                 }
                 .buttonStyle(.plain)
             }
@@ -112,9 +111,6 @@ private struct HomeFoldersQuickChip: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .frame(width: width, alignment: .leading)
-            .glassButton(
-                shape: RoundedRectangle(cornerRadius: 24, style: .continuous)
-            )
         }
         .buttonStyle(.plain)
     }
@@ -155,9 +151,6 @@ private struct HomeFoldersQuickStripPrompt: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .frame(width: width, alignment: .leading)
-            .glassButton(
-                shape: RoundedRectangle(cornerRadius: 24, style: .continuous)
-            )
         }
         .buttonStyle(.plain)
     }
@@ -180,8 +173,5 @@ private struct HomeFoldersOverflowBadge: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .glassButton(
-            shape: RoundedRectangle(cornerRadius: 24, style: .continuous)
-        )
     }
 }

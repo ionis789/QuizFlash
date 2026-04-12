@@ -172,6 +172,8 @@ extension AppRoute: Hashable {
 /// Routes owned by the dedicated feature-lab tab.
 enum FeatureLabRoute: Hashable, CaseIterable {
     case developmentSettings
+    case flashCardsPlayModeSimulation
+    case animatedObjectsLab
     case sharedUICatalog
     case contextMenu
 }
@@ -182,7 +184,7 @@ extension FeatureLabRoute {
         switch self {
         case .developmentSettings:
             return features.allowsDevelopmentRoutes
-        case .sharedUICatalog, .contextMenu:
+        case .flashCardsPlayModeSimulation, .animatedObjectsLab, .sharedUICatalog, .contextMenu:
             return features.showsInternalLabs
         }
     }
@@ -196,6 +198,10 @@ extension FeatureLabRoute {
         switch self {
         case .developmentSettings:
             return "Development Settings"
+        case .flashCardsPlayModeSimulation:
+            return "FlashCards Play Mode Simulation"
+        case .animatedObjectsLab:
+            return "Animated Objects Lab"
         case .sharedUICatalog:
             return "Shared UI Catalog"
         case .contextMenu:
@@ -207,6 +213,10 @@ extension FeatureLabRoute {
         switch self {
         case .developmentSettings:
             return "AI, traces, debug toggles."
+        case .flashCardsPlayModeSimulation:
+            return "Infinite swipe sandbox with real flashcard chrome."
+        case .animatedObjectsLab:
+            return "Standalone motion objects and playback tuning."
         case .sharedUICatalog:
             return "Shared views and modifiers."
         case .contextMenu:
@@ -218,6 +228,10 @@ extension FeatureLabRoute {
         switch self {
         case .developmentSettings:
             return "slider.horizontal.3"
+        case .flashCardsPlayModeSimulation:
+            return "rectangle.stack.badge.play"
+        case .animatedObjectsLab:
+            return "sparkles.rectangle.stack"
         case .sharedUICatalog:
             return "square.grid.2x2"
         case .contextMenu:
@@ -229,6 +243,10 @@ extension FeatureLabRoute {
         switch self {
         case .developmentSettings:
             return .purple
+        case .flashCardsPlayModeSimulation:
+            return .orange
+        case .animatedObjectsLab:
+            return .cyan
         case .sharedUICatalog:
             return .cyan
         case .contextMenu:

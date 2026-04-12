@@ -17,6 +17,7 @@ final class DevelopmentPreferences {
     private enum Keys {
         static let aiDebugTracingEnabled = AIDebugTracePreferenceKeys.debugTracingEnabled
         static let deckGridTextLayoutDebugEnabled = "preferences.development.deckGridTextLayoutDebugEnabled"
+        static let playModeDeveloperModeEnabled = "preferences.development.playModeDeveloperModeEnabled"
     }
 
     private let userDefaults: UserDefaults
@@ -41,6 +42,16 @@ final class DevelopmentPreferences {
         }
     }
 
+    /// Enables temporary play-mode developer controls and experiments.
+    var playModeDeveloperModeEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                playModeDeveloperModeEnabled,
+                forKey: Keys.playModeDeveloperModeEnabled
+            )
+        }
+    }
+
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.aiDebugTracingEnabled = userDefaults.object(
@@ -48,6 +59,9 @@ final class DevelopmentPreferences {
         ) as? Bool ?? AppFeatures.current.enablesAITraceTooling
         self.deckGridTextLayoutDebugEnabled = userDefaults.object(
             forKey: Keys.deckGridTextLayoutDebugEnabled
+        ) as? Bool ?? false
+        self.playModeDeveloperModeEnabled = userDefaults.object(
+            forKey: Keys.playModeDeveloperModeEnabled
         ) as? Bool ?? false
     }
 }

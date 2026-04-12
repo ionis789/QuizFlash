@@ -21,7 +21,6 @@ struct SelectionToolbarCapsuleButton<Label: View>: View {
             label()
                 .padding(.horizontal, 10)
                 .frame(height: UIConstants.Size.selectionToolbarControl)
-                .glassButton(shape: .capsule)
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
@@ -74,7 +73,6 @@ struct SelectionToolbarIconButton<Label: View>: View {
                     width: UIConstants.Size.selectionToolbarControl,
                     height: UIConstants.Size.selectionToolbarControl
                 )
-                .glassButton(shape: .circle)
         }
         .overlay(alignment: .topTrailing) {
             if let badgeCount, badgeCount > 0 {
