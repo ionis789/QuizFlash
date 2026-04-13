@@ -10,6 +10,8 @@ import SwiftUI
 /// A reusable capsule selector powered by the same delayed commit and UIKit-backed
 /// selection motion used by the app tab bar.
 struct CapsuleSelectionControl<Option: Hashable, Label: View>: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let options: [Option]
     let selection: Option
     var onSelection: (Option) -> Void
@@ -79,21 +81,15 @@ struct CapsuleSelectionControl<Option: Hashable, Label: View>: View {
                             offset: dragOffset,
                             itemWidth: itemWidth,
                             itemHeight: itemHeight,
-                            isInteracting: isActive
+                            isInteracting: isActive,
+                            fillColor: themeManager.roleColor(.tabSelectionFill)
                         )
                     }
                     .padding(.horizontal, horizontalPadding)
                     .padding(.vertical, verticalPadding)
                     .background {
                         Capsule()
-                            .fill(.ultraThinMaterial)
-                            .overlay {
-                                Capsule()
-                                    .fill(Color.white.opacity(0.35))
-                                    .blur(radius: 10)
-                                    .mask(Capsule().stroke(lineWidth: 4))
-                                    .blendMode(.overlay)
-                            }
+                            .fill(themeManager.roleColor(.tabBarTrackFill))
                     }
                     .geometryGroup()
                 }

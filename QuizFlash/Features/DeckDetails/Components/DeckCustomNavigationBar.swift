@@ -50,8 +50,9 @@ struct DeckCustomNavigationBar: View {
     // MARK: - Computed Properties
 
     @Environment(DeckScrollState.self) private var scrollState
+    @Environment(ThemeManager.self) private var themeManager
 
-    private var accentColor: Color { ThemeManager.shared.accentColor.color }
+    private var accentColor: Color { themeManager.roleColor(.backButtonForeground) }
     private var shouldShowCollapsedTitle: Bool {
         searchQuery == nil && scrollState.pillVisible
     }
@@ -97,10 +98,7 @@ struct DeckCustomNavigationBar: View {
                     .fontDesign(.rounded)
             }
             .foregroundStyle(accentColor)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .frame(height: UIConstants.Size.capsuleHeight)
         }
-        .buttonStyle(.plain)
+        .quizFlashButtonStyle(.surface, shape: .capsule, size: UIConstants.Size.capsuleHeight)
     }
 }

@@ -99,6 +99,145 @@ extension AnyTransition {
     }
 }
 
+// MARK: - Brand Button Chrome
+
+/// Semantic chrome roles supported by the shared brand button style.
+enum QuizFlashButtonChrome {
+    case primary
+    case secondary
+    case accentAlt
+    case surface
+}
+
+/// Shared button shapes supported by the shared brand button style.
+enum QuizFlashButtonShape {
+    case capsule
+    case circle
+}
+
+/// Applies the shared flat button chrome used across primary call-to-actions.
+private struct QuizFlashBrandButtonStyle: ButtonStyle {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let chrome: QuizFlashButtonChrome
+    let shape: QuizFlashButtonShape
+    let size: CGFloat
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(foregroundColor.opacity(configuration.isPressed ? 0.94 : 1))
+            .padding(.horizontal, shape == .capsule ? 18 : 0)
+            .frame(
+                minWidth: shape == .circle ? size : nil,
+                maxWidth: shape == .circle ? size : nil,
+                minHeight: size,
+                maxHeight: size
+            )
+            .background {
+                backgroundFill(isPressed: configuration.isPressed)
+            }
+            .opacity(configuration.isPressed ? 0.92 : 1)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.timingCurve(0.24, 0.84, 0.30, 1.0, duration: 0.18), value: configuration.isPressed)
+    }
+
+    private var fillColor: Color {
+        switch chrome {
+        case .primary:
+            themeManager.roleColor(.buttonPrimaryFill)
+        case .secondary:
+            themeManager.roleColor(.buttonSecondaryFill)
+        case .accentAlt:
+            themeManager.roleColor(.buttonDangerFill)
+        case .surface:
+            themeManager.roleColor(.buttonSurfaceFill)
+        }
+    }
+
+    private var foregroundColor: Color {
+        switch chrome {
+        case .primary:
+            themeManager.roleColor(.buttonPrimaryForeground)
+        case .secondary:
+            themeManager.roleColor(.buttonSecondaryForeground)
+        case .accentAlt:
+            themeManager.roleColor(.buttonDangerForeground)
+        case .surface:
+            themeManager.roleColor(.buttonSurfaceForeground)
+        }
+    }
+
+    @ViewBuilder
+    private func backgroundFill(isPressed: Bool) -> some View {
+        switch shape {
+        case .capsule:
+            Capsule(style: .continuous)
+                .fill(fillColor.opacity(isPressed ? 0.92 : 1))
+        case .circle:
+            Circle()
+                .fill(fillColor.opacity(isPressed ? 0.92 : 1))
+        }
+    }
+}
+
+/// Applies the shared flat chrome to non-button content such as pills and labels.
+private struct QuizFlashChromeModifier: ViewModifier {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let chrome: QuizFlashButtonChrome
+    let shape: QuizFlashButtonShape
+    let size: CGFloat
+    let horizontalPadding: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .foregroundStyle(foregroundColor)
+            .padding(.horizontal, shape == .capsule ? horizontalPadding : 0)
+            .frame(
+                minWidth: shape == .circle ? size : nil,
+                maxWidth: shape == .circle ? size : nil,
+                minHeight: size,
+                maxHeight: size
+            )
+            .background {
+                switch shape {
+                case .capsule:
+                    Capsule(style: .continuous)
+                        .fill(fillColor)
+                case .circle:
+                    Circle()
+                        .fill(fillColor)
+                }
+            }
+    }
+
+    private var fillColor: Color {
+        switch chrome {
+        case .primary:
+            themeManager.roleColor(.labelPrimaryFill)
+        case .secondary:
+            themeManager.roleColor(.labelSecondaryFill)
+        case .accentAlt:
+            themeManager.roleColor(.labelDangerFill)
+        case .surface:
+            themeManager.roleColor(.labelSurfaceFill)
+        }
+    }
+
+    private var foregroundColor: Color {
+        switch chrome {
+        case .primary:
+            themeManager.roleColor(.labelPrimaryForeground)
+        case .secondary:
+            themeManager.roleColor(.labelSecondaryForeground)
+        case .accentAlt:
+            themeManager.roleColor(.labelDangerForeground)
+        case .surface:
+            themeManager.roleColor(.labelSurfaceForeground)
+        }
+    }
+}
+
 // MARK: - FlashcardSurfaceRole
 
 /// Semantic surface roles supported by the shared flashcard/widget chrome modifier.
@@ -112,6 +251,7 @@ enum FlashcardSurfaceRole {
 /// Applies the shared surface chrome used by flashcards and widget-like cards.
 private struct FlashcardSurfaceModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(ThemeManager.self) private var themeManager
 
     let cornerRadius: CGFloat
     let shadowRadius: CGFloat
@@ -145,15 +285,11 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     private var surfaceBackground: AnyShapeStyle {
         switch surfaceRole {
         case .card:
-            AnyShapeStyle(
-                colorScheme == .dark
-                    ? Color(uiColor: .secondarySystemBackground)
-                    : Color.white
-            )
+            AnyShapeStyle(themeManager.roleColor(.cardSurfaceFill))
         case .widget:
             AnyShapeStyle(
-                Color.libraryDeckRow
-                    .shadow(.inner(color: Color.white.opacity(colorScheme == .dark ? 0.12 : 0.18), radius: 1, x: 0, y: 0))
+                themeManager.roleColor(.widgetSurfaceFill)
+                    .shadow(.inner(color: themeManager.textPrimary.opacity(colorScheme == .dark ? 0.035 : 0.08), radius: 1.2, x: 0, y: 0))
             )
         }
     }
@@ -172,11 +308,21 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     }
 
     private var basePrimaryBorderColor: Color {
-        Color.white.opacity(colorScheme == .dark ? 0.18 : 0.55)
+        switch surfaceRole {
+        case .card:
+            themeManager.textPrimary.opacity(colorScheme == .dark ? 0.14 : 0.40)
+        case .widget:
+            .clear
+        }
     }
 
     private var baseSecondaryBorderColor: Color {
-        Color.white.opacity(colorScheme == .dark ? 0.08 : 0.30)
+        switch surfaceRole {
+        case .card:
+            themeManager.textPrimary.opacity(colorScheme == .dark ? 0.06 : 0.18)
+        case .widget:
+            .clear
+        }
     }
 
     private var resolvedBaseBorderBlurRadius: CGFloat {
@@ -209,7 +355,7 @@ private struct FlashcardSurfaceModifier: ViewModifier {
     }
 
     private var cardBorderColor: Color {
-        Color.white.opacity(colorScheme == .dark ? 0.24 : 0.62)
+        themeManager.textPrimary.opacity(colorScheme == .dark ? 0.18 : 0.42)
     }
 
     private var resolvedCardBorderLineWidth: CGFloat {
@@ -302,6 +448,32 @@ private struct AppScreenBackgroundModifier: ViewModifier {
 // MARK: - View Extensions
 
 extension View {
+    /// Applies the shared QuizFlash button chrome for capsule and circular actions.
+    func quizFlashButtonStyle(
+        _ chrome: QuizFlashButtonChrome = .primary,
+        shape: QuizFlashButtonShape = .capsule,
+        size: CGFloat = UIConstants.Size.buttonHeight
+    ) -> some View {
+        buttonStyle(QuizFlashBrandButtonStyle(chrome: chrome, shape: shape, size: size))
+    }
+
+    /// Applies the shared flat pill chrome to labels and other non-button content.
+    func quizFlashLabelChrome(
+        _ chrome: QuizFlashButtonChrome = .surface,
+        shape: QuizFlashButtonShape = .capsule,
+        size: CGFloat = UIConstants.Size.buttonHeight,
+        horizontalPadding: CGFloat = 18
+    ) -> some View {
+        modifier(
+            QuizFlashChromeModifier(
+                chrome: chrome,
+                shape: shape,
+                size: size,
+                horizontalPadding: horizontalPadding
+            )
+        )
+    }
+
     /// Applies the shared flashcard/widget chrome.
     func flashcardStyle(
         cornerRadius: CGFloat = 40,

@@ -443,8 +443,8 @@ struct HomeExamGoalsEmptyCard: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Button("Create Exam Goal", action: onCreate)
-                .buttonStyle(.borderedProminent)
-                .tint(ThemeManager.shared.accentColor.color)
+                .font(.subheadline.weight(.bold))
+                .quizFlashButtonStyle(.primary)
         }
         .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 210 : 0, alignment: .topLeading)
         .padding(usesRegularMetrics ? UIConstants.Spacing.extraLarge : UIConstants.Spacing.large)

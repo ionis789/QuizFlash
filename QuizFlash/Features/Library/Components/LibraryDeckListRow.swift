@@ -74,10 +74,14 @@ struct LibraryDeckListRow: View, Equatable {
             : LibrarySectionHeaderMetrics.regularDeckTopPadding
     }
 
+    private var selectionFillTint: Color {
+        themeManager.roleColor(.buttonPrimaryFill)
+    }
+
     var body: some View {
         Group {
             if showsContextMenu {
-                rowContent
+                interactiveRowContent
                     .customContextMenu(
                         id: deck.id,
                         isEnabled: !isSelecting,
@@ -86,12 +90,8 @@ struct LibraryDeckListRow: View, Equatable {
                         rowContent
                     }
             } else {
-                rowContent
+                interactiveRowContent
             }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            handlePrimaryTap()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityAddTraits(.isButton)
@@ -128,6 +128,12 @@ struct LibraryDeckListRow: View, Equatable {
             .padding(.top, topContentPadding)
             .padding(.bottom, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                LibraryRowSelectionFill(
+                    tint: selectionFillTint,
+                    isActive: isSelected
+                )
+            }
             .overlay(alignment: .bottom) {
                 LibraryRowSeparator(
                     baseTint: deckTint,
@@ -138,6 +144,27 @@ struct LibraryDeckListRow: View, Equatable {
                 )
                 .padding(.top, 10)
             }
+    }
+
+    private var interactiveRowContent: some View {
+        Group {
+            if isSelecting {
+                rowContent
+                    .contentShape(Rectangle())
+                    .highPriorityGesture(
+                        SpatialTapGesture()
+                            .onEnded { _ in
+                                handlePrimaryTap()
+                            }
+                    )
+            } else {
+                rowContent
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        handlePrimaryTap()
+                    }
+            }
+        }
     }
 
     private var rowMainLine: some View {
@@ -177,6 +204,46 @@ struct LibraryDeckListRow: View, Equatable {
         } else {
             onNavigate()
         }
+    }
+}
+
+private struct LibraryRowSelectionFill: View {
+    let tint: Color
+    let isActive: Bool
+
+    private let activeBottomOpacity: CGFloat = 0.24
+    private let activeMidOpacity: CGFloat = 0.16
+    private let activeTopOpacity: CGFloat = 0.04
+
+    var body: some View {
+        GeometryReader { proxy in
+            let progress: CGFloat = isActive ? 1 : 0
+            let fillHeight = max(
+                0,
+                (proxy.size.height - LibraryRowSeparatorMetrics.fillBaselineInset) * progress
+            )
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                LinearGradient(
+                    stops: [
+                        .init(color: tint.opacity(activeBottomOpacity), location: 0),
+                        .init(color: tint.opacity(activeBottomOpacity), location: 0.08),
+                        .init(color: tint.opacity(activeMidOpacity), location: 0.34),
+                        .init(color: tint.opacity(activeTopOpacity), location: 0.72),
+                        .init(color: tint.opacity(0), location: 1)
+                    ],
+                    startPoint: .bottom,
+                    endPoint: .top
+                )
+                .frame(height: max(0, fillHeight))
+            }
+            .padding(.bottom, LibraryRowSeparatorMetrics.fillBaselineInset)
+        }
+        .clipped()
+        .allowsHitTesting(false)
+        .animation(.circularSelectionSpring, value: isActive)
     }
 }
 
@@ -505,14 +572,16 @@ struct LibraryRowSeparator: View {
         var lineWidth: CGFloat {
             switch self {
             case .passive, .breathing, .highlighted:
-                1.55
+                LibraryRowSeparatorMetrics.lineWidth
             }
         }
 
         var tintBlendProgress: CGFloat {
             switch self {
-            case .passive, .breathing:
+            case .passive:
                 0
+            case .breathing:
+                0.76
             case .highlighted:
                 1
             }
@@ -523,7 +592,7 @@ struct LibraryRowSeparator: View {
             case .passive:
                 0.16
             case .breathing:
-                0.16
+                0.56
             case .highlighted:
                 0.72
             }
@@ -534,7 +603,7 @@ struct LibraryRowSeparator: View {
             case .passive:
                 0.10
             case .breathing:
-                0.10
+                0.18
             case .highlighted:
                 0.12
             }
@@ -545,12 +614,19 @@ struct LibraryRowSeparator: View {
             case .passive:
                 0.7
             case .breathing:
-                0.85
+                1.2
             case .highlighted:
                 0.9
             }
         }
     }
+}
+
+private enum LibraryRowSeparatorMetrics {
+    static let frameHeight: CGFloat = 10.4
+    static let lineWidth: CGFloat = 1.55
+    static let baselineFromBottom: CGFloat = frameHeight * 0.5
+    static let fillBaselineInset: CGFloat = baselineFromBottom - (lineWidth * 0.5)
 }
 
 private struct OrganicWaveSeparatorShape: Shape {
@@ -606,7 +682,7 @@ private struct OrganicWaveProfile {
         let lobeCount = Int(generator.nextDouble(in: 6 ... 8).rounded())
         return OrganicWaveProfile(
             seed: seed,
-            baseHeight: generator.nextCGFloat(in: 9.8 ... 11.0),
+            baseHeight: LibraryRowSeparatorMetrics.frameHeight,
             sampleCount: 72,
             cycleCount: generator.nextDouble(in: 5.3 ... 6.4),
             travelAngularVelocity: generator.nextDouble(in: 3.1 ... 3.6),

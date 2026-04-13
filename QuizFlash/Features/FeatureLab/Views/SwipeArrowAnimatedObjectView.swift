@@ -9,6 +9,29 @@ import Lottie
 import SwiftUI
 import UIKit
 
+private enum SwipeArrowDirectionPalette {
+    static var leftColor: Color { ThemeManager.shared.dangerPrimary }
+    static var rightColor: Color { ThemeManager.shared.successPrimary }
+
+    static func uiColor(for direction: SwipeDirection?) -> UIColor {
+        switch direction {
+        case .left:
+            UIColor(leftColor)
+        case .right, nil:
+            UIColor(rightColor)
+        }
+    }
+
+    static func color(for direction: SwipeDirection?) -> Color {
+        switch direction {
+        case .left:
+            leftColor
+        case .right, nil:
+            rightColor
+        }
+    }
+}
+
 // MARK: - Swipe Arrow Animated Object Phase
 
 /// Playback phase for the standalone swipe arrow object.
@@ -246,12 +269,7 @@ struct SwipeArrowAnimatedObjectView: View {
     }
 
     private var shadowColor: Color {
-        switch direction {
-        case .left:
-            Color(red: 0.92, green: 0.28, blue: 0.31)
-        case .right, nil:
-            Color(red: 0.29, green: 0.56, blue: 0.89)
-        }
+        SwipeArrowDirectionPalette.color(for: direction)
     }
 
     private var shadowOpacity: Double {
@@ -395,12 +413,7 @@ private struct SwipeArrowAnimatedObjectLottieView: UIViewRepresentable {
         ) {
             guard direction != lastDirection else { return }
 
-            let uiColor = switch direction {
-            case .left:
-                UIColor(red: 0.92, green: 0.28, blue: 0.31, alpha: 1)
-            case .right, nil:
-                UIColor(red: 0.29, green: 0.56, blue: 0.89, alpha: 1)
-            }
+            let uiColor = SwipeArrowDirectionPalette.uiColor(for: direction)
 
             var red: CGFloat = 0
             var green: CGFloat = 0

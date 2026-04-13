@@ -27,6 +27,7 @@ struct HomeDashboardView: View {
     let router: NavigationManager
 
     @Environment(\.modelContext) private var context
+    @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Derived Data
 
@@ -39,7 +40,19 @@ struct HomeDashboardView: View {
     }
 
     private var accentColor: Color {
-        ThemeManager.shared.accentColor.color
+        themeManager.roleColor(.buttonPrimaryFill)
+    }
+
+    private var dangerColor: Color {
+        themeManager.roleColor(.buttonDangerFill)
+    }
+
+    private var roseColor: Color {
+        themeManager.roleColor(.labelDangerFill)
+    }
+
+    private var surfaceColor: Color {
+        themeManager.roleColor(.widgetSurfaceFill)
     }
 
     private var greetingTitle: String {
@@ -174,7 +187,7 @@ struct HomeDashboardView: View {
     private var selectedDaySurface: some View {
         let overview = dashboardSnapshot.selectedDayOverview
 
-        return HomeDashboardSurface(highlight: accentColor, usesRegularMetrics: usesRegularMetrics) {
+        return HomeDashboardSurface(highlight: dangerColor, usesRegularMetrics: usesRegularMetrics) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top, spacing: 12) {
                     Text("Today")
@@ -185,7 +198,8 @@ struct HomeDashboardView: View {
 
                     HomeDashboardPill(
                         text: overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal) left",
-                        tint: overview.didReachGoal ? .green : accentColor
+                        tint: overview.didReachGoal ? .green : dangerColor,
+                        backgroundTint: overview.didReachGoal ? .green : roseColor
                     )
                 }
 
@@ -196,12 +210,17 @@ struct HomeDashboardView: View {
 
                 HomeDashboardProgressBar(
                     progress: overview.goalCompletionFraction,
-                    tint: overview.didReachGoal ? .green : accentColor
+                    tint: overview.didReachGoal ? .green : dangerColor
                 )
 
                 HStack(spacing: 10) {
                     HomeDashboardMiniStat(label: "Reviewed", value: "\(overview.cardsReviewed)", tint: accentColor)
-                    HomeDashboardMiniStat(label: "Goal", value: "\(overview.dailyGoal)", tint: .orange)
+                    HomeDashboardMiniStat(
+                        label: "Goal",
+                        value: "\(overview.dailyGoal)",
+                        tint: dangerColor,
+                        backgroundTint: roseColor
+                    )
                     HomeDashboardMiniStat(label: "Streak", value: "\(overview.streakCount)", tint: .green)
                 }
             }
@@ -211,7 +230,7 @@ struct HomeDashboardView: View {
     private var studyTrendSurface: some View {
         let momentum = dashboardSnapshot.weeklyMomentum
 
-        return HomeDashboardSurface(highlight: .white, usesRegularMetrics: usesRegularMetrics) {
+        return HomeDashboardSurface(highlight: accentColor, usesRegularMetrics: usesRegularMetrics) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Text("Trend")
@@ -236,7 +255,8 @@ struct HomeDashboardView: View {
                     HomeDashboardMiniStat(
                         label: "Avg",
                         value: "\(momentum.averageCardsPerActiveDay)",
-                        tint: .orange
+                        tint: dangerColor,
+                        backgroundTint: roseColor
                     )
                 }
 
@@ -256,16 +276,13 @@ struct HomeDashboardView: View {
                     } label: {
                         Image(systemName: "calendar.badge.plus")
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(accentColor)
-                            .frame(width: 38, height: 38)
-                            .background(Color.white.opacity(0.06), in: Circle())
                     }
-                    .buttonStyle(.plain)
+                    .quizFlashButtonStyle(.accentAlt, shape: .circle, size: 38)
                 }
             )
 
             if examGoals.isEmpty {
-                HomeDashboardSurface(highlight: .orange, usesRegularMetrics: usesRegularMetrics) {
+                HomeDashboardSurface(highlight: dangerColor, usesRegularMetrics: usesRegularMetrics) {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("No exam goals")
                             .font(.system(size: 20, weight: .bold, design: .rounded))
@@ -274,18 +291,14 @@ struct HomeDashboardView: View {
                         Button("Create exam goal") {
                             viewModel.presentCreateExamGoal()
                         }
-                        .buttonStyle(.plain)
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 16)
-                        .frame(height: UIConstants.Size.buttonHeight)
-                        .background(Color.white.opacity(0.06), in: Capsule())
+                        .quizFlashButtonStyle(.primary)
                     }
                 }
             } else {
                 if let examPressure = dashboardSnapshot.examPressure
                     ?? dashboardSnapshot.upcomingExamSummaries.first.map(Self.fallbackPressureSummary) {
-                    HomeDashboardSurface(highlight: .red, usesRegularMetrics: usesRegularMetrics) {
+                    HomeDashboardSurface(highlight: dangerColor, usesRegularMetrics: usesRegularMetrics) {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(alignment: .top, spacing: 12) {
                                 Text("Most urgent")
@@ -294,7 +307,11 @@ struct HomeDashboardView: View {
 
                                 Spacer(minLength: 0)
 
-                                HomeDashboardPill(text: examPressure.countdownLabel, tint: .orange)
+                                HomeDashboardPill(
+                                    text: examPressure.countdownLabel,
+                                    tint: dangerColor,
+                                    backgroundTint: roseColor
+                                )
                             }
 
                             Text(examPressure.headline)
@@ -304,14 +321,24 @@ struct HomeDashboardView: View {
 
                             HStack(spacing: 12) {
                                 HomeDashboardMiniStat(label: "Ready", value: "\(Int((examPressure.readinessFraction * 100).rounded()))%", tint: .green)
-                                HomeDashboardMiniStat(label: "Pace", value: "\(examPressure.dailyPaceNeeded)/d", tint: .red)
-                                HomeDashboardMiniStat(label: "Due", value: examPressure.countdownLabel, tint: .orange)
+                                HomeDashboardMiniStat(
+                                    label: "Pace",
+                                    value: "\(examPressure.dailyPaceNeeded)/d",
+                                    tint: dangerColor,
+                                    backgroundTint: roseColor
+                                )
+                                HomeDashboardMiniStat(
+                                    label: "Due",
+                                    value: examPressure.countdownLabel,
+                                    tint: dangerColor,
+                                    backgroundTint: roseColor
+                                )
                             }
                         }
                     }
                 }
 
-                HomeDashboardSurface(highlight: .white, usesRegularMetrics: usesRegularMetrics) {
+                HomeDashboardSurface(highlight: accentColor, usesRegularMetrics: usesRegularMetrics) {
                     VStack(alignment: .leading, spacing: 0) {
                         if !dashboardSnapshot.selectedDayExamSummaries.isEmpty {
                             HomeDashboardSubsectionLabel("Selected day")
@@ -422,7 +449,7 @@ struct HomeDashboardView: View {
                 accessory: {
                     HStack(spacing: 10) {
                         if !folders.isEmpty {
-                            HomeDashboardPill(text: "\(folders.count)", tint: .orange)
+                            HomeDashboardPill(text: "\(folders.count)", tint: dangerColor, backgroundTint: roseColor)
                         }
 
                         Button {
@@ -430,11 +457,8 @@ struct HomeDashboardView: View {
                         } label: {
                             Image(systemName: "folder.badge.plus")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(accentColor)
-                                .frame(width: 34, height: 34)
-                                .background(Color.white.opacity(0.06), in: Circle())
                         }
-                        .buttonStyle(.plain)
+                        .quizFlashButtonStyle(.accentAlt, shape: .circle, size: 34)
                     }
                 }
             )
@@ -444,7 +468,7 @@ struct HomeDashboardView: View {
     }
 
     private var foldersSurface: some View {
-        HomeDashboardSurface(highlight: .orange, usesRegularMetrics: usesRegularMetrics) {
+        HomeDashboardSurface(highlight: dangerColor, usesRegularMetrics: usesRegularMetrics) {
             VStack(alignment: .leading, spacing: 0) {
                 if folders.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
@@ -503,18 +527,14 @@ struct HomeDashboardView: View {
                 Button("Open Create") {
                     router.activeTab = .create
                 }
-                .buttonStyle(.plain)
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 16)
-                .frame(height: UIConstants.Size.buttonHeight)
-                .background(Color.white.opacity(0.06), in: Capsule())
+                .quizFlashButtonStyle(.primary)
             }
         }
     }
 
     private var workspaceWhatChangesSurface: some View {
-        HomeDashboardSurface(highlight: .orange, usesRegularMetrics: usesRegularMetrics) {
+        HomeDashboardSurface(highlight: dangerColor, usesRegularMetrics: usesRegularMetrics) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Next")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
@@ -639,7 +659,15 @@ private struct HomeDashboardSurface<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.white.opacity(0.045))
+                    .fill(Color.backgroundSecondary)
+                    .overlay(alignment: .topLeading) {
+                        Capsule(style: .continuous)
+                            .fill(highlight)
+                            .frame(width: usesRegularMetrics ? 58 : 48, height: 5)
+                            .padding(.top, 14)
+                            .padding(.leading, 16)
+                    }
+                    .shadow(color: Color.black.opacity(0.38), radius: 22, x: 0, y: 14)
             }
     }
 }
@@ -668,9 +696,28 @@ private struct HomeDashboardProgressBar: View {
 }
 
 private struct HomeDashboardMiniStat: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let label: String
     let value: String
     let tint: Color
+    let backgroundTint: Color?
+
+    init(
+        label: String,
+        value: String,
+        tint: Color,
+        backgroundTint: Color? = nil
+    ) {
+        self.label = label
+        self.value = value
+        self.tint = tint
+        self.backgroundTint = backgroundTint
+    }
+
+    private var surfaceColor: Color {
+        themeManager.surfacePrimary
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -693,7 +740,14 @@ private struct HomeDashboardMiniStat: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(surfaceColor)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill((backgroundTint ?? tint).opacity(0.14))
+                }
+        }
     }
 }
 
@@ -713,22 +767,36 @@ private struct HomeDashboardRangeChip: View {
     var body: some View {
         Text(title)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(isActive ? .primary : .secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                (isActive ? Color.white.opacity(0.08) : Color.white.opacity(0.03)),
-                in: Capsule()
+            .quizFlashLabelChrome(
+                isActive ? .primary : .surface,
+                size: 34,
+                horizontalPadding: 14
             )
     }
 }
 
 private struct HomeDashboardTrendPlaceholder: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    private var accentColor: Color {
+        themeManager.roleColor(.buttonPrimaryFill)
+    }
+
+    private var dangerColor: Color {
+        themeManager.roleColor(.buttonDangerFill)
+    }
+
+    private var surfaceColor: Color {
+        themeManager.roleColor(.widgetSurfaceFill)
+    }
+
     var body: some View {
         HStack(alignment: .bottom, spacing: 10) {
-            ForEach([0.28, 0.54, 0.4, 0.76, 0.48, 0.64, 0.34], id: \.self) { value in
+            let values: [Double] = [0.28, 0.54, 0.4, 0.76, 0.48, 0.64, 0.34]
+
+            ForEach(Array(values.enumerated()), id: \.offset) { index, value in
                 Capsule()
-                    .fill(Color.white.opacity(0.08))
+                    .fill(index.isMultiple(of: 3) ? dangerColor.opacity(0.24) : accentColor.opacity(0.22))
                     .frame(maxWidth: .infinity)
                     .frame(height: 28 + (value * 54))
             }
@@ -736,14 +804,20 @@ private struct HomeDashboardTrendPlaceholder: View {
         .frame(height: 110, alignment: .bottom)
         .padding(.horizontal, 6)
         .padding(.vertical, 10)
-        .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(surfaceColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
 private struct HomeDashboardInlineBadge: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let title: String
     let subtitle: String
     let tint: Color
+
+    private var surfaceColor: Color {
+        themeManager.roleColor(.widgetSurfaceFill)
+    }
 
     var body: some View {
         VStack(spacing: 4) {
@@ -759,7 +833,14 @@ private struct HomeDashboardInlineBadge: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(surfaceColor)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(tint.opacity(0.10))
+                }
+        }
     }
 }
 
@@ -797,6 +878,8 @@ private struct HomeDashboardSubsectionLabel: View {
 }
 
 private struct HomeDashboardExamGoalRow: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let summary: HomeExamGoalSummary
     let onOpenDeck: (PersistentIdentifier) -> Void
     let onEdit: () -> Void
@@ -829,6 +912,14 @@ private struct HomeDashboardExamGoalRow: View {
         max(summary.deckSummaries.count - deckPreviewSnapshots.count, 0)
     }
 
+    private var dangerColor: Color {
+        themeManager.dangerPrimary
+    }
+
+    private var roseColor: Color {
+        themeManager.highlightRose
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
@@ -848,18 +939,16 @@ private struct HomeDashboardExamGoalRow: View {
                 VStack(alignment: .trailing, spacing: 10) {
                     HomeDashboardPill(
                         text: summary.countdownLabel,
-                        tint: summary.status == .completed ? .green : .orange
+                        tint: summary.status == .completed ? .green : dangerColor,
+                        backgroundTint: summary.status == .completed ? .green : roseColor
                     )
 
                     HStack(spacing: 8) {
                         Button(action: onEdit) {
                             Image(systemName: "square.and.pencil")
                                 .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(.primary)
-                                .frame(width: 30, height: 30)
-                                .background(Color.white.opacity(0.06), in: Circle())
                         }
-                        .buttonStyle(.plain)
+                        .quizFlashButtonStyle(.surface, shape: .circle, size: 30)
 
                         Menu {
                             ForEach(ExamGoalStatus.allCases) { status in
@@ -888,7 +977,8 @@ private struct HomeDashboardExamGoalRow: View {
                 )
                 HomeDashboardPill(
                     text: "\(summary.dailyPaceNeeded)/day",
-                    tint: .red
+                    tint: dangerColor,
+                    backgroundTint: roseColor
                 )
             }
 
@@ -919,7 +1009,7 @@ private struct HomeDashboardExamGoalRow: View {
     private var statusTint: Color {
         switch summary.status {
         case .active:
-            return .orange
+            return dangerColor
         case .completed:
             return .green
         case .archived:
@@ -929,8 +1019,21 @@ private struct HomeDashboardExamGoalRow: View {
 }
 
 private struct HomeDashboardPill: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let text: String
     let tint: Color
+    let backgroundTint: Color?
+
+    init(
+        text: String,
+        tint: Color,
+        backgroundTint: Color? = nil
+    ) {
+        self.text = text
+        self.tint = tint
+        self.backgroundTint = backgroundTint
+    }
 
     var body: some View {
         Text(text)
@@ -938,7 +1041,14 @@ private struct HomeDashboardPill: View {
             .foregroundStyle(tint)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(tint.opacity(0.14), in: Capsule())
+            .background {
+                Capsule(style: .continuous)
+                    .fill(themeManager.surfacePrimary)
+                    .overlay {
+                        Capsule(style: .continuous)
+                            .fill((backgroundTint ?? tint).opacity(0.18))
+                    }
+            }
     }
 }
 
@@ -964,11 +1074,13 @@ private struct HomeDashboardLibraryDeckRow: View {
 }
 
 private struct HomeDashboardFolderRow: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let folder: FolderModel
     let action: () -> Void
 
     private var folderColor: Color {
-        Color(hex: folder.colorHex) ?? ThemeManager.shared.accentColor.color
+        Color(hex: folder.colorHex) ?? themeManager.brandPrimary
     }
 
     var body: some View {

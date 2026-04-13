@@ -40,7 +40,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
                     screenTitle
                     profileCard
-                    personalizationSection
+                    appearanceSection
                     studyDefaultsSection
                     workflowSection
                     supportSection
@@ -168,32 +168,17 @@ struct SettingsView: View {
         .background(Color.white.opacity(0.05), in: Capsule())
     }
 
-    private var personalizationSection: some View {
+    private var appearanceSection: some View {
         SettingsSectionCard(
-            title: "Personalization",
+            title: "Appearance",
             subtitle: nil
         ) {
-            NavigationLink {
-                AccentColorPickerView()
-            } label: {
-                SettingsNavigationRow(
-                    icon: "paintpalette.fill",
-                    tint: themeManager.accentColor.color,
-                    title: "Accent Color",
-                    detail: nil,
-                    value: themeManager.accentColor.rawValue
-                )
-            }
-            .buttonStyle(.plain)
-
-            SettingsCardDivider()
-
             NavigationLink {
                 SettingsCardAppearanceView()
             } label: {
                 SettingsNavigationRow(
                     icon: "rectangle.on.rectangle",
-                    tint: .cyan,
+                    tint: themeManager.accentColor.color,
                     title: "Card Appearance",
                     detail: nil,
                     value: currentCardAppearanceTitle
@@ -442,109 +427,6 @@ struct SettingsView: View {
 
     private var isPremiumUser: Bool {
         false
-    }
-}
-
-// MARK: - Accent Color Picker View
-
-struct AccentColorPickerView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(ThemeManager.self) private var themeManager
-
-    private let columns = [
-        GridItem(.adaptive(minimum: 70, maximum: 100), spacing: 16)
-    ]
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(spacing: 12) {
-                    Text("Preview")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    HStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [themeManager.accentColor.color.opacity(0.7), themeManager.accentColor.color.opacity(0.3)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: 48, height: 48)
-
-                            Image(systemName: "book.closed.fill")
-                                .font(.title3.weight(.semibold))
-                                .foregroundStyle(.white)
-                        }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Sample Deck")
-                                .font(.body.weight(.semibold))
-                            Text("10 cards")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .padding(14)
-                    .background(Color(uiColor: .secondarySystemGroupedBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .padding(.horizontal, 20)
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Choose Color")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 20)
-
-                    LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(AccentColorOption.allCases) { option in
-                            Button {
-                                withAnimation(.spring(response: 0.3)) {
-                                    themeManager.accentColor = option
-                                }
-                            } label: {
-                                VStack(spacing: 8) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(option.color)
-                                            .frame(width: 50, height: 50)
-                                            .shadow(color: option.color.opacity(0.4), radius: 6, y: 3)
-
-                                        if themeManager.accentColor == option {
-                                            Image(systemName: "checkmark")
-                                                .font(.body.weight(.bold))
-                                                .foregroundStyle(.white)
-                                        }
-                                    }
-
-                                    Text(option.rawValue)
-                                        .font(.caption2.weight(.medium))
-                                        .foregroundStyle(themeManager.accentColor == option ? .primary : .secondary)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                }
-            }
-            .padding(.top, 20)
-        }
-        .appScreenBackground(.grouped)
-        .toolbar(.hidden, for: .navigationBar)
-        .swipeBack {
-            dismiss()
-        }
     }
 }
 

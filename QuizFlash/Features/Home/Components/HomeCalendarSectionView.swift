@@ -21,6 +21,7 @@ import UIKit
 ///   hardcoded values.
 struct HomeCalendarSectionView: View {
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Dependencies
 
@@ -100,10 +101,10 @@ struct HomeCalendarSectionView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
 
-            HStack(spacing: state.monthControlSpacing) {
-                chevronButton(increment: false, size: state.monthControlSize)
-                chevronButton(increment: true, size: state.monthControlSize)
-            }
+            monthNavigationControl(
+                size: state.monthControlSize,
+                spacing: state.monthControlSpacing
+            )
         }
         .frame(height: state.titleHeight, alignment: .center)
         .padding(.bottom, state.titleBottomSpacing)
@@ -150,86 +151,57 @@ struct HomeCalendarSectionView: View {
         let pagerState = layout.expanded
         let visibleGridWidth = (usesMonthPager ? pagerState.dayColumnWidth : state.dayColumnWidth) * 7
         let capsuleWidth = layout.capsuleWidth(for: progress)
-        let compactBackdropProgress = max(0, min((progress - 0.44) / 0.56, 1.0))
-        let compactContentShadowProgress = max(0, min((progress - 0.40) / 0.60, 1.0))
+        let calendarTrack = ZStack(alignment: .top) {
+            if !isCompactStripActive && usesMonthPager {
+                expandedMonthPager(progress: 0, state: pagerState)
+                    .frame(width: visibleGridWidth, alignment: .leading)
+            }
 
-        VStack(spacing: 0) {
+            if !isCompactStripActive && !usesMonthPager {
+                dayGrid(
+                    totalGridHeight: totalGridHeight,
+                    progress: progress,
+                    state: state
+                )
+                .frame(width: visibleGridWidth, alignment: .leading)
+            }
+
+            if isCompactStripActive && !compactWeekPages.isEmpty {
+                CompactCalendarWeekStrip(
+                    weeks: compactWeekPages,
+                    visibleWidth: visibleGridWidth,
+                    dayColumnWidth: state.dayColumnWidth,
+                    dayRowHeight: state.rowHeight,
+                    calendarInsightsCache: calendarInsightsCache,
+                    onSelectDay: { day in
+                        calendarVM.selectDate(day.date)
+                    }
+                )
+                .transition(.identity)
+                .transaction { $0.animation = nil }
+            }
+        }
+        .frame(
+            height: state.rowHeight + (totalGridHeight - state.rowHeight) * (1 - progress),
+            alignment: .top
+        )
+        .transaction { $0.animation = nil }
+
+        let gridContent = VStack(spacing: 0) {
             weekdayLabels(state: state)
                 .frame(width: visibleGridWidth, alignment: .leading)
 
-            ZStack(alignment: .top) {
-                if !isCompactStripActive && usesMonthPager {
-                    expandedMonthPager(progress: 0, state: pagerState)
-                        .frame(width: visibleGridWidth, alignment: .leading)
-                }
-
-                if !isCompactStripActive && !usesMonthPager {
-                    dayGrid(
-                        totalGridHeight: totalGridHeight,
-                        progress: progress,
-                        state: state
-                    )
-                    .frame(width: visibleGridWidth, alignment: .leading)
-                }
-
-                if isCompactStripActive && !compactWeekPages.isEmpty {
-                    CompactCalendarWeekStrip(
-                        weeks: compactWeekPages,
-                        visibleWidth: visibleGridWidth,
-                        dayColumnWidth: state.dayColumnWidth,
-                        dayRowHeight: state.rowHeight,
-                        calendarInsightsCache: calendarInsightsCache,
-                        onSelectDay: { day in
-                            calendarVM.selectDate(day.date)
-                        }
-                    )
-                    .transition(.identity)
-                    .transaction { $0.animation = nil }
-                }
+            if isCompactStripActive {
+                calendarTrack
+            } else {
+                calendarTrack
+                    .clipped()
             }
-            .frame(
-                height: state.rowHeight + (totalGridHeight - state.rowHeight) * (1 - progress),
-                alignment: .top
-            )
-            .clipped()
-            .transaction { $0.animation = nil }
         }
         .padding(.horizontal, state.horizontalPadding)
         .padding(.vertical, state.verticalPadding)
         .frame(width: capsuleWidth, alignment: .leading)
-        .background {
-            if compactBackdropProgress > 0.001 {
-                RoundedRectangle(cornerRadius: state.cornerRadius, style: .continuous)
-                    .fill(.thinMaterial)
-                    .opacity(compactBackdropProgress)
-                    .shadow(
-                        color: Color.black.opacity(0.18 * compactBackdropProgress),
-                        radius: 22 * compactBackdropProgress,
-                        x: 0,
-                        y: 10 * compactBackdropProgress
-                    )
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: state.cornerRadius, style: .continuous))
-        .compositingGroup()
-        .shadow(
-            color: Color.black.opacity(0.52 * compactContentShadowProgress),
-            radius: 16 * compactContentShadowProgress,
-            x: 0,
-            y: 6 * compactContentShadowProgress
-        )
-        .shadow(
-            color: Color.black.opacity(0.34 * compactContentShadowProgress),
-            radius: 34 * compactContentShadowProgress,
-            x: 0,
-            y: 12 * compactContentShadowProgress
-        )
-        .shadow(
-            color: Color.black.opacity(0.18 * compactContentShadowProgress),
-            radius: 58 * compactContentShadowProgress,
-            x: 0,
-            y: 20 * compactContentShadowProgress
-        )
+        gridContent
     }
 
     @ViewBuilder
@@ -314,16 +286,51 @@ struct HomeCalendarSectionView: View {
         .offset(y: -(calendarVM.monthProgress * state.rowHeight) * progress)
     }
 
-    /// A minimal button for advancing or rewinding the displayed month.
-    ///
-    /// - Parameter increment: `true` to move forward one month, `false` to go back.
-    private func chevronButton(increment: Bool, size: CGFloat) -> some View {
-        Button {
-            calendarVM.monthUpdate(increment: increment)
+    private func monthNavigationControl(size: CGFloat, spacing: CGFloat) -> some View {
+        if size <= 0.1 {
+            return AnyView(EmptyView())
+        }
+
+        let controlHeight = max(size * 1.22, 1)
+        let buttonDiameter = max(controlHeight * 0.88, 1)
+        let horizontalInset = max(controlHeight * 0.18, 2)
+        let buttonSpacing = max(spacing, controlHeight * 0.04)
+        let totalWidth = (buttonDiameter * 2) + (horizontalInset * 2) + buttonSpacing
+
+        return AnyView(ZStack {
+            Capsule(style: .continuous)
+                .fill(themeManager.roleColor(.buttonSurfaceFill))
+
+            HStack(spacing: buttonSpacing) {
+                monthChevronButton(
+                    systemName: "chevron.compact.left",
+                    size: buttonDiameter,
+                    action: { calendarVM.monthUpdate(increment: false) }
+                )
+
+                monthChevronButton(
+                    systemName: "chevron.compact.right",
+                    size: buttonDiameter,
+                    action: { calendarVM.monthUpdate(increment: true) }
+                )
+            }
+            .padding(.horizontal, horizontalInset)
+        }
+        .frame(width: totalWidth, height: controlHeight)
+        .clipped())
+    }
+
+    private func monthChevronButton(
+        systemName: String,
+        size: CGFloat,
+        action: @escaping () -> Void
+    ) -> some View {
+        return Button {
+            action()
         } label: {
-            Image(systemName: increment ? "chevron.right" : "chevron.left")
-                .font(.system(size: size * 0.48, weight: .semibold))
-                .foregroundStyle(.secondary.opacity(0.95))
+            Image(systemName: systemName)
+                .font(.system(size: size * 0.52, weight: .black, design: .rounded))
+                .foregroundStyle(themeManager.roleColor(.circularToolbarForeground))
                 .frame(width: size, height: size)
                 .contentShape(Rectangle())
         }
@@ -342,6 +349,7 @@ struct HomeCalendarSectionView: View {
 /// Handles visual state mapping for today, productive study days, and the selected date.
 /// Colours come exclusively from `ThemeManager` or semantic SwiftUI tokens.
 struct CalendarDayCellView: View {
+    @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Input
 
@@ -357,9 +365,13 @@ struct CalendarDayCellView: View {
         Calendar.current.isDateInToday(day.date)
     }
 
+    private var usesCompactCapsulePresentation: Bool {
+        collapseProgress >= 0.995
+    }
+
     /// The active theme accent colour, resolved from `ThemeManager`.
     private var accent: Color {
-        ThemeManager.shared.accentColor.color
+        themeManager.roleColor(.buttonPrimaryFill)
     }
 
     private var didStudy: Bool {
@@ -400,34 +412,31 @@ struct CalendarDayCellView: View {
     // MARK: - Styling
 
     private var tileFillColor: Color {
-        if day.ignored { return .clear }
+        if day.ignored { return usesCompactCapsulePresentation ? themeManager.roleColor(.widgetSurfaceFill) : .clear }
         if day.isSelected { return .white }
         if isToday { return accent }
-        if isPerfectDay { return .green }
+        if isPerfectDay { return .green.opacity(0.88) }
         if didStudy { return accent }
-        return .white
+        return themeManager.roleColor(.widgetSurfaceFill)
     }
 
     private var tileFillOpacity: Double {
-        if day.ignored { return 0 }
-        if day.isSelected { return 1.0 }
-        if isToday { return didStudy ? 0.24 : 0.16 }
-        if isPerfectDay { return 0.18 + (activityFraction * 0.10) }
-        if didStudy { return 0.12 + (activityFraction * 0.08) }
-        return 0.06
+        if day.ignored { return usesCompactCapsulePresentation ? 1 : 0 }
+        return 1.0
     }
 
     private var textColor: Color {
-        if day.isSelected { return .black }
-        if isToday { return accent }
-        if isPerfectDay { return .green }
-        if didStudy { return accent.opacity(0.92) }
-        if day.ignored { return .secondary.opacity(0.3) }
-        return .primary
+        if day.ignored {
+            return usesCompactCapsulePresentation ? themeManager.textSecondary.opacity(0.65) : .secondary.opacity(0.3)
+        }
+        if day.isSelected { return themeManager.screenBackground }
+        if isToday || didStudy { return themeManager.screenBackground }
+        if isPerfectDay { return themeManager.screenBackground }
+        return themeManager.textPrimary
     }
 
     private var tileSize: CGFloat {
-        if day.ignored { return 0 }
+        if day.ignored && !usesCompactCapsulePresentation { return 0 }
         let cellMinDimension = min(dayColumnWidth, rowHeight)
         let scale: CGFloat = cellMinDimension >= 72 ? 0.62 : 0.70
         return max(cellMinDimension * scale, 0)
@@ -441,7 +450,7 @@ struct CalendarDayCellView: View {
     }
 
     private var noteMarkerColor: Color {
-        .orange
+        themeManager.dangerPrimary
     }
 
     // MARK: - Body

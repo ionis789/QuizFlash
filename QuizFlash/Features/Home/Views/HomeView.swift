@@ -32,6 +32,7 @@ struct HomeView: View {
 
     @Environment(NavigationManager.self) private var router
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - SwiftData Queries
 
@@ -91,7 +92,7 @@ struct HomeView: View {
 
             // MARK: Content
             ZStack {
-                Color.black
+                themeManager.screenBackground
                     .ignoresSafeArea()
 
                 ScrollView(.vertical) {
@@ -113,6 +114,7 @@ struct HomeView: View {
                         .frame(minHeight: proxy.size.height - calendarLayout.compactHeight)
                         .zIndex(1)
                     }
+                    .animation(.snappy(duration: 0.28, extraBounce: 0.04), value: calendarVM.monthRows.count)
                     .tabBarAutoHideOnScroll()
                     .frame(maxWidth: .infinity, alignment: .top)
                 }

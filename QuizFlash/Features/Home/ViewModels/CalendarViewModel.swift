@@ -421,9 +421,6 @@ final class CalendarViewModel {
             ))
         }
 
-        // Pad only enough to complete the final week row — no forced minimum.
-        // Showing a full extra row of next-month days when the month fits in 5 rows
-        // adds visual noise without benefit; each month now occupies its natural row count.
         let trailingPadding = (7 - (days.count % 7)) % 7
         if trailingPadding > 0 {
             for index in 0..<trailingPadding {

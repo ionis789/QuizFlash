@@ -17,6 +17,8 @@ import SwiftUI
 /// Used at the top of a deck row or sheet header — not in the main `DeckView`
 /// scroll canvas (which uses the larger inline hero layout instead).
 struct DeckHeaderView: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     private static let creationDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -80,24 +82,15 @@ struct DeckHeaderView: View {
                             weight: .bold
                         )
                     )
-                        .foregroundStyle(.secondary)
-                        .frame(
-                        height: UIConstants.Size.heroInlineActionHeight
-                    )
-                        .padding(.horizontal, 12)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .overlay {
-                        Capsule()
-                            .stroke(Color.white.opacity(0.10), lineWidth: 0.75)
-                    }
+                        .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
                 }
-                    .buttonStyle(.plain)
+                    .quizFlashButtonStyle(.accentAlt, shape: .capsule, size: UIConstants.Size.heroInlineActionHeight)
             }
                 .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
                 .padding(.top, 16)
                 .padding(.bottom, 12)
         }
-            .background(Color(uiColor: .systemGroupedBackground))
+            .background(themeManager.screenBackground)
     }
 }
 
@@ -126,7 +119,7 @@ struct DeckPlayModesView: View {
 
     // MARK: - Computed Properties
 
-    private var accentColor: Color { ThemeManager.shared.accentColor.color }
+    private var accentColor: Color { ThemeManager.shared.roleColor(.buttonPrimaryFill) }
     private var deckColor: Color { Color(hex: deck.colorHex) ?? accentColor }
     private var orderedModes: [DeckPlayModeDestination] {
         let visibleModes = DeckPlayModeDestination.allCases.filter { $0 != .learn }
@@ -324,17 +317,8 @@ private struct PlayModeCard: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(tintColor)
                     .frame(width: 34, height: 34)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-                    .overlay {
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .fill(tintColor.opacity(0.12))
-                }
-                    .overlay {
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .stroke(Color.white.opacity(0.10), lineWidth: 0.75)
-                }
             }
-                .buttonStyle(.plain)
+                .quizFlashButtonStyle(.surface, shape: .circle, size: 34)
                 .padding(12)
         }
             .opacity(canPlay ? 1 : 0.56)
@@ -383,6 +367,8 @@ struct DeckSectionToolbar: View {
 /// accent-tinted overlay, matching the exact padding and height of the back button.
 struct DeckActionOverlay: View {
 
+    @Environment(ThemeManager.self) private var themeManager
+
     // MARK: - Inputs
 
     /// The deck being acted upon (passed to contextual actions).
@@ -427,9 +413,12 @@ struct DeckActionOverlay: View {
 
     private var addButton: some View {
         Button(action: onAdd) {
-            actionChromeLabel(symbol: "plus", tint: accent)
+            actionChromeLabel(
+                symbol: "plus",
+                tint: themeManager.roleColor(.buttonDangerForeground)
+            )
         }
-            .buttonStyle(.plain)
+            .quizFlashButtonStyle(.accentAlt, shape: .circle, size: UIConstants.Size.actionButton)
     }
 
     // MARK: - Menu Button
@@ -473,7 +462,7 @@ struct DeckActionOverlay: View {
         } label: {
             actionChromeLabel(symbol: "ellipsis", tint: isSelecting ? .white : accent)
         }
-            .buttonStyle(.plain)
+            .quizFlashButtonStyle(.surface, shape: .circle, size: UIConstants.Size.actionButton)
             .accessibilityLabel("More actions")
     }
 

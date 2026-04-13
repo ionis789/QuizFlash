@@ -17,6 +17,7 @@ struct UIKitTabBarSelectionAnimator: UIViewRepresentable {
     let itemWidth: CGFloat
     let itemHeight: CGFloat
     let isInteracting: Bool
+    let fillColor: Color
 
     func makeUIView(context: Context) -> SelectionAnimatorView {
         SelectionAnimatorView()
@@ -27,7 +28,8 @@ struct UIKitTabBarSelectionAnimator: UIViewRepresentable {
             offset: offset,
             itemWidth: itemWidth,
             itemHeight: itemHeight,
-            isInteracting: isInteracting
+            isInteracting: isInteracting,
+            fillColor: UIColor(fillColor)
         )
     }
 }
@@ -52,11 +54,13 @@ final class SelectionAnimatorView: UIView {
         offset: CGFloat,
         itemWidth: CGFloat,
         itemHeight: CGFloat,
-        isInteracting: Bool
+        isInteracting: Bool,
+        fillColor: UIColor
     ) {
         let frame = alignedCapsuleFrame(offset: offset, itemWidth: itemWidth, itemHeight: itemHeight)
 
         fillView.layer.cornerRadius = frame.height / 2
+        fillView.backgroundColor = fillColor
 
         if !didApplyInitialLayout {
             CATransaction.begin()
@@ -101,7 +105,6 @@ final class SelectionAnimatorView: UIView {
         isUserInteractionEnabled = false
         clipsToBounds = false
 
-        fillView.backgroundColor = UIColor.white.withAlphaComponent(0.15)
         fillView.isUserInteractionEnabled = false
         fillView.layer.cornerCurve = .continuous
         fillView.clipsToBounds = true

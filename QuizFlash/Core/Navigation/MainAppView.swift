@@ -37,6 +37,7 @@ struct MainAppView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(AppMigrationStore.self) private var appMigrationStore
+    @Environment(ThemeManager.self) private var themeManager
 
     @State private var router = NavigationManager()
     @State private var aiWorkspaceCoordinator = AIWorkspaceCoordinator()
@@ -180,7 +181,7 @@ struct MainAppView: View {
             // safe-area-adjusted width in landscape and look subtly off-center on iPhone.
 
             ZStack(alignment: isPad ? .bottomTrailing : .bottom) {
-                Color.black
+                themeManager.screenBackground
                     .ignoresSafeArea()
 
                 // ── Navigation Layer ─────────────────────────────────────────────
@@ -223,10 +224,8 @@ struct MainAppView: View {
                 }
 
                 EdgeShadowOverlay(
-                    topHeight: 60,
-                    bottomHeight: isTabBarLayoutVisible ? 60 : 0
+                    topHeight: proxy.safeAreaInsets.top + UIConstants.Layout.topEdgeShadowHeight
                 )
-                .animation(.bottomChromeSpring, value: isTabBarLayoutVisible)
 
                 // ── Custom Tab Bar Layer ─────────────────────────────────────────
                 // The bar is always present in the view hierarchy. Visibility is

@@ -15,6 +15,7 @@ struct DevelopmentSettingsView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
                 buildModeSection
+                themeSection
                 if AppFeatures.current.showsInternalLabs {
                     playModeSection
                 }
@@ -80,6 +81,26 @@ struct DevelopmentSettingsView: View {
                 detail: nil,
                 isOn: deckGridTextLayoutDebugBinding
             )
+        }
+    }
+
+    private var themeSection: some View {
+        SettingsSectionCard(
+            title: "Theme",
+            subtitle: nil
+        ) {
+            NavigationLink {
+                DevelopmentThemeStudioView()
+            } label: {
+                SettingsNavigationRow(
+                    icon: "paintpalette.fill",
+                    tint: .pink,
+                    title: "Theme Studio",
+                    detail: "Live-edit semantic color tokens and preview the result immediately.",
+                    value: nil
+                )
+            }
+            .buttonStyle(.plain)
         }
     }
 

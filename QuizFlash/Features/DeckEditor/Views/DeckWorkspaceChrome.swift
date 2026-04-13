@@ -234,7 +234,7 @@ extension DeckWorkspaceView {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .quizFlashButtonStyle(.surface, shape: .capsule, size: UIConstants.Size.capsuleHeight)
         .accessibilityLabel(viewModel.selectedFolder == nil ? "Choose destination folder, currently Library" : "Choose destination folder, currently \(viewModel.selectedFolder?.title ?? "Library")")
     }
 
@@ -280,9 +280,13 @@ extension DeckWorkspaceView {
         CreateDeckChromeButton(
             action: handleSave,
             isEnabled: canSave,
+            chrome: canSave ? .accentAlt : .surface,
             accessibilityLabel: "Save deck"
         ) {
-            CreateDeckChromeButtonLabel(symbol: "checkmark", tint: canSave ? accent : .secondary)
+            CreateDeckChromeButtonLabel(
+                symbol: "checkmark",
+                tint: canSave ? themeManager.roleColor(.buttonDangerForeground) : .secondary
+            )
         }
     }
 
@@ -331,9 +335,8 @@ extension DeckWorkspaceView {
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(aiToolbarTint)
                         .frame(width: 24, height: 24)
-                        .background(Color(uiColor: .tertiarySystemFill), in: Circle())
                     }
-                    .buttonStyle(.plain)
+                    .quizFlashButtonStyle(.surface, shape: .circle, size: 24)
                     .accessibilityLabel(viewModel.hasPausedAIGeneration ? "Resume AI generation" : "Pause AI generation")
 
                     Button {
@@ -343,9 +346,8 @@ extension DeckWorkspaceView {
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundStyle(.secondary)
                             .frame(width: 22, height: 22)
-                            .background(Color(uiColor: .tertiarySystemFill), in: Circle())
                     }
-                    .buttonStyle(.plain)
+                    .quizFlashButtonStyle(.surface, shape: .circle, size: 22)
                     .accessibilityLabel("Cancel AI generation")
                 }
                 .fixedSize(horizontal: true, vertical: false)
@@ -359,6 +361,7 @@ extension DeckWorkspaceView {
                     viewModel.showAIPickerOptions = true
                 },
                 isEnabled: canStartLocalGeneration,
+                chrome: .accentAlt,
                 accessibilityLabel: "Generate cards with AI"
             ) {
                 HStack(spacing: UIConstants.Spacing.small) {
@@ -368,7 +371,7 @@ extension DeckWorkspaceView {
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .lineLimit(1)
                 }
-                .foregroundStyle(accent)
+                .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
             }
         }
     }
@@ -378,10 +381,13 @@ extension DeckWorkspaceView {
             addCardTypeButtons
         } label: {
             CreateDeckChromeCircleSurface {
-                CreateDeckChromeButtonLabel(symbol: "plus", tint: accent)
+                CreateDeckChromeButtonLabel(
+                    symbol: "plus",
+                    tint: themeManager.roleColor(.buttonDangerForeground)
+                )
             }
         }
-        .buttonStyle(.plain)
+        .quizFlashButtonStyle(.accentAlt, shape: .circle, size: UIConstants.Size.actionButton)
         .accessibilityLabel("Choose card type")
     }
 
@@ -492,7 +498,7 @@ extension DeckWorkspaceView {
                 CreateDeckChromeButtonLabel(symbol: "ellipsis", tint: accent)
             }
         }
-            .buttonStyle(.plain)
+            .quizFlashButtonStyle(.surface, shape: .circle, size: UIConstants.Size.actionButton)
             .accessibilityLabel("More actions")
     }
 }
@@ -527,6 +533,7 @@ struct CreateDeckHeaderStatChip: View {
 struct CreateDeckChromeButton<Label: View>: View {
     let action: () -> Void
     var isEnabled: Bool = true
+    var chrome: QuizFlashButtonChrome = .surface
     let accessibilityLabel: String
     @ViewBuilder let label: () -> Label
 
@@ -534,7 +541,7 @@ struct CreateDeckChromeButton<Label: View>: View {
         Button(action: action) {
             CreateDeckChromeCircleSurface(content: label)
         }
-            .buttonStyle(.plain)
+            .quizFlashButtonStyle(chrome, shape: .circle, size: UIConstants.Size.actionButton)
             .disabled(!isEnabled)
             .opacity(isEnabled ? 1 : 0.55)
             .accessibilityLabel(accessibilityLabel)
@@ -553,6 +560,7 @@ struct CreateDeckChromeCircleSurface<Content: View>: View {
 struct CreateDeckCapsuleButton<Label: View>: View {
     let action: () -> Void
     var isEnabled: Bool = true
+    var chrome: QuizFlashButtonChrome = .surface
     let accessibilityLabel: String
     @ViewBuilder let label: () -> Label
 
@@ -560,7 +568,7 @@ struct CreateDeckCapsuleButton<Label: View>: View {
         Button(action: action) {
             CreateDeckCapsuleContainer(content: label)
         }
-        .buttonStyle(.plain)
+        .quizFlashButtonStyle(chrome, shape: .capsule, size: UIConstants.Size.capsuleHeight)
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.55)
         .accessibilityLabel(accessibilityLabel)

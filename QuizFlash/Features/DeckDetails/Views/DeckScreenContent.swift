@@ -36,23 +36,23 @@ extension DeckContentView {
                         onDelete: { viewModel.showDeleteConfirmation = true }
                     )
                 }
-                    .transition(.bottomChrome)
-                    .zIndex(10)
+                .transition(.bottomChrome)
+                .zIndex(10)
             }
         }
-            .coordinateSpace(name: kDeckChromeSpace)
-            .overlay(alignment: .top) { measuredNavigationBar }
-            .swipeBack(
-                enabled: !viewModel.showShareSheet
-                    && selectedPlayMode == nil
-                    && selectedPlayModeSettings == nil
-                    && previewedCard == nil
-                    && cardEditorDestination == nil
-                    && unavailablePlayMode == nil
-            ) { dismiss() }
-            .animation(.bottomChromeSpring, value: viewModel.isSelecting)
-            .environment(scrollState)
-            .overlay { unavailablePlayModeOverlay }
+        .coordinateSpace(name: kDeckChromeSpace)
+        .overlay(alignment: .top) { measuredNavigationBar }
+        .animation(.bottomChromeSpring, value: viewModel.isSelecting)
+        .environment(scrollState)
+        .swipeBack(
+            enabled: !viewModel.showShareSheet
+                && selectedPlayMode == nil
+                && selectedPlayModeSettings == nil
+                && previewedCard == nil
+                && cardEditorDestination == nil
+                && unavailablePlayMode == nil
+        ) { dismiss() }
+        .overlay { unavailablePlayModeOverlay }
     }
 
     // MARK: Navigation Bar
@@ -217,23 +217,11 @@ extension DeckContentView {
                                     exitSelectionModeForExternalAction()
                                     router.showDeckWorkspace(for: deck.persistentModelID)
                                 } label: {
-                                    let deckColor = Color(hex: deck.colorHex) ?? .blue
                                     Label("Edit", systemImage: "square.and.pencil")
                                         .font(.system(size: 12, weight: .bold, design: .rounded))
-                                        .foregroundStyle(deckColor.opacity(0.96))
-                                        .padding(.horizontal, 12)
-                                        .frame(height: UIConstants.Size.heroInlineActionHeight)
-                                        .background(.ultraThinMaterial, in: Capsule())
-                                        .overlay {
-                                            Capsule()
-                                                .fill(deckColor.opacity(0.12))
-                                        }
-                                        .overlay {
-                                            Capsule()
-                                                .stroke(Color.white.opacity(0.10), lineWidth: 0.75)
-                                        }
+                                        .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
                                 }
-                                .buttonStyle(.plain)
+                                .quizFlashButtonStyle(.accentAlt, shape: .capsule, size: UIConstants.Size.heroInlineActionHeight)
                             }
 
                             Text(subtitleText)

@@ -84,7 +84,6 @@ extension LibraryTopBarView {
     func leadingControl(maxSearchFieldWidth: CGFloat) -> some View {
         if let onBackAction = onBack {
             LibraryTopBarBackButton(
-                accent: accent,
                 label: backLabel,
                 action: onBackAction
             )
@@ -105,7 +104,7 @@ extension LibraryTopBarView {
     }
 
     var moreSettingsButton: some View {
-        LibraryTopBarMoreSettingsButton(accent: accent) {
+        LibraryTopBarMoreSettingsButton {
             LibraryTopBarMenuContent(viewModel: viewModel) {
                 withBottomChromeAnimation {
                     viewModel.enterSelectionMode()

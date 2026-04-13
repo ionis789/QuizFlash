@@ -13,7 +13,6 @@ let kLibraryChromeSpace = "libraryChrome"
 /// Handles coordinate spaces, structural overlays, safe area computation,
 /// and delegates all business logic to `LibraryViewModel`.
 struct LibraryLayout: View {
-    @Environment(\.bottomChromeIsVisible) var isBottomChromeVisible
     @Environment(ThemeManager.self) var themeManager
 
     let decks: [DeckModel]
@@ -95,12 +94,6 @@ struct LibraryLayout: View {
             ].compactMap { $0 }
         )
     }
-    var edgeShadowTopHeight: CGFloat {
-        max(
-            safeTop + UIConstants.Layout.topEdgeShadowHeight,
-            navigationBarBottomY + UIConstants.Spacing.large
-        )
-    }
     var activeLayoutPresentation: LibrarySearchPresentation {
         isSearchResultsPresented ? .searchResults : .browse
     }
@@ -170,24 +163,21 @@ struct LibraryLayout: View {
 
             mainScrollArea
 
-            // ── Edge shadows — top + bottom vignette ─────────────────────────
-            // Tune kShadowRadius in EdgeShadowOverlay.swift to adjust both edges.
+            // Library keeps only the transient fullscreen dim/fill locally.
+            // The structural top edge shadow is rendered globally in MainAppView
+            // so every screen shares the same top chrome treatment.
             EdgeShadowOverlay(
-                topHeight: edgeShadowTopHeight,
-                bottomHeight: isBottomChromeVisible ? 60 : 0,
+                topHeight: 0,
+                bottomHeight: 0,
                 fullScreenFillProgress: isSearchBrowseFrozen ? 1 : 0,
                 fullScreenDimOpacity: isSearchBrowseFrozen ? searchBrowseFreezeDimOpacity : 0
             )
-                .animation(.bottomChromeSpring, value: isBottomChromeVisible)
                 .zIndex(5)
 
             if viewModel.isSelecting && !isSearching {
                 BottomChromeContainer(
                     kind: .selection,
-                    bottomPadding: BottomChromeInsets.selection(
-                        physicalSafeBottom: physicalSafeBottom
-                    ),
-                    ignoresBottomSafeArea: true,
+                    bottomPadding: BottomChromeInsets.persistent,
                     minimumHeightOverride: 62,
                     innerHorizontalPaddingOverride: 10,
                     innerVerticalPaddingOverride: 7

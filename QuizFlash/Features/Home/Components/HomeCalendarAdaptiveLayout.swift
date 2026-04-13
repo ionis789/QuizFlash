@@ -224,7 +224,7 @@ struct HomeCalendarAdaptiveLayout: Equatable {
             verticalPadding: 0,
             horizontalPadding: 0,
             cornerRadius: 0,
-            monthControlSize: usesRegularMetrics ? UIConstants.Size.actionButtonMedium : 30,
+            monthControlSize: usesRegularMetrics ? 28 : 24,
             monthControlSpacing: usesRegularMetrics ? UIConstants.Spacing.small : 2
         )
 

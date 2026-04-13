@@ -13,11 +13,17 @@ import SwiftUI
 /// UIKit-backed capsule animator keeps the selection motion smooth when the
 /// destination `TabView` screen is expensive to render.
 struct CustomTabBar: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let activeTab: AppTabBar
     var onTabSelection: (AppTabBar) -> Void
 
     private var accent: Color {
-        ThemeManager.shared.accentColor.color
+        themeManager.roleColor(.tabSelectionForeground)
+    }
+
+    private var inactiveColor: Color {
+        themeManager.roleColor(.tabUnselectedForeground)
     }
 
     var body: some View {
@@ -36,7 +42,7 @@ struct CustomTabBar: View {
                     .font(.caption2)
                     .lineLimit(1)
             }
-            .foregroundStyle(isSelected ? accent : Color.primary)
+            .foregroundStyle(isSelected ? accent : inactiveColor)
         }
         .frame(height: UIConstants.Size.bottomChromeBarHeight)
         .padding(.horizontal, 25)

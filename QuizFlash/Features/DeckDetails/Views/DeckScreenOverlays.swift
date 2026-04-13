@@ -241,21 +241,15 @@ extension DeckContentView {
 
                 HStack(spacing: UIConstants.Spacing.small) {
                     Button("Not now", action: onDismiss)
-                        .buttonStyle(.plain)
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: UIConstants.Size.capsuleHeight)
-                        .background(Color.white.opacity(0.05), in: Capsule())
+                        .quizFlashButtonStyle(.surface)
 
                     if let onConvert, let actionTitle = prompt.actionTitle {
                         Button(actionTitle, action: onConvert)
-                            .buttonStyle(.plain)
                             .font(.subheadline.weight(.bold))
-                            .foregroundStyle(tintColor)
                             .frame(maxWidth: .infinity)
-                            .frame(height: UIConstants.Size.capsuleHeight)
-                            .background(tintColor.opacity(0.12), in: Capsule())
+                            .quizFlashButtonStyle(.accentAlt)
                     }
                 }
             }
@@ -323,7 +317,7 @@ extension DeckContentView {
                     .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
                     .foregroundStyle(showStats ? .primary : .secondary)
             }
-            .buttonStyle(.plain)
+            .quizFlashButtonStyle(.surface, shape: .circle, size: 42)
         }
 
         @ViewBuilder
@@ -383,9 +377,8 @@ extension DeckContentView {
                         Image(systemName: "xmark")
                             .font(.system(size: 18, weight: .bold))
                             .foregroundStyle(.primary)
-                            .frame(width: 42, height: 42)
                     }
-                    .buttonStyle(.plain)
+                    .quizFlashButtonStyle(.surface, shape: .circle, size: 42)
                 }
 
                 LazyVGrid(

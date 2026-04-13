@@ -20,7 +20,6 @@ struct QuizFlashApp: App {
     @State private var appMigrationStore = AppMigrationStore.shared
 
     init() {
-        //
         MathWebViewPool.shared.prewarm()
     }
 

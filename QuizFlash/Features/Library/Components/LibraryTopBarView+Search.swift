@@ -101,7 +101,6 @@ extension LibraryTopBarView {
 
     var dismissSearchButton: some View {
         LibraryTopBarDismissSearchButton(
-            accent: accent,
             action: dismissSearch
         )
     }
