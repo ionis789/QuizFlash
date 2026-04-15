@@ -33,6 +33,7 @@ struct HomeView: View {
     @Environment(NavigationManager.self) private var router
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(DevelopmentPreferences.self) private var developmentPreferences
 
     // MARK: - SwiftData Queries
 
@@ -56,6 +57,7 @@ struct HomeView: View {
         subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
         category: "HomeLayout"
     )
+    private static let edgeShadowDebugScreenID = "home.calendar"
 
     // MARK: - Derived Data
 
@@ -88,10 +90,7 @@ struct HomeView: View {
                 mode: layoutContext.mode,
                 scaffold: layoutContext.headerScaffold
             )
-            // MARK: Scroll Geometry
-
-            // MARK: Content
-            ZStack {
+            ZStack(alignment: .bottomTrailing) {
                 themeManager.screenBackground
                     .ignoresSafeArea()
 
@@ -222,6 +221,8 @@ struct HomeView: View {
                         editingGoal: editingExamGoal(for: presentation)
                     )
                 }
+
+                debugShadowControls(safeAreaTop: safeAreaTop)
             }
         }
     }
@@ -285,8 +286,62 @@ struct HomeView: View {
             calendarVM: calendarVM,
             layout: layout,
             calendarInsightsCache: viewModel.calendarInsightsCache,
-            calendarInsightsRevision: viewModel.calendarInsightsRevision
+            calendarInsightsRevision: viewModel.calendarInsightsRevision,
+            shadowMaxAlpha: homeShadowMaxAlpha,
+            shadowTuning: homeShadowTuning,
+            shadowHeightOffset: homeShadowHeightOffset,
+            shadowColor: homeShadowColor
         )
+    }
+
+    private var homeShadowMaxAlpha: CGFloat {
+        homeShadowDebugSettings.maxAlpha
+    }
+
+    private var homeShadowTuning: EdgeShadowTuning {
+        homeShadowDebugSettings.tuning
+    }
+
+    private var homeShadowHeightOffset: CGFloat {
+        homeShadowDebugSettings.heightOffset
+    }
+
+    private var homeShadowColor: Color {
+        homeShadowDebugSettings.resolvedColor
+    }
+
+    private var homeShadowDebugSettings: EdgeShadowDebugSettings {
+        developmentPreferences.edgeShadowSettings(for: Self.edgeShadowDebugScreenID)
+    }
+
+    @ViewBuilder
+    private func debugShadowControls(safeAreaTop: CGFloat) -> some View {
+#if DEBUG
+        if developmentPreferences.edgeShadowTuningEnabled {
+            EdgeShadowDebugFloatingPanel(
+                settings: Binding(
+                    get: {
+                        developmentPreferences.edgeShadowSettings(for: Self.edgeShadowDebugScreenID)
+                    },
+                    set: {
+                        developmentPreferences.setEdgeShadowSettings(
+                            $0,
+                            for: Self.edgeShadowDebugScreenID
+                        )
+                    }
+                ),
+                onReset: {
+                    developmentPreferences.resetEdgeShadowSettings(for: Self.edgeShadowDebugScreenID)
+                }
+            )
+            .padding(.trailing, UIConstants.Spacing.medium)
+            .padding(.bottom, 92)
+            .padding(.top, safeAreaTop)
+            .zIndex(200)
+        }
+#else
+        EmptyView()
+#endif
     }
 
     private func homeLayoutSignature(

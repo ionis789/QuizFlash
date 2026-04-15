@@ -107,8 +107,20 @@ extension DeckContentView {
         )
     }
 
+    var structuralTopEdgeShadowHeight: CGFloat {
+        if navigationBarBottomY > 0 {
+            return navigationBarBottomY
+        }
+        return UIConstants.Layout.topEdgeShadowHeight
+    }
+
     var mainContentWithCovers: some View {
         mainContent
+            .screenTopEdgeShadow(
+                topHeight: structuralTopEdgeShadowHeight,
+                topRevealProgress: scrollState.pillVisible ? 1 : 0,
+                debugScreenID: "deck.details"
+            )
             .fullScreenSheet(
                 item: $selectedPlayMode,
                 configuration: .chrome(backgroundReceivesDragProgress: true)

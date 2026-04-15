@@ -25,56 +25,72 @@ struct AIDebugTraceRunDetailView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                    LargeScreenTitle(title: "AI Trace JSON")
-                        .collapsibleTitleRevealAnchor(
-                            in: kAIDebugTraceDetailChromeSpace,
-                            navigationBarBottomY: navigationBarBottomY,
-                            revealClearance: SettingsChromeMetrics.pillRevealClearance,
-                            isVisible: $isCollapsedTitleVisible
-                        )
+            ZStack {
+                themeManager.groupedScreenBackground
+                    .ignoresSafeArea()
 
-                    if isLoading {
-                        SettingsSectionCard(
-                            title: "Trace",
-                            subtitle: "Loading full AI trace payload."
-                        ) {
-                            ProgressView()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    } else if let detail {
-                        summaryCard(detail.summary)
-                        jsonCard(detail.jsonString)
-                    } else {
-                        SettingsSectionCard(
-                            title: "Trace",
-                            subtitle: "This AI trace run is no longer available."
-                        ) {
-                            Text("The persisted JSON trace could not be loaded. It may have been deleted or corrupted.")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+                        LargeScreenTitle(title: "AI Trace JSON")
+                            .collapsibleTitleRevealAnchor(
+                                in: kAIDebugTraceDetailChromeSpace,
+                                navigationBarBottomY: navigationBarBottomY,
+                                revealClearance: SettingsChromeMetrics.pillRevealClearance,
+                                isVisible: $isCollapsedTitleVisible
+                            )
+
+                        if isLoading {
+                            SettingsSectionCard(
+                                title: "Trace",
+                                subtitle: "Loading full AI trace payload."
+                            ) {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        } else if let detail {
+                            summaryCard(detail.summary)
+                            jsonCard(detail.jsonString)
+                        } else {
+                            SettingsSectionCard(
+                                title: "Trace",
+                                subtitle: "This AI trace run is no longer available."
+                            ) {
+                                Text("The persisted JSON trace could not be loaded. It may have been deleted or corrupted.")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                     }
+                    .padding(.horizontal, UIConstants.Spacing.large)
+                    .padding(.top, UIConstants.Spacing.large)
+                    .padding(.bottom, UIConstants.Spacing.huge)
                 }
-                .padding(.horizontal, UIConstants.Spacing.large)
-                .padding(.top, UIConstants.Spacing.large)
-                .padding(.bottom, UIConstants.Spacing.huge)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
+                }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
-            }
+            .screenTopEdgeShadow(
+                topHeight: structuralTopEdgeShadowHeight,
+                topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
+                debugScreenID: "featurelab.ai-trace-run-detail"
+            )
 
             navigationBar
         }
         .coordinateSpace(name: kAIDebugTraceDetailChromeSpace)
-        .background(themeManager.groupedScreenBackground)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
         .task {
             await loadDetail()
         }
+    }
+
+    private var structuralTopEdgeShadowHeight: CGFloat {
+        if navigationBarBottomY > 0 {
+            return navigationBarBottomY
+        }
+        return UIConstants.Layout.topEdgeShadowHeight
     }
 
     private var navigationBar: some View {

@@ -81,6 +81,16 @@ struct DevelopmentSettingsView: View {
                 detail: nil,
                 isOn: deckGridTextLayoutDebugBinding
             )
+
+            SettingsCardDivider()
+
+            SettingsToggleRow(
+                icon: "sparkles.tv",
+                tint: .cyan,
+                title: "Edge Shadow Tuner",
+                detail: "Shows the floating per-screen shadow tuning button while preserving each screen's saved values.",
+                isOn: edgeShadowTuningEnabledBinding
+            )
         }
     }
 
@@ -214,6 +224,13 @@ struct DevelopmentSettingsView: View {
         Binding(
             get: { developmentPreferences.playModeDeveloperModeEnabled },
             set: { developmentPreferences.playModeDeveloperModeEnabled = $0 }
+        )
+    }
+
+    private var edgeShadowTuningEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { developmentPreferences.edgeShadowTuningEnabled },
+            set: { developmentPreferences.edgeShadowTuningEnabled = $0 }
         )
     }
 }

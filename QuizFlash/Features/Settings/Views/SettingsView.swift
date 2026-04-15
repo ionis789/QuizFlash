@@ -36,29 +36,38 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                    screenTitle
-                    profileCard
-                    appearanceSection
-                    studyDefaultsSection
-                    workflowSection
-                    supportSection
-                    accountSection
+            ZStack {
+                themeManager.groupedScreenBackground
+                    .ignoresSafeArea()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+                        screenTitle
+                        profileCard
+                        appearanceSection
+                        studyDefaultsSection
+                        workflowSection
+                        supportSection
+                        accountSection
+                    }
+                    .tabBarAutoHideOnScroll()
+                    .padding(.horizontal, UIConstants.Spacing.large)
+                    .padding(.top, UIConstants.Spacing.large)
+                    .padding(.bottom, keyboardMonitor.isVisible ? UIConstants.Spacing.large : UIConstants.Spacing.huge * 1.5)
                 }
-                .tabBarAutoHideOnScroll()
-                .padding(.horizontal, UIConstants.Spacing.large)
-                .padding(.top, UIConstants.Spacing.large)
-                .padding(.bottom, keyboardMonitor.isVisible ? UIConstants.Spacing.large : UIConstants.Spacing.huge * 1.5)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
+                }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
-            }
+            .screenTopEdgeShadow(
+                topHeight: structuralTopEdgeShadowHeight,
+                topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
+                debugScreenID: "settings.root"
+            )
 
             navigationBar
         }
         .coordinateSpace(name: kSettingsChromeSpace)
-        .background(themeManager.groupedScreenBackground)
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: keyboardMonitor.isVisible ? 0 : 40)
@@ -66,6 +75,13 @@ struct SettingsView: View {
         .swipeBack(enabled: allowsSwipeBack) {
             dismiss()
         }
+    }
+
+    private var structuralTopEdgeShadowHeight: CGFloat {
+        if navigationBarBottomY > 0 {
+            return navigationBarBottomY
+        }
+        return UIConstants.Layout.topEdgeShadowHeight
     }
 
     private var screenTitle: some View {
@@ -447,35 +463,45 @@ private struct SettingsInfoDetailView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                    LargeScreenTitle(title: title)
-                        .collapsibleTitleRevealAnchor(
-                            in: kSettingsInfoChromeSpace,
-                            navigationBarBottomY: navigationBarBottomY,
-                            revealClearance: SettingsChromeMetrics.pillRevealClearance,
-                            isVisible: $isCollapsedTitleVisible
+            ZStack {
+                themeManager.groupedScreenBackground
+                    .ignoresSafeArea()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+                        LargeScreenTitle(title: title)
+                            .collapsibleTitleRevealAnchor(
+                                in: kSettingsInfoChromeSpace,
+                                navigationBarBottomY: navigationBarBottomY,
+                                revealClearance: SettingsChromeMetrics.pillRevealClearance,
+                                isVisible: $isCollapsedTitleVisible
+                            )
+
+                        SettingsInfoCard(
+                            icon: icon,
+                            tint: tint,
+                            text: message
                         )
 
-                    SettingsInfoCard(
-                        icon: icon,
-                        tint: tint,
-                        text: message
-                    )
-
-                    SettingsInfoCard(
-                        icon: "clock.arrow.circlepath",
-                        tint: themeManager.accentColor.color,
-                        text: "This destination is now organized and visually aligned with the rest of Settings, even though the underlying support content can be expanded later."
-                    )
+                        SettingsInfoCard(
+                            icon: "clock.arrow.circlepath",
+                            tint: themeManager.accentColor.color,
+                            text: "This destination is now organized and visually aligned with the rest of Settings, even though the underlying support content can be expanded later."
+                        )
+                    }
+                    .padding(.horizontal, UIConstants.Spacing.large)
+                    .padding(.top, UIConstants.Spacing.large)
+                    .padding(.bottom, UIConstants.Spacing.huge)
                 }
-                .padding(.horizontal, UIConstants.Spacing.large)
-                .padding(.top, UIConstants.Spacing.large)
-                .padding(.bottom, UIConstants.Spacing.huge)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
+                }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
-            }
+            .screenTopEdgeShadow(
+                topHeight: structuralTopEdgeShadowHeight,
+                topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
+                debugScreenID: "settings.detail"
+            )
 
             CollapsibleTitleNavigationBar(
                 coordinateSpaceName: kSettingsInfoChromeSpace,
@@ -496,9 +522,15 @@ private struct SettingsInfoDetailView: View {
             }
         }
         .coordinateSpace(name: kSettingsInfoChromeSpace)
-        .background(themeManager.groupedScreenBackground)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
+    }
+
+    private var structuralTopEdgeShadowHeight: CGFloat {
+        if navigationBarBottomY > 0 {
+            return navigationBarBottomY
+        }
+        return UIConstants.Layout.topEdgeShadowHeight
     }
 }
 

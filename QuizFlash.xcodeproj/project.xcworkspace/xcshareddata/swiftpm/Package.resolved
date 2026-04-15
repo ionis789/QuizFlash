@@ -1,5 +1,5 @@
 {
-  "originHash" : "67a1a7d5caaaaaed7c5712511a171780363ca159f64781dbc7f28f490e9286d6",
+  "originHash" : "4f05d978722cb5a2748c5c8a88d2d3bd055c313233aa55a717d151e968522e03",
   "pins" : [
     {
       "identity" : "lottie-ios",
@@ -11,12 +11,30 @@
       }
     },
     {
+      "identity" : "progressiveblurheader",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/dominikmartn/ProgressiveBlurHeader",
+      "state" : {
+        "branch" : "main",
+        "revision" : "0e8c29bc90d52e592fd63e034ca15b59095855f3"
+      }
+    },
+    {
       "identity" : "pzcircularcontrol",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/philptr/PZCircularControl.git",
       "state" : {
         "revision" : "8a3423f7d91542d81c255157dd57656ca223792c",
         "version" : "1.0.0"
+      }
+    },
+    {
+      "identity" : "variableblur",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/nikstar/VariableBlur",
+      "state" : {
+        "branch" : "main",
+        "revision" : "5073a0d9080e488a2d317e04859c001a57fbb3e8"
       }
     }
   ],

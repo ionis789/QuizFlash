@@ -21,79 +21,95 @@ struct LatexSymbolLabView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                    LargeScreenTitle(title: "LaTeX Symbol Lab")
-                        .collapsibleTitleRevealAnchor(
-                            in: kLatexSymbolLabChromeSpace,
-                            navigationBarBottomY: navigationBarBottomY,
-                            revealClearance: SettingsChromeMetrics.pillRevealClearance,
-                            isVisible: $isCollapsedTitleVisible
-                        )
+            ZStack {
+                themeManager.groupedScreenBackground
+                    .ignoresSafeArea()
 
-                    SettingsInfoCard(
-                        icon: "function",
-                        tint: .green,
-                        text: "Use this internal screen to verify risky symbols, operators, and compact expressions. If anything renders incorrectly, copy the exact LaTeX command or sample label and we can fix it quickly."
-                    )
-
-                    SettingsSectionCard(
-                        title: "Custom Sample",
-                        subtitle: "Paste any LaTeX expression or rich text sample here and inspect the live renderer."
-                    ) {
-                        TextEditor(text: $customSample)
-                            .font(.system(size: 15, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.primary)
-                            .scrollContentBackground(.hidden)
-                            .frame(minHeight: 120)
-                            .padding(UIConstants.Spacing.standard)
-                            .background(
-                                RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
-                                    .fill(Color.black.opacity(0.18))
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+                        LargeScreenTitle(title: "LaTeX Symbol Lab")
+                            .collapsibleTitleRevealAnchor(
+                                in: kLatexSymbolLabChromeSpace,
+                                navigationBarBottomY: navigationBarBottomY,
+                                revealClearance: SettingsChromeMetrics.pillRevealClearance,
+                                isVisible: $isCollapsedTitleVisible
                             )
 
-                        SettingsCardDivider()
-
-                        LatexSymbolRenderCard(
-                            title: "Live Preview",
-                            command: nil,
-                            sample: customSample
+                        SettingsInfoCard(
+                            icon: "function",
+                            tint: .green,
+                            text: "Use this internal screen to verify risky symbols, operators, and compact expressions. If anything renders incorrectly, copy the exact LaTeX command or sample label and we can fix it quickly."
                         )
-                    }
 
-                    ForEach(LatexSymbolCategory.allCases) { category in
                         SettingsSectionCard(
-                            title: category.title,
-                            subtitle: category.subtitle
+                            title: "Custom Sample",
+                            subtitle: "Paste any LaTeX expression or rich text sample here and inspect the live renderer."
                         ) {
-                            ForEach(Array(category.samples.enumerated()), id: \.element.id) { index, sample in
-                                LatexSymbolRenderCard(
-                                    title: sample.title,
-                                    command: sample.command,
-                                    sample: sample.preview
+                            TextEditor(text: $customSample)
+                                .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.primary)
+                                .scrollContentBackground(.hidden)
+                                .frame(minHeight: 120)
+                                .padding(UIConstants.Spacing.standard)
+                                .background(
+                                    RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
+                                        .fill(Color.black.opacity(0.18))
                                 )
 
-                                if index < category.samples.count - 1 {
-                                    SettingsCardDivider()
+                            SettingsCardDivider()
+
+                            LatexSymbolRenderCard(
+                                title: "Live Preview",
+                                command: nil,
+                                sample: customSample
+                            )
+                        }
+
+                        ForEach(LatexSymbolCategory.allCases) { category in
+                            SettingsSectionCard(
+                                title: category.title,
+                                subtitle: category.subtitle
+                            ) {
+                                ForEach(Array(category.samples.enumerated()), id: \.element.id) { index, sample in
+                                    LatexSymbolRenderCard(
+                                        title: sample.title,
+                                        command: sample.command,
+                                        sample: sample.preview
+                                    )
+
+                                    if index < category.samples.count - 1 {
+                                        SettingsCardDivider()
+                                    }
                                 }
                             }
                         }
                     }
+                    .padding(.horizontal, UIConstants.Spacing.large)
+                    .padding(.top, UIConstants.Spacing.large)
+                    .padding(.bottom, UIConstants.Spacing.huge)
                 }
-                .padding(.horizontal, UIConstants.Spacing.large)
-                .padding(.top, UIConstants.Spacing.large)
-                .padding(.bottom, UIConstants.Spacing.huge)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
+                }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
-            }
+            .screenTopEdgeShadow(
+                topHeight: structuralTopEdgeShadowHeight,
+                topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
+                debugScreenID: "featurelab.latex-symbol-lab"
+            )
 
             navigationBar
         }
         .coordinateSpace(name: kLatexSymbolLabChromeSpace)
-        .background(themeManager.groupedScreenBackground)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
+    }
+
+    private var structuralTopEdgeShadowHeight: CGFloat {
+        if navigationBarBottomY > 0 {
+            return navigationBarBottomY
+        }
+        return UIConstants.Layout.topEdgeShadowHeight
     }
 
     private var navigationBar: some View {

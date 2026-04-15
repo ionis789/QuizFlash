@@ -97,6 +97,12 @@ struct LibraryLayout: View {
     var activeLayoutPresentation: LibrarySearchPresentation {
         isSearchResultsPresented ? .searchResults : .browse
     }
+    var structuralTopEdgeShadowHeight: CGFloat {
+        if navigationBarBottomY > 0 {
+            return navigationBarBottomY
+        }
+        return safeTop + UIConstants.Layout.topEdgeShadowHeight
+    }
     var topChromeInsetSpacing: CGFloat {
         switch activeLayoutPresentation {
         case .browse:
@@ -153,26 +159,23 @@ struct LibraryLayout: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
+            ZStack {
+                // Full-bleed background. Empty-space tap-to-dismiss is handled
+                // via a pure SwiftUI background gesture on the scroll content VStack.
+                // Child view gestures (deck row Buttons) take priority — no UIKit needed.
+                backgroundTheme
+                    .ignoresSafeArea()
+                    .zIndex(-1)
 
-            // Full-bleed background. Empty-space tap-to-dismiss is handled
-            // via a pure SwiftUI background gesture on the scroll content VStack.
-            // Child view gestures (deck row Buttons) take priority — no UIKit needed.
-            backgroundTheme
-                .ignoresSafeArea()
-                .zIndex(-1)
-
-            mainScrollArea
-
-            // Library keeps only the transient fullscreen dim/fill locally.
-            // The structural top edge shadow is rendered globally in MainAppView
-            // so every screen shares the same top chrome treatment.
-            EdgeShadowOverlay(
-                topHeight: 0,
-                bottomHeight: 0,
+                mainScrollArea
+            }
+            .screenTopEdgeShadow(
+                topHeight: structuralTopEdgeShadowHeight,
+                topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
+                debugScreenID: "library.root",
                 fullScreenFillProgress: isSearchBrowseFrozen ? 1 : 0,
                 fullScreenDimOpacity: isSearchBrowseFrozen ? searchBrowseFreezeDimOpacity : 0
             )
-                .zIndex(5)
 
             if viewModel.isSelecting && !isSearching {
                 BottomChromeContainer(

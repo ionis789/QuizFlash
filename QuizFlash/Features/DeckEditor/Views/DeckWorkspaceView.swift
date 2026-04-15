@@ -417,39 +417,47 @@ struct DeckWorkspaceView: View {
                 let resolvedSafeBottomInset = outer.safeAreaInsets.bottom
                 let heroTopPadding = UIConstants.Layout.createDeckPinnedToolbarTopInset
                     + UIConstants.Layout.createDeckHeroTopPadding
+                let structuralTopEdgeShadowHeight = resolvedSafeTopInset + navigationBarHeight
 
                 ZStack {
-                    themeManager.groupedScreenBackground
-                        .ignoresSafeArea()
+                    ZStack {
+                        themeManager.groupedScreenBackground
+                            .ignoresSafeArea()
 
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            heroHeader(topPadding: heroTopPadding)
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                heroHeader(topPadding: heroTopPadding)
 
-                            if isShowingWorkspaceConvert {
-                                DeckConversionEditor(
-                                    sourceDecks: sourceDecks,
-                                    managesSeedFromDeckList: false,
-                                    showsDeckPicker: false,
-                                    showsRuntimeSummary: false
-                                )
-                                .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
-                                .padding(.top, UIConstants.Spacing.small)
-                                .padding(.bottom, 132)
-                            } else {
-                                cardsListContent(using: scrollProxy)
-                                    .padding(.top, UIConstants.Spacing.large)
+                                if isShowingWorkspaceConvert {
+                                    DeckConversionEditor(
+                                        sourceDecks: sourceDecks,
+                                        managesSeedFromDeckList: false,
+                                        showsDeckPicker: false,
+                                        showsRuntimeSummary: false
+                                    )
+                                    .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
+                                    .padding(.top, UIConstants.Spacing.small)
                                     .padding(.bottom, 132)
+                                } else {
+                                    cardsListContent(using: scrollProxy)
+                                        .padding(.top, UIConstants.Spacing.large)
+                                        .padding(.bottom, 132)
+                                }
                             }
+                            .tabBarAutoHideOnScroll(enabled: tabRule != .hidden)
+                            .frame(minHeight: outer.size.height, alignment: .top)
                         }
-                        .tabBarAutoHideOnScroll(enabled: tabRule != .hidden)
-                        .frame(minHeight: outer.size.height, alignment: .top)
+                        .scrollIndicators(.hidden)
+                        .scrollDismissesKeyboard(.interactively)
+                        .onTapGesture {
+                            isTitleFocused = false
+                        }
                     }
-                    .scrollIndicators(.hidden)
-                    .scrollDismissesKeyboard(.interactively)
-                    .onTapGesture {
-                        isTitleFocused = false
-                    }
+                    .screenTopEdgeShadow(
+                        topHeight: structuralTopEdgeShadowHeight,
+                        topRevealProgress: shouldShowCollapsedTitle ? 1 : 0,
+                        debugScreenID: "deck.workspace"
+                    )
 
                     successOverlay
                         .zIndex(100)

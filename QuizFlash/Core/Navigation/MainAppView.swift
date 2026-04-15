@@ -223,10 +223,6 @@ struct MainAppView: View {
                     }
                 }
 
-                EdgeShadowOverlay(
-                    topHeight: proxy.safeAreaInsets.top + UIConstants.Layout.topEdgeShadowHeight
-                )
-
                 // ── Custom Tab Bar Layer ─────────────────────────────────────────
                 // The bar is always present in the view hierarchy. Visibility is
                 // expressed through property animation (opacity + vertical offset)
@@ -340,6 +336,8 @@ struct MainAppView: View {
                 SharedUICatalogView()
             case .contextMenu:
                 ContextMenuLabView()
+            case .progressiveBlurHeaderLab:
+                ProgressiveBlurHeaderLabView()
             }
         } else {
             EmptyView()

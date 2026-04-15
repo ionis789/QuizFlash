@@ -176,6 +176,7 @@ enum FeatureLabRoute: Hashable, CaseIterable {
     case animatedObjectsLab
     case sharedUICatalog
     case contextMenu
+    case progressiveBlurHeaderLab
 }
 
 extension FeatureLabRoute {
@@ -184,7 +185,7 @@ extension FeatureLabRoute {
         switch self {
         case .developmentSettings:
             return features.allowsDevelopmentRoutes
-        case .flashCardsPlayModeSimulation, .animatedObjectsLab, .sharedUICatalog, .contextMenu:
+        case .flashCardsPlayModeSimulation, .animatedObjectsLab, .sharedUICatalog, .contextMenu, .progressiveBlurHeaderLab:
             return features.showsInternalLabs
         }
     }
@@ -206,6 +207,8 @@ extension FeatureLabRoute {
             return "Shared UI Catalog"
         case .contextMenu:
             return "Context Menu Lab"
+        case .progressiveBlurHeaderLab:
+            return "Progressive Blur Header"
         }
     }
 
@@ -221,6 +224,8 @@ extension FeatureLabRoute {
             return "Shared views and modifiers."
         case .contextMenu:
             return "Context menu test surfaces."
+        case .progressiveBlurHeaderLab:
+            return "Sticky header blur package sandbox."
         }
     }
 
@@ -236,6 +241,8 @@ extension FeatureLabRoute {
             return "square.grid.2x2"
         case .contextMenu:
             return "ellipsis.rectangle"
+        case .progressiveBlurHeaderLab:
+            return "rectangle.tophalf.filled"
         }
     }
 
@@ -251,6 +258,8 @@ extension FeatureLabRoute {
             return .cyan
         case .contextMenu:
             return .red
+        case .progressiveBlurHeaderLab:
+            return .mint
         }
     }
 }

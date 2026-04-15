@@ -31,35 +31,49 @@ struct SettingsCardAppearanceView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            background.ignoresSafeArea()
+            ZStack {
+                background.ignoresSafeArea()
 
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 32) {
-                    LargeScreenTitle(title: "Card Appearance")
-                        .collapsibleTitleRevealAnchor(
-                            in: kCardAppearanceChromeSpace,
-                            navigationBarBottomY: navigationBarBottomY,
-                            revealClearance: SettingsChromeMetrics.pillRevealClearance,
-                            isVisible: $isCollapsedTitleVisible
-                        )
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 32) {
+                        LargeScreenTitle(title: "Card Appearance")
+                            .collapsibleTitleRevealAnchor(
+                                in: kCardAppearanceChromeSpace,
+                                navigationBarBottomY: navigationBarBottomY,
+                                revealClearance: SettingsChromeMetrics.pillRevealClearance,
+                                isVisible: $isCollapsedTitleVisible
+                            )
 
-                    previewSection
-                    pickerSection
-                    descriptionSection
+                        previewSection
+                        pickerSection
+                        descriptionSection
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 24)
+                    .padding(.bottom, 48)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 24)
-                .padding(.bottom, 48)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
+                }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
-            }
+            .screenTopEdgeShadow(
+                topHeight: structuralTopEdgeShadowHeight,
+                topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
+                debugScreenID: "settings.card-appearance"
+            )
 
             navigationBar
         }
         .coordinateSpace(name: kCardAppearanceChromeSpace)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
+    }
+
+    private var structuralTopEdgeShadowHeight: CGFloat {
+        if navigationBarBottomY > 0 {
+            return navigationBarBottomY
+        }
+        return UIConstants.Layout.topEdgeShadowHeight
     }
 
     // MARK: - Navigation Bar

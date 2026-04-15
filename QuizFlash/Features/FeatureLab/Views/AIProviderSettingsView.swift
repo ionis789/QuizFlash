@@ -22,34 +22,50 @@ struct AIProviderSettingsView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.huge) {
-                    LargeScreenTitle(title: "Developer AI")
-                        .collapsibleTitleRevealAnchor(
-                            in: kAIProviderSettingsChromeSpace,
-                            navigationBarBottomY: navigationBarBottomY,
-                            revealClearance: SettingsChromeMetrics.pillRevealClearance,
-                            isVisible: $isCollapsedTitleVisible
-                        )
+            ZStack {
+                themeManager.groupedScreenBackground
+                    .ignoresSafeArea()
 
-                    activeProfileSection
-                    savedProfilesSection
-                    syntaxSection
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: UIConstants.Spacing.huge) {
+                        LargeScreenTitle(title: "Developer AI")
+                            .collapsibleTitleRevealAnchor(
+                                in: kAIProviderSettingsChromeSpace,
+                                navigationBarBottomY: navigationBarBottomY,
+                                revealClearance: SettingsChromeMetrics.pillRevealClearance,
+                                isVisible: $isCollapsedTitleVisible
+                            )
+
+                        activeProfileSection
+                        savedProfilesSection
+                        syntaxSection
+                    }
+                    .padding(.horizontal, UIConstants.Spacing.large)
+                    .padding(.top, UIConstants.Spacing.large)
+                    .padding(.bottom, UIConstants.Spacing.huge)
                 }
-                .padding(.horizontal, UIConstants.Spacing.large)
-                .padding(.top, UIConstants.Spacing.large)
-                .padding(.bottom, UIConstants.Spacing.huge)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
+                }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
-            }
+            .screenTopEdgeShadow(
+                topHeight: structuralTopEdgeShadowHeight,
+                topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
+                debugScreenID: "featurelab.ai-provider-settings"
+            )
 
             navigationBar
         }
         .coordinateSpace(name: kAIProviderSettingsChromeSpace)
-        .background(themeManager.groupedScreenBackground)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
+    }
+
+    private var structuralTopEdgeShadowHeight: CGFloat {
+        if navigationBarBottomY > 0 {
+            return navigationBarBottomY
+        }
+        return UIConstants.Layout.topEdgeShadowHeight
     }
 
     private var navigationBar: some View {

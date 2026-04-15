@@ -13,6 +13,8 @@ import SwiftUI
 enum CollapsibleTitleChromeMetrics {
     static let hiddenScale: CGFloat = 0.82
     static let floatingTitleVerticalOffset: CGFloat =  0
+    static let visibilityAnimation = Animation.spring(response: 0.35, dampingFraction: 0.8)
+    static let shadowFadeAnimation = Animation.easeInOut(duration: 0.22)
 }
 
 // MARK: - Collapsible Title Label
@@ -56,7 +58,7 @@ struct CollapsibleTitlePill: View {
         .scaleEffect(isVisible ? 1 : CollapsibleTitleChromeMetrics.hiddenScale, anchor: .top)
         .animation(
             animateVisibility
-                ? (visibilityAnimation ?? .spring(response: 0.35, dampingFraction: 0.8))
+                ? (visibilityAnimation ?? CollapsibleTitleChromeMetrics.visibilityAnimation)
                 : nil,
             value: isVisible
         )

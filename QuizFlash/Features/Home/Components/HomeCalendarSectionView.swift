@@ -23,6 +23,11 @@ struct HomeCalendarSectionView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
+    private enum CompactHeaderShadowConfig {
+        static let revealStart: CGFloat = 0.18
+        static let revealEnd: CGFloat = 0.98
+    }
+
     // MARK: - Dependencies
 
     /// The view model managing date selection and grid data.
@@ -34,6 +39,30 @@ struct HomeCalendarSectionView: View {
     /// O(1) lookup dictionary providing per-day progress and marker insights.
     let calendarInsightsCache: [String: HomeCalendarDayInsight]
     let calendarInsightsRevision: Int
+    let shadowMaxAlpha: CGFloat
+    let shadowTuning: EdgeShadowTuning
+    let shadowHeightOffset: CGFloat
+    let shadowColor: Color
+
+    init(
+        calendarVM: CalendarViewModel,
+        layout: HomeCalendarAdaptiveLayout,
+        calendarInsightsCache: [String: HomeCalendarDayInsight],
+        calendarInsightsRevision: Int,
+        shadowMaxAlpha: CGFloat = 1.0,
+        shadowTuning: EdgeShadowTuning = .default,
+        shadowHeightOffset: CGFloat = 0,
+        shadowColor: Color = EdgeShadowDebugSettings.default.resolvedColor
+    ) {
+        self.calendarVM = calendarVM
+        self.layout = layout
+        self.calendarInsightsCache = calendarInsightsCache
+        self.calendarInsightsRevision = calendarInsightsRevision
+        self.shadowMaxAlpha = shadowMaxAlpha
+        self.shadowTuning = shadowTuning
+        self.shadowHeightOffset = shadowHeightOffset
+        self.shadowColor = shadowColor
+    }
 
     // MARK: - Private Constants
 
@@ -41,50 +70,27 @@ struct HomeCalendarSectionView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            // MARK: Scroll Metrics
-
             let minY = proxy.frame(in: .scrollView(axis: .vertical)).minY
-
-            /// Normalised collapse progress: 0.0 = fully expanded, 1.0 = fully compact.
             let progress = max(0, min(-minY / layout.scrollDistance, 1.0))
-
-            /// Vertical offset applied to keep the entire header pinned to the screen top.
             let stickyOffset: CGFloat = minY < 0 ? -minY : 0
-
             let state = layout.state(for: progress)
             let calendarColumnWidth = layout.capsuleWidth(for: progress)
             let contentLeadingInset = layout.contentLeadingInset(for: progress)
 
-            // MARK: Render Tree
+            ZStack(alignment: .topLeading) {
+                compactHeaderShadow(progress: progress)
+                    .offset(y: stickyOffset)
 
-            VStack(spacing: 0) {
-                Spacer().frame(height: layout.safeAreaTop)
-
-                VStack(spacing: 0) {
-                    titleRow(progress: progress, state: state)
-                        .frame(width: layout.headerColumnWidth, alignment: .leading)
-                        .frame(
-                            maxWidth: .infinity,
-                            alignment: layout.kind == .pad ? .center : .leading
-                        )
-
-                    headerContent(
-                        progress: progress,
-                        state: state,
-                        calendarColumnWidth: calendarColumnWidth
-                    )
-                }
-                .padding(.leading, contentLeadingInset)
-
-                Spacer(minLength: 0)
+                stickyHeaderContent(
+                    progress: progress,
+                    state: state,
+                    calendarColumnWidth: calendarColumnWidth,
+                    contentLeadingInset: contentLeadingInset
+                )
+                    .offset(y: stickyOffset)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.horizontal, layout.outerHorizontalInset)
-            .padding(.top, state.topPadding)
-            .padding(.bottom, layout.bottomPadding)
-            .offset(y: stickyOffset)
         }
-        .frame(height: layout.extendedHeight)
+            .frame(height: layout.extendedHeight)
     }
 
     // MARK: - Subviews
@@ -106,10 +112,10 @@ struct HomeCalendarSectionView: View {
                 spacing: state.monthControlSpacing
             )
         }
-        .frame(height: state.titleHeight, alignment: .center)
-        .padding(.bottom, state.titleBottomSpacing)
-        .clipped()
-        .opacity(max(0, 1.0 - (progress * 1.6)))
+            .frame(height: state.titleHeight, alignment: .center)
+            .padding(.bottom, state.titleBottomSpacing)
+            .clipped()
+            .opacity(max(0, 1.0 - (progress * 1.6)))
     }
 
     @ViewBuilder
@@ -123,18 +129,88 @@ struct HomeCalendarSectionView: View {
                 progress: progress,
                 state: state
             )
-            .frame(width: calendarColumnWidth, alignment: .leading)
-            .frame(width: layout.headerColumnWidth, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .center)
+                .frame(width: calendarColumnWidth, alignment: .leading)
+                .frame(width: layout.headerColumnWidth, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
         } else {
             calendarGrid(
                 progress: progress,
                 state: state
             )
-            .frame(width: calendarColumnWidth, alignment: .leading)
-            .frame(width: layout.headerColumnWidth, alignment: .center)
-            .frame(maxWidth: .infinity, alignment: .center)
+                .frame(width: calendarColumnWidth, alignment: .leading)
+                .frame(width: layout.headerColumnWidth, alignment: .center)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
+    }
+
+    @ViewBuilder
+    private func stickyHeaderContent(
+        progress: CGFloat,
+        state: HomeCalendarAdaptiveLayout.State,
+        calendarColumnWidth: CGFloat,
+        contentLeadingInset: CGFloat
+    ) -> some View {
+        VStack(spacing: 0) {
+            Spacer().frame(height: layout.safeAreaTop)
+
+            VStack(spacing: 0) {
+                titleRow(progress: progress, state: state)
+                    .frame(width: layout.headerColumnWidth, alignment: .leading)
+                    .frame(
+                    maxWidth: .infinity,
+                    alignment: layout.kind == .pad ? .center : .leading
+                )
+
+                headerContent(
+                    progress: progress,
+                    state: state,
+                    calendarColumnWidth: calendarColumnWidth
+                )
+            }
+                .padding(.leading, contentLeadingInset)
+
+            Spacer(minLength: 0)
+        }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.horizontal, layout.outerHorizontalInset)
+            .padding(.top, state.topPadding)
+            .padding(.bottom, layout.bottomPadding)
+    }
+
+    @ViewBuilder
+    private func compactHeaderShadow(progress: CGFloat) -> some View {
+        let normalizedProgress = max(
+            0,
+            min(
+                (progress - CompactHeaderShadowConfig.revealStart)
+                / (CompactHeaderShadowConfig.revealEnd - CompactHeaderShadowConfig.revealStart),
+                1.0
+            )
+        )
+        let shadowProgress = compactShadowEase(normalizedProgress)
+        let baseShadowHeight = layout.safeAreaTop
+            + layout.compactCapsuleHeight
+            + 15
+        let shadowHeight = baseShadowHeight
+            + shadowHeightOffset
+
+        if shadowProgress > 0.001 {
+            EdgeShadowOverlay(
+                topHeight: shadowHeight,
+                bottomHeight: 0,
+                kMaxAlphaTop: shadowMaxAlpha * shadowProgress,
+                kMaxAlphaBottom: 0,
+                topColor: shadowColor,
+                topProfileHeight: baseShadowHeight,
+                tuning: shadowTuning
+            )
+                .allowsHitTesting(false)
+        }
+    }
+
+    private func compactShadowEase(_ progress: CGFloat) -> CGFloat {
+        let x = min(max(progress, 0), 1)
+        return x * x * x * (x * ((x * 6) - 15) + 10)
     }
 
     /// Renders the weekday labels and the scrollable grid of days.
@@ -163,7 +239,7 @@ struct HomeCalendarSectionView: View {
                     progress: progress,
                     state: state
                 )
-                .frame(width: visibleGridWidth, alignment: .leading)
+                    .frame(width: visibleGridWidth, alignment: .leading)
             }
 
             if isCompactStripActive && !compactWeekPages.isEmpty {
@@ -177,15 +253,15 @@ struct HomeCalendarSectionView: View {
                         calendarVM.selectDate(day.date)
                     }
                 )
-                .transition(.identity)
-                .transaction { $0.animation = nil }
+                    .transition(.identity)
+                    .transaction { $0.animation = nil }
             }
         }
-        .frame(
+            .frame(
             height: state.rowHeight + (totalGridHeight - state.rowHeight) * (1 - progress),
             alignment: .top
         )
-        .transaction { $0.animation = nil }
+            .transaction { $0.animation = nil }
 
         let gridContent = VStack(spacing: 0) {
             weekdayLabels(state: state)
@@ -198,9 +274,9 @@ struct HomeCalendarSectionView: View {
                     .clipped()
             }
         }
-        .padding(.horizontal, state.horizontalPadding)
-        .padding(.vertical, state.verticalPadding)
-        .frame(width: capsuleWidth, alignment: .leading)
+            .padding(.horizontal, state.horizontalPadding)
+            .padding(.vertical, state.verticalPadding)
+            .frame(width: capsuleWidth, alignment: .leading)
         gridContent
     }
 
@@ -222,8 +298,8 @@ struct HomeCalendarSectionView: View {
                 calendarVM.applyMonthOffset(offset)
             }
         )
-        .frame(width: state.dayColumnWidth * 7)
-        .clipped()
+            .frame(width: state.dayColumnWidth * 7)
+            .clipped()
     }
 
     /// A horizontal row displaying abbreviated weekday symbols (e.g., Sun, Mon).
@@ -236,7 +312,7 @@ struct HomeCalendarSectionView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .frame(height: state.weekLabelHeight, alignment: .center)
+            .frame(height: state.weekLabelHeight, alignment: .center)
     }
 
     private var weekdaySymbols: [String] {
@@ -270,20 +346,20 @@ struct HomeCalendarSectionView: View {
                             dayColumnWidth: state.dayColumnWidth,
                             rowHeight: state.rowHeight
                         )
-                        .frame(width: state.dayColumnWidth, height: state.rowHeight)
-                        .onTapGesture {
+                            .frame(width: state.dayColumnWidth, height: state.rowHeight)
+                            .onTapGesture {
                             calendarVM.selectDate(day.date)
                         }
                     }
                 }
-                .frame(width: state.dayColumnWidth * 7, height: state.rowHeight, alignment: .leading)
-                .opacity(rowOpacity)
+                    .frame(width: state.dayColumnWidth * 7, height: state.rowHeight, alignment: .leading)
+                    .opacity(rowOpacity)
                 // Disable automatic opacity interpolation during month transitions.
                 .transaction { $0.animation = nil }
             }
         }
-        .frame(height: totalGridHeight, alignment: .top)
-        .offset(y: -(calendarVM.monthProgress * state.rowHeight) * progress)
+            .frame(height: totalGridHeight, alignment: .top)
+            .offset(y: -(calendarVM.monthProgress * state.rowHeight) * progress)
     }
 
     private func monthNavigationControl(size: CGFloat, spacing: CGFloat) -> some View {
@@ -314,10 +390,10 @@ struct HomeCalendarSectionView: View {
                     action: { calendarVM.monthUpdate(increment: true) }
                 )
             }
-            .padding(.horizontal, horizontalInset)
+                .padding(.horizontal, horizontalInset)
         }
-        .frame(width: totalWidth, height: controlHeight)
-        .clipped())
+            .frame(width: totalWidth, height: controlHeight)
+            .clipped())
     }
 
     private func monthChevronButton(
@@ -334,7 +410,7 @@ struct HomeCalendarSectionView: View {
                 .frame(width: size, height: size)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+            .buttonStyle(.plain)
     }
 
     private var compactWeekPages: [[Day]] {
@@ -458,31 +534,31 @@ struct CalendarDayCellView: View {
     var body: some View {
         Text(day.shortSymbol)
             .font(.system(
-                size: metrics.fontSize,
-                weight: (day.isSelected || isToday) ? .bold : .medium,
-                design: .rounded
-            ))
+            size: metrics.fontSize,
+            weight: (day.isSelected || isToday) ? .bold : .medium,
+            design: .rounded
+        ))
             .foregroundStyle(textColor)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
-                ZStack {
-                    Circle()
-                        .fill(tileFillColor.opacity(tileFillOpacity))
-                        .frame(width: tileSize, height: tileSize)
-                }
+            ZStack {
+                Circle()
+                    .fill(tileFillColor.opacity(tileFillOpacity))
+                    .frame(width: tileSize, height: tileSize)
             }
+        }
             .overlay(alignment: .bottom) {
-                if hasExamGoal && !day.isSelected {
-                    HStack(spacing: metrics.markerSpacing) {
-                        markerShape(color: examMarkerColor)
+            if hasExamGoal && !day.isSelected {
+                HStack(spacing: metrics.markerSpacing) {
+                    markerShape(color: examMarkerColor)
 
-                        if metrics.showsSecondaryNoteMarker {
-                            markerShape(color: noteMarkerColor)
-                        }
+                    if metrics.showsSecondaryNoteMarker {
+                        markerShape(color: noteMarkerColor)
                     }
-                    .offset(y: metrics.markerOffsetY)
                 }
+                    .offset(y: metrics.markerOffsetY)
             }
+        }
             .contentShape(Rectangle())
             .zIndex(day.isSelected ? 1 : 0)
     }

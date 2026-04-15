@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CB0519702F8FF67F00FB3093 /* ProgressiveBlurHeader in Frameworks */ = {isa = PBXBuildFile; productRef = CB05196F2F8FF67F00FB3093 /* ProgressiveBlurHeader */; };
 		CB23A3552F49065800BC2D1C /* auto-render.min.js in Resources */ = {isa = PBXBuildFile; fileRef = CB23A3152F49065800BC2D1C /* auto-render.min.js */; };
 		CB23A3562F49065800BC2D1C /* KaTeX_SansSerif-Italic.woff in Resources */ = {isa = PBXBuildFile; fileRef = CB23A33B2F49065800BC2D1C /* KaTeX_SansSerif-Italic.woff */; };
 		CB23A3572F49065800BC2D1C /* KaTeX_AMS-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CB23A3162F49065800BC2D1C /* KaTeX_AMS-Regular.ttf */; };
@@ -183,6 +184,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CB0519702F8FF67F00FB3093 /* ProgressiveBlurHeader in Frameworks */,
 				CB2BF63D2F5F6B790068EF3A /* PZCircularControl in Frameworks */,
 				CB3A1CEA2F682D7700928B92 /* Lottie in Frameworks */,
 			);
@@ -309,6 +311,7 @@
 			packageProductDependencies = (
 				CB2BF63C2F5F6B790068EF3A /* PZCircularControl */,
 				CB3A1CE92F682D7700928B92 /* Lottie */,
+				CB05196F2F8FF67F00FB3093 /* ProgressiveBlurHeader */,
 			);
 			productName = QuizFlash;
 			productReference = CB5C2D742EF8A48400FB1D07 /* QuizFlash.app */;
@@ -368,6 +371,7 @@
 			packageReferences = (
 				CB2BF63B2F5F6B790068EF3A /* XCRemoteSwiftPackageReference "PZCircularControl" */,
 				CB3A1CE82F682D7700928B92 /* XCRemoteSwiftPackageReference "lottie-ios" */,
+				CB05196E2F8FF67F00FB3093 /* XCRemoteSwiftPackageReference "ProgressiveBlurHeader" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CB5C2D752EF8A48400FB1D07 /* Products */;
@@ -786,6 +790,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		CB05196E2F8FF67F00FB3093 /* XCRemoteSwiftPackageReference "ProgressiveBlurHeader" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/dominikmartn/ProgressiveBlurHeader";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		CB2BF63B2F5F6B790068EF3A /* XCRemoteSwiftPackageReference "PZCircularControl" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/philptr/PZCircularControl.git";
@@ -805,6 +817,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		CB05196F2F8FF67F00FB3093 /* ProgressiveBlurHeader */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CB05196E2F8FF67F00FB3093 /* XCRemoteSwiftPackageReference "ProgressiveBlurHeader" */;
+			productName = ProgressiveBlurHeader;
+		};
 		CB2BF63C2F5F6B790068EF3A /* PZCircularControl */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CB2BF63B2F5F6B790068EF3A /* XCRemoteSwiftPackageReference "PZCircularControl" */;

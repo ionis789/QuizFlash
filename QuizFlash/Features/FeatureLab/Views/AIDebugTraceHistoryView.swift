@@ -21,86 +21,102 @@ struct AIDebugTraceHistoryView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                    LargeScreenTitle(title: "AI Trace History")
-                        .collapsibleTitleRevealAnchor(
-                            in: kAIDebugTraceHistoryChromeSpace,
-                            navigationBarBottomY: navigationBarBottomY,
-                            revealClearance: SettingsChromeMetrics.pillRevealClearance,
-                            isVisible: $isCollapsedTitleVisible
+            ZStack {
+                themeManager.groupedScreenBackground
+                    .ignoresSafeArea()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+                        LargeScreenTitle(title: "AI Trace History")
+                            .collapsibleTitleRevealAnchor(
+                                in: kAIDebugTraceHistoryChromeSpace,
+                                navigationBarBottomY: navigationBarBottomY,
+                                revealClearance: SettingsChromeMetrics.pillRevealClearance,
+                                isVisible: $isCollapsedTitleVisible
+                            )
+
+                        SettingsInfoCard(
+                            icon: "waveform.and.magnifyingglass",
+                            tint: .orange,
+                            text: "Open any run to inspect the full JSON trace for generation or conversion, including requests, raw responses, retries, malformed payloads, and decode steps."
                         )
 
-                    SettingsInfoCard(
-                        icon: "waveform.and.magnifyingglass",
-                        tint: .orange,
-                        text: "Open any run to inspect the full JSON trace for generation or conversion, including requests, raw responses, retries, malformed payloads, and decode steps."
-                    )
+                        if isLoading {
+                            SettingsSectionCard(
+                                title: "Runs",
+                                subtitle: "Loading persisted AI trace history."
+                            ) {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        } else if runs.isEmpty {
+                            SettingsSectionCard(
+                                title: "Runs",
+                                subtitle: "No trace runs have been recorded yet."
+                            ) {
+                                Text("Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run.")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        } else {
+                            SettingsSectionCard(
+                                title: "Runs",
+                                subtitle: "\(runs.count) recorded \(runs.count == 1 ? "run" : "runs"), newest first."
+                            ) {
+                                ForEach(Array(runs.enumerated()), id: \.element.id) { index, run in
+                                    NavigationLink {
+                                        AIDebugTraceRunDetailView(runID: run.id)
+                                    } label: {
+                                        SettingsNavigationRow(
+                                            icon: icon(for: run.kind),
+                                            tint: tint(for: run.kind),
+                                            title: title(for: run),
+                                            detail: detail(for: run),
+                                            value: value(for: run)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
 
-                    if isLoading {
-                        SettingsSectionCard(
-                            title: "Runs",
-                            subtitle: "Loading persisted AI trace history."
-                        ) {
-                            ProgressView()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    } else if runs.isEmpty {
-                        SettingsSectionCard(
-                            title: "Runs",
-                            subtitle: "No trace runs have been recorded yet."
-                        ) {
-                            Text("Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run.")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    } else {
-                        SettingsSectionCard(
-                            title: "Runs",
-                            subtitle: "\(runs.count) recorded \(runs.count == 1 ? "run" : "runs"), newest first."
-                        ) {
-                            ForEach(Array(runs.enumerated()), id: \.element.id) { index, run in
-                                NavigationLink {
-                                    AIDebugTraceRunDetailView(runID: run.id)
-                                } label: {
-                                    SettingsNavigationRow(
-                                        icon: icon(for: run.kind),
-                                        tint: tint(for: run.kind),
-                                        title: title(for: run),
-                                        detail: detail(for: run),
-                                        value: value(for: run)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-
-                                if index < runs.count - 1 {
-                                    SettingsCardDivider()
+                                    if index < runs.count - 1 {
+                                        SettingsCardDivider()
+                                    }
                                 }
                             }
                         }
                     }
+                    .padding(.horizontal, UIConstants.Spacing.large)
+                    .padding(.top, UIConstants.Spacing.large)
+                    .padding(.bottom, UIConstants.Spacing.huge)
                 }
-                .padding(.horizontal, UIConstants.Spacing.large)
-                .padding(.top, UIConstants.Spacing.large)
-                .padding(.bottom, UIConstants.Spacing.huge)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
+                }
+                .refreshable {
+                    await loadRuns()
+                }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
-            }
-            .refreshable {
-                await loadRuns()
-            }
+            .screenTopEdgeShadow(
+                topHeight: structuralTopEdgeShadowHeight,
+                topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
+                debugScreenID: "featurelab.ai-trace-history"
+            )
 
             navigationBar
         }
         .coordinateSpace(name: kAIDebugTraceHistoryChromeSpace)
-        .background(themeManager.groupedScreenBackground)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
         .task {
             await loadRuns()
         }
+    }
+
+    private var structuralTopEdgeShadowHeight: CGFloat {
+        if navigationBarBottomY > 0 {
+            return navigationBarBottomY
+        }
+        return UIConstants.Layout.topEdgeShadowHeight
     }
 
     private var navigationBar: some View {

@@ -87,47 +87,63 @@ struct PlayModeDefaultsSettingsView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                    LargeScreenTitle(title: "\(mode.title) Defaults")
-                        .collapsibleTitleRevealAnchor(
-                            in: kPlayModeDefaultsChromeSpace,
-                            navigationBarBottomY: navigationBarBottomY,
-                            revealClearance: SettingsChromeMetrics.pillRevealClearance,
-                            isVisible: $isCollapsedTitleVisible
+            ZStack {
+                themeManager.groupedScreenBackground
+                    .ignoresSafeArea()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+                        LargeScreenTitle(title: "\(mode.title) Defaults")
+                            .collapsibleTitleRevealAnchor(
+                                in: kPlayModeDefaultsChromeSpace,
+                                navigationBarBottomY: navigationBarBottomY,
+                                revealClearance: SettingsChromeMetrics.pillRevealClearance,
+                                isVisible: $isCollapsedTitleVisible
+                            )
+
+                        switch mode {
+                        case .flashcards:
+                            flashcardsContent
+                        case .quiz:
+                            quizContent
+                        case .match:
+                            matchContent
+                        case .write:
+                            writeContent
+                        }
+
+                        SettingsInfoCard(
+                            icon: "square.stack.3d.up",
+                            tint: themeManager.accentColor.color,
+                            text: "These are app-wide defaults for future sessions. Deck-level play mode settings still own content rules such as order, validation, reveal timing, and per-deck retry behavior."
                         )
-
-                    switch mode {
-                    case .flashcards:
-                        flashcardsContent
-                    case .quiz:
-                        quizContent
-                    case .match:
-                        matchContent
-                    case .write:
-                        writeContent
                     }
-
-                    SettingsInfoCard(
-                        icon: "square.stack.3d.up",
-                        tint: themeManager.accentColor.color,
-                        text: "These are app-wide defaults for future sessions. Deck-level play mode settings still own content rules such as order, validation, reveal timing, and per-deck retry behavior."
-                    )
+                    .padding(.horizontal, UIConstants.Spacing.large)
+                    .padding(.top, UIConstants.Spacing.large)
+                    .padding(.bottom, UIConstants.Spacing.huge)
                 }
-                .padding(.horizontal, UIConstants.Spacing.large)
-                .padding(.top, UIConstants.Spacing.large)
-                .padding(.bottom, UIConstants.Spacing.huge)
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
+                }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
-            }
+            .screenTopEdgeShadow(
+                topHeight: structuralTopEdgeShadowHeight,
+                topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
+                debugScreenID: "settings.play-mode-defaults"
+            )
 
             navigationBar
         }
         .coordinateSpace(name: kPlayModeDefaultsChromeSpace)
-        .background(themeManager.groupedScreenBackground)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
+    }
+
+    private var structuralTopEdgeShadowHeight: CGFloat {
+        if navigationBarBottomY > 0 {
+            return navigationBarBottomY
+        }
+        return UIConstants.Layout.topEdgeShadowHeight
     }
 
     private var flashcardsContent: some View {
