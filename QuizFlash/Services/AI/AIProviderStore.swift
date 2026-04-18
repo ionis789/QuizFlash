@@ -324,6 +324,8 @@ final class AIProviderStore {
 
     private(set) var profiles: [AIProviderProfile]
     var activeProfileID: UUID?
+    var showPersistenceError = false
+    var persistenceErrorMessage = ""
 
     var activeProfile: AIProviderProfile? {
         guard let activeProfileID else { return profiles.first }
@@ -349,14 +351,24 @@ final class AIProviderStore {
         sanitizeStateIfNeeded()
     }
 
-    func setActiveProfile(id: UUID) {
-        guard profiles.contains(where: { $0.id == id }) else { return }
-        guard activeProfileID != id else { return }
+    @discardableResult
+    func setActiveProfile(id: UUID) -> Bool {
+        guard profiles.contains(where: { $0.id == id }) else { return false }
+        guard activeProfileID != id else { return true }
+        let previousActiveProfileID = activeProfileID
         activeProfileID = id
-        persist()
+        guard persist(fallbackMessage: "The active AI configuration couldn't be saved right now.") else {
+            activeProfileID = previousActiveProfileID
+            return false
+        }
+        return true
     }
 
-    func upsertProfile(_ profile: AIProviderProfile, makeActive: Bool) {
+    @discardableResult
+    func upsertProfile(_ profile: AIProviderProfile, makeActive: Bool) -> Bool {
+        let previousProfiles = profiles
+        let previousActiveProfileID = activeProfileID
+
         if let existingIndex = profiles.firstIndex(where: { $0.id == profile.id }) {
             profiles[existingIndex] = profile
         } else {
@@ -368,11 +380,19 @@ final class AIProviderStore {
         }
 
         sanitizeStateIfNeeded()
-        persist()
+        guard persist(fallbackMessage: "The AI configuration couldn't be saved right now.") else {
+            profiles = previousProfiles
+            activeProfileID = previousActiveProfileID
+            return false
+        }
+        return true
     }
 
-    func deleteProfile(id: UUID) {
-        guard profiles.count > 1 else { return }
+    @discardableResult
+    func deleteProfile(id: UUID) -> Bool {
+        guard profiles.count > 1 else { return false }
+        let previousProfiles = profiles
+        let previousActiveProfileID = activeProfileID
         profiles.removeAll { $0.id == id }
 
         if activeProfileID == id {
@@ -380,7 +400,17 @@ final class AIProviderStore {
         }
 
         sanitizeStateIfNeeded()
-        persist()
+        guard persist(fallbackMessage: "The AI configuration couldn't be deleted right now.") else {
+            profiles = previousProfiles
+            activeProfileID = previousActiveProfileID
+            return false
+        }
+        return true
+    }
+
+    func dismissPersistenceError() {
+        showPersistenceError = false
+        persistenceErrorMessage = ""
     }
 
     private func sanitizeStateIfNeeded() {
@@ -395,7 +425,8 @@ final class AIProviderStore {
         activeProfileID = profiles.first?.id
     }
 
-    private func persist() {
+    @discardableResult
+    private func persist(fallbackMessage: String = "The AI configuration changes couldn't be saved right now.") -> Bool {
         let payload = StoragePayload(activeProfileID: activeProfileID, profiles: profiles)
 
         do {
@@ -421,8 +452,13 @@ final class AIProviderStore {
             values.isExcludedFromBackup = true
             var mutableFileURL = fileURL
             try? mutableFileURL.setResourceValues(values)
+            return true
         } catch {
             logger.error("Failed to persist AI provider profiles: \(error.localizedDescription)")
+            let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            persistenceErrorMessage = description.isEmpty ? fallbackMessage : description
+            showPersistenceError = true
+            return false
         }
     }
 

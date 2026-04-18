@@ -25,12 +25,39 @@ enum ThemeColorTokenGroup: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// Describes a concrete app surface where a semantic theme role is visible.
+struct ThemeStudioUsageReference: Hashable, Identifiable {
+    let title: String
+    let detail: String
+
+    var id: String { "\(title)|\(detail)" }
+}
+
+/// High-level preview families used by Theme Studio to render the role in context.
+enum ThemeStudioRolePreviewKind {
+    case tintAccent
+    case screen
+    case primaryButton
+    case secondaryButton
+    case dangerButton
+    case surfaceButton
+    case primaryLabel
+    case secondaryLabel
+    case dangerLabel
+    case surfaceLabel
+    case cardSurface
+    case widgetSurface
+    case tabBar
+    case circularToolbar
+    case backCapsule
+}
+
 /// Semantic theme tokens that back the app's shared palette.
 enum ThemeColorToken: String, CaseIterable, Identifiable {
     case backgroundPrimary = "BackgroundPrimary"
     case backgroundSecondary = "BackgroundSecondary"
     case surfacePrimary = "SurfacePrimary"
-    case surfaceElevated = "SurfaceElevated"
+    case surfaceSecondary = "SurfaceSecondary"
     case brandPrimary = "BrandPrimary"
     case brandStrong = "BrandStrong"
     case brandDeep = "BrandDeep"
@@ -50,7 +77,7 @@ enum ThemeColorToken: String, CaseIterable, Identifiable {
         case .backgroundPrimary: "Background Primary"
         case .backgroundSecondary: "Background Secondary"
         case .surfacePrimary: "Surface Primary"
-        case .surfaceElevated: "Surface Elevated"
+        case .surfaceSecondary: "Surface Secondary"
         case .brandPrimary: "Brand Primary"
         case .brandStrong: "Brand Strong"
         case .brandDeep: "Brand Deep"
@@ -71,8 +98,8 @@ enum ThemeColorToken: String, CaseIterable, Identifiable {
             "Grouped pages and nested surfaces."
         case .surfacePrimary:
             "Widgets, cards, and neutral content surfaces."
-        case .surfaceElevated:
-            "Toolbars, floating chrome, and elevated controls."
+        case .surfaceSecondary:
+            "Toolbars, floating chrome, and secondary elevated controls."
         case .brandPrimary:
             "Primary purple accents and selected states."
         case .brandStrong:
@@ -98,7 +125,7 @@ enum ThemeColorToken: String, CaseIterable, Identifiable {
         switch self {
         case .backgroundPrimary, .backgroundSecondary:
             .backgrounds
-        case .surfacePrimary, .surfaceElevated:
+        case .surfacePrimary, .surfaceSecondary:
             .surfaces
         case .brandPrimary, .brandStrong, .brandDeep:
             .brand
@@ -152,6 +179,10 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
 
     case cardSurfaceFill = "CardSurfaceFill"
     case widgetSurfaceFill = "WidgetSurfaceFill"
+    case settingsCardFill = "SettingsCardFill"
+    case settingsCardBorder = "SettingsCardBorder"
+    case selectionToolbarFill = "SelectionToolbarFill"
+    case selectionToolbarBorder = "SelectionToolbarBorder"
 
     case tabBarTrackFill = "TabBarTrackFill"
     case tabSelectionFill = "TabSelectionFill"
@@ -187,6 +218,10 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
         case .labelSurfaceForeground: "Surface Label Text"
         case .cardSurfaceFill: "Card Surface Fill"
         case .widgetSurfaceFill: "Widget Surface Fill"
+        case .settingsCardFill: "Settings Card Fill"
+        case .settingsCardBorder: "Settings Card Border"
+        case .selectionToolbarFill: "Selection Toolbar Fill"
+        case .selectionToolbarBorder: "Selection Toolbar Border"
         case .tabBarTrackFill: "Tab Bar Track Fill"
         case .tabSelectionFill: "Tab Selection Fill"
         case .tabSelectionForeground: "Tab Selection Text"
@@ -241,6 +276,14 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
             "Elevated card-style surfaces."
         case .widgetSurfaceFill:
             "Widget blocks and content modules."
+        case .settingsCardFill:
+            "Grouped settings card background."
+        case .settingsCardBorder:
+            "Grouped settings card border and dividers."
+        case .selectionToolbarFill:
+            "Selection toolbar cluster background."
+        case .selectionToolbarBorder:
+            "Selection toolbar cluster border."
         case .tabBarTrackFill:
             "Floating tab bar container."
         case .tabSelectionFill:
@@ -255,6 +298,162 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
             "Round top-bar button icon color."
         case .backButtonForeground:
             "Back capsule text and icon color."
+        }
+    }
+
+    var usageReferences: [ThemeStudioUsageReference] {
+        switch self {
+        case .tintAccent:
+            [
+                ThemeStudioUsageReference(title: "System controls", detail: "Toggles, links, pickers, and segmented controls."),
+                ThemeStudioUsageReference(title: "Editor affordances", detail: "Formatting highlights and accent-driven interactions.")
+            ]
+        case .screenBackgroundPrimary:
+            [
+                ThemeStudioUsageReference(title: "Main app shell", detail: "Home, Library, Deck, Create, and Labs root screens."),
+                ThemeStudioUsageReference(title: "Large scrolling surfaces", detail: "The dark canvas behind cards, lists, and floating chrome.")
+            ]
+        case .screenBackgroundGrouped:
+            [
+                ThemeStudioUsageReference(title: "Grouped settings pages", detail: "Nested settings and detail screens."),
+                ThemeStudioUsageReference(title: "Secondary shells", detail: "Use when a pushed screen needs softer separation from the app shell.")
+            ]
+        case .buttonPrimaryFill, .buttonPrimaryForeground:
+            [
+                ThemeStudioUsageReference(title: "Primary CTA buttons", detail: "Dashboard actions, exam goal CTA, and important confirm actions."),
+                ThemeStudioUsageReference(title: "Selected intent", detail: "Buttons meant to read as the app's main affirmative action.")
+            ]
+        case .buttonSecondaryFill, .buttonSecondaryForeground:
+            [
+                ThemeStudioUsageReference(title: "Light utility actions", detail: "Small secondary buttons like clear or dismiss helpers."),
+                ThemeStudioUsageReference(title: "Inline accessory actions", detail: "Supportive actions that should stay lighter than the primary CTA.")
+            ]
+        case .buttonDangerFill, .buttonDangerForeground:
+            [
+                ThemeStudioUsageReference(title: "Destructive actions", detail: "Delete, clear, remove, and warning-weight controls."),
+                ThemeStudioUsageReference(title: "Deck management", detail: "Danger buttons inside deck detail and workspace flows.")
+            ]
+        case .buttonSurfaceFill, .buttonSurfaceForeground:
+            [
+                ThemeStudioUsageReference(title: "Floating chrome actions", detail: "Round and capsule buttons in Library, Deck, and Home top bars."),
+                ThemeStudioUsageReference(title: "Neutral action controls", detail: "Buttons that should read as glassy utility chrome rather than CTA.")
+            ]
+        case .labelPrimaryFill, .labelPrimaryForeground:
+            [
+                ThemeStudioUsageReference(title: "Selected pills", detail: "Highlighted state chips, active filters, and selected capsules."),
+                ThemeStudioUsageReference(title: "Stat accents", detail: "Primary value badges and dense emphasis labels.")
+            ]
+        case .labelSecondaryFill, .labelSecondaryForeground:
+            [
+                ThemeStudioUsageReference(title: "Supportive pills", detail: "Light tags and secondary metadata chips."),
+                ThemeStudioUsageReference(title: "Quiet selection states", detail: "Less dominant badges that still need separation from the background.")
+            ]
+        case .labelDangerFill, .labelDangerForeground:
+            [
+                ThemeStudioUsageReference(title: "Warning chips", detail: "Destructive or overdue labels and warning emphasis states."),
+                ThemeStudioUsageReference(title: "Alert metadata", detail: "Badges that need to read as risky without becoming full buttons.")
+            ]
+        case .labelSurfaceFill, .labelSurfaceForeground:
+            [
+                ThemeStudioUsageReference(title: "Neutral capsules", detail: "Inline count chips and toolbar labels."),
+                ThemeStudioUsageReference(title: "Surface metadata", detail: "Badges that should blend into floating chrome and cards.")
+            ]
+        case .cardSurfaceFill:
+            [
+                ThemeStudioUsageReference(title: "Flashcard faces", detail: "Full card surfaces used in study and preview modes."),
+                ThemeStudioUsageReference(title: "Large card treatments", detail: "Surfaces that need stronger border and depth than widgets.")
+            ]
+        case .widgetSurfaceFill:
+            [
+                ThemeStudioUsageReference(title: "Dashboard cards", detail: "Home stats, exam goal cards, recent decks, and overview widgets."),
+                ThemeStudioUsageReference(title: "Shared modules", detail: "Rows and panels that use flashcardStyle(.widget).")
+            ]
+        case .settingsCardFill, .settingsCardBorder:
+            [
+                ThemeStudioUsageReference(title: "Settings cards", detail: "SettingsHeaderCard, SettingsSectionCard, and SettingsInfoCard."),
+                ThemeStudioUsageReference(title: "Grouped settings chrome", detail: "Reusable card surfaces across Settings and pushed settings screens.")
+            ]
+        case .selectionToolbarFill, .selectionToolbarBorder:
+            [
+                ThemeStudioUsageReference(title: "Library selection toolbar", detail: "Bottom multi-select action cluster in Library."),
+                ThemeStudioUsageReference(title: "Contextual action chrome", detail: "Dense bottom toolbar surfaces that appear during selection states.")
+            ]
+        case .tabBarTrackFill:
+            [
+                ThemeStudioUsageReference(title: "Bottom chrome", detail: "Floating custom tab bar track across the whole app."),
+                ThemeStudioUsageReference(title: "Persistent navigation shell", detail: "The glass-like base behind tab items.")
+            ]
+        case .tabSelectionFill, .tabSelectionForeground:
+            [
+                ThemeStudioUsageReference(title: "Selected tab capsule", detail: "Active tab indicator in the floating tab bar."),
+                ThemeStudioUsageReference(title: "Primary navigation focus", detail: "The strongest persistent navigation accent in the app.")
+            ]
+        case .tabUnselectedForeground:
+            [
+                ThemeStudioUsageReference(title: "Inactive tabs", detail: "Unselected tab icons and labels in the bottom chrome."),
+                ThemeStudioUsageReference(title: "Resting navigation state", detail: "Default navigation text/icon color when not selected.")
+            ]
+        case .circularToolbarFill, .circularToolbarForeground:
+            [
+                ThemeStudioUsageReference(title: "Top circular buttons", detail: "Library, Home calendar, and Deck floating toolbar actions."),
+                ThemeStudioUsageReference(title: "Search and more controls", detail: "Round chrome that must stay crisp over the blur layer.")
+            ]
+        case .backButtonForeground:
+            [
+                ThemeStudioUsageReference(title: "Back capsules", detail: "Pill back buttons in Library, Deck, and pushed settings screens."),
+                ThemeStudioUsageReference(title: "Contextual navigation", detail: "The left-aligned escape action in custom top chrome.")
+            ]
+        }
+    }
+
+    var previewKind: ThemeStudioRolePreviewKind {
+        switch self {
+        case .tintAccent:
+            .tintAccent
+        case .screenBackgroundPrimary, .screenBackgroundGrouped:
+            .screen
+        case .buttonPrimaryFill, .buttonPrimaryForeground:
+            .primaryButton
+        case .buttonSecondaryFill, .buttonSecondaryForeground:
+            .secondaryButton
+        case .buttonDangerFill, .buttonDangerForeground:
+            .dangerButton
+        case .buttonSurfaceFill, .buttonSurfaceForeground:
+            .surfaceButton
+        case .labelPrimaryFill, .labelPrimaryForeground:
+            .primaryLabel
+        case .labelSecondaryFill, .labelSecondaryForeground:
+            .secondaryLabel
+        case .labelDangerFill, .labelDangerForeground:
+            .dangerLabel
+        case .labelSurfaceFill, .labelSurfaceForeground:
+            .surfaceLabel
+        case .cardSurfaceFill:
+            .cardSurface
+        case .widgetSurfaceFill:
+            .widgetSurface
+        case .settingsCardFill, .settingsCardBorder, .selectionToolbarFill, .selectionToolbarBorder:
+            .widgetSurface
+        case .tabBarTrackFill,
+             .tabSelectionFill,
+             .tabSelectionForeground,
+             .tabUnselectedForeground:
+            .tabBar
+        case .circularToolbarFill, .circularToolbarForeground:
+            .circularToolbar
+        case .backButtonForeground:
+            .backCapsule
+        }
+    }
+
+    var studioStatusNote: String? {
+        switch self {
+        case .circularToolbarFill:
+            "This role is defined, but the current circular chrome still inherits its fill from Surface Button Fill. Changing it won't affect the live UI until that wiring is migrated."
+        case .tabSelectionForeground:
+            "The live tab bar keeps selected tab text and icon on the fixed brand purple for readability. This role remains available for previews and future navigation surfaces."
+        default:
+            nil
         }
     }
 
@@ -282,6 +481,8 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
             .labels
         case .cardSurfaceFill, .widgetSurfaceFill:
             .surfaces
+        case .settingsCardFill, .settingsCardBorder, .selectionToolbarFill, .selectionToolbarBorder:
+            .surfaces
         case .tabBarTrackFill,
              .tabSelectionFill,
              .tabSelectionForeground,
@@ -300,24 +501,28 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
         case .screenBackgroundGrouped: .backgroundPrimary
         case .buttonPrimaryFill: .brandPrimary
         case .buttonPrimaryForeground: .brandDeep
-        case .buttonSecondaryFill: .textPrimary
+        case .buttonSecondaryFill: .highlightWarm
         case .buttonSecondaryForeground: .brandDeep
-        case .buttonDangerFill: .surfaceElevated
+        case .buttonDangerFill: .highlightRose
         case .buttonDangerForeground: .dangerPrimary
-        case .buttonSurfaceFill: .surfaceElevated
+        case .buttonSurfaceFill: .surfaceSecondary
         case .buttonSurfaceForeground: .textPrimary
         case .labelPrimaryFill: .brandPrimary
         case .labelPrimaryForeground: .brandDeep
-        case .labelSecondaryFill: .textPrimary
+        case .labelSecondaryFill: .highlightWarm
         case .labelSecondaryForeground: .brandDeep
-        case .labelDangerFill: .surfaceElevated
+        case .labelDangerFill: .highlightRose
         case .labelDangerForeground: .dangerPrimary
-        case .labelSurfaceFill: .surfaceElevated
+        case .labelSurfaceFill: .surfaceSecondary
         case .labelSurfaceForeground: .textPrimary
-        case .cardSurfaceFill: .surfaceElevated
+        case .cardSurfaceFill: .surfaceSecondary
         case .widgetSurfaceFill: .surfacePrimary
-        case .tabBarTrackFill: .surfaceElevated
-        case .tabSelectionFill: .brandStrong
+        case .settingsCardFill: .surfacePrimary
+        case .settingsCardBorder: .textPrimary
+        case .selectionToolbarFill: .surfaceSecondary
+        case .selectionToolbarBorder: .textPrimary
+        case .tabBarTrackFill: .backgroundSecondary
+        case .tabSelectionFill: .surfaceSecondary
         case .tabSelectionForeground: .brandPrimary
         case .tabUnselectedForeground: .textPrimary
         case .circularToolbarFill: .brandStrong
@@ -384,6 +589,24 @@ final class ThemeManager {
 
     func roleColor(_ role: ThemeColorRole) -> Color {
         color(resolvedToken(for: role))
+    }
+
+    func rolesResolving(to token: ThemeColorToken) -> [ThemeColorRole] {
+        ThemeColorRole.allCases.filter { resolvedToken(for: $0) == token }
+    }
+
+    func usageReferences(for token: ThemeColorToken) -> [ThemeStudioUsageReference] {
+        let roles = rolesResolving(to: token)
+        var seen = Set<String>()
+        var ordered: [ThemeStudioUsageReference] = []
+
+        for reference in roles.flatMap(\.usageReferences) {
+            if seen.insert(reference.id).inserted {
+                ordered.append(reference)
+            }
+        }
+
+        return ordered
     }
 
     func resolvedToken(for role: ThemeColorRole) -> ThemeColorToken {
@@ -504,8 +727,8 @@ final class ThemeManager {
         color(.surfacePrimary)
     }
 
-    var surfaceElevated: Color {
-        color(.surfaceElevated)
+    var surfaceSecondary: Color {
+        color(.surfaceSecondary)
     }
 
     var backgroundSecondary: Color {
@@ -552,6 +775,7 @@ final class ThemeManager {
         self.userDefaults = userDefaults
         self.colorOverrideHexes = userDefaults.dictionary(forKey: Keys.colorOverrides) as? [String: String] ?? [:]
         self.roleOverrideTokenNames = userDefaults.dictionary(forKey: Keys.roleOverrides) as? [String: String] ?? [:]
+        migrateLegacySurfaceTokenIfNeeded()
         migrateLegacyDangerRoleOverridesIfNeeded()
     }
 
@@ -573,7 +797,7 @@ final class ThemeManager {
         var didChange = false
 
         if roleOverrideTokenNames[ThemeColorRole.buttonDangerFill.rawValue] == ThemeColorToken.dangerPrimary.rawValue {
-            roleOverrideTokenNames[ThemeColorRole.buttonDangerFill.rawValue] = ThemeColorToken.surfaceElevated.rawValue
+            roleOverrideTokenNames[ThemeColorRole.buttonDangerFill.rawValue] = ThemeColorToken.highlightRose.rawValue
             didChange = true
         }
 
@@ -582,13 +806,36 @@ final class ThemeManager {
             didChange = true
         }
 
-        if roleOverrideTokenNames[ThemeColorRole.labelDangerFill.rawValue] == ThemeColorToken.highlightRose.rawValue {
-            roleOverrideTokenNames[ThemeColorRole.labelDangerFill.rawValue] = ThemeColorToken.surfaceElevated.rawValue
+        if roleOverrideTokenNames[ThemeColorRole.labelDangerFill.rawValue] == ThemeColorToken.dangerPrimary.rawValue {
+            roleOverrideTokenNames[ThemeColorRole.labelDangerFill.rawValue] = ThemeColorToken.highlightRose.rawValue
             didChange = true
         }
 
         if roleOverrideTokenNames[ThemeColorRole.screenBackgroundGrouped.rawValue] == ThemeColorToken.backgroundSecondary.rawValue {
             roleOverrideTokenNames[ThemeColorRole.screenBackgroundGrouped.rawValue] = ThemeColorToken.backgroundPrimary.rawValue
+            didChange = true
+        }
+
+        if didChange {
+            persistOverrides()
+        }
+    }
+
+    private func migrateLegacySurfaceTokenIfNeeded() {
+        let legacyToken = "SurfaceElevated"
+        let currentToken = ThemeColorToken.surfaceSecondary.rawValue
+        var didChange = false
+
+        if let legacyColorOverride = colorOverrideHexes.removeValue(forKey: legacyToken) {
+            if colorOverrideHexes[currentToken] == nil {
+                colorOverrideHexes[currentToken] = legacyColorOverride
+            }
+            didChange = true
+        }
+
+        for (role, tokenName) in roleOverrideTokenNames {
+            guard tokenName == legacyToken else { continue }
+            roleOverrideTokenNames[role] = currentToken
             didChange = true
         }
 

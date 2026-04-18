@@ -129,6 +129,8 @@ final class DeckWorkspaceViewModel {
 
     // MARK: - AI State
     var aiState: AIGenerationState = .idle
+    var showPersistenceError = false
+    var persistenceErrorMessage = ""
 
     // MARK: - AI Picker UI
     var showAIPickerOptions = false
@@ -158,6 +160,15 @@ final class DeckWorkspaceViewModel {
     var aiGenerationBaseCardCount: Int = 0
     var aiGenerationStartedAt: Date? = nil
     var aiAccumulatedGenerationDuration: TimeInterval = 0
+
+    func presentPersistenceError(
+        _ error: Error,
+        fallbackMessage: String = "Your deck changes couldn't be saved right now."
+    ) {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        persistenceErrorMessage = description.isEmpty ? fallbackMessage : description
+        showPersistenceError = true
+    }
 
     var hasPendingAISource: Bool {
         preparedAISource != nil

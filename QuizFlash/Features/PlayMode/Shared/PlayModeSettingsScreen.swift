@@ -5,6 +5,7 @@
 //  Shared mode-settings screen used by the deck play-mode carousel.
 //
 
+import OSLog
 import SwiftData
 import SwiftUI
 
@@ -12,6 +13,11 @@ import SwiftUI
 
 /// A deck-scoped settings screen that persists mode preferences without launching gameplay.
 struct PlayModeSettingsScreen: View {
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
+        category: "PlayModeSettingsScreen"
+    )
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -37,6 +43,8 @@ struct PlayModeSettingsScreen: View {
     @State private var matchSettings = MatchModeSettings()
     @State private var writeSettings = WriteModeSettings()
     @State private var learnSettings = LearnModeSettings()
+    @State private var showSaveErrorAlert = false
+    @State private var saveErrorMessage = ""
 
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
 
@@ -150,6 +158,11 @@ struct PlayModeSettingsScreen: View {
         }
         .onChange(of: learnSettings) { _, _ in
             persistSettingsIfNeeded()
+        }
+        .alert("Save Error", isPresented: $showSaveErrorAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(saveErrorMessage.isEmpty ? "These play mode settings couldn't be saved right now." : saveErrorMessage)
         }
     }
 
@@ -266,7 +279,12 @@ struct PlayModeSettingsScreen: View {
         do {
             try context.save()
         } catch {
-            assertionFailure("Failed to persist play mode settings: \(error)")
+            Self.logger.error("Failed to persist play mode settings: \(error.localizedDescription, privacy: .public)")
+            let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            saveErrorMessage = description.isEmpty
+                ? "These play mode settings couldn't be saved right now."
+                : description
+            showSaveErrorAlert = true
         }
     }
 

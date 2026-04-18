@@ -9,6 +9,7 @@
 import SwiftUI
 import PhotosUI
 import SwiftData
+import OSLog
 
 // MARK: - Add Card Sheet View
 
@@ -31,6 +32,10 @@ struct CreateCardView: View {
     @State private var showPreview = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var isPhotoPickerPresented = false
+    @State private var scheduledFocusTask: Task<Void, Never>?
+    @State private var scheduledScrollTask: Task<Void, Never>?
+    @State private var showSaveErrorAlert = false
+    @State private var saveErrorMessage = ""
 
 
     // PURE VISUAL GHOST - No data mutation
@@ -46,6 +51,10 @@ struct CreateCardView: View {
     private var focusManager = ZoneFocusManager.shared
     private var zoneController = ZoneController.shared
     private var lineTracker = ZoneLineTracker.shared
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
+        category: "CreateCardView"
+    )
 
     // MARK: - Initialization
 
@@ -125,6 +134,11 @@ struct CreateCardView: View {
                 .swipeBack(enabled: canUseInteractiveDismiss) {
                     dismiss()
                 }
+                .alert("Save Error", isPresented: $showSaveErrorAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(saveErrorMessage.isEmpty ? "Your card changes couldn't be saved right now." : saveErrorMessage)
+            }
                 .onAppear {
                 if selectedPath == nil {
                     selectedPath = .root
@@ -132,12 +146,15 @@ struct CreateCardView: View {
 
                 // Delayed focus for initial zone
                 if highlightContext == nil || highlightContext?.isDismissed == true {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    scheduleFocusAction(after: .milliseconds(400)) {
                         if let rootZoneID = currentContent.rootZone.id as UUID? {
                             focusManager.requestFocus(for: rootZoneID)
                         }
                     }
                 }
+            }
+                .onDisappear {
+                cancelScheduledEditorTasks()
             }
         }
     }
@@ -214,14 +231,37 @@ struct CreateCardView: View {
                 .scrollDismissesKeyboard(.interactively)
                 .onChange(of: selectedPath) { _, newPath in
                 if let path = newPath {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) {
-                            proxy.scrollTo(path.id, anchor: .center)
-                        }
-                    }
+                    scheduleSelectionScroll(after: .milliseconds(100), to: path, in: proxy)
                 }
             }
         }
+    }
+
+    private func scheduleSelectionScroll(after delay: Duration, to path: ZonePath, in proxy: ScrollViewProxy) {
+        scheduledScrollTask?.cancel()
+        scheduledScrollTask = Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) {
+                proxy.scrollTo(path.id, anchor: .center)
+            }
+        }
+    }
+
+    private func scheduleFocusAction(after delay: Duration, _ action: @escaping @MainActor () -> Void) {
+        scheduledFocusTask?.cancel()
+        scheduledFocusTask = Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            action()
+        }
+    }
+
+    private func cancelScheduledEditorTasks() {
+        scheduledFocusTask?.cancel()
+        scheduledScrollTask?.cancel()
+        scheduledFocusTask = nil
+        scheduledScrollTask = nil
     }
 
     private var sidePicker: some View {
@@ -283,7 +323,7 @@ struct CreateCardView: View {
 
         zoneController.setActiveSide(newSide)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        scheduleFocusAction(after: .milliseconds(150)) {
             let targetContent = newSide == 0 ? frontZoneContent : backZoneContent
             let restored = focusSnapshot.restoreForSide(newSide)
 
@@ -315,7 +355,7 @@ struct CreateCardView: View {
             }
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        scheduleFocusAction(after: .milliseconds(150)) {
             if let id = newZoneID {
                 focusManager.requestFocus(for: id)
             }
@@ -361,7 +401,7 @@ struct CreateCardView: View {
             }
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        scheduleFocusAction(after: .milliseconds(100)) {
             focusManager.requestFocus(for: zoneID) // Focus stays on TOP zone
             focusManager.releaseKeyboardRetention(afterDelay: 0.1)
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -392,7 +432,7 @@ struct CreateCardView: View {
             }
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        scheduleFocusAction(after: .milliseconds(150)) {
             if let id = newZoneID {
                 focusManager.requestFocus(for: id)
             }
@@ -465,7 +505,16 @@ struct CreateCardView: View {
         frontZoneContent.cleanup()
         backZoneContent.cleanup()
         onSaveZones(frontZoneContent.rootZone, backZoneContent.rootZone)
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            Self.logger.error(
+                "Failed to save card editor changes: \(error.localizedDescription, privacy: .public)"
+            )
+            saveErrorMessage = error.localizedDescription
+            showSaveErrorAlert = true
+            return
+        }
         focusManager.forceReleaseKeyboard()
         lineTracker.clearAll()
         zoneController.clearHeightCache()

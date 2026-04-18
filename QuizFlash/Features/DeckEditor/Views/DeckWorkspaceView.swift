@@ -456,7 +456,8 @@ struct DeckWorkspaceView: View {
                     .screenTopEdgeShadow(
                         topHeight: structuralTopEdgeShadowHeight,
                         topRevealProgress: shouldShowCollapsedTitle ? 1 : 0,
-                        debugScreenID: "deck.workspace"
+                        debugScreenID: "deck.workspace",
+                        style: .progressiveBlur()
                     )
 
                     successOverlay
@@ -571,6 +572,11 @@ struct DeckWorkspaceView: View {
             CardEditorView(destination: destination) { content in
                 handleCardEditorSave(destination: destination, content: content)
             }
+        }
+        .alert("Save Error", isPresented: $viewModel.showPersistenceError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(viewModel.persistenceErrorMessage)
         }
     }
 }

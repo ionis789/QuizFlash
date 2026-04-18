@@ -23,7 +23,7 @@ struct HomeCalendarSectionView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
-    private enum CompactHeaderShadowConfig {
+    private enum CompactHeaderBlurConfig {
         static let revealStart: CGFloat = 0.18
         static let revealEnd: CGFloat = 0.98
     }
@@ -39,29 +39,26 @@ struct HomeCalendarSectionView: View {
     /// O(1) lookup dictionary providing per-day progress and marker insights.
     let calendarInsightsCache: [String: HomeCalendarDayInsight]
     let calendarInsightsRevision: Int
-    let shadowMaxAlpha: CGFloat
-    let shadowTuning: EdgeShadowTuning
-    let shadowHeightOffset: CGFloat
-    let shadowColor: Color
+    let blurConfiguration: ScreenTopProgressiveBlurConfiguration
+    let blurHeightOffset: CGFloat
+    let blurColor: Color
 
     init(
         calendarVM: CalendarViewModel,
         layout: HomeCalendarAdaptiveLayout,
         calendarInsightsCache: [String: HomeCalendarDayInsight],
         calendarInsightsRevision: Int,
-        shadowMaxAlpha: CGFloat = 1.0,
-        shadowTuning: EdgeShadowTuning = .default,
-        shadowHeightOffset: CGFloat = 0,
-        shadowColor: Color = EdgeShadowDebugSettings.default.resolvedColor
+        blurConfiguration: ScreenTopProgressiveBlurConfiguration = .quizFlashDefault,
+        blurHeightOffset: CGFloat = 0,
+        blurColor: Color = EdgeShadowDebugSettings.default.resolvedColor
     ) {
         self.calendarVM = calendarVM
         self.layout = layout
         self.calendarInsightsCache = calendarInsightsCache
         self.calendarInsightsRevision = calendarInsightsRevision
-        self.shadowMaxAlpha = shadowMaxAlpha
-        self.shadowTuning = shadowTuning
-        self.shadowHeightOffset = shadowHeightOffset
-        self.shadowColor = shadowColor
+        self.blurConfiguration = blurConfiguration
+        self.blurHeightOffset = blurHeightOffset
+        self.blurColor = blurColor
     }
 
     // MARK: - Private Constants
@@ -78,7 +75,7 @@ struct HomeCalendarSectionView: View {
             let contentLeadingInset = layout.contentLeadingInset(for: progress)
 
             ZStack(alignment: .topLeading) {
-                compactHeaderShadow(progress: progress)
+                compactHeaderBlur(progress: progress)
                     .offset(y: stickyOffset)
 
                 stickyHeaderContent(
@@ -178,31 +175,28 @@ struct HomeCalendarSectionView: View {
     }
 
     @ViewBuilder
-    private func compactHeaderShadow(progress: CGFloat) -> some View {
+    private func compactHeaderBlur(progress: CGFloat) -> some View {
         let normalizedProgress = max(
             0,
             min(
-                (progress - CompactHeaderShadowConfig.revealStart)
-                / (CompactHeaderShadowConfig.revealEnd - CompactHeaderShadowConfig.revealStart),
+                (progress - CompactHeaderBlurConfig.revealStart)
+                / (CompactHeaderBlurConfig.revealEnd - CompactHeaderBlurConfig.revealStart),
                 1.0
             )
         )
-        let shadowProgress = compactShadowEase(normalizedProgress)
-        let baseShadowHeight = layout.safeAreaTop
+        let blurProgress = compactShadowEase(normalizedProgress)
+        let baseBlurHeight = layout.safeAreaTop
             + layout.compactCapsuleHeight
             + 15
-        let shadowHeight = baseShadowHeight
-            + shadowHeightOffset
+        let blurHeight = baseBlurHeight
+            + blurHeightOffset
 
-        if shadowProgress > 0.001 {
-            EdgeShadowOverlay(
-                topHeight: shadowHeight,
-                bottomHeight: 0,
-                kMaxAlphaTop: shadowMaxAlpha * shadowProgress,
-                kMaxAlphaBottom: 0,
-                topColor: shadowColor,
-                topProfileHeight: baseShadowHeight,
-                tuning: shadowTuning
+        if blurProgress > 0.001 {
+            TopProgressiveBlurOverlay(
+                topHeight: blurHeight,
+                revealProgress: blurProgress,
+                tintColor: blurColor,
+                configuration: blurConfiguration
             )
                 .allowsHitTesting(false)
         }

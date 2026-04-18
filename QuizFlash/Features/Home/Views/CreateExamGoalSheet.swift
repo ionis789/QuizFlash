@@ -126,6 +126,11 @@ struct CreateExamGoalSheet: View {
             }
         }
         .presentationDetents([.large])
+        .alert("Save Error", isPresented: $viewModel.showExamGoalEditorError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(viewModel.examGoalEditorErrorMessage)
+        }
     }
 
     // MARK: - Private

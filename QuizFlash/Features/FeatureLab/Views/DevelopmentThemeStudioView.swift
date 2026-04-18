@@ -2,7 +2,7 @@
 //  DevelopmentThemeStudioView.swift
 //  QuizFlash
 //
-//  Live theme-token editor for developer-only palette tuning.
+//  Screen-first live theme editor for core app screens.
 //
 
 import SwiftUI
@@ -10,12 +10,16 @@ import SwiftUI
 struct DevelopmentThemeStudioView: View {
     @Environment(ThemeManager.self) private var themeManager
 
+    @State private var selectedScreenID: ThemeStudioScreenID = .home
+    @State private var searchText = ""
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                previewSection
-                roleSection
-                paletteSection
+                screenPickerSection
+                searchSection
+                selectedScreenSummarySection
+                componentSection
             }
             .padding(.horizontal, UIConstants.Spacing.large)
             .padding(.top, UIConstants.Spacing.large)
@@ -37,264 +41,365 @@ struct DevelopmentThemeStudioView: View {
         }
     }
 
-    private var previewSection: some View {
+    private var selectedScreen: ThemeStudioScreenDescriptor {
+        ThemeStudioCatalog.screen(selectedScreenID)
+    }
+
+    private var normalizedSearch: String {
+        searchText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private var filteredComponents: [ThemeStudioComponentDescriptor] {
+        selectedScreen.components.filter(matches(component:))
+    }
+
+    private var screenPickerSection: some View {
         SettingsSectionCard(
-            title: "Live Preview",
-            subtitle: "Adjust tokens below. Shared chrome updates immediately."
+            title: "Screens",
+            subtitle: "Pick a real app screen first. Each component card below shows the exact Swift type plus the live color inputs that shape it."
         ) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 12) {
-                    Button("Primary") {}
-                        .quizFlashButtonStyle(.primary)
-
-                    Button("Danger") {}
-                        .quizFlashButtonStyle(.accentAlt)
-                }
-
-                HStack(spacing: 12) {
-                    Text("Surface")
-                        .font(.caption.weight(.bold))
-                        .quizFlashLabelChrome(.surface, size: 36, horizontalPadding: 14)
-
-                    Text("Light")
-                        .font(.caption.weight(.bold))
-                        .quizFlashLabelChrome(.secondary, size: 36, horizontalPadding: 14)
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Widget Preview")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(themeManager.textSecondary)
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Shared widget surface")
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(themeManager.textPrimary)
-
-                        Text("Use this preview to tune background, text, and accent balance before touching screen-level UI.")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(themeManager.textSecondary)
-
-                        HStack(spacing: 10) {
-                            miniStat(title: "Brand", tint: themeManager.brandPrimary)
-                            miniStat(title: "Rose", tint: themeManager.highlightRose)
-                            miniStat(title: "Danger", tint: themeManager.dangerPrimary)
-                        }
-                    }
-                    .padding(UIConstants.Spacing.large)
-                    .flashcardStyle(cornerRadius: 28, shadowRadius: 0, surfaceRole: .widget)
-                }
-            }
-        }
-    }
-
-    private var paletteSection: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-            ForEach(ThemeColorTokenGroup.allCases) { group in
-                SettingsSectionCard(
-                    title: group.rawValue,
-                    subtitle: nil
-                ) {
-                    VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-                        ForEach(Array(groupTokens(for: group).enumerated()), id: \.element.id) { index, token in
-                            DevelopmentThemeTokenRow(token: token)
-
-                            if index < groupTokens(for: group).count - 1 {
-                                SettingsCardDivider()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var roleSection: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-            ForEach(ThemeColorRoleGroup.allCases) { group in
-                SettingsSectionCard(
-                    title: "\(group.rawValue) Roles",
-                    subtitle: nil
-                ) {
-                    VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-                        let roles = groupRoles(for: group)
-
-                        ForEach(Array(roles.enumerated()), id: \.element.id) { index, role in
-                            DevelopmentThemeRoleRow(role: role)
-
-                            if index < roles.count - 1 {
-                                SettingsCardDivider()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func groupTokens(for group: ThemeColorTokenGroup) -> [ThemeColorToken] {
-        ThemeColorToken.allCases.filter { $0.group == group }
-    }
-
-    private func groupRoles(for group: ThemeColorRoleGroup) -> [ThemeColorRole] {
-        ThemeColorRole.allCases.filter { $0.group == group }
-    }
-
-    private func miniStat(title: String, tint: Color) -> some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(tint)
-                .frame(width: 10, height: 10)
-
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(themeManager.textSecondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(themeManager.surfaceElevated, in: Capsule(style: .continuous))
-    }
-}
-
-private struct DevelopmentThemeRoleRow: View {
-    @Environment(ThemeManager.self) private var themeManager
-
-    let role: ThemeColorRole
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
-                Circle()
-                    .fill(themeManager.roleColor(role))
-                    .frame(width: 42, height: 42)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(role.title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(themeManager.textPrimary)
-
-                    Text(role.usage)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(themeManager.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
-
-                if themeManager.hasRoleOverride(for: role) {
-                    Button("Reset") {
-                        themeManager.clearRoleOverride(for: role)
-                    }
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(themeManager.dangerPrimary)
-                }
-            }
-
-            Menu {
-                ForEach(ThemeColorToken.allCases) { token in
-                    Button {
-                        themeManager.setRoleOverride(token, for: role)
-                    } label: {
-                        HStack {
-                            Text(token.title)
-                            if themeManager.resolvedToken(for: role) == token {
-                                Spacer(minLength: 8)
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            } label: {
+            ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    Text("Mapped to")
+                    ForEach(ThemeStudioScreenID.allCases) { screenID in
+                        Button {
+                            withAnimation(.snappy(duration: 0.18)) {
+                                selectedScreenID = screenID
+                            }
+                        } label: {
+                            Text(screenID.title)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(
+                                    screenID == selectedScreenID
+                                        ? themeManager.roleColor(.labelPrimaryForeground)
+                                        : themeManager.roleColor(.labelSurfaceForeground)
+                                )
+                                .padding(.horizontal, 14)
+                                .frame(height: 36)
+                                .background(
+                                    screenID == selectedScreenID
+                                        ? themeManager.roleColor(.labelPrimaryFill)
+                                        : themeManager.roleColor(.labelSurfaceFill),
+                                    in: Capsule(style: .continuous)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private var searchSection: some View {
+        SettingsSectionCard(
+            title: selectedScreen.title,
+            subtitle: "Search by Swift type name, location note, slot name, or token."
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(themeManager.textSecondary)
 
-                    Text(themeManager.resolvedToken(for: role).title)
-                        .font(.subheadline.weight(.semibold))
+                    TextField("Search inside \(selectedScreen.title)", text: $searchText)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                         .foregroundStyle(themeManager.textPrimary)
 
-                    Spacer(minLength: 0)
-
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(themeManager.textSecondary)
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(themeManager.textSecondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .background(themeManager.surfaceElevated, in: Capsule(style: .continuous))
+                .padding(.vertical, 12)
+                .background(themeManager.surfaceSecondary, in: Capsule(style: .continuous))
+
+                HStack(spacing: 8) {
+                    ThemeStudioLegendPill(text: "\(filteredComponents.count) components")
+                    ThemeStudioLegendPill(text: themeManager.hasThemeOverrides ? "Overrides active" : "Default mapping")
+                }
             }
-            .buttonStyle(.plain)
         }
     }
-}
 
-private struct DevelopmentThemeTokenRow: View {
-    @Environment(ThemeManager.self) private var themeManager
+    private var selectedScreenSummarySection: some View {
+        SettingsSectionCard(
+            title: "How To Read This Screen",
+            subtitle: "Every card is a real Swift view. Every row is a live color slot bound either to a semantic role or directly to a palette token."
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                ThemeStudioGuideLine(
+                    title: "Swift type name",
+                    detail: "The primary label is the real component name from code."
+                )
+                ThemeStudioGuideLine(
+                    title: "Shared badge",
+                    detail: "If a component or slot is reused, edits propagate to all screens that consume the same shared primitive."
+                )
+                ThemeStudioGuideLine(
+                    title: "Token + hex",
+                    detail: "Remap the slot to a different token or recolor the current token inline. Changes apply live and persist."
+                )
+            }
+        }
+    }
 
-    let token: ThemeColorToken
-
-    @State private var draftHex: String = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
-                ColorPicker("", selection: colorBinding, supportsOpacity: false)
-                    .labelsHidden()
-                    .frame(width: 42, height: 42)
-                    .background(themeManager.color(token), in: Circle())
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(token.title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(themeManager.textPrimary)
-
-                    Text(token.usage)
+    private var componentSection: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+            if filteredComponents.isEmpty {
+                SettingsSectionCard(
+                    title: "No Results",
+                    subtitle: "Nothing on this screen matches the current search."
+                ) {
+                    Text("Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`.")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(themeManager.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-
-                Spacer(minLength: 0)
-
-                if themeManager.hasColorOverride(for: token) {
-                    Button("Reset") {
-                        themeManager.clearColorOverride(for: token)
-                        draftHex = themeManager.resolvedHex(for: token)
-                    }
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(themeManager.dangerPrimary)
+            } else {
+                ForEach(filteredComponents) { component in
+                    ThemeStudioComponentCard(
+                        screenID: selectedScreenID,
+                        component: component
+                    )
                 }
             }
+        }
+    }
 
-            HStack(spacing: 10) {
+    private func matches(component: ThemeStudioComponentDescriptor) -> Bool {
+        guard !normalizedSearch.isEmpty else { return true }
+
+        let tokenTitles = component.slots
+            .map { themeManager.resolvedToken(for: $0.bindingTarget).title }
+            .joined(separator: " ")
+
+        let bindingTitles = component.slots
+            .map(\.bindingTarget.title)
+            .joined(separator: " ")
+
+        let slotNames = component.slots
+            .map(\.name)
+            .joined(separator: " ")
+
+        let slotNotes = component.slots
+            .compactMap(\.note)
+            .joined(separator: " ")
+
+        let linkedScreens = ThemeStudioCatalog.linkedScreenIDs(for: component.componentKindID)
+            .map(\.title)
+            .joined(separator: " ")
+
+        let haystack = [
+            component.swiftTypeName,
+            component.note,
+            slotNames,
+            slotNotes,
+            tokenTitles,
+            bindingTitles,
+            linkedScreens
+        ]
+            .joined(separator: " ")
+            .lowercased()
+
+        return haystack.contains(normalizedSearch)
+    }
+}
+
+private struct ThemeStudioComponentCard: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let screenID: ThemeStudioScreenID
+    let component: ThemeStudioComponentDescriptor
+
+    private var relatedScreens: [ThemeStudioScreenID] {
+        ThemeStudioCatalog.linkedScreenIDs(for: component.componentKindID)
+            .filter { $0 != screenID }
+    }
+
+    var body: some View {
+        SettingsSectionCard(
+            title: component.swiftTypeName,
+            subtitle: component.note
+        ) {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+                if !relatedScreens.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Shared Consumers")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(themeManager.textSecondary)
+
+                        FlowLayout(spacing: 8) {
+                            ThemeStudioLegendPill(text: "Shared")
+                            ForEach(relatedScreens) { relatedScreen in
+                                ThemeStudioLegendPill(text: relatedScreen.title)
+                            }
+                        }
+                    }
+                }
+
+                ForEach(Array(component.slots.enumerated()), id: \.element.id) { index, slot in
+                    ThemeStudioSlotRow(
+                        slot: slot,
+                        componentKindID: component.componentKindID,
+                        currentScreenID: screenID
+                    )
+
+                    if index < component.slots.count - 1 {
+                        SettingsCardDivider()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct ThemeStudioSlotRow: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let slot: ThemeStudioColorSlotDescriptor
+    let componentKindID: String
+    let currentScreenID: ThemeStudioScreenID
+
+    @State private var draftHex = ""
+
+    private var relatedScreens: [ThemeStudioScreenID] {
+        ThemeStudioCatalog.linkedScreenIDs(for: componentKindID)
+            .filter { $0 != currentScreenID }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
+                ColorPicker("", selection: colorBinding, supportsOpacity: false)
+                    .labelsHidden()
+                    .frame(width: 40, height: 40)
+                    .background(themeManager.resolvedColor(for: slot.bindingTarget), in: Circle())
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(slot.name)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(themeManager.textPrimary)
+
+                    if let note = slot.note {
+                        Text(note)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(themeManager.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    FlowLayout(spacing: 8) {
+                        ThemeStudioLegendPill(text: themeManager.resolvedToken(for: slot.bindingTarget).title)
+
+                        if slot.isShared {
+                            ThemeStudioLegendPill(text: "Shared slot")
+                        }
+
+                        if !themeManager.canRemap(slot.bindingTarget) {
+                            ThemeStudioLegendPill(text: "Direct token")
+                        }
+                    }
+
+                    if !relatedScreens.isEmpty {
+                        Text("Also visible in \(relatedScreens.map(\.title).joined(separator: ", "))")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(themeManager.textSecondary)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 8) {
+                if themeManager.canRemap(slot.bindingTarget) {
+                    Menu {
+                        ForEach(ThemeColorToken.allCases) { token in
+                            Button {
+                                themeManager.setBindingOverride(token, for: slot.bindingTarget)
+                            } label: {
+                                HStack {
+                                    Text(token.title)
+                                    if themeManager.resolvedToken(for: slot.bindingTarget) == token {
+                                        Spacer(minLength: 8)
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("Remap")
+                                .font(.caption.weight(.bold))
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption2.weight(.bold))
+                        }
+                        .foregroundStyle(themeManager.textPrimary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(themeManager.surfaceSecondary, in: Capsule(style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 TextField("#RRGGBB", text: $draftHex)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
                     .font(.system(.caption, design: .monospaced).weight(.semibold))
                     .foregroundStyle(themeManager.textPrimary)
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 11)
-                    .background(themeManager.surfaceElevated, in: Capsule(style: .continuous))
+                    .padding(.vertical, 10)
+                    .background(themeManager.surfaceSecondary, in: Capsule(style: .continuous))
                     .onChange(of: draftHex) { _, newValue in
                         if let normalizedHex = normalizedHex(newValue) {
-                            themeManager.setColorHexOverride(normalizedHex, for: token)
+                            themeManager.setColorHexOverride(normalizedHex, for: slot.bindingTarget)
                             draftHex = normalizedHex
                         }
                     }
 
-                Text("Default \(themeManager.defaultHex(for: token))")
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 8) {
+                Text("Current \(themeManager.resolvedHex(for: slot.bindingTarget))")
+                    .font(.system(.caption, design: .monospaced).weight(.medium))
+                    .foregroundStyle(themeManager.textSecondary)
+
+                Text("Default \(themeManager.defaultHex(for: slot.bindingTarget))")
                     .font(.system(.caption, design: .monospaced).weight(.medium))
                     .foregroundStyle(themeManager.textSecondary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.84)
+
+                Spacer(minLength: 0)
+
+                if themeManager.hasBindingOverride(for: slot.bindingTarget) {
+                    Button("Reset Mapping") {
+                        themeManager.clearBindingOverride(for: slot.bindingTarget)
+                    }
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(themeManager.highlightWarm)
+                }
+
+                if themeManager.hasColorOverride(for: slot.bindingTarget) {
+                    Button("Reset Color") {
+                        themeManager.clearColorOverride(for: slot.bindingTarget)
+                        draftHex = themeManager.resolvedHex(for: slot.bindingTarget)
+                    }
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(themeManager.dangerPrimary)
+                }
             }
         }
         .onAppear {
-            draftHex = themeManager.resolvedHex(for: token)
+            draftHex = themeManager.resolvedHex(for: slot.bindingTarget)
         }
-        .onChange(of: themeManager.resolvedHex(for: token)) { _, newValue in
+        .onChange(of: themeManager.resolvedHex(for: slot.bindingTarget)) { _, newValue in
             if draftHex != newValue {
                 draftHex = newValue
             }
@@ -303,10 +408,10 @@ private struct DevelopmentThemeTokenRow: View {
 
     private var colorBinding: Binding<Color> {
         Binding(
-            get: { themeManager.color(token) },
+            get: { themeManager.resolvedColor(for: slot.bindingTarget) },
             set: { newColor in
-                themeManager.setColorOverride(newColor, for: token)
-                draftHex = themeManager.resolvedHex(for: token)
+                themeManager.setColorOverride(newColor, for: slot.bindingTarget)
+                draftHex = themeManager.resolvedHex(for: slot.bindingTarget)
             }
         )
     }
@@ -323,5 +428,52 @@ private struct DevelopmentThemeTokenRow: View {
         }
 
         return "#\(trimmed)"
+    }
+}
+
+private struct ThemeStudioGuideLine: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(themeManager.textPrimary)
+
+            Text(detail)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(themeManager.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private struct ThemeStudioLegendPill: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(themeManager.textSecondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(themeManager.surfaceSecondary, in: Capsule(style: .continuous))
+    }
+}
+
+private struct FlowLayout<Content: View>: View {
+    let spacing: CGFloat
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(spacing: spacing) {
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

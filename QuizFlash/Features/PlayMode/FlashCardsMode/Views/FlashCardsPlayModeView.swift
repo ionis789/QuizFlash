@@ -175,13 +175,10 @@ struct FlashCardsPlayModeView: View {
                         card.backZone = backZone
                         card.editedAt = Date()
                         deck.editedAt = Date()
-                        try? modelContext.save()
-
                         Task {
                             await viewModel.refreshCardSnapshot(for: card.persistentModelID)
                         }
                     }
-                    editingCard = nil
                 }
             }
         }

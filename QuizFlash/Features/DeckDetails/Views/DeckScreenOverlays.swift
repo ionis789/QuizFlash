@@ -115,15 +115,12 @@ extension DeckContentView {
                 card.cardContent = content
                 card.editedAt = Date()
                 deck.editedAt = Date()
-                try? context.save()
                 viewModel.requestSnapshotLoad(
                     deckID: deck.persistentModelID,
                     container: context.container
                 )
             }
         }
-
-        cardEditorDestination = nil
     }
 
     func presentDeckConversion() {

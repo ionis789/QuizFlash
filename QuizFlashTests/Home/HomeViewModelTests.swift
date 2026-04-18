@@ -11,30 +11,47 @@ import SwiftData
 
 @MainActor
 final class HomeViewModelTests: XCTestCase {
-    func testRefreshDashboardSnapshotBuildsSelectedDayAndWeeklyMomentum() throws {
-        let calendar = Calendar(identifier: .gregorian)
+    func testRefreshDashboardSnapshotBuildsSelectedDayAndWeeklyMomentum() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 2
         let selectedDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 22)))
         let previousDate = try XCTUnwrap(calendar.date(byAdding: .day, value: -1, to: selectedDate))
-
-        let selectedLog = DailyActivityLog(date: selectedDate, dailyGoal: 40)
-        selectedLog.cardsReviewed = 30
-        selectedLog.xpEarnedToday = 120
-        selectedLog.newCardsLearned = 6
-
-        let previousLog = DailyActivityLog(date: previousDate, dailyGoal: 20)
-        previousLog.cardsReviewed = 24
-        previousLog.xpEarnedToday = 80
-        previousLog.newCardsLearned = 3
+        let selectedAggregate = HomeDailyStudyAggregate(
+            dayDate: selectedDate,
+            uniqueCardCount: 30,
+            rawReviewCount: 34,
+            landedCount: 24,
+            retryCount: 6,
+            xpEarned: 120,
+            newCardsLearned: 6,
+            dailyGoal: 40
+        )
+        let previousAggregate = HomeDailyStudyAggregate(
+            dayDate: previousDate,
+            uniqueCardCount: 24,
+            rawReviewCount: 24,
+            landedCount: 20,
+            retryCount: 4,
+            xpEarned: 80,
+            newCardsLearned: 3,
+            dailyGoal: 20
+        )
 
         let profile = UserProfile(totalXP: 1250, currentStreak: 4, longestStreak: 8, lastActiveDate: selectedDate)
         let viewModel = HomeViewModel()
+        let container = try makeDashboardContainer(with: [selectedAggregate, previousAggregate])
 
-        viewModel.updateLogsCache(logs: [selectedLog, previousLog])
+        viewModel.updateLogsCache(logs: [])
         viewModel.updateExamGoalsCache(goals: [])
-        viewModel.refreshDashboardSnapshot(
+        await viewModel.refreshDashboardSnapshot(
             selectedDate: selectedDate,
+            weekStart: calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate,
             examGoals: [],
-            userProfile: profile
+            userProfile: profile,
+            container: container,
+            analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: [selectedAggregate, previousAggregate]),
+            deckRevision: 0,
+            referenceDate: selectedDate
         )
 
         XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayOverview.cardsReviewed, 30)
@@ -51,13 +68,149 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.daySummaries.count, 7)
         XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.daySummaries.filter(\.isSelectedDay).count, 1)
         XCTAssertEqual(viewModel.dashboardSnapshot.weeklyMomentum.daySummaries.last?.cardsReviewed, 30)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.scorePercent, 64)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.previousScorePercent, 0)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.deltaPercent, 64)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.trend, .improving)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.trendLine, "Improving day by day")
+        XCTAssertEqual(
+            viewModel.dashboardSnapshot.pastWeekPerformance.supportingLine,
+            "Your activity is uneven. More active days will lift the score."
+        )
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.accuracyPercent, 81)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.consistencyPercent, 29)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.goalCoveragePercent, 25)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.efficiencyPercent, 93)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.goalHitDays, 1)
+        XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.currentDaySummaries.count, 7)
+        XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayBreakdown.cardsReviewed, 30)
         XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayInsight.xpEarned, 120)
         XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayInsight.newCardsLearned, 6)
         XCTAssertTrue(viewModel.dashboardSnapshot.selectedDayInsight.paceLine.contains("3"))
     }
 
-    func testRefreshDashboardSnapshotTracksSelectedDayExamSummaries() throws {
-        let calendar = Calendar(identifier: .gregorian)
+    func testRefreshDashboardSnapshotShiftsPastWeekPerformanceWithSelectedDate() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 2
+        let firstSelectedDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 4, day: 17)))
+        let secondSelectedDate = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: firstSelectedDate))
+        let firstWindowStart = try XCTUnwrap(calendar.date(byAdding: .day, value: -6, to: firstSelectedDate))
+
+        let aggregates: [HomeDailyStudyAggregate] = (0..<8).map { offset in
+            let date = calendar.date(byAdding: .day, value: offset, to: firstWindowStart) ?? firstWindowStart
+            if offset == 0 {
+                return HomeDailyStudyAggregate(
+                    dayDate: date,
+                    uniqueCardCount: 4,
+                    rawReviewCount: 10,
+                    landedCount: 1,
+                    retryCount: 3,
+                    xpEarned: 12,
+                    newCardsLearned: 0,
+                    dailyGoal: 10
+                )
+            }
+
+            return HomeDailyStudyAggregate(
+                dayDate: date,
+                uniqueCardCount: 10,
+                rawReviewCount: 10,
+                landedCount: 10,
+                retryCount: 0,
+                xpEarned: 40,
+                newCardsLearned: 0,
+                dailyGoal: 10
+            )
+        }
+
+        let viewModel = HomeViewModel()
+        let container = try makeDashboardContainer(with: aggregates)
+        viewModel.updateLogsCache(logs: [])
+        viewModel.updateExamGoalsCache(goals: [])
+
+        await viewModel.refreshDashboardSnapshot(
+            selectedDate: firstSelectedDate,
+            weekStart: calendar.dateInterval(of: .weekOfYear, for: firstSelectedDate)?.start ?? firstSelectedDate,
+            examGoals: [],
+            userProfile: nil,
+            container: container,
+            analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: aggregates),
+            deckRevision: 0,
+            referenceDate: firstSelectedDate
+        )
+
+        let firstSummary = viewModel.dashboardSnapshot.pastWeekPerformance
+
+        await viewModel.refreshDashboardSnapshot(
+            selectedDate: secondSelectedDate,
+            weekStart: calendar.dateInterval(of: .weekOfYear, for: secondSelectedDate)?.start ?? secondSelectedDate,
+            examGoals: [],
+            userProfile: nil,
+            container: container,
+            analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: aggregates),
+            deckRevision: 0,
+            referenceDate: secondSelectedDate
+        )
+
+        let secondSummary = viewModel.dashboardSnapshot.pastWeekPerformance
+
+        XCTAssertEqual(firstSummary.windowEndDate, firstSelectedDate)
+        XCTAssertEqual(firstSummary.scorePercent, 95)
+        XCTAssertEqual(firstSummary.currentDaySummaries.last?.cardsReviewed, 10)
+        XCTAssertEqual(secondSummary.windowEndDate, secondSelectedDate)
+        XCTAssertEqual(secondSummary.scorePercent, 100)
+        XCTAssertGreaterThan(secondSummary.scorePercent, firstSummary.scorePercent)
+        XCTAssertEqual(secondSummary.currentDaySummaries.first?.cardsReviewed, 10)
+        XCTAssertEqual(secondSummary.currentDaySummaries.last?.cardsReviewed, 10)
+    }
+
+    func testPerformanceDetailSheetPresentationStateTogglesWithoutMutatingSnapshot() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 2
+        let selectedDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 4, day: 18)))
+        let aggregate = HomeDailyStudyAggregate(
+            dayDate: selectedDate,
+            uniqueCardCount: 18,
+            rawReviewCount: 20,
+            landedCount: 15,
+            retryCount: 3,
+            xpEarned: 72,
+            newCardsLearned: 2,
+            dailyGoal: 20
+        )
+
+        let viewModel = HomeViewModel()
+        let container = try makeDashboardContainer(with: [aggregate])
+        viewModel.updateLogsCache(logs: [])
+        viewModel.updateExamGoalsCache(goals: [])
+
+        await viewModel.refreshDashboardSnapshot(
+            selectedDate: selectedDate,
+            weekStart: calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate,
+            examGoals: [],
+            userProfile: nil,
+            container: container,
+            analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: [aggregate]),
+            deckRevision: 0,
+            referenceDate: selectedDate
+        )
+
+        let snapshotBeforePresentation = viewModel.dashboardSnapshot
+
+        XCTAssertFalse(viewModel.showPerformanceDetailSheet)
+
+        viewModel.presentPerformanceDetail()
+        XCTAssertTrue(viewModel.showPerformanceDetailSheet)
+        XCTAssertEqual(viewModel.dashboardSnapshot, snapshotBeforePresentation)
+
+        viewModel.dismissPerformanceDetail()
+        XCTAssertFalse(viewModel.showPerformanceDetailSheet)
+        XCTAssertEqual(viewModel.dashboardSnapshot, snapshotBeforePresentation)
+    }
+
+    func testRefreshDashboardSnapshotTracksSelectedDayExamSummaries() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 2
         let selectedDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 4, day: 10)))
         let goal = ExamGoalModel(
             title: "Bio Quiz",
@@ -71,10 +224,16 @@ final class HomeViewModelTests: XCTestCase {
         let viewModel = HomeViewModel()
         viewModel.updateLogsCache(logs: [])
         viewModel.updateExamGoalsCache(goals: [goal])
-        viewModel.refreshDashboardSnapshot(
+        let container = try makeDashboardContainer(with: [])
+        await viewModel.refreshDashboardSnapshot(
             selectedDate: selectedDate,
+            weekStart: calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate,
             examGoals: [goal],
-            userProfile: nil
+            userProfile: nil,
+            container: container,
+            analyticsRevision: 0,
+            deckRevision: 0,
+            referenceDate: selectedDate
         )
 
         XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayExamSummaries.count, 1)
@@ -136,24 +295,37 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.calendarInsightsCache[twoDaysAgoKey]?.isStreakDay, nil)
     }
 
-    func testGreetingSummaryPrefersRecentDeckResumeContext() throws {
+    func testGreetingSummaryPrefersRecentDeckResumeContext() async throws {
         let calendar = Calendar(identifier: .gregorian)
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 22, hour: 9)))
-        let log = DailyActivityLog(date: today, dailyGoal: 40)
-        log.cardsReviewed = 18
-        log.xpEarnedToday = 70
+        let aggregate = HomeDailyStudyAggregate(
+            dayDate: today,
+            uniqueCardCount: 18,
+            rawReviewCount: 18,
+            landedCount: 14,
+            retryCount: 4,
+            xpEarned: 70,
+            newCardsLearned: 0,
+            dailyGoal: 40
+        )
 
         let recentDeck = DeckModel(title: "Neuro", colorHex: "#4C8DFF")
         recentDeck.cardCount = 48
         recentDeck.lastOpenedAt = calendar.date(byAdding: .hour, value: -2, to: today)
 
         let viewModel = HomeViewModel()
-        viewModel.updateLogsCache(logs: [log])
+        let container = try makeDashboardContainer(with: [aggregate])
+        viewModel.updateLogsCache(logs: [])
         viewModel.updateExamGoalsCache(goals: [])
-        viewModel.refreshDashboardSnapshot(
+        await viewModel.refreshDashboardSnapshot(
             selectedDate: today,
+            weekStart: calendar.dateInterval(of: .weekOfYear, for: today)?.start ?? today,
             examGoals: [],
-            userProfile: nil
+            userProfile: nil,
+            container: container,
+            analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: [aggregate]),
+            deckRevision: HomeViewModel.decksFingerprint(for: [recentDeck]),
+            referenceDate: today
         )
 
         let summary = viewModel.greetingSummary(
@@ -267,24 +439,37 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.workspaceOnboardingState(allDeckCount: 3, folderCount: 2), .ready)
     }
 
-    func testTodayFocusSummaryPrioritizesResumeDeckWhenRecentDeckExists() throws {
+    func testTodayFocusSummaryPrioritizesResumeDeckWhenRecentDeckExists() async throws {
         let calendar = Calendar(identifier: .gregorian)
         let today = calendar.startOfDay(for: Date())
-        let log = DailyActivityLog(date: today, dailyGoal: 40)
-        log.cardsReviewed = 12
-        log.xpEarnedToday = 50
+        let aggregate = HomeDailyStudyAggregate(
+            dayDate: today,
+            uniqueCardCount: 12,
+            rawReviewCount: 12,
+            landedCount: 10,
+            retryCount: 2,
+            xpEarned: 50,
+            newCardsLearned: 0,
+            dailyGoal: 40
+        )
 
         let recentDeck = DeckModel(title: "Roman Law", colorHex: "#4C8DFF")
         recentDeck.cardCount = 86
-        recentDeck.lastOpenedAt = calendar.date(byAdding: .hour, value: 11, to: today)
+        recentDeck.lastOpenedAt = calendar.date(byAdding: .hour, value: -11, to: today)
 
         let viewModel = HomeViewModel()
-        viewModel.updateLogsCache(logs: [log])
+        let container = try makeDashboardContainer(with: [aggregate])
+        viewModel.updateLogsCache(logs: [])
         viewModel.updateExamGoalsCache(goals: [])
-        viewModel.refreshDashboardSnapshot(
+        await viewModel.refreshDashboardSnapshot(
             selectedDate: today,
+            weekStart: calendar.dateInterval(of: .weekOfYear, for: today)?.start ?? today,
             examGoals: [],
-            userProfile: nil
+            userProfile: nil,
+            container: container,
+            analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: [aggregate]),
+            deckRevision: HomeViewModel.decksFingerprint(for: [recentDeck]),
+            referenceDate: today
         )
 
         let summary = viewModel.todayFocusSummary(
@@ -528,5 +713,17 @@ final class HomeViewModelTests: XCTestCase {
         viewModel.updateExamGoalStatus(.archived, for: goal, context: context)
 
         XCTAssertEqual(goal.status, .archived)
+    }
+
+    private func makeDashboardContainer(
+        with aggregates: [HomeDailyStudyAggregate]
+    ) throws -> ModelContainer {
+        let container = try TestModelContainerFactory.makeInMemoryContainer()
+        let context = ModelContext(container)
+        for aggregate in aggregates {
+            context.insert(aggregate)
+        }
+        try context.save()
+        return container
     }
 }

@@ -95,7 +95,8 @@ struct LatexSymbolLabView: View {
             .screenTopEdgeShadow(
                 topHeight: structuralTopEdgeShadowHeight,
                 topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
-                debugScreenID: "featurelab.latex-symbol-lab"
+                debugScreenID: "featurelab.latex-symbol-lab",
+                style: .progressiveBlur()
             )
 
             navigationBar

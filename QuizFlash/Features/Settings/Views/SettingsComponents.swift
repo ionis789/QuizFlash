@@ -16,6 +16,8 @@ enum SettingsChromeMetrics {
 // MARK: - Settings Header Card
 
 struct SettingsHeaderCard: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let icon: String
     let title: String
     let subtitle: String?
@@ -44,13 +46,13 @@ struct SettingsHeaderCard: View {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                     Text(title)
                         .font(.system(size: 30, weight: .black, design: .rounded))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let subtitle {
                         Text(subtitle)
                             .font(.body.weight(.medium))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(themeManager.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -76,6 +78,8 @@ struct SettingsHeaderCard: View {
 // MARK: - Settings Section Card
 
 struct SettingsSectionCard<Content: View>: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let title: String
     let subtitle: String?
     @ViewBuilder let content: () -> Content
@@ -85,12 +89,12 @@ struct SettingsSectionCard<Content: View>: View {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                 Text(title)
                     .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(themeManager.textPrimary)
 
                 if let subtitle {
                     Text(subtitle)
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(themeManager.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -105,6 +109,8 @@ struct SettingsSectionCard<Content: View>: View {
 // MARK: - Settings Rows
 
 struct SettingsNavigationRow: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let icon: String
     let tint: Color
     let title: String
@@ -118,12 +124,12 @@ struct SettingsNavigationRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(themeManager.textPrimary)
 
                 if let detail, !detail.isEmpty {
                     Text(detail)
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(themeManager.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -133,20 +139,22 @@ struct SettingsNavigationRow: View {
             if let value, !value.isEmpty {
                 Text(value)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(themeManager.textSecondary)
                     .lineLimit(1)
                     .multilineTextAlignment(.trailing)
             }
 
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(themeManager.textSecondary.opacity(0.72))
         }
         .contentShape(Rectangle())
     }
 }
 
 struct SettingsToggleRow: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let icon: String
     let tint: Color
     let title: String
@@ -161,12 +169,12 @@ struct SettingsToggleRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
 
                     if let detail, !detail.isEmpty {
                         Text(detail)
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(themeManager.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -177,6 +185,8 @@ struct SettingsToggleRow: View {
 }
 
 struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let icon: String
     let tint: Color
     let title: String
@@ -192,11 +202,11 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(themeManager.textPrimary)
 
                 Text(detail)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(themeManager.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -221,7 +231,7 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.caption2.weight(.bold))
                 }
-                .foregroundStyle(.primary)
+                .foregroundStyle(themeManager.textPrimary)
                 .padding(.horizontal, UIConstants.Spacing.standard)
                 .padding(.vertical, UIConstants.Spacing.small)
                 .background(.ultraThinMaterial, in: Capsule())
@@ -231,6 +241,8 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
 }
 
 struct SettingsSliderRow: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let icon: String
     let tint: Color
     let title: String
@@ -248,11 +260,11 @@ struct SettingsSliderRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
 
                     Text(detail)
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(themeManager.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -260,7 +272,7 @@ struct SettingsSliderRow: View {
 
                 Text("\(Int(value.rounded())) \(valueSuffix)")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(themeManager.textPrimary)
                     .padding(.horizontal, UIConstants.Spacing.standard)
                     .padding(.vertical, UIConstants.Spacing.small)
                     .background(.ultraThinMaterial, in: Capsule())
@@ -270,14 +282,14 @@ struct SettingsSliderRow: View {
             HStack(spacing: UIConstants.Spacing.small) {
                 Text("\(Int(range.lowerBound))")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(themeManager.textSecondary)
 
                 Slider(value: $value, in: range, step: step)
                     .tint(tint)
 
                 Text("\(Int(range.upperBound))")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(themeManager.textSecondary)
             }
             .padding(.leading, 54)
         }
@@ -285,6 +297,8 @@ struct SettingsSliderRow: View {
 }
 
 struct SettingsInfoCard: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let icon: String
     let tint: Color
     let text: String
@@ -297,7 +311,7 @@ struct SettingsInfoCard: View {
 
             Text(text)
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(UIConstants.Spacing.standard)
@@ -306,9 +320,11 @@ struct SettingsInfoCard: View {
 }
 
 struct SettingsCardDivider: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     var body: some View {
         Rectangle()
-            .fill(Color.white.opacity(0.08))
+            .fill(themeManager.roleColor(.settingsCardBorder).opacity(0.16))
             .frame(height: 1)
             .padding(.leading, 54)
     }
@@ -317,12 +333,14 @@ struct SettingsCardDivider: View {
 // MARK: - Small Shared Pieces
 
 private struct SettingsBadge: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let title: String
 
     var body: some View {
         Text(title)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.primary)
+            .foregroundStyle(themeManager.textPrimary)
             .padding(.horizontal, UIConstants.Spacing.standard)
             .padding(.vertical, UIConstants.Spacing.small)
             .background(.ultraThinMaterial, in: Capsule())
@@ -347,17 +365,19 @@ private struct SettingsRowIcon: View {
 }
 
 private struct SettingsCardBackgroundModifier: ViewModifier {
+    @Environment(ThemeManager.self) private var themeManager
+
     let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
         content
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                    .fill(themeManager.roleColor(.settingsCardFill))
             )
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.75)
+                    .strokeBorder(themeManager.roleColor(.settingsCardBorder).opacity(0.18), lineWidth: 0.75)
             }
     }
 }

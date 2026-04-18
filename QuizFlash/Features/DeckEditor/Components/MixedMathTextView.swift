@@ -214,6 +214,7 @@ class MathWebViewPool {
 
     /// Notification token to flush the pool if the OS runs extremely low on RAM.
     private var memoryWarningTask: Task<Void, Never>?
+    private var prewarmTasks: [Task<Void, Never>] = []
 
     init() {
         memoryWarningTask = Task { [weak self] in
@@ -228,6 +229,7 @@ class MathWebViewPool {
 
     deinit {
         memoryWarningTask?.cancel()
+        prewarmTasks.forEach { $0.cancel() }
     }
 
     // Maximum number of idle WebViews kept alive between uses.
@@ -253,12 +255,15 @@ class MathWebViewPool {
         // main thread immediately after launch while the UI is still settling.
         let clamped = min(count, Self.maxPoolSize)
         for i in 0..<clamped {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.15) {
+            let task = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(150 * i))
+                guard let self, !Task.isCancelled else { return }
                 // Ensure we don't exceed max size during async initialization
                 if self.pool.count < Self.maxPoolSize {
                     self.pool.append(self.create())
                 }
             }
+            prewarmTasks.append(task)
         }
     }
 
@@ -350,6 +355,7 @@ struct MathWebView: UIViewRepresentable {
     // Breaks the retain cycle and returns the WKWebView to the shared pool.
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
         // 1. Unlink coordinator to break any lingering weak/unowned chains
+        coordinator.cancelPendingUpdate()
         coordinator.webView = nil
 
         // 2. Remove the script message handler to break the JS context retain cycle
@@ -772,6 +778,7 @@ struct MathWebView: UIViewRepresentable {
         weak var webView: WKWebView? // WEAK reference to break the retain cycle
         var lastRenderedSignature: String = ""
         var onTap: (() -> Void)?
+        private var updateRetryTask: Task<Void, Never>?
 
         init(
             contentHeight: Binding<CGFloat>,
@@ -781,6 +788,10 @@ struct MathWebView: UIViewRepresentable {
             _contentHeight = contentHeight
             _horizontalOverflowState = horizontalOverflowState
             self.onTap = onTap
+        }
+
+        deinit {
+            updateRetryTask?.cancel()
         }
 
         func userContentController(
@@ -824,13 +835,27 @@ struct MathWebView: UIViewRepresentable {
         /// Safely evaluates JS once the `updateMathContent` function exists.
         /// This fixes the race condition where `evaluateJavaScript` fires before baseHTMLTemplate is fully loaded in new pooled webviews.
         func applyUpdate(js: String, retries: Int = 15) {
+            updateRetryTask?.cancel()
+            attemptUpdate(js: js, retries: retries)
+        }
+
+        func cancelPendingUpdate() {
+            updateRetryTask?.cancel()
+            updateRetryTask = nil
+        }
+
+        private func attemptUpdate(js: String, retries: Int) {
             guard let webView = webView else { return }
-            webView.evaluateJavaScript("typeof updateMathContent") { result, _ in
+            webView.evaluateJavaScript("typeof updateMathContent") { [weak self] result, _ in
+                guard let self else { return }
                 if let str = result as? String, str == "function" {
                     webView.evaluateJavaScript(js)
                 } else if retries > 0 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        self.applyUpdate(js: js, retries: retries - 1)
+                    self.updateRetryTask?.cancel()
+                    self.updateRetryTask = Task { @MainActor [weak self] in
+                        try? await Task.sleep(for: .milliseconds(50))
+                        guard let self, !Task.isCancelled else { return }
+                        self.attemptUpdate(js: js, retries: retries - 1)
                     }
                 }
             }

@@ -45,11 +45,8 @@ struct LibraryModalsAndDialogs: ViewModifier {
                             card.cardContent = content
                             card.editedAt = Date()
                             card.deck?.editedAt = Date()
-                            try? context.save()
                             viewModel.debounceSearchInput(viewModel.searchText)
                         }
-
-                        viewModel.editingCardFromSearch = nil
                     }
                 }
             }

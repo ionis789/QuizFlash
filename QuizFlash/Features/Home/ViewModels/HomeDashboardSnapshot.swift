@@ -64,11 +64,14 @@ struct HomeSelectedDayOverviewSummary: Equatable {
     let selectedDate: Date
     let selectedDateLabel: String
     let cardsReviewed: Int
+    let rawReviewCount: Int
     let dailyGoal: Int
     let goalCompletionFraction: Double
     let remainingCardsToGoal: Int
     let xpEarnedToday: Int
     let newCardsLearned: Int
+    let correctCardCount: Int
+    let retryCardCount: Int
     let streakCount: Int
     let totalXP: Int
     let level: Int
@@ -81,14 +84,48 @@ struct HomeSelectedDayOverviewSummary: Equatable {
     }
 }
 
+/// Final outcome for one unique card reviewed on one Home dashboard day.
+struct HomeWeeklyReviewedCardSummary: Identifiable, Equatable, @unchecked Sendable {
+    let id: String
+    let cardID: PersistentIdentifier?
+    let deckID: PersistentIdentifier?
+    let deckTitle: String
+    let deckColorHex: String
+    let title: String
+    let finalDifficulty: ReviewDifficulty
+    let reviewCount: Int
+    let lastReviewedAt: Date
+
+    /// `true` when the card finished the day in a correct/successful state.
+    nonisolated var wasCorrectAtEndOfDay: Bool {
+        finalDifficulty != .again
+    }
+}
+
+/// Deck-scoped breakdown for one Home weekly chart day.
+struct HomeWeeklyDeckActivitySummary: Identifiable, Equatable, @unchecked Sendable {
+    let id: String
+    let deckID: PersistentIdentifier?
+    let title: String
+    let colorHex: String
+    let uniqueCardCount: Int
+    let correctCardCount: Int
+    let retryCardCount: Int
+    let cards: [HomeWeeklyReviewedCardSummary]
+}
+
 /// Seven-day momentum rollup that lets Home render weekly trend cards cheaply.
-struct HomeWeeklyDaySummary: Identifiable, Equatable {
+struct HomeWeeklyDaySummary: Identifiable, Equatable, Sendable {
     let id: String
     let date: Date
     let shortWeekday: String
+    /// Unique cards covered on this day. Repeated reviews of the same card count once.
     let cardsReviewed: Int
+    let rawReviewCount: Int
     let xpEarned: Int
     let goal: Int
+    let correctCardCount: Int
+    let retryCardCount: Int
     let intensityFraction: Double
     let didStudy: Bool
     let didReachGoal: Bool
@@ -96,7 +133,7 @@ struct HomeWeeklyDaySummary: Identifiable, Equatable {
 }
 
 /// Seven-day momentum rollup that lets Home render weekly trend cards cheaply.
-struct HomeWeeklyMomentumSummary: Equatable {
+struct HomeWeeklyMomentumSummary: Equatable, Sendable {
     let totalCardsReviewed: Int
     let totalXPEarned: Int
     let activeDays: Int
@@ -108,6 +145,92 @@ struct HomeWeeklyMomentumSummary: Equatable {
     let headline: String
     let detailLine: String
     let daySummaries: [HomeWeeklyDaySummary]
+}
+
+/// Directional trend used by the Home 7-day performance card.
+enum HomePastWeekPerformanceTrend: String, Equatable, Sendable {
+    case improving
+    case steady
+    case slipping
+}
+
+/// One compact day column inside the Home 7-day performance comparison.
+struct HomePastWeekPerformanceDaySummary: Identifiable, Equatable, Sendable {
+    let id: String
+    let date: Date
+    let shortWeekday: String
+    let cardsReviewed: Int
+    let rawReviewCount: Int
+    let landedCount: Int
+    let retryCount: Int
+    let dailyGoal: Int
+    let scorePercent: Int
+    let visualLevel: Int
+    let didStudy: Bool
+    let didReachGoal: Bool
+}
+
+/// Accuracy-first performance index for the selected 7-day window on Home.
+struct HomePastWeekPerformanceSummary: Equatable, Sendable {
+    let windowEndDate: Date
+    let scorePercent: Int
+    let previousScorePercent: Int
+    let deltaPercent: Int
+    let trend: HomePastWeekPerformanceTrend
+    let trendLine: String
+    let supportingLine: String
+    let accuracyPercent: Int
+    let consistencyPercent: Int
+    let goalCoveragePercent: Int
+    let efficiencyPercent: Int
+    let activeDays: Int
+    let goalHitDays: Int
+    let bestDayLabel: String?
+    let bestDayScorePercent: Int?
+    let weakestDayLabel: String?
+    let weakestDayScorePercent: Int?
+    let currentDaySummaries: [HomePastWeekPerformanceDaySummary]
+    let previousDaySummaries: [HomePastWeekPerformanceDaySummary]
+
+    var hasActivity: Bool {
+        activeDays > 0
+    }
+
+    static func placeholder(referenceDate: Date = Date()) -> HomePastWeekPerformanceSummary {
+        HomePastWeekPerformanceSummary(
+            windowEndDate: referenceDate,
+            scorePercent: 0,
+            previousScorePercent: 0,
+            deltaPercent: 0,
+            trend: .steady,
+            trendLine: "Needs attention",
+            supportingLine: "No activity landed in this 7-day window.",
+            accuracyPercent: 0,
+            consistencyPercent: 0,
+            goalCoveragePercent: 0,
+            efficiencyPercent: 0,
+            activeDays: 0,
+            goalHitDays: 0,
+            bestDayLabel: nil,
+            bestDayScorePercent: nil,
+            weakestDayLabel: nil,
+            weakestDayScorePercent: nil,
+            currentDaySummaries: [],
+            previousDaySummaries: []
+        )
+    }
+}
+
+/// Dedicated selected-day breakdown payload rendered below the weekly chart.
+struct HomeSelectedDayBreakdownSummary: Equatable, Sendable {
+    let selectedDate: Date
+    let cardsReviewed: Int
+    let rawReviewCount: Int
+    let correctCardCount: Int
+    let retryCardCount: Int
+    let headline: String
+    let detailLine: String
+    let deckSummaries: [HomeWeeklyDeckActivitySummary]
 }
 
 /// Lightweight insight payload for one Home calendar day cell.
@@ -180,6 +303,8 @@ struct HomeDashboardSnapshot: Equatable {
     let selectedDayOverview: HomeSelectedDayOverviewSummary
     let selectedDayInsight: HomeSelectedDayInsightSummary
     let weeklyMomentum: HomeWeeklyMomentumSummary
+    let pastWeekPerformance: HomePastWeekPerformanceSummary
+    let selectedDayBreakdown: HomeSelectedDayBreakdownSummary
     let examPressure: HomeExamPressureSummary?
     let selectedDayExamSummaries: [HomeExamGoalSummary]
     let upcomingExamSummaries: [HomeExamGoalSummary]
@@ -190,11 +315,14 @@ struct HomeDashboardSnapshot: Equatable {
             selectedDate: referenceDate,
             selectedDateLabel: "Today",
             cardsReviewed: 0,
+            rawReviewCount: 0,
             dailyGoal: 50,
             goalCompletionFraction: 0,
             remainingCardsToGoal: 50,
             xpEarnedToday: 0,
             newCardsLearned: 0,
+            correctCardCount: 0,
+            retryCardCount: 0,
             streakCount: 0,
             totalXP: 0,
             level: 1,
@@ -214,6 +342,16 @@ struct HomeDashboardSnapshot: Equatable {
             detailLine: "Your weekly trend will appear as soon as you study.",
             daySummaries: []
         )
+        let selectedDayBreakdown = HomeSelectedDayBreakdownSummary(
+            selectedDate: referenceDate,
+            cardsReviewed: 0,
+            rawReviewCount: 0,
+            correctCardCount: 0,
+            retryCardCount: 0,
+            headline: "No deck moved",
+            detailLine: "Choose another day or start a short review block.",
+            deckSummaries: []
+        )
         let selectedDayInsight = HomeSelectedDayInsightSummary(
             headline: "Clear lane for study",
             detailLine: "Nothing is competing for this day yet.",
@@ -224,11 +362,14 @@ struct HomeDashboardSnapshot: Equatable {
             newCardsLearned: 0,
             selectedDayExamCount: 0
         )
+        let pastWeekPerformance = HomePastWeekPerformanceSummary.placeholder(referenceDate: referenceDate)
 
         return HomeDashboardSnapshot(
             selectedDayOverview: overview,
             selectedDayInsight: selectedDayInsight,
             weeklyMomentum: weeklyMomentum,
+            pastWeekPerformance: pastWeekPerformance,
+            selectedDayBreakdown: selectedDayBreakdown,
             examPressure: nil,
             selectedDayExamSummaries: [],
             upcomingExamSummaries: [],

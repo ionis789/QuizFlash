@@ -14,11 +14,17 @@
 import SwiftUI
 import SwiftData
 import UIKit
+import OSLog
 
 let kDeckScrollSpace = "DeckViewScrollSpace"
 let kDeckChromeSpace = "DeckViewChromeSpace"
 
 struct DeckContentView: View {
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
+        category: "DeckContentView"
+    )
+
     @Environment(\.modelContext) var context
     @Environment(NavigationManager.self) var router
     @Environment(AIWorkspaceCoordinator.self) var aiWorkspaceCoordinator
@@ -136,7 +142,14 @@ struct DeckContentView: View {
                 if let completedMode = old, new == nil {
                     recordCompletedPlayModeSession(completedMode)
                     deck.lastOpenedAt = Date()
-                    try? context.save()
+                    do {
+                        try context.save()
+                    } catch {
+                        Self.logger.error(
+                            "Failed to persist completed play mode session for deck \(deck.title, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                        )
+                        viewModel.presentMutationError(error)
+                    }
                     guard !isSuspended else { return }
                     viewModel.requestSnapshotLoad(
                         deckID: deck.persistentModelID,
@@ -191,6 +204,11 @@ struct DeckContentView: View {
             .alert("Export Error", isPresented: $viewModel.showExportError) {
                 Button("OK", role: .cancel) { }
             } message: { Text(viewModel.exportErrorMessage) }
+            .alert("Save Error", isPresented: $viewModel.showMutationError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(viewModel.mutationErrorMessage)
+            }
             .confirmationDialog("Choose Card Type", isPresented: $showAddCardTypeDialog, titleVisibility: .visible) {
                 Button("Flashcard") { presentCardEditor(for: .flashcard) }
                 Button("Quiz") { presentCardEditor(for: .quiz) }

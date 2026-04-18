@@ -233,7 +233,9 @@ struct SharedUICatalogView: View {
             DeckProgressView(
                 progress: runtime.progress,
                 stats: runtime.stats,
-                deckCardCount: runtime.stats.totalCards
+                deckCardCount: runtime.stats.totalCards,
+                activity: runtime.todayActivity,
+                deckTint: Color(hex: runtime.recentDeck.colorHex) ?? .orange
             )
 
         case .selectionToolbarControls:

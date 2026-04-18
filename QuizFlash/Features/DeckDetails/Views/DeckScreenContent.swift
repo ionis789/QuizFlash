@@ -119,7 +119,8 @@ extension DeckContentView {
             .screenTopEdgeShadow(
                 topHeight: structuralTopEdgeShadowHeight,
                 topRevealProgress: scrollState.pillVisible ? 1 : 0,
-                debugScreenID: "deck.details"
+                debugScreenID: "deck.details",
+                style: .progressiveBlur()
             )
             .fullScreenSheet(
                 item: $selectedPlayMode,
@@ -216,52 +217,50 @@ extension DeckContentView {
                 }
 
                 VStack(spacing: 16) {
-                    HStack(alignment: .center, spacing: 20) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(alignment: .center, spacing: 12) {
+                    Button {
+                        exitSelectionModeForExternalAction()
+                        router.showDeckWorkspace(for: deck.persistentModelID)
+                    } label: {
+                        HStack(alignment: .top, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 6) {
                                 Text(deck.title)
                                     .font(.system(size: 42, weight: .heavy, design: .rounded))
                                     .foregroundStyle(.primary)
                                     .lineLimit(2)
                                     .minimumScaleFactor(0.7)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                                Button {
-                                    exitSelectionModeForExternalAction()
-                                    router.showDeckWorkspace(for: deck.persistentModelID)
-                                } label: {
-                                    Label("Edit", systemImage: "square.and.pencil")
-                                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                                        .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
-                                }
-                                .quizFlashButtonStyle(.accentAlt, shape: .capsule, size: UIConstants.Size.heroInlineActionHeight)
+                                Text(subtitleText)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .textCase(.uppercase)
                             }
 
-                            Text(subtitleText)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .textCase(.uppercase)
+                            Spacer(minLength: 0)
+
+                            DeckHeroEditIndicator(
+                                tint: themeManager.roleColor(.buttonDangerForeground)
+                            )
                         }
-                        .background {
-                            Color.clear
-                                .onGeometryChange(for: CGFloat.self) { proxy in
-                                    proxy.frame(in: .named(kDeckChromeSpace)).maxY
-                                } action: { maxY in
-                                    let revealLine =
-                                        navigationBarBottomY
-                                        - UIConstants.Layout.deckHeroPillRevealClearance
-                                    let isCollapsed = maxY < revealLine
-                                    if scrollState.pillVisible != isCollapsed {
-                                        scrollState.pillVisible = isCollapsed
-                                    }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens deck edit mode")
+                    .background {
+                        Color.clear
+                            .onGeometryChange(for: CGFloat.self) { proxy in
+                                proxy.frame(in: .named(kDeckChromeSpace)).maxY
+                            } action: { maxY in
+                                let revealLine =
+                                    navigationBarBottomY
+                                    - UIConstants.Layout.deckHeroPillRevealClearance
+                                let isCollapsed = maxY < revealLine
+                                if scrollState.pillVisible != isCollapsed {
+                                    scrollState.pillVisible = isCollapsed
                                 }
-                        }
-
-                        Spacer(minLength: 0)
-
-                        MasteryProgressRing(
-                            mastery: viewModel.currentStats.deckMastery,
-                            deckColor: Color(hex: deck.colorHex) ?? .blue
-                        )
+                            }
                     }
                     .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
 
@@ -269,7 +268,9 @@ extension DeckContentView {
                         DeckProgressView(
                             progress: viewModel.progressStats,
                             stats: viewModel.currentStats,
-                            deckCardCount: deck.cardCount
+                            deckCardCount: deck.cardCount,
+                            activity: viewModel.todayActivitySummary,
+                            deckTint: Color(hex: deck.colorHex) ?? themeManager.roleColor(.buttonPrimaryFill)
                         )
                         DeckReadinessDiagnosticsView(
                             summary: viewModel.readinessSummary
@@ -349,5 +350,19 @@ extension DeckContentView {
         .background(themeManager.groupedScreenBackground)
 
         return scrollView
+    }
+}
+
+private struct DeckHeroEditIndicator: View {
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: "square.and.pencil")
+            .font(.system(size: 18, weight: .bold))
+            .foregroundStyle(tint)
+            .frame(width: 24, height: 24)
+            .shadow(color: Color.black.opacity(0.18), radius: 8, x: 0, y: 4)
+            .offset(x: -2, y: 8)
+            .accessibilityHidden(true)
     }
 }

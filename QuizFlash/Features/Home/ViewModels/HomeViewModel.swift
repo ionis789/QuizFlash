@@ -55,6 +55,12 @@ final class HomeViewModel {
     /// Controls the visibility of the Create Folder bottom sheet.
     var showCreateFolder: Bool = false
 
+    /// Controls the create-folder save error alert shown inside the folder sheet.
+    var showCreateFolderError: Bool = false
+
+    /// Human-readable message for the create-folder save error alert.
+    var createFolderErrorMessage: String = ""
+
     /// Bound to the text field inside `CreateFolderSheet`.
     var newFolderTitle: String = ""
 
@@ -63,6 +69,21 @@ final class HomeViewModel {
 
     /// Active Home exam-goal sheet presentation, reused for both create and edit flows.
     var examGoalSheetPresentation: ExamGoalSheetPresentation?
+
+    /// Controls the save error alert inside the exam-goal editor sheet.
+    var showExamGoalEditorError: Bool = false
+
+    /// Human-readable message for the exam-goal editor save error alert.
+    var examGoalEditorErrorMessage: String = ""
+
+    /// Controls the dashboard-level exam-goal action error alert.
+    var showExamGoalActionError: Bool = false
+
+    /// Human-readable message for dashboard-level exam-goal action errors.
+    var examGoalActionErrorMessage: String = ""
+
+    /// Controls the custom sheet that expands the Home 7-day performance detail.
+    var showPerformanceDetailSheet: Bool = false
 
     /// Bound to the title field inside the reusable exam-goal editor sheet.
     var newExamGoalTitle: String = ""
@@ -235,8 +256,11 @@ final class HomeViewModel {
     ///
     /// - Parameter date: The past date to describe.
     /// - Returns: A human-readable relative time string.
-    static func relativeTimeLabel(for date: Date) -> String {
-        let seconds = Int(Date().timeIntervalSince(date))
+    static func relativeTimeLabel(
+        for date: Date,
+        referenceDate: Date = Date()
+    ) -> String {
+        let seconds = Int(referenceDate.timeIntervalSince(date))
         switch seconds {
         case ..<60:        return "just now"
         case ..<3_600:     return "\(seconds / 60)m ago"
@@ -334,26 +358,87 @@ final class HomeViewModel {
     /// reacting to the selected day, logs, goals, and profile changes.
     func refreshDashboardSnapshot(
         selectedDate: Date,
+        weekStart: Date,
         examGoals: [ExamGoalModel],
-        userProfile: UserProfile?
-    ) {
+        userProfile: UserProfile?,
+        container: ModelContainer,
+        analyticsRevision: Int,
+        deckRevision: Int,
+        referenceDate: Date = Date()
+    ) async {
         refreshDashboardStaticSnapshot(
             examGoals: examGoals,
-            userProfile: userProfile
+            userProfile: userProfile,
+            referenceDate: referenceDate
         )
 
         let signature = buildDashboardSnapshotSignature(
             selectedDate: selectedDate,
-            userProfile: userProfile
+            userProfile: userProfile,
+            analyticsRevision: analyticsRevision,
+            deckRevision: deckRevision
         )
         guard dashboardSnapshotSignature != signature else { return }
         dashboardSnapshotSignature = signature
 
-        let selectedDayOverview = buildSelectedDayOverview(
-            for: selectedDate,
-            userProfile: userProfile
+        let repository = HomeAnalyticsRepository(container: container)
+        let analyticsSnapshot = await repository.loadDashboardSnapshot(
+            selectedDate: selectedDate,
+            weekStart: weekStart
         )
-        let weeklyMomentum = buildWeeklyMomentumSummary(selectedDate: selectedDate)
+        await repository.tearDown()
+        guard !Task.isCancelled else { return }
+
+        let selectedDayStats = analyticsSnapshot.selectedDayStats
+        let selectedDateLabel = Self.labelForSelectedDay(
+            selectedDayStats.selectedDate,
+            referenceDate: referenceDate
+        )
+        let goalCompletionFraction = min(
+            Double(selectedDayStats.cardsReviewed) / Double(max(selectedDayStats.dailyGoal, 1)),
+            1.0
+        )
+        let remainingCardsToGoal = max(
+            selectedDayStats.dailyGoal - selectedDayStats.cardsReviewed,
+            0
+        )
+
+        let headline: String
+        let detailLine: String
+        if selectedDayStats.cardsReviewed >= selectedDayStats.dailyGoal {
+            headline = "Goal reached"
+            detailLine = "You completed \(selectedDayStats.cardsReviewed) unique cards on \(selectedDateLabel.lowercased())."
+        } else if selectedDayStats.cardsReviewed > 0 {
+            headline = "\(remainingCardsToGoal) cards to target"
+            if selectedDayStats.rawReviewCount > selectedDayStats.cardsReviewed {
+                detailLine = "You already covered \(selectedDayStats.cardsReviewed) unique cards across \(selectedDayStats.rawReviewCount) review passes."
+            } else {
+                detailLine = "You already covered \(selectedDayStats.cardsReviewed) unique cards and earned \(selectedDayStats.xpEarnedToday) XP."
+            }
+        } else {
+            headline = "Fresh study window"
+            detailLine = "No study logged for \(selectedDateLabel.lowercased()) yet."
+        }
+
+        let selectedDayOverview = HomeSelectedDayOverviewSummary(
+            selectedDate: selectedDayStats.selectedDate,
+            selectedDateLabel: selectedDateLabel,
+            cardsReviewed: selectedDayStats.cardsReviewed,
+            rawReviewCount: selectedDayStats.rawReviewCount,
+            dailyGoal: selectedDayStats.dailyGoal,
+            goalCompletionFraction: goalCompletionFraction,
+            remainingCardsToGoal: remainingCardsToGoal,
+            xpEarnedToday: selectedDayStats.xpEarnedToday,
+            newCardsLearned: selectedDayStats.newCardsLearned,
+            correctCardCount: selectedDayStats.correctCardCount,
+            retryCardCount: selectedDayStats.retryCardCount,
+            streakCount: userProfile?.currentStreak ?? 0,
+            totalXP: userProfile?.totalXP ?? 0,
+            level: userProfile?.level ?? 1,
+            headline: headline,
+            detailLine: detailLine
+        )
+        let weeklyMomentum = analyticsSnapshot.weeklyMomentum
         let selectedDayExamSummaries = selectedDayExamGoalSummaries(for: selectedDate)
 
         dashboardSnapshot = HomeDashboardSnapshot(
@@ -366,6 +451,8 @@ final class HomeViewModel {
                 weeklyMomentum: weeklyMomentum
             ),
             weeklyMomentum: weeklyMomentum,
+            pastWeekPerformance: analyticsSnapshot.pastWeekPerformance,
+            selectedDayBreakdown: analyticsSnapshot.selectedDayBreakdown,
             examPressure: dashboardStaticSnapshot.examPressure,
             selectedDayExamSummaries: selectedDayExamSummaries,
             upcomingExamSummaries: dashboardStaticSnapshot.upcomingExamSummaries,
@@ -477,7 +564,8 @@ final class HomeViewModel {
                 for: deck,
                 report: report,
                 linkedGoalCount: goalCounts[deck.persistentModelID] ?? 0,
-                isRecentlyOpened: recentDeckIDs.contains(deck.persistentModelID)
+                isRecentlyOpened: recentDeckIDs.contains(deck.persistentModelID),
+                referenceDate: referenceDate
             )
             ranked.append((summary, deckHealthRiskScore(for: summary)))
         }
@@ -517,9 +605,11 @@ final class HomeViewModel {
             newFolderTitle = ""
             showCreateFolder = false
         } catch {
+            context.delete(folder)
             logger.error(
                 "Failed to create folder: \(String(describing: error), privacy: .public)"
             )
+            presentCreateFolderError(error)
         }
     }
 
@@ -559,6 +649,16 @@ final class HomeViewModel {
         resetExamGoalDraft()
     }
 
+    /// Opens the Home performance detail sheet using the already-cached snapshot payload.
+    func presentPerformanceDetail() {
+        showPerformanceDetailSheet = true
+    }
+
+    /// Dismisses the Home performance detail sheet.
+    func dismissPerformanceDetail() {
+        showPerformanceDetailSheet = false
+    }
+
     /// Creates or updates an `ExamGoalModel`, linking the currently selected decks.
     ///
     /// - Parameters:
@@ -577,6 +677,14 @@ final class HomeViewModel {
         guard !selectedDecks.isEmpty else { return }
 
         if let editingGoal {
+            let previousTitle = editingGoal.title
+            let previousNote = editingGoal.note
+            let previousDate = editingGoal.date
+            let previousTargetWorkload = editingGoal.targetWorkload
+            let previousStatus = editingGoal.status
+            let previousLinkedDecks = editingGoal.linkedDecks
+            let previousEditedAt = editingGoal.editedAt
+
             editingGoal.title = title
             editingGoal.note = newExamGoalNote.trimmingCharacters(in: .whitespacesAndNewlines)
             editingGoal.date = newExamGoalDate
@@ -584,6 +692,23 @@ final class HomeViewModel {
             editingGoal.status = newExamGoalStatus
             editingGoal.linkedDecks = selectedDecks
             editingGoal.editedAt = Date()
+
+            do {
+                try context.save()
+                dismissExamGoalEditor()
+            } catch {
+                editingGoal.title = previousTitle
+                editingGoal.note = previousNote
+                editingGoal.date = previousDate
+                editingGoal.targetWorkload = previousTargetWorkload
+                editingGoal.status = previousStatus
+                editingGoal.linkedDecks = previousLinkedDecks
+                editingGoal.editedAt = previousEditedAt
+                logger.error(
+                    "Failed to save exam goal: \(String(describing: error), privacy: .public)"
+                )
+                presentExamGoalEditorError(error)
+            }
         } else {
             let goal = ExamGoalModel(
                 title: title,
@@ -594,15 +719,17 @@ final class HomeViewModel {
                 linkedDecks: selectedDecks
             )
             context.insert(goal)
-        }
 
-        do {
-            try context.save()
-            dismissExamGoalEditor()
-        } catch {
-            logger.error(
-                "Failed to save exam goal: \(String(describing: error), privacy: .public)"
-            )
+            do {
+                try context.save()
+                dismissExamGoalEditor()
+            } catch {
+                context.delete(goal)
+                logger.error(
+                    "Failed to save exam goal: \(String(describing: error), privacy: .public)"
+                )
+                presentExamGoalEditorError(error)
+            }
         }
     }
 
@@ -618,15 +745,20 @@ final class HomeViewModel {
         context: ModelContext
     ) {
         guard goal.status != status else { return }
+        let previousStatus = goal.status
+        let previousEditedAt = goal.editedAt
         goal.status = status
         goal.editedAt = Date()
 
         do {
             try context.save()
         } catch {
+            goal.status = previousStatus
+            goal.editedAt = previousEditedAt
             logger.error(
                 "Failed to update exam goal status: \(String(describing: error), privacy: .public)"
             )
+            presentExamGoalActionError(error)
         }
     }
 
@@ -667,6 +799,38 @@ final class HomeViewModel {
         return aggregate
     }
 
+    static func homeAnalyticsFingerprint(for aggregates: [HomeDailyStudyAggregate]) -> Int {
+        var aggregate = aggregates.count &* 1_000_211
+        for entry in aggregates {
+            var hasher = Hasher()
+            hasher.combine(entry.dayKey)
+            hasher.combine(entry.uniqueCardCount)
+            hasher.combine(entry.rawReviewCount)
+            hasher.combine(entry.landedCount)
+            hasher.combine(entry.retryCount)
+            hasher.combine(entry.xpEarned)
+            hasher.combine(entry.newCardsLearned)
+            hasher.combine(entry.dailyGoal)
+            aggregate ^= hasher.finalize()
+        }
+        return aggregate
+    }
+
+    static func decksFingerprint(for decks: [DeckModel]) -> Int {
+        var aggregate = decks.count &* 1_000_229
+        for deck in decks {
+            var hasher = Hasher()
+            hasher.combine(deck.persistentModelID.hashValue)
+            hasher.combine(deck.title)
+            hasher.combine(deck.colorHex)
+            hasher.combine(deck.cardCount)
+            hasher.combine(deck.editedAt.timeIntervalSince1970.bitPattern)
+            hasher.combine(deck.lastOpenedAt?.timeIntervalSince1970.bitPattern ?? 0)
+            aggregate ^= hasher.finalize()
+        }
+        return aggregate
+    }
+
     static func examGoalsFingerprint(for goals: [ExamGoalModel]) -> Int {
         var aggregate = goals.count &* 1_000_033
         for goal in goals {
@@ -690,6 +854,32 @@ final class HomeViewModel {
             aggregate ^= hasher.finalize()
         }
         return aggregate
+    }
+
+    // MARK: - Error Surfacing
+
+    private func presentCreateFolderError(_ error: Error) {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        createFolderErrorMessage = description.isEmpty
+            ? "Your folder couldn't be saved right now."
+            : description
+        showCreateFolderError = true
+    }
+
+    private func presentExamGoalEditorError(_ error: Error) {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        examGoalEditorErrorMessage = description.isEmpty
+            ? "Your exam goal couldn't be saved right now."
+            : description
+        showExamGoalEditorError = true
+    }
+
+    private func presentExamGoalActionError(_ error: Error) {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        examGoalActionErrorMessage = description.isEmpty
+            ? "Your exam goal changes couldn't be saved right now."
+            : description
+        showExamGoalActionError = true
     }
 
 }

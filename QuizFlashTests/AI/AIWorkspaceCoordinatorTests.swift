@@ -219,8 +219,8 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
         coordinator.openWorkspace(router: router)
 
         XCTAssertEqual(router.activeTab, .create)
-        XCTAssertEqual(router.createWorkspaceMode, .create)
-        XCTAssertEqual(router.createPath.count, 1)
+        XCTAssertEqual(router.createWorkspaceEditingDeckID, session.sourceDeckID)
+        XCTAssertEqual(router.createPath.count, 0)
     }
 
     func testOpenWorkspaceReturnsToCreateRootHostAndClearsExistingCreatePath() {
@@ -243,7 +243,7 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
         coordinator.openWorkspace(router: router)
 
         XCTAssertEqual(router.activeTab, .create)
-        XCTAssertEqual(router.createWorkspaceMode, .create)
+        XCTAssertNil(router.createWorkspaceEditingDeckID)
         XCTAssertEqual(router.createPath.count, 0)
     }
 

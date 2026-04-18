@@ -50,6 +50,8 @@ struct MainAppView: View {
     /// expensive operations (search cache, grouping) persist across navigation
     /// and tab-switching without redundant recomputation.
     @State private var libraryViewModel = LibraryViewModel()
+    @State private var showMigrationError = false
+    @State private var migrationErrorMessage = ""
 
     /// The visibility rule currently reported by the frontmost child view.
     @State private var tabBarRule: TabBarVisibilityRule = .implicit
@@ -315,10 +317,29 @@ struct MainAppView: View {
             router.sanitizeForFeatures(appFeatures)
             await aiWorkspaceCoordinator.restorePersistedJobIfNeeded(context: modelContext)
 
-            // One-time migration: removed logic based on cardCount and deckCount.
-            try? appMigrationStore.runLegacyCardCountCleanupIfNeeded {
-                try modelContext.save()
+            do {
+                // One-time migration: removed logic based on cardCount and deckCount.
+                try appMigrationStore.runLegacyCardCountCleanupIfNeeded {
+                    try modelContext.save()
+                }
+
+                try await appMigrationStore.runHomeAnalyticsBackfillIfNeeded {
+                    let repository = HomeAnalyticsRepository(container: modelContext.container)
+                    try await repository.rebuildAnalyticsFromReviewHistory()
+                    await repository.tearDown()
+                }
+            } catch {
+                let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                migrationErrorMessage = description.isEmpty
+                    ? "A one-time data cleanup couldn't be completed right now."
+                    : description
+                showMigrationError = true
             }
+        }
+        .alert("Migration Error", isPresented: $showMigrationError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(migrationErrorMessage)
         }
     }
 

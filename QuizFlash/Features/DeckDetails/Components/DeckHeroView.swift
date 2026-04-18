@@ -38,6 +38,7 @@ struct DeckHeroView: View {
     var maxWidth: CGFloat? = nil
 
     @Environment(DeckScrollState.self) private var scrollState
+    @Environment(ThemeManager.self) private var themeManager
     @State private var measuredTextWidth: CGFloat = 0
 
     /// Convenience accessor; avoids multiple `scrollState.pillVisible` reads.
@@ -76,7 +77,7 @@ struct DeckHeroView: View {
 
             Text(resolvedTitle)
                 .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
+                .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .minimumScaleFactor(0.92)

@@ -51,7 +51,8 @@ struct AIProviderSettingsView: View {
             .screenTopEdgeShadow(
                 topHeight: structuralTopEdgeShadowHeight,
                 topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
-                debugScreenID: "featurelab.ai-provider-settings"
+                debugScreenID: "featurelab.ai-provider-settings",
+                style: .progressiveBlur()
             )
 
             navigationBar
@@ -59,6 +60,17 @@ struct AIProviderSettingsView: View {
         .coordinateSpace(name: kAIProviderSettingsChromeSpace)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
+        .alert("Save Error", isPresented: aiProviderPersistenceErrorBinding) {
+            Button("OK", role: .cancel) {
+                aiProviderStore.dismissPersistenceError()
+            }
+        } message: {
+            Text(
+                aiProviderStore.persistenceErrorMessage.isEmpty
+                    ? "The AI configuration changes couldn't be saved right now."
+                    : aiProviderStore.persistenceErrorMessage
+            )
+        }
     }
 
     private var structuralTopEdgeShadowHeight: CGFloat {
@@ -216,6 +228,17 @@ struct AIProviderSettingsView: View {
                 }
             }
         }
+    }
+
+    private var aiProviderPersistenceErrorBinding: Binding<Bool> {
+        Binding(
+            get: { aiProviderStore.showPersistenceError },
+            set: { newValue in
+                if !newValue {
+                    aiProviderStore.dismissPersistenceError()
+                }
+            }
+        )
     }
 
     private var syntaxSection: some View {

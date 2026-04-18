@@ -69,6 +69,7 @@ extension DeckViewModel {
         allCardInfos = snapshot.gridCards
         currentStats = snapshot.stats
         progressStats = computeProgressStats(from: snapshot.gridCards, deckCardCount: nil)
+        todayActivitySummary = snapshot.todayActivity
         playModeAvailability = buildPlayModeAvailability(from: snapshot.gridCards)
         performGrouping(on: snapshot.gridCards)
     }
@@ -118,6 +119,7 @@ extension DeckViewModel {
             self.groupingMode = previousGroupingMode
             performGrouping(on: allCardInfos)
             logger.error("Failed to persist deck grouping mode: \(error.localizedDescription, privacy: .public)")
+            presentMutationError(error)
         }
     }
 

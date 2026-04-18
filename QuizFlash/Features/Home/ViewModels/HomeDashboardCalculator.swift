@@ -6,6 +6,24 @@
 import Foundation
 import SwiftData
 
+private struct HomeDailyReviewAggregate {
+    let uniqueCardCount: Int
+    let rawReviewCount: Int
+    let xpEarned: Int
+    let correctCardCount: Int
+    let retryCardCount: Int
+    let deckSummaries: [HomeWeeklyDeckActivitySummary]
+
+    static let empty = HomeDailyReviewAggregate(
+        uniqueCardCount: 0,
+        rawReviewCount: 0,
+        xpEarned: 0,
+        correctCardCount: 0,
+        retryCardCount: 0,
+        deckSummaries: []
+    )
+}
+
 extension HomeViewModel {
     /// Produces the short narrative lines shown above the Home exam-goal cards.
     ///
@@ -156,7 +174,7 @@ extension HomeViewModel {
             if overview.didReachGoal {
                 detail = "Today's goal is closed."
             } else if let lastOpenedAt = recentDeck.lastOpenedAt {
-                detail = "Last opened \(Self.relativeTimeLabel(for: lastOpenedAt))."
+                detail = "Last opened \(Self.relativeTimeLabel(for: lastOpenedAt, referenceDate: referenceDate))."
             } else if let matchingHealth {
                 let deckPressure = matchingHealth.dueCards + matchingHealth.newCards
                 if deckPressure > 0 {
@@ -311,7 +329,9 @@ extension HomeViewModel {
                 contextLine: contextLine,
                 colorHex: recentDeck.colorHex,
                 primaryPill: "\(recentDeck.cardCount) cards",
-                secondaryPill: recentDeck.lastOpenedAt.map { "Opened \(Self.relativeTimeLabel(for: $0))" },
+                secondaryPill: recentDeck.lastOpenedAt.map {
+                    "Opened \(Self.relativeTimeLabel(for: $0, referenceDate: referenceDate))"
+                },
                 progressFraction: progressFraction,
                 progressValueText: progressValueText,
                 progressLabel: progressLabel,
@@ -400,7 +420,8 @@ extension HomeViewModel {
 
     func buildSelectedDayOverview(
         for selectedDate: Date,
-        userProfile: UserProfile?
+        userProfile: UserProfile?,
+        cards: [CardModel]
     ) -> HomeSelectedDayOverviewSummary {
         let selectedDateKey = Self.dateKeyFormatter.string(from: selectedDate)
         let cacheKey = [
@@ -414,9 +435,13 @@ extension HomeViewModel {
         }
 
         let log = getFastLog(for: selectedDate)
-        let cardsReviewed = log?.cardsReviewed ?? 0
+        let reviewAggregate = buildDailyReviewAggregate(
+            for: selectedDate,
+            cards: cards
+        )
+        let cardsReviewed = reviewAggregate.uniqueCardCount
         let dailyGoal = max(log?.dailyGoal ?? 50, 1)
-        let xpEarnedToday = log?.xpEarnedToday ?? 0
+        let xpEarnedToday = reviewAggregate.xpEarned
         let newCardsLearned = log?.newCardsLearned ?? 0
         let goalCompletionFraction = min(Double(cardsReviewed) / Double(dailyGoal), 1.0)
         let remainingCardsToGoal = max(dailyGoal - cardsReviewed, 0)
@@ -426,10 +451,14 @@ extension HomeViewModel {
         let detailLine: String
         if cardsReviewed >= dailyGoal {
             headline = "Goal reached"
-            detailLine = "You completed \(cardsReviewed) cards on \(selectedDateLabel.lowercased())."
+            detailLine = "You completed \(cardsReviewed) unique cards on \(selectedDateLabel.lowercased())."
         } else if cardsReviewed > 0 {
             headline = "\(remainingCardsToGoal) cards to target"
-            detailLine = "You already reviewed \(cardsReviewed) cards and earned \(xpEarnedToday) XP."
+            if reviewAggregate.rawReviewCount > cardsReviewed {
+                detailLine = "You already covered \(cardsReviewed) unique cards across \(reviewAggregate.rawReviewCount) review passes."
+            } else {
+                detailLine = "You already covered \(cardsReviewed) unique cards and earned \(xpEarnedToday) XP."
+            }
         } else {
             headline = "Fresh study window"
             detailLine = "No study logged for \(selectedDateLabel.lowercased()) yet."
@@ -439,11 +468,14 @@ extension HomeViewModel {
             selectedDate: selectedDate,
             selectedDateLabel: selectedDateLabel,
             cardsReviewed: cardsReviewed,
+            rawReviewCount: reviewAggregate.rawReviewCount,
             dailyGoal: dailyGoal,
             goalCompletionFraction: goalCompletionFraction,
             remainingCardsToGoal: remainingCardsToGoal,
             xpEarnedToday: xpEarnedToday,
             newCardsLearned: newCardsLearned,
+            correctCardCount: reviewAggregate.correctCardCount,
+            retryCardCount: reviewAggregate.retryCardCount,
             streakCount: userProfile?.currentStreak ?? 0,
             totalXP: userProfile?.totalXP ?? 0,
             level: userProfile?.level ?? 1,
@@ -455,7 +487,8 @@ extension HomeViewModel {
     }
 
     func buildWeeklyMomentumSummary(
-        selectedDate: Date
+        selectedDate: Date,
+        cards: [CardModel]
     ) -> HomeWeeklyMomentumSummary {
         let calendar = AppPreferences.shared.resolvedCalendar
         let startOfSelectedDay = calendar.startOfDay(for: selectedDate)
@@ -471,29 +504,29 @@ extension HomeViewModel {
             return cached
         }
 
-        var weeklyLogs: [DailyActivityLog] = []
-        weeklyLogs.reserveCapacity(7)
-
         let daySummaries: [HomeWeeklyDaySummary] = (0..<7).compactMap { index in
             guard let day = calendar.date(byAdding: .day, value: index, to: weekStart) else { return nil }
             let dayKey = Self.dateKeyFormatter.string(from: day)
             let log = logsCache[dayKey]
-            let cardsReviewed = log?.cardsReviewed ?? 0
-            let xpEarned = log?.xpEarnedToday ?? 0
+            let reviewAggregate = buildDailyReviewAggregate(
+                for: day,
+                cards: cards
+            )
+            let cardsReviewed = reviewAggregate.uniqueCardCount
+            let xpEarned = reviewAggregate.xpEarned
             let goal = max(log?.dailyGoal ?? 50, 1)
             let intensityFraction = min(Double(cardsReviewed) / Double(goal), 1.0)
-
-            if let log {
-                weeklyLogs.append(log)
-            }
 
             return HomeWeeklyDaySummary(
                 id: dayKey,
                 date: day,
                 shortWeekday: Self.shortWeekdayFormatter.string(from: day),
                 cardsReviewed: cardsReviewed,
+                rawReviewCount: reviewAggregate.rawReviewCount,
                 xpEarned: xpEarned,
                 goal: goal,
+                correctCardCount: reviewAggregate.correctCardCount,
+                retryCardCount: reviewAggregate.retryCardCount,
                 intensityFraction: intensityFraction,
                 didStudy: cardsReviewed > 0 || xpEarned > 0,
                 didReachGoal: cardsReviewed >= goal,
@@ -501,17 +534,16 @@ extension HomeViewModel {
             )
         }
 
-        let totalCardsReviewed = weeklyLogs.map(\.cardsReviewed).reduce(0, +)
-        let totalXPEarned = weeklyLogs.map(\.xpEarnedToday).reduce(0, +)
-        let activeLogs = weeklyLogs.filter { $0.cardsReviewed > 0 || $0.xpEarnedToday > 0 }
-        let activeDays = activeLogs.count
-        let goalHitDays = weeklyLogs.filter(\.isPerfectDay).count
+        let totalCardsReviewed = daySummaries.map(\.cardsReviewed).reduce(0, +)
+        let totalXPEarned = daySummaries.map(\.xpEarned).reduce(0, +)
+        let activeDays = daySummaries.filter(\.didStudy).count
+        let goalHitDays = daySummaries.filter(\.didReachGoal).count
         let averageCardsPerActiveDay = activeDays > 0 ? Int(round(Double(totalCardsReviewed) / Double(activeDays))) : 0
         let averageXPPerActiveDay = activeDays > 0 ? Int(round(Double(totalXPEarned) / Double(activeDays))) : 0
         let consistencyFraction = Double(activeDays) / 7.0
-        let bestDay = weeklyLogs.max { lhs, rhs in
+        let bestDay = daySummaries.max { lhs, rhs in
             if lhs.cardsReviewed != rhs.cardsReviewed { return lhs.cardsReviewed < rhs.cardsReviewed }
-            return lhs.xpEarnedToday < rhs.xpEarnedToday
+            return lhs.xpEarned < rhs.xpEarned
         }
 
         let headline: String
@@ -542,6 +574,104 @@ extension HomeViewModel {
         )
         weeklyMomentumCache[cacheKey] = summary
         return summary
+    }
+
+    fileprivate func buildDailyReviewAggregate(
+        for date: Date,
+        cards: [CardModel]
+    ) -> HomeDailyReviewAggregate {
+        let calendar = AppPreferences.shared.resolvedCalendar
+        let dayStart = calendar.startOfDay(for: date)
+        guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else {
+            return .empty
+        }
+
+        var reviewedCards: [HomeWeeklyReviewedCardSummary] = []
+        reviewedCards.reserveCapacity(16)
+
+        var rawReviewCount = 0
+        var xpEarned = 0
+
+        for card in cards {
+            guard !card.reviewHistory.isEmpty else { continue }
+
+            let dayEvents = card.reviewHistory
+                .filter { $0.timestamp >= dayStart && $0.timestamp < dayEnd }
+
+            guard !dayEvents.isEmpty else { continue }
+
+            rawReviewCount += dayEvents.count
+            xpEarned += dayEvents.reduce(0) { $0 + $1.xpAwarded }
+
+            guard let finalEvent = dayEvents.max(by: { $0.timestamp < $1.timestamp }) else { continue }
+
+            let deckTitle = normalizedDeckTitle(for: card)
+            let cardTitle = normalizedCardTitle(for: card)
+            let deckColorHex = card.deck?.colorHex ?? "#70707A"
+            let deckID = card.deck?.persistentModelID
+            let stableID = "\(Self.dateKeyFormatter.string(from: dayStart))-\(card.persistentModelID.hashValue)"
+
+            reviewedCards.append(
+                HomeWeeklyReviewedCardSummary(
+                    id: stableID,
+                    cardID: card.persistentModelID,
+                    deckID: deckID,
+                    deckTitle: deckTitle,
+                    deckColorHex: deckColorHex,
+                    title: cardTitle,
+                    finalDifficulty: finalEvent.difficulty,
+                    reviewCount: dayEvents.count,
+                    lastReviewedAt: finalEvent.timestamp
+                )
+            )
+        }
+
+        let correctCardCount = reviewedCards.filter(\.wasCorrectAtEndOfDay).count
+        let retryCardCount = max(reviewedCards.count - correctCardCount, 0)
+
+        let groupedCards = Dictionary(grouping: reviewedCards, by: { reviewedCard in
+            "\(reviewedCard.deckID?.hashValue ?? 0)|\(reviewedCard.deckTitle)|\(reviewedCard.deckColorHex)"
+        })
+
+        let deckSummaries: [HomeWeeklyDeckActivitySummary] = groupedCards.compactMap { entry in
+            let cards = entry.value
+            guard let first = cards.first else { return nil }
+            let sortedCards = cards.sorted { lhs, rhs in
+                if lhs.wasCorrectAtEndOfDay != rhs.wasCorrectAtEndOfDay {
+                    return !lhs.wasCorrectAtEndOfDay && rhs.wasCorrectAtEndOfDay
+                }
+                return lhs.lastReviewedAt > rhs.lastReviewedAt
+            }
+            let deckCorrect = sortedCards.filter(\.wasCorrectAtEndOfDay).count
+            return HomeWeeklyDeckActivitySummary(
+                id: "\(Self.dateKeyFormatter.string(from: dayStart))-\(first.deckID?.hashValue ?? first.deckTitle.hashValue)",
+                deckID: first.deckID,
+                title: first.deckTitle,
+                colorHex: first.deckColorHex,
+                uniqueCardCount: sortedCards.count,
+                correctCardCount: deckCorrect,
+                retryCardCount: max(sortedCards.count - deckCorrect, 0),
+                cards: sortedCards
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.retryCardCount != rhs.retryCardCount {
+                return lhs.retryCardCount > rhs.retryCardCount
+            }
+            if lhs.uniqueCardCount != rhs.uniqueCardCount {
+                return lhs.uniqueCardCount > rhs.uniqueCardCount
+            }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
+
+        return HomeDailyReviewAggregate(
+            uniqueCardCount: reviewedCards.count,
+            rawReviewCount: rawReviewCount,
+            xpEarned: xpEarned,
+            correctCardCount: correctCardCount,
+            retryCardCount: retryCardCount,
+            deckSummaries: deckSummaries
+        )
     }
 
     func buildSelectedDayInsightSummary(
@@ -726,7 +856,8 @@ extension HomeViewModel {
         for deck: DeckModel,
         report: LearnModeReport,
         linkedGoalCount: Int,
-        isRecentlyOpened: Bool
+        isRecentlyOpened: Bool,
+        referenceDate: Date
     ) -> HomeDeckHealthSummary {
         let masteryFraction = report.totalCards > 0
             ? Double(report.stableCards) / Double(report.totalCards)
@@ -775,7 +906,9 @@ extension HomeViewModel {
             masteryFraction: masteryFraction,
             linkedGoalCount: linkedGoalCount,
             isRecentlyOpened: isRecentlyOpened,
-            lastOpenedLabel: deck.lastOpenedAt.map(Self.relativeTimeLabel(for:)),
+            lastOpenedLabel: deck.lastOpenedAt.map {
+                Self.relativeTimeLabel(for: $0, referenceDate: referenceDate)
+            },
             headline: headline,
             detailLine: detailLine,
             actionLine: actionLine,
@@ -831,13 +964,16 @@ extension HomeViewModel {
 
     func buildDashboardSnapshotSignature(
         selectedDate: Date,
-        userProfile: UserProfile?
+        userProfile: UserProfile?,
+        analyticsRevision: Int,
+        deckRevision: Int
     ) -> String {
         let selectedDateKey = Self.dateKeyFormatter.string(from: selectedDate)
         return [
             selectedDateKey,
             profileSignature(for: userProfile),
-            "\(logsCacheRevision)",
+            "\(analyticsRevision)",
+            "\(deckRevision)",
             "\(examGoalsCacheRevision)"
         ].joined(separator: "||")
     }
@@ -946,6 +1082,21 @@ extension HomeViewModel {
         }
         recentStudyDayCountCache[cacheKey] = count
         return count
+    }
+
+    func normalizedCardTitle(for card: CardModel) -> String {
+        let preferred = card.frontText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !preferred.isEmpty { return preferred }
+
+        let fallback = card.backText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !fallback.isEmpty { return fallback }
+
+        return "Untitled Card"
+    }
+
+    func normalizedDeckTitle(for card: CardModel) -> String {
+        let title = card.deck?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return title.isEmpty ? "Untitled Deck" : title
     }
 
     func profileSignature(for userProfile: UserProfile?) -> String {

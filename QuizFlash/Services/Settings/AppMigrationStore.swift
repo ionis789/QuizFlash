@@ -17,6 +17,7 @@ final class AppMigrationStore {
     private enum Keys {
         // Preserve the shipped key so existing installs do not re-run this cleanup.
         static let legacyCardCountCleanupCompleted = "didMigrateCardCount_v1"
+        static let homeAnalyticsBackfillCompleted = "didBackfillHomeAnalytics_v1"
     }
 
     private let userDefaults: UserDefaults
@@ -31,10 +32,23 @@ final class AppMigrationStore {
         }
     }
 
+    /// Marks whether the one-time Home analytics aggregate rebuild has finished.
+    private(set) var didCompleteHomeAnalyticsBackfill: Bool {
+        didSet {
+            userDefaults.set(
+                didCompleteHomeAnalyticsBackfill,
+                forKey: Keys.homeAnalyticsBackfillCompleted
+            )
+        }
+    }
+
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.didCompleteLegacyCardCountCleanup = userDefaults.object(
             forKey: Keys.legacyCardCountCleanupCompleted
+        ) as? Bool ?? false
+        self.didCompleteHomeAnalyticsBackfill = userDefaults.object(
+            forKey: Keys.homeAnalyticsBackfillCompleted
         ) as? Bool ?? false
     }
 
@@ -45,5 +59,14 @@ final class AppMigrationStore {
         guard !didCompleteLegacyCardCountCleanup else { return }
         try operation()
         didCompleteLegacyCardCountCleanup = true
+    }
+
+    /// Runs the one-time Home analytics backfill once and persists completion when successful.
+    func runHomeAnalyticsBackfillIfNeeded(
+        _ operation: () async throws -> Void
+    ) async rethrows {
+        guard !didCompleteHomeAnalyticsBackfill else { return }
+        try await operation()
+        didCompleteHomeAnalyticsBackfill = true
     }
 }

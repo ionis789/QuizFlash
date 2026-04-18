@@ -8,7 +8,13 @@
 import SwiftUI
 
 #if DEBUG
+enum TopChromeDebugPanelMode {
+    case shadow
+    case progressiveBlur
+}
+
 struct EdgeShadowDebugFloatingPanel: View {
+    let mode: TopChromeDebugPanelMode
     @Binding var settings: EdgeShadowDebugSettings
     let onReset: () -> Void
 
@@ -19,7 +25,7 @@ struct EdgeShadowDebugFloatingPanel: View {
             if isExpanded {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                     HStack {
-                        Text("Shadow Tuner")
+                        Text(panelTitle)
                             .font(.system(.headline, design: .rounded, weight: .bold))
                         Spacer()
                         Button("Reset") {
@@ -29,37 +35,12 @@ struct EdgeShadowDebugFloatingPanel: View {
                         .buttonStyle(.plain)
                     }
 
-                    sliderRow(
-                        title: "Alpha",
-                        value: binding(for: \.maxAlpha),
-                        range: 0.30...1.00
-                    )
-                    sliderRow(
-                        title: "Blur",
-                        value: binding(for: \.blurOpacityScale),
-                        range: 0.20...1.60
-                    )
-                    sliderRow(
-                        title: "Tint",
-                        value: binding(for: \.tintOpacityScale),
-                        range: 0.20...1.40
-                    )
-                    sliderRow(
-                        title: "Spread",
-                        value: binding(for: \.fadeLengthScale),
-                        range: 0.45...1.35
-                    )
-                    sliderRow(
-                        title: "Curve",
-                        value: binding(for: \.curveExponentBase),
-                        range: 0.70...1.80
-                    )
-                    sliderRow(
-                        title: "Height",
-                        value: binding(for: \.heightOffset),
-                        range: -60...60,
-                        format: "%.0f"
-                    )
+                    switch mode {
+                    case .shadow:
+                        shadowControls
+                    case .progressiveBlur:
+                        progressiveBlurControls
+                    }
 
                     Toggle("Custom Color", isOn: usesCustomColorBinding)
                         .font(.system(.caption, design: .rounded, weight: .semibold))
@@ -67,7 +48,7 @@ struct EdgeShadowDebugFloatingPanel: View {
 
                     if settings.colorOverride != nil {
                         ColorPicker(
-                            "Shadow Color",
+                            colorPickerTitle,
                             selection: customColorBinding,
                             supportsOpacity: false
                         )
@@ -89,7 +70,7 @@ struct EdgeShadowDebugFloatingPanel: View {
                     isExpanded.toggle()
                 }
             } label: {
-                Label(isExpanded ? "Hide Shadow" : "Tune Shadow", systemImage: "slider.horizontal.3")
+                Label(isExpanded ? hideButtonTitle : showButtonTitle, systemImage: "slider.horizontal.3")
                     .font(.system(.subheadline, design: .rounded, weight: .semibold))
                     .padding(.horizontal, UIConstants.Spacing.medium)
                     .padding(.vertical, UIConstants.Spacing.small)
@@ -99,11 +80,113 @@ struct EdgeShadowDebugFloatingPanel: View {
         }
     }
 
+    @ViewBuilder
+    private var shadowControls: some View {
+        sliderRow(
+            title: "Alpha",
+            value: binding(for: \.maxAlpha),
+            range: 0.30...1.00
+        )
+        sliderRow(
+            title: "Blur",
+            value: binding(for: \.blurOpacityScale),
+            range: 0.20...1.60
+        )
+        sliderRow(
+            title: "Tint",
+            value: binding(for: \.tintOpacityScale),
+            range: 0.20...1.40
+        )
+        sliderRow(
+            title: "Spread",
+            value: binding(for: \.fadeLengthScale),
+            range: 0.45...1.35
+        )
+        sliderRow(
+            title: "Curve",
+            value: binding(for: \.curveExponentBase),
+            range: 0.70...1.80
+        )
+        sliderRow(
+            title: "Height",
+            value: binding(for: \.heightOffset),
+            range: -60...60,
+            format: "%.0f"
+        )
+    }
+
+    @ViewBuilder
+    private var progressiveBlurControls: some View {
+        sliderRow(
+            title: "Radius",
+            value: binding(for: \.progressiveBlurRadius),
+            range: 0...24
+        )
+        sliderRow(
+            title: "Fade",
+            value: binding(for: \.progressiveFadeExtension),
+            range: 0...180,
+            format: "%.0f"
+        )
+        sliderRow(
+            title: "Top Tint",
+            value: binding(for: \.progressiveTintOpacityTop),
+            range: 0...1
+        )
+        sliderRow(
+            title: "Mid Tint",
+            value: binding(for: \.progressiveTintOpacityMiddle),
+            range: 0...1
+        )
+        sliderRow(
+            title: "Height",
+            value: binding(for: \.heightOffset),
+            range: -60...60,
+            format: "%.0f"
+        )
+    }
+
     private func binding(for keyPath: WritableKeyPath<EdgeShadowDebugSettings, CGFloat>) -> Binding<CGFloat> {
         Binding(
             get: { settings[keyPath: keyPath] },
             set: { settings[keyPath: keyPath] = $0 }
         )
+    }
+
+    private var panelTitle: String {
+        switch mode {
+        case .shadow:
+            return "Shadow Tuner"
+        case .progressiveBlur:
+            return "Blur Tuner"
+        }
+    }
+
+    private var showButtonTitle: String {
+        switch mode {
+        case .shadow:
+            return "Tune Shadow"
+        case .progressiveBlur:
+            return "Tune Blur"
+        }
+    }
+
+    private var hideButtonTitle: String {
+        switch mode {
+        case .shadow:
+            return "Hide Shadow"
+        case .progressiveBlur:
+            return "Hide Blur"
+        }
+    }
+
+    private var colorPickerTitle: String {
+        switch mode {
+        case .shadow:
+            return "Shadow Color"
+        case .progressiveBlur:
+            return "Blur Color"
+        }
     }
 
     private func sliderRow(

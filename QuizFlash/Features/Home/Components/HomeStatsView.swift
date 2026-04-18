@@ -9,12 +9,14 @@ import SwiftUI
 
 /// Dense iPad-oriented summary card shown next to the Home calendar.
 struct HomeCalendarOverviewCard: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let overview: HomeSelectedDayOverviewSummary
     let weeklyMomentum: HomeWeeklyMomentumSummary
     let layoutMode: HomeLayoutMode
 
     private var accentColor: Color {
-        ThemeManager.shared.accentColor.color
+        themeManager.accentColor.color
     }
 
     private var completionTint: Color {
@@ -48,7 +50,7 @@ struct HomeCalendarOverviewCard: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(overview.selectedDateLabel)
                         .font(.caption.weight(.black))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(themeManager.textSecondary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background {
@@ -58,13 +60,13 @@ struct HomeCalendarOverviewCard: View {
 
                     Text(utilityHeadline)
                         .font(.system(size: usesRegularMetrics ? 22 : 24, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(2)
                         .minimumScaleFactor(0.82)
 
                     Text(utilityDetail)
                         .font(.system(size: usesRegularMetrics ? 15 : 16, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(themeManager.textSecondary)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -72,7 +74,7 @@ struct HomeCalendarOverviewCard: View {
 
                 AnimatedProgressRing(
                     progress: overview.goalCompletionFraction,
-                    trackColor: Color.primary.opacity(0.10),
+                    trackColor: themeManager.textPrimary.opacity(0.10),
                     progressColor: completionTint,
                     size: usesRegularMetrics ? 84 : 88,
                     strokeWidth: 10
@@ -80,11 +82,11 @@ struct HomeCalendarOverviewCard: View {
                     VStack(spacing: 2) {
                         Text(overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)")
                             .font(.system(size: 22, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(themeManager.textPrimary)
 
                         Text(overview.didReachGoal ? "Today" : "To goal")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(themeManager.textSecondary)
                     }
                 }
             }
@@ -125,17 +127,19 @@ struct HomeCalendarOverviewCard: View {
 
 /// Compact onboarding companion shown next to the iPad calendar before any deck exists.
 struct HomeCalendarSetupCard: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let folderCount: Int
 
     private var accentColor: Color {
-        ThemeManager.shared.accentColor.color
+        themeManager.accentColor.color
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Getting Started")
                 .font(.caption.weight(.black))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background {
@@ -147,12 +151,12 @@ struct HomeCalendarSetupCard: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Create your first deck")
                         .font(.system(size: 22, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(2)
 
                     Text("Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(themeManager.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -371,6 +375,7 @@ struct HomeAnalyticsHeroCard: View {
 
 /// Compact 7-day momentum card that mirrors the current study rhythm.
 struct HomeWeeklyMomentumCard: View {
+    @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Input
 
@@ -380,7 +385,7 @@ struct HomeWeeklyMomentumCard: View {
     // MARK: - Derived State
 
     private var accentColor: Color {
-        ThemeManager.shared.accentColor.color
+        themeManager.accentColor.color
     }
 
     // MARK: - Body
@@ -391,11 +396,11 @@ struct HomeWeeklyMomentumCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Weekly Momentum")
                         .font(.system(.headline, design: .rounded, weight: .bold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
 
                     Text(summary.headline)
                         .font(.system(.title3, design: .rounded, weight: .heavy))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
                 }
 
                 Spacer()
@@ -450,11 +455,13 @@ struct HomeWeeklyMomentumCard: View {
 
 /// Action-oriented card that tells the user what the selected day means and what to do next.
 struct HomeSelectedDayInsightsCard: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let summary: HomeSelectedDayInsightSummary
     let usesRegularMetrics: Bool
 
     private var accentColor: Color {
-        ThemeManager.shared.accentColor.color
+        themeManager.accentColor.color
     }
 
     var body: some View {
@@ -463,26 +470,26 @@ struct HomeSelectedDayInsightsCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Selected Day Insights")
                         .font(.system(.headline, design: .rounded, weight: .bold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
 
                     Text(summary.headline)
                         .font(.system(.title3, design: .rounded, weight: .heavy))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
                 }
 
                 Spacer()
 
                 Text(summary.selectedDayExamCount == 0 ? "Open" : "\(summary.selectedDayExamCount) goals")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(summary.selectedDayExamCount == 0 ? .secondary : accentColor)
+                    .foregroundStyle(summary.selectedDayExamCount == 0 ? themeManager.textSecondary : accentColor)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
-                    .background((summary.selectedDayExamCount == 0 ? Color.primary : accentColor).opacity(0.10), in: Capsule())
+                    .background((summary.selectedDayExamCount == 0 ? themeManager.textPrimary : accentColor).opacity(0.10), in: Capsule())
             }
 
             Text(summary.detailLine)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .frame(minHeight: usesRegularMetrics ? 56 : 48, alignment: .topLeading)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -507,6 +514,8 @@ struct HomeSelectedDayInsightsCard: View {
 // MARK: - Hero Support Views
 
 private struct HomeHeroMetricTile: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let title: String
     let value: String
     let detail: String
@@ -516,19 +525,19 @@ private struct HomeHeroMetricTile: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.caption.weight(.bold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .textCase(.uppercase)
 
             Text(value)
                 .font(.system(size: 22, weight: .heavy, design: .rounded))
-                .foregroundStyle(.primary)
+                .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .statusTextMotion(trigger: value)
 
             Text(detail)
                 .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
@@ -547,6 +556,8 @@ private struct HomeHeroMetricTile: View {
 }
 
 private struct HomeOverviewMiniTile: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let title: String
     let value: String
     let detail: String
@@ -556,18 +567,18 @@ private struct HomeOverviewMiniTile: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.caption.weight(.bold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .textCase(.uppercase)
 
             Text(value)
                 .font(.system(size: 21, weight: .heavy, design: .rounded))
-                .foregroundStyle(.primary)
+                .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
 
             Text(detail)
                 .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
         }
@@ -581,6 +592,8 @@ private struct HomeOverviewMiniTile: View {
 }
 
 private struct HomeCalendarCompactMetricTile: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let title: String
     let value: String
     let detail: String
@@ -591,18 +604,18 @@ private struct HomeCalendarCompactMetricTile: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption.weight(.bold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .textCase(.uppercase)
 
             Text(value)
                 .font(.system(size: usesRegularMetrics ? 18 : 19, weight: .heavy, design: .rounded))
-                .foregroundStyle(.primary)
+                .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
 
             Text(detail)
                 .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
         }
@@ -617,6 +630,8 @@ private struct HomeCalendarCompactMetricTile: View {
 }
 
 private struct HomeWeeklyMomentumBar: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let day: HomeWeeklyDaySummary
     let accentColor: Color
     let usesRegularMetrics: Bool
@@ -625,7 +640,7 @@ private struct HomeWeeklyMomentumBar: View {
         if day.didReachGoal { return .green }
         if day.isSelectedDay { return accentColor }
         if day.didStudy { return accentColor.opacity(0.65) }
-        return .secondary.opacity(0.22)
+        return themeManager.textSecondary.opacity(0.22)
     }
 
     private var barHeight: CGFloat {
@@ -638,7 +653,7 @@ private struct HomeWeeklyMomentumBar: View {
         VStack(spacing: 8) {
             Text(day.shortWeekday)
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(day.isSelectedDay ? .primary : .secondary)
+                .foregroundStyle(day.isSelectedDay ? themeManager.textPrimary : themeManager.textSecondary)
 
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(fillColor)
@@ -652,13 +667,15 @@ private struct HomeWeeklyMomentumBar: View {
 
             Text("\(day.cardsReviewed)")
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
         }
         .frame(maxWidth: .infinity)
     }
 }
 
 private struct HomeInlineStatPill: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let label: String
     let value: String
     let tint: Color
@@ -668,7 +685,7 @@ private struct HomeInlineStatPill: View {
         HStack(spacing: 6) {
             Text(label)
                 .font(.caption.weight(.bold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
 
             Text(value)
                 .font(.caption.weight(.heavy))
@@ -680,7 +697,7 @@ private struct HomeInlineStatPill: View {
         .padding(.vertical, 8)
         .background {
             Capsule()
-                .fill(Color.primary.opacity(0.06))
+                .fill(themeManager.textPrimary.opacity(0.06))
         }
     }
 }
@@ -699,6 +716,8 @@ private struct HomeOptionalStatusTextMotion<Trigger: Equatable>: ViewModifier {
 }
 
 private struct HomeInsightLine: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let icon: String
     let text: String
     let tint: Color
@@ -714,7 +733,7 @@ private struct HomeInsightLine: View {
 
             Text(text)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(themeManager.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

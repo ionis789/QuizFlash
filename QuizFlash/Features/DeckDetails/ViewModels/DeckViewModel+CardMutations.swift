@@ -72,6 +72,7 @@ extension DeckViewModel {
             }
         } catch {
             logger.error("Failed to toggle pin state: \(error.localizedDescription, privacy: .public)")
+            presentMutationError(error)
         }
     }
 
@@ -105,6 +106,7 @@ extension DeckViewModel {
             }
         } catch {
             logger.error("Failed to delete card: \(error.localizedDescription, privacy: .public)")
+            presentMutationError(error)
         }
     }
 
@@ -152,6 +154,7 @@ extension DeckViewModel {
             deck.cards.removeAll { $0.persistentModelID == newCard.persistentModelID }
             context.delete(newCard)
             logger.error("Failed to create card in deck: \(error.localizedDescription, privacy: .public)")
+            presentMutationError(error)
             return
         }
 
@@ -222,6 +225,7 @@ extension DeckViewModel {
             }
         } catch {
             logger.error("Failed to delete selected cards: \(error.localizedDescription, privacy: .public)")
+            presentMutationError(error)
         }
     }
 }

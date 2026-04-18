@@ -59,6 +59,10 @@ struct EdgeShadowDebugSettings: Codable, Equatable {
     var curveExponentBase: CGFloat = EdgeShadowTuning.default.curveExponentBase
     var heightOffset: CGFloat = 0
     var colorOverride: EdgeShadowDebugColor?
+    var progressiveBlurRadius: CGFloat = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.maxBlurRadius
+    var progressiveFadeExtension: CGFloat = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.fadeExtension
+    var progressiveTintOpacityTop: CGFloat = CGFloat(ScreenTopProgressiveBlurConfiguration.quizFlashDefault.tintOpacityTop)
+    var progressiveTintOpacityMiddle: CGFloat = CGFloat(ScreenTopProgressiveBlurConfiguration.quizFlashDefault.tintOpacityMiddle)
 
     static let `default` = EdgeShadowDebugSettings()
 
@@ -77,6 +81,15 @@ struct EdgeShadowDebugSettings: Codable, Equatable {
 
     var resolvedColor: Color {
         colorOverride?.swiftUIColor ?? kDefaultEdgeShadowColor
+    }
+
+    var progressiveBlurConfiguration: ScreenTopProgressiveBlurConfiguration {
+        ScreenTopProgressiveBlurConfiguration(
+            maxBlurRadius: progressiveBlurRadius,
+            fadeExtension: progressiveFadeExtension,
+            tintOpacityTop: Double(progressiveTintOpacityTop),
+            tintOpacityMiddle: Double(progressiveTintOpacityMiddle)
+        )
     }
 }
 

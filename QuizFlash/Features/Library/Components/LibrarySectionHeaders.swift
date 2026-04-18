@@ -69,6 +69,8 @@ struct LibrarySectionHeader: View {
 }
 
 struct LibrarySectionHeaderLabel: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let title: String
     var isHidden = false
     var isRecoveryVisible = true
@@ -91,7 +93,7 @@ struct LibrarySectionHeaderLabel: View {
 
         Text(title)
             .font(.system(size: 12, weight: .bold, design: .rounded))
-            .foregroundStyle(Color.white.opacity(0.76))
+            .foregroundStyle(themeManager.textSecondary.opacity(0.76))
             .lineLimit(1)
             .minimumScaleFactor(0.88)
             .padding(.vertical, LibrarySectionHeaderMetrics.labelVerticalPadding + 1)

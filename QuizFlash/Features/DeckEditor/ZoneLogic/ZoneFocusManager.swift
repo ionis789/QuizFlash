@@ -40,6 +40,7 @@ final class ZoneFocusManager {
     
     private var keyboardRetainTask: Task<Void, Never>?
     private var focusRetentionTask: Task<Void, Never>?
+    private var focusNotificationTask: Task<Void, Never>?
     
     // MARK: - Focus Management
     
@@ -55,7 +56,10 @@ final class ZoneFocusManager {
         )
         
         // Also post focus notification
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+        focusNotificationTask?.cancel()
+        focusNotificationTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else { return }
             NotificationCenter.default.post(
                 name: .focusZoneTextView,
                 object: zoneID

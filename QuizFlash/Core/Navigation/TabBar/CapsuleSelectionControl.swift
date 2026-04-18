@@ -26,7 +26,6 @@ struct CapsuleSelectionControl<Option: Hashable, Label: View>: View {
 
     @GestureState private var isActive = false
     @State private var isInitialOffsetSet = false
-    @State private var visualSelection: Option
     @State private var dragOffset: CGFloat = 0
     @State private var lastDragOffset: CGFloat?
     @State private var pendingTarget: Option?
@@ -56,7 +55,6 @@ struct CapsuleSelectionControl<Option: Hashable, Label: View>: View {
         self.horizontalPadding = horizontalPadding
         self.verticalPadding = verticalPadding
         self.label = label
-        _visualSelection = State(initialValue: selection)
     }
 
     var body: some View {
@@ -66,23 +64,18 @@ struct CapsuleSelectionControl<Option: Hashable, Label: View>: View {
 
             ZStack {
                 if isInitialOffsetSet {
-                    HStack(spacing: 0) {
-                        ForEach(Array(options.enumerated()), id: \.offset) { item in
-                            itemView(
-                                option: item.element,
-                                index: item.offset,
-                                width: itemWidth,
-                                height: itemHeight
-                            )
-                        }
+                    ZStack {
+                        displayRow(width: itemWidth, height: itemHeight, usesSelectedStyle: false)
+                        displayRow(width: itemWidth, height: itemHeight, usesSelectedStyle: true)
+                            .mask(alignment: .leading) {
+                                selectionCapsule(fillColor: .white, width: itemWidth)
+                            }
+                        interactionRow(width: itemWidth, height: itemHeight)
                     }
                     .background(alignment: .leading) {
-                        UIKitTabBarSelectionAnimator(
-                            offset: dragOffset,
-                            itemWidth: itemWidth,
-                            itemHeight: itemHeight,
-                            isInteracting: isActive,
-                            fillColor: themeManager.roleColor(.tabSelectionFill)
+                        selectionCapsule(
+                            fillColor: themeManager.roleColor(.tabSelectionFill),
+                            width: itemWidth
                         )
                     }
                     .padding(.horizontal, horizontalPadding)
@@ -116,22 +109,43 @@ struct CapsuleSelectionControl<Option: Hashable, Label: View>: View {
             }
         }
         .frame(height: controlHeight)
-        .animation(.smooth, value: visualSelectionHash)
-        .animation(.bouncy, value: isActive)
     }
 
-    private var visualSelectionHash: Int {
-        visualSelection.hashValue
+    private func displayRow(
+        width: CGFloat,
+        height: CGFloat,
+        usesSelectedStyle: Bool
+    ) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(options.enumerated()), id: \.offset) { item in
+                label(item.element, usesSelectedStyle)
+                    .frame(width: width, height: height)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private func interactionRow(width: CGFloat, height: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(options.enumerated()), id: \.offset) { item in
+                interactionHitTarget(
+                    option: item.element,
+                    index: item.offset,
+                    width: width,
+                    height: height
+                )
+            }
+        }
     }
 
     @ViewBuilder
-    private func itemView(
+    private func interactionHitTarget(
         option: Option,
         index: Int,
         width: CGFloat,
         height: CGFloat
     ) -> some View {
-        label(option, visualSelection == option)
+        Color.clear
             .frame(width: width, height: height)
             .contentShape(.capsule)
             .simultaneousGesture(
@@ -144,11 +158,6 @@ struct CapsuleSelectionControl<Option: Hashable, Label: View>: View {
                         } else {
                             lastDragOffset = dragOffset
                         }
-
-                        let hoveredIndex = Int((dragOffset / width).rounded())
-                        if options.indices.contains(hoveredIndex) {
-                            visualSelection = options[hoveredIndex]
-                        }
                     }
                     .onEnded { _ in
                         lastDragOffset = nil
@@ -158,7 +167,6 @@ struct CapsuleSelectionControl<Option: Hashable, Label: View>: View {
 
                         let newSelection = options[landingIndex]
                         dragOffset = CGFloat(landingIndex) * width
-                        visualSelection = newSelection
 
                         if newSelection == selection {
                             pendingCommitTask?.cancel()
@@ -180,7 +188,6 @@ struct CapsuleSelectionControl<Option: Hashable, Label: View>: View {
                         return
                     }
 
-                    visualSelection = option
                     dragOffset = CGFloat(index) * width
 
                     if option == selection {
@@ -196,6 +203,16 @@ struct CapsuleSelectionControl<Option: Hashable, Label: View>: View {
             )
     }
 
+    private func selectionCapsule(fillColor: Color, width: CGFloat) -> some View {
+        UIKitTabBarSelectionAnimator(
+            offset: dragOffset,
+            itemWidth: width,
+            itemHeight: itemHeight,
+            isInteracting: isActive,
+            fillColor: fillColor
+        )
+    }
+
     private func resolvedItemWidth(availableWidth: CGFloat) -> CGFloat {
         guard !options.isEmpty else { return minItemWidth }
         return max(min(availableWidth / CGFloat(options.count), maxItemWidth), minItemWidth)
@@ -208,7 +225,6 @@ struct CapsuleSelectionControl<Option: Hashable, Label: View>: View {
 
     private func syncVisualState(to option: Option, width: CGFloat) {
         guard let index = options.firstIndex(of: option) else { return }
-        visualSelection = option
         dragOffset = CGFloat(index) * width
     }
 

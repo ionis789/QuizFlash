@@ -7,6 +7,11 @@
 
 import SwiftUI
 
+enum ScreenTopEdgeStyle {
+    case shadow
+    case progressiveBlur(ScreenTopProgressiveBlurConfiguration = .quizFlashDefault)
+}
+
 private struct ScreenTopEdgeShadowModifier: ViewModifier {
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
 
@@ -15,27 +20,29 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
     let fullScreenFillProgress: CGFloat
     let fullScreenDimOpacity: CGFloat
     let debugScreenID: String?
+    let style: ScreenTopEdgeStyle
 
     func body(content: Content) -> some View {
         content
             .overlay {
                 ZStack(alignment: .bottomTrailing) {
-                    EdgeShadowOverlay(
-                        topHeight: resolvedTopHeight,
-                        bottomHeight: 0,
-                        kMaxAlphaTop: resolvedMaxAlpha,
-                        topColor: resolvedTopColor,
-                        topProfileHeight: max(0, topHeight),
-                        tuning: resolvedTuning,
-                        topRevealProgress: topRevealProgress,
-                        fullScreenFillProgress: fullScreenFillProgress,
-                        fullScreenDimOpacity: fullScreenDimOpacity,
-                        fullScreenFillColor: resolvedTopColor
-                    )
+                    topEdgeOverlay
+
+                    if fullScreenFillProgress > 0.001 || fullScreenDimOpacity > 0.001 {
+                        EdgeShadowOverlay(
+                            topHeight: 0,
+                            bottomHeight: 0,
+                            topRevealProgress: 1,
+                            fullScreenFillProgress: fullScreenFillProgress,
+                            fullScreenDimOpacity: fullScreenDimOpacity,
+                            fullScreenFillColor: resolvedTopColor
+                        )
+                    }
 
 #if DEBUG
                     if let debugScreenID, developmentPreferences.edgeShadowTuningEnabled {
                         EdgeShadowDebugFloatingPanel(
+                            mode: debugPanelMode,
                             settings: debugSettingsBinding(for: debugScreenID),
                             onReset: {
                                 developmentPreferences.resetEdgeShadowSettings(for: debugScreenID)
@@ -75,6 +82,45 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
         return resolvedDebugSettings.resolvedColor
     }
 
+    @ViewBuilder
+    private var topEdgeOverlay: some View {
+        switch style {
+        case .shadow:
+            EdgeShadowOverlay(
+                topHeight: resolvedTopHeight,
+                bottomHeight: 0,
+                kMaxAlphaTop: resolvedMaxAlpha,
+                topColor: resolvedTopColor,
+                topProfileHeight: max(0, topHeight),
+                tuning: resolvedTuning,
+                topRevealProgress: topRevealProgress
+            )
+        case .progressiveBlur(let configuration):
+            TopProgressiveBlurOverlay(
+                topHeight: resolvedTopHeight,
+                revealProgress: topRevealProgress,
+                tintColor: resolvedTopColor,
+                configuration: resolvedProgressiveBlurConfiguration(fallback: configuration)
+            )
+        }
+    }
+
+    private func resolvedProgressiveBlurConfiguration(
+        fallback: ScreenTopProgressiveBlurConfiguration
+    ) -> ScreenTopProgressiveBlurConfiguration {
+        guard debugScreenID != nil else { return fallback }
+        return resolvedDebugSettings.progressiveBlurConfiguration
+    }
+
+    private var debugPanelMode: TopChromeDebugPanelMode {
+        switch style {
+        case .shadow:
+            return .shadow
+        case .progressiveBlur:
+            return .progressiveBlur
+        }
+    }
+
 #if DEBUG
     private func debugSettingsBinding(for screenID: String) -> Binding<EdgeShadowDebugSettings> {
         Binding(
@@ -95,7 +141,8 @@ extension View {
         topRevealProgress: CGFloat = 1,
         debugScreenID: String? = nil,
         fullScreenFillProgress: CGFloat = 0,
-        fullScreenDimOpacity: CGFloat = 0
+        fullScreenDimOpacity: CGFloat = 0,
+        style: ScreenTopEdgeStyle = .shadow
     ) -> some View {
         modifier(
             ScreenTopEdgeShadowModifier(
@@ -103,7 +150,8 @@ extension View {
                 topRevealProgress: topRevealProgress,
                 fullScreenFillProgress: fullScreenFillProgress,
                 fullScreenDimOpacity: fullScreenDimOpacity,
-                debugScreenID: debugScreenID
+                debugScreenID: debugScreenID,
+                style: style
             )
         )
     }

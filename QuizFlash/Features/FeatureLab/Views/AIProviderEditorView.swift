@@ -69,7 +69,8 @@ struct AIProviderEditorView: View {
             .screenTopEdgeShadow(
                 topHeight: structuralTopEdgeShadowHeight,
                 topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
-                debugScreenID: "featurelab.ai-provider-editor"
+                debugScreenID: "featurelab.ai-provider-editor",
+                style: .progressiveBlur()
             )
 
             navigationBar
@@ -77,6 +78,17 @@ struct AIProviderEditorView: View {
         .coordinateSpace(name: kAIProviderEditorChromeSpace)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
+        .alert("Save Error", isPresented: aiProviderPersistenceErrorBinding) {
+            Button("OK", role: .cancel) {
+                aiProviderStore.dismissPersistenceError()
+            }
+        } message: {
+            Text(
+                aiProviderStore.persistenceErrorMessage.isEmpty
+                    ? "The AI configuration changes couldn't be saved right now."
+                    : aiProviderStore.persistenceErrorMessage
+            )
+        }
     }
 
     private var structuralTopEdgeShadowHeight: CGFloat {
@@ -328,8 +340,9 @@ struct AIProviderEditorView: View {
     private var deleteSection: some View {
         settingsCard(title: "Danger Zone") {
             Button(role: .destructive) {
-                aiProviderStore.deleteProfile(id: draft.id)
-                dismiss()
+                if aiProviderStore.deleteProfile(id: draft.id) {
+                    dismiss()
+                }
             } label: {
                 HStack {
                     Spacer()
@@ -369,7 +382,19 @@ struct AIProviderEditorView: View {
 
     private func saveProfile() {
         guard canSave else { return }
-        aiProviderStore.upsertProfile(draft, makeActive: makesProfileActive)
-        dismiss()
+        if aiProviderStore.upsertProfile(draft, makeActive: makesProfileActive) {
+            dismiss()
+        }
+    }
+
+    private var aiProviderPersistenceErrorBinding: Binding<Bool> {
+        Binding(
+            get: { aiProviderStore.showPersistenceError },
+            set: { newValue in
+                if !newValue {
+                    aiProviderStore.dismissPersistenceError()
+                }
+            }
+        )
     }
 }

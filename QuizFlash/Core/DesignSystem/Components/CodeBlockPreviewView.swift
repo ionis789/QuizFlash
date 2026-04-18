@@ -40,6 +40,7 @@ struct CodeBlockPreviewView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var copied = false
+    @State private var copiedResetTask: Task<Void, Never>?
 
     // MARK: - Derived
 
@@ -79,6 +80,10 @@ struct CodeBlockPreviewView: View {
                 .stroke(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.0), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+        .onDisappear {
+            copiedResetTask?.cancel()
+            copiedResetTask = nil
+        }
     }
 
     // MARK: - Header Bar
@@ -117,8 +122,13 @@ struct CodeBlockPreviewView: View {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 copied = true
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                withAnimation { copied = false }
+            copiedResetTask?.cancel()
+            copiedResetTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+                withAnimation {
+                    copied = false
+                }
             }
         } label: {
             HStack(spacing: 4) {

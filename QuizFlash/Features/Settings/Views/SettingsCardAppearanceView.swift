@@ -59,7 +59,8 @@ struct SettingsCardAppearanceView: View {
             .screenTopEdgeShadow(
                 topHeight: structuralTopEdgeShadowHeight,
                 topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
-                debugScreenID: "settings.card-appearance"
+                debugScreenID: "settings.card-appearance",
+                style: .progressiveBlur()
             )
 
             navigationBar

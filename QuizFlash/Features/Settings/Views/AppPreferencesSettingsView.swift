@@ -102,7 +102,8 @@ struct AppPreferencesSettingsView: View {
             .screenTopEdgeShadow(
                 topHeight: structuralTopEdgeShadowHeight,
                 topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
-                debugScreenID: "settings.app-preferences"
+                debugScreenID: "settings.app-preferences",
+                style: .progressiveBlur()
             )
 
             navigationBar

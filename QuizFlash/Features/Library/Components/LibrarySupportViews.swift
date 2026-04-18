@@ -14,7 +14,9 @@ import SwiftUI
 
 /// View shown when there are no decks available in the library yet.
 struct LibraryEmptyStateView: View {
-    private var accent: Color { ThemeManager.shared.accentColor.color }
+    @Environment(ThemeManager.self) private var themeManager
+
+    private var accent: Color { themeManager.accentColor.color }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -30,9 +32,10 @@ struct LibraryEmptyStateView: View {
             VStack(spacing: 8) {
                 Text("No Decks Yet")
                     .font(.title3.weight(.semibold))
+                    .foregroundStyle(themeManager.textPrimary)
                 Text("Tap Create to make your first deck\nand start learning.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(themeManager.textSecondary)
                     .multilineTextAlignment(.center)
             }
         }
@@ -46,16 +49,18 @@ struct LibraryEmptyStateView: View {
 
 /// Circle checkmark indicator for deck selection mode.
 struct LibrarySelectionIndicator: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let isSelected: Bool
     let onToggle: () -> Void
 
-    private var accent: Color { ThemeManager.shared.accentColor.color }
+    private var accent: Color { themeManager.accentColor.color }
 
     var body: some View {
         Button(action: onToggle) {
             ZStack {
                 Circle()
-                    .fill(isSelected ? accent : Color.primary.opacity(0.08))
+                    .fill(isSelected ? accent : themeManager.textPrimary.opacity(0.08))
                     .frame(width: 24, height: 24)
                 if isSelected {
                     Image(systemName: "checkmark")
@@ -64,7 +69,7 @@ struct LibrarySelectionIndicator: View {
                         .transition(.scale.combined(with: .opacity))
                 } else {
                     Circle()
-                        .strokeBorder(Color.secondary.opacity(0.4), lineWidth: 1.5)
+                        .strokeBorder(themeManager.textSecondary.opacity(0.4), lineWidth: 1.5)
                         .frame(width: 24, height: 24)
                 }
             }
@@ -78,6 +83,8 @@ struct LibrarySelectionIndicator: View {
 
 /// Semi-transparent loading overlay with spinner used for operations like import and export.
 struct LibraryLoadingOverlay: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let message: String
 
     var body: some View {
@@ -87,16 +94,17 @@ struct LibraryLoadingOverlay: View {
             VStack(spacing: 16) {
                 ProgressView()
                     .scaleEffect(1.4)
-                    .tint(.primary)
+                    .tint(themeManager.textPrimary)
                 Text(message)
                     .font(.subheadline.weight(.medium))
+                    .foregroundStyle(themeManager.textPrimary)
             }
             .padding(.horizontal, 32)
             .padding(.vertical, 28)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                    .strokeBorder(themeManager.textPrimary.opacity(0.06), lineWidth: 0.5)
             )
             .shadow(color: .black.opacity(0.2), radius: 20)
         }

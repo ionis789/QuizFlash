@@ -229,5 +229,10 @@ struct CreateFolderSheet: View {
             }
         }
         .presentationDetents([.medium])
+        .alert("Save Error", isPresented: $viewModel.showCreateFolderError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(viewModel.createFolderErrorMessage)
+        }
     }
 }

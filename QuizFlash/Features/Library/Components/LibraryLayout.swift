@@ -174,7 +174,8 @@ struct LibraryLayout: View {
                 topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
                 debugScreenID: "library.root",
                 fullScreenFillProgress: isSearchBrowseFrozen ? 1 : 0,
-                fullScreenDimOpacity: isSearchBrowseFrozen ? searchBrowseFreezeDimOpacity : 0
+                fullScreenDimOpacity: isSearchBrowseFrozen ? searchBrowseFreezeDimOpacity : 0,
+                style: .progressiveBlur()
             )
 
             if viewModel.isSelecting && !isSearching {

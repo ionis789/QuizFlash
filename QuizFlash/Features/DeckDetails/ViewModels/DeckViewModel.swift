@@ -73,6 +73,48 @@ struct DeckProgressStats: Equatable {
     static let empty = DeckProgressStats(newCards: 0, learningCards: 0, masteredCards: 0, total: 1)
 }
 
+// MARK: - Deck Daily Activity
+
+/// Lightweight summary for a single card reviewed in the current deck today.
+struct DeckTodayReviewedCardSummary: Identifiable, Equatable, Sendable {
+    let id: PersistentIdentifier
+    let title: String
+    let finalDifficulty: ReviewDifficulty
+    let reviewCount: Int
+    let lastReviewedAt: Date
+}
+
+/// Pre-computed deck activity snapshot for the current local day.
+struct DeckTodayActivitySummary: Equatable, Sendable {
+    let activityDate: Date
+    let activityLabel: String
+    let uniqueCardsReviewed: Int
+    let rawReviewCount: Int
+    let landedCount: Int
+    let retryCount: Int
+    let headline: String
+    let detailLine: String
+    let cards: [DeckTodayReviewedCardSummary]
+
+    var hasActivity: Bool {
+        uniqueCardsReviewed > 0
+    }
+
+    nonisolated static func placeholder(referenceDate: Date = Date()) -> DeckTodayActivitySummary {
+        DeckTodayActivitySummary(
+            activityDate: referenceDate,
+            activityLabel: "Today",
+            uniqueCardsReviewed: 0,
+            rawReviewCount: 0,
+            landedCount: 0,
+            retryCount: 0,
+            headline: "No cards moved today",
+            detailLine: "Open a play mode to generate live activity in this deck.",
+            cards: []
+        )
+    }
+}
+
 // MARK: - Deck View Model
 
 /// The ViewModel for `DeckView`, managing card data, selection, search, sort, and export state.
@@ -109,6 +151,9 @@ final class DeckViewModel {
 
     /// Pre-computed progress breakdown. Derived from `allCardInfos`; consumed by `DeckProgressView`.
     var progressStats: DeckProgressStats = .empty
+
+    /// Pre-computed activity summary for the current local day in this deck.
+    var todayActivitySummary: DeckTodayActivitySummary = .placeholder()
 
     /// Lightweight compatibility counts used by deck play-mode surfaces.
     var playModeAvailability: PlayModeCardAvailability = .empty
@@ -148,6 +193,10 @@ final class DeckViewModel {
     var showExportError = false
     /// Human-readable description of the last export error.
     var exportErrorMessage = ""
+    /// Controls the deck-mutation save error alert presentation.
+    var showMutationError = false
+    /// Human-readable description of the last deck-mutation save error.
+    var mutationErrorMessage = ""
 
     // MARK: - Initialization
 
@@ -155,6 +204,19 @@ final class DeckViewModel {
     /// - Parameter searchQuery: Pre-fill the search field (e.g. from a deep-link).
     init(searchQuery: String? = nil) {
         self.searchQuery = searchQuery
+    }
+
+    /// Presents a user-facing save error for a deck mutation flow.
+    /// - Parameters:
+    ///   - error: The underlying persistence failure.
+    ///   - fallbackMessage: Short fallback copy used when the error has no description.
+    func presentMutationError(
+        _ error: Error,
+        fallbackMessage: String = "Your deck changes couldn't be saved right now."
+    ) {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        mutationErrorMessage = description.isEmpty ? fallbackMessage : description
+        showMutationError = true
     }
 
     func exportDeck(_ deck: DeckModel) {

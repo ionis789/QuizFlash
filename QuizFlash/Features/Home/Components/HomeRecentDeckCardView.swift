@@ -14,6 +14,7 @@ import SwiftUI
 /// `Text(.relative)` re-render trap that would update every card every second via
 /// SwiftUI's internal timer publisher.
 struct HomeRecentDeckCardView: View {
+    @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Input
 
@@ -35,7 +36,7 @@ struct HomeRecentDeckCardView: View {
                     Text(deck.title)
                         .font(.headline.weight(.semibold))
                         .fontDesign(.rounded)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(1)
 
                     HStack(spacing: 8) {
@@ -52,7 +53,7 @@ struct HomeRecentDeckCardView: View {
                         if let lastOpened = deck.lastOpenedAt {
                             Text("• \(HomeViewModel.relativeTimeLabel(for: lastOpened))")
                                 .font(.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(themeManager.textSecondary)
                         }
                     }
                 }

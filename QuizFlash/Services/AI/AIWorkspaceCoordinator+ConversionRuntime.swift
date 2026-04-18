@@ -165,16 +165,25 @@ extension AIWorkspaceCoordinator {
     ) {
         showConversionCancelDialog = false
         let sessionToCancel = pausedConversionSession
+        var discardErrorMessage: String?
         conversionTask?.cancel()
         conversionTask = nil
         if !keepingCreatedCards, let sessionToCancel {
-            try? discardConvertedOutputs(from: sessionToCancel, context: context)
+            do {
+                try discardConvertedOutputs(from: sessionToCancel, context: context)
+            } catch {
+                logger.error("Failed to discard converted outputs: \(error.localizedDescription, privacy: .public)")
+                let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                discardErrorMessage = description.isEmpty
+                    ? "The converted cards couldn't be discarded right now."
+                    : description
+            }
         }
         pausedConversionSession = nil
         conversionProgress = nil
         conversionSummary = nil
-        conversionErrorMessage = nil
-        shouldShowConversionOutcome = false
+        conversionErrorMessage = discardErrorMessage
+        shouldShowConversionOutcome = discardErrorMessage != nil
         conversionSeed = nil
         conversionSheetToken = nil
         workspaceDeckContext = nil

@@ -177,7 +177,7 @@ struct LibraryDeckListRow: View, Equatable {
 
             Text("\(deck.cardCount) card\(deck.cardCount == 1 ? "" : "s")")
                 .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -248,12 +248,14 @@ private struct LibraryRowSelectionFill: View {
 }
 
 private struct LibraryContextMenuTitlePreview: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let title: String
 
     var body: some View {
         Text(title)
             .font(.system(size: 22, weight: .bold, design: .rounded))
-            .foregroundStyle(Color("DeckTitle"))
+            .foregroundStyle(themeManager.textPrimary)
             .lineLimit(2)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
@@ -265,6 +267,8 @@ private struct LibraryContextMenuTitlePreview: View {
 }
 
 struct LibraryDeckMetaLabel: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let systemImage: String
     let text: String
 
@@ -276,19 +280,21 @@ struct LibraryDeckMetaLabel: View {
                 .lineLimit(1)
         }
         .font(.system(size: 13, weight: .medium, design: .rounded))
-        .foregroundStyle(.secondary)
+        .foregroundStyle(themeManager.textSecondary)
         .fixedSize(horizontal: true, vertical: false)
     }
 }
 
 private struct LibraryDeckTitleLabel: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let title: String
     let availableWidth: CGFloat
 
     var body: some View {
         Text(verbatim: renderedTitle)
             .font(.system(size: 22, weight: .bold, design: .rounded))
-            .foregroundStyle(Color("DeckTitle"))
+            .foregroundStyle(themeManager.textPrimary)
             .lineLimit(2)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)

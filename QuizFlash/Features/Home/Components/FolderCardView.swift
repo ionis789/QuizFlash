@@ -16,6 +16,7 @@ import SwiftUI
 ///   - folder: The folder model to display.
 ///   - action: Called when the user taps the card to open the folder.
 struct FolderCardView: View {
+    @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Input
 
@@ -50,7 +51,7 @@ struct FolderCardView: View {
                 Text(folder.title)
                     .font(.headline.weight(.semibold))
                     .fontDesign(.rounded)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(themeManager.textPrimary)
                     .lineLimit(1)
                     .padding(.bottom, 4)
 
@@ -59,7 +60,7 @@ struct FolderCardView: View {
                 // Safe: deckCount is a denormalized Int — no relationship fault at render time.
                 Text("\(folder.deckCount) decks")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(themeManager.textSecondary)
             }
             .padding(usesRegularMetrics ? 18 : 16)
             .frame(minHeight: usesRegularMetrics ? 142 : 0, alignment: .topLeading)

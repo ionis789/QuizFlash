@@ -9,38 +9,42 @@ description: Project-specific engineering guide for QuizFlash, a SwiftUI flashca
 
 Write and review code for QuizFlash using the repository's architecture rules instead of generic SwiftUI defaults. Optimize for the smallest safe context: start from the target file, load the paired owner file next, and pull longer references only when the task actually crosses those boundaries. Treat the standards in `references/architecture.md` as the target for new code even when older files still contain legacy patterns.
 
-Keep UI copy terse. Do not add explanatory filler, repeated titles, helper paragraphs, or decorative subtitles unless they are necessary for the screen to function. This applies especially to development/internal screens and settings surfaces.
+Keep UI copy terse. Do not add explanatory filler, repeated titles, helper paragraphs, or decorative subtitles unless they are necessary for the screen to function. Default to the minimum viable copy on primary surfaces: if a label, subtitle, helper line, or decorative text can be removed without harming clarity, remove it. This applies especially to development/internal screens and settings surfaces.
 
 When external framework or library behavior matters, prefer the best available primary documentation source before relying on memory. Use `Context7` when that MCP is available for current third-party API docs, examples, and recent usage guidance; fall back to official docs or primary sources when `Context7` is unavailable.
 
+Use these priority levels consistently:
+- `MUST`: hard constraint unless the user explicitly overrides it.
+- `SHOULD`: default behavior; deviate only when the local task clearly benefits.
+- `MAY`: optional helper guidance.
+
 ## Quick Start
 
-1. Read `references/task-routing.md`.
-2. Open the target file first.
-3. Open the smallest paired owner file next.
+1. `MUST` open the target file first.
+2. `SHOULD` read `references/task-routing.md` before expanding context when the smallest safe path is not obvious.
+3. `MUST` open the smallest paired owner file next.
    - `Features/*/Views/*.swift`: pull the paired `ViewModels/` file only if the change touches state, async work, persistence, derived data, or navigation owned outside the view.
    - `Features/*/Components/*.swift`: pull the parent view or local layout/helper file only if the component does not fully explain the behavior by itself.
    - `Features/*/ViewModels/*.swift`: pull the paired root `Views/` file only if UI wiring or presentation behavior changes.
-4. Read `references/project-map.md` only when ownership is unclear or you are adding or moving types.
-5. Read only the relevant parts of `references/architecture.md` when the task touches:
+4. `MAY` read `references/project-map.md` when ownership is unclear or you are adding or moving types.
+5. `SHOULD` read only the relevant parts of `references/architecture.md` when the task touches:
    - SwiftData fetches, saves, model-graph access, or memory-sensitive reads
    - Stored tasks, async pipelines, actor boundaries, or cancellation
    - Navigation, `fullScreenSheet`, sticky chrome, long scroll surfaces, or adaptive layout infrastructure
    - Shared design-system behavior, tokens, or reusable cross-screen presentation rules
    - Multi-layer refactors or reviews that cross feature boundaries
-6. Verify `references/component-catalog.md` only before creating a new reusable UI component.
-7. Reuse existing project primitives before introducing new abstractions:
+6. `SHOULD` verify `references/component-catalog.md` before creating a new reusable UI component.
+7. `SHOULD` reuse existing project primitives before introducing new abstractions.
+   Frequent examples include:
    - `NavigationManager`
    - `UIConstants`
    - `ThemeManager`
    - `ModelContext.safeModel(for:as:)`
    - `CardFetchActor`
-   - `ImageCache`
-   - `MathWebViewPool`
-   - `ScrollPositionRestorer`
    - `fullScreenSheet` from `Core/DesignSystem/Modifiers/View+FullScreenSheet.swift`
-   - `StandardSheetTopStripBackground` for immersive dark sheets that react to drag-dismiss progress
-8. For simulator-supported UI validation, prefer the `ios-simulator` MCP when it is available:
+   - `StandardSheetTopStripBackground`
+   Use `references/project-map.md` and `references/component-catalog.md` as the authoritative inventory instead of treating this list as exhaustive.
+8. `MAY` prefer the `ios-simulator` MCP for simulator-supported UI validation when it is available:
    - inspect accessibility elements on screen
    - verify tap/swipe/text-entry flows after UI changes
    - capture screenshots or recordings for visual regressions
@@ -48,9 +52,9 @@ When external framework or library behavior matters, prefer the best available p
 
 ## Context Loading Rules
 
-- Prefer the smallest viable read set for edits to existing files.
-- Do not preload unrelated feature clusters just because the repo has shared architecture docs.
-- Escalate from local files to shared references only when the task crosses a boundary that the local files do not explain safely.
+- `MUST` prefer the smallest viable read set for edits to existing files.
+- `MUST NOT` preload unrelated feature clusters just because the repo has shared architecture docs.
+- `MUST` escalate from local files to shared references only when the task crosses a boundary that the local files do not explain safely.
 - Examples:
   - `CreateDeckView.swift` copy, spacing, or overlay tweaks should start in `CreateDeckView.swift`; do not read `AIFlashcardService.swift` unless the change reaches AI pipeline behavior.
   - `HomeCalendarSectionView.swift` spacing or compact-calendar tweaks should start in `HomeCalendarSectionView.swift` plus `HomeCalendarAdaptiveLayout.swift`; pull `HomeViewModel.swift` only if the change touches summaries or derived data.
@@ -88,8 +92,9 @@ When external framework or library behavior matters, prefer the best available p
 
 ## Testing Expectations
 
-1. Treat data-flow regressions as testable by default.
-   - When a change creates, edits, deletes, imports, exports, converts, or otherwise mutates persisted app data, add or update automated tests unless the user explicitly says not to.
+1. Treat meaningful data-flow changes as testable by default.
+   - When a change introduces new mutation logic, changes persistence semantics, or fixes a data-flow bug in persisted app data, add or update automated tests unless the user explicitly says not to.
+   - Small UI plumbing changes that merely invoke an already-tested mutation path do not automatically require new tests.
 2. Prefer logic and persistence tests over UI automation.
    - Use `XCTest` suites in `QuizFlashTests/` to validate models, view models, stores, import/export, and detached persistence flows.
    - Leave UI validation to manual verification unless the task explicitly asks for UI tests.
@@ -99,14 +104,8 @@ When external framework or library behavior matters, prefer the best available p
 4. Verify tests conservatively on one simulator at a time.
    - Prefer `build-for-testing` once, then `test-without-building` per suite or class.
    - Disable parallel testing for local verification unless the user explicitly wants parallel runs.
-   - Unless the user explicitly asks for a different target, default to the currently active simulator set for this repo: `iPhone 15 Pro (iOS 17.5)`.
-   - When reporting verification, prefer targeted `xcodebuild` test runs against that active simulator instead of broader generic destinations.
-   - For app run verification after a code change, prefer physical-device `build + install + launch` when the user's wired device `iPhoneIS` is connected:
-     `iPhone 13 Pro`
-     Xcode destination id: `00008110-00041841340A401E`
-     CoreDevice identifier: `C0558BFB-25CA-5399-A247-927C3D727AA7`
-   - On that device path, build with `xcodebuild` for the device destination, then install and launch with `xcrun devicectl device install app` and `xcrun devicectl device process launch`.
-   - If that device is not connected, fall back to `build + run` on the currently active simulator instead of asking the user to press Run in Xcode.
+   - Prefer targeted `xcodebuild` test runs against the current workspace's default simulator instead of broad generic destinations.
+   - If repo-local instructions such as `AGENTS.md` or an adapter file define a preferred simulator or attached device, follow those workspace-local verification defaults.
    - When the `ios-simulator` MCP is available, use it for post-build UI inspection on simulator flows that benefit from accessibility-tree validation, coordinate taps/swipes, text entry, screenshots, or screen recordings.
    - For layout-sensitive UI work, also do a manual visual pass on iPad-sized and resizable widths when the changed screen supports them, especially for sticky headers, compact calendar states, floating chrome, and multi-column/dashboard surfaces.
 5. Extend the regression net when fixing a bug.
@@ -114,13 +113,12 @@ When external framework or library behavior matters, prefer the best available p
 
 ## Decision Points
 
-- Read `references/task-routing.md` first for existing-file tasks when the smallest safe context is not obvious.
+- The `Quick Start` section is the canonical context-loading rule for existing-file tasks.
 - Inspect `references/project-map.md` before adding a new type only if you are not sure where it belongs.
 - Read the relevant sections of `references/architecture.md` before touching navigation, concurrency, SwiftData, or performance-sensitive code.
 - Read `references/architecture.md` end to end only for new features, large refactors, or reviews that cross multiple layers.
 - Read the scroll and presentation guidance in `references/architecture.md` before changing any large `ScrollView`, sticky hero, floating top chrome, or custom full-screen presentation.
 - Prefer the standards in this skill for new code. If a surrounding file still uses an older pattern, keep the change narrow unless the task explicitly asks for cleanup.
-- Read `../../../quizflash_mcp_prompt.md` only when you need the original long-form source prompt that this skill was derived from.
 
 ## References
 

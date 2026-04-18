@@ -14,6 +14,7 @@
 import SwiftUI
 import SwiftData
 import OSLog
+import UIKit
 
 // MARK: - Home View
 
@@ -34,6 +35,7 @@ struct HomeView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+    @Environment(\.modelContext) private var modelContext
 
     // MARK: - SwiftData Queries
 
@@ -42,6 +44,7 @@ struct HomeView: View {
     @Query private var userProfiles: [UserProfile]
     @Query private var dailyLogs: [DailyActivityLog]
     @Query(sort: \ExamGoalModel.date) private var examGoals: [ExamGoalModel]
+    @Query(sort: \HomeDailyStudyAggregate.dayDate, order: .reverse) private var homeStudyAggregates: [HomeDailyStudyAggregate]
 
     /// Sorted by `lastOpenedAt` descending so we can slice the top 5 without
     /// sorting a second time in Swift — SwiftData handles this on the store side.
@@ -81,7 +84,7 @@ struct HomeView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let safeAreaTop = proxy.safeAreaInsets.top == 0 ? 47.0 : proxy.safeAreaInsets.top
+            let safeAreaTop = resolvedSafeAreaTop(from: proxy.safeAreaInsets.top)
             let layoutContext = HomeAdaptiveLayoutContext(containerWidth: proxy.size.width)
             let calendarLayout = HomeCalendarAdaptiveLayout(
                 containerWidth: proxy.size.width,
@@ -150,66 +153,45 @@ struct HomeView: View {
                 .onAppear {
                     calendarVM.applyWeekStartPreference(appPreferences.weekStartDay)
                     calendarVM.setupIfNeeded()
-                    viewModel.updateLogsCache(logs: dailyLogs)
-                    viewModel.updateExamGoalsCache(goals: examGoals)
-                    viewModel.refreshCalendarInsights(
-                        dailyLogs: dailyLogs,
-                        examGoals: examGoals,
-                        userProfile: profile
-                    )
-                    viewModel.refreshDashboardSnapshot(
-                        selectedDate: calendarVM.selectedDate,
-                        examGoals: examGoals,
-                        userProfile: profile
-                    )
                 }
                 .onChange(of: appPreferences.weekStartDay) { _, newValue in
                     calendarVM.applyWeekStartPreference(newValue)
                 }
-                .onChange(of: calendarVM.selectedDate) { _, newValue in
-                    viewModel.refreshDashboardSnapshot(
-                        selectedDate: newValue,
-                        examGoals: examGoals,
-                        userProfile: profile
-                    )
-                }
-                .task(id: dailyLogsTaskFingerprint) {
+                .task(id: calendarInsightsTaskSignature) {
                     viewModel.updateLogsCache(logs: dailyLogs)
-                    viewModel.refreshCalendarInsights(
-                        dailyLogs: dailyLogs,
-                        examGoals: examGoals,
-                        userProfile: profile
-                    )
-                    viewModel.refreshDashboardSnapshot(
-                        selectedDate: calendarVM.selectedDate,
-                        examGoals: examGoals,
-                        userProfile: profile
-                    )
-                }
-                .task(id: examGoalsTaskFingerprint) {
                     viewModel.updateExamGoalsCache(goals: examGoals)
                     viewModel.refreshCalendarInsights(
                         dailyLogs: dailyLogs,
                         examGoals: examGoals,
                         userProfile: profile
                     )
-                    viewModel.refreshDashboardSnapshot(
+                }
+                .task(id: dashboardTaskSignature) {
+                    viewModel.updateLogsCache(logs: dailyLogs)
+                    viewModel.updateExamGoalsCache(goals: examGoals)
+                    await viewModel.refreshDashboardSnapshot(
                         selectedDate: calendarVM.selectedDate,
+                        weekStart: dashboardWeekStartDate,
                         examGoals: examGoals,
-                        userProfile: profile
+                        userProfile: profile,
+                        container: modelContext.container,
+                        analyticsRevision: homeAnalyticsTaskFingerprint,
+                        deckRevision: decksTaskFingerprint
                     )
                 }
-                .task(id: userProfileDashboardSignature) {
-                    viewModel.refreshCalendarInsights(
-                        dailyLogs: dailyLogs,
-                        examGoals: examGoals,
-                        userProfile: profile
+                .fullScreenSheet(
+                    isPresented: $viewModel.showPerformanceDetailSheet,
+                    configuration: .sheet(
+                        heightMode: .custom(0.75),
+                        dragActivationArea: .fixed(180)
                     )
-                    viewModel.refreshDashboardSnapshot(
-                        selectedDate: calendarVM.selectedDate,
-                        examGoals: examGoals,
-                        userProfile: profile
+                ) { safeAreaInsets in
+                    HomePerformanceDetailSheetView(
+                        summary: viewModel.dashboardSnapshot.pastWeekPerformance,
+                        safeAreaInsets: safeAreaInsets
                     )
+                } background: {
+                    themeManager.screenBackground
                 }
                 .sheet(isPresented: $viewModel.showCreateFolder) {
                     CreateFolderSheet(viewModel: viewModel)
@@ -220,6 +202,11 @@ struct HomeView: View {
                         decks: allDecks,
                         editingGoal: editingExamGoal(for: presentation)
                     )
+                }
+                .alert("Save Error", isPresented: $viewModel.showExamGoalActionError) {
+                    Button("OK", role: .cancel) { }
+                } message: {
+                    Text(viewModel.examGoalActionErrorMessage)
                 }
 
                 debugShadowControls(safeAreaTop: safeAreaTop)
@@ -246,6 +233,16 @@ struct HomeView: View {
         HomeViewModel.examGoalsFingerprint(for: examGoals)
     }
 
+    /// Stable signature used to refresh the Home dashboard when aggregate rows change.
+    private var homeAnalyticsTaskFingerprint: Int {
+        HomeViewModel.homeAnalyticsFingerprint(for: homeStudyAggregates)
+    }
+
+    /// Stable signature used to refresh selected-day deck snapshots when deck metadata changes.
+    private var decksTaskFingerprint: Int {
+        HomeViewModel.decksFingerprint(for: allDecks)
+    }
+
     /// Stable signature used to refresh Home dashboard summaries when profile stats change.
     private var userProfileDashboardSignature: String {
         guard let profile else { return "no-profile" }
@@ -255,6 +252,33 @@ struct HomeView: View {
             "\(profile.longestStreak)",
             "\(profile.lastActiveDate?.timeIntervalSince1970 ?? 0)"
         ].joined(separator: "|")
+    }
+
+    /// Combined signature for calendar insight refreshes.
+    private var calendarInsightsTaskSignature: String {
+        [
+            "\(dailyLogsTaskFingerprint)",
+            "\(examGoalsTaskFingerprint)",
+            userProfileDashboardSignature
+        ].joined(separator: "||")
+    }
+
+    /// Combined signature for aggregate-backed Home dashboard reloads.
+    private var dashboardTaskSignature: String {
+        [
+            HomeViewModel.dateKeyFormatter.string(from: calendarVM.selectedDate),
+            "\(dailyLogsTaskFingerprint)",
+            "\(examGoalsTaskFingerprint)",
+            userProfileDashboardSignature,
+            "\(homeAnalyticsTaskFingerprint)",
+            "\(decksTaskFingerprint)"
+        ].joined(separator: "||")
+    }
+
+    private var dashboardWeekStartDate: Date {
+        let calendar = appPreferences.resolvedCalendar
+        let selectedDay = calendar.startOfDay(for: calendarVM.selectedDate)
+        return calendar.dateInterval(of: .weekOfYear, for: selectedDay)?.start ?? selectedDay
     }
 
     private func calendarTransitionBand(horizontalInset: CGFloat) -> some View {
@@ -287,26 +311,21 @@ struct HomeView: View {
             layout: layout,
             calendarInsightsCache: viewModel.calendarInsightsCache,
             calendarInsightsRevision: viewModel.calendarInsightsRevision,
-            shadowMaxAlpha: homeShadowMaxAlpha,
-            shadowTuning: homeShadowTuning,
-            shadowHeightOffset: homeShadowHeightOffset,
-            shadowColor: homeShadowColor
+            blurConfiguration: homeBlurConfiguration,
+            blurHeightOffset: homeBlurHeightOffset,
+            blurColor: homeBlurColor
         )
     }
 
-    private var homeShadowMaxAlpha: CGFloat {
-        homeShadowDebugSettings.maxAlpha
+    private var homeBlurConfiguration: ScreenTopProgressiveBlurConfiguration {
+        homeShadowDebugSettings.progressiveBlurConfiguration
     }
 
-    private var homeShadowTuning: EdgeShadowTuning {
-        homeShadowDebugSettings.tuning
-    }
-
-    private var homeShadowHeightOffset: CGFloat {
+    private var homeBlurHeightOffset: CGFloat {
         homeShadowDebugSettings.heightOffset
     }
 
-    private var homeShadowColor: Color {
+    private var homeBlurColor: Color {
         homeShadowDebugSettings.resolvedColor
     }
 
@@ -319,6 +338,7 @@ struct HomeView: View {
 #if DEBUG
         if developmentPreferences.edgeShadowTuningEnabled {
             EdgeShadowDebugFloatingPanel(
+                mode: .progressiveBlur,
                 settings: Binding(
                     get: {
                         developmentPreferences.edgeShadowSettings(for: Self.edgeShadowDebugScreenID)
@@ -361,6 +381,18 @@ struct HomeView: View {
             roundedLayoutValue(calendarLayout.expandedCompanionWidth),
             roundedLayoutValue(calendarLayout.compactCapsuleWidth)
         ].joined(separator: "|")
+    }
+
+    private func resolvedSafeAreaTop(from proxySafeAreaTop: CGFloat) -> CGFloat {
+        if proxySafeAreaTop > 0 {
+            return proxySafeAreaTop
+        }
+
+        let activeWindowScene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first(where: { $0.activationState == .foregroundActive })
+
+        return activeWindowScene?.windows.first(where: \.isKeyWindow)?.safeAreaInsets.top ?? 0
     }
 
     private func logLayoutIfNeeded(

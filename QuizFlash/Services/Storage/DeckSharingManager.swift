@@ -250,11 +250,17 @@ final class DeckSharingManager: ObservableObject {
             cards: exportableCards
         )
 
-        // Encode to JSON (imageData becomes Base64 automatically)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys] // Remove prettyPrinted for smaller file
-        encoder.dateEncodingStrategy = .iso8601
-        let exportData = try encoder.encode(exportableDeck)
+        let exportData: Data
+        do {
+            // Encode to JSON (imageData becomes Base64 automatically)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys] // Remove prettyPrinted for smaller file
+            encoder.dateEncodingStrategy = .iso8601
+            exportData = try encoder.encode(exportableDeck)
+        } catch {
+            logger.error("Failed to encode deck export payload: \(error.localizedDescription, privacy: .public)")
+            throw DeckSharingError.exportFailed("The deck couldn't be prepared for export right now.")
+        }
 
         progress = 0.8
         currentOperation = "Saving file..."
@@ -266,11 +272,16 @@ final class DeckSharingManager: ObservableObject {
         let archiveName = "\(sanitizedTitle).\(fileExtension)"
         let archiveURL = FileManager.default.temporaryDirectory.appendingPathComponent(archiveName)
 
-        // Remove existing file if any
-        try? FileManager.default.removeItem(at: archiveURL)
+        do {
+            // Remove existing file if any
+            try? FileManager.default.removeItem(at: archiveURL)
 
-        // Write JSON data directly
-        try exportData.write(to: archiveURL)
+            // Write JSON data directly
+            try exportData.write(to: archiveURL)
+        } catch {
+            logger.error("Failed to write deck export file: \(error.localizedDescription, privacy: .public)")
+            throw DeckSharingError.exportFailed("The deck file couldn't be created right now.")
+        }
 
         progress = 1.0
         currentOperation = "Export complete!"
@@ -381,16 +392,21 @@ final class DeckSharingManager: ObservableObject {
         currentOperation = "Saving..."
 
         // 8. Update denormalized card count
-        newDeck.cardCount = newDeck.cards.count
+        newDeck.cardCount = totalCards
 
         // 9. Save context
-        try context.save()
+        do {
+            try context.save()
+        } catch {
+            logger.error("Failed to persist imported deck: \(error.localizedDescription, privacy: .public)")
+            throw DeckSharingError.importFailed("The imported deck couldn't be saved right now.")
+        }
 
         progress = 1.0
         currentOperation = "Import complete!"
 
         logger.debug(
-            "Successfully imported deck '\(newDeck.title, privacy: .public)' with \(newDeck.cards.count) cards"
+            "Successfully imported deck '\(newDeck.title, privacy: .public)' with \(totalCards) cards"
         )
 
         return newDeck

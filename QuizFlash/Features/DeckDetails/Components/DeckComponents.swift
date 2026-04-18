@@ -40,11 +40,6 @@ struct DeckHeaderView: View {
         Color(hex: deck.colorHex) ?? .blue
     }
 
-    /// The app's current accent colour from `ThemeManager`.
-    private var accent: Color {
-        ThemeManager.shared.accentColor.color
-    }
-
     /// Deck creation date formatted as a medium-style string (e.g. "Feb 8, 2026").
     private var formattedCreationDate: String {
         Self.creationDateFormatter.string(from: deck.createdAt)
@@ -60,6 +55,7 @@ struct DeckHeaderView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(deck.title)
                         .font(.title.weight(.bold)).fontDesign(.rounded)
+                        .foregroundStyle(themeManager.textPrimary)
                         .lineLimit(1)
 
                     HStack(spacing: 8) {
@@ -68,7 +64,7 @@ struct DeckHeaderView: View {
                         Text(formattedCreationDate)
                     }
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(themeManager.textSecondary)
                 }
 
                 Spacer()
@@ -101,6 +97,7 @@ struct DeckHeaderView: View {
 /// The card width intentionally leaves part of the next card visible so the
 /// section communicates that more modes are available with a horizontal swipe.
 struct DeckPlayModesView: View {
+    @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Inputs
 
@@ -119,7 +116,7 @@ struct DeckPlayModesView: View {
 
     // MARK: - Computed Properties
 
-    private var accentColor: Color { ThemeManager.shared.roleColor(.buttonPrimaryFill) }
+    private var accentColor: Color { themeManager.roleColor(.buttonPrimaryFill) }
     private var deckColor: Color { Color(hex: deck.colorHex) ?? accentColor }
     private var orderedModes: [DeckPlayModeDestination] {
         let visibleModes = DeckPlayModeDestination.allCases.filter { $0 != .learn }
@@ -160,7 +157,7 @@ struct DeckPlayModesView: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
             Text("PLAY MODES")
                 .font(.caption.weight(.heavy))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(themeManager.textSecondary.opacity(0.72))
                 .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
 
             GeometryReader { proxy in
@@ -249,6 +246,7 @@ struct DeckReadinessDiagnosticsView: View {
 
 /// A single play-mode tile inside `DeckPlayModesView`.
 private struct PlayModeCard: View {
+    @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Inputs
 
@@ -286,17 +284,17 @@ private struct PlayModeCard: View {
                         VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny) {
                             Text(mode.title)
                                 .font(.system(size: 19, weight: .bold, design: .rounded))
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(themeManager.textPrimary)
                                 .lineLimit(1)
 
                             Text(mode.subtitle)
                                 .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(themeManager.textSecondary)
                                 .lineLimit(2)
 
                             Text(statusText)
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(themeManager.textSecondary)
                                 .lineLimit(1)
                         }
 
@@ -333,6 +331,7 @@ private struct PlayModeCard: View {
 /// The label fades and slides away when the title pill (`DeckHeroView`) becomes visible,
 /// preventing redundant text on screen.
 struct DeckSectionToolbar: View {
+    @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Inputs
 
@@ -347,7 +346,7 @@ struct DeckSectionToolbar: View {
         HStack {
             Text("CARDS(\(deck.cardCount))")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .opacity(pillVisible ? 0 : 1)
                 .offset(x: pillVisible ? -8 : 0)
                 .animation(.spring(response: 0.3, dampingFraction: 0.8), value: pillVisible)
@@ -390,7 +389,7 @@ struct DeckActionOverlay: View {
 
     // MARK: - Computed Properties
 
-    private var accent: Color { ThemeManager.shared.accentColor.color }
+    private var accent: Color { themeManager.accentColor.color }
 
     // MARK: - Body
 
@@ -484,6 +483,7 @@ struct DeckActionOverlay: View {
 /// "Delete(N)" button on the trailing side. Both actions are delegated
 /// via closures — this view holds no state.
 struct DeckSelectionBottomBar: View {
+    @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Inputs
 
@@ -506,7 +506,7 @@ struct DeckSelectionBottomBar: View {
     }
 
     private var summaryTint: Color {
-        selectedCount == 0 ? .secondary : .primary
+        selectedCount == 0 ? themeManager.textSecondary : themeManager.textPrimary
     }
 
     // MARK: - Body
@@ -519,7 +519,7 @@ struct DeckSelectionBottomBar: View {
             ) {
                 Text("Done")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(themeManager.textPrimary)
             }
                 .layoutPriority(1)
 
@@ -535,7 +535,7 @@ struct DeckSelectionBottomBar: View {
                 SelectionToolbarTextButton(
                     title: "Convert",
                     accessibilityLabel: "Convert selected cards",
-                    tint: ThemeManager.shared.accentColor.color
+                    tint: themeManager.accentColor.color
                 ) {
                     onConvert()
                 }
@@ -557,7 +557,7 @@ struct DeckSelectionBottomBar: View {
             ) {
                 Image(systemName: "trash")
                     .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
-                    .foregroundStyle(selectedCount > 0 ? Color.red : Color.secondary)
+                    .foregroundStyle(selectedCount > 0 ? themeManager.dangerPrimary : themeManager.textSecondary)
             }
         }
             .frame(maxWidth: .infinity)

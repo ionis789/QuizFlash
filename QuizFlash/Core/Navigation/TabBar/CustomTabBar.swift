@@ -18,12 +18,12 @@ struct CustomTabBar: View {
     let activeTab: AppTabBar
     var onTabSelection: (AppTabBar) -> Void
 
-    private var accent: Color {
-        themeManager.roleColor(.tabSelectionForeground)
-    }
-
     private var inactiveColor: Color {
         themeManager.roleColor(.tabUnselectedForeground)
+    }
+
+    private var selectedColor: Color {
+        themeManager.brandPrimary
     }
 
     var body: some View {
@@ -42,7 +42,11 @@ struct CustomTabBar: View {
                     .font(.caption2)
                     .lineLimit(1)
             }
-            .foregroundStyle(isSelected ? accent : inactiveColor)
+            .transaction { transaction in
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+            .foregroundStyle(isSelected ? selectedColor : inactiveColor)
         }
         .frame(height: UIConstants.Size.bottomChromeBarHeight)
         .padding(.horizontal, 25)

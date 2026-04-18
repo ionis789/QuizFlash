@@ -129,7 +129,8 @@ struct PlayModeDefaultsSettingsView: View {
             .screenTopEdgeShadow(
                 topHeight: structuralTopEdgeShadowHeight,
                 topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
-                debugScreenID: "settings.play-mode-defaults"
+                debugScreenID: "settings.play-mode-defaults",
+                style: .progressiveBlur()
             )
 
             navigationBar

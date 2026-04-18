@@ -11,6 +11,7 @@ import SwiftUI
 /// A floating contextual bar displayed at the bottom of the screen during selection mode.
 /// Provides actions for selected decks such as exporting or deleting.
 struct LibrarySelectionBarView: View {
+    @Environment(ThemeManager.self) private var themeManager
 
     @Bindable var viewModel: LibraryViewModel
     let decks: [DeckModel]
@@ -21,10 +22,10 @@ struct LibrarySelectionBarView: View {
     private var hasSelection: Bool { selectedCount > 0 }
     private var actionClusterBackground: some View {
         Capsule(style: .continuous)
-            .fill(Color.white.opacity(0.035))
+            .fill(themeManager.roleColor(.selectionToolbarFill))
             .overlay {
                 Capsule(style: .continuous)
-                    .stroke(Color.white.opacity(0.05), lineWidth: 0.75)
+                    .stroke(themeManager.roleColor(.selectionToolbarBorder).opacity(0.18), lineWidth: 0.75)
             }
     }
 
@@ -41,7 +42,7 @@ struct LibrarySelectionBarView: View {
             ) {
                 Text("Done")
                     .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(themeManager.textPrimary)
             }
 
             Spacer()
@@ -54,7 +55,7 @@ struct LibrarySelectionBarView: View {
                 ) {
                     Image(systemName: "folder")
                         .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
-                        .foregroundStyle(hasSelection ? Color.primary : Color.secondary)
+                        .foregroundStyle(hasSelection ? themeManager.textPrimary : themeManager.textSecondary)
                 }
 
                 SelectionToolbarIconButton(
@@ -65,11 +66,11 @@ struct LibrarySelectionBarView: View {
                     if viewModel.isExporting {
                         ProgressView()
                             .scaleEffect(0.78)
-                            .tint(hasSelection ? Color.primary : Color.secondary)
+                            .tint(hasSelection ? themeManager.textPrimary : themeManager.textSecondary)
                     } else {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
-                            .foregroundStyle(hasSelection ? Color.primary : Color.secondary)
+                            .foregroundStyle(hasSelection ? themeManager.textPrimary : themeManager.textSecondary)
                     }
                 }
 
@@ -81,7 +82,7 @@ struct LibrarySelectionBarView: View {
                 ) {
                     Image(systemName: "trash")
                         .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
-                        .foregroundStyle(hasSelection ? Color.red : Color.secondary)
+                        .foregroundStyle(hasSelection ? themeManager.dangerPrimary : themeManager.textSecondary)
                 }
             }
             .padding(.horizontal, 6)

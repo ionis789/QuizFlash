@@ -263,6 +263,7 @@ extension DeckWorkspaceViewModel {
         do {
             try context.save()
         } catch {
+            presentPersistenceError(error)
             return false
         }
 
@@ -308,6 +309,7 @@ extension DeckWorkspaceViewModel {
         do {
             try context.save()
         } catch {
+            presentPersistenceError(error)
             return false
         }
 

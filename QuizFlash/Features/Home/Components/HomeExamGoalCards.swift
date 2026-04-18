@@ -11,24 +11,26 @@ import SwiftUI
 
 /// Compact narrative card that surfaces short Home insights for upcoming exam goals.
 struct HomeExamNarrativeCard: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let lines: [String]
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             Text("Study Outlook")
                 .font(.caption.weight(.black))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
 
             ForEach(lines, id: \.self) { line in
                 HStack(alignment: .top, spacing: UIConstants.Spacing.small) {
                     Circle()
-                        .fill(ThemeManager.shared.accentColor.color.opacity(0.9))
+                        .fill(themeManager.accentColor.color.opacity(0.9))
                         .frame(width: 7, height: 7)
                         .padding(.top, 6)
 
                     Text(line)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -42,6 +44,8 @@ struct HomeExamNarrativeCard: View {
 
 /// Executive summary for the exam goal carrying the highest current risk.
 struct HomeExamPressureCard: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let summary: HomeExamPressureSummary
 
     private var progressTint: Color {
@@ -56,12 +60,12 @@ struct HomeExamPressureCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Exam Pressure")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(themeManager.textSecondary)
 
                     Text(summary.goalTitle)
                         .font(.title3.weight(.heavy))
                         .fontDesign(.rounded)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text("\(summary.headline) • \(summary.countdownLabel)")
@@ -80,18 +84,18 @@ struct HomeExamPressureCard: View {
 
                     Text("readiness")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(themeManager.textSecondary)
                 }
             }
 
             Text(summary.detailLine)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(themeManager.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(summary.actionLine)
                 .font(.footnote.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: UIConstants.Spacing.small) {
@@ -99,7 +103,7 @@ struct HomeExamPressureCard: View {
                 pressureMetricChip(
                     title: "Pace",
                     value: summary.dailyPaceNeeded == 0 ? "steady" : "\(summary.dailyPaceNeeded)/day",
-                    tint: ThemeManager.shared.accentColor.color
+                    tint: themeManager.accentColor.color
                 )
                 pressureMetricChip(title: "Risk Decks", value: "\(summary.belowTargetDeckCount)", tint: .red)
             }
@@ -112,7 +116,7 @@ struct HomeExamPressureCard: View {
 
                     Text("Weakest deck: \(weakestDeckTitle)")
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(themeManager.textSecondary)
                         .lineLimit(1)
 
                     Spacer(minLength: 0)
@@ -134,7 +138,7 @@ struct HomeExamPressureCard: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title.uppercased())
                 .font(.caption2.weight(.black))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
 
             Text(value)
                 .font(.caption.weight(.bold))
@@ -151,6 +155,8 @@ struct HomeExamPressureCard: View {
 
 /// One Home dashboard card summarizing readiness for a single upcoming exam goal.
 struct HomeExamGoalSummaryCard: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let summary: HomeExamGoalSummary
     var onEdit: () -> Void
     var onStatusChange: (ExamGoalStatus) -> Void
@@ -168,7 +174,7 @@ struct HomeExamGoalSummaryCard: View {
         case .completed:
             return .green
         case .archived:
-            return .secondary
+            return themeManager.textSecondary
         }
     }
 
@@ -179,12 +185,12 @@ struct HomeExamGoalSummaryCard: View {
                     Text(summary.title)
                         .font(.headline.weight(.heavy))
                         .fontDesign(.rounded)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text("\(summary.countdownLabel) • \(summary.dateLabel)")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(themeManager.textSecondary)
                 }
 
                 Spacer(minLength: 0)
@@ -205,7 +211,7 @@ struct HomeExamGoalSummaryCard: View {
                 HStack {
                     Text("READINESS")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(themeManager.textSecondary)
 
                     Spacer(minLength: 0)
 
@@ -219,7 +225,7 @@ struct HomeExamGoalSummaryCard: View {
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
                         Capsule()
-                            .fill(Color.primary.opacity(0.08))
+                            .fill(themeManager.textPrimary.opacity(0.08))
 
                         Capsule()
                             .fill(progressTint.gradient)
@@ -231,13 +237,13 @@ struct HomeExamGoalSummaryCard: View {
 
             Text(summary.summaryLine)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(themeManager.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
             if summary.hasNote {
                 Text(summary.note)
                     .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(themeManager.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -245,7 +251,7 @@ struct HomeExamGoalSummaryCard: View {
                 examGoalMetricChip(
                     title: "Decks",
                     value: "\(summary.linkedDeckCount)",
-                    tint: ThemeManager.shared.accentColor.color
+                    tint: themeManager.accentColor.color
                 )
                 examGoalMetricChip(
                     title: "Overdue",
@@ -262,12 +268,12 @@ struct HomeExamGoalSummaryCard: View {
             if let weakestDeck = summary.weakestDeck {
                 HStack(spacing: UIConstants.Spacing.small) {
                     Circle()
-                        .fill(Color(hex: weakestDeck.colorHex) ?? .secondary)
+                        .fill(Color(hex: weakestDeck.colorHex) ?? themeManager.textSecondary)
                         .frame(width: 10, height: 10)
 
                     Text("Weakest linked deck: \(weakestDeck.title)")
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(themeManager.textSecondary)
                         .lineLimit(1)
 
                     Spacer(minLength: 0)
@@ -305,7 +311,7 @@ struct HomeExamGoalSummaryCard: View {
         } label: {
             Image(systemName: "ellipsis.circle")
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
         }
         .buttonStyle(.plain)
     }
@@ -325,7 +331,7 @@ struct HomeExamGoalSummaryCard: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title.uppercased())
                 .font(.caption2.weight(.black))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
 
             Text(value)
                 .font(.caption.weight(.bold))
@@ -342,6 +348,8 @@ struct HomeExamGoalSummaryCard: View {
 
 /// Day-specific summary card used when the selected calendar day contains exam goals.
 struct HomeSelectedDayExamCard: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let summary: HomeExamGoalSummary
     var onEdit: () -> Void
     var onStatusChange: (ExamGoalStatus) -> Void
@@ -349,11 +357,11 @@ struct HomeSelectedDayExamCard: View {
     private var statusTint: Color {
         switch summary.status {
         case .active:
-            return ThemeManager.shared.accentColor.color
+            return themeManager.accentColor.color
         case .completed:
             return .green
         case .archived:
-            return .secondary
+            return themeManager.textSecondary
         }
     }
 
@@ -362,7 +370,7 @@ struct HomeSelectedDayExamCard: View {
             HStack {
                 Text(summary.title)
                     .font(.subheadline.weight(.heavy))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(themeManager.textPrimary)
 
                 Spacer(minLength: 0)
 
@@ -392,7 +400,7 @@ struct HomeSelectedDayExamCard: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(themeManager.textSecondary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -400,7 +408,7 @@ struct HomeSelectedDayExamCard: View {
 
             Text(summary.summaryLine)
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(UIConstants.Spacing.standard)
@@ -423,6 +431,8 @@ struct HomeSelectedDayExamCard: View {
 
 /// Empty-state card shown before the user creates any exam goals.
 struct HomeExamGoalsEmptyCard: View {
+    @Environment(ThemeManager.self) private var themeManager
+
     let usesRegularMetrics: Bool
     let onCreate: () -> Void
 
@@ -430,16 +440,16 @@ struct HomeExamGoalsEmptyCard: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             Image(systemName: "calendar.badge.plus")
                 .font(.system(size: usesRegularMetrics ? 30 : 28, weight: .black))
-                .foregroundStyle(ThemeManager.shared.accentColor.color)
+                .foregroundStyle(themeManager.accentColor.color)
 
             Text("No exam goals yet")
                 .font(.headline.weight(.heavy))
                 .fontDesign(.rounded)
-                .foregroundStyle(.primary)
+                .foregroundStyle(themeManager.textPrimary)
 
             Text("Add an exam to track readiness across linked decks and mark that day in the Home calendar.")
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Button("Create Exam Goal", action: onCreate)

@@ -99,7 +99,8 @@ struct AIDebugTraceHistoryView: View {
             .screenTopEdgeShadow(
                 topHeight: structuralTopEdgeShadowHeight,
                 topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
-                debugScreenID: "featurelab.ai-trace-history"
+                debugScreenID: "featurelab.ai-trace-history",
+                style: .progressiveBlur()
             )
 
             navigationBar

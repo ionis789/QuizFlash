@@ -67,6 +67,9 @@ struct CardDataSnapshot: Sendable {
 
     /// Aggregated statistics for the deck at the time the snapshot was taken.
     let stats: DeckStats
+
+    /// Pre-computed activity summary for the current local day in this deck.
+    let todayActivity: DeckTodayActivitySummary
 }
 
 /// A sendable conversion-ready projection of a persisted card.
@@ -150,13 +153,18 @@ actor CardFetchActor {
     /// - Returns: A ``CardDataSnapshot`` containing grid-display data and statistics.
     func fetchSnapshot(deckID: PersistentIdentifier) -> CardDataSnapshot {
         guard let deck = activeContext.model(for: deckID) as? DeckModel else {
-            return CardDataSnapshot(gridCards: [], stats: .empty)
+            return CardDataSnapshot(
+                gridCards: [],
+                stats: .empty,
+                todayActivity: .placeholder()
+            )
         }
 
         let now        = Date()
         let todayStart = Calendar.current.startOfDay(for: now)
         var gridCards  = [GridCardInfo]()
         var accum      = StatsAccumulator()
+        var activityAccum = DeckTodayActivityAccumulator(referenceDate: now)
 
         // Important iOS 17 rule:
         // Avoid predicates that walk optional relationships such as
@@ -179,6 +187,7 @@ actor CardFetchActor {
             autoreleasepool {
                 let frontText = card.frontText
                 let backText = card.backText
+                let activityTitle = deckActivityTitle(frontText: frontText, backText: backText)
                 gridCards.append(GridCardInfo(
                     id:                   card.persistentModelID,
                     kind:                 card.kind,
@@ -197,6 +206,12 @@ actor CardFetchActor {
                     editedAt:             card.editedAt
                 ))
                 accum.accumulate(card: card, now: now, todayStart: todayStart)
+                activityAccum.accumulate(
+                    cardID: card.persistentModelID,
+                    title: activityTitle,
+                    reviewHistory: card.reviewHistory,
+                    todayStart: todayStart
+                )
             }
         }
 
@@ -206,7 +221,8 @@ actor CardFetchActor {
 
         return CardDataSnapshot(
             gridCards: gridCards,
-            stats:     accum.build(count: gridCards.count)
+            stats:     accum.build(count: gridCards.count),
+            todayActivity: activityAccum.build()
         )
     }
 
@@ -284,6 +300,22 @@ actor CardFetchActor {
         }
 
         return String(collapsedWhitespace.prefix(200))
+    }
+
+    /// Produces a stable lightweight title for deck-activity cards without
+    /// invoking richer preview sanitizers on the hot snapshot path.
+    private func deckActivityTitle(frontText: String, backText: String) -> String {
+        let frontPreview = lightweightPreviewText(from: frontText)
+        if !frontPreview.isEmpty {
+            return frontPreview
+        }
+
+        let backPreview = lightweightPreviewText(from: backText)
+        if !backPreview.isEmpty {
+            return backPreview
+        }
+
+        return "Untitled card"
     }
 
     // MARK: - Thumbnail Generation
@@ -377,13 +409,19 @@ private struct StatsAccumulator {
     ///   - now: The reference timestamp for due-date comparison.
     ///   - todayStart: Midnight in the user's local time zone, used for today's review count.
     nonisolated mutating func accumulate(card: CardModel, now: Date, todayStart: Date) {
-        let history     = card.reviewHistory
-        totalReviews   += history.count
-        correctReviews += history.filter { $0.difficultyRaw >= ReviewDifficulty.good.rawValue }.count
-        totalXP        += history.reduce(0) { $0 + $1.xpAwarded }
+        let history = card.reviewHistory
+        for event in history {
+            totalReviews += 1
+            totalXP += event.xpAwarded
+            if event.difficultyRaw >= ReviewDifficulty.good.rawValue {
+                correctReviews += 1
+            }
+            if event.timestamp >= todayStart {
+                todayReviewed += 1
+            }
+        }
         if card.dueDate <= now { dueCards += 1 }
-        todayReviewed  += history.filter { $0.timestamp >= todayStart }.count
-        masterySum     += Self.masteryScore(for: card)
+        masterySum += Self.masteryScore(for: card)
     }
 
     // MARK: - Build
@@ -431,5 +469,93 @@ private struct StatsAccumulator {
             let easeNorm = (card.easeFactor - 1.3) / (2.5 - 1.3)
             return min(0.90 + easeNorm * 0.10, 1.0)
         }
+    }
+}
+
+/// Accumulates lightweight card-review activity for the current local day.
+private struct DeckTodayActivityAccumulator {
+    let referenceDate: Date
+    var uniqueCardsReviewed = 0
+    var rawReviewCount = 0
+    var landedCount = 0
+    var retryCount = 0
+    var cards: [DeckTodayReviewedCardSummary] = []
+
+    nonisolated mutating func accumulate(
+        cardID: PersistentIdentifier,
+        title: String,
+        reviewHistory: [ReviewEvent],
+        todayStart: Date
+    ) {
+        var reviewCount = 0
+        var lastEvent: ReviewEvent?
+
+        for event in reviewHistory where event.timestamp >= todayStart {
+            reviewCount += 1
+            if let currentLast = lastEvent {
+                if event.timestamp >= currentLast.timestamp {
+                    lastEvent = event
+                }
+            } else {
+                lastEvent = event
+            }
+        }
+
+        guard let lastEvent else { return }
+
+        uniqueCardsReviewed += 1
+        rawReviewCount += reviewCount
+
+        if lastEvent.difficulty == .again {
+            retryCount += 1
+        } else {
+            landedCount += 1
+        }
+
+        cards.append(
+            DeckTodayReviewedCardSummary(
+                id: cardID,
+                title: title,
+                finalDifficulty: lastEvent.difficulty,
+                reviewCount: reviewCount,
+                lastReviewedAt: lastEvent.timestamp
+            )
+        )
+    }
+
+    nonisolated func build() -> DeckTodayActivitySummary {
+        guard uniqueCardsReviewed > 0 else {
+            return .placeholder(referenceDate: referenceDate)
+        }
+
+        let sortedCards = cards.sorted { lhs, rhs in
+            if lhs.lastReviewedAt != rhs.lastReviewedAt {
+                return lhs.lastReviewedAt > rhs.lastReviewedAt
+            }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
+
+        let rawReviewLabel = "\(rawReviewCount) pass" + (rawReviewCount == 1 ? "" : "es")
+        let uniqueLabel = "\(uniqueCardsReviewed) card" + (uniqueCardsReviewed == 1 ? "" : "s")
+        let retryDetail: String
+        if retryCount == 0 {
+            retryDetail = "Clean finish so far."
+        } else if retryCount == 1 {
+            retryDetail = "1 still needs another pass."
+        } else {
+            retryDetail = "\(retryCount) still need another pass."
+        }
+
+        return DeckTodayActivitySummary(
+            activityDate: referenceDate,
+            activityLabel: "Today",
+            uniqueCardsReviewed: uniqueCardsReviewed,
+            rawReviewCount: rawReviewCount,
+            landedCount: landedCount,
+            retryCount: retryCount,
+            headline: "\(uniqueLabel) moved today",
+            detailLine: "\(rawReviewLabel) folded into \(uniqueLabel). \(retryDetail)",
+            cards: sortedCards
+        )
     }
 }

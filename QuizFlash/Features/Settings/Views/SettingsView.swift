@@ -62,7 +62,8 @@ struct SettingsView: View {
             .screenTopEdgeShadow(
                 topHeight: structuralTopEdgeShadowHeight,
                 topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
-                debugScreenID: "settings.root"
+                debugScreenID: "settings.root",
+                style: .progressiveBlur()
             )
 
             navigationBar
@@ -500,7 +501,8 @@ private struct SettingsInfoDetailView: View {
             .screenTopEdgeShadow(
                 topHeight: structuralTopEdgeShadowHeight,
                 topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
-                debugScreenID: "settings.detail"
+                debugScreenID: "settings.detail",
+                style: .progressiveBlur()
             )
 
             CollapsibleTitleNavigationBar(

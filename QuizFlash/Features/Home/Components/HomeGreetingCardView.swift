@@ -10,6 +10,7 @@ import SwiftUI
 // MARK: - Home Greeting Card
 
 struct HomeGreetingCardView: View {
+    @Environment(ThemeManager.self) private var themeManager
 
     let summary: HomeGreetingSummary
     let availableWidth: CGFloat
@@ -65,7 +66,7 @@ struct HomeGreetingCardView: View {
                         Button(action: onPrimaryAction) {
                             Text(ctaTitle)
                                 .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(themeManager.textPrimary)
                                 .frame(width: layout.padButtonWidth)
                                 .frame(height: UIConstants.Size.buttonHeight)
                         }
@@ -92,10 +93,10 @@ struct HomeGreetingCardView: View {
 
                 if let ctaTitle = summary.ctaTitle, let onPrimaryAction {
                     Button(action: onPrimaryAction) {
-                        Text(ctaTitle)
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.primary)
-                            .padding(.horizontal, 18)
+                            Text(ctaTitle)
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(themeManager.textPrimary)
+                                .padding(.horizontal, 18)
                             .frame(height: UIConstants.Size.buttonHeight)
                     }
                     .buttonStyle(.plain)
@@ -122,7 +123,7 @@ struct HomeGreetingCardView: View {
                 Button(action: onPrimaryAction) {
                     Text(ctaTitle)
                         .font(.headline.weight(.bold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeManager.textPrimary)
                         .frame(maxWidth: .infinity)
                         .frame(height: UIConstants.Size.buttonHeight)
                 }
@@ -135,13 +136,13 @@ struct HomeGreetingCardView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(summary.title)
                 .font(.system(size: titleSize, weight: .heavy, design: .rounded))
-                .foregroundStyle(.primary)
+                .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
 
             Text(summary.subtitle)
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(themeManager.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -151,14 +152,14 @@ struct HomeGreetingCardView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(summary.contextTitle)
                     .font(.system(size: layout.contextTitleSize, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(themeManager.textPrimary)
                     .lineLimit(titleLineLimit)
                     .minimumScaleFactor(0.9)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(summary.contextLine)
                     .font(.system(size: layout.contextBodySize, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(themeManager.textSecondary)
                     .lineLimit(layout.kind == .pad ? 3 : nil)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -189,7 +190,7 @@ struct HomeGreetingCardView: View {
     private func progressRing(size: CGFloat) -> some View {
         AnimatedProgressRing(
             progress: summary.progressFraction,
-            trackColor: Color.primary.opacity(0.10),
+            trackColor: themeManager.textPrimary.opacity(0.10),
             progressColor: tintColor,
             size: size,
             strokeWidth: max(8, size * 0.11)
@@ -197,13 +198,13 @@ struct HomeGreetingCardView: View {
             VStack(spacing: 2) {
                 Text(summary.progressValueText)
                     .font(.system(size: size * 0.24, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(themeManager.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
                 Text(summary.progressLabel)
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(themeManager.textSecondary)
                     .lineLimit(1)
             }
         }

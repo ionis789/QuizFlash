@@ -13,3 +13,12 @@ A skill is a set of local instructions stored in a `SKILL.md` file.
 - Check `references/component-catalog.md` only before creating a new reusable UI component.
 - Prefer the skill's architectural rules over generic SwiftUI defaults when they conflict.
 - If surrounding code still uses an older pattern, keep the change narrow unless the task explicitly asks for migration work.
+
+## Workspace Verification Defaults
+- For local simulator verification in this workspace, default to `iPhone 15 Pro (iOS 17.5)` unless the user explicitly asks for a different target.
+- When reporting verification, prefer targeted `xcodebuild` runs against that simulator instead of broad generic destinations.
+- For app run verification after a code change, prefer physical-device `build + install + launch` when the wired device `iPhoneIS` is connected:
+  - Device: `iPhone 13 Pro`
+  - Xcode destination id: `00008110-00041841340A401E`
+  - CoreDevice identifier: `C0558BFB-25CA-5399-A247-927C3D727AA7`
+- If that device is not connected, fall back to `build + run` on the default simulator instead of asking the user to press Run in Xcode.
