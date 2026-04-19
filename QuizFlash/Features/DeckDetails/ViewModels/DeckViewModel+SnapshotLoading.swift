@@ -70,6 +70,7 @@ extension DeckViewModel {
         currentStats = snapshot.stats
         progressStats = computeProgressStats(from: snapshot.gridCards, deckCardCount: nil)
         todayActivitySummary = snapshot.todayActivity
+        activityHistorySummary = snapshot.activityHistory
         playModeAvailability = buildPlayModeAvailability(from: snapshot.gridCards)
         performGrouping(on: snapshot.gridCards)
     }

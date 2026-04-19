@@ -110,6 +110,14 @@ struct HomeDashboardView: View {
         usesRegularMetrics ? 282 : 256
     }
 
+    private var studyHeroHeadlineHeight: CGFloat {
+        usesRegularMetrics ? 128 : 112
+    }
+
+    private var studyHeroSupportingLineHeight: CGFloat {
+        usesRegularMetrics ? 46 : 40
+    }
+
     private var performanceSurfaceMinHeight: CGFloat {
         usesRegularMetrics ? 240 : 220
     }
@@ -192,13 +200,26 @@ struct HomeDashboardView: View {
                         Text(heroPrimaryTitle(for: overview))
                             .font(.system(size: usesRegularMetrics ? 38 : 32, weight: .black, design: .rounded))
                             .foregroundStyle(themeManager.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .statusTextMotion(trigger: overview.remainingCardsToGoal)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                            .frame(
+                                maxWidth: .infinity,
+                                minHeight: studyHeroHeadlineHeight,
+                                maxHeight: studyHeroHeadlineHeight,
+                                alignment: .topLeading
+                            )
 
                         Text(heroSecondaryLine(for: overview))
                             .font(.system(size: usesRegularMetrics ? 17 : 16, weight: .semibold, design: .rounded))
                             .foregroundStyle(themeManager.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .frame(
+                                maxWidth: .infinity,
+                                minHeight: studyHeroSupportingLineHeight,
+                                maxHeight: studyHeroSupportingLineHeight,
+                                alignment: .topLeading
+                            )
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -805,7 +826,6 @@ private struct HomeDashboardHeroStatTile: View {
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
-                .statusTextMotion(trigger: value)
 
             Text(detail)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))

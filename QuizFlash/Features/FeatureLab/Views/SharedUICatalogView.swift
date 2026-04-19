@@ -235,7 +235,8 @@ struct SharedUICatalogView: View {
                 stats: runtime.stats,
                 deckCardCount: runtime.stats.totalCards,
                 activity: runtime.todayActivity,
-                deckTint: Color(hex: runtime.recentDeck.colorHex) ?? .orange
+                deckTint: Color(hex: runtime.recentDeck.colorHex) ?? .orange,
+                onOpenActivityHistory: {}
             )
 
         case .selectionToolbarControls:

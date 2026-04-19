@@ -70,6 +70,9 @@ struct CardDataSnapshot: Sendable {
 
     /// Pre-computed activity summary for the current local day in this deck.
     let todayActivity: DeckTodayActivitySummary
+
+    /// Pre-computed grouped review history for the current deck.
+    let activityHistory: DeckActivityHistorySummary
 }
 
 /// A sendable conversion-ready projection of a persisted card.
@@ -156,7 +159,8 @@ actor CardFetchActor {
             return CardDataSnapshot(
                 gridCards: [],
                 stats: .empty,
-                todayActivity: .placeholder()
+                todayActivity: .placeholder(),
+                activityHistory: .placeholder()
             )
         }
 
@@ -165,6 +169,7 @@ actor CardFetchActor {
         var gridCards  = [GridCardInfo]()
         var accum      = StatsAccumulator()
         var activityAccum = DeckTodayActivityAccumulator(referenceDate: now)
+        var historyAccum = DeckActivityHistoryAccumulator(referenceDate: now)
 
         // Important iOS 17 rule:
         // Avoid predicates that walk optional relationships such as
@@ -212,6 +217,11 @@ actor CardFetchActor {
                     reviewHistory: card.reviewHistory,
                     todayStart: todayStart
                 )
+                historyAccum.accumulate(
+                    cardID: card.persistentModelID,
+                    title: activityTitle,
+                    reviewHistory: card.reviewHistory
+                )
             }
         }
 
@@ -222,7 +232,8 @@ actor CardFetchActor {
         return CardDataSnapshot(
             gridCards: gridCards,
             stats:     accum.build(count: gridCards.count),
-            todayActivity: activityAccum.build()
+            todayActivity: activityAccum.build(),
+            activityHistory: historyAccum.build()
         )
     }
 
@@ -558,4 +569,150 @@ private struct DeckTodayActivityAccumulator {
             cards: sortedCards
         )
     }
+}
+
+/// Accumulates lightweight deck-review activity grouped by local day.
+private struct DeckActivityHistoryAccumulator {
+    let referenceDate: Date
+    let calendar = Calendar.current
+    var dayBuckets: [Date: DeckActivityHistoryDayAccumulator] = [:]
+
+    nonisolated mutating func accumulate(
+        cardID: PersistentIdentifier,
+        title: String,
+        reviewHistory: [ReviewEvent]
+    ) {
+        guard !reviewHistory.isEmpty else { return }
+
+        var cardDayBuckets: [Date: DeckActivityHistoryCardAccumulator] = [:]
+
+        for event in reviewHistory {
+            let dayStart = calendar.startOfDay(for: event.timestamp)
+            var bucket = cardDayBuckets[dayStart] ?? DeckActivityHistoryCardAccumulator()
+            bucket.record(event: event)
+            cardDayBuckets[dayStart] = bucket
+        }
+
+        for (dayStart, cardBucket) in cardDayBuckets {
+            var dayBucket = dayBuckets[dayStart] ?? DeckActivityHistoryDayAccumulator(activityDate: dayStart)
+            dayBucket.append(
+                cardID: cardID,
+                title: title,
+                cardBucket: cardBucket
+            )
+            dayBuckets[dayStart] = dayBucket
+        }
+    }
+
+    nonisolated func build() -> DeckActivityHistorySummary {
+        let sortedDays = dayBuckets.values
+            .sorted { lhs, rhs in lhs.activityDate > rhs.activityDate }
+            .map { $0.build(referenceDate: referenceDate, calendar: calendar) }
+
+        return DeckActivityHistorySummary(
+            totalActiveDays: sortedDays.count,
+            totalRawReviewCount: sortedDays.reduce(into: 0) { partial, day in
+                partial += day.rawReviewCount
+            },
+            daySummaries: sortedDays
+        )
+    }
+}
+
+private struct DeckActivityHistoryCardAccumulator {
+    var reviewCount = 0
+    var finalDifficulty: ReviewDifficulty = .again
+    var lastReviewedAt: Date = .distantPast
+
+    nonisolated init() {}
+
+    nonisolated mutating func record(event: ReviewEvent) {
+        reviewCount += 1
+        if event.timestamp >= lastReviewedAt {
+            lastReviewedAt = event.timestamp
+            finalDifficulty = event.difficulty
+        }
+    }
+}
+
+private struct DeckActivityHistoryDayAccumulator {
+    let activityDate: Date
+    var uniqueCardsReviewed = 0
+    var rawReviewCount = 0
+    var landedCount = 0
+    var retryCount = 0
+    var cards: [DeckTodayReviewedCardSummary] = []
+
+    nonisolated mutating func append(
+        cardID: PersistentIdentifier,
+        title: String,
+        cardBucket: DeckActivityHistoryCardAccumulator
+    ) {
+        uniqueCardsReviewed += 1
+        rawReviewCount += cardBucket.reviewCount
+
+        if cardBucket.finalDifficulty == .again {
+            retryCount += 1
+        } else {
+            landedCount += 1
+        }
+
+        cards.append(
+            DeckTodayReviewedCardSummary(
+                id: cardID,
+                title: title,
+                finalDifficulty: cardBucket.finalDifficulty,
+                reviewCount: cardBucket.reviewCount,
+                lastReviewedAt: cardBucket.lastReviewedAt
+            )
+        )
+    }
+
+    nonisolated func build(referenceDate: Date, calendar: Calendar) -> DeckActivityDaySummary {
+        let sortedCards = cards.sorted { lhs, rhs in
+            if lhs.lastReviewedAt != rhs.lastReviewedAt {
+                return lhs.lastReviewedAt > rhs.lastReviewedAt
+            }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
+
+        return DeckActivityDaySummary(
+            id: activityDate,
+            activityDate: activityDate,
+            activityLabel: Self.activityLabel(
+                for: activityDate,
+                referenceDate: referenceDate,
+                calendar: calendar
+            ),
+            uniqueCardsReviewed: uniqueCardsReviewed,
+            rawReviewCount: rawReviewCount,
+            landedCount: landedCount,
+            retryCount: retryCount,
+            cards: sortedCards
+        )
+    }
+
+    private nonisolated static func activityLabel(
+        for date: Date,
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> String {
+        if calendar.isDate(date, inSameDayAs: referenceDate) {
+            return "Today"
+        }
+
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: referenceDate),
+            calendar.isDate(date, inSameDayAs: yesterday) {
+            return "Yesterday"
+        }
+
+        return Self.dayFormatter.string(from: date)
+    }
+
+    private nonisolated static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM yyyy"
+        formatter.locale = Locale.autoupdatingCurrent
+        return formatter
+    }()
 }

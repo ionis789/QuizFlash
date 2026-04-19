@@ -11,6 +11,8 @@ Write and review code for QuizFlash using the repository's architecture rules in
 
 Keep UI copy terse. Do not add explanatory filler, repeated titles, helper paragraphs, or decorative subtitles unless they are necessary for the screen to function. Default to the minimum viable copy on primary surfaces: if a label, subtitle, helper line, or decorative text can be removed without harming clarity, remove it. This applies especially to development/internal screens and settings surfaces.
 
+Preserve layout stability on dynamic scroll surfaces. When selected dates, filters, live counters, or other in-place state changes can swap text or metrics inside a scrolling screen, reserve stable heights for the affected slots so the surrounding card or section does not jump and disturb scroll position. Avoid springy or bouncy text motion for these changing values unless the user explicitly asks for that treatment.
+
 When external framework or library behavior matters, prefer the best available primary documentation source before relying on memory. Use `Context7` when that MCP is available for current third-party API docs, examples, and recent usage guidance; fall back to official docs or primary sources when `Context7` is unavailable.
 
 Use these priority levels consistently:

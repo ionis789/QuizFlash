@@ -164,6 +164,21 @@ extension DeckContentView {
             } background: {
                 CardPreviewModeBackground()
             }
+            .fullScreenSheet(
+                item: $viewModel.activitySheetPresentation,
+                configuration: .sheet(
+                    heightMode: .custom(0.75),
+                    dragActivationArea: .fixed(180)
+                )
+            ) { _, safeArea in
+                DeckActivityDetailSheetView(
+                    summary: viewModel.activityHistorySummary,
+                    deckTint: Color(hex: deck.colorHex) ?? themeManager.roleColor(.buttonPrimaryFill),
+                    safeAreaInsets: safeArea
+                )
+            } background: {
+                DeckActivitySheetBackground()
+            }
             .fullScreenCover(item: $cardEditorDestination) { destination in
                 CardEditorView(
                     destination: destination,
@@ -270,7 +285,10 @@ extension DeckContentView {
                             stats: viewModel.currentStats,
                             deckCardCount: deck.cardCount,
                             activity: viewModel.todayActivitySummary,
-                            deckTint: Color(hex: deck.colorHex) ?? themeManager.roleColor(.buttonPrimaryFill)
+                            deckTint: Color(hex: deck.colorHex) ?? themeManager.roleColor(.buttonPrimaryFill),
+                            onOpenActivityHistory: {
+                                viewModel.presentActivityHistorySheet()
+                            }
                         )
                         DeckReadinessDiagnosticsView(
                             summary: viewModel.readinessSummary

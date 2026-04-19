@@ -11,7 +11,7 @@ import SwiftUI
 // MARK: - DeckProgressView
 
 /// Displays the deck's learning breakdown, quick aggregate stats, and the
-/// cards reviewed today in this deck.
+/// compact entry point to the deck activity history.
 ///
 /// All inputs are pre-computed by `DeckViewModel` and `CardFetchActor`.
 /// The view remains rendering-only and performs no data fetching.
@@ -25,16 +25,7 @@ struct DeckProgressView: View {
     let deckCardCount: Int
     let activity: DeckTodayActivitySummary
     let deckTint: Color
-
-    // MARK: - Derived Data
-
-    private var visibleCards: [DeckTodayReviewedCardSummary] {
-        Array(activity.cards.prefix(4))
-    }
-
-    private var remainingCardsCount: Int {
-        max(activity.cards.count - visibleCards.count, 0)
-    }
+    let onOpenActivityHistory: () -> Void
 
     private var dueTint: Color {
         stats.dueCards > 0 ? themeManager.roleColor(.buttonDangerFill) : deckTint
@@ -59,10 +50,6 @@ struct DeckProgressView: View {
             primarySummaryBlock
             metricsBlock
             progressBlock
-
-            if activity.hasActivity {
-                reviewedCardsBlock
-            }
         }
         .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
     }
@@ -127,18 +114,26 @@ struct DeckProgressView: View {
     }
 
     private var progressBlock: some View {
-        DeckProgressSurface(
-            highlight: deckTint,
-            cornerRadius: 26
-        ) {
-            VStack(alignment: .leading, spacing: 14) {
-                DeckSegmentedProgressBar(
-                    progress: progress,
-                    learningTint: deckTint,
-                    animationValue: deckCardCount
-                )
-                legend
+        VStack(alignment: .trailing, spacing: 12) {
+            DeckProgressSurface(
+                highlight: deckTint,
+                cornerRadius: 26
+            ) {
+                VStack(alignment: .leading, spacing: 14) {
+                    DeckSegmentedProgressBar(
+                        progress: progress,
+                        learningTint: deckTint,
+                        animationValue: deckCardCount
+                    )
+                    legend
+                }
             }
+
+            DeckHistoryExpandButton(
+                tint: deckTint,
+                action: onOpenActivityHistory
+            )
+            .padding(.trailing, 6)
         }
     }
 
@@ -164,27 +159,6 @@ struct DeckProgressView: View {
         }
     }
 
-    private var reviewedCardsBlock: some View {
-        DeckProgressSurface(
-            highlight: deckTint,
-            cornerRadius: 28
-        ) {
-            VStack(alignment: .leading, spacing: 10) {
-                LazyVStack(spacing: 10) {
-                    ForEach(visibleCards) { card in
-                        DeckTodayCardRow(card: card, goodTint: deckTint)
-                    }
-                }
-
-                if remainingCardsCount > 0 {
-                    Text("+\(remainingCardsCount) more")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(themeManager.textSecondary)
-                        .padding(.leading, 2)
-                }
-            }
-        }
-    }
 }
 
 // MARK: - Supporting Views
@@ -323,96 +297,39 @@ private struct DeckIntegratedMasteryRing: View {
     }
 }
 
-private struct DeckActivityPill: View {
+private struct DeckHistoryExpandButton: View {
     @Environment(ThemeManager.self) private var themeManager
 
-    let text: String
     let tint: Color
-    let backgroundTint: Color
+    let action: () -> Void
 
     var body: some View {
-        Text(text)
-            .font(.caption.weight(.bold))
-            .foregroundStyle(tint)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 12, weight: .black))
+
+                Text("History")
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(themeManager.textPrimary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .background {
                 Capsule(style: .continuous)
                     .fill(themeManager.surfacePrimary)
                     .overlay {
                         Capsule(style: .continuous)
-                            .fill(backgroundTint)
+                            .fill(tint.opacity(0.12))
+                    }
+                    .overlay {
+                        Capsule(style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
                     }
             }
-    }
-}
-
-private struct DeckTodayCardRow: View {
-    @Environment(ThemeManager.self) private var themeManager
-
-    let card: DeckTodayReviewedCardSummary
-    let goodTint: Color
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(outcomeTint.opacity(0.92))
-                .frame(width: 10, height: 10)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(card.title)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .lineLimit(1)
-
-                Text("\(card.reviewCount) pass" + (card.reviewCount == 1 ? "" : "es"))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(themeManager.textSecondary)
-            }
-
-            Spacer(minLength: 0)
-
-            DeckActivityPill(
-                text: outcomeLabel,
-                tint: outcomeTint,
-                backgroundTint: outcomeTint.opacity(0.18)
-            )
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 14)
-        .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(themeManager.surfacePrimary)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(outcomeTint.opacity(0.08))
-                }
-        }
-    }
-
-    private var outcomeLabel: String {
-        switch card.finalDifficulty {
-        case .again:
-            return "Retry"
-        case .hard:
-            return "Hard"
-        case .good:
-            return "Good"
-        case .easy:
-            return "Easy"
-        }
-    }
-
-    private var outcomeTint: Color {
-        switch card.finalDifficulty {
-        case .again:
-            return themeManager.roleColor(.buttonDangerFill)
-        case .hard:
-            return .orange
-        case .good:
-            return goodTint
-        case .easy:
-            return .green
-        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open activity history")
     }
 }

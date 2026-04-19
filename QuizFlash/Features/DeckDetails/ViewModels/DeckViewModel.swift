@@ -115,6 +115,43 @@ struct DeckTodayActivitySummary: Equatable, Sendable {
     }
 }
 
+/// Lightweight summary for a single active day in this deck's review history.
+struct DeckActivityDaySummary: Identifiable, Equatable, Sendable {
+    let id: Date
+    let activityDate: Date
+    let activityLabel: String
+    let uniqueCardsReviewed: Int
+    let rawReviewCount: Int
+    let landedCount: Int
+    let retryCount: Int
+    let cards: [DeckTodayReviewedCardSummary]
+}
+
+/// Pre-computed deck review history grouped by local day.
+struct DeckActivityHistorySummary: Equatable, Sendable {
+    let totalActiveDays: Int
+    let totalRawReviewCount: Int
+    let daySummaries: [DeckActivityDaySummary]
+
+    var hasActivity: Bool {
+        !daySummaries.isEmpty
+    }
+
+    nonisolated static func placeholder() -> DeckActivityHistorySummary {
+        DeckActivityHistorySummary(
+            totalActiveDays: 0,
+            totalRawReviewCount: 0,
+            daySummaries: []
+        )
+    }
+}
+
+enum DeckActivitySheetPresentation: String, Identifiable {
+    case history
+
+    var id: String { rawValue }
+}
+
 // MARK: - Deck View Model
 
 /// The ViewModel for `DeckView`, managing card data, selection, search, sort, and export state.
@@ -155,8 +192,14 @@ final class DeckViewModel {
     /// Pre-computed activity summary for the current local day in this deck.
     var todayActivitySummary: DeckTodayActivitySummary = .placeholder()
 
+    /// Pre-computed grouped review history used by the deck activity detail sheet.
+    var activityHistorySummary: DeckActivityHistorySummary = .placeholder()
+
     /// Lightweight compatibility counts used by deck play-mode surfaces.
     var playModeAvailability: PlayModeCardAvailability = .empty
+
+    /// Controls the custom-sheet presentation for deck activity history.
+    var activitySheetPresentation: DeckActivitySheetPresentation?
 
     /// Compact readiness summary used by preview and deck-level diagnostics UI.
     var readinessSummary: DeckReadinessSummary {
@@ -233,6 +276,14 @@ final class DeckViewModel {
                 self.showExportError = true
             }
         }
+    }
+
+    func presentActivityHistorySheet() {
+        activitySheetPresentation = .history
+    }
+
+    func dismissActivityHistorySheet() {
+        activitySheetPresentation = nil
     }
 
     // MARK: - Grouping & Filtering

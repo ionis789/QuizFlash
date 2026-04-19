@@ -90,6 +90,19 @@ final class DeckViewModelSnapshotTests: XCTestCase {
             viewModel.todayActivitySummary.detailLine,
             "3 passes folded into 2 cards. 1 still needs another pass."
         )
+        XCTAssertEqual(viewModel.activityHistorySummary.totalActiveDays, 2)
+        XCTAssertEqual(viewModel.activityHistorySummary.totalRawReviewCount, 4)
+
+        let todaySummary = try XCTUnwrap(viewModel.activityHistorySummary.daySummaries.first)
+        XCTAssertEqual(todaySummary.activityLabel, "Today")
+        XCTAssertEqual(todaySummary.uniqueCardsReviewed, 2)
+        XCTAssertEqual(todaySummary.rawReviewCount, 3)
+        XCTAssertEqual(todaySummary.retryCount, 1)
+
+        let yesterdaySummary = try XCTUnwrap(viewModel.activityHistorySummary.daySummaries.last)
+        XCTAssertEqual(yesterdaySummary.activityLabel, "Yesterday")
+        XCTAssertEqual(yesterdaySummary.uniqueCardsReviewed, 1)
+        XCTAssertEqual(yesterdaySummary.rawReviewCount, 1)
 
         let recoveredSummary = try XCTUnwrap(
             viewModel.todayActivitySummary.cards.first(where: { $0.id == recoveredCard.persistentModelID })
@@ -144,5 +157,43 @@ final class DeckViewModelSnapshotTests: XCTestCase {
         XCTAssertEqual(viewModel.todayActivitySummary.rawReviewCount, 0)
         XCTAssertEqual(viewModel.todayActivitySummary.cards, [])
         XCTAssertEqual(viewModel.todayActivitySummary.headline, "No cards moved today")
+        XCTAssertTrue(viewModel.activityHistorySummary.hasActivity)
+        XCTAssertEqual(viewModel.activityHistorySummary.totalActiveDays, 1)
+        XCTAssertEqual(viewModel.activityHistorySummary.totalRawReviewCount, 1)
+        XCTAssertEqual(viewModel.activityHistorySummary.daySummaries.first?.activityLabel, "Yesterday")
+    }
+
+    func testLoadSnapshotReturnsEmptyActivityHistoryWhenDeckHasNoReviews() async throws {
+        let container = try TestModelContainerFactory.makeInMemoryContainer()
+        let context = ModelContext(container)
+
+        let deck = DeckModel(title: "Biology", colorHex: "#2B8A3E")
+        let card = TestMutationFactory.makePersistedCard(
+            content: TestMutationFactory.flashcard(front: "Cell", back: "Basic unit of life"),
+            cardNumber: 1
+        )
+
+        context.insert(deck)
+        context.insert(card)
+        deck.cards = [card]
+        card.deck = deck
+        deck.cardCount = 1
+        deck.lastAssignedCardNumber = 1
+
+        try context.save()
+
+        let viewModel = DeckViewModel()
+        defer { viewModel.tearDown() }
+
+        _ = await viewModel.loadSnapshot(
+            deckID: deck.persistentModelID,
+            container: container
+        )
+
+        XCTAssertFalse(viewModel.todayActivitySummary.hasActivity)
+        XCTAssertFalse(viewModel.activityHistorySummary.hasActivity)
+        XCTAssertEqual(viewModel.activityHistorySummary.totalActiveDays, 0)
+        XCTAssertEqual(viewModel.activityHistorySummary.totalRawReviewCount, 0)
+        XCTAssertEqual(viewModel.activityHistorySummary.daySummaries, [])
     }
 }
