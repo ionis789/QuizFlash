@@ -43,6 +43,7 @@ This catalog lists the reusable UI pieces that already exist in QuizFlash. Treat
 | `StorageInfoView` | `QuizFlash/Features/DeckDetails/Components/DeckSharingViews.swift` | `decks` | Storage breakdown and cleanup screen |
 | `HighlightedText` | `QuizFlash/Core/DesignSystem/Components/HighlightedText.swift` | `text`, `query`, `font`, `baseColor` | Search-result text with async token highlighting |
 | `EdgeShadowOverlay` | `QuizFlash/Core/DesignSystem/Components/EdgeShadowOverlay.swift` | `topHeight`, `bottomHeight`, `kMaxAlphaTop`, `kMaxAlphaBottom` | Top/bottom vignette masking for floating headers and tab bars |
+| `AppSectionSeparator` | `QuizFlash/Core/DesignSystem/Components/AppSectionSeparator.swift` | none | Minimal full-width separator between standalone app sections when a full card container would add visual weight |
 
 ## Editor & Rich Content
 

@@ -71,8 +71,8 @@ struct PlayModeSettingsBackground: View {
 
 /// Shared toggle row used inside the play-mode settings screen.
 struct PlayModeSettingsToggleRow: View {
-    let title: String
-    let detail: String
+    let title: LocalizedStringResource
+    let detail: LocalizedStringResource
     @Binding var isOn: Bool
     let tint: Color
 
@@ -95,11 +95,13 @@ struct PlayModeSettingsToggleRow: View {
 
 /// Shared segmented-control row used by small enum selections.
 struct PlayModeSettingsSegmentedRow<Option: Identifiable & Hashable>: View {
-    let title: String
-    let detail: String
+    @Environment(AppPreferences.self) private var appPreferences
+
+    let title: LocalizedStringResource
+    let detail: LocalizedStringResource
     @Binding var selection: Option
     let options: [Option]
-    let titleForOption: (Option) -> String
+    let titleForOption: (Option, Locale) -> String
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
@@ -112,10 +114,12 @@ struct PlayModeSettingsSegmentedRow<Option: Identifiable & Hashable>: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Picker(title, selection: $selection) {
+            Picker(selection: $selection) {
                 ForEach(options) { option in
-                    Text(titleForOption(option)).tag(option)
+                    Text(titleForOption(option, appPreferences.resolvedLocale)).tag(option)
                 }
+            } label: {
+                Text(title)
             }
             .pickerStyle(.segmented)
         }
@@ -124,11 +128,13 @@ struct PlayModeSettingsSegmentedRow<Option: Identifiable & Hashable>: View {
 
 /// Shared menu row used by wider enum selections that do not fit comfortably in a segmented control.
 struct PlayModeSettingsMenuRow<Option: Identifiable & Hashable>: View {
-    let title: String
-    let detail: String
+    @Environment(AppPreferences.self) private var appPreferences
+
+    let title: LocalizedStringResource
+    let detail: LocalizedStringResource
     @Binding var selection: Option
     let options: [Option]
-    let titleForOption: (Option) -> String
+    let titleForOption: (Option, Locale) -> String
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
@@ -147,14 +153,16 @@ struct PlayModeSettingsMenuRow<Option: Identifiable & Hashable>: View {
                 Spacer(minLength: UIConstants.Spacing.standard)
 
                 Menu {
-                    Picker(title, selection: $selection) {
+                    Picker(selection: $selection) {
                         ForEach(options) { option in
-                            Text(titleForOption(option)).tag(option)
+                            Text(titleForOption(option, appPreferences.resolvedLocale)).tag(option)
                         }
+                    } label: {
+                        Text(title)
                     }
                 } label: {
                     HStack(spacing: 6) {
-                        Text(titleForOption(selection))
+                        Text(titleForOption(selection, appPreferences.resolvedLocale))
                             .font(.subheadline.weight(.semibold))
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.caption.weight(.bold))

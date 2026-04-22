@@ -159,7 +159,9 @@ extension DeckWorkspaceViewModel {
         showSuccessOverlay = false
 
         let trimmedTitle = deckTitle.trimmingCharacters(in: .whitespaces)
-        let resolvedSavedTitle = trimmedTitle.isEmpty ? "Untitled Deck" : trimmedTitle
+        let resolvedSavedTitle = trimmedTitle.isEmpty
+            ? AppLocalization.string("Untitled Deck", locale: AppPreferences.persistedResolvedLocale)
+            : trimmedTitle
         successOverlayDeckTitle = resolvedSavedTitle
 
         if resolvedEditingDeckID != nil && !hasUnsavedChanges {

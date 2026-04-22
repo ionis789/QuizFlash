@@ -28,6 +28,15 @@ nonisolated enum FlashcardSessionOrder: String, Codable, CaseIterable, Identifia
         case .shuffled:      return "Shuffled"
         }
     }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .studyPriority: return AppLocalization.string("Study Order", locale: locale)
+        case .newestFirst:   return AppLocalization.string("Newest First", locale: locale)
+        case .oldestFirst:   return AppLocalization.string("Oldest First", locale: locale)
+        case .shuffled:      return AppLocalization.string("Shuffled", locale: locale)
+        }
+    }
 }
 
 /// Controls which flashcard face is shown first when a card appears.
@@ -42,6 +51,13 @@ nonisolated enum FlashcardRevealFlow: String, Codable, CaseIterable, Identifiabl
         switch self {
         case .questionFirst: return "Question First"
         case .answerFirst:   return "Answer First"
+        }
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .questionFirst: return AppLocalization.string("Question First", locale: locale)
+        case .answerFirst:   return AppLocalization.string("Answer First", locale: locale)
         }
     }
 }
@@ -60,6 +76,13 @@ nonisolated enum FlashcardFlipBehavior: String, Codable, CaseIterable, Identifia
         case .locked:    return "Locked Face"
         }
     }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .tapToFlip: return AppLocalization.string("Tap Enabled", locale: locale)
+        case .locked:    return AppLocalization.string("Locked Face", locale: locale)
+        }
+    }
 }
 
 /// Controls which visual treatment is used when tapping a flashcard.
@@ -74,6 +97,13 @@ nonisolated enum FlashcardTapAnimationStyle: String, Codable, CaseIterable, Iden
         switch self {
         case .flip3D:     return "3D Flip"
         case .staticSwap: return "Static Swap"
+        }
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .flip3D:     return AppLocalization.string("3D Flip", locale: locale)
+        case .staticSwap: return AppLocalization.string("Static Swap", locale: locale)
         }
     }
 }
@@ -92,6 +122,13 @@ nonisolated enum FlashcardStaticSwapTextMotion: String, Codable, CaseIterable, I
         case .instant:  return "Instant"
         }
     }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .animated: return AppLocalization.string("Animated", locale: locale)
+        case .instant:  return AppLocalization.string("Instant", locale: locale)
+        }
+    }
 }
 
 /// Controls how short flashcard content is positioned vertically inside the card.
@@ -106,6 +143,13 @@ nonisolated enum FlashcardContentAlignment: String, Codable, CaseIterable, Ident
         switch self {
         case .top:    return "Top"
         case .center: return "Center"
+        }
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .top:    return AppLocalization.string("Top", locale: locale)
+        case .center: return AppLocalization.string("Center", locale: locale)
         }
     }
 }
@@ -187,6 +231,13 @@ nonisolated enum QuizExplanationTiming: String, Codable, CaseIterable, Identifia
         case .manualReveal: return "Manual Reveal"
         }
     }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .afterCheck:   return AppLocalization.string("After Check", locale: locale)
+        case .manualReveal: return AppLocalization.string("Manual Reveal", locale: locale)
+        }
+    }
 }
 
 /// Controls whether quiz answers evaluate immediately or wait for an explicit submit.
@@ -201,6 +252,13 @@ nonisolated enum QuizAnswerValidationMode: String, Codable, CaseIterable, Identi
         switch self {
         case .instantCheck: return "Instant Check"
         case .submit:       return "Submit"
+        }
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .instantCheck: return AppLocalization.string("Instant Check", locale: locale)
+        case .submit:       return AppLocalization.string("Submit", locale: locale)
         }
     }
 }
@@ -225,6 +283,11 @@ nonisolated enum MatchRoundSize: Int, Codable, CaseIterable, Identifiable, Senda
 
     /// Human-readable option label shown in the settings UI.
     var title: String { "\(rawValue) Pairs" }
+
+    func localizedTitle(locale: Locale) -> String {
+        let format = AppLocalization.string("%d Pairs", locale: locale)
+        return String.localizedStringWithFormat(format, rawValue)
+    }
 }
 
 /// Controls how dense the match tiles look on screen.
@@ -241,6 +304,13 @@ nonisolated enum MatchContentDensity: String, Codable, CaseIterable, Identifiabl
         case .standard: return "Standard"
         }
     }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .compact:  return AppLocalization.string("Compact", locale: locale)
+        case .standard: return AppLocalization.string("Standard", locale: locale)
+        }
+    }
 }
 
 /// Controls how aggressive mismatch feedback feels during a round.
@@ -255,6 +325,13 @@ nonisolated enum MatchFeedbackIntensity: String, Codable, CaseIterable, Identifi
         switch self {
         case .subtle:   return "Subtle"
         case .standard: return "Standard"
+        }
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .subtle:   return AppLocalization.string("Subtle", locale: locale)
+        case .standard: return AppLocalization.string("Standard", locale: locale)
         }
     }
 }
@@ -286,6 +363,14 @@ nonisolated enum WriteAnswerInputMode: String, Codable, CaseIterable, Identifiab
         case .assistedBuilder: return "Builder"
         }
     }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .auto:            return AppLocalization.string("Auto", locale: locale)
+        case .freeText:        return AppLocalization.string("Free Text", locale: locale)
+        case .assistedBuilder: return AppLocalization.string("Builder", locale: locale)
+        }
+    }
 }
 
 /// Controls how strictly the typed answer is matched against the canonical blank.
@@ -302,6 +387,13 @@ nonisolated enum WriteAnswerStrictness: String, Codable, CaseIterable, Identifia
         case .exact:      return "Exact"
         }
     }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .normalized: return AppLocalization.string("Normalized", locale: locale)
+        case .exact:      return AppLocalization.string("Exact", locale: locale)
+        }
+    }
 }
 
 /// Controls when the canonical answer becomes visible after checking.
@@ -316,6 +408,13 @@ nonisolated enum WriteRevealTiming: String, Codable, CaseIterable, Identifiable,
         switch self {
         case .afterCheck:   return "After Check"
         case .manualReveal: return "Manual Reveal"
+        }
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .afterCheck:   return AppLocalization.string("After Check", locale: locale)
+        case .manualReveal: return AppLocalization.string("Manual Reveal", locale: locale)
         }
     }
 }
@@ -346,6 +445,17 @@ nonisolated enum LearnReportGrouping: String, Codable, CaseIterable, Identifiabl
         case .freshMaterialFirst: return "Fresh Material First"
         }
     }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .readinessFirst:
+            return AppLocalization.string("Readiness First", locale: locale)
+        case .byCardKind:
+            return AppLocalization.string("By Card Kind", locale: locale)
+        case .freshMaterialFirst:
+            return AppLocalization.string("Fresh Material First", locale: locale)
+        }
+    }
 }
 
 /// Controls how much information Learn mode shows at once.
@@ -362,6 +472,14 @@ nonisolated enum LearnReportDensity: String, Codable, CaseIterable, Identifiable
         case .compact:  return "Compact"
         case .standard: return "Standard"
         case .detailed: return "Detailed"
+        }
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .compact:  return AppLocalization.string("Compact", locale: locale)
+        case .standard: return AppLocalization.string("Standard", locale: locale)
+        case .detailed: return AppLocalization.string("Detailed", locale: locale)
         }
     }
 }

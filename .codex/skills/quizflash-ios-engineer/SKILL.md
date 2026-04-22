@@ -11,7 +11,21 @@ Write and review code for QuizFlash using the repository's architecture rules in
 
 Keep UI copy terse. Do not add explanatory filler, repeated titles, helper paragraphs, or decorative subtitles unless they are necessary for the screen to function. Default to the minimum viable copy on primary surfaces: if a label, subtitle, helper line, or decorative text can be removed without harming clarity, remove it. This applies especially to development/internal screens and settings surfaces.
 
+QuizFlash now ships multi-language UI and all new app-owned copy must be localization-ready. The supported UI languages are English (`en`), Romanian (`ro`), and Russian (`ru`). Do not hardcode user-facing app copy behind plain runtime `String` properties when that would bypass localization; prefer `LocalizedStringResource`, existing localized helper methods that accept `Locale`, or explicit prelocalized strings when runtime values must cross navigation/state boundaries. When adding or changing app-owned copy, update every supported language, not just English. User-authored content such as deck titles, folder names, and card text must remain verbatim and must not be routed through app-string localization.
+
+QuizFlash uses an app-language bundle override, not just SwiftUI environment locale, to resolve localized strings. Do not assume `locale` alone will switch the lookup language for `String(localized:)` or other bundle-backed copy. For app-owned UI copy, prefer `AppLocalization.string(...)` / `AppLocalization.numbered(...)` over direct `String(localized: ..., locale: ...)`; the direct form has already caused real regressions where dates localized correctly but UI copy stayed in English. If localization infrastructure changes, keep `AppLocalization.applyLanguageOverride(...)` wired so bundle lookup and date/number formatting stay in sync. For quick vocabulary edits across all supported languages, keep `Docs/UI-Dictionary/localization_matrix.py` working: it exports and imports the shared `key / en / ro / ru` table used for review and bulk editing.
+
+Treat `Docs/UI-Dictionary/localization_matrix.tsv` as the human-editable source of truth for app-owned UI vocabulary review. When adding, changing, or removing app-owned copy, update the underlying localization keys for all supported languages and keep the matrix in sync in the same task. Do not leave new copy only in `.strings` files without regenerating the matrix, and do not remove copy from code while leaving stale keys behind in the matrix unless the task explicitly preserves them for later reuse. The default workflow is: edit code + localized values, then run the matrix export/import flow so reviewers can inspect wording from one table instead of diffing raw `.strings` files.
+
 Preserve layout stability on dynamic scroll surfaces. When selected dates, filters, live counters, or other in-place state changes can swap text or metrics inside a scrolling screen, reserve stable heights for the affected slots so the surrounding card or section does not jump and disturb scroll position. Avoid springy or bouncy text motion for these changing values unless the user explicitly asks for that treatment.
+
+Do not route per-frame scroll offsets through observed SwiftUI state. Persist scroll restoration offsets in `@ObservationIgnored` view-model storage or other non-observed holders so scroll probes do not invalidate an entire screen on every drag tick.
+
+On iOS 17, do not reconfigure live blur/filter layers during scroll-driven updates. If a root surface needs a top progressive blur, keep the `UIViewRepresentable` stable and mutate only cheap scalar inputs such as opacity or an already-attached radius value. Avoid calling layer/filter refresh code from `updateUIView` on every drag tick; use a static fallback only when a stable live path is not available.
+
+Use the current DeckEditor naming. `CardEditorView` is the router from `CardEditorDestination` into concrete editor surfaces. `FlashcardEditorView` owns the zone-based front/back flashcard editor. `QuizCardEditorView`, `MatchCardEditorView`, and `WriteCardEditorView` own their respective typed card authoring flows. Do not reintroduce pre-refactor create/add-card sheet aliases in new code, docs, logs, or comments.
+
+Default QuizFlash custom sheets to full-surface drag-dismiss. Do not restrict drag activation to a top strip unless the sheet contains interaction-heavy full-screen content that would become error-prone with full-height dismissal. For standard detail/configuration sheets, the user should be able to drag down from anywhere on the sheet.
 
 When external framework or library behavior matters, prefer the best available primary documentation source before relying on memory. Use `Context7` when that MCP is available for current third-party API docs, examples, and recent usage guidance; fall back to official docs or primary sources when `Context7` is unavailable.
 
@@ -58,7 +72,7 @@ Use these priority levels consistently:
 - `MUST NOT` preload unrelated feature clusters just because the repo has shared architecture docs.
 - `MUST` escalate from local files to shared references only when the task crosses a boundary that the local files do not explain safely.
 - Examples:
-  - `CreateDeckView.swift` copy, spacing, or overlay tweaks should start in `CreateDeckView.swift`; do not read `AIFlashcardService.swift` unless the change reaches AI pipeline behavior.
+  - `DeckWorkspaceView.swift` copy, spacing, or overlay tweaks should start in `DeckWorkspaceView.swift` plus the narrow owning extension/component; do not read `AIFlashcardService.swift` unless the change reaches AI pipeline behavior.
   - `HomeCalendarSectionView.swift` spacing or compact-calendar tweaks should start in `HomeCalendarSectionView.swift` plus `HomeCalendarAdaptiveLayout.swift`; pull `HomeViewModel.swift` only if the change touches summaries or derived data.
   - `DeckView.swift` dialog, toolbar, or overlay copy tweaks should start in `DeckView.swift`; pull `DeckViewModel.swift` only if the action, mutation, or state flow changes.
 

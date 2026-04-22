@@ -108,8 +108,8 @@ struct FullScreenSheetConfiguration: Sendable {
     var ignoresSafeArea: Bool = true
     var heightMode: FullScreenSheetHeightMode = .fullScreen
     var topCornerRadius: CGFloat = UIConstants.Radius.maximum
-    var dragActivationArea: FullScreenSheetDragActivationArea = .fraction(0.22)
-    var showsDragIndicator: Bool = true
+    var dragActivationArea: FullScreenSheetDragActivationArea = .fullSurface
+    var showsDragIndicator: Bool = false
     var dragIndicatorTopPadding: CGFloat = UIConstants.Spacing.extraLarge
     var backgroundReceivesDragProgress: Bool = true
     var appliesDefaultDragTopOverlay: Bool = false
@@ -119,8 +119,8 @@ struct FullScreenSheetConfiguration: Sendable {
         ignoresSafeArea: Bool = true,
         heightMode: FullScreenSheetHeightMode = .fullScreen,
         topCornerRadius: CGFloat = UIConstants.Radius.maximum,
-        dragActivationArea: FullScreenSheetDragActivationArea = .fixed(180),
-        showsDragIndicator: Bool = true,
+        dragActivationArea: FullScreenSheetDragActivationArea = .fullSurface,
+        showsDragIndicator: Bool = false,
         dragIndicatorTopPadding: CGFloat = UIConstants.Spacing.extraLarge,
         backgroundReceivesDragProgress: Bool = true
     ) -> FullScreenSheetConfiguration {

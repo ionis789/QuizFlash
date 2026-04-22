@@ -21,10 +21,24 @@ import UniformTypeIdentifiers
 /// Encapsulates all sheet, full-screen cover, and confirmation dialog modifiers
 /// for the Library domain. Applied identically by LibraryView and FolderView.
 struct LibraryModalsAndDialogs: ViewModifier {
+    @Environment(AppPreferences.self) private var appPreferences
     @Bindable var viewModel: LibraryViewModel
     var context: ModelContext
     var decks: [DeckModel]
     var folders: [FolderModel]
+
+    private var locale: Locale {
+        appPreferences.resolvedLocale
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
+    }
 
     func body(content: Content) -> some View {
         content
@@ -61,35 +75,37 @@ struct LibraryModalsAndDialogs: ViewModifier {
                 viewModel.handleFileImport(result, context: context)
             }
             .confirmationDialog(
-                "Delete \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")?",
+                viewModel.selectedDecks.count == 1
+                    ? localizedFormat("Delete %d deck?", viewModel.selectedDecks.count)
+                    : localizedFormat("Delete %d decks?", viewModel.selectedDecks.count),
                 isPresented: $viewModel.showDeleteConfirmation,
                 titleVisibility: .visible
             ) {
-                Button("Delete", role: .destructive) {
+                Button(localized("Delete"), role: .destructive) {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                         viewModel.deleteSelectedDecks(from: decks, context: context)
                     }
                 }
-                Button("Cancel", role: .cancel) { }
+                Button(localized("Cancel"), role: .cancel) { }
             } message: {
-                Text("This action cannot be undone.")
+                Text(localized("This action cannot be undone."))
             }
             .confirmationDialog(
-                "Delete \"\(viewModel.deckToDelete?.title ?? "")\"?",
+                localizedFormat("Delete \"%@\"?", viewModel.deckToDelete?.title ?? ""),
                 isPresented: Binding(
                     get: { viewModel.deckToDelete != nil },
                     set: { if !$0 { viewModel.deckToDelete = nil } }
                 ),
                 titleVisibility: .visible
             ) {
-                Button("Delete", role: .destructive) {
+                Button(localized("Delete"), role: .destructive) {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                         viewModel.confirmSingleDeletion(context: context)
                     }
                 }
-                Button("Cancel", role: .cancel) { viewModel.deckToDelete = nil }
+                Button(localized("Cancel"), role: .cancel) { viewModel.deckToDelete = nil }
             } message: {
-                Text("This deck and all its cards will be deleted.")
+                Text(localized("This deck and all its cards will be deleted."))
             }
             .confirmationDialog(
                 moveDialogTitle,
@@ -103,7 +119,7 @@ struct LibraryModalsAndDialogs: ViewModifier {
                 ),
                 titleVisibility: .visible
             ) {
-                Button("Library (All Decks)") {
+                Button(localized("Library (All Decks)")) {
                     performMove(to: nil)
                 }
 
@@ -117,7 +133,7 @@ struct LibraryModalsAndDialogs: ViewModifier {
                     }
                 }
 
-                Button("Cancel", role: .cancel) {
+                Button(localized("Cancel"), role: .cancel) {
                     viewModel.showMoveConfirmation = false
                     viewModel.deckToMove = nil
                 }
@@ -128,16 +144,18 @@ struct LibraryModalsAndDialogs: ViewModifier {
 
     private var moveDialogTitle: String {
         if let target = viewModel.deckToMove {
-            return "Move \"\(target.title)\""
+            return localizedFormat("Move \"%@\"", target.title)
         }
-        return "Move \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")"
+        return viewModel.selectedDecks.count == 1
+            ? localizedFormat("Move %d deck", viewModel.selectedDecks.count)
+            : localizedFormat("Move %d decks", viewModel.selectedDecks.count)
     }
 
     private var moveDialogMessage: String {
         if viewModel.deckToMove != nil {
-            return "Choose where this deck should go."
+            return localized("Choose where this deck should go.")
         }
-        return "Choose where the selected decks should go."
+        return localized("Choose where the selected decks should go.")
     }
 
     private func performMove(to folder: FolderModel?) {
@@ -154,27 +172,41 @@ struct LibraryModalsAndDialogs: ViewModifier {
 /// Encapsulates all alert modifiers for the Library domain.
 /// Applied identically by LibraryView and FolderView.
 struct LibraryAlerts: ViewModifier {
+    @Environment(AppPreferences.self) private var appPreferences
     @Bindable var viewModel: LibraryViewModel
+
+    private var locale: Locale {
+        appPreferences.resolvedLocale
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
+    }
 
     func body(content: Content) -> some View {
         content
-            .alert("Import Error", isPresented: $viewModel.showImportError) {
-                Button("OK", role: .cancel) { }
+            .alert(localized("Import Error"), isPresented: $viewModel.showImportError) {
+                Button(localized("OK"), role: .cancel) { }
             } message: {
                 Text(viewModel.importErrorMessage)
             }
-            .alert("Import Successful", isPresented: $viewModel.showImportSuccess) {
-                Button("OK", role: .cancel) { }
+            .alert(localized("Import Successful"), isPresented: $viewModel.showImportSuccess) {
+                Button(localized("OK"), role: .cancel) { }
             } message: {
-                Text("\(viewModel.importedDeckName) imported successfully.")
+                Text(localizedFormat("%@ imported successfully.", viewModel.importedDeckName))
             }
-            .alert("Export Error", isPresented: $viewModel.showExportError) {
-                Button("OK", role: .cancel) { }
+            .alert(localized("Export Error"), isPresented: $viewModel.showExportError) {
+                Button(localized("OK"), role: .cancel) { }
             } message: {
                 Text(viewModel.exportErrorMessage)
             }
-            .alert("Move Error", isPresented: $viewModel.showMoveError) {
-                Button("OK", role: .cancel) { }
+            .alert(localized("Move Error"), isPresented: $viewModel.showMoveError) {
+                Button(localized("OK"), role: .cancel) { }
             } message: {
                 Text(viewModel.moveErrorMessage)
             }

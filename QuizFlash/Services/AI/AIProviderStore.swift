@@ -9,6 +9,7 @@
 import Foundation
 import Observation
 import OSLog
+import SwiftUI
 
 // MARK: - AI Request Style
 
@@ -25,10 +26,26 @@ enum AIProviderRequestStyle: String, CaseIterable, Codable, Identifiable, Sendab
         }
     }
 
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .openAICompatible:
+            return AppLocalization.string("OpenAI-Compatible API", locale: locale)
+        }
+    }
+
     var summary: String {
         switch self {
         case .openAICompatible:
             return "Use any provider that mirrors OpenAI chat completions: base URL or endpoint, Bearer auth, model, messages, and optional custom headers/body."
+        }
+    }
+
+    func localizedSummary(locale: Locale) -> String {
+        switch self {
+        case .openAICompatible:
+            return AppLocalization.string("Use any provider that mirrors OpenAI chat completions: base URL or endpoint, Bearer auth, model, messages, and optional custom headers/body.",
+                locale: locale
+            )
         }
     }
 
@@ -41,6 +58,19 @@ enum AIProviderRequestStyle: String, CaseIterable, Codable, Identifiable, Sendab
                 "Content-Type: application/json",
                 "Optional: HTTP-Referer, X-Title",
                 "JSON: model, messages, response_format, temperature, ...extra_body"
+            ]
+        }
+    }
+
+    func localizedSyntaxLines(locale: Locale) -> [String] {
+        switch self {
+        case .openAICompatible:
+            return [
+                AppLocalization.string("POST <base URL>/chat/completions", locale: locale),
+                AppLocalization.string("Authorization: Bearer <API_KEY>", locale: locale),
+                AppLocalization.string("Content-Type: application/json", locale: locale),
+                AppLocalization.string("Optional: HTTP-Referer, X-Title", locale: locale),
+                AppLocalization.string("JSON: model, messages, response_format, temperature, ...extra_body", locale: locale)
             ]
         }
     }
@@ -73,6 +103,21 @@ enum AIProviderPreset: String, CaseIterable, Identifiable {
         }
     }
 
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .deepSeek:
+            return "DeepSeek"
+        case .openAI:
+            return "OpenAI"
+        case .openRouter:
+            return "OpenRouter"
+        case .xAI:
+            return "xAI / Grok"
+        case .custom:
+            return AppLocalization.string("Custom Compatible", locale: locale)
+        }
+    }
+
     var subtitle: String {
         switch self {
         case .deepSeek:
@@ -85,6 +130,21 @@ enum AIProviderPreset: String, CaseIterable, Identifiable {
             return "xAI endpoint with Grok defaults over chat completions."
         case .custom:
             return "Use any custom endpoint that follows the OpenAI chat completions structure."
+        }
+    }
+
+    func localizedSubtitle(locale: Locale) -> String {
+        switch self {
+        case .deepSeek:
+            return AppLocalization.string("DeepSeek endpoint with deepseek-chat defaults.", locale: locale)
+        case .openAI:
+            return AppLocalization.string("OpenAI endpoint with GPT-4.1 Mini defaults.", locale: locale)
+        case .openRouter:
+            return AppLocalization.string("OpenRouter base URL with Grok 4.1 Fast defaults.", locale: locale)
+        case .xAI:
+            return AppLocalization.string("xAI endpoint with Grok defaults over chat completions.", locale: locale)
+        case .custom:
+            return AppLocalization.string("Use any custom endpoint that follows the OpenAI chat completions structure.", locale: locale)
         }
     }
 }
@@ -236,12 +296,44 @@ struct AIProviderProfile: Identifiable, Equatable, Codable, Sendable {
         return nil
     }
 
+    func localizedEditorValidationMessage(locale: Locale) -> String? {
+        if trimmedName.isEmpty {
+            return AppLocalization.string("Add a provider name.", locale: locale)
+        }
+        if resolvedRequestURL == nil {
+            return AppLocalization.string("The AI base URL or endpoint must be a valid HTTP or HTTPS URL.", locale: locale)
+        }
+        if trimmedTextModel.isEmpty {
+            return AppLocalization.string("Add a text model.", locale: locale)
+        }
+        if trimmedVisionModel.isEmpty {
+            return AppLocalization.string("Add a vision model.", locale: locale)
+        }
+        if !trimmedHTTPReferer.isEmpty && httpRefererURL == nil {
+            return AppLocalization.string("HTTP-Referer must be a valid HTTP or HTTPS URL.", locale: locale)
+        }
+        if !trimmedExtraBodyJSONString.isEmpty && extraBodyObject == nil {
+            return AppLocalization.string("Extra body must be a valid JSON object.", locale: locale)
+        }
+        return nil
+    }
+
     var generationValidationMessage: String? {
         if let editorValidationMessage {
             return editorValidationMessage
         }
         if trimmedAPIKey.isEmpty {
             return "Add an API key in Labs > Development Settings > Developer AI."
+        }
+        return nil
+    }
+
+    func localizedGenerationValidationMessage(locale: Locale) -> String? {
+        if let validationMessage = localizedEditorValidationMessage(locale: locale) {
+            return validationMessage
+        }
+        if trimmedAPIKey.isEmpty {
+            return AppLocalization.string("Add an API key in Labs > Development Settings > Developer AI.", locale: locale)
         }
         return nil
     }

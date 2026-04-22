@@ -12,6 +12,7 @@ private let kAIProviderEditorChromeSpace = "AIProviderEditorChromeSpace"
 // MARK: - AI Provider Editor
 
 struct AIProviderEditorView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(\.dismiss) private var dismiss
     @Environment(ThemeManager.self) private var themeManager
     @Environment(AIProviderStore.self) private var aiProviderStore
@@ -126,8 +127,10 @@ struct AIProviderEditorView: View {
         }
     }
 
-    private var navigationTitle: String {
-        isNewProfile ? "New AI Config" : "Edit AI Config"
+    private var navigationTitle: AppTextValue {
+        isNewProfile
+            ? .localized("New AI Config")
+            : .localized("Edit AI Config")
     }
 
     private var canSave: Bool {
@@ -151,8 +154,8 @@ struct AIProviderEditorView: View {
                             draft.applyPreset(preset)
                         } label: {
                             VStack(alignment: .leading) {
-                                Text(preset.title)
-                                Text(preset.subtitle)
+                                Text(preset.localizedTitle(locale: appPreferences.resolvedLocale))
+                                Text(preset.localizedSubtitle(locale: appPreferences.resolvedLocale))
                             }
                         }
                     }
@@ -306,15 +309,15 @@ struct AIProviderEditorView: View {
     private var syntaxSection: some View {
         settingsCard(title: "Wire Format") {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-                Text(draft.requestStyle.title)
+                Text(draft.requestStyle.localizedTitle(locale: appPreferences.resolvedLocale))
                     .font(.subheadline.weight(.semibold))
 
-                Text(draft.requestStyle.summary)
+                Text(draft.requestStyle.localizedSummary(locale: appPreferences.resolvedLocale))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    ForEach(draft.requestStyle.syntaxLines, id: \.self) { line in
+                    ForEach(draft.requestStyle.localizedSyntaxLines(locale: appPreferences.resolvedLocale), id: \.self) { line in
                         Text(line)
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.secondary)
@@ -327,7 +330,7 @@ struct AIProviderEditorView: View {
                         .fill(Color(uiColor: .tertiarySystemFill))
                 )
 
-                if let validationMessage = draft.generationValidationMessage {
+                if let validationMessage = draft.localizedGenerationValidationMessage(locale: appPreferences.resolvedLocale) {
                     Label(validationMessage, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.orange)

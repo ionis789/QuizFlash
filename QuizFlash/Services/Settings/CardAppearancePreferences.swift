@@ -7,6 +7,7 @@
 
 import Foundation
 import Observation
+import SwiftUI
 
 /// Controls how FlipCard handles content that overflows the card bounds.
 nonisolated enum CardContentMode: String, CaseIterable, Identifiable, Codable, Sendable {
@@ -24,12 +25,34 @@ nonisolated enum CardContentMode: String, CaseIterable, Identifiable, Codable, S
         }
     }
 
+    func localizedLabel(locale: Locale) -> String {
+        switch self {
+        case .scaleToFit:
+            return AppLocalization.string("Scale to Fit", locale: locale)
+        case .scrollable:
+            return AppLocalization.string("Scrollable", locale: locale)
+        }
+    }
+
     var description: String {
         switch self {
         case .scaleToFit:
             return "Content shrinks to always fit on screen. Best for quick review."
         case .scrollable:
             return "Content keeps its size and scrolls. Best for detailed notes."
+        }
+    }
+
+    func localizedDescription(locale: Locale) -> String {
+        switch self {
+        case .scaleToFit:
+            return AppLocalization.string("Content shrinks to always fit on screen. Best for quick review.",
+                locale: locale
+            )
+        case .scrollable:
+            return AppLocalization.string("Content keeps its size and scrolls. Best for detailed notes.",
+                locale: locale
+            )
         }
     }
 

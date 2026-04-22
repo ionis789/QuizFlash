@@ -67,8 +67,20 @@ private struct ContextMenuLabSurface: Identifiable {
         case recentDeck(DeckModel)
         case folder(FolderModel)
         case draftCard(DraftCard)
-        case settingsHeader(icon: String, tint: Color, title: String, subtitle: String, badges: [String])
-        case settingsRow(icon: String, tint: Color, title: String, detail: String?, value: String?)
+        case settingsHeader(
+            icon: String,
+            tint: Color,
+            title: SettingsTextContent,
+            subtitle: SettingsTextContent,
+            badges: [SettingsTextContent]
+        )
+        case settingsRow(
+            icon: String,
+            tint: Color,
+            title: SettingsTextContent,
+            detail: SettingsTextContent?,
+            value: String?
+        )
     }
 
     let id: String

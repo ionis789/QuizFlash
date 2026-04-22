@@ -20,12 +20,14 @@ struct QuizFlashApp: App {
     @State private var appMigrationStore = AppMigrationStore.shared
 
     init() {
+        AppLocalization.applyLanguageOverride(AppPreferences.shared.appLanguage)
         MathWebViewPool.shared.prewarm()
     }
 
     var body: some Scene {
         WindowGroup {
             RootView()
+                .id(appPreferences.languageRefreshKey)
                 .environment(authManager)
                 .environment(themeManager)
                 .environment(aiProviderStore)
@@ -33,6 +35,7 @@ struct QuizFlashApp: App {
                 .environment(developmentPreferences)
                 .environment(cardAppearancePreferences)
                 .environment(appMigrationStore)
+                .environment(\.locale, appPreferences.resolvedLocale)
                 .tint(themeManager.accentColor.color)
                 .preferredColorScheme(.dark)
                 .onAppear {

@@ -9,11 +9,23 @@ import SwiftUI
 
 struct DeckActivityDetailSheetView: View {
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
 
     let summary: DeckActivityHistorySummary
     let deckTint: Color
     let safeAreaInsets: UIEdgeInsets
+
+    private var locale: Locale { appPreferences.resolvedLocale }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
+    }
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -35,19 +47,18 @@ struct DeckActivityDetailSheetView: View {
             .padding(.top, UIConstants.Spacing.extraLarge)
             .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.extraLarge)
         }
-        .fullScreenSheetDragActivationHeight(180)
     }
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    Text("Activity")
+                    Text(localized("Activity"))
                         .font(.system(size: 28, weight: .black, design: .rounded))
                         .foregroundStyle(themeManager.textPrimary)
 
                     if summary.hasActivity {
-                        Text("\(summary.totalRawReviewCount) passes • \(summary.totalActiveDays) days")
+                        Text(activitySummaryLine)
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundStyle(themeManager.textSecondary)
                     }
@@ -56,22 +67,36 @@ struct DeckActivityDetailSheetView: View {
                 Spacer(minLength: 0)
 
                 if let fullScreenSheetDismiss {
-                    Button {
-                        fullScreenSheetDismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundStyle(themeManager.textSecondary)
-                    }
-                    .buttonStyle(.plain)
+                    ChromeSoftCircleSymbolButton(
+                        systemName: "xmark",
+                        accessibilityLabel: localized("Close activity detail"),
+                        action: { fullScreenSheetDismiss() },
+                        symbolSize: UIConstants.Size.iconStandard
+                    )
                 }
             }
         }
     }
 
+    private var activitySummaryLine: String {
+        let passes = AppLocalization.numbered(
+            summary.totalRawReviewCount,
+            singular: "%d pass",
+            plural: "%d passes",
+            locale: locale
+        )
+        let days = AppLocalization.numbered(
+            summary.totalActiveDays,
+            singular: "%d day",
+            plural: "%d days",
+            locale: locale
+        )
+        return "\(passes) • \(days)"
+    }
+
     private var emptySection: some View {
         DeckActivitySheetSurface {
-            Text("No activity yet")
+            Text(localized("No activity yet"))
                 .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundStyle(themeManager.textSecondary)
         }
@@ -88,9 +113,12 @@ struct DeckActivitySheetBackground: View {
 
 private struct DeckActivityDaySection: View {
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(AppPreferences.self) private var appPreferences
 
     let day: DeckActivityDaySummary
     let deckTint: Color
+
+    private var locale: Locale { appPreferences.resolvedLocale }
 
     var body: some View {
         DeckActivitySheetSurface {
@@ -118,13 +146,32 @@ private struct DeckActivityDaySection: View {
     }
 
     private var summaryLine: String {
+        let cards = AppLocalization.numbered(
+            day.uniqueCardsReviewed,
+            singular: "%d card",
+            plural: "%d cards",
+            locale: locale
+        )
+        let passes = AppLocalization.numbered(
+            day.rawReviewCount,
+            singular: "%d pass",
+            plural: "%d passes",
+            locale: locale
+        )
         var parts = [
-            "\(day.uniqueCardsReviewed) card" + (day.uniqueCardsReviewed == 1 ? "" : "s"),
-            "\(day.rawReviewCount) pass" + (day.rawReviewCount == 1 ? "" : "es")
+            cards,
+            passes
         ]
 
         if day.retryCount > 0 {
-            parts.append("\(day.retryCount) " + (day.retryCount == 1 ? "retry" : "retries"))
+            parts.append(
+                AppLocalization.numbered(
+                    day.retryCount,
+                    singular: "%d retry",
+                    plural: "%d retries",
+                    locale: locale
+                )
+            )
         }
 
         return parts.joined(separator: " • ")
@@ -181,9 +228,12 @@ private struct DeckActivityPill: View {
 
 private struct DeckActivityCardRow: View {
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(AppPreferences.self) private var appPreferences
 
     let card: DeckTodayReviewedCardSummary
     let goodTint: Color
+
+    private var locale: Locale { appPreferences.resolvedLocale }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -197,7 +247,7 @@ private struct DeckActivityCardRow: View {
                     .foregroundStyle(themeManager.textPrimary)
                     .lineLimit(1)
 
-                Text("\(card.reviewCount) pass" + (card.reviewCount == 1 ? "" : "es"))
+                Text(reviewCountLine)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(themeManager.textSecondary)
             }
@@ -222,16 +272,25 @@ private struct DeckActivityCardRow: View {
         }
     }
 
+    private var reviewCountLine: String {
+        AppLocalization.numbered(
+            card.reviewCount,
+            singular: "%d pass",
+            plural: "%d passes",
+            locale: locale
+        )
+    }
+
     private var outcomeLabel: String {
         switch card.finalDifficulty {
         case .again:
-            return "Retry"
+            return AppLocalization.string("Retry", locale: locale)
         case .hard:
-            return "Hard"
+            return AppLocalization.string("Hard", locale: locale)
         case .good:
-            return "Good"
+            return AppLocalization.string("Good", locale: locale)
         case .easy:
-            return "Easy"
+            return AppLocalization.string("Easy", locale: locale)
         }
     }
 

@@ -1,0 +1,641 @@
+key	en	ro	ru
+ 	 	 	 
+#%@	#%@	#%@	#%@
+%@	%@	%@	%@
+%@ %@	%1$@ %2$@	%1$@ %2$@	%1$@ %2$@
+%@ %@ Â· %@ chars	%1$@ %2$@ Â· %3$@ chars	%1$@ %2$@ Â· %3$@ caractere	%1$@ %2$@ · %3$@ символов
+%@ answer%@	%1$@ answer%2$@	%1$@ răspuns%2$@	%1$@ ответ%2$@
+%@ card%@	%1$@ card%2$@	%1$@ card%2$@	%1$@ карта%2$@
+%@ cards	%@ cards	%@ carduri	%@ карточек
+%@ cards, %@ images	%1$@ cards, %2$@ images	%1$@ carduri, %2$@ imagini	%1$@ карточек, %2$@ изображений
+%@ chars	%@ chars	%@ caractere	%@ символов
+%@ code	%@ code	Cod %@	Код %@
+%@ code: %@	%@ code: %@	Cod %@: %@	Код %@: %@
+%@ deck%@	%1$@ deck%2$@	%1$@ deck%2$@	%1$@ колода%2$@
+%@ decks	%@ decks	%@ deckuri	%@ колод
+%@ Defaults	%@ Defaults	Setări implicite %@	Настройки по умолчанию: %@
+%@ editing is not wired yet	%@ editing is not wired yet	Editarea %@ nu este încă conectată	Редактирование %@ еще не подключено
+%@ focus	%@ focus	%@ focus	%@ фокус
+%@ folded into %@. %@	%@ folded into %@. %@	%@ incluse în %@. %@	%@ включено в %@. %@
+%@ imported successfully.	%@ imported successfully.	%@ a fost importat cu succes.	%@ успешно импортирован.
+%@ passes â¢ %@ days	%1$@ passes â¢ %2$@ days	%1$@ trece â¢ %2$@ zile	%1$@ прошло %2$@ дней.
+%@ reviewed	%@ reviewed	%@ revizuit	%@ проверено
+%@ reviews per day	%@ reviews per day	%@ recenzii pe zi	%@ отзывов в день
+%@ total	%@ total	%@ total	%@ всего
+%@ unique	%@ unique	%@ unică	%@ уникальный
+%@ unique â¢ %@ landed â¢ %@ retry	%1$@ unique â¢ %2$@ landed â¢ %3$@ retry	%1$@ unic â¢ %2$@ a aterizat â¢ %3$@ reîncercați	%1$@ уникальный â¢ %2$@ приземлился â¢ %3$@ повторить попытку
+%@ XP to next	%@ XP to next	%@ XP la următorul	%@ опыта до следующего
+%@ â¢ %@	%1$@ â¢ %2$@	%1$@ â¢ %2$@	%1$@ â¢ %2$@
+%@%	%1$@%2$	%1$@%2$	%1$@%2$
+%@-%@	%1$@-%2$@	%1$@-%2$@	%1$@-%2$@
+%@/%@	%1$@/%2$@	%1$@/%2$@	%1$@/%2$@
+%@: %@	%1$@: %2$@	%1$@: %2$@	%1$@: %2$@
+%@x	%@x	%@x	%@x
+%d %@	%d %@	%d %@	%d %@
+%d AI	%d AI	%d AI	%d AI
+%d answer	%d answer	%d răspuns	%d ответ
+%d answers	%d answers	%d răspunsuri	%d ответов
+%d card	%d card	%d card	%d карточка
+%d card moved today	%d card moved today	%d card mutat azi	%d карточка пройдена сегодня
+%d cards	%d cards	%d carduri	%d карточек
+%d cards are ready.	%d cards are ready.	%d carduri sunt gata.	Готово %d карточек.
+%d cards are still open today.	%d cards are still open today.	%d carduri mai sunt deschise astăzi.	Сегодня ещё открыто %d карточек.
+%d cards left today	%d cards left today	%d carduri rămase azi	Сегодня осталось %d карточек
+%d cards lined up today	%d cards lined up today	%d carduri pregătite azi	На сегодня подготовлено %d карточек
+%d cards moved today	%d cards moved today	%d carduri mutate azi	%d карточек пройдено сегодня
+%d chars	%d chars	%d caractere	%d символов
+%d CORRECT CHOICES	%d CORRECT CHOICES	%d RĂSPUNSURI CORECTE	%d ПРАВИЛЬНЫХ ВАРИАНТОВ
+%d day	%d day	%d zi	%d день
+%d days	%d days	%d zile	%d дней
+%d days ago	%d days ago	acum %d zile	%d дн. назад
+%d deck	%d deck	%d pachet	%d колода
+%d Deck	%d Deck	%d deck	%d колода
+%d decks	%d decks	%d pachete	%d колод
+%d Decks	%d Decks	%d deckuri	%d колод
+%d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
+%d goal days	%d goal days	%d zile cu țintă	%d дней с целью
+%d hidden	%d hidden	%d ascunse	%d скрыто
+%d left	%d left	%d rămase	Осталось %d
+%d manual	%d manual	%d manuale	%d вручную
+%d match	%d match	%d potrivire	%d совпадение
+%d matches	%d matches	%d potriviri	%d совпадений
+%d Pairs	%d Pairs	%d perechi	%d пар
+%d pass	%d pass	%d trecere	%d проход
+%d passes	%d passes	%d treceri	%d проходов
+%d photos	%d photos	%d poze	%d фото
+%d quiz	%d quiz	%d quiz	%d квиз
+%d retries	%d retries	%d retry-uri	%d повторов
+%d retry	%d retry	%d retry	%d повтор
+%d selected	%d selected	%d selectate	Выбрано: %d
+%d sketches	%d sketches	%d schițe	%d эскизов
+%d still need another pass.	%d still need another pass.	%d încă au nevoie de o trecere.	%d ещё нужны повторные проходы.
+%d unique cards are locked in for today.	%d unique cards are locked in for today.	%d carduri unice sunt deja bifate azi.	%d уникальных карточек уже закрыты на сегодня.
+%d write	%d write	%d scriere	%d письмо
+%d/%d active	%d/%d active	%d/%d zile active	%d/%d активных дней
+%dd ago	%dd ago	acum %dz	%dд назад
+%dh ago	%dh ago	acum %dore	%dч назад
+%dm ago	%dm ago	acum %dmin	%dм назад
+%dmo ago	%dmo ago	acum %dl	%dмес назад
++%@ more card%@	+%1$@ more card%2$@	+%1$@ mai mult card%2$@	+%1$@ еще карточка%2$@
++%@ more match%@ in this deck	+%1$@ more match%2$@ in this deck	+%1$@ mai multe potriviri%2$@ în acest deck	+%1$@ больше совпадений %2$@ в этой колоде
++%@ XP	+%@ XP	+%@ XP	+%@ опыта
++%d more match in this deck	+%d more match in this deck	+%d potrivire în plus în acest deck	+%d совпадение в этой колоде
++%d more matches in this deck	+%d more matches in this deck	+%d potriviri în plus în acest deck	+%d совпадений в этой колоде
++12%	+12%	+12%	+12%
+/%@	/%@	/%@	/%@
+1	1	1	1
+1 active day	1 active day	1 zi activă	1 активный день
+1 card left today	1 card left today	1 card rămas azi	Сегодня осталась 1 карточка
+1 CORRECT CHOICE	1 CORRECT CHOICE	1 RĂSPUNS CORECT	1 ПРАВИЛЬНЫЙ ВАРИАНТ
+1 day	1 day	1 zi	1 день
+1 goal day	1 goal day	1 zi cu țintă	1 день с целью
+1 still needs another pass.	1 still needs another pass.	1 încă are nevoie de o trecere.	1 ещё нужен повторный проход.
+100	100	100	100
+28-Day Activity	28-Day Activity	Activitate de 28 de zile	28-дневная активность
+8 sessions this week	8 sessions this week	8 sedinte saptamana aceasta	8 занятий на этой неделе
+A distributed-system model where replicas converge over time instead of synchronizing immediately.	A distributed-system model where replicas converge over time instead of synchronizing immediately.	Un model de sistem distribuit în care replicile converg în timp în loc să se sincronizeze imediat.	Модель распределенной системы, в которой реплики сходятся во времени, а не синхронизируются немедленно.
+Accent	Accent	Accent	Акцент
+Accuracy	Accuracy	Acuratețe	Точность
+Active	Active	Activ	Активный
+Active Configuration	Active Configuration	Configurație activă	Активная конфигурация
+Active days	Active days	Zile active	Активные дни
+Activity	Activity	Activitate	Активность
+Add a question before saving.	Add a question before saving.	Adaugă întrebarea înainte de salvare.	Добавьте вопрос перед сохранением.
+Add an exam to track readiness across linked decks and mark that day in the Home calendar.	Add an exam to track readiness across linked decks and mark that day in the Home calendar.	Adăugați un examen pentru a urmări pregătirea în deckuri conectate și marcați ziua respectivă în calendarul Acasă.	Добавьте экзамен, чтобы отслеживать готовность всех связанных колод, и отметьте этот день в главном календаре.
+Add Answer	Add Answer	Adaugă răspuns	Добавить ответ
+Add at least two answers.	Add at least two answers.	Adaugă cel puțin două răspunsuri.	Добавьте минимум два ответа.
+Add cards to this deck first.	Add cards to this deck first.	Adaugă mai întâi carduri în acest deck.	Сначала добавьте карточки в эту колоду.
+Add Explanation	Add Explanation	Adaugă explicație	Добавить объяснение
+Add source text before saving.	Add source text before saving.	Adaugă textul sursă înainte de salvare.	Добавьте исходный текст перед сохранением.
+Add text and mark a blank to preview the card.	Add text and mark a blank to preview the card.	Adaugă text și marchează un spațiu liber pentru previzualizare.	Добавьте текст и отметьте пропуск для предпросмотра.
+AI generation paused	AI generation paused	Generarea AI este pe pauză	AI генерация на паузе
+Align Center	Align Center	Aliniază la centru	По центру
+Align Left	Align Left	Aliniază la stânga	По левому краю
+Align Right	Align Right	Aliniază la dreapta	По правому краю
+All Cards	All Cards	Toate cardurile	Все карточки
+All Decks	All Decks	Toate deckurile	Все колоды
+All folders	All folders	Toate foldere	Все папки
+Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
+Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
+Answer	Answer	Răspuns	Ответ
+ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
+ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
+Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
+ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
+Auto	Auto	Auto	Авто
+Auto keeps the full source covered, then balances density by text weight.	Auto keeps the full source covered, then balances density by text weight.	Auto menține întreaga sursă acoperită, apoi echilibrează densitatea în funcție de greutatea textului.	В режиме «Авто» сохраняется весь источник, а затем балансируется плотность по весу текста.
+Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
+Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
+Blank	Blank	Gol	Пропуск
+BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
+Blue	Blue	Albastru	Синий
+Blur Color	Blur Color	Culoare blur	Цвет блюра
+Blur Header Lab	Blur Header Lab	Blur Header Lab	Лаборатория размытия заголовков
+Blur Tuner	Blur Tuner	Reglaj blur	Настройка блюра
+Body	Body	Corp	Текст
+Bottom chrome visible	Bottom chrome visible	Parte de jos crom vizibil	Виден нижний хром
+Building the deck briefing	Building the deck briefing	Crearea briefing-ului deck	Брифинг по составлению колоды
+By Deck	By Deck	De Deck	По колоде
+Cancel	Cancel	Anulează	Отмена
+Cancel AI generation	Cancel AI generation	Anulează generarea AI	Отменить AI генерацию
+Cancel conversion	Cancel conversion	Anulează conversia	Отменить конвертацию
+Cancel editing deck	Cancel editing deck	Anulează editarea deckului	Отменить редактирование колоды
+Caption	Caption	Legendă	Подпись
+Card	Card	Card	Карта
+Card %@	Card %@	Card %@	Карта %@
+Card %d	Card %d	Card %d	Карта %d
+card moved	card moved	card mutat	карточка пройдена
+Cards	Cards	Carduri	Карточки
+cards	cards	carduri	карточки
+Cards Count	Cards Count	Carduri Număr	Количество карт
+cards moved	cards moved	carduri mutate	карточек пройдено
+CARDS(%@)	CARDS(%@)	CARDURI(%@)	КАРТОЧКИ(%@)
+CARDS(%d)	CARDS(%d)	CARDURI(%d)	КАРТОЧКИ(%d)
+Cellular Respiration	Cellular Respiration	Respirația celulară	Клеточное дыхание
+Center	Center	Centru	Центр
+Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.	Change these controls while the sheet is open. Height, corner radius, drag zone, indicator, and background update immediately.	Schimbați aceste comenzi în timp ce foaia este deschisă. Înălțimea, raza colțului, zona de tragere, indicatorul și fundalul se actualizează imediat.	Измените эти элементы управления, пока лист открыт. Высота, угловой радиус, зона перетаскивания, индикатор и фон обновляются немедленно.
+Choice %@	Choice %@	Alegere %@	Выбор %@
+Choice %d	Choice %d	Varianta %d	Вариант %d
+Choices	Choices	Variante	Варианты
+Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
+Choose a language	Choose a language	Alegeți o limbă	Выберите язык
+Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
+Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
+Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
+Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
+Choose one source type, convert into another, and save the result with minimal setup.	Choose one source type, convert into another, and save the result with minimal setup.	Alegeți un tip de sursă, convertiți-l în altul și salvați rezultatul cu o configurare minimă.	Выберите один тип источника, преобразуйте в другой и сохраните результат с минимальной настройкой.
+Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
+Choose Photos	Choose Photos	Alege poze	Выбрать фото
+Choose where the selected decks should go.	Choose where the selected decks should go.	Alege unde să meargă deckurile selectate.	Выберите, куда переместить выбранные колоды.
+Choose where this deck should go.	Choose where this deck should go.	Alege unde să meargă acest deck.	Выберите, куда переместить эту колоду.
+Clean finish so far.	Clean finish so far.	Final curat până acum.	Пока чистое завершение.
+Cleanup	Cleanup	Curăță	Очистка
+Clear	Clear	Șterge	Очистить
+Clear search text	Clear search text	Șterge textul căutării	Очистить текст поиска
+Close activity detail	Close activity detail	Închide detaliile activității	Закрыть детали активности
+Close performance detail	Close performance detail	Închide detaliile performanței	Закрыть детали прогресса
+Close search	Close search	Închide căutarea	Закрыть поиск
+Close spaced repetition stats	Close spaced repetition stats	Închide statisticile de repetare spațiată	Закрыть статистику интервального повторения
+Code	Code	Cod	Код
+Code: %@	Code: %@	Cod: %@	Код: %@
+Collapse	Collapse	Restrânge	Свернуть
+Configurations are stored in the app sandbox Application Support folder, outside source control.	Configurations are stored in the app sandbox Application Support folder, outside source control.	Configurațiile sunt stocate în aplicația sandbox Application Support folder, în afara controlului sursei.	Конфигурации хранятся в папке «Поддержка приложений» песочницы приложения, вне системы контроля версий.
+Continue	Continue	Continuă	Продолжить
+Continue from the last completed batch when you're ready.	Continue from the last completed batch when you're ready.	Continuă de la ultimul lot finalizat când ești gata.	Продолжите с последнего завершённого пакета, когда будете готовы.
+Continue where you left off.	Continue where you left off.	Continuă de unde ai rămas.	Продолжайте с того места, где остановились.
+Conversion	Conversion	Conversie	Конверсия
+Conversion paused	Conversion paused	Conversie pauzată	Конвертация приостановлена
+Conversion stopped	Conversion stopped	Conversia a fost oprită	Преобразование остановлено
+Convert	Convert	Convertește	Конвертировать
+Convert %d card to %@	Convert %d card to %@	Convertește %d card în %@	Преобразовать %d карточку в %@
+Convert %d cards to %@	Convert %d cards to %@	Convertește %d carduri în %@	Преобразовать %d карточки в %@
+Convert Cards	Convert Cards	Convertiți Carduri	Конвертировать карточки
+Convert the current cards to Flashcards to use this mode.	Convert the current cards to Flashcards to use this mode.	Convertește cardurile curente în fișe ca să folosești acest mod.	Преобразуйте текущие карточки в карточки, чтобы использовать этот режим.
+Convert the current cards to Match to use this mode.	Convert the current cards to Match to use this mode.	Convertește cardurile curente în potrivire ca să folosești acest mod.	Преобразуйте текущие карточки в сопоставление, чтобы использовать этот режим.
+Convert the current cards to Quiz to use this mode.	Convert the current cards to Quiz to use this mode.	Convertește cardurile curente în quiz ca să folosești acest mod.	Преобразуйте текущие карточки в викторину, чтобы использовать этот режим.
+Convert the current cards to Write to use this mode.	Convert the current cards to Write to use this mode.	Convertește cardurile curente în scriere ca să folosești acest mod.	Преобразуйте текущие карточки в письмо, чтобы использовать этот режим.
+Convert this card to %@	Convert this card to %@	Convertiți acest card în %@	Преобразуйте эту карту в %@
+Converted	Converted	Convertit	Преобразовано
+Copied!	Copied!	Copiat!	Скопировано!
+Copy and share with Codex	Copy and share with Codex	Copiați și partajați cu Codex	Скопируйте и поделитесь с Кодексом
+Correct	Correct	Corect	Верно
+Covers %@ %@	Covers %1$@ %2$@	Acoperă %1$@ %2$@	Обложки %1$@ %2$@
+Create	Create	Creează	Создать
+Create a deck	Create a deck	Creați un deck	Создать колоду
+Create a deck first, then link it to this exam goal.	Create a deck first, then link it to this exam goal.	Creați mai întâi un deck, apoi conectați-l la acest obiectiv al examenului.	Сначала создайте колоду, а затем свяжите ее с этой целью экзамена.
+Create a deck to start studying from Home.	Create a deck to start studying from Home.	Creează un deck ca să începi să studiezi din Acasă.	Создайте колоду, чтобы начать учиться с главного экрана.
+Create Deck	Create Deck	Creează deck	Создать колоду
+Create exam goal	Create exam goal	Creează obiectiv de examen	Создать цель экзамена
+Create one from the section header.	Create one from the section header.	Creați unul din antetul secțiunii.	Создайте его из заголовка раздела.
+Create your first deck	Create your first deck	Creează primul tău deck	Создайте свою первую колоду
+Create your first deck to begin.	Create your first deck to begin.	Creează primul tău deck ca să începi.	Создайте первую колоду, чтобы начать.
+Create your first folder	Create your first folder	Creați primul dvs. folder	Создайте свою первую папку
+Created %@	Created %@	Creat %@	Создано %@
+Current %@	Current %@	%@ curent	Текущая %@
+Current Summary	Current Summary	Rezumat curent	Текущая сводка
+Current week	Current week	Săptămâna curentă	Текущая неделя
+Custom Color	Custom Color	Culoare personalizată	Свой цвет
+Cyan	Cyan	Cyan	Голубой
+Daily Workload	Daily Workload	Volumul de lucru zilnic	Ежедневная нагрузка
+Deck Health	Deck Health	Deck Sănătate	Здоровье колоды
+Deck Title	Deck Title	Deck Titlu	Название колоды
+DECK-SCOPED SETTINGS	DECK-SCOPED SETTINGS	SETĂRI PENTRU PUNTE	НАСТРОЙКИ ПАЛУБЫ
+Default	Default	Implicit	По умолчанию
+Default %@	Default %@	%@ implicit	По умолчанию %@
+Delete	Delete	Șterge	Удалить
+"Delete ""%@""?"	"Delete ""%@""?"	Ștergi „%@”?	"Удалить ""%@""?"
+Delete %d card?	Delete %d card?	Ștergi %d card?	Удалить %d карточку?
+Delete %d cards?	Delete %d cards?	Ștergi %d carduri?	Удалить %d карточки?
+Delete %d selected card	Delete %d selected card	Șterge %d card selectat	Удалить %d выбранную карточку
+Delete %d selected cards	Delete %d selected cards	Șterge %d carduri selectate	Удалить %d выбранные карточки
+Delete %d selected deck	Delete %d selected deck	Șterge %d deck selectat	Удалить %d выбранную колоду
+Delete %d selected decks	Delete %d selected decks	Șterge %d deckuri selectate	Удалить %d выбранных колод
+Delete Deck	Delete Deck	Șterge deckul	Удалить колоду
+Developer-only OpenAI-compatible profile	Developer-only OpenAI-compatible profile	Profil compatibil cu OpenAI numai pentru dezvoltatori	OpenAI-совместимый профиль только для разработчиков
+Discard Changes	Discard Changes	Renunță la modificări	Не сохранять изменения
+Discard received cards	Discard received cards	Renunță la cardurile primite	Удалить полученные карточки
+Done	Done	Gata	Готово
+Done Selecting	Done Selecting	Terminată selecția	Завершить выбор
+Done selecting decks	Done selecting decks	Finalizează selectarea deckurilor	Завершить выбор колод
+Due	Due	Scadent	Срок
+Due Today	Due Today	Datorită azi	Срок оплаты сегодня
+Earlier cards	Earlier cards	Carduri anterioare	Предыдущие карточки
+Ease	Ease	Ușurință	Лёгкость
+Easy	Easy	Ușor	Легко
+Edit	Edit	Edita	Редактировать
+Edit the source text, then select the part you want learners to fill in.	Edit the source text, then select the part you want learners to fill in.	Editează textul sursă, apoi selectează partea pe care cursanții trebuie să o completeze.	Отредактируйте исходный текст, затем выберите часть, которую нужно заполнить.
+Edited	Edited	Editate	Изменённые
+Edited %@	Edited %@	Editat %@	Отредактировано %@
+Empty card	Empty card	Card gol	Пустая карточка
+Empty choice	Empty choice	Variantă goală	Пустой вариант
+Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run.	Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run.	Activați urmărirea AI verbosă, generați sau convertiți carduri, apoi reveniți aici pentru a inspecta istoricul complet JSON pentru fiecare rulare.	Включите подробную отслеживание ИИ, создайте или преобразуйте карточки, а затем вернитесь сюда, чтобы просмотреть полную историю JSON для каждого запуска.
+Endpoint: %@	Endpoint: %@	Punct final: %@	Конечная точка: %@
+Exam Pressure	Exam Pressure	Presiunea de examen	Экзаменационное давление
+Example: Capital of France	Example: Capital of France	Exemplu: Capitala Franței	Пример: столица Франции
+Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
+Exams	Exams	Examene	Экзамены
+Expand	Expand	Extinde	Развернуть
+Experiments	Experiments	Experimente	Эксперименты
+Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
+Explanation	Explanation	Explicație	Объяснение
+EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
+Export Deck	Export Deck	Exportă deckul	Экспортировать колоду
+Export Error	Export Error	Eroare la export	Ошибка экспорта
+Export selected decks	Export selected decks	Exportă deckurile selectate	Экспортировать выбранные колоды
+Exporting %d decks…	Exporting %d decks…	Se exportă %d deckuri…	Экспорт %d колод…
+Exporting %d deck…	Exporting %d deck…	Se exportă %d deck…	Экспорт %d колоды…
+Exporting...	Exporting...	Se exportă...	Экспорт...
+Extract text from images or documents.	Extract text from images or documents.	Extrageți text din imagini sau documente.	Извлечение текста из изображений или документов.
+Fill in every answer before saving.	Fill in every answer before saving.	Completează toate răspunsurile înainte de salvare.	Заполните все ответы перед сохранением.
+"Filtered by ""**%@**"""	"Filtered by ""**%@**"""	Filtrată după „**%@**”	"Отфильтровано по ""**%@**"""
+First cards are on the way	First cards are on the way	Primele carduri sunt pe drum	Первые карточки уже создаются
+First converted cards are on the way	First converted cards are on the way	Primele carduri convertite sunt pe drum	Первые конвертированные карточки уже создаются
+Flashcard	Flashcard	Flashcard	Флэшкарточка
+Flashcard Border Radius	Flashcard Border Radius	Raza chenarului cardului	Радиус границы карточки
+Flashcards	Flashcards	Fișe	Карточки
+Flashcards Isn't Ready	Flashcards Isn't Ready	Fișele nu sunt pregătite	Карточки ещё не готовы
+FLICK	FLICK	SCUTURA	щелкнуть
+Focus deck	Focus deck	Deck principal	Главная колода
+Focus Streak	Focus Streak	Seria de focalizare	Полоса фокуса
+Folders	Folders	Foldere	Папки
+Freed	Freed	Eliberat	Фрид
+Full Width	Full Width	Lățime completă	На всю ширину
+Gallery	Gallery	Galerie	Галерея
+Generate	Generate	Genera	Генерировать
+Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generating	Generating	Generare	Генерация
+Generating AI...	Generating AI...	Se generează cu AI...	Генерация AI...
+Get started	Get started	Începe	Начать
+Getting Started	Getting Started	Noțiuni de bază	Начиная
+Goal closed	Goal closed	Obiectiv închis	Цель закрыта
+Goal days	Goal days	Zile cu țintă	Дни цели
+Good	Good	Bine	Хорошо
+Good afternoon	Good afternoon	Bună ziua	Добрый день
+Good cards	Good	Bune	Хорошие
+Good evening	Good evening	Bună seara	Добрый вечер
+Good morning	Good morning	Bună dimineața	Доброе утро
+Good night	Good night	Noapte bună	Доброй ночи
+Good rate	Good rate	Rată bune	Доля хороших
+Green	Green	Verde	Зелёный
+Grid matching	Grid matching	Potrivire în grilă	Сопоставление по сетке
+Group By	Group By	Grupează după	Группировать по
+Group by Card Type	Group by Card Type	Grupează după tipul cardului	Группировать по типу карточки
+GUIDED BRIEFING	GUIDED BRIEFING	BRIEFING DIRIGAT	БРИФИНГ С УПРАВЛЕНИЕМ
+Hard	Hard	Greu	Сложно
+Header Blur	Header Blur	Încețoșare antet	Размытие заголовка
+Headline	Headline	Subtitlu	Подзаголовок
+Hide	Hide	Ascunde	Скрыть
+Hide Blur	Hide Blur	Ascunde blurul	Скрыть блюр
+Hide Shadow	Hide Shadow	Ascunde umbra	Скрыть тень
+History	History	Istoric	История
+Home	Home	Acasă	Главная
+Image	Image	Imagine	Изображение
+Import	Import	Importă	Импорт
+Import Deck	Import Deck	Importă deck	Импортировать колоду
+Import Error	Import Error	Eroare la import	Ошибка импорта
+Import Successful	Import Successful	Import reușit	Импорт завершен
+Importing…	Importing…	Se importă…	Импорт…
+Improving day by day	Improving day by day	Se îmbunătățește zi de zi	Становится лучше день за днём
+In %d days	In %d days	Peste %d zile	Через %d дн.
+Include the net ATP yield for each stage and where in the cell each stage occurs.	Include the net ATP yield for each stage and where in the cell each stage occurs.	Includeți randamentul net de ATP pentru fiecare etapă și unde în celulă are loc fiecare etapă.	Включите чистый выход АТФ для каждой стадии и место в клетке, где происходит каждая стадия.
+Interval	Interval	Interval	Интервал
+just now	just now	chiar acum	только что
+Keep %d received cards	Keep %d received cards	Păstrează %d carduri primite	Оставить %d полученных карточек
+Keep Editing	Keep Editing	Continuă editarea	Продолжить редактирование
+Keeping the current list stable while the next result set is prepared.	Keeping the current list stable while the next result set is prepared.	Păstrăm lista curentă stabilă până când se pregătește următorul set de rezultate.	Текущий список остается стабильным, пока готовится следующий набор результатов.
+Labs	Labs	Laborator	Лабы
+Landed	Landed	Reușite	Уверенно
+Last Interaction	Last Interaction	Ultima interacțiune	Последнее взаимодействие
+Last opened %@.	Last opened %@.	Deschis ultima dată %@.	Последний раз открывали %@.
+Last week	Last week	Săptămâna trecută	Прошлая неделя
+Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.	Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.
+Learn	Learn	Învățare	Обучение
+Learn fast and effectively.	Learn fast and effectively.	Învață rapid și eficient.	Учитесь быстро и эффективно.
+Learn Isn't Ready	Learn Isn't Ready	Modul Învață nu este pregătit	Режим обучения ещё не готов
+Learning	Learning	În învățare	В изучении
+LEARNING PROGRESS	LEARNING PROGRESS	PROGRESUL DE ÎNVĂȚARE	ПРОГРЕСС ОБУЧЕНИЯ
+Left	Left	Stânga	Левый
+Less	Less	Mai puțin	Меньше
+Level %@	Level %@	Nivel %@	Уровень %@
+Library	Library	Bibliotecă	Библиотека
+Library (All Decks)	Library (All Decks)	Bibliotecă (toate deckurile)	Библиотека (все колоды)
+List	List	Listă	Список
+Live card memory and schedule snapshot	Live card memory and schedule snapshot	Instantaneu live al memoriei cardului și al programului	Живой снимок памяти карточки и расписания
+Live Swipe HUD	Live Swipe HUD	Live Swipe HUD	Живой HUD смахивания
+Log Out	Log Out	Deconectare	Выйти
+Manual	Manual	Manual	Вручную
+Manual input	Manual input	Introducere manuală	Ручной ввод
+Mark at least one correct answer.	Mark at least one correct answer.	Marchează cel puțin un răspuns corect.	Отметьте минимум один правильный ответ.
+Mark Blank	Mark Blank	Marchează spațiul	Отметить пропуск
+Mark Correct	Mark Correct	Marchează corect	Отметить верным
+Mastered	Mastered	Stăpânite	Освоенные
+Match	Match	Potrivire	Сопоставление
+Match Card	Match Card	Card de potrivire	Карточка сопоставления
+Match Cards	Match Cards	Carduri de potrivire	Карточки сопоставления
+Match Isn't Ready	Match Isn't Ready	Potrivirea nu este pregătită	Режим сопоставления ещё не готов
+MATCH PREVIEW	MATCH PREVIEW	PREVIZUALIZARE POTRIVIRE	ПРЕДПРОСМОТР СОПОСТАВЛЕНИЯ
+Match-ready	Match-ready	Pregătit pentru potrivire	Готово для сопоставления
+match-ready	match-ready	pregătite pentru potrivire	готовые для сопоставления
+match-weak	match-weak	potriviri slabe	слабые для сопоставления
+Match-weak	Match-weak	Potrivire slabă	Слабое сопоставление
+Medium	Medium	Mediu	Средний
+Mock AI	Mock AI	Simulare AI	Мок ИИ
+Mode	Mode	Modul	Режим
+Momentum	Momentum	Impuls	Импульс
+Monospaced	Monospaced	Monospațiat	Моноширинный
+More	More	Mai mult	Более
+More actions	More actions	Mai multe acțiuni	Еще действия
+More library actions	More library actions	Mai multe acțiuni în bibliotecă	Еще действия библиотеки
+Most urgent	Most urgent	Cel mai urgent	Самое срочное
+Move	Move	Mişcare	Двигаться
+"Move ""%@"""	"Move ""%@"""	Mută „%@”	"Переместить ""%@"""
+Move %d deck	Move %d deck	Mută %d deck	Переместить %d колоду
+Move %d decks	Move %d decks	Mută %d deckuri	Переместить %d колод
+Move Error	Move Error	Eroare la mutare	Ошибка перемещения
+Move selected decks	Move selected decks	Mută deckurile selectate	Переместить выбранные колоды
+Move to Folder	Move to Folder	Mută în folder	Переместить в папку
+moves	moves	mutare	движений
+Multiple	Multiple	Multiple	Несколько
+Multiple choice	Multiple choice	Variante multiple	Множественный выбор
+Multiple Correct	Multiple Correct	Răspunsuri multiple	Несколько правильных
+Multiple correct answers enabled	Multiple correct answers enabled	Răspunsuri corecte multiple activate	Включено несколько правильных ответов
+Needs attention	Needs attention	Cere atenție	Требует внимания
+New	New	Nou	Новый
+Newest	Newest	Cele mai noi	Сначала новые
+Next	Next	Următorul	Следующий
+No	No	Nicio	Нет
+No activity yet	No activity yet	Încă nu există activitate	Пока нет активности
+No AI provider profile is available yet.	No AI provider profile is available yet.	Niciun profil de furnizor AI nu este disponibil încă.	Профиль поставщика ИИ пока недоступен.
+No answer added	No answer added	Niciun răspuns adăugat	Ответ не добавлен
+No answer selected	No answer selected	Niciun răspuns selectat	Ответ не выбран
+No blank selected	No blank selected	Niciun gol selectat	Пропуск не выбран
+No cards moved today	No cards moved today	Niciun card mutat azi	Сегодня не было активных карточек
+No cards yet	No cards yet	Niciun card încă	Карточек пока нет
+No catalog matches	No catalog matches	Nicio potrivire de catalog	Нет совпадений по каталогу
+No choices added	No choices added	Nicio variantă adăugată	Варианты не добавлены
+No content	No content	Fără conținut	Нет контента
+No content added	No content added	Niciun conținut adăugat	Контент не добавлен
+No coverage blocks yet. Once the deck has cards, Learn mode will group them here.	No coverage blocks yet. Once the deck has cards, Learn mode will group them here.	Încă nu există blocuri de acoperire. După ce deck are carduri, modul Învățare le va grupa aici.	Блокировок покрытия пока нет. Когда в колоде появятся карты, режим обучения сгруппирует их здесь.
+No deck data	No deck data	Nu există date deck	Нет данных колоды
+No deck yet	No deck yet	Niciun deck încă	Колоды пока нет
+No Decks	No Decks	Niciun deck	Нет колод
+No decks in this folder.	No decks in this folder.	Nu există deckuri în acest folder.	В этой папке нет колод.
+No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
+No exam goals	No exam goals	Fără obiective de examen	Нет целей экзамена
+No exam goals yet	No exam goals yet	Niciun obiectiv de examen încă	Целей экзамена пока нет
+No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
+No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
+No matching decks or cards	No matching decks or cards	Niciun deck sau card potrivit	Нет подходящих колод или карточек
+No prompt added	No prompt added	Niciun enunț adăugat	Подсказка не добавлена
+No question added	No question added	Nicio întrebare adăugată	Вопрос не добавлен
+None	None	Fără	Нет
+Not now	Not now	Nu acum	Не сейчас
+Nothing in the shared UI registry matches â%@â.	Nothing in the shared UI registry matches â%@â.	Nimic din registrul UI partajat nu se potrivește cu â%@â.	Ничто в реестре общего пользовательского интерфейса не соответствует %@â.
+Nothing landed on %@	Nothing landed on %@	Nimic nu a aterizat pe %@	На %@ ничего не попало
+OK	OK	OK	OK
+Oldest	Oldest	Cele mai vechi	Сначала старые
+Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.	Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.	Odată ce adăugați un deck, această zonă se va transforma într-un instantaneu de studiu live, cu indicații de progres și calendar.	Как только вы добавите колоду, эта область превратится в снимок живого исследования с указанием прогресса и календаря.
+Open a play mode to generate live activity in this deck.	Open a play mode to generate live activity in this deck.	Deschide un mod de joc pentru a genera activitate în acest deck.	Откройте режим игры, чтобы в этой колоде появилась активность.
+Open activity history	Open activity history	Deschide istoricul activității	Открыть историю активности
+Open AI conversion with only the cards flagged by readiness diagnostics.	Open AI conversion with only the cards flagged by readiness diagnostics.	Deschide conversia AI doar cu cardurile marcate de diagnosticul de pregătire.	Откройте AI-конверсию только для карточек, отмеченных диагностикой готовности.
+Open Create	Open Create	Deschide Creare	Открыть создание
+Open Deck	Open Deck	Deschide deckul	Открыть колоду
+Open Focus Deck	Open Focus Deck	Deschide deckul principal	Открыть главную колоду
+Open Home	Open Home	Deschide Acasă	Открыть Главную
+Open Sample Sheet	Open Sample Sheet	Deschideți Sample Sheet	Открыть образец листа
+Open this deck to start today's goal.	Open this deck to start today's goal.	Deschide acest deck ca să începi obiectivul de azi.	Откройте эту колоду, чтобы начать сегодняшнюю цель.
+Optional	Optional	Opțional	Необязательный
+Optional rationale	Optional rationale	Explicație opțională	Необязательное объяснение
+"Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {""reasoning"":{""enabled"":true}}"	"Optional. Use this for provider-specific body fields such as OpenRouter reasoning. Example: {""reasoning"":{""enabled"":true}}"	"Opțional. Utilizați acest lucru pentru câmpurile de corp specifice furnizorului, cum ar fi raționamentul OpenRouter. Exemplu: {""resoning"":{""enabled"":true}}"	"Необязательный. Используйте это для полей тела, специфичных для поставщика, таких как рассуждения OpenRouter. Пример: {""рассуждение"":{""включено"":true}}"
+Orange	Orange	Portocaliu	Оранжевый
+Overflow Behaviour	Overflow Behaviour	Comportament de overflow	Поведение при переполнении
+Owner: %@	Owner: %@	Proprietar: %@	Владелец: %@
+Pace	Pace	Ritm	Темп
+Pause AI generation	Pause AI generation	Pune pe pauză generarea AI	Поставить AI генерацию на паузу
+Performance	Performance	Performanță	Прогресс
+Pick a deck	Pick a deck	Alege un deck	Выберите колоду
+Pick a deck and continue.	Pick a deck and continue.	Alege un deck și continuă.	Выберите колоду и продолжайте.
+Pick a deck for today	Pick a deck for today	Alege un deck pentru azi	Выберите колоду на сегодня
+Pick a deck for tonight	Pick a deck for tonight	Alege un deck pentru diseară	Выберите колоду на вечер
+Pick a deck row above to inspect the cards that landed cleanly and the ones that still need another pass.	Pick a deck row above to inspect the cards that landed cleanly and the ones that still need another pass.	Alegeți un rând deck de mai sus pentru a inspecta carduri care au aterizat curat și pe cele care mai au nevoie de o altă trecere.	Выберите ряд колоды выше, чтобы проверить карты, которые приземлились чисто, и те, которым еще нужен повторный проход.
+Pick the type of card you want to add to this deck.	Pick the type of card you want to add to this deck.	Alegeți tipul de card pe care doriți să îl adăugați la acest deck.	Выберите тип карточки, которую хотите добавить в эту колоду.
+Pin	Pin	Fixează	Закрепить
+Pink	Pink	Roz	Розовый
+Pinned	Pinned	Fixat	Закреплена
+Play Debug	Play Debug	Joacă Debug	Играть в отладку
+PLAY MODES	PLAY MODES	MODURI DE JOCARE	РЕЖИМЫ ИГРЫ
+Play Simulation	Play Simulation	Jucați Simulare	Играть в симуляторы
+Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
+Preview	Preview	Previzualizare	Предварительный просмотр
+PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
+Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
+Progress and pace.	Progress and pace.	Progres și ritm.	Прогресс и темп.
+Prompt	Prompt	Enunț	Задание
+PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
+Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
+Purple	Purple	Mov	Фиолетовый
+Question	Question	Întrebare	Вопрос
+QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
+Quiz	Quiz	Quiz	Квиз
+Quiz Card	Quiz Card	Card quiz	Карточка-викторина
+Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
+Quiz Isn't Ready	Quiz Isn't Ready	Quiz-ul nu este pregătit	Режим викторины ещё не готов
+QuizFlash	QuizFlash	QuizFlash	__ВИКТОРИНА__
+QuizFlash User	QuizFlash User	QuizFlash Utilizator	QuizFlash Пользователь
+Radius %.1f	Radius %.1f	Raza %.1f	Радиус %.1f
+READINESS	READINESS	PREGĂTIREA	ГОТОВНОСТЬ
+readiness	readiness	pregătire	готовность
+Readiness and workload.	Readiness and workload.	Pregătire și volum.	Готовность и нагрузка.
+Reading	Reading	Citire	Чтение
+Reading Docs...	Reading Docs...	Se citesc documentele...	Чтение документов...
+Reading the source and setting up the generation pipeline.	Reading the source and setting up the generation pipeline.	Citirea sursei și configurarea conductei de generare.	Чтение исходников и настройка конвейера генерации.
+Ready	Ready	Pregătit	Готовность
+Recent decks and folders.	Recent decks and folders.	Pachete și foldere recente.	Недавние колоды и папки.
+Recents	Recents	Recente	Недавние
+Recommended conversion	Recommended conversion	Conversie recomandată	Рекомендуемое преобразование
+Red	Red	Roșu	Красный
+Relearning	Relearning	Reînvățare	Переобучение
+Remap	Remap	Remapează	Переназначить
+Reset	Reset	Resetează	Сброс
+Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симуляцию
+Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
+Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
+Retry	Retry	Reîncearcă	Повтор
+RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
+Retry cards	Retry	De repetat	Повторить
+Reviewed	Reviewed	Revizuite	Пройдено
+Reviews	Reviews	Repetări	Повторы
+Right	Right	Corect	Верно
+Rounded	Rounded	Rotunjit	Скруглённый
+Row %@	Row %@	Rândul %@	Строка %@
+Run mock AI generation	Run mock AI generation	Rulează generarea mock AI	Запустить mock AI генерацию
+Sans-Serif	Sans-Serif	Sans-serif	Без засечек
+Save	Save	Salvează	Сохранить
+Save Changes	Save Changes	Salvează modificările	Сохранить изменения
+Save changes before leaving?	Save changes before leaving?	Salvezi modificările înainte de ieșire?	Сохранить изменения перед выходом?
+Save deck	Save deck	Salvează deckul	Сохранить колоду
+Save Error	Save Error	Eroare la salvare	Ошибка сохранения
+Saved	Saved	Salvat	Сохранено
+Saved Configurations	Saved Configurations	Configurații salvate	Сохраненные конфигурации
+Score signals	Score signals	Semnale scor	Сигналы счёта
+Scroll this surface and watch the rows pass behind the sticky header blur.	Scroll this surface and watch the rows pass behind the sticky header blur.	Derulați această suprafață și urmăriți cum trec rândurile în spatele neclarității antetului lipicios.	Прокрутите эту поверхность и наблюдайте, как строки проходят за размытым липким заголовком.
+Search	Search	Căutare	Поиск
+Search decks, cards, answers	Search decks, cards, answers	Caută deckuri, carduri, răspunsuri	Искать колоды, карточки, ответы
+Searching…	Searching…	Se caută…	Поиск…
+See which decks need intervention before they slow down your progress.	See which decks need intervention before they slow down your progress.	Vedeți care deckuri au nevoie de intervenție înainte ca acestea să vă încetinească progresul.	Посмотрите, какие колоды требуют вмешательства, прежде чем они замедлят ваш прогресс.
+Select	Select	Selectează	Выбрать
+Select a non-empty substring to turn into the blank.	Select a non-empty substring to turn into the blank.	Selectează un fragment nevid pentru spațiul liber.	Выберите непустой фрагмент для пропуска.
+Select Cards	Select Cards	Selectează carduri	Выбрать карточки
+Select text in the editor to define the blank.	Select text in the editor to define the blank.	Selectează text în editor pentru a defini spațiul liber.	Выберите текст в редакторе, чтобы задать пропуск.
+Selected day	Selected day	Ziua selectată	Выбранный день
+Selected Day Insights	Selected Day Insights	Statistici ale zilei selectate	Статистика избранного дня
+Selected language	Selected language	Limba selectată	Выбранный язык
+Selected source	Selected source	Sursa selectată	Выбранный источник
+Selected Text	Selected Text	Text selectat	Выделенный текст
+Serif	Serif	Serif	С засечками
+Settings	Settings	Setări	Настройки
+Shadow Color	Shadow Color	Culoare umbră	Цвет тени
+Shadow Tuner	Shadow Tuner	Reglaj umbră	Настройка тени
+Shape	Shape	Formă	Форма
+Shared Consumers	Shared Consumers	Consumatori partajați	Общие потребители
+Shared Sheet Playground	Shared Sheet Playground	Loc de joacă comun cu foi	Общая игровая площадка на листе
+Show	Show	Arată	Показать
+Showing all	Showing all	Se afișează toate	Показаны все
+Side	Side	Parte	Сторона
+Sign in with Google	Sign in with Google	Conectați-vă cu Google	Войти через Google
+Sign out of the current QuizFlash session on this device.	Sign out of the current QuizFlash session on this device.	Deconectați-vă de la sesiunea curentă QuizFlash pe acest dispozitiv.	Выйдите из текущего сеанса QuizFlash на этом устройстве.
+Single correct answer	Single correct answer	Un singur răspuns corect	Один правильный ответ
+Sketch	Sketch	Schiță	Набросок
+Small	Small	Mic	Маленький
+Sort By	Sort By	Sortează după	Сортировать по
+Sort Cards	Sort Cards	Sortează cardurile	Сортировать карточки
+Source	Source	Sursă	Источник
+Source Range	Source Range	Interval sursă	Исходный диапазон
+Spaced Repetition Stats	Spaced Repetition Stats	Statistici repetare spațiată	Статистика интервального повторения
+Stable this week	Stable this week	Stabil săptămâna asta	Стабильно на этой неделе
+Start	Start	Începe	Старт
+Start a study session to unlock this view.	Start a study session to unlock this view.	Începeți o sesiune de studiu pentru a debloca această vizualizare.	Начните учебный сеанс, чтобы разблокировать этот вид.
+Start conversion	Start conversion	Pornește conversia	Запустить конвертацию
+Start today's goal from this deck.	Start today's goal from this deck.	Începe obiectivul de azi din acest deck.	Начните сегодняшнюю цель с этой колоды.
+Start with one focused block and let the ring fill with you.	Start with one focused block and let the ring fill with you.	Începe cu un bloc scurt și umple inelul.	Начни с короткого блока и заполни кольцо.
+State	State	Stare	Состояние
+Status	Status	Status	Статус
+Stop AI generation?	Stop AI generation?	Oprești generarea AI?	Остановить AI генерацию?
+Stop generation	Stop generation	Oprește generarea	Остановить генерацию
+Storage	Storage	Depozitare	Хранилище
+Stored Answer	Stored Answer	Răspuns salvat	Сохранённый ответ
+Streak	Streak	Serie	Серия
+Study Outlook	Study Outlook	Perspectivă de studiu	Перспективы исследования
+Summary report	Summary report	Raport sumar	Итоговый отчёт
+Suspended	Suspended	Suspendat	Приостановлена
+Swipe HUD	Swipe HUD	Glisați HUD	Проведите по интерфейсу
+Swipe review	Swipe review	Repetare prin glisare	Повтор свайпом
+Tab Bar	Tab Bar	Bara de file	Панель вкладок
+Tap + to add your first card	Tap + to add your first card	Atinge + ca să adaugi primul card	Нажмите +, чтобы добавить первую карточку
+Tap + to choose Flashcard, Match, Quiz, or Write, or use Auto AI to generate cards instantly.	Tap + to choose Flashcard, Match, Quiz, or Write, or use Auto AI to generate cards instantly.	Atingeți + pentru a alege Flashcard, Potrivire, Test sau Scriere sau utilizați Auto AI pentru a genera carduri instantaneu.	Нажмите +, чтобы выбрать «Карточка», «Сопоставить», «Викторина» или «Написать», или используйте Auto AI для мгновенного создания карточек.
+Tap another day in the chart or start a short review block to build this week with meaningful history.	Tap another day in the chart or start a short review block to build this week with meaningful history.	Atingeți o altă zi în diagramă sau începeți un bloc scurt de revizuire pentru a construi această săptămână cu un istoric semnificativ.	Коснитесь другого дня на графике или начните блок короткого обзора, чтобы создать на этой неделе содержательную историю.
+Tap cards	Tap cards	Atinge carduri	Нажмите на карточки
+"Tap Create to make your first deck
+and start learning."	"Tap Create to make your first deck
+and start learning."	"Atinge Creează pentru a face primul deck
+și a începe să înveți."	"Нажмите Создать, чтобы сделать первую колоду
+и начать учиться."
+Tap the label above to flip the card	Tap the label above to flip the card	Atingeți eticheta de mai sus pentru a răsturna card	Коснитесь ярлыка выше, чтобы перевернуть карту.
+Target cleared for today	Target cleared for today	Ținta e atinsă azi	Цель на сегодня закрыта
+Template examples	Template examples	Exemple de șabloane	Примеры шаблонов
+Templates only prefill endpoint and model strings. You can freely edit everything after that, while keeping the current API key.	Templates only prefill endpoint and model strings. You can freely edit everything after that, while keeping the current API key.	Șabloanele completează numai punctele finale și șirurile de model. Puteți edita liber totul după aceea, păstrând în același timp cheia API actuală.	Шаблоны предварительно заполняют только строки конечной точки и модели. После этого вы сможете свободно все редактировать, сохраняя при этом текущий ключ API.
+Text: %@	Text: %@	Text: %@	Текст: %@
+The current AI conversion will stop immediately.	The current AI conversion will stop immediately.	Conversia actuală AI se va opri imediat.	Текущее преобразование ИИ будет немедленно остановлено.
+The current AI generation will stop immediately.	The current AI generation will stop immediately.	Generația actuală de AI se va opri imediat.	Нынешнее поколение ИИ немедленно остановится.
+The first AI results will appear here in a moment.	The first AI results will appear here in a moment.	Primele rezultate AI vor apărea aici în curând.	Первые результаты AI скоро появятся здесь.
+The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	Răspunsul omis are destule simboluri încât introducerea asistată va fi, de obicei, mai potrivită decât textul liber.	В пропущенном ответе много символов, поэтому ввод с помощником обычно подходит лучше, чем свободный текст.
+The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	Urma JSON persistentă nu a putut fi încărcată. Este posibil să fi fost șters sau corupt.	Не удалось загрузить сохраненную трассировку JSON. Возможно, он был удален или поврежден.
+These notes stay subtle and only flag cards that may need gentler answer entry or cleanup before practice.	These notes stay subtle and only flag cards that may need gentler answer entry or cleanup before practice.	Aceste note rămân subtile și doar semnalează carduri care ar putea necesita o introducere mai blândă a răspunsului sau o curățare înainte de antrenament.	Эти примечания остаются тонкими и помечают только карточки, которые могут потребовать более аккуратного ввода ответов или очистки перед практикой.
+This action cannot be undone.	This action cannot be undone.	Această acțiune nu poate fi anulată.	Это действие нельзя отменить.
+This deck and all its cards will be deleted.	This deck and all its cards will be deleted.	Acest deck și toate cardurile lui vor fi șterse.	Эта колода и все ее карточки будут удалены.
+This dedicated prompt-answer pair is compact enough for Match on smaller screens.	This dedicated prompt-answer pair is compact enough for Match on smaller screens.	Această pereche enunț-răspuns este suficient de compactă pentru Potrivire pe ecrane mici.	Эта пара подсказка-ответ достаточно компактна для режима сопоставления на небольших экранах.
+This is the prompt learners will see.	This is the prompt learners will see.	Acesta este enunțul văzut de cursanți.	Так учащиеся увидят задание.
+This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	Acest laborator este în mod intenționat aproape de pachetul README: un antet lipicios, o stivă de defilare și controale live pentru parametrii publici.	Эта лабораторная работа намеренно близка к README пакета: один прикрепленный заголовок, один стек прокрутки и живые элементы управления для общедоступных параметров.
+This match card is still too verbose for fast rounds. Tighten the prompt or answer.	This match card is still too verbose for fast rounds. Tighten the prompt or answer.	Acest card de potrivire este încă prea lung pentru runde rapide. Scurtează enunțul sau răspunsul.	Эта карточка сопоставления всё ещё слишком многословна для быстрых раундов. Сократите подсказку или ответ.
+This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	Această secțiune de migrare activează numai baza de rutare partajată. Editarea flashcard-ului rămâne complet disponibilă.	Этот срез миграции включает только общую основу маршрутизации. Редактирование карточек остается полностью доступным.
+This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
+This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
+This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
+this week	this week	săptămâna asta	эта неделя
+This Week	This Week	Săptămâna asta	Эта неделя
+This write card looks formula-heavy and is a good candidate for assisted builder input.	This write card looks formula-heavy and is a good candidate for assisted builder input.	Acest card de scriere pare încărcat de formule și este un bun candidat pentru introducerea asistată.	Эта карточка на письмо перегружена формулами и хорошо подходит для ввода с помощником.
+Title	Title	Titlu	Заголовок
+To %@	To %@	Pentru %@	В %@
+To goal	To goal	Până la obiectiv	До цели
+Today	Today	Azi	Сегодня
+Today clear	Today clear	Azi închis	Сегодня закрыто
+Today goal	Today goal	Obiectiv azi	Цель на сегодня
+Today is already closed.	Today is already closed.	Azi este deja închis.	Сегодня уже закрыто.
+Today is clear	Today is clear	Azi e închis	Сегодня закрыто
+Today's goal is closed.	Today's goal is closed.	Obiectivul de azi este închis.	Цель на сегодня закрыта.
+Token: %@	Token: %@	Indicativ: %@	Токен: %@
+Tomorrow	Tomorrow	Mâine	Завтра
+Total cards for auto distribution.	Total cards for auto distribution.	Total carduri pentru distribuirea automată.	Всего карточек для автораздачи.
+Trace JSON	Trace JSON	Urmăriți JSON	Трассировка JSON
+Try a broader phrase, another deck title, or a different card keyword.	Try a broader phrase, another deck title, or a different card keyword.	Încearcă o expresie mai largă, alt titlu de deck sau un alt cuvânt-cheie de card.	Попробуйте более широкую фразу, другое название колоды или другой ключ карточки.
+Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`.	Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`.	Încercați un nume de tip Swift, cum ar fi `LibraryDeckListRow`, un nume de slot precum `backgroundFill` sau un simbol precum `BrandPrimary`.	Попробуйте имя типа Swift, например «LibraryDeckListRow», имя слота, например «backgroundFill», или токен, например «BrandPrimary».
+Tune Blur	Tune Blur	Ajustează blurul	Настроить блюр
+Tune Shadow	Tune Shadow	Ajustează umbra	Настроить тень
+Type	Type	Tip	Тип
+Undo Changes	Undo Changes	Anulează modificările	Отменить изменения
+Unique rate	Unique rate	Rată unice	Доля уникальных
+Universal OpenAI-Compatible Setup	Universal OpenAI-Compatible Setup	Configurare universală compatibilă cu OpenAI	Универсальная установка, совместимая с OpenAI
+Unpin	Unpin	Anulează fixarea	Открепить
+Untitled Deck	Untitled Deck	Deck fără titlu	Колода без названия
+Upcoming	Upcoming	Următoarele	Дальше
+Use the current text selection as the omitted answer.	Use the current text selection as the omitted answer.	Folosește selecția curentă ca răspuns omis.	Используйте текущее выделение как пропущенный ответ.
+Verbose	Verbose	Detaliat	Подробно
+Vision: %@	Vision: %@	Viziune: %@	Видение: %@
+vs same days	vs same days	față de aceleași zile	к тем же дням
+Weakest deck: %@	Weakest deck: %@	Cel mai slab deck: %@	Самая слабая колода: %@.
+Weakest linked deck: %@	Weakest linked deck: %@	Cele mai slabe legături deck: %@	Самая слабая связанная колода: %@
+Week of %@	Week of %@	Săptămâna din %@	Неделя от %@
+Weekly Momentum	Weekly Momentum	Momentum săptămânal	Еженедельный импульс
+What is eventual consistency?	What is eventual consistency?	Ce este consistenta eventuala?	Что такое конечная согласованность?
+Widget Border Radius	Widget Border Radius	Raza chenarului widgetului	Радиус границы виджета
+Write	Write	Scriere	Письмо
+Write Card	Write Card	Card de scriere	Карточка письма
+Write Cards	Write Cards	Carduri de scriere	Карточки письма
+Write Isn't Ready	Write Isn't Ready	Modul Scriere nu este pregătit	Режим письма ещё не готов
+write math-heavy	write math-heavy	scrieri cu formulă	письменные с формулами
+Write math-heavy	Write math-heavy	Scriere cu formulă	Письмо с формулами
+WRITE PREVIEW	WRITE PREVIEW	PREVIZUALIZARE SCRIERE	ПРЕДПРОСМОТР ПИСЬМА
+XP	XP	XP	XP
+Yellow	Yellow	Galben	Жёлтый
+Yes	Yes	Da	Да
+Yesterday	Yesterday	Ieri	Вчера
+You can enter either a base URL like https://openrouter.ai/api/v1 or a full endpoint like https://api.x.ai/v1/chat/completions. QuizFlash resolves the final chat completions path automatically.	You can enter either a base URL like https://openrouter.ai/api/v1 or a full endpoint like https://api.x.ai/v1/chat/completions. QuizFlash resolves the final chat completions path automatically.	Puteți introduce fie o adresă URL de bază, cum ar fi https://openrouter.ai/api/v1, fie un punct final complet precum https://api.x.ai/v1/chat/completions. QuizFlash rezolvă automat calea finală de finalizare a chat-ului.	Вы можете ввести либо базовый URL-адрес, например https://openrouter.ai/api/v1, либо полную конечную точку, например https://api.x.ai/v1/chat/completions.. QuizFlash автоматически определяет окончательный путь завершения чата.
+You can stop now and keep the cards already received, or discard this AI batch completely.	You can stop now and keep the cards already received, or discard this AI batch completely.	Puteți să vă opriți acum și să păstrați carduri deja primite sau să renunțați complet la acest lot AI.	Вы можете остановиться сейчас и оставить уже полученные карты или полностью отказаться от этой партии ИИ.
+You can stop now and keep the converted cards already received, or discard this AI conversion batch completely.	You can stop now and keep the converted cards already received, or discard this AI conversion batch completely.	Puteți să vă opriți acum și să păstrați carduri convertite deja primite sau să renunțați complet la acest lot de conversii AI.	Вы можете остановиться сейчас и сохранить уже полученные конвертированные карты или полностью отказаться от этой партии конвертации ИИ.
+You have unsaved changes in this deck.	You have unsaved changes in this deck.	Aveți modificări nesalvate în acest deck.	У вас есть несохраненные изменения в этой колоде.
+Your card changes couldn't be saved right now.	Your card changes couldn't be saved right now.	Modificările cardului nu au putut fi salvate acum.	Изменения карточки сейчас не удалось сохранить.
+zones(%d)	zones(%d)	zone(%d)	зоны(%d)
+|	|	|	|
+â¢	â¢	â¢	â¢
+â¢ %@	â¢ %@	â¢ %@	â¢ %@

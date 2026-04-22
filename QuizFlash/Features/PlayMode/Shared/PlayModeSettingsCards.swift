@@ -10,6 +10,8 @@ import SwiftUI
 // MARK: - Play Mode Settings Cards
 
 struct PlayModeSettingsOverviewCard: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
     let mode: DeckPlayModeDestination
     let tintColor: Color
     let compatibleCardCount: Int
@@ -35,12 +37,12 @@ struct PlayModeSettingsOverviewCard: View {
                         .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold, design: .rounded))
                         .foregroundStyle(.secondary)
 
-                    Text(mode.settingsHeadline)
+                    Text(mode.localizedSettingsHeadline(locale: appPreferences.resolvedLocale))
                         .font(.system(size: 30, weight: .black, design: .rounded))
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(mode.settingsSupportingCopy)
+                    Text(mode.localizedSettingsSupportingCopy(locale: appPreferences.resolvedLocale))
                         .font(.body.weight(.medium))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -48,15 +50,21 @@ struct PlayModeSettingsOverviewCard: View {
             }
 
             HStack(spacing: UIConstants.Spacing.small) {
-                PlayModeSettingsStatusChip(title: "Autosaved", icon: "checkmark.circle.fill")
+                PlayModeSettingsStatusChip(
+                    title: AppLocalization.string("Autosaved", locale: appPreferences.resolvedLocale),
+                    icon: "checkmark.circle.fill"
+                )
 
                 Spacer(minLength: 0)
 
-                PlayModeSettingsStatusChip(
-                    title: compatibleCardCount > 0
-                        ? "\(compatibleCardCount) Compatible"
-                        : "No Compatible Cards",
-                    icon: compatibleCardCount > 0 ? "bolt.fill" : "exclamationmark.circle"
+            PlayModeSettingsStatusChip(
+                title: compatibleCardCount > 0
+                        ? String.localizedStringWithFormat(
+                            AppLocalization.string("%d Compatible", locale: appPreferences.resolvedLocale),
+                            compatibleCardCount
+                        )
+                        : AppLocalization.string("No Compatible Cards", locale: appPreferences.resolvedLocale),
+                icon: compatibleCardCount > 0 ? "bolt.fill" : "exclamationmark.circle"
                 )
             }
         }
@@ -92,7 +100,9 @@ struct PlayModeSettingsModeCard: View {
                     detail: "Study order prioritizes new and short-interval cards. Other orders follow deck numbering.",
                     selection: $flashcardSettings.order,
                     options: FlashcardSessionOrder.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 PlayModeSettingsToggleRow(
                     title: "Retry Wrong Cards",
@@ -106,21 +116,27 @@ struct PlayModeSettingsModeCard: View {
                     detail: "Choose whether each card starts on the question side or the answer side.",
                     selection: $flashcardSettings.revealFlow,
                     options: FlashcardRevealFlow.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 PlayModeSettingsSegmentedRow(
                     title: "Tap Behavior",
                     detail: "Allow tap-based reveal during the session or keep the opening face locked.",
                     selection: $flashcardSettings.flipBehavior,
                     options: FlashcardFlipBehavior.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 PlayModeSettingsSegmentedRow(
                     title: "Tap Animation",
                     detail: "Choose between the current 3D flip and a static card that swaps only the content with the lighter snappy motion.",
                     selection: $flashcardSettings.tapAnimationStyle,
                     options: FlashcardTapAnimationStyle.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 if flashcardSettings.tapAnimationStyle == .staticSwap {
                     PlayModeSettingsSegmentedRow(
@@ -128,7 +144,9 @@ struct PlayModeSettingsModeCard: View {
                         detail: "Keep the current snappy text transition or switch the content instantly with no text animation.",
                         selection: $flashcardSettings.staticSwapTextMotion,
                         options: FlashcardStaticSwapTextMotion.allCases
-                    ) { $0.title }
+                    ) { option, locale in
+                        option.localizedTitle(locale: locale)
+                    }
                 }
 
                 PlayModeSettingsSegmentedRow(
@@ -136,7 +154,9 @@ struct PlayModeSettingsModeCard: View {
                     detail: "Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling.",
                     selection: $flashcardSettings.contentAlignment,
                     options: FlashcardContentAlignment.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
             }
         case .quiz:
             PlayModeSettingsSectionCard(
@@ -155,14 +175,18 @@ struct PlayModeSettingsModeCard: View {
                     detail: "Single-answer questions can check immediately or wait for an explicit submit.",
                     selection: $quizSettings.answerValidation,
                     options: QuizAnswerValidationMode.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 PlayModeSettingsSegmentedRow(
                     title: "Explanation",
                     detail: "Show explanations immediately after checking or keep them behind a manual reveal.",
                     selection: $quizSettings.explanationTiming,
                     options: QuizExplanationTiming.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 PlayModeSettingsToggleRow(
                     title: "Retry Wrong Questions",
@@ -181,14 +205,18 @@ struct PlayModeSettingsModeCard: View {
                     detail: "Change which insight section appears first in the Learn briefing.",
                     selection: $learnSettings.grouping,
                     options: LearnReportGrouping.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 PlayModeSettingsSegmentedRow(
                     title: "Density",
                     detail: "Compact shows fewer cards per section. Detailed expands each group.",
                     selection: $learnSettings.density,
                     options: LearnReportDensity.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
             }
         case .match:
             PlayModeSettingsSectionCard(
@@ -207,21 +235,27 @@ struct PlayModeSettingsModeCard: View {
                     detail: "Choose how many pairs appear in each match board.",
                     selection: $matchSettings.roundSize,
                     options: MatchRoundSize.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 PlayModeSettingsSegmentedRow(
                     title: "Density",
                     detail: "Compact tiles fit more text on smaller screens. Standard uses roomier cards.",
                     selection: $matchSettings.contentDensity,
                     options: MatchContentDensity.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 PlayModeSettingsSegmentedRow(
                     title: "Feedback",
                     detail: "Subtle feedback clears mismatch highlights faster. Standard lingers longer.",
                     selection: $matchSettings.feedbackIntensity,
                     options: MatchFeedbackIntensity.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 PlayModeSettingsToggleRow(
                     title: "Retry Missed Pairs",
@@ -240,21 +274,27 @@ struct PlayModeSettingsModeCard: View {
                     detail: "Auto switches formula-heavy answers into the assisted builder.",
                     selection: $writeSettings.inputMode,
                     options: WriteAnswerInputMode.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 PlayModeSettingsSegmentedRow(
                     title: "Strictness",
                     detail: "Normalized matching ignores punctuation and spacing variance. Exact keeps the canonical text intact.",
                     selection: $writeSettings.strictness,
                     options: WriteAnswerStrictness.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 PlayModeSettingsSegmentedRow(
                     title: "Reveal",
                     detail: "Show the stored answer immediately after checking or require a manual reveal.",
                     selection: $writeSettings.revealTiming,
                     options: WriteRevealTiming.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 PlayModeSettingsToggleRow(
                     title: "Retry Wrong Prompts",
@@ -297,8 +337,8 @@ struct PlayModeSettingsReadinessCard: View {
 }
 
 private struct PlayModeSettingsSectionCard<Content: View>: View {
-    let title: String
-    let subtitle: String
+    let title: LocalizedStringResource
+    let subtitle: LocalizedStringResource
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -326,7 +366,11 @@ private struct PlayModeSettingsStatusChip: View {
     let icon: String
 
     var body: some View {
-        Label(title, systemImage: icon)
+        Label {
+            Text(title)
+        } icon: {
+            Image(systemName: icon)
+        }
             .font(.system(size: 14, weight: .bold, design: .rounded))
             .foregroundStyle(.primary)
             .lineLimit(1)

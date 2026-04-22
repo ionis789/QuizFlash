@@ -101,15 +101,16 @@ struct DeckTodayActivitySummary: Equatable, Sendable {
     }
 
     nonisolated static func placeholder(referenceDate: Date = Date()) -> DeckTodayActivitySummary {
-        DeckTodayActivitySummary(
+        let locale = AppPreferences.persistedResolvedLocale
+        return DeckTodayActivitySummary(
             activityDate: referenceDate,
-            activityLabel: "Today",
+            activityLabel: AppLocalization.string("Today", locale: locale),
             uniqueCardsReviewed: 0,
             rawReviewCount: 0,
             landedCount: 0,
             retryCount: 0,
-            headline: "No cards moved today",
-            detailLine: "Open a play mode to generate live activity in this deck.",
+            headline: AppLocalization.string("No cards moved today", locale: locale),
+            detailLine: AppLocalization.string("Open a play mode to generate live activity in this deck.", locale: locale),
             cards: []
         )
     }
@@ -209,6 +210,7 @@ final class DeckViewModel {
     // MARK: - Scroll Restoration
 
     /// Persisted pixel scroll offset used by `ScrollPositionRestorer` in `DeckView`.
+    @ObservationIgnored
     var savedScrollOffset: CGFloat = 0
 
     // MARK: - Search
@@ -323,7 +325,7 @@ final class DeckViewModel {
             sections.append(
                 DeckCardGridView.CardSection(
                     id: "pinned",
-                    title: "Pinned",
+                    title: AppLocalization.string("Pinned", locale: AppPreferences.persistedResolvedLocale),
                     cards: pinnedCards,
                     dateForSorting: nil
                 )
@@ -369,16 +371,30 @@ final class DeckViewModel {
     ///   - calendar: The calendar to use for comparison.
     /// - Returns: A localised section title string.
     private func sectionTitle(for date: Date, calendar: Calendar) -> String {
-        if calendar.isDateInToday(date) { return "Today" }
-        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        let locale = AppPreferences.persistedResolvedLocale
+        var localizedCalendar = calendar
+        localizedCalendar.locale = locale
+
+        if localizedCalendar.isDateInToday(date) {
+            return AppLocalization.string("Today", locale: locale)
+        }
+        if localizedCalendar.isDateInYesterday(date) {
+            return AppLocalization.string("Yesterday", locale: locale)
+        }
         let now = Date()
-        if calendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) {
-            return "This Week – " + Self.weekFormatter.string(from: date)
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.calendar = localizedCalendar
+        if localizedCalendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) {
+            formatter.setLocalizedDateFormatFromTemplate("EEEE")
+            return AppLocalization.string("This Week", locale: locale) + " – " + formatter.string(from: date)
         }
-        if calendar.isDate(date, equalTo: now, toGranularity: .month) {
-            return Self.monthDayFormatter.string(from: date)
+        if localizedCalendar.isDate(date, equalTo: now, toGranularity: .month) {
+            formatter.setLocalizedDateFormatFromTemplate("MMMMd")
+            return formatter.string(from: date)
         }
-        return Self.monthYearFormatter.string(from: date)
+        formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
+        return formatter.string(from: date)
     }
 
     private func buildChronologicalSections(from cards: [GridCardInfo]) -> [DeckCardGridView.CardSection] {
@@ -388,14 +404,16 @@ final class DeckViewModel {
             return [
                 DeckCardGridView.CardSection(
                     id: "all",
-                    title: "All Cards",
+                    title: AppLocalization.string("All Cards", locale: AppPreferences.persistedResolvedLocale),
                     cards: cards,
                     dateForSorting: nil
                 )
             ]
         }
 
-        let calendar = Calendar.current
+        let locale = AppPreferences.persistedResolvedLocale
+        var calendar = AppPreferences.shared.resolvedCalendar
+        calendar.locale = locale
         let groups = Dictionary(grouping: cards) { card -> Date in
             let date = sortOrder == .lastEdited ? card.editedAt : card.createdAt
             return calendar.startOfDay(for: date)
@@ -525,15 +543,16 @@ extension GridCardInfo {
 
 private extension CardKind {
     var sectionTitle: String {
+        let locale = AppPreferences.persistedResolvedLocale
         switch self {
         case .flashcard:
-            return "Flashcards"
+            return AppLocalization.string("Flashcards", locale: locale)
         case .match:
-            return "Match Cards"
+            return AppLocalization.string("Match Cards", locale: locale)
         case .quiz:
-            return "Quiz Cards"
+            return AppLocalization.string("Quiz Cards", locale: locale)
         case .write:
-            return "Write Cards"
+            return AppLocalization.string("Write Cards", locale: locale)
         }
     }
 }

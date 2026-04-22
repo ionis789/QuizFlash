@@ -11,6 +11,7 @@ import SwiftUI
 struct WriteCardEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(AppPreferences.self) private var appPreferences
 
     @State private var sourceZone: ZoneModel
     @State private var selectedRange: NSRange
@@ -21,6 +22,11 @@ struct WriteCardEditorView: View {
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var focusManager = ZoneFocusManager.shared
+    private var locale: Locale { appPreferences.resolvedLocale }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
 
     init(
         initialContent: WriteCardContent,
@@ -44,11 +50,11 @@ struct WriteCardEditorView: View {
     private var validationMessage: String? {
         let trimmedText = sourceZone.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else {
-            return "Add source text before saving."
+            return localized("Add source text before saving.")
         }
 
         guard activeBlankSelection != nil else {
-            return "Select a non-empty substring to turn into the blank."
+            return localized("Select a non-empty substring to turn into the blank.")
         }
 
         return nil
@@ -101,7 +107,7 @@ struct WriteCardEditorView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .background(backgroundGradient.ignoresSafeArea())
-            .navigationTitle("Write Card")
+            .navigationTitle(localized("Write Card"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbar { toolbarContent }
@@ -118,14 +124,14 @@ struct WriteCardEditorView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
-            Button("Cancel") {
+            Button(localized("Cancel")) {
                 dismiss()
             }
             .tint(.secondary)
         }
 
         ToolbarItem(placement: .primaryAction) {
-            Button("Save") {
+            Button(localized("Save")) {
                 saveCard()
             }
             .fontWeight(.semibold)
@@ -136,8 +142,8 @@ struct WriteCardEditorView: View {
     private var sourceSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             sectionHeader(
-                title: "PROMPT",
-                subtitle: "Edit the source text, then select the part you want learners to fill in."
+                title: localized("PROMPT"),
+                subtitle: localized("Edit the source text, then select the part you want learners to fill in.")
             )
 
             ZStack(alignment: .topLeading) {
@@ -185,13 +191,13 @@ struct WriteCardEditorView: View {
     private var selectionSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             sectionHeader(
-                title: "BLANK",
-                subtitle: "Use the current text selection as the omitted answer."
+                title: localized("BLANK"),
+                subtitle: localized("Use the current text selection as the omitted answer.")
             )
 
             VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Selected Text")
+                    Text(localized("Selected Text"))
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.secondary)
 
@@ -201,7 +207,7 @@ struct WriteCardEditorView: View {
                             .foregroundStyle(.primary)
                             .lineLimit(3)
                     } else {
-                        Text("Select text in the editor to define the blank.")
+                        Text(localized("Select text in the editor to define the blank."))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -211,7 +217,7 @@ struct WriteCardEditorView: View {
                     Button {
                         markSelectionAsBlank()
                     } label: {
-                        Label("Mark Blank", systemImage: "rectangle.and.pencil.and.ellipsis")
+                        Label(localized("Mark Blank"), systemImage: "rectangle.and.pencil.and.ellipsis")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(canMarkSelectionAsBlank ? .white : .secondary)
                             .frame(maxWidth: .infinity)
@@ -224,7 +230,7 @@ struct WriteCardEditorView: View {
                     Button {
                         clearBlankSelection()
                     } label: {
-                        Label("Clear", systemImage: "xmark")
+                        Label(localized("Clear"), systemImage: "xmark")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(activeBlankSelection == nil ? Color.secondary : Color.red)
                             .padding(.horizontal, UIConstants.Spacing.standard)
@@ -237,7 +243,7 @@ struct WriteCardEditorView: View {
 
                 if let activeBlankSelection {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Stored Answer")
+                        Text(localized("Stored Answer"))
                             .font(.caption.weight(.bold))
                             .foregroundStyle(.secondary)
 
@@ -262,13 +268,13 @@ struct WriteCardEditorView: View {
     private var previewSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             sectionHeader(
-                title: "PREVIEW",
-                subtitle: "This is the prompt learners will see."
+                title: localized("PREVIEW"),
+                subtitle: localized("This is the prompt learners will see.")
             )
 
             VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
                 if blankedPreviewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("Add text and mark a blank to preview the card.")
+                    Text(localized("Add text and mark a blank to preview the card."))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {

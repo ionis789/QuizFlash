@@ -14,6 +14,7 @@ import SwiftData
 /// minimalist Library rows instead of presenting a separate search surface.
 struct SearchResultsView: View {
     @Environment(\.modelContext) private var context
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(NavigationManager.self) private var router
 
     let results: [DeckSearchResultItem]
@@ -44,14 +45,14 @@ struct SearchResultsView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(isSearchLoading ? "Searching…" : "No matching decks or cards")
+            Text(isSearchLoading ? localized("Searching…") : localized("No matching decks or cards"))
                 .font(.system(.title3, design: .rounded).weight(.bold))
                 .foregroundStyle(.primary)
 
             Text(
                 isSearchLoading
-                    ? "Keeping the current list stable while the next result set is prepared."
-                    : "Try a broader phrase, another deck title, or a different card keyword."
+                    ? localized("Keeping the current list stable while the next result set is prepared.")
+                    : localized("Try a broader phrase, another deck title, or a different card keyword.")
             )
             .font(.system(size: 16, weight: .medium, design: .rounded))
             .foregroundStyle(.secondary)
@@ -66,24 +67,24 @@ struct SearchResultsView: View {
         guard let deck = context.safeModel(for: id, as: DeckModel.self) else { return }
         router.append(DeckNavigationValue(
             deckID: deck.persistentModelID,
-            backLabel: "Search"
+            backLabel: AppLocalization.string("Search", locale: appPreferences.resolvedLocale)
         ))
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: appPreferences.resolvedLocale)
     }
 }
 
 // MARK: - SearchDeckResultRow
 
 private struct SearchDeckResultRow: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
     let result: DeckSearchResultItem
     let query: String
     let onDeckTap: () -> Void
     let onCardTap: (PersistentIdentifier) -> Void
-
-    private static let relativeFormatter: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter
-    }()
 
     private var visibleSnippets: ArraySlice<MatchedCardInfo> {
         result.matchedCards.prefix(2)
@@ -94,11 +95,54 @@ private struct SearchDeckResultRow: View {
     }
 
     private var timeAgoString: String {
-        Self.relativeFormatter.localizedString(for: result.editedAt, relativeTo: Date())
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        formatter.locale = appPreferences.resolvedLocale
+        return formatter.localizedString(for: result.editedAt, relativeTo: Date())
     }
 
     private var deckTint: Color {
         Color(hex: result.deckColorHex) ?? ThemeManager.shared.accentColor.color
+    }
+
+    private var locale: Locale {
+        appPreferences.resolvedLocale
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
+    }
+
+    private var localizedCardCount: String {
+        AppLocalization.numbered(
+            result.cardCount,
+            singular: "%d card",
+            plural: "%d cards",
+            locale: locale
+        )
+    }
+
+    private var localizedMatchCount: String {
+        AppLocalization.numbered(
+            result.totalMatchedCardsCount,
+            singular: "%d match",
+            plural: "%d matches",
+            locale: locale
+        )
+    }
+
+    private var localizedMoreMatchesCount: String {
+        AppLocalization.numbered(
+            hiddenMatchCount,
+            singular: "+%d more match in this deck",
+            plural: "+%d more matches in this deck",
+            locale: locale
+        )
     }
 
     var body: some View {
@@ -118,7 +162,7 @@ private struct SearchDeckResultRow: View {
                         HStack(spacing: 12) {
                             LibraryDeckMetaLabel(
                                 systemImage: "rectangle.stack.fill",
-                                text: "\(result.cardCount) card\(result.cardCount == 1 ? "" : "s")"
+                                text: localizedCardCount
                             )
                             LibraryDeckMetaLabel(
                                 systemImage: "clock",
@@ -126,7 +170,7 @@ private struct SearchDeckResultRow: View {
                             )
                             LibraryDeckMetaLabel(
                                 systemImage: "sparkles",
-                                text: "\(result.totalMatchedCardsCount) match\(result.totalMatchedCardsCount == 1 ? "" : "es")"
+                                text: localizedMatchCount
                             )
                             Spacer(minLength: 0)
                         }
@@ -154,7 +198,7 @@ private struct SearchDeckResultRow: View {
             }
 
             if hiddenMatchCount > 0 {
-                Text("+\(hiddenMatchCount) more match\(hiddenMatchCount == 1 ? "" : "es") in this deck")
+                Text(localizedMoreMatchesCount)
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
                     .padding(.leading, 56)

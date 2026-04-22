@@ -57,6 +57,17 @@ struct DeckWorkspaceView: View {
 
     // MARK: - Computed Properties
     var accent: Color { themeManager.accentColor.color }
+    var locale: Locale { appPreferences.resolvedLocale }
+
+    func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
+    }
+
     var canSave: Bool {
         let hasTitle = !viewModel.deckTitle.trimmingCharacters(in: .whitespaces).isEmpty
         if viewModel.isEditingExistingDeck {
@@ -68,7 +79,7 @@ struct DeckWorkspaceView: View {
         return viewModel.deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     var destinationTitle: String {
-        viewModel.selectedFolder?.title ?? "Library"
+        viewModel.selectedFolder?.title ?? localized("Library")
     }
     var draftDeckContentSummary: DraftDeckContentSummary {
         derivedDeckState.contentSummary
@@ -80,10 +91,12 @@ struct DeckWorkspaceView: View {
     var aiToolbarStatusText: String? {
         switch viewModel.aiState {
         case .extractingText:
-            return "Reading Docs..."
+            return localized("Reading Docs...")
         case .generatingCards(_, let foundCount):
             let target = max(viewModel.aiTargetCardCount, 1)
-            return foundCount > 0 ? "AI \(foundCount)/\(target)" : "Generating AI..."
+            return foundCount > 0
+                ? "AI \(foundCount)/\(target)"
+                : localized("Generating AI...")
         default:
             return nil
         }
@@ -91,13 +104,13 @@ struct DeckWorkspaceView: View {
     var aiVisualStatusText: String? {
         switch viewModel.aiState {
         case .extractingText:
-            return "Reading"
+            return localized("Reading")
         case .generatingCards(_, let foundCount):
             let target = max(viewModel.aiTargetCardCount, 1)
-            return foundCount > 0 ? "\(foundCount)/\(target)" : "Generating"
+            return foundCount > 0 ? "\(foundCount)/\(target)" : localized("Generating")
         default:
             if viewModel.hasPausedAIGeneration {
-                return aiToolbarCountText ?? "AI generation paused"
+                return aiToolbarCountText ?? localized("AI generation paused")
             }
             return nil
         }
@@ -117,7 +130,7 @@ struct DeckWorkspaceView: View {
             return overlayTitle
         }
         let trimmedTitle = viewModel.deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedTitle.isEmpty ? "Untitled Deck" : trimmedTitle
+        return trimmedTitle.isEmpty ? localized("Untitled Deck") : trimmedTitle
     }
     var successOverlayTopPadding: CGFloat {
         navigationBarHeight + UIConstants.Spacing.large
@@ -392,7 +405,7 @@ struct DeckWorkspaceView: View {
         viewContent
             .fullScreenSheet(
                 item: $viewModel.aiSheetDestination,
-                configuration: .chrome(dragActivationArea: .fixed(180))
+                configuration: .chrome()
             ) { _, safeArea in
                 AIGenerationSheetView(
                     viewModel: viewModel,
@@ -498,83 +511,85 @@ struct DeckWorkspaceView: View {
         }
         .environment(scrollState)
         .toolbar(.hidden, for: .navigationBar)
-        .confirmationDialog("Save changes before leaving?", isPresented: $showUnsavedChangesDialog, titleVisibility: .visible) {
+        .confirmationDialog(localized("Save changes before leaving?"), isPresented: $showUnsavedChangesDialog, titleVisibility: .visible) {
             if canSave {
-                Button("Save Changes") {
+                Button(localized("Save Changes")) {
                     handleSave()
                 }
             }
-            Button("Discard Changes", role: .destructive) {
+            Button(localized("Discard Changes"), role: .destructive) {
                 discardChangesAndDismiss()
             }
-            Button("Keep Editing", role: .cancel) { }
+            Button(localized("Keep Editing"), role: .cancel) { }
         } message: {
-            Text("You have unsaved changes in this deck.")
+            Text(localized("You have unsaved changes in this deck."))
         }
-        .confirmationDialog("Generate Cards with AI", isPresented: $viewModel.showAIPickerOptions, titleVisibility: .visible) {
-            Button("Choose Photos") { viewModel.showAIPhotoPicker = true }
-            Button("Choose PDF") { viewModel.showAIPDFPicker = true }
-            Button("Cancel", role: .cancel) { }
-        } message: { Text("Extract text from images or documents.") }
-        .confirmationDialog("Choose Card Type", isPresented: $showAddCardTypeDialog, titleVisibility: .visible) {
+        .confirmationDialog(localized("Generate Cards with AI"), isPresented: $viewModel.showAIPickerOptions, titleVisibility: .visible) {
+            Button(localized("Choose Photos")) { viewModel.showAIPhotoPicker = true }
+            Button(localized("Choose PDF")) { viewModel.showAIPDFPicker = true }
+            Button(localized("Cancel"), role: .cancel) { }
+        } message: { Text(localized("Extract text from images or documents.")) }
+        .confirmationDialog(localized("Choose Card Type"), isPresented: $showAddCardTypeDialog, titleVisibility: .visible) {
             addCardTypeButtons
-            Button("Cancel", role: .cancel) { }
+            Button(localized("Cancel"), role: .cancel) { }
         } message: {
-            Text("Pick the type of card you want to add to this deck.")
+            Text(localized("Pick the type of card you want to add to this deck."))
         }
-        .confirmationDialog("Stop AI generation?", isPresented: $viewModel.showAICancelDialog, titleVisibility: .visible) {
+        .confirmationDialog(localized("Stop AI generation?"), isPresented: $viewModel.showAICancelDialog, titleVisibility: .visible) {
             if viewModel.hasGeneratedCardsInCurrentAISession {
-                Button("Keep \(viewModel.aiGeneratedCardCount) received cards") {
+                Button(localizedFormat("Keep %d received cards", viewModel.aiGeneratedCardCount)) {
                     viewModel.cancelAIGeneration(keepingGeneratedCards: true)
                 }
-                Button("Discard received cards", role: .destructive) {
+                Button(localized("Discard received cards"), role: .destructive) {
                     viewModel.cancelAIGeneration(keepingGeneratedCards: false)
                 }
             } else {
-                Button("Stop generation", role: .destructive) {
+                Button(localized("Stop generation"), role: .destructive) {
                     viewModel.cancelAIGeneration(keepingGeneratedCards: true)
                 }
             }
-            Button("Continue", role: .cancel) { }
+            Button(localized("Continue"), role: .cancel) { }
         } message: {
             if viewModel.hasGeneratedCardsInCurrentAISession {
-                Text("You can stop now and keep the cards already received, or discard this AI batch completely.")
+                Text(localized("You can stop now and keep the cards already received, or discard this AI batch completely."))
             } else {
-                Text("The current AI generation will stop immediately.")
+                Text(localized("The current AI generation will stop immediately."))
             }
         }
         .alert(
-            "Delete \(viewModel.selectedDraftCardCount) card\(viewModel.selectedDraftCardCount == 1 ? "" : "s")?",
+            viewModel.selectedDraftCardCount == 1
+                ? localizedFormat("Delete %d card?", viewModel.selectedDraftCardCount)
+                : localizedFormat("Delete %d cards?", viewModel.selectedDraftCardCount),
             isPresented: $viewModel.showDeleteSelectedCardsConfirmation
         ) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
+            Button(localized("Cancel"), role: .cancel) { }
+            Button(localized("Delete"), role: .destructive) {
                 withBottomChromeAnimation {
                     viewModel.deleteSelectedCards()
                 }
             }
         } message: {
-            Text("This removes the selected draft cards from the editor. Existing deck data changes only after you save.")
+            Text(localized("This removes the selected draft cards from the editor. Existing deck data changes only after you save."))
         }
         .confirmationDialog(
-            "Delete \"\(savedDeckTitle)\"?",
+            localizedFormat("Delete \"%@\"?", savedDeckTitle),
             isPresented: $showDeleteDeckConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Delete Deck", role: .destructive) {
+            Button(localized("Delete Deck"), role: .destructive) {
                 handleDeleteDeck()
             }
-            Button("Cancel", role: .cancel) { }
+            Button(localized("Cancel"), role: .cancel) { }
         } message: {
-            Text("This permanently deletes the deck and all its cards.")
+            Text(localized("This permanently deletes the deck and all its cards."))
         }
         .fullScreenCover(item: $viewModel.cardEditorDestination) { destination in
             CardEditorView(destination: destination) { content in
                 handleCardEditorSave(destination: destination, content: content)
             }
         }
-        .alert("Save Error", isPresented: $viewModel.showPersistenceError) {
-            Button("OK", role: .cancel) { }
+        .alert(localized("Save Error"), isPresented: $viewModel.showPersistenceError) {
+            Button(localized("OK"), role: .cancel) { }
         } message: {
             Text(viewModel.persistenceErrorMessage)
         }

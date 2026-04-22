@@ -38,14 +38,18 @@ struct DeckHeroView: View {
     var maxWidth: CGFloat? = nil
 
     @Environment(DeckScrollState.self) private var scrollState
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
     @State private var measuredTextWidth: CGFloat = 0
 
     /// Convenience accessor; avoids multiple `scrollState.pillVisible` reads.
     private var pillVisible: Bool { scrollState.pillVisible }
+    private var locale: Locale { appPreferences.resolvedLocale }
     private var resolvedTitle: String {
         let trimmed = deck.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Untitled Deck" : trimmed
+        return trimmed.isEmpty
+            ? AppLocalization.string("Untitled Deck", locale: locale)
+            : trimmed
     }
     private var resolvedWidth: CGFloat {
         let intrinsicWidth = measuredTextWidth + (UIConstants.Spacing.standard * 2)

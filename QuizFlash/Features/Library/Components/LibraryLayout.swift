@@ -13,6 +13,7 @@ let kLibraryChromeSpace = "libraryChrome"
 /// Handles coordinate spaces, structural overlays, safe area computation,
 /// and delegates all business logic to `LibraryViewModel`.
 struct LibraryLayout: View {
+    @Environment(AppPreferences.self) var appPreferences
     @Environment(ThemeManager.self) var themeManager
 
     let decks: [DeckModel]
@@ -21,10 +22,10 @@ struct LibraryLayout: View {
     let router: NavigationManager
 
     // The screen title displayed in LibraryTopBarView.
-    // Passed as a plain String so LibraryLayout carries no navigation context knowledge —
-    // it renders identically whether hosted by LibraryView ("Library") or FolderView
-    // (the folder's title). The caller owns the semantic meaning of the title.
-    let title: String
+    // App-owned titles should arrive localized, while user-authored folder names
+    // should arrive as verbatim runtime text.
+    let title: AppTextValue
+    let titleFallback: String
 
     let onCardTap: (PersistentIdentifier) -> Void
     let onDeckNavigate: (PersistentIdentifier) -> Void
@@ -69,6 +70,7 @@ struct LibraryLayout: View {
     /// Read directly from UIWindow so it is never inflated by TabView's layout.
     @State var physicalSafeBottom: CGFloat = 0
     var backgroundTheme: Color { themeManager.screenBackground }
+    var locale: Locale { appPreferences.resolvedLocale }
     var searchContentMaxWidth: CGFloat { UIConstants.Layout.librarySearchContentMaxWidth }
     var trimmedSearchText: String {
         viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -155,6 +157,15 @@ struct LibraryLayout: View {
         )
     }
 
+    func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -200,8 +211,12 @@ struct LibraryLayout: View {
             if viewModel.isImporting || viewModel.isExporting {
                 LibraryLoadingOverlay(
                     message: viewModel.isImporting
-                        ? "Importing…"
-                    : "Exporting \(viewModel.selectedDecks.count) deck\(viewModel.selectedDecks.count == 1 ? "" : "s")…"
+                        ? localized("Importing…")
+                        : (
+                            viewModel.selectedDecks.count == 1
+                                ? localizedFormat("Exporting %d deck…", viewModel.selectedDecks.count)
+                                : localizedFormat("Exporting %d decks…", viewModel.selectedDecks.count)
+                        )
                 )
                     .zIndex(20)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -212,6 +227,7 @@ struct LibraryLayout: View {
             .safeAreaInset(edge: .top, spacing: topChromeInsetSpacing) {
             LibraryTopBarView(
                 title: title,
+                titleFallback: titleFallback,
                 deckCount: decks.count,
                 viewModel: viewModel,
                 coordinateSpaceName: kLibraryChromeSpace,

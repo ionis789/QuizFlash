@@ -158,6 +158,12 @@ final class HomeViewModel {
     /// Cached deck summaries keyed by deck identity, revision, and reference day.
     var examDeckSummaryCache: [String: HomeExamDeckSummary] = [:]
 
+    /// Persisted pixel scroll offset for Home scroll restoration.
+    /// Kept out of observation so scroll probes do not invalidate the whole screen
+    /// on every frame of user-driven motion.
+    @ObservationIgnored
+    var savedScrollOffset: CGFloat = 0
+
     /// Cached per-day insight payloads consumed by the Home calendar.
     private(set) var calendarInsightsCache: [String: HomeCalendarDayInsight] = [:]
 
@@ -260,13 +266,31 @@ final class HomeViewModel {
         for date: Date,
         referenceDate: Date = Date()
     ) -> String {
+        let locale = AppPreferences.shared.resolvedLocale
         let seconds = Int(referenceDate.timeIntervalSince(date))
         switch seconds {
-        case ..<60:        return "just now"
-        case ..<3_600:     return "\(seconds / 60)m ago"
-        case ..<86_400:    return "\(seconds / 3_600)h ago"
-        case ..<2_592_000: return "\(seconds / 86_400)d ago"
-        default:           return "\(seconds / 2_592_000)mo ago"
+        case ..<60:
+            return AppLocalization.string("just now", locale: locale)
+        case ..<3_600:
+            return String.localizedStringWithFormat(
+                AppLocalization.string("%dm ago", locale: locale),
+                seconds / 60
+            )
+        case ..<86_400:
+            return String.localizedStringWithFormat(
+                AppLocalization.string("%dh ago", locale: locale),
+                seconds / 3_600
+            )
+        case ..<2_592_000:
+            return String.localizedStringWithFormat(
+                AppLocalization.string("%dd ago", locale: locale),
+                seconds / 86_400
+            )
+        default:
+            return String.localizedStringWithFormat(
+                AppLocalization.string("%dmo ago", locale: locale),
+                seconds / 2_592_000
+            )
         }
     }
 
@@ -279,28 +303,37 @@ final class HomeViewModel {
     ///   - referenceDate: Clock used for the countdown. Defaults to now.
     /// - Returns: A short countdown label.
     static func countdownLabel(for date: Date, referenceDate: Date = Date()) -> String {
-        let calendar = Calendar.current
+        let locale = AppPreferences.shared.resolvedLocale
+        let calendar = AppPreferences.shared.resolvedCalendar
         let start = calendar.startOfDay(for: referenceDate)
         let target = calendar.startOfDay(for: date)
         let days = calendar.dateComponents([.day], from: start, to: target).day ?? 0
 
         switch days {
         case 0:
-            return "Today"
+            return AppLocalization.string("Today", locale: locale)
         case 1:
-            return "Tomorrow"
+            return AppLocalization.string("Tomorrow", locale: locale)
         case let value where value > 1:
-            return "In \(value) days"
+            return String.localizedStringWithFormat(
+                AppLocalization.string("In %d days", locale: locale),
+                value
+            )
         case -1:
-            return "Yesterday"
+            return AppLocalization.string("Yesterday", locale: locale)
         default:
-            return "\(-days) days ago"
+            return String.localizedStringWithFormat(
+                AppLocalization.string("%d days ago", locale: locale),
+                -days
+            )
         }
     }
 
     /// Returns a medium-style date label for Home exam-goal cards.
     static func mediumDateLabel(for date: Date) -> String {
-        mediumDateFormatter.string(from: date)
+        mediumDateFormatter.locale = AppPreferences.shared.resolvedLocale
+        mediumDateFormatter.calendar = AppPreferences.shared.resolvedCalendar
+        return mediumDateFormatter.string(from: date)
     }
 
     /// Builds Home-friendly summaries for the nearest active exam goals.

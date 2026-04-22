@@ -124,7 +124,7 @@ struct SettingsView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
 
-                    Text("Level \(userLevel)")
+                    Text(levelSummary)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
@@ -136,18 +136,18 @@ struct SettingsView: View {
 
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: UIConstants.Spacing.small) {
-                    profileMetric(icon: "bolt.fill", title: "Lvl \(userLevel)")
-                    profileMetric(icon: "flame.fill", title: "\(currentStreak) streak")
-                    profileMetric(icon: "square.stack.3d.up.fill", title: "\(decks.count) decks")
+                    profileMetric(icon: "bolt.fill", title: levelBadgeTitle)
+                    profileMetric(icon: "flame.fill", title: streakSummary)
+                    profileMetric(icon: "square.stack.3d.up.fill", title: deckCountSummary)
                 }
 
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                     HStack(spacing: UIConstants.Spacing.small) {
-                        profileMetric(icon: "bolt.fill", title: "Lvl \(userLevel)")
-                        profileMetric(icon: "flame.fill", title: "\(currentStreak) streak")
+                        profileMetric(icon: "bolt.fill", title: levelBadgeTitle)
+                        profileMetric(icon: "flame.fill", title: streakSummary)
                     }
 
-                    profileMetric(icon: "square.stack.3d.up.fill", title: "\(decks.count) decks")
+                    profileMetric(icon: "square.stack.3d.up.fill", title: deckCountSummary)
                 }
             }
         }
@@ -156,7 +156,7 @@ struct SettingsView: View {
     }
 
     private var premiumBadge: some View {
-        Text(isPremiumUser ? "Premium" : "Free")
+        Text(isPremiumUser ? AppLocalization.string("Premium", locale: appPreferences.resolvedLocale) : AppLocalization.string("Free", locale: appPreferences.resolvedLocale))
             .font(.caption.weight(.bold))
             .foregroundStyle(isPremiumUser ? .yellow : .secondary)
             .padding(.horizontal, UIConstants.Spacing.standard)
@@ -218,7 +218,7 @@ struct SettingsView: View {
                     tint: .blue,
                     title: "App Defaults",
                     detail: nil,
-                    value: appPreferences.weekStartDay.title
+                    value: appPreferences.weekStartDay.localizedTitle(locale: appPreferences.resolvedLocale)
                 )
             }
             .buttonStyle(.plain)
@@ -298,7 +298,7 @@ struct SettingsView: View {
                     tint: .orange,
                     title: "Data & Storage",
                     detail: nil,
-                    value: "\(decks.count) Decks"
+                    value: deckCountSummary
                 )
             }
             .buttonStyle(.plain)
@@ -411,23 +411,64 @@ struct SettingsView: View {
     }
 
     private var currentCardAppearanceTitle: String {
-        cardAppearancePreferences.cardContentMode.label
+        cardAppearancePreferences.cardContentMode.localizedLabel(locale: appPreferences.resolvedLocale)
+    }
+
+    private var levelSummary: String {
+        String.localizedStringWithFormat(
+            AppLocalization.string("Level %d", locale: appPreferences.resolvedLocale),
+            userLevel
+        )
+    }
+
+    private var levelBadgeTitle: String {
+        String.localizedStringWithFormat(
+            AppLocalization.string("Lvl %d", locale: appPreferences.resolvedLocale),
+            userLevel
+        )
+    }
+
+    private var streakSummary: String {
+        AppLocalization.numbered(
+            currentStreak,
+            singular: "%d streak",
+            plural: "%d streaks",
+            locale: appPreferences.resolvedLocale
+        )
     }
 
     private var flashcardsSummary: String {
-        "\(appPreferences.flashcardsProgressStyle.title) Progress"
+        String.localizedStringWithFormat(
+            AppLocalization.string("%@ Progress", locale: appPreferences.resolvedLocale),
+            appPreferences.flashcardsProgressStyle.localizedTitle(locale: appPreferences.resolvedLocale)
+        )
     }
 
     private var quizSummary: String {
-        appPreferences.quizAutoAdvanceCorrectAnswers ? "Auto Advance" : "Manual Pace"
+        appPreferences.quizAutoAdvanceCorrectAnswers
+            ? AppLocalization.string("Auto Advance", locale: appPreferences.resolvedLocale)
+            : AppLocalization.string("Manual Pace", locale: appPreferences.resolvedLocale)
     }
 
     private var matchSummary: String {
-        appPreferences.matchShowsRoundCountdown ? "Countdown On" : "Countdown Off"
+        appPreferences.matchShowsRoundCountdown
+            ? AppLocalization.string("Countdown On", locale: appPreferences.resolvedLocale)
+            : AppLocalization.string("Countdown Off", locale: appPreferences.resolvedLocale)
     }
 
     private var writeSummary: String {
-        appPreferences.writeAutoFocusesAnswerField ? "Auto Focus" : "Manual Focus"
+        appPreferences.writeAutoFocusesAnswerField
+            ? AppLocalization.string("Auto Focus", locale: appPreferences.resolvedLocale)
+            : AppLocalization.string("Manual Focus", locale: appPreferences.resolvedLocale)
+    }
+
+    private var deckCountSummary: String {
+        AppLocalization.numbered(
+            decks.count,
+            singular: "%d Deck",
+            plural: "%d Decks",
+            locale: appPreferences.resolvedLocale
+        )
     }
 
     private var profile: UserProfile? {
@@ -457,10 +498,10 @@ private struct SettingsInfoDetailView: View {
         UIConstants.Size.capsuleHeight + UIConstants.Layout.deckNavigationTopPadding
     @State private var navigationBarBottomY: CGFloat = 0
 
-    let title: String
+    let title: AppTextValue
     let icon: String
     let tint: Color
-    let message: String
+    let message: SettingsTextContent
 
     var body: some View {
         ZStack(alignment: .top) {

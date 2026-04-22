@@ -39,7 +39,9 @@ final class LibraryGroupingTests: XCTestCase {
     }
 
     func testSectionsGroupSnapshotsByCalendarDay() throws {
-        let calendar = Calendar(identifier: .gregorian)
+        var calendar = Calendar(identifier: .gregorian)
+        let locale = Locale(identifier: "en_US_POSIX")
+        calendar.locale = locale
         let dayOne = calendar.date(from: DateComponents(year: 2026, month: 3, day: 17, hour: 10))!
         let sameDayLater = calendar.date(from: DateComponents(year: 2026, month: 3, day: 17, hour: 18))!
         let previousDay = calendar.date(from: DateComponents(year: 2026, month: 3, day: 16, hour: 8))!
@@ -67,7 +69,12 @@ final class LibraryGroupingTests: XCTestCase {
 
         let snapshots = LibraryGrouping.makeDeckSnapshots(from: [first, second, third])
 
-        let sections = LibraryGrouping.sections(decks: snapshots, sortOrder: .lastEdited)
+        let sections = LibraryGrouping.sections(
+            decks: snapshots,
+            sortOrder: .lastEdited,
+            locale: locale,
+            calendar: calendar
+        )
 
         XCTAssertEqual(sections.count, 2)
         XCTAssertEqual(sections[0].decks.map(\.title), ["Second", "First"])

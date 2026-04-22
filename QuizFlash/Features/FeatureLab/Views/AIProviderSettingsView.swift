@@ -12,6 +12,7 @@ private let kAIProviderSettingsChromeSpace = "AIProviderSettingsChromeSpace"
 // MARK: - AI Provider Settings View
 
 struct AIProviderSettingsView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(\.dismiss) private var dismiss
     @Environment(AIProviderStore.self) private var aiProviderStore
     @Environment(ThemeManager.self) private var themeManager
@@ -172,7 +173,7 @@ struct AIProviderSettingsView: View {
                             )
                         }
 
-                        if let validationMessage = activeProfile.generationValidationMessage {
+                        if let validationMessage = activeProfile.localizedGenerationValidationMessage(locale: appPreferences.resolvedLocale) {
                             Label(validationMessage, systemImage: "exclamationmark.triangle.fill")
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(.orange)
@@ -249,16 +250,16 @@ struct AIProviderSettingsView: View {
 
             VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
                 if let activeProfile = aiProviderStore.activeProfile {
-                    Text(activeProfile.requestStyle.title)
+                    Text(activeProfile.requestStyle.localizedTitle(locale: appPreferences.resolvedLocale))
                         .font(.headline.weight(.semibold))
 
-                    Text(activeProfile.requestStyle.summary)
+                    Text(activeProfile.requestStyle.localizedSummary(locale: appPreferences.resolvedLocale))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
 
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    ForEach(AIProviderRequestStyle.openAICompatible.syntaxLines, id: \.self) { line in
+                    ForEach(AIProviderRequestStyle.openAICompatible.localizedSyntaxLines(locale: appPreferences.resolvedLocale), id: \.self) { line in
                         Text(line)
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.secondary)

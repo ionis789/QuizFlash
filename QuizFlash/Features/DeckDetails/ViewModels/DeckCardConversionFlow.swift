@@ -321,15 +321,19 @@ struct DeckCardConversionSummary: Equatable, Sendable {
 extension CardKind {
     /// Human-readable label used in conversion UI.
     nonisolated var displayTitle: String {
+        localizedTitle(locale: AppPreferences.persistedResolvedLocale)
+    }
+
+    nonisolated func localizedTitle(locale: Locale) -> String {
         switch self {
         case .flashcard:
-            return "Flashcard"
+            return AppLocalization.string("Flashcard", locale: locale)
         case .match:
-            return "Match"
+            return AppLocalization.string("Match", locale: locale)
         case .quiz:
-            return "Quiz"
+            return AppLocalization.string("Quiz", locale: locale)
         case .write:
-            return "Write"
+            return AppLocalization.string("Write", locale: locale)
         }
     }
 

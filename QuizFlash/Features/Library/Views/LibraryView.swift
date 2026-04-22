@@ -34,6 +34,7 @@ struct LibraryView: View {
     @Environment(\.modelContext) private var context
     @Environment(NavigationManager.self) private var router
     @Environment(LibraryViewModel.self) private var sharedViewModel
+    @Environment(AppPreferences.self) private var appPreferences
 
     // MARK: - SwiftData Query
 
@@ -80,7 +81,8 @@ struct LibraryView: View {
             folders: folders,
             viewModel: sharedViewModel,
             router: router,
-            title: "Library",
+            title: .localized("Library"),
+            titleFallback: AppLocalization.string("Library", locale: appPreferences.resolvedLocale),
             onCardTap: { cardID in
                 if let card = context.safeModel(for: cardID, as: CardModel.self) {
                     sharedViewModel.editingCardFromSearch = .edit(DraftCard.from(card))
@@ -91,7 +93,7 @@ struct LibraryView: View {
                 // router.activeTab is always .library while LibraryView is visible.
                 router.append(DeckNavigationValue(
                     deckID: deckID,
-                    backLabel: router.activeTab.rawValue
+                    backLabel: router.activeTab.localizedTitle(locale: appPreferences.resolvedLocale)
                 ))
             },
             onDeleteSelected: {

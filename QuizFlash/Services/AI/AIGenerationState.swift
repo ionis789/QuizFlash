@@ -5,6 +5,7 @@
 
 import Foundation
 import SwiftData
+import SwiftUI
 
 // MARK: - AI Generation State
 
@@ -68,6 +69,17 @@ nonisolated struct PDFAnalysisInfo: Equatable, Sendable {
         }
     }
 
+    func localizedQualityLabel(locale: Locale) -> String {
+        switch quality {
+        case 0.8...:
+            return AppLocalization.string("Text extracted successfully", locale: locale)
+        case 0.5...:
+            return AppLocalization.string("Text partially detected", locale: locale)
+        default:
+            return AppLocalization.string("This PDF cannot be used – try another one", locale: locale)
+        }
+    }
+
     /// The SF Symbol name appropriate for the quality level.
     var qualityIcon: String {
         switch quality {
@@ -108,12 +120,34 @@ public enum AICardGenerationType: String, CaseIterable, Identifiable, Codable, S
         }
     }
 
+    nonisolated func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .flashcards: return AppLocalization.string("Flash Cards", locale: locale)
+        case .match: return AppLocalization.string("Match Cards", locale: locale)
+        case .quiz: return AppLocalization.string("Quiz Cards", locale: locale)
+        case .write: return AppLocalization.string("Write Cards", locale: locale)
+        }
+    }
+
     nonisolated var subtitle: String {
         switch self {
         case .flashcards: return "Balanced active-recall question and answer cards."
         case .match: return "Short, pairable prompts and crisp matching answers."
         case .quiz: return "Multiple-choice prompts with one or more correct answers."
         case .write: return "Single-blank recall prompts with exact omitted answers."
+        }
+    }
+
+    nonisolated func localizedSubtitle(locale: Locale) -> String {
+        switch self {
+        case .flashcards:
+            return AppLocalization.string("Balanced active-recall question and answer cards.", locale: locale)
+        case .match:
+            return AppLocalization.string("Short, pairable prompts and crisp matching answers.", locale: locale)
+        case .quiz:
+            return AppLocalization.string("Multiple-choice prompts with one or more correct answers.", locale: locale)
+        case .write:
+            return AppLocalization.string("Single-blank recall prompts with exact omitted answers.", locale: locale)
         }
     }
 
@@ -157,11 +191,30 @@ public enum AICardGenerationLevel: String, CaseIterable, Identifiable, Codable, 
         }
     }
 
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .simple: return AppLocalization.string("Simple", locale: locale)
+        case .balanced: return AppLocalization.string("Balanced", locale: locale)
+        case .advanced: return AppLocalization.string("Advanced", locale: locale)
+        }
+    }
+
     var subtitle: String {
         switch self {
         case .simple: return "Focus on the clearest core facts and definitions."
         case .balanced: return "Keep the current prompt style with normal depth."
         case .advanced: return "Prefer nuanced, technical, higher-order understanding."
+        }
+    }
+
+    func localizedSubtitle(locale: Locale) -> String {
+        switch self {
+        case .simple:
+            return AppLocalization.string("Focus on the clearest core facts and definitions.", locale: locale)
+        case .balanced:
+            return AppLocalization.string("Keep the current prompt style with normal depth.", locale: locale)
+        case .advanced:
+            return AppLocalization.string("Prefer nuanced, technical, higher-order understanding.", locale: locale)
         }
     }
 }
@@ -180,10 +233,26 @@ public enum AISourceDistributionMode: String, CaseIterable, Identifiable, Codabl
         }
     }
 
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .auto: return AppLocalization.string("Auto", locale: locale)
+        case .manual: return AppLocalization.string("Manual", locale: locale)
+        }
+    }
+
     var subtitle: String {
         switch self {
         case .auto: return "Distribute cards automatically based on detected text density."
         case .manual: return "Choose exact image or page ranges and assign card counts yourself."
+        }
+    }
+
+    func localizedSubtitle(locale: Locale) -> String {
+        switch self {
+        case .auto:
+            return AppLocalization.string("Distribute cards automatically based on detected text density.", locale: locale)
+        case .manual:
+            return AppLocalization.string("Choose exact image or page ranges and assign card counts yourself.", locale: locale)
         }
     }
 }
@@ -257,9 +326,53 @@ public enum AIGenerationOutputLanguageMode: String, CaseIterable, Identifiable, 
         case .manual: return "Manual"
         }
     }
+
+    public func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .auto: return AppLocalization.string("Auto", locale: locale)
+        case .manual: return AppLocalization.string("Manual", locale: locale)
+        }
+    }
 }
 
 extension AIGenerationLanguageHint {
+    nonisolated public func localizedDisplayName(locale: Locale) -> String {
+        switch languageCode {
+        case "en":
+            return AppLocalization.string("English", locale: locale)
+        case "ro":
+            return AppLocalization.string("Romanian", locale: locale)
+        case "de":
+            return AppLocalization.string("German", locale: locale)
+        case "es":
+            return AppLocalization.string("Spanish", locale: locale)
+        case "fr":
+            return AppLocalization.string("French", locale: locale)
+        case "it":
+            return AppLocalization.string("Italian", locale: locale)
+        case "pt":
+            return AppLocalization.string("Portuguese", locale: locale)
+        case "nl":
+            return AppLocalization.string("Dutch", locale: locale)
+        case "pl":
+            return AppLocalization.string("Polish", locale: locale)
+        case "cs":
+            return AppLocalization.string("Czech", locale: locale)
+        case "sk":
+            return AppLocalization.string("Slovak", locale: locale)
+        case "hu":
+            return AppLocalization.string("Hungarian", locale: locale)
+        case "tr":
+            return AppLocalization.string("Turkish", locale: locale)
+        case "uk":
+            return AppLocalization.string("Ukrainian", locale: locale)
+        case "ru":
+            return AppLocalization.string("Russian", locale: locale)
+        default:
+            return displayName
+        }
+    }
+
     public static let supportedOutputLanguages: [AIGenerationLanguageHint] = [
         .init(languageCode: "en", displayName: "English"),
         .init(languageCode: "ro", displayName: "Romanian"),
@@ -314,6 +427,16 @@ public nonisolated struct AIGenerationOptions: Equatable, Codable, Sendable {
             return "Auto"
         case .manual:
             return manualOutputLanguage?.displayName ?? "Auto"
+        }
+    }
+
+    public func localizedOutputLanguageSummary(locale: Locale) -> String {
+        switch outputLanguageMode {
+        case .auto:
+            return AppLocalization.string("Auto", locale: locale)
+        case .manual:
+            return manualOutputLanguage?.localizedDisplayName(locale: locale)
+                ?? AppLocalization.string("Auto", locale: locale)
         }
     }
 

@@ -12,6 +12,7 @@ import PhotosUI
 struct QuizCardEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(AppPreferences.self) private var appPreferences
 
     @State private var highlightContext: HighlightContext?
     @State private var questionContent: ZoneCardContent
@@ -32,6 +33,16 @@ struct QuizCardEditorView: View {
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var focusManager = ZoneFocusManager.shared
     private var zoneController = ZoneController.shared
+    private var locale: Locale { appPreferences.resolvedLocale }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
+    }
 
     init(
         initialContent: QuizCardContent,
@@ -109,19 +120,19 @@ struct QuizCardEditorView: View {
 
     private var validationMessage: String? {
         if !questionContent.hasContent {
-            return "Add a question before saving."
+            return localized("Add a question before saving.")
         }
 
         if choices.count < 2 {
-            return "Add at least two answers."
+            return localized("Add at least two answers.")
         }
 
         if choices.contains(where: { !$0.content.hasContent }) {
-            return "Fill in every answer before saving."
+            return localized("Fill in every answer before saving.")
         }
 
         if !choices.contains(where: \.isCorrect) {
-            return "Mark at least one correct answer."
+            return localized("Mark at least one correct answer.")
         }
 
         return nil
@@ -162,7 +173,7 @@ struct QuizCardEditorView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .navigationTitle("Quiz Card")
+            .navigationTitle(localized("Quiz Card"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbar { toolbarContent }
@@ -218,7 +229,7 @@ struct QuizCardEditorView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
-            Button("Cancel") {
+            Button(localized("Cancel")) {
                 dismiss()
             }
             .tint(.secondary)
@@ -245,7 +256,7 @@ struct QuizCardEditorView: View {
                 Divider()
                     .frame(height: 24)
 
-                Button("Save") {
+                Button(localized("Save")) {
                     saveCard()
                 }
                 .fontWeight(.semibold)
@@ -256,8 +267,8 @@ struct QuizCardEditorView: View {
 
     private var questionSection: some View {
         QuizZoneSectionCard(
-            title: "QUESTION",
-            subtitle: "Prompt",
+            title: localized("QUESTION"),
+            subtitle: localized("Prompt"),
             isSelected: activeEditor == .question,
             content: questionContent,
             selectedPath: binding(for: .question),
@@ -272,21 +283,28 @@ struct QuizCardEditorView: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             HStack(alignment: .center, spacing: UIConstants.Spacing.standard) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("ANSWERS")
+                    Text(localized("ANSWERS"))
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.secondary)
 
-                    Text("\(choices.count) answer\(choices.count == 1 ? "" : "s")")
+                    Text(
+                        AppLocalization.numbered(
+                            choices.count,
+                            singular: "%d answer",
+                            plural: "%d answers",
+                            locale: locale
+                        )
+                    )
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
                 }
 
                 Spacer()
 
-                Toggle("Multiple", isOn: allowsMultipleCorrectBinding)
+                Toggle(localized("Multiple"), isOn: allowsMultipleCorrectBinding)
                     .toggleStyle(.switch)
                     .labelsHidden()
-                Text("Multiple Correct")
+                Text(localized("Multiple Correct"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
@@ -320,7 +338,7 @@ struct QuizCardEditorView: View {
             Button {
                 addChoice()
             } label: {
-                Label("Add Answer", systemImage: "plus")
+                Label(localized("Add Answer"), systemImage: "plus")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(accent)
                     .frame(maxWidth: .infinity)
@@ -340,11 +358,11 @@ struct QuizCardEditorView: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("EXPLANATION")
+                    Text(localized("EXPLANATION"))
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.secondary)
 
-                    Text("Optional")
+                    Text(localized("Optional"))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
                 }
@@ -352,7 +370,7 @@ struct QuizCardEditorView: View {
                 Spacer()
 
                 if explanationContent != nil {
-                    Button(isExplanationExpanded ? "Collapse" : "Expand") {
+                    Button(isExplanationExpanded ? localized("Collapse") : localized("Expand")) {
                         isExplanationExpanded.toggle()
                     }
                     .font(.caption.weight(.semibold))
@@ -363,8 +381,8 @@ struct QuizCardEditorView: View {
             if let explanationContent {
                 if isExplanationExpanded {
                     QuizZoneSectionCard(
-                        title: "EXPLANATION",
-                        subtitle: "Optional rationale",
+                        title: localized("EXPLANATION"),
+                        subtitle: localized("Optional rationale"),
                         isSelected: activeEditor == .explanation,
                         content: explanationContent,
                         selectedPath: binding(for: .explanation),
@@ -414,7 +432,7 @@ struct QuizCardEditorView: View {
                 Button {
                     addExplanation()
                 } label: {
-                    Label("Add Explanation", systemImage: "plus.bubble")
+                    Label(localized("Add Explanation"), systemImage: "plus.bubble")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(accent)
                         .frame(maxWidth: .infinity)
@@ -857,6 +875,8 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
 
 /// One answer row with correctness controls and a mini zone editor.
 private struct QuizChoiceCard: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
     let index: Int
     let canMoveDown: Bool
     @Bindable var choice: QuizChoiceEditorItem
@@ -871,19 +891,29 @@ private struct QuizChoiceCard: View {
 
     @Environment(\.colorScheme) private var colorScheme
     private var accent: Color { ThemeManager.shared.accentColor.color }
+    private var locale: Locale { appPreferences.resolvedLocale }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("ANSWER \(index + 1)")
+                    Text(localizedFormat("ANSWER %@", String(index + 1)))
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.secondary)
 
                     Button {
                         onToggleCorrect()
                     } label: {
-                        Label(choice.isCorrect ? "Correct" : "Mark Correct", systemImage: choice.isCorrect ? "checkmark.circle.fill" : "circle")
+                        Label(choice.isCorrect ? localized("Correct") : localized("Mark Correct"), systemImage: choice.isCorrect ? "checkmark.circle.fill" : "circle")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(choice.isCorrect ? accent : .secondary)
                             .padding(.horizontal, 10)

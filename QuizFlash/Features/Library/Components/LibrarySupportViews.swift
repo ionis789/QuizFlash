@@ -14,9 +14,18 @@ import SwiftUI
 
 /// View shown when there are no decks available in the library yet.
 struct LibraryEmptyStateView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     private var accent: Color { themeManager.accentColor.color }
+
+    private var locale: Locale {
+        appPreferences.resolvedLocale
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -30,10 +39,10 @@ struct LibraryEmptyStateView: View {
             }
 
             VStack(spacing: 8) {
-                Text("No Decks Yet")
+                Text(localized("No Decks Yet"))
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(themeManager.textPrimary)
-                Text("Tap Create to make your first deck\nand start learning.")
+                Text(localized("Tap Create to make your first deck\nand start learning."))
                     .font(.subheadline)
                     .foregroundStyle(themeManager.textSecondary)
                     .multilineTextAlignment(.center)

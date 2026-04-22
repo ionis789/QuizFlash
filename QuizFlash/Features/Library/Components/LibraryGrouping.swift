@@ -79,7 +79,12 @@ nonisolated enum LibraryGrouping {
     }
 
     /// Builds and sorts sections from a flat array of decks based on the active `SortOrder`.
-    static func sections(decks: [LibraryDeckRowSnapshot], sortOrder: SortOrder) -> [DeckSection] {
+    static func sections(
+        decks: [LibraryDeckRowSnapshot],
+        sortOrder: SortOrder,
+        locale: Locale,
+        calendar: Calendar
+    ) -> [DeckSection] {
         let sortedAll = decks.sorted { d1, d2 in
             switch sortOrder {
             case .newest: return d1.createdAt > d2.createdAt
@@ -91,10 +96,16 @@ nonisolated enum LibraryGrouping {
 
         if sortOrder == .alphabetical {
             if sortedAll.isEmpty { return [] }
-            return [DeckSection(id: "all", title: "All Decks", decks: sortedAll, dateForSorting: Date())]
+            return [
+                DeckSection(
+                    id: "all",
+                    title: AppLocalization.string("All Decks", locale: locale),
+                    decks: sortedAll,
+                    dateForSorting: Date()
+                )
+            ]
         }
 
-        let calendar = Calendar.current
         let groups = Dictionary(grouping: sortedAll) { deck -> Date in
             let dateToCheck = sortOrder == .lastEdited ? deck.editedAt : deck.createdAt
             return calendar.startOfDay(for: dateToCheck)
@@ -103,7 +114,7 @@ nonisolated enum LibraryGrouping {
         var sections: [DeckSection] = groups.map { (startOfDay, decksInGroup) in
             DeckSection(
                 id: "section-\(startOfDay.timeIntervalSinceReferenceDate)",
-                title: Self.sectionTitle(for: startOfDay, calendar: calendar),
+                title: Self.sectionTitle(for: startOfDay, calendar: calendar, locale: locale),
                 decks: decksInGroup,
                 dateForSorting: startOfDay
             )
@@ -119,31 +130,14 @@ nonisolated enum LibraryGrouping {
         return sections
     }
 
-    // MARK: - Reusable Formatters
-    // Reusing DateFormatter instances avoids massive memory allocations
-    // and main thread blocking when grouping many decks.
-    private static let weekFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "EEEE"
-        return f
-    }()
-
-    private static let monthDayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "MMMM d"
-        return f
-    }()
-
-    private static let monthDayYearFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "MMMM d, yyyy"
-        return f
-    }()
-
     /// Human-readable section title for a date (Today, Yesterday, This Week, etc.).
-    static func sectionTitle(for date: Date, calendar: Calendar) -> String {
-        if calendar.isDateInToday(date) { return "Today" }
-        if calendar.isDateInYesterday(date) { return "Yesterday" }
+    static func sectionTitle(for date: Date, calendar: Calendar, locale: Locale) -> String {
+        if calendar.isDateInToday(date) {
+            return AppLocalization.string("Today", locale: locale)
+        }
+        if calendar.isDateInYesterday(date) {
+            return AppLocalization.string("Yesterday", locale: locale)
+        }
 
         let now = Date()
         let startOfToday = calendar.startOfDay(for: now)
@@ -151,13 +145,25 @@ nonisolated enum LibraryGrouping {
         let dayDistance = calendar.dateComponents([.day], from: startOfDate, to: startOfToday).day ?? .max
 
         if (2...6).contains(dayDistance) {
+            let weekFormatter = DateFormatter()
+            weekFormatter.locale = locale
+            weekFormatter.calendar = calendar
+            weekFormatter.setLocalizedDateFormatFromTemplate("EEEE")
             return weekFormatter.string(from: date)
         }
 
         if calendar.isDate(date, equalTo: now, toGranularity: .year) {
+            let monthDayFormatter = DateFormatter()
+            monthDayFormatter.locale = locale
+            monthDayFormatter.calendar = calendar
+            monthDayFormatter.setLocalizedDateFormatFromTemplate("MMMMd")
             return monthDayFormatter.string(from: date)
         }
 
+        let monthDayYearFormatter = DateFormatter()
+        monthDayYearFormatter.locale = locale
+        monthDayYearFormatter.calendar = calendar
+        monthDayYearFormatter.setLocalizedDateFormatFromTemplate("yMMMMd")
         return monthDayYearFormatter.string(from: date)
     }
 }

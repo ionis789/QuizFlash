@@ -13,16 +13,80 @@ enum SettingsChromeMetrics {
     static let pillRevealClearance: CGFloat = 60
 }
 
+enum SettingsTextContent: Sendable, ExpressibleByStringLiteral {
+    case localized(LocalizedStringResource)
+    case verbatim(String)
+
+    init(_ resource: LocalizedStringResource) {
+        self = .localized(resource)
+    }
+
+    init(verbatim value: String) {
+        self = .verbatim(value)
+    }
+
+    init(stringLiteral value: String) {
+        self = .localized(LocalizedStringResource(stringLiteral: value))
+    }
+
+    static func localizedLiteral(_ value: String) -> SettingsTextContent {
+        .localized(LocalizedStringResource(stringLiteral: value))
+    }
+}
+
+private struct SettingsTextLabel: View {
+    let content: SettingsTextContent
+
+    var body: some View {
+        switch content {
+        case .localized(let resource):
+            Text(resource)
+        case .verbatim(let value):
+            Text(verbatim: value)
+        }
+    }
+}
+
 // MARK: - Settings Header Card
 
 struct SettingsHeaderCard: View {
     @Environment(ThemeManager.self) private var themeManager
 
     let icon: String
-    let title: String
-    let subtitle: String?
+    let title: SettingsTextContent
+    let subtitle: SettingsTextContent?
     let tint: Color
-    let badges: [String]
+    let badges: [SettingsTextContent]
+
+    init(
+        icon: String,
+        title: SettingsTextContent,
+        subtitle: SettingsTextContent?,
+        tint: Color,
+        badges: [SettingsTextContent]
+    ) {
+        self.icon = icon
+        self.title = title
+        self.subtitle = subtitle
+        self.tint = tint
+        self.badges = badges
+    }
+
+    init(
+        icon: String,
+        title: String,
+        subtitle: String?,
+        tint: Color,
+        badges: [String]
+    ) {
+        self.init(
+            icon: icon,
+            title: .localizedLiteral(title),
+            subtitle: subtitle.map(SettingsTextContent.localizedLiteral),
+            tint: tint,
+            badges: badges.map(SettingsTextContent.localizedLiteral)
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
@@ -44,13 +108,13 @@ struct SettingsHeaderCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    Text(title)
+                    SettingsTextLabel(content: title)
                         .font(.system(size: 30, weight: .black, design: .rounded))
                         .foregroundStyle(themeManager.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let subtitle {
-                        Text(subtitle)
+                        SettingsTextLabel(content: subtitle)
                             .font(.body.weight(.medium))
                             .foregroundStyle(themeManager.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -64,7 +128,7 @@ struct SettingsHeaderCard: View {
                     alignment: .leading,
                     spacing: UIConstants.Spacing.small
                 ) {
-                    ForEach(badges, id: \.self) { badge in
+                    ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
                         SettingsBadge(title: badge)
                     }
                 }
@@ -80,19 +144,41 @@ struct SettingsHeaderCard: View {
 struct SettingsSectionCard<Content: View>: View {
     @Environment(ThemeManager.self) private var themeManager
 
-    let title: String
-    let subtitle: String?
+    let title: SettingsTextContent
+    let subtitle: SettingsTextContent?
     @ViewBuilder let content: () -> Content
+
+    init(
+        title: SettingsTextContent,
+        subtitle: SettingsTextContent?,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.content = content
+    }
+
+    init(
+        title: String,
+        subtitle: String?,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.init(
+            title: .localizedLiteral(title),
+            subtitle: subtitle.map(SettingsTextContent.localizedLiteral),
+            content: content
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                Text(title)
+                SettingsTextLabel(content: title)
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(themeManager.textPrimary)
 
                 if let subtitle {
-                    Text(subtitle)
+                    SettingsTextLabel(content: subtitle)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(themeManager.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -113,21 +199,51 @@ struct SettingsNavigationRow: View {
 
     let icon: String
     let tint: Color
-    let title: String
-    let detail: String?
+    let title: SettingsTextContent
+    let detail: SettingsTextContent?
     let value: String?
+
+    init(
+        icon: String,
+        tint: Color,
+        title: SettingsTextContent,
+        detail: SettingsTextContent?,
+        value: String?
+    ) {
+        self.icon = icon
+        self.tint = tint
+        self.title = title
+        self.detail = detail
+        self.value = value
+    }
+
+    init(
+        icon: String,
+        tint: Color,
+        title: String,
+        detail: String?,
+        value: String?
+    ) {
+        self.init(
+            icon: icon,
+            tint: tint,
+            title: .localizedLiteral(title),
+            detail: detail.map(SettingsTextContent.localizedLiteral),
+            value: value
+        )
+    }
 
     var body: some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
             SettingsRowIcon(icon: icon, tint: tint)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
+                SettingsTextLabel(content: title)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(themeManager.textPrimary)
 
-                if let detail, !detail.isEmpty {
-                    Text(detail)
+                if let detail {
+                    SettingsTextLabel(content: detail)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(themeManager.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -157,9 +273,39 @@ struct SettingsToggleRow: View {
 
     let icon: String
     let tint: Color
-    let title: String
-    let detail: String?
+    let title: SettingsTextContent
+    let detail: SettingsTextContent?
     @Binding var isOn: Bool
+
+    init(
+        icon: String,
+        tint: Color,
+        title: SettingsTextContent,
+        detail: SettingsTextContent?,
+        isOn: Binding<Bool>
+    ) {
+        self.icon = icon
+        self.tint = tint
+        self.title = title
+        self.detail = detail
+        _isOn = isOn
+    }
+
+    init(
+        icon: String,
+        tint: Color,
+        title: String,
+        detail: String?,
+        isOn: Binding<Bool>
+    ) {
+        self.init(
+            icon: icon,
+            tint: tint,
+            title: .localizedLiteral(title),
+            detail: detail.map(SettingsTextContent.localizedLiteral),
+            isOn: isOn
+        )
+    }
 
     var body: some View {
         Toggle(isOn: $isOn) {
@@ -167,12 +313,12 @@ struct SettingsToggleRow: View {
                 SettingsRowIcon(icon: icon, tint: tint)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
+                    SettingsTextLabel(content: title)
                         .font(.body.weight(.semibold))
                         .foregroundStyle(themeManager.textPrimary)
 
-                    if let detail, !detail.isEmpty {
-                        Text(detail)
+                    if let detail {
+                        SettingsTextLabel(content: detail)
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(themeManager.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -185,26 +331,65 @@ struct SettingsToggleRow: View {
 }
 
 struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     let icon: String
     let tint: Color
-    let title: String
-    let detail: String
+    let title: SettingsTextContent
+    let detail: SettingsTextContent
     @Binding var selection: Option
     let options: [Option]
-    let titleForOption: (Option) -> String
+    let titleForOption: (Option, Locale) -> String
+
+    init(
+        icon: String,
+        tint: Color,
+        title: SettingsTextContent,
+        detail: SettingsTextContent,
+        selection: Binding<Option>,
+        options: [Option],
+        titleForOption: @escaping (Option, Locale) -> String
+    ) {
+        self.icon = icon
+        self.tint = tint
+        self.title = title
+        self.detail = detail
+        _selection = selection
+        self.options = options
+        self.titleForOption = titleForOption
+    }
+
+    init(
+        icon: String,
+        tint: Color,
+        title: String,
+        detail: String,
+        selection: Binding<Option>,
+        options: [Option],
+        titleForOption: @escaping (Option, Locale) -> String
+    ) {
+        self.init(
+            icon: icon,
+            tint: tint,
+            title: .localizedLiteral(title),
+            detail: .localizedLiteral(detail),
+            selection: selection,
+            options: options,
+            titleForOption: titleForOption
+        )
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
             SettingsRowIcon(icon: icon, tint: tint)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
+                SettingsTextLabel(content: title)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(themeManager.textPrimary)
 
-                Text(detail)
+                SettingsTextLabel(content: detail)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(themeManager.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -218,15 +403,18 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
                         selection = option
                     } label: {
                         if selection == option {
-                            Label(titleForOption(option), systemImage: "checkmark")
+                            Label(
+                                titleForOption(option, appPreferences.resolvedLocale),
+                                systemImage: "checkmark"
+                            )
                         } else {
-                            Text(titleForOption(option))
+                            Text(titleForOption(option, appPreferences.resolvedLocale))
                         }
                     }
                 }
             } label: {
                 HStack(spacing: 6) {
-                    Text(titleForOption(selection))
+                    Text(titleForOption(selection, appPreferences.resolvedLocale))
                         .font(.caption.weight(.semibold))
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.caption2.weight(.bold))
@@ -245,12 +433,54 @@ struct SettingsSliderRow: View {
 
     let icon: String
     let tint: Color
-    let title: String
-    let detail: String
+    let title: SettingsTextContent
+    let detail: SettingsTextContent
     let valueSuffix: String
     let range: ClosedRange<Double>
     let step: Double
     @Binding var value: Double
+
+    init(
+        icon: String,
+        tint: Color,
+        title: SettingsTextContent,
+        detail: SettingsTextContent,
+        valueSuffix: String,
+        range: ClosedRange<Double>,
+        step: Double,
+        value: Binding<Double>
+    ) {
+        self.icon = icon
+        self.tint = tint
+        self.title = title
+        self.detail = detail
+        self.valueSuffix = valueSuffix
+        self.range = range
+        self.step = step
+        _value = value
+    }
+
+    init(
+        icon: String,
+        tint: Color,
+        title: String,
+        detail: String,
+        valueSuffix: String,
+        range: ClosedRange<Double>,
+        step: Double,
+        value: Binding<Double>
+    ) {
+        self.init(
+            icon: icon,
+            tint: tint,
+            title: .localizedLiteral(title),
+            detail: .localizedLiteral(detail),
+            valueSuffix: valueSuffix,
+            range: range,
+            step: step,
+            value: value
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
@@ -258,11 +488,11 @@ struct SettingsSliderRow: View {
                 SettingsRowIcon(icon: icon, tint: tint)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
+                    SettingsTextLabel(content: title)
                         .font(.body.weight(.semibold))
                         .foregroundStyle(themeManager.textPrimary)
 
-                    Text(detail)
+                    SettingsTextLabel(content: detail)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(themeManager.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -301,7 +531,17 @@ struct SettingsInfoCard: View {
 
     let icon: String
     let tint: Color
-    let text: String
+    let text: SettingsTextContent
+
+    init(icon: String, tint: Color, text: SettingsTextContent) {
+        self.icon = icon
+        self.tint = tint
+        self.text = text
+    }
+
+    init(icon: String, tint: Color, text: String) {
+        self.init(icon: icon, tint: tint, text: .localizedLiteral(text))
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
@@ -309,7 +549,7 @@ struct SettingsInfoCard: View {
                 .font(.body.weight(.semibold))
                 .foregroundStyle(tint)
 
-            Text(text)
+            SettingsTextLabel(content: text)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(themeManager.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -335,10 +575,10 @@ struct SettingsCardDivider: View {
 private struct SettingsBadge: View {
     @Environment(ThemeManager.self) private var themeManager
 
-    let title: String
+    let title: SettingsTextContent
 
     var body: some View {
-        Text(title)
+        SettingsTextLabel(content: title)
             .font(.caption.weight(.semibold))
             .foregroundStyle(themeManager.textPrimary)
             .padding(.horizontal, UIConstants.Spacing.standard)

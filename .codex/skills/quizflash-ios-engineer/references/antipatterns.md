@@ -45,7 +45,7 @@ Găsit în:
 ## ❌ `DispatchQueue.main.async` pentru update-uri UI noi
 
 Găsit în:
-- `QuizFlash/Features/DeckEditor/Views/CreateCardView.swift`
+- `QuizFlash/Features/DeckEditor/Views/FlashcardEditorView.swift`
 - `QuizFlash/Core/Helpers/ScrollPositionRestorer.swift`
 - `QuizFlash/Features/Library/Components/LibraryContentViews.swift`
 
@@ -142,14 +142,14 @@ Găsit în:
 **Nu face:**
 ```swift
 .sheet(isPresented: $showEditor) {
-    CreateCardView(...)
+    FlashcardEditorView(...)
 }
 ```
 
 **Fă:**
 ```swift
 .fullScreenSheet(item: $activeSheet) { destination, _ in
-    CreateCardView(...)
+    FlashcardEditorView(...)
 } background: {
     Color.black.opacity(0.35)
 }
@@ -202,7 +202,7 @@ final class MyFeatureViewModel { ... }
 
 Găsit în:
 - `QuizFlash/Features/Library/Components/LibraryViewModifiers.swift`
-- `QuizFlash/Features/DeckEditor/ViewModels/CreateDeckViewModel.swift`
+- `QuizFlash/Features/DeckEditor/ViewModels/DeckWorkspaceViewModel.swift`
 
 **Nu face:**
 ```swift

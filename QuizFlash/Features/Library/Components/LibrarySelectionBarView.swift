@@ -11,6 +11,7 @@ import SwiftUI
 /// A floating contextual bar displayed at the bottom of the screen during selection mode.
 /// Provides actions for selected decks such as exporting or deleting.
 struct LibrarySelectionBarView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     @Bindable var viewModel: LibraryViewModel
@@ -20,6 +21,7 @@ struct LibrarySelectionBarView: View {
 
     private var selectedCount: Int { viewModel.selectedDecks.count }
     private var hasSelection: Bool { selectedCount > 0 }
+    private var locale: Locale { appPreferences.resolvedLocale }
     private var actionClusterBackground: some View {
         Capsule(style: .continuous)
             .fill(themeManager.roleColor(.selectionToolbarFill))
@@ -27,6 +29,15 @@ struct LibrarySelectionBarView: View {
                 Capsule(style: .continuous)
                     .stroke(themeManager.roleColor(.selectionToolbarBorder).opacity(0.18), lineWidth: 0.75)
             }
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
     }
 
     var body: some View {
@@ -38,9 +49,9 @@ struct LibrarySelectionBarView: View {
                         viewModel.exitSelectionMode()
                     }
                 },
-                accessibilityLabel: "Done selecting decks"
+                accessibilityLabel: localized("Done selecting decks")
             ) {
-                Text("Done")
+                Text(localized("Done"))
                     .font(.system(size: 17, weight: .semibold, design: .rounded))
                     .foregroundStyle(themeManager.textPrimary)
             }
@@ -50,7 +61,7 @@ struct LibrarySelectionBarView: View {
             HStack(spacing: 8) {
                 SelectionToolbarIconButton(
                     isEnabled: hasSelection,
-                    accessibilityLabel: "Move selected decks",
+                    accessibilityLabel: localized("Move selected decks"),
                     action: { onMoveTap?() }
                 ) {
                     Image(systemName: "folder")
@@ -60,7 +71,7 @@ struct LibrarySelectionBarView: View {
 
                 SelectionToolbarIconButton(
                     isEnabled: hasSelection && !viewModel.isExporting,
-                    accessibilityLabel: "Export selected decks",
+                    accessibilityLabel: localized("Export selected decks"),
                     action: { viewModel.exportSelectedDecks(from: decks) }
                 ) {
                     if viewModel.isExporting {
@@ -94,6 +105,8 @@ struct LibrarySelectionBarView: View {
     }
 
     private var deleteAccessibilityLabel: String {
-        "Delete \(selectedCount) selected deck\(selectedCount == 1 ? "" : "s")"
+        selectedCount == 1
+            ? localizedFormat("Delete %d selected deck", selectedCount)
+            : localizedFormat("Delete %d selected decks", selectedCount)
     }
 }

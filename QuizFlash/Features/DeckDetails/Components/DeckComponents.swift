@@ -17,14 +17,8 @@ import SwiftUI
 /// Used at the top of a deck row or sheet header — not in the main `DeckView`
 /// scroll canvas (which uses the larger inline hero layout instead).
 struct DeckHeaderView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
-
-    private static let creationDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter
-    }()
 
     // MARK: - Inputs
 
@@ -42,7 +36,23 @@ struct DeckHeaderView: View {
 
     /// Deck creation date formatted as a medium-style string (e.g. "Feb 8, 2026").
     private var formattedCreationDate: String {
-        Self.creationDateFormatter.string(from: deck.createdAt)
+        let formatter = DateFormatter()
+        formatter.locale = appPreferences.resolvedLocale
+        formatter.calendar = appPreferences.resolvedCalendar
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: deck.createdAt)
+    }
+
+    private var locale: Locale { appPreferences.resolvedLocale }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
     }
 
     // MARK: - Body
@@ -59,7 +69,7 @@ struct DeckHeaderView: View {
                         .lineLimit(1)
 
                     HStack(spacing: 8) {
-                        Label("\(deck.cardCount)", systemImage: "rectangle.stack")
+                        Label(localizedFormat("%d cards", deck.cardCount), systemImage: "rectangle.stack")
                         Text("•")
                         Text(formattedCreationDate)
                     }
@@ -97,6 +107,7 @@ struct DeckHeaderView: View {
 /// The card width intentionally leaves part of the next card visible so the
 /// section communicates that more modes are available with a horizontal swipe.
 struct DeckPlayModesView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Inputs
@@ -155,7 +166,7 @@ struct DeckPlayModesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            Text("PLAY MODES")
+            Text(AppLocalization.string("PLAY MODES", locale: appPreferences.resolvedLocale))
                 .font(.caption.weight(.heavy))
                 .foregroundStyle(themeManager.textSecondary.opacity(0.72))
                 .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
@@ -174,7 +185,11 @@ struct DeckPlayModesView: View {
                                     deckColor: deckColor,
                                     accentColor: accentColor
                                 ),
-                                statusText: mode.statusText(in: availability, deck: deck),
+                                statusText: mode.localizedStatusText(
+                                    locale: appPreferences.resolvedLocale,
+                                    in: availability,
+                                    deck: deck
+                                ),
                                 canPlay: mode.canLaunch(with: availability, deck: deck),
                                 onOpenMode: onOpenMode,
                                 onOpenSettings: onOpenSettings,
@@ -199,6 +214,7 @@ struct DeckPlayModesView: View {
 
 /// Compact deck-level readiness summary for Match and Write authoring quality.
 struct DeckReadinessDiagnosticsView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     let summary: DeckReadinessSummary
 
     var body: some View {
@@ -206,7 +222,7 @@ struct DeckReadinessDiagnosticsView: View {
 
         return AnyView(
             VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                Text("READINESS")
+                Text(AppLocalization.string("READINESS", locale: appPreferences.resolvedLocale))
                     .font(.caption.weight(.heavy))
                     .foregroundStyle(.tertiary)
 
@@ -220,7 +236,12 @@ struct DeckReadinessDiagnosticsView: View {
                 }
                     .scrollIndicators(.hidden)
 
-                Text("These notes stay subtle and only flag cards that may need gentler answer entry or cleanup before practice.")
+                Text(
+                    AppLocalization.string(
+                        "These notes stay subtle and only flag cards that may need gentler answer entry or cleanup before practice.",
+                        locale: appPreferences.resolvedLocale
+                    )
+                )
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
@@ -246,6 +267,7 @@ struct DeckReadinessDiagnosticsView: View {
 
 /// A single play-mode tile inside `DeckPlayModesView`.
 private struct PlayModeCard: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Inputs
@@ -282,12 +304,12 @@ private struct PlayModeCard: View {
                         }
 
                         VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny) {
-                            Text(mode.title)
+                            Text(mode.localizedTitle(locale: appPreferences.resolvedLocale))
                                 .font(.system(size: 19, weight: .bold, design: .rounded))
                                 .foregroundStyle(themeManager.textPrimary)
                                 .lineLimit(1)
 
-                            Text(mode.subtitle)
+                            Text(mode.localizedSubtitle(locale: appPreferences.resolvedLocale))
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(themeManager.textSecondary)
                                 .lineLimit(2)
@@ -331,6 +353,7 @@ private struct PlayModeCard: View {
 /// The label fades and slides away when the title pill (`DeckHeroView`) becomes visible,
 /// preventing redundant text on screen.
 struct DeckSectionToolbar: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Inputs
@@ -344,7 +367,13 @@ struct DeckSectionToolbar: View {
 
     var body: some View {
         HStack {
-            Text("CARDS(\(deck.cardCount))")
+            Text(
+                String(
+                    format: AppLocalization.string("CARDS(%d)", locale: appPreferences.resolvedLocale),
+                    locale: appPreferences.resolvedLocale,
+                    deck.cardCount
+                )
+            )
                 .font(.caption.weight(.bold))
                 .foregroundStyle(themeManager.textSecondary)
                 .opacity(pillVisible ? 0 : 1)
@@ -361,11 +390,11 @@ struct DeckSectionToolbar: View {
 
 /// Floating action buttons rendered as a top-trailing overlay on `DeckContentView`.
 ///
-/// Mirrors the visual style of the back-button overlay (top-leading):
-/// each button is a standalone capsule with `ultraThinMaterial` fill and an
-/// accent-tinted overlay, matching the exact padding and height of the back button.
+/// Keeps the semantic add CTA on accent chrome while utility controls use the
+/// softer filled-circle treatment shared by detail sheets and editor dismiss actions.
 struct DeckActionOverlay: View {
 
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Inputs
@@ -389,8 +418,6 @@ struct DeckActionOverlay: View {
 
     // MARK: - Computed Properties
 
-    private var accent: Color { themeManager.accentColor.color }
-
     // MARK: - Body
 
     var body: some View {
@@ -398,6 +425,12 @@ struct DeckActionOverlay: View {
             addButton
             menuButton
         }
+    }
+
+    private var locale: Locale { appPreferences.resolvedLocale }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
     }
 
     @ViewBuilder
@@ -427,42 +460,46 @@ struct DeckActionOverlay: View {
             Button {
                 onStartSelection()
             } label: {
-                Label("Select Cards", systemImage: "checkmark.circle")
+                Label(localized("Select Cards"), systemImage: "checkmark.circle")
             }
                 .disabled(isSelecting)
 
             Button {
                 onConvert()
             } label: {
-                Label("Convert Cards", systemImage: "arrow.triangle.2.circlepath")
+                Label(localized("Convert Cards"), systemImage: "arrow.triangle.2.circlepath")
             }
                 .disabled(deck.cardCount == 0)
 
             Button {
                 onExport()
             } label: {
-                Label("Export Deck", systemImage: "square.and.arrow.up")
+                Label(localized("Export Deck"), systemImage: "square.and.arrow.up")
             }
 
             Divider()
 
             Toggle(isOn: groupByTypeBinding) {
-                Label("Group by Card Type", systemImage: "square.grid.2x2")
+                Label(localized("Group by Card Type"), systemImage: "square.grid.2x2")
             }
 
             Divider()
 
-            Picker("Sort By", selection: $sortOrder) {
+            Picker(localized("Sort By"), selection: $sortOrder) {
                 ForEach(SortOrder.allCases, id: \.self) { order in
-                    Label(order.rawValue, systemImage: order.icon)
+                    Label(order.localizedTitle(locale: locale), systemImage: order.icon)
                         .tag(order)
                 }
             }
         } label: {
-            actionChromeLabel(symbol: "ellipsis", tint: isSelecting ? .white : accent)
+            ChromeSoftCircleSymbol(
+                systemName: "ellipsis",
+                size: UIConstants.Size.actionButton,
+                symbolSize: UIConstants.Size.iconStandard
+            )
         }
-            .quizFlashButtonStyle(.surface, shape: .circle, size: UIConstants.Size.actionButton)
-            .accessibilityLabel("More actions")
+        .buttonStyle(.plain)
+        .accessibilityLabel(localized("More actions"))
     }
 
     private var groupByTypeBinding: Binding<Bool> {
@@ -483,6 +520,7 @@ struct DeckActionOverlay: View {
 /// "Delete(N)" button on the trailing side. Both actions are delegated
 /// via closures — this view holds no state.
 struct DeckSelectionBottomBar: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Inputs
@@ -500,9 +538,10 @@ struct DeckSelectionBottomBar: View {
 
     private var selectionSummary: String {
         if selectedCount == 0 {
-            return "Tap cards"
+            return AppLocalization.string("Tap cards", locale: appPreferences.resolvedLocale)
         }
-        return selectedCount == 1 ? "1 selected" : "\(selectedCount) selected"
+        let format = AppLocalization.string("%d selected", locale: appPreferences.resolvedLocale)
+        return String(format: format, locale: appPreferences.resolvedLocale, selectedCount)
     }
 
     private var summaryTint: Color {
@@ -515,9 +554,9 @@ struct DeckSelectionBottomBar: View {
         HStack(spacing: UIConstants.Spacing.small) {
             SelectionToolbarCapsuleButton(
                 action: onDone,
-                accessibilityLabel: "Done selecting cards"
+                accessibilityLabel: AppLocalization.string("Done selecting cards", locale: appPreferences.resolvedLocale)
             ) {
-                Text("Done")
+                Text(AppLocalization.string("Done", locale: appPreferences.resolvedLocale))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(themeManager.textPrimary)
             }
@@ -533,16 +572,16 @@ struct DeckSelectionBottomBar: View {
 
             if selectedCount > 0 {
                 SelectionToolbarTextButton(
-                    title: "Convert",
-                    accessibilityLabel: "Convert selected cards",
+                    title: AppLocalization.string("Convert", locale: appPreferences.resolvedLocale),
+                    accessibilityLabel: AppLocalization.string("Convert selected cards", locale: appPreferences.resolvedLocale),
                     tint: themeManager.accentColor.color
                 ) {
                     onConvert()
                 }
 
                 SelectionToolbarTextButton(
-                    title: "Clear",
-                    accessibilityLabel: "Clear selected cards"
+                    title: AppLocalization.string("Clear", locale: appPreferences.resolvedLocale),
+                    accessibilityLabel: AppLocalization.string("Clear selected cards", locale: appPreferences.resolvedLocale)
                 ) {
                     onClearSelection()
                 }
@@ -552,7 +591,14 @@ struct DeckSelectionBottomBar: View {
 
             SelectionToolbarIconButton(
                 isEnabled: selectedCount > 0,
-                accessibilityLabel: "Delete \(selectedCount) selected card\(selectedCount == 1 ? "" : "s")",
+                accessibilityLabel: String(
+                    format: AppLocalization.string(
+                        selectedCount == 1 ? "Delete %d selected card" : "Delete %d selected cards",
+                        locale: appPreferences.resolvedLocale
+                    ),
+                    locale: appPreferences.resolvedLocale,
+                    selectedCount
+                ),
                 action: onDelete
             ) {
                 Image(systemName: "trash")

@@ -37,32 +37,11 @@ struct TopProgressiveBlurOverlay: View {
                 : 0.32
 
             VStack(spacing: 0) {
-                LiveBackgroundBlurView(radius: configuration.maxBlurRadius)
-                .mask {
-                    LinearGradient(
-                        stops: [
-                            .init(color: .white, location: 0),
-                            .init(color: .white, location: featherStart),
-                            .init(color: .clear, location: 1),
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                }
-                .overlay {
-                    LinearGradient(
-                        stops: [
-                            .init(color: tintColor.opacity(configuration.tintOpacityTop), location: 0),
-                            .init(color: tintColor.opacity(configuration.tintOpacityMiddle), location: middleLocation),
-                            .init(color: tintColor.opacity(0), location: 1),
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: totalHeight, alignment: .top)
-                .ignoresSafeArea(.all, edges: .top)
+                overlayBody(
+                    totalHeight: totalHeight,
+                    featherStart: featherStart,
+                    middleLocation: middleLocation
+                )
 
                 Spacer(minLength: 0)
             }
@@ -75,6 +54,48 @@ struct TopProgressiveBlurOverlay: View {
             )
         }
     }
+
+    @ViewBuilder
+    private func overlayBody(
+        totalHeight: CGFloat,
+        featherStart: CGFloat,
+        middleLocation: CGFloat
+    ) -> some View {
+        LiveBackgroundBlurView(radius: configuration.maxBlurRadius)
+            .mask {
+                blurMask(featherStart: featherStart)
+            }
+            .overlay {
+                tintGradient(middleLocation: middleLocation)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: totalHeight, alignment: .top)
+            .ignoresSafeArea(.all, edges: .top)
+    }
+
+    private func blurMask(featherStart: CGFloat) -> LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(color: .white, location: 0),
+                .init(color: .white, location: featherStart),
+                .init(color: .clear, location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private func tintGradient(middleLocation: CGFloat) -> LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(color: tintColor.opacity(configuration.tintOpacityTop), location: 0),
+                .init(color: tintColor.opacity(configuration.tintOpacityMiddle), location: middleLocation),
+                .init(color: tintColor.opacity(0), location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
 }
 
 private struct LiveBackgroundBlurView: UIViewRepresentable {
@@ -85,8 +106,7 @@ private struct LiveBackgroundBlurView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: StableBackgroundBlurView, context: Context) {
-        uiView.blurRadius = radius
-        uiView.refreshIfNeeded()
+        uiView.setBlurRadius(radius)
     }
 }
 
@@ -103,8 +123,8 @@ private final class StableBackgroundBlurView: UIVisualEffectView {
         super.init(effect: UIBlurEffect(style: .regular))
         isUserInteractionEnabled = false
         backgroundColor = .clear
-        refreshIfNeeded()
-        blurRadius = radius
+        configureBlurLayerIfNeeded()
+        setBlurRadius(radius)
     }
 
     required init?(coder: NSCoder) {
@@ -113,19 +133,23 @@ private final class StableBackgroundBlurView: UIVisualEffectView {
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
-        refreshIfNeeded()
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        refreshIfNeeded()
+        configureBlurLayerIfNeeded()
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        refreshIfNeeded()
+        // Keep the blur layer stable. Reconfiguring filters during scroll-driven
+        // updates is what previously caused runaway memory growth on iOS 17.
     }
 
-    func refreshIfNeeded() {
+    func setBlurRadius(_ radius: CGFloat) {
+        if abs(blurRadius - radius) > 0.01 {
+            blurRadius = radius
+        }
+    }
+
+    private func configureBlurLayerIfNeeded() {
+        guard blurLayer == nil else { return }
+
         for subview in subviews where subview.description.contains("VisualEffectSubview") {
             subview.isHidden = true
         }

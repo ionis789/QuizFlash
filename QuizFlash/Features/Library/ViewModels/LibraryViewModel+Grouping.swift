@@ -5,6 +5,8 @@
 //  Deck grouping cache management for the Library view model.
 //
 
+import Foundation
+
 // MARK: - Grouping
 
 extension LibraryViewModel {
@@ -19,18 +21,31 @@ extension LibraryViewModel {
 
         let localSortOrder = sortOrder
         let deckSnapshots = LibraryGrouping.makeDeckSnapshots(from: snapshot)
+        let localLocale = AppPreferences.shared.resolvedLocale
+        var localCalendar = AppPreferences.shared.resolvedCalendar
+        localCalendar.locale = localLocale
 
         if cachedGroupedDecks.isEmpty {
-            cachedGroupedDecks = LibraryGrouping.sections(decks: deckSnapshots, sortOrder: localSortOrder)
+            cachedGroupedDecks = LibraryGrouping.sections(
+                decks: deckSnapshots,
+                sortOrder: localSortOrder,
+                locale: localLocale,
+                calendar: localCalendar
+            )
             return
         }
 
-        groupingTask = Task { [weak self, deckSnapshots, localSortOrder] in
+        groupingTask = Task { [weak self, deckSnapshots, localSortOrder, localLocale, localCalendar] in
             try? await Task.sleep(nanoseconds: 50_000_000)
             guard !Task.isCancelled, let self else { return }
 
             let sections = await Task.detached(priority: .userInitiated) {
-                LibraryGrouping.sections(decks: deckSnapshots, sortOrder: localSortOrder)
+                LibraryGrouping.sections(
+                    decks: deckSnapshots,
+                    sortOrder: localSortOrder,
+                    locale: localLocale,
+                    calendar: localCalendar
+                )
             }.value
             guard !Task.isCancelled else { return }
 

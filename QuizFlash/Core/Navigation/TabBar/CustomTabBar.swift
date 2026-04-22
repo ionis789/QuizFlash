@@ -13,6 +13,7 @@ import SwiftUI
 /// UIKit-backed capsule animator keeps the selection motion smooth when the
 /// destination `TabView` screen is expensive to render.
 struct CustomTabBar: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     let activeTab: AppTabBar
@@ -38,7 +39,7 @@ struct CustomTabBar: View {
                     .font(.title2)
                     .symbolVariant(.fill)
 
-                Text(tab.title)
+                Text(tab.localizedTitle(locale: appPreferences.resolvedLocale))
                     .font(.caption2)
                     .lineLimit(1)
             }

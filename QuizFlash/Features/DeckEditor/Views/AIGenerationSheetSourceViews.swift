@@ -280,14 +280,12 @@ struct SourcePreviewOverlay: View {
                 HStack {
                     Spacer()
 
-                    Button(action: onClose) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 40, height: 40)
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                    .buttonStyle(.plain)
+                    ChromeSoftCircleSymbolButton(
+                        systemName: "xmark",
+                        accessibilityLabel: "Close source preview",
+                        action: onClose,
+                        symbolSize: UIConstants.Size.iconStandard
+                    )
                 }
 
                 Spacer(minLength: 0)

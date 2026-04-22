@@ -55,7 +55,7 @@ struct MixedMathTextView: View {
     /// When `false` the underlying WKWebView stops participating in hit-testing
     /// so taps and swipes pass through to the parent SwiftUI view.
     /// Set to `false` in read-only contexts (card playback, preview).
-    /// Set to `true` in editable contexts (CreateCardView, ZoneContentView).
+    /// Set to `true` in editable contexts (FlashcardEditorView, ZoneContentView).
     var isInteractive: Bool = true
     /// Re-enables interaction in read-only mode for overflowing display-math
     /// blocks that need local horizontal panning.

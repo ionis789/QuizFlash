@@ -19,6 +19,8 @@ import SwiftUI
 /// - A split button (visible when the focused zone has ≥ 2 lines)
 /// - A delete button and a "Done" button to dismiss the bar
 struct EditorFormatMenuBar: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
     let content: ZoneCardContent
     let path: ZonePath
 
@@ -58,6 +60,11 @@ struct EditorFormatMenuBar: View {
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var zoneController = ZoneController.shared
     private var lineTracker = ZoneLineTracker.shared
+    private var locale: Locale { appPreferences.resolvedLocale }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
 
     /// Returns `true` when the focused zone has at least 2 lines and can be split.
     private var canSplit: Bool {
@@ -94,7 +101,7 @@ struct EditorFormatMenuBar: View {
             Divider().frame(height: 28)
             
             Button { onClose() } label: {
-                Text("Done")
+                Text(localized("Done"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
@@ -201,7 +208,14 @@ struct EditorFormatMenuBar: View {
         HStack(spacing: 8) {
             Menu {
                 ForEach([TextBlockStyle.title, .headline, .body, .caption], id: \.self) { style in
-                    Button { content.updateZone(at: path) { $0.textStyle = style } } label: { HStack { Text(style.rawValue.capitalized); if zone?.textStyle == style { Image(systemName: "checkmark") } } }
+                    Button {
+                        content.updateZone(at: path) { $0.textStyle = style }
+                    } label: {
+                        HStack {
+                            Text(style.localizedName(locale: locale))
+                            if zone?.textStyle == style { Image(systemName: "checkmark") }
+                        }
+                    }
                 }
             } label: { ToolbarButton(icon: "textformat.size") }
             
@@ -210,19 +224,27 @@ struct EditorFormatMenuBar: View {
             
             Menu {
                 ForEach(FontFamily.allCases, id: \.self) { family in
-                    Button { content.updateZone(at: path) { $0.fontFamily = family } } label: { HStack { Image(systemName: family.icon); Text(family.name); if zone?.fontFamily == family { Image(systemName: "checkmark") } } }
+                    Button {
+                        content.updateZone(at: path) { $0.fontFamily = family }
+                    } label: {
+                        HStack {
+                            Image(systemName: family.icon)
+                            Text(family.localizedName(locale: locale))
+                            if zone?.fontFamily == family { Image(systemName: "checkmark") }
+                        }
+                    }
                 }
             } label: { ToolbarButton(icon: zone?.fontFamily.icon ?? "textformat") }
             
             Menu {
-                Button { content.updateZone(at: path) { $0.textAlignment = .leading } } label: { Label("Left", systemImage: "text.alignleft") }
-                Button { content.updateZone(at: path) { $0.textAlignment = .center } } label: { Label("Center", systemImage: "text.aligncenter") }
-                Button { content.updateZone(at: path) { $0.textAlignment = .trailing } } label: { Label("Right", systemImage: "text.alignright") }
+                Button { content.updateZone(at: path) { $0.textAlignment = .leading } } label: { Label(localized("Align Left"), systemImage: "text.alignleft") }
+                Button { content.updateZone(at: path) { $0.textAlignment = .center } } label: { Label(localized("Align Center"), systemImage: "text.aligncenter") }
+                Button { content.updateZone(at: path) { $0.textAlignment = .trailing } } label: { Label(localized("Align Right"), systemImage: "text.alignright") }
             } label: { ToolbarButton(icon: "text.alignleft") }
             
             Menu {
                 ForEach(TextBlockColor.allCases, id: \.self) { color in
-                    Button { content.updateZone(at: path) { $0.textColor = color } } label: { HStack { Circle().fill(color.color).frame(width: 14, height: 14); Text(color.name) } }
+                    Button { content.updateZone(at: path) { $0.textColor = color } } label: { HStack { Circle().fill(color.color).frame(width: 14, height: 14); Text(color.localizedName(locale: locale)) } }
                 }
             } label: { ToolbarButton(icon: "paintpalette", tint: zone?.textColor.color ?? .primary) }
             
@@ -231,7 +253,7 @@ struct EditorFormatMenuBar: View {
                     Button { content.updateZone(at: path) { $0.highlightColor = highlight } } label: {
                         HStack {
                             if highlight != .none { RoundedRectangle(cornerRadius: 2).fill(highlight.color ?? .clear).frame(width: 14, height: 14) } else { Image(systemName: "xmark").frame(width: 14, height: 14) }
-                            Text(highlight.name)
+                            Text(highlight.localizedName(locale: locale))
                             if zone?.highlightColor == highlight { Image(systemName: "checkmark") }
                         }
                     }
@@ -246,15 +268,15 @@ struct EditorFormatMenuBar: View {
     private var mediaTools: some View {
         HStack(spacing: 8) {
             Menu {
-                Button { content.updateZone(at: path) { $0.textAlignment = .leading } } label: { HStack { Text("Left"); if zone?.textAlignment == .leading { Image(systemName: "checkmark") } } }
-                Button { content.updateZone(at: path) { $0.textAlignment = .center } } label: { HStack { Text("Center"); if zone?.textAlignment == .center { Image(systemName: "checkmark") } } }
-                Button { content.updateZone(at: path) { $0.textAlignment = .trailing } } label: { HStack { Text("Right"); if zone?.textAlignment == .trailing { Image(systemName: "checkmark") } } }
+                Button { content.updateZone(at: path) { $0.textAlignment = .leading } } label: { HStack { Text(localized("Align Left")); if zone?.textAlignment == .leading { Image(systemName: "checkmark") } } }
+                Button { content.updateZone(at: path) { $0.textAlignment = .center } } label: { HStack { Text(localized("Align Center")); if zone?.textAlignment == .center { Image(systemName: "checkmark") } } }
+                Button { content.updateZone(at: path) { $0.textAlignment = .trailing } } label: { HStack { Text(localized("Align Right")); if zone?.textAlignment == .trailing { Image(systemName: "checkmark") } } }
             } label: { ToolbarButton(icon: alignmentIcon(for: zone?.textAlignment ?? .leading)) }
             
             Menu {
-                Button { content.updateZone(at: path) { $0.imageScale = 0.3 } } label: { HStack { Text("Small"); if zone?.imageScale == 0.3 { Image(systemName: "checkmark") } } }
-                Button { content.updateZone(at: path) { $0.imageScale = 0.7 } } label: { HStack { Text("Medium"); if zone?.imageScale == 0.7 { Image(systemName: "checkmark") } } }
-                Button { content.updateZone(at: path) { $0.imageScale = 1.0 } } label: { HStack { Text("Full Width"); if zone?.imageScale == 1.0 { Image(systemName: "checkmark") } } }
+                Button { content.updateZone(at: path) { $0.imageScale = 0.3 } } label: { HStack { Text(localized("Small")); if zone?.imageScale == 0.3 { Image(systemName: "checkmark") } } }
+                Button { content.updateZone(at: path) { $0.imageScale = 0.7 } } label: { HStack { Text(localized("Medium")); if zone?.imageScale == 0.7 { Image(systemName: "checkmark") } } }
+                Button { content.updateZone(at: path) { $0.imageScale = 1.0 } } label: { HStack { Text(localized("Full Width")); if zone?.imageScale == 1.0 { Image(systemName: "checkmark") } } }
             } label: { ToolbarButton(icon: "aspectratio") }
         }
     }

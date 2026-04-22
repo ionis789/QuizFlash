@@ -8,6 +8,48 @@
 import Foundation
 import Observation
 
+// MARK: - App Language Preference
+
+/// Controls which UI language QuizFlash uses for app-owned chrome and system-localized text.
+nonisolated enum AppLanguagePreference: String, CaseIterable, Identifiable, Codable, Sendable {
+    case system
+    case english
+    case romanian
+    case russian
+
+    var id: String { rawValue }
+
+    var localeIdentifier: String {
+        switch self {
+        case .system:
+            return Locale.autoupdatingCurrent.identifier
+        case .english:
+            return "en"
+        case .romanian:
+            return "ro"
+        case .russian:
+            return "ru"
+        }
+    }
+
+    var resolvedLocale: Locale {
+        Locale(identifier: localeIdentifier)
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .system:
+            return AppLocalization.string("System", locale: locale)
+        case .english:
+            return AppLocalization.string("English", locale: locale)
+        case .romanian:
+            return AppLocalization.string("Romanian", locale: locale)
+        case .russian:
+            return AppLocalization.string("Russian", locale: locale)
+        }
+    }
+}
+
 // MARK: - Week Start Preference
 
 /// Controls which weekday anchors the Home calendar grid.
@@ -26,6 +68,17 @@ nonisolated enum AppWeekStartDayPreference: String, CaseIterable, Identifiable, 
             return "Monday"
         case .sunday:
             return "Sunday"
+        }
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .system:
+            return AppLocalization.string("System Default", locale: locale)
+        case .monday:
+            return AppLocalization.string("Monday", locale: locale)
+        case .sunday:
+            return AppLocalization.string("Sunday", locale: locale)
         }
     }
 
@@ -60,6 +113,15 @@ nonisolated enum CreateDeckSortOrder: String, CaseIterable, Identifiable, Codabl
             return "Oldest First"
         }
     }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .newest:
+            return AppLocalization.string("Newest First", locale: locale)
+        case .oldest:
+            return AppLocalization.string("Oldest First", locale: locale)
+        }
+    }
 }
 
 // MARK: - iPad Tab Bar Position
@@ -80,6 +142,17 @@ nonisolated enum AppPadTabBarPosition: String, CaseIterable, Identifiable, Codab
             return "Left"
         case .right:
             return "Right"
+        }
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .center:
+            return AppLocalization.string("Center", locale: locale)
+        case .left:
+            return AppLocalization.string("Left", locale: locale)
+        case .right:
+            return AppLocalization.string("Right", locale: locale)
         }
     }
 }
@@ -104,6 +177,17 @@ nonisolated enum AppStudySessionProgressStyle: String, CaseIterable, Identifiabl
             return "Hidden"
         }
     }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .prominent:
+            return AppLocalization.string("Prominent", locale: locale)
+        case .compact:
+            return AppLocalization.string("Compact", locale: locale)
+        case .hidden:
+            return AppLocalization.string("Hidden", locale: locale)
+        }
+    }
 }
 
 // MARK: - Study Haptics Preference
@@ -124,6 +208,17 @@ nonisolated enum AppStudyHapticsPreference: String, CaseIterable, Identifiable, 
             return "Subtle"
         case .standard:
             return "Standard"
+        }
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .off:
+            return AppLocalization.string("Off", locale: locale)
+        case .subtle:
+            return AppLocalization.string("Subtle", locale: locale)
+        case .standard:
+            return AppLocalization.string("Standard", locale: locale)
         }
     }
 }
@@ -151,6 +246,19 @@ nonisolated enum AppMatchCardFontSizePreference: String, CaseIterable, Identifia
             return "Custom"
         }
     }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .small:
+            return AppLocalization.string("Small", locale: locale)
+        case .standard:
+            return AppLocalization.string("Standard", locale: locale)
+        case .large:
+            return AppLocalization.string("Large", locale: locale)
+        case .custom:
+            return AppLocalization.string("Custom", locale: locale)
+        }
+    }
 }
 
 // MARK: - App Preferences Store
@@ -160,8 +268,10 @@ nonisolated enum AppMatchCardFontSizePreference: String, CaseIterable, Identifia
 @MainActor
 final class AppPreferences {
     static let shared = AppPreferences()
+    nonisolated private static let languageUserDefaultsKey = "preferences.app.language"
 
     private enum Keys {
+        static let language = "preferences.app.language"
         static let weekStartDay = "preferences.calendar.weekStartDay"
         static let createDeckSortOrder = "preferences.createDeck.sortOrder"
         static let autoCollapseEarlierCards = "preferences.createDeck.autoCollapseEarlierCards"
@@ -183,6 +293,29 @@ final class AppPreferences {
     }
 
     private let userDefaults: UserDefaults
+
+    nonisolated static var persistedAppLanguage: AppLanguagePreference {
+        guard
+            let rawValue = UserDefaults.standard.string(forKey: languageUserDefaultsKey),
+            let preference = AppLanguagePreference(rawValue: rawValue)
+        else {
+            return .system
+        }
+
+        return preference
+    }
+
+    nonisolated static var persistedResolvedLocale: Locale {
+        persistedAppLanguage.resolvedLocale
+    }
+
+    /// Preferred UI language for app-owned chrome.
+    var appLanguage: AppLanguagePreference {
+        didSet {
+            userDefaults.set(appLanguage.rawValue, forKey: Keys.language)
+            AppLocalization.applyLanguageOverride(appLanguage)
+        }
+    }
 
     /// Preferred first day of the week for calendar surfaces.
     var weekStartDay: AppWeekStartDayPreference {
@@ -366,6 +499,9 @@ final class AppPreferences {
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
+        self.appLanguage = AppLanguagePreference(
+            rawValue: userDefaults.string(forKey: Keys.language) ?? ""
+        ) ?? .system
         self.weekStartDay = AppWeekStartDayPreference(
             rawValue: userDefaults.string(forKey: Keys.weekStartDay) ?? ""
         ) ?? .system
@@ -420,11 +556,24 @@ final class AppPreferences {
         self.writeShowsAnswerLengthHint = userDefaults.object(
             forKey: Keys.writeShowsAnswerLengthHint
         ) as? Bool ?? true
+        AppLocalization.applyLanguageOverride(appLanguage)
     }
 
     /// Resolves the app's effective calendar based on the stored weekday preference.
     var resolvedCalendar: Calendar {
-        weekStartDay.resolvedCalendar
+        var calendar = weekStartDay.resolvedCalendar
+        calendar.locale = resolvedLocale
+        return calendar
+    }
+
+    /// Resolved UI locale used by the root app environment and copy builders.
+    var resolvedLocale: Locale {
+        appLanguage.resolvedLocale
+    }
+
+    /// Stable refresh key used to rebuild language-sensitive view hierarchies.
+    var languageRefreshKey: String {
+        "language:\(appLanguage.rawValue):\(resolvedLocale.identifier)"
     }
 
     /// Resolved scale applied to Match mini card typography.

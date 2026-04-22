@@ -47,6 +47,19 @@ enum TextBlockStyle: String, Codable, Equatable {
         case .caption: return .system(size: 16)
         }
     }
+
+    func localizedName(locale: Locale) -> String {
+        switch self {
+        case .body:
+            return AppLocalization.string("Body", locale: locale)
+        case .title:
+            return AppLocalization.string("Title", locale: locale)
+        case .headline:
+            return AppLocalization.string("Headline", locale: locale)
+        case .caption:
+            return AppLocalization.string("Caption", locale: locale)
+        }
+    }
 }
 
 // MARK: - Font Family
@@ -59,6 +72,19 @@ enum FontFamily: String, Codable, Equatable, CaseIterable {
         case .serif: return "Serif"
         case .mono: return "Monospaced"
         case .rounded: return "Rounded"
+        }
+    }
+
+    func localizedName(locale: Locale) -> String {
+        switch self {
+        case .system:
+            return AppLocalization.string("Sans-Serif", locale: locale)
+        case .serif:
+            return AppLocalization.string("Serif", locale: locale)
+        case .mono:
+            return AppLocalization.string("Monospaced", locale: locale)
+        case .rounded:
+            return AppLocalization.string("Rounded", locale: locale)
         }
     }
 
@@ -115,6 +141,23 @@ enum HighlightColor: String, Codable, Equatable, CaseIterable {
         case .accent: return "Accent"
         }
     }
+
+    func localizedName(locale: Locale) -> String {
+        switch self {
+        case .none:
+            return AppLocalization.string("None", locale: locale)
+        case .yellow:
+            return AppLocalization.string("Yellow", locale: locale)
+        case .green:
+            return AppLocalization.string("Green", locale: locale)
+        case .pink:
+            return AppLocalization.string("Pink", locale: locale)
+        case .cyan:
+            return AppLocalization.string("Cyan", locale: locale)
+        case .accent:
+            return AppLocalization.string("Accent", locale: locale)
+        }
+    }
 }
 
 // MARK: - Text Color
@@ -142,6 +185,25 @@ enum TextBlockColor: String, Codable, Equatable, CaseIterable {
         case .green: return "Green"
         case .blue: return "Blue"
         case .purple: return "Purple"
+        }
+    }
+
+    func localizedName(locale: Locale) -> String {
+        switch self {
+        case .primary:
+            return AppLocalization.string("Default", locale: locale)
+        case .red:
+            return AppLocalization.string("Red", locale: locale)
+        case .orange:
+            return AppLocalization.string("Orange", locale: locale)
+        case .yellow:
+            return AppLocalization.string("Yellow", locale: locale)
+        case .green:
+            return AppLocalization.string("Green", locale: locale)
+        case .blue:
+            return AppLocalization.string("Blue", locale: locale)
+        case .purple:
+            return AppLocalization.string("Purple", locale: locale)
         }
     }
 }

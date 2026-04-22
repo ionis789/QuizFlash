@@ -76,6 +76,9 @@ extension LibraryLayout {
         }
         .onChange(of: decks) { _, newDecks in viewModel.updateGroupedDecks(from: newDecks) }
         .onChange(of: viewModel.sortOrder) { _, _ in viewModel.updateGroupedDecks(from: decks) }
+        .onChange(of: appPreferences.languageRefreshKey) { _, _ in
+            viewModel.updateGroupedDecks(from: decks)
+        }
         .onChange(of: viewModel.isSearching) { _, isSearching in
             compactChromeAnimationResetTask?.cancel()
 
@@ -151,7 +154,15 @@ extension LibraryLayout {
         VStack(alignment: .leading, spacing: 6) {
             LargeScreenTitle(title: title)
 
-            Text(decks.count == 0 ? "No Decks" : "\(decks.count) Deck\(decks.count == 1 ? "" : "s")")
+            Text(
+                decks.count == 0
+                    ? localized("No Decks")
+                    : (
+                        decks.count == 1
+                            ? localizedFormat("%d Deck", decks.count)
+                            : localizedFormat("%d Decks", decks.count)
+                    )
+            )
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(.secondary)
         }

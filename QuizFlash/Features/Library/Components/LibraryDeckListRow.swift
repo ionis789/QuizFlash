@@ -22,6 +22,7 @@ struct LibraryDeckListRow: View, Equatable {
     let onDelete: @MainActor @Sendable () -> Void
 
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(AppPreferences.self) private var appPreferences
     @State private var titleAvailableWidth: CGFloat = 0
 
     init(
@@ -78,6 +79,23 @@ struct LibraryDeckListRow: View, Equatable {
         themeManager.roleColor(.buttonPrimaryFill)
     }
 
+    private var locale: Locale {
+        appPreferences.resolvedLocale
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private var localizedCardCount: String {
+        AppLocalization.numbered(
+            deck.cardCount,
+            singular: "%d card",
+            plural: "%d cards",
+            locale: locale
+        )
+    }
+
     var body: some View {
         Group {
             if showsContextMenu {
@@ -101,19 +119,19 @@ struct LibraryDeckListRow: View, Equatable {
         guard !isSelecting else { return [] }
         return [
             CustomContextMenuAction(
-                title: "Import",
+                title: localized("Import"),
                 systemImage: "square.and.arrow.down",
                 role: .normal,
                 action: { onImport() }
             ),
             CustomContextMenuAction(
-                title: "Move to Folder",
+                title: localized("Move to Folder"),
                 systemImage: "folder",
                 role: .normal,
                 action: { onMoveToFolder() }
             ),
             CustomContextMenuAction(
-                title: "Delete",
+                title: localized("Delete"),
                 systemImage: "trash",
                 role: .destructive,
                 action: { onDelete() }
@@ -175,7 +193,7 @@ struct LibraryDeckListRow: View, Equatable {
             )
                 .layoutPriority(1)
 
-            Text("\(deck.cardCount) card\(deck.cardCount == 1 ? "" : "s")")
+            Text(localizedCardCount)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(themeManager.textSecondary)
                 .lineLimit(1)

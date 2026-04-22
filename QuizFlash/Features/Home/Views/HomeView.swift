@@ -99,6 +99,14 @@ struct HomeView: View {
 
                 ScrollView(.vertical) {
                     VStack(spacing: 0) {
+                        ScrollPositionRestorer(
+                            getOffset: { viewModel.savedScrollOffset },
+                            onOffsetChange: { offset in
+                                viewModel.savedScrollOffset = offset
+                            }
+                        )
+                        .frame(width: 0, height: 0)
+
                         calendarHeader(layout: calendarLayout)
                             .zIndex(100)
 
@@ -181,10 +189,7 @@ struct HomeView: View {
                 }
                 .fullScreenSheet(
                     isPresented: $viewModel.showPerformanceDetailSheet,
-                    configuration: .sheet(
-                        heightMode: .custom(0.75),
-                        dragActivationArea: .fixed(180)
-                    )
+                    configuration: .sheet(heightMode: .custom(0.75))
                 ) { safeAreaInsets in
                     HomePerformanceDetailSheetView(
                         summary: viewModel.dashboardSnapshot.pastWeekPerformance,

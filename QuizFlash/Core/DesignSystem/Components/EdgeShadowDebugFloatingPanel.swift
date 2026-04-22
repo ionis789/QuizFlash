@@ -14,6 +14,8 @@ enum TopChromeDebugPanelMode {
 }
 
 struct EdgeShadowDebugFloatingPanel: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
     let mode: TopChromeDebugPanelMode
     @Binding var settings: EdgeShadowDebugSettings
     let onReset: () -> Void
@@ -28,7 +30,7 @@ struct EdgeShadowDebugFloatingPanel: View {
                         Text(panelTitle)
                             .font(.system(.headline, design: .rounded, weight: .bold))
                         Spacer()
-                        Button("Reset") {
+                        Button(localized("Reset")) {
                             onReset()
                         }
                         .font(.system(.caption, design: .rounded, weight: .semibold))
@@ -42,7 +44,7 @@ struct EdgeShadowDebugFloatingPanel: View {
                         progressiveBlurControls
                     }
 
-                    Toggle("Custom Color", isOn: usesCustomColorBinding)
+                    Toggle(localized("Custom Color"), isOn: usesCustomColorBinding)
                         .font(.system(.caption, design: .rounded, weight: .semibold))
                         .tint(.purple)
 
@@ -156,37 +158,41 @@ struct EdgeShadowDebugFloatingPanel: View {
     private var panelTitle: String {
         switch mode {
         case .shadow:
-            return "Shadow Tuner"
+            return localized("Shadow Tuner")
         case .progressiveBlur:
-            return "Blur Tuner"
+            return localized("Blur Tuner")
         }
     }
 
     private var showButtonTitle: String {
         switch mode {
         case .shadow:
-            return "Tune Shadow"
+            return localized("Tune Shadow")
         case .progressiveBlur:
-            return "Tune Blur"
+            return localized("Tune Blur")
         }
     }
 
     private var hideButtonTitle: String {
         switch mode {
         case .shadow:
-            return "Hide Shadow"
+            return localized("Hide Shadow")
         case .progressiveBlur:
-            return "Hide Blur"
+            return localized("Hide Blur")
         }
     }
 
     private var colorPickerTitle: String {
         switch mode {
         case .shadow:
-            return "Shadow Color"
+            return localized("Shadow Color")
         case .progressiveBlur:
-            return "Blur Color"
+            return localized("Blur Color")
         }
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: appPreferences.resolvedLocale)
     }
 
     private func sliderRow(

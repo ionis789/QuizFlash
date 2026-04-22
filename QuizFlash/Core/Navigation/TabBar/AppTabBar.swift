@@ -36,6 +36,21 @@ enum AppTabBar: String, CaseIterable, Identifiable {
         }
     }
 
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .home:
+            return AppLocalization.string("Home", locale: locale)
+        case .library:
+            return AppLocalization.string("Library", locale: locale)
+        case .labs:
+            return AppLocalization.string("Labs", locale: locale)
+        case .create:
+            return AppLocalization.string("Create", locale: locale)
+        case .settings:
+            return AppLocalization.string("Settings", locale: locale)
+        }
+    }
+
     var symbol: String {
         switch self {
         case .home: return "house"

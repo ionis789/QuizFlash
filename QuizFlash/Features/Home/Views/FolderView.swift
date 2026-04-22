@@ -124,7 +124,8 @@ struct FolderView: View {
             folders: folders,
             viewModel: viewModel,
             router: router,
-            title: folder.title,
+            title: .verbatim(folder.title),
+            titleFallback: folder.title,
             onCardTap: { cardID in
                 if let card = context.safeModel(for: cardID, as: CardModel.self) {
                     viewModel.editingCardFromSearch = .edit(DraftCard.from(card))

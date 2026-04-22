@@ -15,7 +15,7 @@ extension DeckWorkspaceView {
             if isShowingWorkspaceConvert {
                 workspaceConvertHero
             } else {
-                TextField("Untitled Deck", text: $viewModel.deckTitle, axis: .vertical)
+                TextField(localized("Untitled Deck"), text: $viewModel.deckTitle, axis: .vertical)
                     .font(.system(size: 42, weight: .heavy, design: .rounded))
                     .textFieldStyle(.plain)
                     .foregroundStyle(.primary)
@@ -63,7 +63,8 @@ extension DeckWorkspaceView {
                 CreateDeckCollapsedTitlePill(
                     title: collapsedDeckTitle,
                     maxWidth: maxTitleWidth,
-                    isVisible: shouldShowCollapsedTitle
+                    isVisible: shouldShowCollapsedTitle,
+                    fallbackTitle: localized("Untitled Deck")
                 )
             }
         } trailing: {
@@ -91,11 +92,11 @@ extension DeckWorkspaceView {
 
     private var workspaceConvertHero: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            Text("Convert Cards")
+            Text(localized("Convert Cards"))
                 .font(.system(size: 34, weight: .heavy, design: .rounded))
                 .foregroundStyle(.primary)
 
-            Text("Choose one source type, convert into another, and save the result with minimal setup.")
+            Text(localized("Choose one source type, convert into another, and save the result with minimal setup."))
                 .font(.system(size: 15, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -111,13 +112,13 @@ extension DeckWorkspaceView {
         CreateDeckCapsuleButton(
             action: startWorkspaceConversion,
             isEnabled: canStart,
-            accessibilityLabel: "Start conversion"
+            accessibilityLabel: localized("Start conversion")
         ) {
             HStack(spacing: UIConstants.Spacing.small) {
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
 
-                Text("Convert")
+                Text(localized("Convert"))
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .lineLimit(1)
 
@@ -134,27 +135,27 @@ extension DeckWorkspaceView {
     }
 
     private var cancelConversionButton: some View {
-        CreateDeckChromeButton(
+        ChromeSoftCircleSymbolButton(
+            systemName: "xmark",
+            accessibilityLabel: localized("Cancel conversion"),
             action: {
                 isTitleFocused = false
                 aiWorkspaceCoordinator.dismissConversionConfiguration()
             },
-            accessibilityLabel: "Cancel conversion"
-        ) {
-            CreateDeckChromeButtonLabel(symbol: "xmark", tint: accent)
-        }
+            size: UIConstants.Size.actionButton
+        )
     }
 
     private var dismissWorkspaceButton: some View {
-        CreateDeckChromeButton(
+        ChromeSoftCircleSymbolButton(
+            systemName: "xmark",
+            accessibilityLabel: localized("Cancel editing deck"),
             action: {
                 isTitleFocused = false
                 requestDismiss()
             },
-            accessibilityLabel: "Cancel editing deck"
-        ) {
-            CreateDeckChromeButtonLabel(symbol: "xmark", tint: .primary)
-        }
+            size: UIConstants.Size.actionButton
+        )
     }
 
     var headerMetadataRow: some View {
@@ -205,7 +206,7 @@ extension DeckWorkspaceView {
                 exitDraftSelectionModeForExternalAction()
                 viewModel.selectedFolder = nil
             } label: {
-                Label("Library (All Decks)", systemImage: "tray.full")
+                Label(localized("Library (All Decks)"), systemImage: "tray.full")
             }
 
             if !folders.isEmpty {
@@ -235,7 +236,14 @@ extension DeckWorkspaceView {
             .contentShape(Rectangle())
         }
         .quizFlashButtonStyle(.surface, shape: .capsule, size: UIConstants.Size.capsuleHeight)
-        .accessibilityLabel(viewModel.selectedFolder == nil ? "Choose destination folder, currently Library" : "Choose destination folder, currently \(viewModel.selectedFolder?.title ?? "Library")")
+        .accessibilityLabel(
+            viewModel.selectedFolder == nil
+                ? localized("Choose destination folder, currently Library")
+                : localizedFormat(
+                    "Choose destination folder, currently %@",
+                    viewModel.selectedFolder?.title ?? localized("Library")
+                )
+        )
     }
 
     var headerStatsStrip: some View {
@@ -244,25 +252,25 @@ extension DeckWorkspaceView {
 
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: UIConstants.Spacing.small) {
-                CreateDeckHeaderStatChip(symbol: "rectangle.stack", text: "\(summary.cardCount) cards")
-                CreateDeckHeaderStatChip(symbol: "square.grid.2x2", text: "zones(\(summary.filledContentBlockCount))")
+                CreateDeckHeaderStatChip(symbol: "rectangle.stack", text: localizedFormat("%d cards", summary.cardCount))
+                CreateDeckHeaderStatChip(symbol: "square.grid.2x2", text: localizedFormat("zones(%d)", summary.filledContentBlockCount))
                 if summary.flashcardCount > 0 {
-                    CreateDeckHeaderStatChip(symbol: "rectangle.on.rectangle", text: "\(summary.flashcardCount) flashcards")
+                    CreateDeckHeaderStatChip(symbol: "rectangle.on.rectangle", text: localizedFormat("%d flashcards", summary.flashcardCount))
                 }
                 if summary.matchCount > 0 {
-                    CreateDeckHeaderStatChip(symbol: "square.grid.2x2.fill", text: "\(summary.matchCount) match")
+                    CreateDeckHeaderStatChip(symbol: "square.grid.2x2.fill", text: localizedFormat("%d match", summary.matchCount))
                 }
                 if summary.quizCount > 0 {
-                    CreateDeckHeaderStatChip(symbol: "checklist", text: "\(summary.quizCount) quiz")
+                    CreateDeckHeaderStatChip(symbol: "checklist", text: localizedFormat("%d quiz", summary.quizCount))
                 }
                 if summary.writeCount > 0 {
-                    CreateDeckHeaderStatChip(symbol: "pencil.line", text: "\(summary.writeCount) write")
+                    CreateDeckHeaderStatChip(symbol: "pencil.line", text: localizedFormat("%d write", summary.writeCount))
                 }
-                CreateDeckHeaderStatChip(symbol: "textformat", text: "\(summary.characterCount) chars")
-                CreateDeckHeaderStatChip(symbol: "photo", text: "\(summary.photoCount) photos")
-                CreateDeckHeaderStatChip(symbol: "pencil.and.outline", text: "\(summary.sketchCount) sketches")
-                CreateDeckHeaderStatChip(symbol: "hand.tap", text: "\(summary.manualCardCount) manual")
-                CreateDeckHeaderStatChip(symbol: "sparkles", text: "\(summary.aiCardCount) AI", tint: accent)
+                CreateDeckHeaderStatChip(symbol: "textformat", text: localizedFormat("%d chars", summary.characterCount))
+                CreateDeckHeaderStatChip(symbol: "photo", text: localizedFormat("%d photos", summary.photoCount))
+                CreateDeckHeaderStatChip(symbol: "pencil.and.outline", text: localizedFormat("%d sketches", summary.sketchCount))
+                CreateDeckHeaderStatChip(symbol: "hand.tap", text: localizedFormat("%d manual", summary.manualCardCount))
+                CreateDeckHeaderStatChip(symbol: "sparkles", text: localizedFormat("%d AI", summary.aiCardCount), tint: accent)
                 ForEach(readinessSummary.items) { item in
                     CreateDeckHeaderStatChip(
                         symbol: item.kind.symbol,
@@ -281,7 +289,7 @@ extension DeckWorkspaceView {
             action: handleSave,
             isEnabled: canSave,
             chrome: canSave ? .accentAlt : .surface,
-            accessibilityLabel: "Save deck"
+            accessibilityLabel: localized("Save deck")
         ) {
             CreateDeckChromeButtonLabel(
                 symbol: "checkmark",
@@ -300,12 +308,12 @@ extension DeckWorkspaceView {
                     viewModel.startMockAIGeneration()
                 },
                 isEnabled: canStartLocalGeneration,
-                accessibilityLabel: "Run mock AI generation"
+                accessibilityLabel: localized("Run mock AI generation")
             ) {
                 HStack(spacing: UIConstants.Spacing.small) {
                     Image(systemName: "bolt.badge.clock")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
-                    Text("Mock AI")
+                    Text(localized("Mock AI"))
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .lineLimit(1)
                 }
@@ -337,18 +345,23 @@ extension DeckWorkspaceView {
                         .frame(width: 24, height: 24)
                     }
                     .quizFlashButtonStyle(.surface, shape: .circle, size: 24)
-                    .accessibilityLabel(viewModel.hasPausedAIGeneration ? "Resume AI generation" : "Pause AI generation")
+                    .accessibilityLabel(
+                        viewModel.hasPausedAIGeneration
+                            ? localized("Resume AI generation")
+                            : localized("Pause AI generation")
+                    )
 
                     Button {
                         viewModel.requestAIGenerationCancel()
                     } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 22, height: 22)
+                        ChromeSoftCircleSymbol(
+                            systemName: "xmark",
+                            size: 22,
+                            symbolSize: 16
+                        )
                     }
-                    .quizFlashButtonStyle(.surface, shape: .circle, size: 22)
-                    .accessibilityLabel("Cancel AI generation")
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(localized("Cancel AI generation"))
                 }
                 .fixedSize(horizontal: true, vertical: false)
             }
@@ -362,12 +375,12 @@ extension DeckWorkspaceView {
                 },
                 isEnabled: canStartLocalGeneration,
                 chrome: .accentAlt,
-                accessibilityLabel: "Generate cards with AI"
+                accessibilityLabel: localized("Generate cards with AI")
             ) {
                 HStack(spacing: UIConstants.Spacing.small) {
                     Image(systemName: "wand.and.stars")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
-                    Text("Generate")
+                    Text(localized("Generate"))
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .lineLimit(1)
                 }
@@ -388,7 +401,7 @@ extension DeckWorkspaceView {
             }
         }
         .quizFlashButtonStyle(.accentAlt, shape: .circle, size: UIConstants.Size.actionButton)
-        .accessibilityLabel("Choose card type")
+        .accessibilityLabel(localized("Choose card type"))
     }
 
     func floatingGenerateAction(bottomInset: CGFloat) -> some View {
@@ -417,14 +430,14 @@ extension DeckWorkspaceView {
                         appPreferences.createDeckSortOrder = sortOrder
                     } label: {
                         if appPreferences.createDeckSortOrder == sortOrder {
-                            Label(sortOrder.title, systemImage: "checkmark")
+                            Label(sortOrder.localizedTitle(locale: locale), systemImage: "checkmark")
                         } else {
-                            Text(sortOrder.title)
+                            Text(sortOrder.localizedTitle(locale: locale))
                         }
                     }
                 }
             } label: {
-                Label("Sort Cards", systemImage: "arrow.up.arrow.down")
+                Label(localized("Sort Cards"), systemImage: "arrow.up.arrow.down")
             }
             .disabled(viewModel.draftCards.count < 2)
 
@@ -435,7 +448,7 @@ extension DeckWorkspaceView {
                         viewModel.revertToInitialState()
                     }
                 } label: {
-                    Label("Undo Changes", systemImage: "arrow.uturn.backward")
+                    Label(localized("Undo Changes"), systemImage: "arrow.uturn.backward")
                 }
                 .disabled(!viewModel.canUndoChanges)
 
@@ -443,14 +456,14 @@ extension DeckWorkspaceView {
                     isTitleFocused = false
                     showDeleteDeckConfirmation = true
                 } label: {
-                    Label("Delete Deck", systemImage: "trash")
+                    Label(localized("Delete Deck"), systemImage: "trash")
                 }
                 .disabled(!viewModel.canDeleteDeck)
 
                 Divider()
             }
 
-            Button(viewModel.isSelectingCards ? "Done Selecting" : "Select Cards") {
+            Button(viewModel.isSelectingCards ? localized("Done Selecting") : localized("Select Cards")) {
                 isTitleFocused = false
                 withBottomChromeAnimation {
                     if viewModel.isSelectingCards {
@@ -469,37 +482,39 @@ extension DeckWorkspaceView {
             Button {
                 openCardEditor(for: .flashcard)
             } label: {
-                Label("Flashcard", systemImage: "rectangle.on.rectangle")
+                Label(localized("Flashcard"), systemImage: "rectangle.on.rectangle")
             }
 
             Button {
                 openCardEditor(for: .quiz)
             } label: {
-                Label("Quiz", systemImage: "checklist")
+                Label(localized("Quiz"), systemImage: "checklist")
             }
 
             Button {
                 openCardEditor(for: .match)
             } label: {
-                Label("Match", systemImage: "square.grid.2x2.fill")
+                Label(localized("Match"), systemImage: "square.grid.2x2.fill")
             }
 
             Button {
                 openCardEditor(for: .write)
             } label: {
-                Label("Write", systemImage: "pencil.line")
+                Label(localized("Write"), systemImage: "pencil.line")
             }
         }
     }
 
     var moreActionsButton: some View {
         Menu(content: { moreMenuContents }) {
-            CreateDeckChromeCircleSurface {
-                CreateDeckChromeButtonLabel(symbol: "ellipsis", tint: accent)
-            }
+            ChromeSoftCircleSymbol(
+                systemName: "ellipsis",
+                size: UIConstants.Size.actionButton,
+                symbolSize: UIConstants.Size.iconStandard
+            )
         }
-            .quizFlashButtonStyle(.surface, shape: .circle, size: UIConstants.Size.actionButton)
-            .accessibilityLabel("More actions")
+        .buttonStyle(.plain)
+        .accessibilityLabel(localized("More actions"))
     }
 }
 
@@ -629,13 +644,14 @@ struct CreateDeckCollapsedTitlePill: View {
     let title: String
     let maxWidth: CGFloat
     let isVisible: Bool
+    let fallbackTitle: String
 
     var body: some View {
         CollapsibleTitlePill(
-            title: title,
+            title: .verbatim(title),
             maxWidth: maxWidth,
             isVisible: isVisible,
-            fallbackTitle: "Untitled Deck"
+            fallbackTitle: fallbackTitle
         )
     }
 }

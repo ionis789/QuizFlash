@@ -22,6 +22,7 @@ struct PlayModeSettingsScreen: View {
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var context
+    @Environment(AppPreferences.self) private var appPreferences
 
     /// The deck selected on the parent `DeckView`.
     let deck: DeckModel
@@ -67,49 +68,50 @@ struct PlayModeSettingsScreen: View {
     }
 
     private var currentModeSummary: [String] {
+        let locale = appPreferences.resolvedLocale
         switch mode {
         case .flashcards:
             return [
-                "Order: \(flashcardSettings.order.title)",
-                flashcardSettings.retryWrongCards ? "Retry run enabled for missed cards." : "Session ends after the first pass.",
-                flashcardSettings.revealFlow == .questionFirst ? "Cards open on the question side." : "Cards open on the answer side.",
+                AppLocalization.string("Order: %@", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.order.localizedTitle(locale: locale)),
+                flashcardSettings.retryWrongCards ? AppLocalization.string("Retry run enabled for missed cards.", locale: locale) : AppLocalization.string("Session ends after the first pass.", locale: locale),
+                flashcardSettings.revealFlow == .questionFirst ? AppLocalization.string("Cards open on the question side.", locale: locale) : AppLocalization.string("Cards open on the answer side.", locale: locale),
                 flashcardSettings.flipBehavior == .tapToFlip
-                    ? "Tap reveal stays available in-session."
-                    : "Cards stay locked on the opening face.",
+                    ? AppLocalization.string("Tap reveal stays available in-session.", locale: locale)
+                    : AppLocalization.string("Cards stay locked on the opening face.", locale: locale),
                 flashcardSettings.flipBehavior == .tapToFlip
-                    ? "Tap animation: \(flashcardSettings.tapAnimationStyle.title)."
-                    : "Tap animation is saved but inactive while the face is locked.",
+                    ? AppLocalization.string("Tap animation: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.tapAnimationStyle.localizedTitle(locale: locale))
+                    : AppLocalization.string("Tap animation is saved but inactive while the face is locked.", locale: locale),
                 flashcardSettings.tapAnimationStyle == .staticSwap
-                    ? "Static text motion: \(flashcardSettings.staticSwapTextMotion.title)."
-                    : "Static text motion applies only when Static Swap is selected.",
-                "Content alignment: \(flashcardSettings.contentAlignment.title)."
+                    ? AppLocalization.string("Static text motion: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.staticSwapTextMotion.localizedTitle(locale: locale))
+                    : AppLocalization.string("Static text motion applies only when Static Swap is selected.", locale: locale),
+                AppLocalization.string("Content alignment: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.contentAlignment.localizedTitle(locale: locale))
             ]
         case .quiz:
             return [
-                quizSettings.shuffleChoices ? "Choices shuffle at runtime." : "Author order is preserved.",
-                "Validation: \(quizSettings.answerValidation.title)",
-                "Explanation: \(quizSettings.explanationTiming.title)",
-                quizSettings.retryIncorrectQuestions ? "Wrong questions queue for one retry pass." : "Wrong questions do not replay automatically."
+                quizSettings.shuffleChoices ? AppLocalization.string("Choices shuffle at runtime.", locale: locale) : AppLocalization.string("Author order is preserved.", locale: locale),
+                AppLocalization.string("Validation: %@", locale: locale).replacingOccurrences(of: "%@", with: quizSettings.answerValidation.localizedTitle(locale: locale)),
+                AppLocalization.string("Explanation: %@", locale: locale).replacingOccurrences(of: "%@", with: quizSettings.explanationTiming.localizedTitle(locale: locale)),
+                quizSettings.retryIncorrectQuestions ? AppLocalization.string("Wrong questions queue for one retry pass.", locale: locale) : AppLocalization.string("Wrong questions do not replay automatically.", locale: locale)
             ]
         case .learn:
             return [
-                "Grouping: \(learnSettings.grouping.title)",
-                "Density: \(learnSettings.density.title)",
-                "Learn stays report-only and never mutates review history."
+                AppLocalization.string("Grouping: %@", locale: locale).replacingOccurrences(of: "%@", with: learnSettings.grouping.localizedTitle(locale: locale)),
+                AppLocalization.string("Density: %@", locale: locale).replacingOccurrences(of: "%@", with: learnSettings.density.localizedTitle(locale: locale)),
+                AppLocalization.string("Learn stays report-only and never mutates review history.", locale: locale)
             ]
         case .match:
             return [
-                matchSettings.allowsFlashcardFallback ? "Flashcard fallback is allowed." : "Flashcard fallback is disabled.",
-                "Round size: \(matchSettings.roundSize.title)",
-                "Density: \(matchSettings.contentDensity.title)",
-                matchSettings.retryMissedPairs ? "Missed pairs replay before the next chunk." : "Missed pairs do not trigger retry rounds."
+                matchSettings.allowsFlashcardFallback ? AppLocalization.string("Flashcard fallback is allowed.", locale: locale) : AppLocalization.string("Flashcard fallback is disabled.", locale: locale),
+                AppLocalization.string("Round size: %@", locale: locale).replacingOccurrences(of: "%@", with: matchSettings.roundSize.localizedTitle(locale: locale)),
+                AppLocalization.string("Density: %@", locale: locale).replacingOccurrences(of: "%@", with: matchSettings.contentDensity.localizedTitle(locale: locale)),
+                matchSettings.retryMissedPairs ? AppLocalization.string("Missed pairs replay before the next chunk.", locale: locale) : AppLocalization.string("Missed pairs do not trigger retry rounds.", locale: locale)
             ]
         case .write:
             return [
-                "Input: \(writeSettings.inputMode.title)",
-                "Strictness: \(writeSettings.strictness.title)",
-                "Reveal: \(writeSettings.revealTiming.title)",
-                writeSettings.retryIncorrectPrompts ? "Wrong prompts queue for one retry pass." : "Wrong prompts do not replay automatically."
+                AppLocalization.string("Input: %@", locale: locale).replacingOccurrences(of: "%@", with: writeSettings.inputMode.localizedTitle(locale: locale)),
+                AppLocalization.string("Strictness: %@", locale: locale).replacingOccurrences(of: "%@", with: writeSettings.strictness.localizedTitle(locale: locale)),
+                AppLocalization.string("Reveal: %@", locale: locale).replacingOccurrences(of: "%@", with: writeSettings.revealTiming.localizedTitle(locale: locale)),
+                writeSettings.retryIncorrectPrompts ? AppLocalization.string("Wrong prompts queue for one retry pass.", locale: locale) : AppLocalization.string("Wrong prompts do not replay automatically.", locale: locale)
             ]
         }
     }
@@ -159,10 +161,14 @@ struct PlayModeSettingsScreen: View {
         .onChange(of: learnSettings) { _, _ in
             persistSettingsIfNeeded()
         }
-        .alert("Save Error", isPresented: $showSaveErrorAlert) {
-            Button("OK", role: .cancel) { }
+        .alert(AppLocalization.string("Save Error", locale: appPreferences.resolvedLocale), isPresented: $showSaveErrorAlert) {
+            Button(AppLocalization.string("OK", locale: appPreferences.resolvedLocale), role: .cancel) { }
         } message: {
-            Text(saveErrorMessage.isEmpty ? "These play mode settings couldn't be saved right now." : saveErrorMessage)
+            Text(
+                saveErrorMessage.isEmpty
+                    ? AppLocalization.string("These play mode settings couldn't be saved right now.", locale: appPreferences.resolvedLocale)
+                    : saveErrorMessage
+            )
         }
     }
 
@@ -177,7 +183,7 @@ struct PlayModeSettingsScreen: View {
 
             ZStack {
                 VStack(spacing: 2) {
-                    Text("\(mode.title) Settings")
+                    Text("\(mode.localizedTitle(locale: appPreferences.resolvedLocale)) \(AppLocalization.string("Settings", locale: appPreferences.resolvedLocale))")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
@@ -282,7 +288,7 @@ struct PlayModeSettingsScreen: View {
             Self.logger.error("Failed to persist play mode settings: \(error.localizedDescription, privacy: .public)")
             let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
             saveErrorMessage = description.isEmpty
-                ? "These play mode settings couldn't be saved right now."
+                ? AppLocalization.string("These play mode settings couldn't be saved right now.", locale: appPreferences.resolvedLocale)
                 : description
             showSaveErrorAlert = true
         }
@@ -297,10 +303,21 @@ struct PlayModeSettingsScreen: View {
     }
 
     private var readinessCopy: String {
+        let locale = appPreferences.resolvedLocale
         if compatibleCardCount > 0 {
-            return "These preferences are stored on this deck and will be picked up the next time \(mode.title) launches."
+            let format = AppLocalization.string("These preferences are stored on this deck and will be picked up the next time %@ launches.",
+                locale: locale
+            )
+            return String.localizedStringWithFormat(format, mode.localizedTitle(locale: locale))
         }
 
-        return "The settings are already stored on this deck. \(mode.title) will become playable once this deck contains compatible \(mode.compatibilityRequirementLabel)."
+        let format = AppLocalization.string("The settings are already stored on this deck. %@ will become playable once this deck contains compatible %@.",
+            locale: locale
+        )
+        return String.localizedStringWithFormat(
+            format,
+            mode.localizedTitle(locale: locale),
+            mode.localizedCompatibilityRequirementLabel(locale: locale)
+        )
     }
 }

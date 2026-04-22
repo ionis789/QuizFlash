@@ -19,7 +19,7 @@ typeset -a ALL_SUITES=(
   "AIWorkspaceCoordinatorTests"
   "MatchConversionPipelineTests"
   "MatchPromptingTests"
-  "CreateDeckViewModelTests"
+  "DeckWorkspaceViewModelTests"
   "MatchQualityAndReadinessTests"
   "HomeViewModelTests"
   "LibraryViewModelMutationTests"
@@ -42,7 +42,7 @@ typeset -a CATEGORY_AI_SUITES=(
 )
 
 typeset -a CATEGORY_AUTHORING_SUITES=(
-  "CreateDeckViewModelTests"
+  "DeckWorkspaceViewModelTests"
   "MatchQualityAndReadinessTests"
 )
 
@@ -127,7 +127,7 @@ print_suites() {
 print_categories() {
   cat <<'EOF'
 ai: AIProviderStoreTests, AIJobSessionStoreTests, AIGenerationSessionStoreTests, AIWorkspaceCoordinatorTests, MatchConversionPipelineTests, MatchPromptingTests
-authoring: CreateDeckViewModelTests, MatchQualityAndReadinessTests
+authoring: DeckWorkspaceViewModelTests, MatchQualityAndReadinessTests
 decks: DeckViewModelMutationTests, DeckCardConversionRequestTests, DeckConversionPersistenceTests
 home: HomeViewModelTests
 library: LibraryViewModelMutationTests

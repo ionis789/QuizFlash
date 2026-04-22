@@ -8,9 +8,6 @@
 import SwiftUI
 
 struct CardEditorView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(ThemeManager.self) private var themeManager
-
     let destination: CardEditorDestination
     var searchQuery: String? = nil
     var onSave: (DraftCardContent) -> Void
@@ -31,7 +28,7 @@ struct CardEditorView: View {
     private var flashcardEditor: some View {
         let content = resolvedFlashcardContent
 
-        return CreateCardView(
+        return FlashcardEditorView(
             frontZone: content.frontZone,
             backZone: content.backZone,
             searchQuery: searchQuery
@@ -46,38 +43,6 @@ struct CardEditorView: View {
                     )
                 )
             )
-        }
-    }
-
-    private var unavailableEditor: some View {
-        NavigationStack {
-            VStack(spacing: UIConstants.Spacing.large) {
-                Image(systemName: "hammer.circle")
-                    .font(.system(size: 40, weight: .semibold))
-                    .foregroundStyle(.secondary)
-
-                Text("\(destination.kind.rawValue.capitalized) editing is not wired yet")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .multilineTextAlignment(.center)
-
-                Text("This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, UIConstants.Spacing.large)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(UIConstants.Spacing.extraLarge)
-            .background(themeManager.screenBackground)
-            .navigationTitle("Card Editor")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
-            }
         }
     }
 

@@ -160,7 +160,8 @@ extension DeckContentView {
     @ViewBuilder
     var unavailablePlayModeOverlay: some View {
         if let unavailablePlayMode {
-            let prompt = unavailablePlayMode.unavailablePrompt(
+            let prompt = unavailablePlayMode.localizedUnavailablePrompt(
+                locale: appPreferences.resolvedLocale,
                 in: viewModel.playModeAvailability,
                 deck: deck
             )
@@ -237,7 +238,7 @@ extension DeckContentView {
                 }
 
                 HStack(spacing: UIConstants.Spacing.small) {
-                    Button("Not now", action: onDismiss)
+                    Button(AppLocalization.string("Not now", locale: AppPreferences.persistedResolvedLocale), action: onDismiss)
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .quizFlashButtonStyle(.surface)
@@ -334,6 +335,7 @@ extension DeckContentView {
     }
 
     struct CardStatsView: View {
+        @Environment(AppPreferences.self) private var appPreferences
         let card: CardModel
         let onClose: () -> Void
 
@@ -344,11 +346,11 @@ extension DeckContentView {
             return Int((Double(correctReviews) / Double(totalReviews)) * 100)
         }
         var totalXPEarned: Int { card.reviewHistory.reduce(0) { $0 + $1.xpAwarded } }
-        private static let dueDateFormatter: DateFormatter = {
-            let formatter = DateFormatter()
-            formatter.setLocalizedDateFormatFromTemplate("d MMM")
-            return formatter
-        }()
+        private var locale: Locale { appPreferences.resolvedLocale }
+
+        private func localized(_ value: String.LocalizationValue) -> String {
+            AppLocalization.string(value, locale: locale)
+        }
 
         var body: some View {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
@@ -360,34 +362,34 @@ extension DeckContentView {
 
                 HStack(alignment: .top, spacing: UIConstants.Spacing.standard) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Spaced Repetition Stats")
+                        Text(localized("Spaced Repetition Stats"))
                             .font(.system(size: 20, weight: .black, design: .rounded))
                             .foregroundStyle(.primary)
-                        Text("Live card memory and schedule snapshot")
+                        Text(localized("Live card memory and schedule snapshot"))
                             .font(.system(size: 14, weight: .medium, design: .rounded))
                             .foregroundStyle(.secondary)
                     }
 
                     Spacer(minLength: 0)
 
-                    Button(action: onClose) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundStyle(.primary)
-                    }
-                    .quizFlashButtonStyle(.surface, shape: .circle, size: 42)
+                    ChromeSoftCircleSymbolButton(
+                        systemName: "xmark",
+                        accessibilityLabel: localized("Close spaced repetition stats"),
+                        action: onClose,
+                        symbolSize: UIConstants.Size.iconStandard
+                    )
                 }
 
                 LazyVGrid(
                     columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3),
                     spacing: 12
                 ) {
-                    StatMetricTile(icon: "arrow.2.squarepath", value: "\(totalReviews)", label: "Reviews", color: .blue)
-                    StatMetricTile(icon: "target", value: "\(accuracy)%", label: "Accuracy", color: .green)
+                    StatMetricTile(icon: "arrow.2.squarepath", value: "\(totalReviews)", label: localized("Reviews"), color: .blue)
+                    StatMetricTile(icon: "target", value: "\(accuracy)%", label: localized("Accuracy"), color: .green)
                     StatMetricTile(icon: "sparkles", value: "\(totalXPEarned)", label: "XP", color: .yellow)
-                    StatMetricTile(icon: "brain.head.profile", value: String(format: "%.1f", card.easeFactor), label: "Ease", color: .purple)
-                    StatMetricTile(icon: "calendar.badge.clock", value: "\(card.interval)d", label: "Interval", color: .orange)
-                    StatMetricTile(icon: "clock", value: dateString(card.dueDate), label: "Due", color: card.dueDate <= Date() ? .red : .primary)
+                    StatMetricTile(icon: "brain.head.profile", value: String(format: "%.1f", card.easeFactor), label: localized("Ease"), color: .purple)
+                    StatMetricTile(icon: "calendar.badge.clock", value: "\(card.interval)d", label: localized("Interval"), color: .orange)
+                    StatMetricTile(icon: "clock", value: dateString(card.dueDate), label: localized("Due"), color: card.dueDate <= Date() ? .red : .primary)
                 }
             }
             .padding(20)
@@ -396,7 +398,11 @@ extension DeckContentView {
         }
 
         private func dateString(_ date: Date) -> String {
-            Self.dueDateFormatter.string(from: date)
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            formatter.calendar = appPreferences.resolvedCalendar
+            formatter.setLocalizedDateFormatFromTemplate("d MMM")
+            return formatter.string(from: date)
         }
     }
 

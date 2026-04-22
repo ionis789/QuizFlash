@@ -126,6 +126,9 @@ final class CalendarViewModel {
     /// day matrix and date formatting payloads every time the visible month changes.
     private var monthGridCache: [Date: MonthGridCacheEntry] = [:]
 
+    /// Last locale identifier used for cached month titles and day symbols.
+    private var presentationLocaleIdentifier: String = AppPreferences.shared.resolvedLocale.identifier
+
     // MARK: - Static Date Formatters
 
     private static let monthFormatter: DateFormatter = {
@@ -141,7 +144,11 @@ final class CalendarViewModel {
     }()
 
     private static let logFormatter: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
+        f.dateFormat = "yyyy-MM-dd"
+        return f
     }()
 
     // MARK: - Layout Constants
@@ -192,7 +199,8 @@ final class CalendarViewModel {
     // MARK: - Initializer
 
     init() {
-        let initialCalendar = AppPreferences.shared.resolvedCalendar
+        var initialCalendar = AppPreferences.shared.resolvedCalendar
+        initialCalendar.locale = AppPreferences.shared.resolvedLocale
         calendar = initialCalendar
         let today = initialCalendar.startOfDay(for: Date())
         selectedDate = today
@@ -232,9 +240,10 @@ final class CalendarViewModel {
 
     /// Rebuilds the calendar grid when the preferred start weekday changes.
     func applyWeekStartPreference(_ preference: AppWeekStartDayPreference) {
-        let updatedCalendar = preference == .system
+        var updatedCalendar = preference == .system
             ? Calendar.autoupdatingCurrent
             : preference.resolvedCalendar
+        updatedCalendar.locale = AppPreferences.shared.resolvedLocale
         guard calendar.firstWeekday != updatedCalendar.firstWeekday else { return }
         calendar = updatedCalendar
         monthGridCache.removeAll(keepingCapacity: true)
@@ -283,6 +292,7 @@ final class CalendarViewModel {
     /// 4. Chunk the flat array into rows of 7.
     /// 5. Record the row index of the selected date as `monthProgress` for the collapse animation.
     private func calculateMonthData() {
+        refreshPresentationLocaleIfNeeded()
         let snapshot = snapshot(for: selectedMonth, selectedDate: selectedDate)
         currentMonthString = snapshot.monthString
         yearString = snapshot.yearString
@@ -311,6 +321,8 @@ final class CalendarViewModel {
     }
 
     private func cachedMonthGrid(for monthAnchor: Date) -> MonthGridCacheEntry {
+        refreshPresentationLocaleIfNeeded()
+
         if let cached = monthGridCache[monthAnchor] {
             return cached
         }
@@ -333,8 +345,8 @@ final class CalendarViewModel {
         }
 
         let cacheEntry = MonthGridCacheEntry(
-            monthString: Self.monthFormatter.string(from: monthAnchor),
-            yearString: Self.yearFormatter.string(from: monthAnchor),
+            monthString: localizedMonthString(for: monthAnchor),
+            yearString: localizedYearString(for: monthAnchor),
             rows: rows,
             rowIndexByDateString: rowIndexByDateString
         )
@@ -385,6 +397,7 @@ final class CalendarViewModel {
     }
 
     private func buildDays(for monthAnchor: Date) -> [Day] {
+        refreshPresentationLocaleIfNeeded()
         var days: [Day] = []
 
         guard let range = calendar.range(of: .day, in: .month, for: monthAnchor) else {
@@ -404,7 +417,7 @@ final class CalendarViewModel {
         for index in Array(0..<leadingPadding).reversed() {
             if let date = calendar.date(byAdding: .day, value: -index - 1, to: firstDate) {
                 days.append(Day(
-                    shortSymbol: Self.dayFormatter.string(from: date),
+                    shortSymbol: localizedDaySymbol(for: date),
                     date: date,
                     dateString: Self.logFormatter.string(from: date),
                     ignored: true
@@ -414,7 +427,7 @@ final class CalendarViewModel {
 
         for date in monthDates {
             days.append(Day(
-                shortSymbol: Self.dayFormatter.string(from: date),
+                shortSymbol: localizedDaySymbol(for: date),
                 date: date,
                 dateString: Self.logFormatter.string(from: date),
                 ignored: false
@@ -426,7 +439,7 @@ final class CalendarViewModel {
             for index in 0..<trailingPadding {
                 if let date = calendar.date(byAdding: .day, value: index + 1, to: lastDate) {
                     days.append(Day(
-                        shortSymbol: Self.dayFormatter.string(from: date),
+                        shortSymbol: localizedDaySymbol(for: date),
                         date: date,
                         dateString: Self.logFormatter.string(from: date),
                         ignored: true
@@ -436,5 +449,33 @@ final class CalendarViewModel {
         }
 
         return days
+    }
+
+    private func refreshPresentationLocaleIfNeeded() {
+        let resolvedLocale = AppPreferences.shared.resolvedLocale
+        let localeIdentifier = resolvedLocale.identifier
+        guard presentationLocaleIdentifier != localeIdentifier else { return }
+
+        presentationLocaleIdentifier = localeIdentifier
+        monthGridCache.removeAll(keepingCapacity: true)
+        calendar.locale = resolvedLocale
+    }
+
+    private func localizedMonthString(for date: Date) -> String {
+        Self.monthFormatter.locale = AppPreferences.shared.resolvedLocale
+        Self.monthFormatter.calendar = calendar
+        return Self.monthFormatter.string(from: date)
+    }
+
+    private func localizedYearString(for date: Date) -> String {
+        Self.yearFormatter.locale = AppPreferences.shared.resolvedLocale
+        Self.yearFormatter.calendar = calendar
+        return Self.yearFormatter.string(from: date)
+    }
+
+    private func localizedDaySymbol(for date: Date) -> String {
+        Self.dayFormatter.locale = AppPreferences.shared.resolvedLocale
+        Self.dayFormatter.calendar = calendar
+        return Self.dayFormatter.string(from: date)
     }
 }

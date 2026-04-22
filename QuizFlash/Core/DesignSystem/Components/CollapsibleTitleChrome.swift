@@ -20,7 +20,7 @@ enum CollapsibleTitleChromeMetrics {
 // MARK: - Collapsible Title Label
 
 struct CollapsibleTitlePill: View {
-    let title: String
+    let title: AppTextValue
     let maxWidth: CGFloat
     let isVisible: Bool
     var animateVisibility = true
@@ -29,20 +29,47 @@ struct CollapsibleTitlePill: View {
     var coordinateSpaceName: String? = nil
     var onContentFrameChange: ((CGRect) -> Void)? = nil
 
-    private var resolvedTitle: String {
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
+    init(
+        title: AppTextValue,
+        maxWidth: CGFloat,
+        isVisible: Bool,
+        animateVisibility: Bool = true,
+        fallbackTitle: String = "",
+        visibilityAnimation: Animation? = nil,
+        coordinateSpaceName: String? = nil,
+        onContentFrameChange: ((CGRect) -> Void)? = nil
+    ) {
+        self.title = title
+        self.maxWidth = maxWidth
+        self.isVisible = isVisible
+        self.animateVisibility = animateVisibility
+        self.fallbackTitle = fallbackTitle
+        self.visibilityAnimation = visibilityAnimation
+        self.coordinateSpaceName = coordinateSpaceName
+        self.onContentFrameChange = onContentFrameChange
+    }
+
+    private var resolvedVerbatimTitle: String {
+        switch title {
+        case .localized:
             return fallbackTitle
+        case .verbatim(let rawTitle):
+            let trimmed = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? fallbackTitle : trimmed
         }
-        return trimmed
     }
 
     private var hasTitle: Bool {
-        !resolvedTitle.isEmpty
+        switch title {
+        case .localized:
+            return true
+        case .verbatim:
+            return !resolvedVerbatimTitle.isEmpty
+        }
     }
 
     var body: some View {
-        Text(resolvedTitle)
+        AppTextLabel(value: titleForRendering)
             .font(.system(size: 18, weight: .black, design: .rounded))
             .foregroundStyle(.white)
             .lineLimit(1)
@@ -73,7 +100,16 @@ struct CollapsibleTitlePill: View {
                     }
             }
         }
-        .accessibilityLabel(resolvedTitle.isEmpty ? fallbackTitle : resolvedTitle)
+        .accessibilityLabel(resolvedVerbatimTitle)
+    }
+
+    private var titleForRendering: AppTextValue {
+        switch title {
+        case .localized:
+            return title
+        case .verbatim:
+            return .verbatim(resolvedVerbatimTitle)
+        }
     }
 }
 
@@ -208,6 +244,67 @@ struct ChromeCircleIconButton: View {
     }
 }
 
+/// Shared soft-circle symbol button used by dismiss and lightweight utility actions.
+struct ChromeSoftCircleSymbolButton: View {
+    let systemName: String
+    let accessibilityLabel: String
+    let action: () -> Void
+    var size: CGFloat = UIConstants.Size.actionButton
+    var symbolSize: CGFloat? = nil
+    var tint: Color? = nil
+    var backgroundTint: Color? = nil
+
+    private var resolvedSymbolSize: CGFloat {
+        symbolSize ?? max(UIConstants.Size.iconSmall, min(UIConstants.Size.iconStandard, size * 0.6))
+    }
+
+    var body: some View {
+        Button(action: action) {
+            ChromeSoftCircleSymbol(
+                systemName: systemName,
+                size: size,
+                symbolSize: resolvedSymbolSize,
+                tint: tint,
+                backgroundTint: backgroundTint
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+/// Shared soft-circle glyph that keeps the dark circular background and lavender icon treatment reusable.
+struct ChromeSoftCircleSymbol: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let systemName: String
+    let size: CGFloat
+    let symbolSize: CGFloat
+    var tint: Color? = nil
+    var backgroundTint: Color? = nil
+
+    private var resolvedTint: Color {
+        tint ?? themeManager.roleColor(.circularToolbarForeground)
+    }
+
+    private var resolvedBackgroundTint: Color {
+        backgroundTint ?? themeManager.roleColor(.circularToolbarFill)
+    }
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: symbolSize, weight: .bold))
+            .fontDesign(.rounded)
+            .foregroundStyle(resolvedTint)
+            .frame(width: size, height: size)
+            .background {
+                Circle()
+                    .fill(resolvedBackgroundTint)
+            }
+            .contentShape(Circle())
+    }
+}
+
 struct ChromeCirclePlaceholder: View {
     var body: some View {
         Color.clear
@@ -218,10 +315,13 @@ struct ChromeCirclePlaceholder: View {
 // MARK: - Large Screen Title
 
 struct LargeScreenTitle: View {
-    let title: String
+    let title: AppTextValue
 
+    init(title: AppTextValue) {
+        self.title = title
+    }
     var body: some View {
-        Text(title)
+        AppTextLabel(value: title)
             .font(.system(size: 40, weight: .black, design: .rounded))
             .foregroundStyle(.primary)
             .fixedSize(horizontal: false, vertical: true)

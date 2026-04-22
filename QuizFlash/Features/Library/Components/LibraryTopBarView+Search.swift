@@ -8,6 +8,10 @@
 import SwiftUI
 
 extension LibraryTopBarView {
+    private var localizedSearchPrompt: String {
+        localized("Search decks, cards, answers")
+    }
+
     @ViewBuilder
     func searchLeadingControl(maxWidth: CGFloat) -> some View {
         if viewModel.isSearching || searchProgress > 0.001 {
@@ -21,7 +25,7 @@ extension LibraryTopBarView {
                     .contentShape(Capsule())
             }
             .buttonStyle(LibraryTopBarNoHighlightButtonStyle())
-            .accessibilityLabel("Search")
+            .accessibilityLabel(localized("Search"))
         }
     }
 
@@ -66,7 +70,7 @@ extension LibraryTopBarView {
         if viewModel.isSearching && isSearchFieldInteractive {
             ZStack(alignment: .leading) {
                 if viewModel.searchText.isEmpty {
-                    Text("Search decks, cards, answers")
+                    Text(localizedSearchPrompt)
                         .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -89,7 +93,7 @@ extension LibraryTopBarView {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         } else {
-            Text("Search decks, cards, answers")
+            Text(localizedSearchPrompt)
                 .font(.system(size: 16, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)

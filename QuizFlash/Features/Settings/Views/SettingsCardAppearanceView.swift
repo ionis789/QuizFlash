@@ -13,6 +13,7 @@ private let kCardAppearanceChromeSpace = "CardAppearanceChromeSpace"
 // MARK: - Card Appearance Setting View
 
 struct SettingsCardAppearanceView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(ThemeManager.self) private var themeManager
@@ -173,7 +174,7 @@ struct SettingsCardAppearanceView: View {
                 .font(.body)
                 .padding(.top, 1)
 
-            Text(selectedMode.description)
+            Text(selectedMode.localizedDescription(locale: appPreferences.resolvedLocale))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -198,6 +199,7 @@ struct SettingsCardAppearanceView: View {
 // MARK: - Mode Option Row
 
 private struct ModeOptionRow: View {
+    @Environment(AppPreferences.self) private var appPreferences
     let mode: CardContentMode
     let isSelected: Bool
     let onSelect: () -> Void
@@ -221,7 +223,7 @@ private struct ModeOptionRow: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(mode.label)
+                    Text(mode.localizedLabel(locale: appPreferences.resolvedLocale))
                         .font(.body.weight(.medium))
                         .foregroundStyle(.primary)
                 }

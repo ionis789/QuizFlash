@@ -56,6 +56,16 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         }
     }
 
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .flashcards: return AppLocalization.string("Flashcards", locale: locale)
+        case .quiz:       return AppLocalization.string("Quiz", locale: locale)
+        case .learn:      return AppLocalization.string("Learn", locale: locale)
+        case .match:      return AppLocalization.string("Match", locale: locale)
+        case .write:      return AppLocalization.string("Write", locale: locale)
+        }
+    }
+
     /// Secondary label shown under the play-mode title.
     var subtitle: String {
         switch self {
@@ -64,6 +74,16 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         case .learn:      return "Summary report"
         case .match:      return "Grid matching"
         case .write:      return "Manual input"
+        }
+    }
+
+    func localizedSubtitle(locale: Locale) -> String {
+        switch self {
+        case .flashcards: return AppLocalization.string("Swipe review", locale: locale)
+        case .quiz:       return AppLocalization.string("Multiple choice", locale: locale)
+        case .learn:      return AppLocalization.string("Summary report", locale: locale)
+        case .match:      return AppLocalization.string("Grid matching", locale: locale)
+        case .write:      return AppLocalization.string("Manual input", locale: locale)
         }
     }
 
@@ -205,6 +225,55 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         }
     }
 
+    func localizedUnavailablePrompt(
+        locale: Locale,
+        in availability: PlayModeCardAvailability,
+        deck: DeckModel
+    ) -> PlayModeUnavailablePrompt {
+        let deckHasAnyCards = availability.totalCards > 0
+
+        switch self {
+        case .flashcards:
+            return PlayModeUnavailablePrompt(
+                title: AppLocalization.string("Flashcards Isn't Ready", locale: locale),
+                detail: deckHasAnyCards
+                    ? AppLocalization.string("Convert the current cards to Flashcards to use this mode.", locale: locale)
+                    : AppLocalization.string("Add cards to this deck first.", locale: locale),
+                actionTitle: deckHasAnyCards ? AppLocalization.string("Convert Cards", locale: locale) : nil
+            )
+        case .quiz:
+            return PlayModeUnavailablePrompt(
+                title: AppLocalization.string("Quiz Isn't Ready", locale: locale),
+                detail: deckHasAnyCards
+                    ? AppLocalization.string("Convert the current cards to Quiz to use this mode.", locale: locale)
+                    : AppLocalization.string("Add cards to this deck first.", locale: locale),
+                actionTitle: deckHasAnyCards ? AppLocalization.string("Convert Cards", locale: locale) : nil
+            )
+        case .learn:
+            return PlayModeUnavailablePrompt(
+                title: AppLocalization.string("Learn Isn't Ready", locale: locale),
+                detail: AppLocalization.string("Add cards to this deck first.", locale: locale),
+                actionTitle: nil
+            )
+        case .match:
+            return PlayModeUnavailablePrompt(
+                title: AppLocalization.string("Match Isn't Ready", locale: locale),
+                detail: deckHasAnyCards
+                    ? AppLocalization.string("Convert the current cards to Match to use this mode.", locale: locale)
+                    : AppLocalization.string("Add cards to this deck first.", locale: locale),
+                actionTitle: deckHasAnyCards ? AppLocalization.string("Convert Cards", locale: locale) : nil
+            )
+        case .write:
+            return PlayModeUnavailablePrompt(
+                title: AppLocalization.string("Write Isn't Ready", locale: locale),
+                detail: deckHasAnyCards
+                    ? AppLocalization.string("Convert the current cards to Write to use this mode.", locale: locale)
+                    : AppLocalization.string("Add cards to this deck first.", locale: locale),
+                actionTitle: deckHasAnyCards ? AppLocalization.string("Convert Cards", locale: locale) : nil
+            )
+        }
+    }
+
     /// Minimal status line shown inside the deck play-mode tile.
     func statusText(in availability: PlayModeCardAvailability, deck: DeckModel) -> String {
         switch self {
@@ -232,6 +301,48 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         }
     }
 
+    func localizedStatusText(
+        locale: Locale,
+        in availability: PlayModeCardAvailability,
+        deck: DeckModel
+    ) -> String {
+        switch self {
+        case .match:
+            if availability.matchCards > 0 {
+                let count = availability.matchCards
+                let format = AppLocalization.string(count == 1 ? "%d match card ready" : "%d match cards ready",
+                    locale: locale
+                )
+                return String.localizedStringWithFormat(format, count)
+            }
+            if canLaunch(with: availability, deck: deck) {
+                return AppLocalization.string("Ready to play", locale: locale)
+            }
+            return availability.totalCards > 0
+                ? AppLocalization.string("Convert cards to unlock", locale: locale)
+                : AppLocalization.string("Add cards to unlock", locale: locale)
+        case .learn:
+            return availability.totalCards > 0
+                ? AppLocalization.string("Deck summary ready", locale: locale)
+                : AppLocalization.string("Add cards to unlock", locale: locale)
+        default:
+            let count = compatibleCardCount(in: availability, deck: deck)
+            if count > 0 {
+                let format = AppLocalization.string(count == 1 ? "%d %@ ready" : "%d %@ ready",
+                    locale: locale
+                )
+                return String.localizedStringWithFormat(
+                    format,
+                    count,
+                    localizedCompatibilityRequirementLabel(locale: locale)
+                )
+            }
+            return availability.totalCards > 0
+                ? AppLocalization.string("Convert cards to unlock", locale: locale)
+                : AppLocalization.string("Add cards to unlock", locale: locale)
+        }
+    }
+
     /// Human-readable label for the compatible-card requirement of this mode.
     var compatibilityRequirementLabel: String {
         switch self {
@@ -245,6 +356,21 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
             return "flashcards"
         case .write:
             return "write cards"
+        }
+    }
+
+    func localizedCompatibilityRequirementLabel(locale: Locale) -> String {
+        switch self {
+        case .flashcards:
+            return AppLocalization.string("flashcards", locale: locale)
+        case .quiz:
+            return AppLocalization.string("quiz cards", locale: locale)
+        case .learn:
+            return AppLocalization.string("cards", locale: locale)
+        case .match:
+            return AppLocalization.string("flashcards", locale: locale)
+        case .write:
+            return AppLocalization.string("write cards", locale: locale)
         }
     }
 
@@ -264,6 +390,21 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         }
     }
 
+    func localizedSettingsHeadline(locale: Locale) -> String {
+        switch self {
+        case .flashcards:
+            return AppLocalization.string("Set up how this deck should behave before the session begins.", locale: locale)
+        case .quiz:
+            return AppLocalization.string("Tune how quiz checks, explanations, and retry passes should behave.", locale: locale)
+        case .learn:
+            return AppLocalization.string("Tune how the guided deck briefing should read for this deck.", locale: locale)
+        case .match:
+            return AppLocalization.string("Tune board size, density, retries, and feedback for this deck.", locale: locale)
+        case .write:
+            return AppLocalization.string("Tune answer entry, matching strictness, reveal timing, and retries.", locale: locale)
+        }
+    }
+
     /// Supporting copy shown under the settings headline.
     var settingsSupportingCopy: String {
         switch self {
@@ -277,6 +418,21 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
             return "Choose how dense the board feels, whether missed pairs loop back, and when mixed decks are allowed to fall back internally."
         case .write:
             return "Write can stay loose and text-first, or switch into a stricter assisted flow when the deck contains formula-heavy prompts."
+        }
+    }
+
+    func localizedSettingsSupportingCopy(locale: Locale) -> String {
+        switch self {
+        case .flashcards:
+            return AppLocalization.string("These controls are stored per deck, so one deck can launch a tighter flashcard flow while another keeps a more forgiving session.", locale: locale)
+        case .quiz:
+            return AppLocalization.string("Shuffle choices when the deck needs pressure, switch between instant checks and submit flow, and decide when explanations become visible.", locale: locale)
+        case .learn:
+            return AppLocalization.string("Learn stays report-only, but the grouping and density can now be tailored to the deck you are reviewing.", locale: locale)
+        case .match:
+            return AppLocalization.string("Choose how dense the board feels, whether missed pairs loop back, and when mixed decks are allowed to fall back internally.", locale: locale)
+        case .write:
+            return AppLocalization.string("Write can stay loose and text-first, or switch into a stricter assisted flow when the deck contains formula-heavy prompts.", locale: locale)
         }
     }
 
@@ -312,6 +468,41 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
                 .init(icon: "keyboard", title: "Input Rules", detail: "Tune free-text vs guided entry."),
                 .init(icon: "text.badge.checkmark", title: "Answer Tolerance", detail: "Set strict or forgiving matching."),
                 .init(icon: "rectangle.and.pencil.and.ellipsis", title: "Prompt Flow", detail: "Control how answers are revealed and reviewed.")
+            ]
+        }
+    }
+
+    func localizedSettingPresets(locale: Locale) -> [PlayModeSettingPreset] {
+        switch self {
+        case .flashcards:
+            return [
+                .init(icon: "shuffle", title: AppLocalization.string("Card Order", locale: locale), detail: AppLocalization.string("Random, deck order, or focused retry runs.", locale: locale)),
+                .init(icon: "repeat", title: AppLocalization.string("Wrong Card Retry", locale: locale), detail: AppLocalization.string("Decide if mistakes should loop back automatically.", locale: locale)),
+                .init(icon: "arrow.triangle.2.circlepath", title: AppLocalization.string("Reveal Flow", locale: locale), detail: AppLocalization.string("Control flip defaults and card progression.", locale: locale))
+            ]
+        case .quiz:
+            return [
+                .init(icon: "list.bullet.rectangle", title: AppLocalization.string("Choice Layout", locale: locale), detail: AppLocalization.string("Tune answer count, order, and shuffling.", locale: locale)),
+                .init(icon: "timer", title: AppLocalization.string("Round Pace", locale: locale), detail: AppLocalization.string("Add timed pressure or keep the flow relaxed.", locale: locale)),
+                .init(icon: "checkmark.seal", title: AppLocalization.string("Scoring Rules", locale: locale), detail: AppLocalization.string("Define how quiz answers are graded.", locale: locale))
+            ]
+        case .learn:
+            return [
+                .init(icon: "text.alignleft", title: AppLocalization.string("Reading Layout", locale: locale), detail: AppLocalization.string("Control how cards become a readable study summary.", locale: locale)),
+                .init(icon: "square.split.2x1", title: AppLocalization.string("Grouping", locale: locale), detail: AppLocalization.string("Choose how content is chunked into sections.", locale: locale)),
+                .init(icon: "character.book.closed", title: AppLocalization.string("Density", locale: locale), detail: AppLocalization.string("Set how detailed or compact the report should feel.", locale: locale))
+            ]
+        case .match:
+            return [
+                .init(icon: "square.grid.3x3", title: AppLocalization.string("Board Size", locale: locale), detail: AppLocalization.string("Choose how many pairs appear in a round.", locale: locale)),
+                .init(icon: "link", title: AppLocalization.string("Pair Rules", locale: locale), detail: AppLocalization.string("Define how prompts and answers get matched.", locale: locale)),
+                .init(icon: "bolt", title: AppLocalization.string("Speed", locale: locale), detail: AppLocalization.string("Adjust round tempo and pressure.", locale: locale))
+            ]
+        case .write:
+            return [
+                .init(icon: "keyboard", title: AppLocalization.string("Input Rules", locale: locale), detail: AppLocalization.string("Tune free-text vs guided entry.", locale: locale)),
+                .init(icon: "text.badge.checkmark", title: AppLocalization.string("Answer Tolerance", locale: locale), detail: AppLocalization.string("Set strict or forgiving matching.", locale: locale)),
+                .init(icon: "rectangle.and.pencil.and.ellipsis", title: AppLocalization.string("Prompt Flow", locale: locale), detail: AppLocalization.string("Control how answers are revealed and reviewed.", locale: locale))
             ]
         }
     }

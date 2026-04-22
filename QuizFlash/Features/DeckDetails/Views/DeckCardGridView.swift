@@ -180,6 +180,7 @@ struct DeckCardGridView: View {
     var onDeleteCard: (GridCardInfo) -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
     private var accent: Color { themeManager.accentColor.color }
     private var columnsCount: Int { horizontalSizeClass == .regular ? 4 : 2 }
@@ -201,6 +202,13 @@ struct DeckCardGridView: View {
             return ([section.id] + cardSignature).joined(separator: "|")
         }
     }
+
+    private var locale: Locale { appPreferences.resolvedLocale }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
     var body: some View {
         if cards.isEmpty && !isSelecting {
             emptyState
@@ -285,10 +293,10 @@ struct DeckCardGridView: View {
             Image(systemName: "rectangle.stack.badge.plus")
                 .font(.system(size: 36))
                 .foregroundStyle(.tertiary)
-            Text("No cards yet")
+            Text(localized("No cards yet"))
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
-            Text("Tap + to add your first card")
+            Text(localized("Tap + to add your first card"))
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
@@ -311,6 +319,7 @@ enum DeckGridCardMetrics {
 }
 
 private struct DeckGridCardCell: View {
+    @Environment(AppPreferences.self) private var appPreferences
     let card: GridCardInfo
     let isSelecting: Bool
     let isSelected: Bool
@@ -323,6 +332,12 @@ private struct DeckGridCardCell: View {
     let onTogglePinned: (GridCardInfo) -> Void
     let onDeleteCard: (GridCardInfo) -> Void
     @State private var cardSize: CGSize = .zero
+
+    private var locale: Locale { appPreferences.resolvedLocale }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
 
     var body: some View {
         if isSelecting || isSuspended {
@@ -352,23 +367,23 @@ private struct DeckGridCardCell: View {
 
     private var contextMenuInfoRows: [CustomContextMenuInfoRow] {
         var rows: [CustomContextMenuInfoRow] = [
-            .init(label: "Card", value: "#\(card.cardNumber)"),
-            .init(label: "Type", value: card.kindContextMenuTitle),
-            .init(label: "Source", value: card.creationSourceContextMenuTitle),
-            .init(label: "State", value: card.reviewStateContextMenuTitle),
-            .init(label: "Interval", value: card.intervalContextMenuTitle)
+            .init(label: localized("Card"), value: "#\(card.cardNumber)"),
+            .init(label: localized("Type"), value: card.kindContextMenuTitle),
+            .init(label: localized("Source"), value: card.creationSourceContextMenuTitle),
+            .init(label: localized("State"), value: card.reviewStateContextMenuTitle),
+            .init(label: localized("Interval"), value: card.intervalContextMenuTitle)
         ]
 
         if card.isPinned {
-            rows.append(.init(label: "Pinned", value: "Yes"))
+            rows.append(.init(label: localized("Pinned"), value: localized("Yes")))
         }
 
         if card.isConverted {
-            rows.append(.init(label: "Converted", value: "Yes"))
+            rows.append(.init(label: localized("Converted"), value: localized("Yes")))
         }
 
         if isSuspended {
-            rows.append(.init(label: "Status", value: "Suspended"))
+            rows.append(.init(label: localized("Status"), value: localized("Suspended")))
         }
 
         return rows
@@ -377,28 +392,28 @@ private struct DeckGridCardCell: View {
     private var contextMenuActions: [CustomContextMenuAction] {
         [
             CustomContextMenuAction(
-                title: card.isPinned ? "Unpin" : "Pin",
+                title: card.isPinned ? localized("Unpin") : localized("Pin"),
                 systemImage: card.isPinned ? "pin.slash.fill" : "pin.fill",
                 role: .normal
             ) {
                 onTogglePinned(card)
             },
             CustomContextMenuAction(
-                title: "Edit",
+                title: localized("Edit"),
                 systemImage: "pencil",
                 role: .normal
             ) {
                 onEditCard(card)
             },
             CustomContextMenuAction(
-                title: "Convert",
+                title: localized("Convert"),
                 systemImage: "arrow.triangle.2.circlepath",
                 role: .normal
             ) {
                 onConvertCard(card)
             },
             CustomContextMenuAction(
-                title: "Delete",
+                title: localized("Delete"),
                 systemImage: "trash",
                 role: .destructive
             ) {
@@ -469,6 +484,7 @@ private struct DeckGridCardCell: View {
 // =============================================================================
 
 private struct MiniCardPreview: View {
+    @Environment(AppPreferences.self) private var appPreferences
     let card: GridCardInfo
     var isSelected: Bool = false
     var isSuspended: Bool = false
@@ -496,7 +512,7 @@ private struct MiniCardPreview: View {
         if hasFrontText { return frontText }
         let backText = card.backPreviewText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !backText.isEmpty { return backText }
-        return "Empty card"
+        return AppLocalization.string("Empty card", locale: appPreferences.resolvedLocale)
     }
 
     private var surfaceFill: Color {
@@ -638,6 +654,14 @@ private struct MiniCardPreview: View {
 }
 
 extension GridCardInfo {
+    private var localizationLocale: Locale {
+        AppPreferences.persistedResolvedLocale
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: localizationLocale)
+    }
+
     var deckStatusColor: Color {
         if reviewHistoryIsEmpty { return .blue }
         if interval == 0 { return .red }
@@ -683,39 +707,39 @@ extension GridCardInfo {
     var kindContextMenuTitle: String {
         switch kind {
         case .flashcard:
-            return "Flashcard"
+            return localized("Flashcard")
         case .match:
-            return "Match"
+            return localized("Match")
         case .quiz:
-            return "Quiz"
+            return localized("Quiz")
         case .write:
-            return "Write"
+            return localized("Write")
         }
     }
 
     var creationSourceContextMenuTitle: String {
         switch creationSource {
         case .manual:
-            return "Manual"
+            return localized("Manual")
         case .ai:
             return "AI"
         }
     }
 
     var reviewStateContextMenuTitle: String {
-        if reviewHistoryIsEmpty { return "New" }
-        if interval >= 14 { return "Mastered" }
-        if interval == 0 { return "Relearning" }
-        return "Learning"
+        if reviewHistoryIsEmpty { return localized("New") }
+        if interval >= 14 { return localized("Mastered") }
+        if interval == 0 { return localized("Relearning") }
+        return localized("Learning")
     }
 
     var intervalContextMenuTitle: String {
-        if reviewHistoryIsEmpty { return "None" }
+        if reviewHistoryIsEmpty { return localized("None") }
         return "\(interval)d"
     }
 
     var conversionDisplayTitle: String {
-        "CONVERTED"
+        localized("Converted").uppercased(with: localizationLocale)
     }
 
     var conversionAccentColor: Color {

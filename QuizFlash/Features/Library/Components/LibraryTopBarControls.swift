@@ -38,22 +38,18 @@ struct LibraryTopBarSearchGlyph: View {
 // MARK: - Search Icon Button
 
 struct LibraryTopBarSearchIconButton: View {
-    @Environment(ThemeManager.self) private var themeManager
+    @Environment(AppPreferences.self) private var appPreferences
     let action: () -> Void
     private let hitTargetSize = LibraryTopBarChromeMetrics.expandedHitTargetSize
 
     var body: some View {
-        Button(action: action) {
-            LibraryTopBarSearchGlyph(color: themeManager.roleColor(.circularToolbarForeground))
-                .frame(
-                    width: UIConstants.Size.actionButton,
-                    height: UIConstants.Size.actionButton
-                )
-        }
-        .quizFlashButtonStyle(.surface, shape: .circle, size: UIConstants.Size.actionButton)
+        ChromeSoftCircleSymbolButton(
+            systemName: "magnifyingglass",
+            accessibilityLabel: AppLocalization.string("Search", locale: appPreferences.resolvedLocale),
+            action: action
+        )
         .frame(width: hitTargetSize, height: hitTargetSize)
         .contentShape(Circle())
-        .accessibilityLabel("Search")
     }
 }
 
@@ -72,6 +68,7 @@ struct LibraryTopBarSearchFieldBackground: View {
 // MARK: - Trailing Accessory
 
 struct LibraryTopBarTrailingAccessory: View {
+    @Environment(AppPreferences.self) private var appPreferences
     let searchText: String
     let isSearchFocused: Bool
     let clearAction: () -> Void
@@ -80,13 +77,13 @@ struct LibraryTopBarTrailingAccessory: View {
         if searchText.isEmpty {
             EmptyView()
         } else {
-            Button(action: clearAction) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .frame(width: 28, height: 28)
-            }
-            .quizFlashButtonStyle(.secondary, shape: .circle, size: 28)
-            .accessibilityLabel("Clear search text")
+            ChromeSoftCircleSymbolButton(
+                systemName: "xmark",
+                accessibilityLabel: AppLocalization.string("Clear search text", locale: appPreferences.resolvedLocale),
+                action: clearAction,
+                size: 28,
+                symbolSize: 17
+            )
         }
     }
 }
@@ -94,6 +91,7 @@ struct LibraryTopBarTrailingAccessory: View {
 // MARK: - More Settings Button
 
 struct LibraryTopBarMoreSettingsButton<MenuContent: View>: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
     private let menuContent: () -> MenuContent
     private let hitTargetSize = LibraryTopBarChromeMetrics.expandedHitTargetSize
@@ -108,40 +106,33 @@ struct LibraryTopBarMoreSettingsButton<MenuContent: View>: View {
         Menu {
             menuContent()
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
-                .foregroundStyle(themeManager.roleColor(.circularToolbarForeground))
-                .frame(
-                    width: UIConstants.Size.actionButton,
-                    height: UIConstants.Size.actionButton
-                )
+            ChromeSoftCircleSymbol(
+                systemName: "ellipsis",
+                size: UIConstants.Size.actionButton,
+                symbolSize: UIConstants.Size.iconStandard
+            )
         }
-        .quizFlashButtonStyle(.surface, shape: .circle, size: UIConstants.Size.actionButton)
+        .buttonStyle(.plain)
         .frame(width: hitTargetSize, height: hitTargetSize)
         .contentShape(Circle())
+        .accessibilityLabel(AppLocalization.string("More library actions", locale: appPreferences.resolvedLocale))
     }
 }
 
 struct LibraryTopBarDismissSearchButton: View {
-    @Environment(ThemeManager.self) private var themeManager
+    @Environment(AppPreferences.self) private var appPreferences
     let action: () -> Void
 
     private let hitTargetSize = LibraryTopBarChromeMetrics.expandedHitTargetSize
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: "xmark")
-                .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
-                .foregroundStyle(themeManager.roleColor(.circularToolbarForeground))
-                .frame(
-                    width: UIConstants.Size.actionButton,
-                    height: UIConstants.Size.actionButton
-                )
-        }
-        .quizFlashButtonStyle(.surface, shape: .circle, size: UIConstants.Size.actionButton)
+        ChromeSoftCircleSymbolButton(
+            systemName: "xmark",
+            accessibilityLabel: AppLocalization.string("Close search", locale: appPreferences.resolvedLocale),
+            action: action
+        )
         .frame(width: hitTargetSize, height: hitTargetSize)
         .contentShape(Circle())
-        .accessibilityLabel("Close search")
     }
 }
 

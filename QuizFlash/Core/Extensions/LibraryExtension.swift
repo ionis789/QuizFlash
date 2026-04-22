@@ -82,6 +82,21 @@ enum SortOrder: String, CaseIterable {
     case lastEdited  = "Edited"
     case alphabetical = "A-Z"
 
+    var title: String { rawValue }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .newest:
+            return AppLocalization.string("Newest", locale: locale)
+        case .oldest:
+            return AppLocalization.string("Oldest", locale: locale)
+        case .lastEdited:
+            return AppLocalization.string("Edited", locale: locale)
+        case .alphabetical:
+            return AppLocalization.string("A-Z", locale: locale)
+        }
+    }
+
     /// The SF Symbol name associated with this sort order for use in the UI.
     var icon: String {
         switch self {
@@ -102,6 +117,15 @@ enum ViewMode: String, CaseIterable {
 
     /// The SF Symbol name representing this view mode in toggle controls.
     var systemImage: String { self == .list ? "list.bullet" : "square.grid.2x2" }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .list:
+            return AppLocalization.string("List", locale: locale)
+        case .gallery:
+            return AppLocalization.string("Gallery", locale: locale)
+        }
+    }
 }
 
 // MARK: - ScaleButtonStyle

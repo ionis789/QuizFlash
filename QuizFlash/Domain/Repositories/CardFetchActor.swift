@@ -539,6 +539,8 @@ private struct DeckTodayActivityAccumulator {
             return .placeholder(referenceDate: referenceDate)
         }
 
+        let locale = AppPreferences.persistedResolvedLocale
+
         let sortedCards = cards.sorted { lhs, rhs in
             if lhs.lastReviewedAt != rhs.lastReviewedAt {
                 return lhs.lastReviewedAt > rhs.lastReviewedAt
@@ -546,26 +548,44 @@ private struct DeckTodayActivityAccumulator {
             return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
         }
 
-        let rawReviewLabel = "\(rawReviewCount) pass" + (rawReviewCount == 1 ? "" : "es")
-        let uniqueLabel = "\(uniqueCardsReviewed) card" + (uniqueCardsReviewed == 1 ? "" : "s")
+        let rawReviewLabel = AppLocalization.numbered(
+            rawReviewCount,
+            singular: "%d pass",
+            plural: "%d passes",
+            locale: locale
+        )
+        let uniqueLabel = AppLocalization.numbered(
+            uniqueCardsReviewed,
+            singular: "%d card",
+            plural: "%d cards",
+            locale: locale
+        )
         let retryDetail: String
         if retryCount == 0 {
-            retryDetail = "Clean finish so far."
+            retryDetail = AppLocalization.string("Clean finish so far.", locale: locale)
         } else if retryCount == 1 {
-            retryDetail = "1 still needs another pass."
+            retryDetail = AppLocalization.string("1 still needs another pass.", locale: locale)
         } else {
-            retryDetail = "\(retryCount) still need another pass."
+            let format = AppLocalization.string("%d still need another pass.", locale: locale)
+            retryDetail = String(format: format, locale: locale, retryCount)
         }
+        let detailFormat = AppLocalization.string("%@ folded into %@. %@", locale: locale)
+        let headline = AppLocalization.numbered(
+            uniqueCardsReviewed,
+            singular: "%d card moved today",
+            plural: "%d cards moved today",
+            locale: locale
+        )
 
         return DeckTodayActivitySummary(
             activityDate: referenceDate,
-            activityLabel: "Today",
+            activityLabel: AppLocalization.string("Today", locale: locale),
             uniqueCardsReviewed: uniqueCardsReviewed,
             rawReviewCount: rawReviewCount,
             landedCount: landedCount,
             retryCount: retryCount,
-            headline: "\(uniqueLabel) moved today",
-            detailLine: "\(rawReviewLabel) folded into \(uniqueLabel). \(retryDetail)",
+            headline: headline,
+            detailLine: String(format: detailFormat, locale: locale, rawReviewLabel, uniqueLabel, retryDetail),
             cards: sortedCards
         )
     }
@@ -697,22 +717,21 @@ private struct DeckActivityHistoryDayAccumulator {
         referenceDate: Date,
         calendar: Calendar
     ) -> String {
+        let locale = AppPreferences.persistedResolvedLocale
+
         if calendar.isDate(date, inSameDayAs: referenceDate) {
-            return "Today"
+            return AppLocalization.string("Today", locale: locale)
         }
 
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: referenceDate),
             calendar.isDate(date, inSameDayAs: yesterday) {
-            return "Yesterday"
+            return AppLocalization.string("Yesterday", locale: locale)
         }
 
-        return Self.dayFormatter.string(from: date)
-    }
-
-    private nonisolated static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "d MMM yyyy"
-        formatter.locale = Locale.autoupdatingCurrent
-        return formatter
-    }()
+        formatter.locale = locale
+        formatter.calendar = calendar
+        return formatter.string(from: date)
+    }
 }

@@ -25,6 +25,7 @@ private enum AIGenerationSheetSection: Hashable {
 }
 
 struct AIGenerationSheetView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Bindable var viewModel: DeckWorkspaceViewModel
     let safeAreaInsets: UIEdgeInsets
     var onPrimaryAction: () -> Void
@@ -42,11 +43,15 @@ struct AIGenerationSheetView: View {
     }
 
     private var sourceNounPlural: String {
-        viewModel.isPreparedSourcePDF ? "pages" : "images"
+        viewModel.isPreparedSourcePDF
+            ? AppLocalization.string("pages", locale: appPreferences.resolvedLocale)
+            : AppLocalization.string("images", locale: appPreferences.resolvedLocale)
     }
 
     private var sourceNounSingular: String {
-        viewModel.isPreparedSourcePDF ? "page" : "image"
+        viewModel.isPreparedSourcePDF
+            ? AppLocalization.string("page", locale: appPreferences.resolvedLocale)
+            : AppLocalization.string("image", locale: appPreferences.resolvedLocale)
     }
 
     private var sourceCountSummary: String {
@@ -109,7 +114,6 @@ struct AIGenerationSheetView: View {
             guard isPreparingSource else { return }
             viewModel.startPendingAISourcePreparationIfNeeded()
         }
-        .fullScreenSheetDragActivationHeight(safeAreaInsets.top + 120)
     }
 
     private var configurationLayout: some View {
@@ -140,14 +144,14 @@ struct AIGenerationSheetView: View {
                 section(
                     .type,
                     title: "Card Type",
-                    summary: viewModel.aiGenerationOptions.cardType.title,
+                    summary: viewModel.aiGenerationOptions.cardType.localizedTitle(locale: appPreferences.resolvedLocale),
                     subtitle: "Prompt format"
                 ) {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: UIConstants.Spacing.small) {
                         ForEach(AICardGenerationType.allCases) { type in
                             GenerationChoiceCard(
-                                title: type.title,
-                                subtitle: type.subtitle,
+                                title: type.localizedTitle(locale: appPreferences.resolvedLocale),
+                                subtitle: type.localizedSubtitle(locale: appPreferences.resolvedLocale),
                                 icon: type.systemImage,
                                 isSelected: viewModel.aiGenerationOptions.cardType == type
                             ) {
@@ -160,14 +164,14 @@ struct AIGenerationSheetView: View {
                 section(
                     .level,
                     title: "Card Level",
-                    summary: viewModel.aiGenerationOptions.cardLevel.title,
+                    summary: viewModel.aiGenerationOptions.cardLevel.localizedTitle(locale: appPreferences.resolvedLocale),
                     subtitle: "Depth"
                 ) {
                     VStack(spacing: UIConstants.Spacing.small) {
                         ForEach(AICardGenerationLevel.allCases) { level in
                             GenerationRowButton(
-                                title: level.title,
-                                subtitle: level.subtitle,
+                                title: level.localizedTitle(locale: appPreferences.resolvedLocale),
+                                subtitle: level.localizedSubtitle(locale: appPreferences.resolvedLocale),
                                 isSelected: viewModel.aiGenerationOptions.cardLevel == level
                             ) {
                                 viewModel.aiGenerationOptions.cardLevel = level
@@ -179,7 +183,7 @@ struct AIGenerationSheetView: View {
                 section(
                     .language,
                     title: "Output Language",
-                    summary: viewModel.aiGenerationOptions.outputLanguageSummary,
+                    summary: viewModel.aiGenerationOptions.localizedOutputLanguageSummary(locale: appPreferences.resolvedLocale),
                     subtitle: "Auto detect or force a language"
                 ) {
                     outputLanguagePicker
@@ -257,13 +261,12 @@ struct AIGenerationSheetView: View {
         HStack {
             Spacer()
 
-            Button(action: onCancel) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 38, height: 38)
-            }
-            .buttonStyle(.plain)
+            ChromeSoftCircleSymbolButton(
+                systemName: "xmark",
+                accessibilityLabel: "Close AI generation",
+                action: onCancel,
+                symbolSize: UIConstants.Size.iconStandard
+            )
         }
     }
 
@@ -483,9 +486,9 @@ struct AIGenerationSheetView: View {
                             viewModel.aiGenerationOptions.manualOutputLanguage = language
                         } label: {
                             if viewModel.aiGenerationOptions.manualOutputLanguage?.languageCode == language.languageCode {
-                                Label(language.displayName, systemImage: "checkmark")
+                                Label(language.localizedDisplayName(locale: appPreferences.resolvedLocale), systemImage: "checkmark")
                             } else {
-                                Text(language.displayName)
+                                Text(language.localizedDisplayName(locale: appPreferences.resolvedLocale))
                             }
                         }
                     }
@@ -496,7 +499,10 @@ struct AIGenerationSheetView: View {
                                 .font(.subheadline.weight(.bold))
                                 .foregroundStyle(.primary)
 
-                            Text(viewModel.aiGenerationOptions.manualOutputLanguage?.displayName ?? "Choose a language")
+                            Text(
+                                viewModel.aiGenerationOptions.manualOutputLanguage?.localizedDisplayName(locale: appPreferences.resolvedLocale)
+                                    ?? AppLocalization.string("Choose a language", locale: appPreferences.resolvedLocale)
+                            )
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(.secondary)
                         }
@@ -696,9 +702,11 @@ struct AIGenerationSheetView: View {
 
     private var sourceStatusTitle: String {
         if let info = viewModel.pdfAnalysis {
-            return info.qualityLabel
+            return info.localizedQualityLabel(locale: appPreferences.resolvedLocale)
         }
-        return viewModel.isPreparedSourcePDF ? "Document ready" : "Images ready"
+        return viewModel.isPreparedSourcePDF
+            ? AppLocalization.string("Document ready", locale: appPreferences.resolvedLocale)
+            : AppLocalization.string("Images ready", locale: appPreferences.resolvedLocale)
     }
 
     private func sourceStatusSubtitle(source: AIPreparedGenerationSource) -> String {

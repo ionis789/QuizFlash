@@ -10,6 +10,7 @@ import SwiftUI
 // MARK: - DeckCustomNavigationBar
 
 struct DeckCustomNavigationBar: View {
+    @Environment(AppPreferences.self) private var appPreferences
 
     // MARK: - Inputs
 
@@ -53,8 +54,13 @@ struct DeckCustomNavigationBar: View {
     @Environment(ThemeManager.self) private var themeManager
 
     private var accentColor: Color { themeManager.roleColor(.backButtonForeground) }
+    private var locale: Locale { appPreferences.resolvedLocale }
     private var shouldShowCollapsedTitle: Bool {
         searchQuery == nil && scrollState.pillVisible
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
     }
 
     // MARK: - Body
@@ -68,10 +74,10 @@ struct DeckCustomNavigationBar: View {
             backButton
         } center: { maxTitleWidth in
             CollapsibleTitlePill(
-                title: searchQuery == nil ? deck.title : "",
+                title: .verbatim(searchQuery == nil ? deck.title : ""),
                 maxWidth: maxTitleWidth,
                 isVisible: shouldShowCollapsedTitle,
-                fallbackTitle: "Untitled Deck"
+                fallbackTitle: localized("Untitled Deck")
             )
         } trailing: {
             DeckActionOverlay(

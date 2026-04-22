@@ -1,5 +1,5 @@
 //
-//  CreateDeckViewModelTests.swift
+//  DeckWorkspaceViewModelTests.swift
 //  QuizFlashTests
 //
 //  Covers create, update, and delete mutations for deck authoring.
@@ -10,7 +10,7 @@ import SwiftData
 @testable import QuizFlash
 
 @MainActor
-final class CreateDeckViewModelTests: XCTestCase {
+final class DeckWorkspaceViewModelTests: XCTestCase {
     func testSaveDeckCreatesDeckAndCardsInSelectedFolder() throws {
         let context = try TestModelContainerFactory.makeContext()
         let folder = FolderModel(title: "Science", colorHex: "#22AA88")

@@ -63,45 +63,49 @@ nonisolated struct DraftCardContentSummary: Equatable {
         switch card.content {
         case .flashcard(let content):
             sections = [
-                Self.section(title: "Question", symbol: "q.circle", zones: [content.frontZone]),
-                Self.section(title: "Answer", symbol: "a.circle", zones: [content.backZone])
+                Self.section(title: Self.localized("Question"), symbol: "q.circle", zones: [content.frontZone]),
+                Self.section(title: Self.localized("Answer"), symbol: "a.circle", zones: [content.backZone])
             ]
         case .match(let content):
             sections = [
                 Self.section(
-                    title: "Prompt",
+                    title: Self.localized("Prompt"),
                     symbol: "arrow.left.and.right.text.vertical",
                     metrics: Self.metrics(for: content.prompt)
                 ),
                 Self.section(
-                    title: "Answer",
+                    title: Self.localized("Answer"),
                     symbol: "rectangle.2.swap",
                     metrics: Self.metrics(for: content.answer)
                 )
             ]
         case .quiz(let content):
             var resolvedSections = [
-                Self.section(title: "Question", symbol: "questionmark.bubble", zones: [content.questionZone]),
-                Self.section(title: "Choices", symbol: "checklist", zones: content.choices.map(\.contentZone))
+                Self.section(title: Self.localized("Question"), symbol: "questionmark.bubble", zones: [content.questionZone]),
+                Self.section(title: Self.localized("Choices"), symbol: "checklist", zones: content.choices.map(\.contentZone))
             ]
 
             if let explanationZone = content.explanationZone {
                 resolvedSections.append(
-                    Self.section(title: "Explanation", symbol: "text.bubble", zones: [explanationZone])
+                    Self.section(title: Self.localized("Explanation"), symbol: "text.bubble", zones: [explanationZone])
                 )
             }
 
             sections = resolvedSections
         case .write(let content):
             sections = [
-                Self.section(title: "Prompt", symbol: "pencil.line", zones: [content.sourceZone]),
+                Self.section(title: Self.localized("Prompt"), symbol: "pencil.line", zones: [content.sourceZone]),
                 Self.section(
-                    title: "Blank",
+                    title: Self.localized("Blank"),
                     symbol: "rectangle.and.pencil.and.ellipsis",
                     metrics: Self.metrics(for: content.blankSelection.omittedText)
                 )
             ]
         }
+    }
+
+    private nonisolated static func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: AppPreferences.persistedResolvedLocale)
     }
 
     private nonisolated static func section(

@@ -2,7 +2,7 @@
 //  HomePerformanceDetailSheetView.swift
 //  QuizFlash
 //
-//  Custom-sheet detail surface for the Home 7-day performance summary.
+//  Custom-sheet detail surface for the Home calendar-week performance summary.
 //
 
 import SwiftUI
@@ -10,6 +10,7 @@ import SwiftUI
 // MARK: - Home Performance Detail Sheet
 
 struct HomePerformanceDetailSheetView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
 
@@ -18,6 +19,10 @@ struct HomePerformanceDetailSheetView: View {
 
     private var accentColor: Color {
         themeManager.roleColor(.buttonPrimaryFill)
+    }
+
+    private var locale: Locale {
+        appPreferences.resolvedLocale
     }
 
     private var dangerColor: Color {
@@ -37,49 +42,95 @@ struct HomePerformanceDetailSheetView: View {
         ]
     }
 
-    var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                headerSection
-                comparisonSection
-                pillarsSection
-                insightsSection
-                explanationSection
-            }
-            .padding(.horizontal, UIConstants.Spacing.large)
-            .padding(.top, UIConstants.Spacing.extraLarge)
-            .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.extraLarge)
+    private var floatingCloseButtonInsetTop: CGFloat {
+        UIConstants.Spacing.medium
+    }
+
+    private var headerTrailingReserve: CGFloat {
+        76
+    }
+
+    private var hasPreviousWeekActivity: Bool {
+        summary.previousDaySummaries.contains(where: \.didStudy)
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
+    }
+
+    private var windowEndingLine: String {
+        localizedFormat(
+            "Week of %@",
+            HomeViewModel.labelForSelectedDay(summary.weekStartDate)
+        )
+    }
+
+    private var localizedTrendLine: String {
+        guard summary.activeDays > 0 else {
+            return localized("Needs attention")
         }
-        .fullScreenSheetDragActivationHeight(180)
+
+        switch summary.trend {
+        case .improving:
+            return localized("Improving day by day")
+        case .steady:
+            return localized("Stable this week")
+        case .slipping:
+            return localized("Needs attention")
+        }
+    }
+
+    private var deltaBadgeDetail: String {
+        localized("vs same days")
+    }
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+                    if summary.hasActivity {
+                        headerSection
+                        comparisonSection
+                        pillarsSection
+                    } else {
+                        emptyStateSection
+                    }
+                }
+                    .padding(.horizontal, UIConstants.Spacing.large)
+                    .padding(.top, UIConstants.Spacing.extraLarge)
+                    .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.extraLarge)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if let fullScreenSheetDismiss {
+                ChromeSoftCircleSymbolButton(
+                    systemName: "xmark",
+                    accessibilityLabel: localized("Close performance detail"),
+                    action: { fullScreenSheetDismiss() },
+                    symbolSize: UIConstants.Size.iconStandard
+                )
+                    .padding(.top, floatingCloseButtonInsetTop)
+                    .padding(.trailing, UIConstants.Spacing.medium)
+                    .zIndex(1)
+            }
+        }
     }
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    Text("Performance")
-                        .font(.system(size: 28, weight: .black, design: .rounded))
-                        .foregroundStyle(themeManager.textPrimary)
+            Text(localized("Performance"))
+                .font(.system(size: 28, weight: .black, design: .rounded))
+                .foregroundStyle(themeManager.textPrimary)
 
-                    Text("7-day window ending \(HomeViewModel.labelForSelectedDay(summary.windowEndDate))")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(themeManager.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
-
-                if let fullScreenSheetDismiss {
-                    Button {
-                        fullScreenSheetDismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundStyle(themeManager.textSecondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
+            Text(windowEndingLine)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(themeManager.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack(alignment: .lastTextBaseline, spacing: UIConstants.Spacing.medium) {
                 Text("\(summary.scorePercent)%")
@@ -91,132 +142,96 @@ struct HomePerformanceDetailSheetView: View {
 
                 HomePerformanceSheetDeltaBadge(
                     deltaPercent: summary.deltaPercent,
+                    detail: deltaBadgeDetail,
                     tint: deltaTint,
                     backgroundTint: deltaTint.opacity(0.16)
                 )
-                .padding(.bottom, UIConstants.Spacing.small)
+                    .padding(.bottom, UIConstants.Spacing.small)
             }
 
-            Text(summary.trendLine)
+            Text(localizedTrendLine)
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundStyle(themeManager.textPrimary)
-
-            Text(summary.supportingLine)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundStyle(themeManager.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
+            .padding(.trailing, headerTrailingReserve)
     }
 
     private var comparisonSection: some View {
-        HomePerformanceSheetSurface {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-                Text("Previous 7 vs current 7")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(themeManager.textPrimary)
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            HomePerformanceBarSection(
+                title: localized("Current week"),
+                daySummaries: summary.currentDaySummaries,
+                labelTint: accentColor
+            )
 
-                HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
-                    HomePerformanceDotMatrixGroup(
-                        title: "Previous 7",
-                        daySummaries: summary.previousDaySummaries,
-                        tint: themeManager.textSecondary.opacity(0.55),
-                        labelTint: themeManager.textSecondary
-                    )
+            if hasPreviousWeekActivity {
+                AppSectionSeparator()
+                    .padding(.vertical, UIConstants.Spacing.small)
 
-                    Rectangle()
-                        .fill(Color.white.opacity(0.08))
-                        .frame(width: 1)
+                HomePerformanceBarSection(
+                    title: localized("Last week"),
+                    daySummaries: summary.previousDaySummaries,
+                    labelTint: themeManager.textSecondary
+                )
+            }
+        }
+        .padding(.top, UIConstants.Spacing.extraLarge)
+    }
 
-                    HomePerformanceDotMatrixGroup(
-                        title: "Current 7",
-                        daySummaries: summary.currentDaySummaries,
-                        tint: accentColor,
-                        labelTint: accentColor
-                    )
+    private var emptyStateSection: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+            Text(localized("Performance"))
+                .font(.system(size: 28, weight: .black, design: .rounded))
+                .foregroundStyle(themeManager.textPrimary)
+
+            Text(windowEndingLine)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(themeManager.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HomePerformanceSheetSurface {
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                    Text(localized("No activity yet"))
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(themeManager.textPrimary)
+
+                    Text(localized("Start a study session to unlock this view."))
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(themeManager.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
+            .padding(.trailing, headerTrailingReserve)
     }
 
     private var pillarsSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            Text("What drives the score")
+            Text(localized("Score signals"))
                 .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundStyle(themeManager.textPrimary)
 
             LazyVGrid(columns: gridColumns, spacing: UIConstants.Spacing.medium) {
                 HomePerformanceMetricCard(
-                    title: "Accuracy",
+                    title: localized("Good rate"),
                     value: "\(summary.accuracyPercent)%",
-                    detail: "Clean finishes",
                     tint: .green
                 )
                 HomePerformanceMetricCard(
-                    title: "Consistency",
-                    value: "\(summary.consistencyPercent)%",
-                    detail: summary.activeDays == 1 ? "1 active day" : "\(summary.activeDays)/7 active",
+                    title: localized("Active days"),
+                    value: "\(summary.activeDays)/\(summary.scoredDayCount)",
                     tint: accentColor
                 )
                 HomePerformanceMetricCard(
-                    title: "Goal coverage",
-                    value: "\(summary.goalCoveragePercent)%",
-                    detail: summary.goalHitDays == 1 ? "1 goal day" : "\(summary.goalHitDays) goal days",
+                    title: localized("Goal days"),
+                    value: "\(summary.goalHitDays)",
                     tint: .orange
                 )
                 HomePerformanceMetricCard(
-                    title: "Efficiency",
+                    title: localized("Unique rate"),
                     value: "\(summary.efficiencyPercent)%",
-                    detail: "Unique vs repeat",
                     tint: dangerColor
                 )
-            }
-        }
-    }
-
-    private var insightsSection: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            Text("This window")
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundStyle(themeManager.textPrimary)
-
-            VStack(spacing: UIConstants.Spacing.medium) {
-                HomePerformanceInsightCard(
-                    title: "Best day",
-                    value: summary.bestDayLabel ?? "No study day yet",
-                    detail: summary.bestDayScorePercent.map { "\($0)% daily score" } ?? "Start a session to generate a best day.",
-                    tint: .green
-                )
-
-                HomePerformanceInsightCard(
-                    title: "Weakest day",
-                    value: summary.weakestDayLabel ?? "No weak day yet",
-                    detail: summary.weakestDayScorePercent.map { "\($0)% daily score" } ?? "There is no active day in this window yet.",
-                    tint: dangerColor
-                )
-
-                HomePerformanceInsightCard(
-                    title: "Goal-hit days",
-                    value: summary.goalHitDays == 1 ? "1 day" : "\(summary.goalHitDays) days",
-                    detail: summary.goalHitDays == 0
-                        ? "No selected-day target was fully cleared in this window."
-                        : "These are the days where the selected-day goal was fully covered.",
-                    tint: accentColor
-                )
-            }
-        }
-    }
-
-    private var explanationSection: some View {
-        HomePerformanceSheetSurface {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                Text("How it works")
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundStyle(themeManager.textPrimary)
-
-                Text("Performance blends clean finishes, activity consistency, daily goal coverage, and how efficiently your unique cards convert versus repeat passes.")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(themeManager.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -238,13 +253,13 @@ private struct HomePerformanceSheetSurface<Content: View>: View {
             .padding(UIConstants.Spacing.large)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(themeManager.roleColor(.widgetSurfaceFill))
+                .overlay {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(themeManager.roleColor(.widgetSurfaceFill))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.035), lineWidth: 1)
-                    }
+                    .strokeBorder(Color.white.opacity(0.035), lineWidth: 1)
             }
+        }
     }
 }
 
@@ -253,135 +268,249 @@ private struct HomePerformanceMetricCard: View {
 
     let title: String
     let value: String
-    let detail: String
     let tint: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+        VStack(alignment: .center, spacing: UIConstants.Spacing.small) {
             Text(title)
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(themeManager.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
 
             Text(value)
                 .font(.system(size: 28, weight: .black, design: .rounded))
                 .foregroundStyle(themeManager.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
-
-            Text(detail)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(themeManager.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(UIConstants.Spacing.standard)
-        .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
-        .background {
+            .padding(UIConstants.Spacing.standard)
+            .frame(maxWidth: .infinity, minHeight: 116, alignment: .center)
+            .background {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(themeManager.surfacePrimary)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(tint.opacity(0.12))
-                }
-        }
-    }
-}
-
-private struct HomePerformanceInsightCard: View {
-    @Environment(ThemeManager.self) private var themeManager
-
-    let title: String
-    let value: String
-    let detail: String
-    let tint: Color
-
-    var body: some View {
-        HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
-            Circle()
-                .fill(tint)
-                .frame(width: 10, height: 10)
-                .padding(.top, 7)
-
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny) {
-                Text(title)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(themeManager.textSecondary)
-
-                Text(value)
-                    .font(.system(size: 18, weight: .black, design: .rounded))
-                    .foregroundStyle(themeManager.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(detail)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(themeManager.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(tint.opacity(0.12))
             }
         }
-        .padding(UIConstants.Spacing.standard)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(themeManager.roleColor(.widgetSurfaceFill))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.03), lineWidth: 1)
-                }
-        }
     }
 }
 
-private struct HomePerformanceDotMatrixGroup: View {
+private struct HomePerformanceBarSection: View {
     let title: String
     let daySummaries: [HomePastWeekPerformanceDaySummary]
-    let tint: Color
     let labelTint: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             Text(title)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .font(.system(size: 18, weight: .black, design: .rounded))
                 .foregroundStyle(labelTint)
 
-            HStack(alignment: .bottom, spacing: 6) {
-                ForEach(daySummaries) { day in
-                    HomePerformanceDotColumn(day: day, tint: tint, labelTint: labelTint)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .center)
+            HomePerformanceBarRow(
+                daySummaries: daySummaries
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-private struct HomePerformanceDotColumn: View {
-    @Environment(ThemeManager.self) private var themeManager
+private struct HomePerformanceBarRow: View {
+    let daySummaries: [HomePastWeekPerformanceDaySummary]
 
-    let day: HomePastWeekPerformanceDaySummary
-    let tint: Color
-    let labelTint: Color
+    private let columnSpacing: CGFloat = UIConstants.Spacing.small
+
+    private var maxOutcomeTotal: Int {
+        max(daySummaries.map { $0.landedCount + $0.retryCount }.max() ?? 0, 1)
+    }
 
     var body: some View {
-        VStack(spacing: 6) {
-            VStack(spacing: 5) {
-                ForEach((1...5).reversed(), id: \.self) { level in
-                    Circle()
-                        .fill(level <= day.visualLevel ? tint : Color.white.opacity(0.08))
-                        .frame(width: 8, height: 8)
+        GeometryReader { proxy in
+            let itemCount = max(daySummaries.count, 1)
+            let spacingTotal = columnSpacing * CGFloat(max(itemCount - 1, 0))
+            let columnWidth = max((proxy.size.width - spacingTotal) / CGFloat(itemCount), 1)
+
+            HStack(alignment: .bottom, spacing: columnSpacing) {
+                ForEach(daySummaries) { day in
+                    HomePerformanceBarColumn(
+                        day: day,
+                        maxOutcomeTotal: maxOutcomeTotal
+                    )
+                    .frame(width: columnWidth)
                 }
             }
-            .frame(height: 60, alignment: .bottom)
+            .frame(width: proxy.size.width, height: HomePerformanceBarColumn.totalHeight, alignment: .bottom)
+        }
+        .frame(height: HomePerformanceBarColumn.totalHeight)
+        .frame(maxWidth: .infinity)
+    }
+}
 
+private struct HomePerformanceBarColumn: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    static let totalHeight: CGFloat = 166
+
+    let day: HomePastWeekPerformanceDaySummary
+    let maxOutcomeTotal: Int
+
+    private var goodTint: Color {
+        .green
+    }
+
+    private var retryTint: Color {
+        Color(red: 1.0, green: 0.78, blue: 0.8)
+    }
+
+    private var outcomeTotal: Int {
+        day.landedCount + day.retryCount
+    }
+
+    private var totalRatio: CGFloat {
+        guard outcomeTotal > 0 else { return 0 }
+        return CGFloat(outcomeTotal) / CGFloat(max(maxOutcomeTotal, 1))
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
             Text(day.shortWeekday)
-                .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundStyle(day.didStudy ? labelTint : themeManager.textSecondary)
+                .font(.system(size: 14, weight: .black, design: .rounded))
+                .foregroundStyle(themeManager.textSecondary)
                 .lineLimit(1)
+
+            HomePerformanceStackedBar(
+                landedCount: day.landedCount,
+                retryCount: day.retryCount,
+                totalRatio: totalRatio,
+                goodTint: goodTint,
+                retryTint: retryTint
+            )
         }
         .frame(maxWidth: .infinity, alignment: .bottom)
     }
 }
 
+private struct HomePerformanceStackedBar: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let landedCount: Int
+    let retryCount: Int
+    let totalRatio: CGFloat
+    let goodTint: Color
+    let retryTint: Color
+
+    private let barHeight: CGFloat = 128
+    private let minActiveHeight: CGFloat = 36
+    private let minReadableSegmentHeight: CGFloat = 30
+
+    private var totalCount: Int {
+        landedCount + retryCount
+    }
+
+    private var activeHeight: CGFloat {
+        guard totalCount > 0 else { return 0 }
+        let scaledHeight = barHeight * max(min(totalRatio, 1), 0)
+        let readableHeight = CGFloat(nonZeroSegmentCount) * minReadableSegmentHeight
+        return max(minActiveHeight, readableHeight, scaledHeight)
+    }
+
+    private var nonZeroSegmentCount: Int {
+        [landedCount, retryCount].filter { $0 > 0 }.count
+    }
+
+    private var segmentHeights: (retry: CGFloat, landed: CGFloat) {
+        guard totalCount > 0 else { return (retry: 0, landed: 0) }
+        guard landedCount > 0, retryCount > 0 else {
+            return (
+                retry: retryCount > 0 ? activeHeight : 0,
+                landed: landedCount > 0 ? activeHeight : 0
+            )
+        }
+
+        let rawRetry = activeHeight * CGFloat(retryCount) / CGFloat(totalCount)
+        let rawLanded = activeHeight * CGFloat(landedCount) / CGFloat(totalCount)
+        var retry = max(minReadableSegmentHeight, rawRetry)
+        var landed = max(minReadableSegmentHeight, rawLanded)
+        let overflow = max((retry + landed) - activeHeight, 0)
+
+        if overflow > 0 {
+            if retry > landed {
+                retry = max(minReadableSegmentHeight, retry - overflow)
+            } else {
+                landed = max(minReadableSegmentHeight, landed - overflow)
+            }
+        }
+
+        return (retry: retry, landed: landed)
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            Capsule(style: .continuous)
+                .fill(themeManager.roleColor(.buttonPrimaryFill).opacity(0.16))
+                .frame(height: barHeight)
+
+            VStack(spacing: 0) {
+                if retryCount > 0 {
+                    HomePerformanceBarSegment(
+                        value: retryCount,
+                        height: segmentHeights.retry,
+                        fill: retryTint,
+                        textColor: Color.black.opacity(0.68)
+                    )
+                }
+
+                if landedCount > 0 {
+                    HomePerformanceBarSegment(
+                        value: landedCount,
+                        height: segmentHeights.landed,
+                        fill: goodTint,
+                        textColor: themeManager.textPrimary
+                    )
+                }
+            }
+            .frame(height: activeHeight, alignment: .bottom)
+            .frame(maxWidth: .infinity)
+            .clipShape(Capsule(style: .continuous))
+
+            if totalCount == 0 {
+                Text("0")
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(themeManager.textSecondary.opacity(0.55))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            }
+        }
+        .frame(height: barHeight)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct HomePerformanceBarSegment: View {
+    let value: Int
+    let height: CGFloat
+    let fill: Color
+    let textColor: Color
+
+    var body: some View {
+        ZStack {
+            fill
+
+            Text("\(value)")
+                .font(.system(size: 13, weight: .black, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(textColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .frame(height: height)
+    }
+}
+
 private struct HomePerformanceSheetDeltaBadge: View {
     let deltaPercent: Int
+    let detail: String
     let tint: Color
     let backgroundTint: Color
 
@@ -393,14 +522,22 @@ private struct HomePerformanceSheetDeltaBadge: View {
     }
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 15, weight: .bold, design: .rounded))
-            .foregroundStyle(tint)
+        VStack(spacing: 1) {
+            Text(text)
+                .font(.system(size: 15, weight: .black, design: .rounded))
+                .foregroundStyle(tint)
+
+            Text(detail)
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .foregroundStyle(tint.opacity(0.86))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.vertical, 7)
             .background {
-                Capsule(style: .continuous)
-                    .fill(backgroundTint)
-            }
+            Capsule(style: .continuous)
+                .fill(backgroundTint)
+        }
     }
 }

@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct DetailedCardRowView: View, Equatable {
+    @Environment(AppPreferences.self) private var appPreferences
     let card: DraftCard
     var index: Int
     var fixedHeight: CGFloat? = nil
@@ -21,6 +22,20 @@ struct DetailedCardRowView: View, Equatable {
     private var isCompactPreview: Bool { fixedHeight != nil }
     private var trailingAccessorySize: CGFloat { 34 }
     private var displayCardNumber: Int { card.cardNumber > 0 ? card.cardNumber : index }
+    private var locale: Locale { appPreferences.resolvedLocale }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
+    }
+
+    private func localizedTimestamp(_ date: Date) -> String {
+        date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale))
+    }
 
     static func == (lhs: DetailedCardRowView, rhs: DetailedCardRowView) -> Bool {
         lhs.card == rhs.card
@@ -78,7 +93,7 @@ struct DetailedCardRowView: View, Equatable {
 
     private var header: some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
-            Text("Card \(displayCardNumber)")
+            Text(localizedFormat("Card %d", displayCardNumber))
                 .font(
                     .system(
                         size: isCompactPreview ? 14 : 18,
@@ -122,19 +137,19 @@ struct DetailedCardRowView: View, Equatable {
                 ForEach(summary.sections) { section in
                     if section.metrics.displayZoneCount > 0 {
                         chip(
-                            text: "\(section.metrics.displayZoneCount) \(section.title.lowercased())",
+                            text: localizedFormat("%d %@", section.metrics.displayZoneCount, section.title.lowercased(with: locale)),
                             symbol: section.symbol
                         )
                     }
                 }
-                chip(text: "\(summary.total.textCharacterCount) chars", symbol: "textformat")
-                chip(text: "\(summary.total.imageCount) photos", symbol: "photo")
-                chip(text: "\(summary.total.sketchCount) sketches", symbol: "pencil.and.outline")
+                chip(text: localizedFormat("%d chars", summary.total.textCharacterCount), symbol: "textformat")
+                chip(text: localizedFormat("%d photos", summary.total.imageCount), symbol: "photo")
+                chip(text: localizedFormat("%d sketches", summary.total.sketchCount), symbol: "pencil.and.outline")
                 if card.isConverted {
-                    chip(text: "Converted", symbol: "arrow.triangle.branch", tint: .teal)
+                    chip(text: localized("Converted"), symbol: "arrow.triangle.branch", tint: .teal)
                 }
                 chip(
-                    text: card.creationSource == .ai ? "AI" : "Manual",
+                    text: card.creationSource == .ai ? localized("AI") : localized("Manual"),
                     symbol: card.creationSource == .ai ? "sparkles" : "hand.tap",
                     tint: card.creationSource == .ai ? accent : .secondary
                 )
@@ -184,7 +199,7 @@ struct DetailedCardRowView: View, Equatable {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
 
-                Text(title.uppercased())
+                Text(title.uppercased(with: locale))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
             }
@@ -206,7 +221,7 @@ struct DetailedCardRowView: View, Equatable {
     private var footer: some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.standard) {
             if let createdAt = card.createdAt {
-                Text("Created \(createdAt.formatted(date: .abbreviated, time: .shortened))")
+                Text(localizedFormat("Created %@", localizedTimestamp(createdAt)))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -215,7 +230,7 @@ struct DetailedCardRowView: View, Equatable {
             Spacer(minLength: UIConstants.Spacing.small)
 
             if shouldShowEditedDate, let editedAt = card.editedAt {
-                Text("Edited \(editedAt.formatted(date: .abbreviated, time: .shortened))")
+                Text(localizedFormat("Edited %@", localizedTimestamp(editedAt)))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -268,7 +283,7 @@ struct DetailedCardRowView: View, Equatable {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: targetKind.conversionSystemImage)
-                    Text("To \(targetKind.displayTitle)")
+                    Text(localizedFormat("To %@", targetKind.localizedDisplayTitle(locale: locale)))
                 }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(targetKind == .match ? .orange : diagnostic.kind.tint)
@@ -296,14 +311,14 @@ struct DetailedCardRowView: View, Equatable {
         case .flashcard(let content):
             return [
                 PreviewPanel(
-                    title: "Question",
+                    title: localized("Question"),
                     symbol: "q.circle",
                     text: previewText(for: content.frontZone, maxLength: isCompactPreview ? 180 : 360),
                     hasContent: summary.sections[safe: 0]?.metrics.hasContent ?? false,
                     lineLimit: isCompactPreview ? 3 : 5
                 ),
                 PreviewPanel(
-                    title: "Answer",
+                    title: localized("Answer"),
                     symbol: "a.circle",
                     text: previewText(for: content.backZone, maxLength: isCompactPreview ? 220 : 460),
                     hasContent: summary.sections[safe: 1]?.metrics.hasContent ?? false,
@@ -313,16 +328,16 @@ struct DetailedCardRowView: View, Equatable {
         case .match(let content):
             return [
                 PreviewPanel(
-                    title: "Prompt",
+                    title: localized("Prompt"),
                     symbol: "arrow.left.and.right.text.vertical",
-                    text: normalizedSingleLine(content.prompt, fallback: "No prompt added"),
+                    text: normalizedSingleLine(content.prompt, fallback: localized("No prompt added")),
                     hasContent: !content.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                     lineLimit: isCompactPreview ? 2 : 4
                 ),
                 PreviewPanel(
-                    title: "Answer",
+                    title: localized("Answer"),
                     symbol: "rectangle.2.swap",
-                    text: normalizedSingleLine(content.answer, fallback: "No answer added"),
+                    text: normalizedSingleLine(content.answer, fallback: localized("No answer added")),
                     hasContent: !content.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                     lineLimit: isCompactPreview ? 2 : 4
                 )
@@ -330,14 +345,14 @@ struct DetailedCardRowView: View, Equatable {
         case .quiz(let content):
             var panels = [
                 PreviewPanel(
-                    title: "Question",
+                    title: localized("Question"),
                     symbol: "questionmark.bubble",
                     text: previewText(for: content.questionZone, maxLength: isCompactPreview ? 160 : 320),
                     hasContent: summary.sections.first?.metrics.hasContent ?? false,
                     lineLimit: isCompactPreview ? 2 : 4
                 ),
                 PreviewPanel(
-                    title: "Choices",
+                    title: localized("Choices"),
                     symbol: "checklist",
                     text: joinedChoicePreview(for: content),
                     hasContent: !content.choices.isEmpty,
@@ -348,7 +363,7 @@ struct DetailedCardRowView: View, Equatable {
             if let explanationZone = content.explanationZone {
                 panels.append(
                     PreviewPanel(
-                        title: "Explanation",
+                        title: localized("Explanation"),
                         symbol: "text.bubble",
                         text: previewText(for: explanationZone, maxLength: isCompactPreview ? 120 : 260),
                         hasContent: !previewFragments(in: explanationZone).isEmpty,
@@ -361,16 +376,16 @@ struct DetailedCardRowView: View, Equatable {
         case .write(let content):
             return [
                 PreviewPanel(
-                    title: "Prompt",
+                    title: localized("Prompt"),
                     symbol: "pencil.line",
                     text: blankedPromptPreview(for: content, maxLength: isCompactPreview ? 170 : 340),
                     hasContent: summary.sections.first?.metrics.hasContent ?? false,
                     lineLimit: isCompactPreview ? 3 : 6
                 ),
                 PreviewPanel(
-                    title: "Blank",
+                    title: localized("Blank"),
                     symbol: "rectangle.and.pencil.and.ellipsis",
-                    text: content.blankSelection.omittedText.isEmpty ? "No blank selected" : content.blankSelection.omittedText,
+                    text: content.blankSelection.omittedText.isEmpty ? localized("No blank selected") : content.blankSelection.omittedText,
                     hasContent: !content.blankSelection.omittedText.isEmpty,
                     lineLimit: isCompactPreview ? 2 : 3
                 )
@@ -385,7 +400,7 @@ struct DetailedCardRowView: View, Equatable {
         }
 
         let joined = choices.joined(separator: isCompactPreview ? " • " : "\n")
-        return joined.isEmpty ? "No choices added" : joined
+        return joined.isEmpty ? localized("No choices added") : joined
     }
 
     private func blankedPromptPreview(for content: WriteCardContent, maxLength: Int) -> String {
@@ -406,7 +421,7 @@ struct DetailedCardRowView: View, Equatable {
         let combined = previewFragments(in: zone).joined(separator: separator)
         let trimmed = combined.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !trimmed.isEmpty else { return "No content added" }
+        guard !trimmed.isEmpty else { return localized("No content added") }
         guard trimmed.count > maxLength else { return trimmed }
         return String(trimmed.prefix(maxLength)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
     }
@@ -420,20 +435,20 @@ struct DetailedCardRowView: View, Equatable {
                 let fragments = normalizedTextFragments(from: zone.text)
                 if fragments.isEmpty {
                     if let language = zone.codeLanguage?.uppercased() {
-                        return ["\(language) code"]
+                        return [localizedFormat("%@ code", language)]
                     }
-                    return ["Code"]
+                    return [localized("Code")]
                 }
 
                 let joined = fragments.joined(separator: " ")
                 if let language = zone.codeLanguage?.uppercased() {
-                    return ["\(language) code: \(joined)"]
+                    return [localizedFormat("%@ code: %@", language, joined)]
                 }
-                return ["Code: \(joined)"]
+                return [localizedFormat("Code: %@", joined)]
             case .image:
-                return zone.imageData == nil ? [] : ["Image"]
+                return zone.imageData == nil ? [] : [localized("Image")]
             case .sketch:
-                return zone.imageData == nil ? [] : ["Sketch"]
+                return zone.imageData == nil ? [] : [localized("Sketch")]
             case .empty:
                 return []
             }
@@ -469,15 +484,29 @@ private struct PreviewPanel {
 
 private extension CardKind {
     var editorDisplayTitle: String {
+        let locale = AppPreferences.persistedResolvedLocale
         switch self {
         case .flashcard:
-            return "Flashcard"
+            return AppLocalization.string("Flashcard", locale: locale)
         case .match:
-            return "Match"
+            return AppLocalization.string("Match", locale: locale)
         case .quiz:
-            return "Quiz"
+            return AppLocalization.string("Quiz", locale: locale)
         case .write:
-            return "Write"
+            return AppLocalization.string("Write", locale: locale)
+        }
+    }
+
+    func localizedDisplayTitle(locale: Locale) -> String {
+        switch self {
+        case .flashcard:
+            return AppLocalization.string("Flashcard", locale: locale)
+        case .match:
+            return AppLocalization.string("Match", locale: locale)
+        case .quiz:
+            return AppLocalization.string("Quiz", locale: locale)
+        case .write:
+            return AppLocalization.string("Write", locale: locale)
         }
     }
 

@@ -28,13 +28,34 @@ struct AppPreferencesSettingsView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                        LargeScreenTitle(title: "App Defaults")
+                        LargeScreenTitle(
+                            title: .verbatim(String(
+                                localized: "App Defaults",
+                                locale: appPreferences.resolvedLocale
+                            ))
+                        )
                             .collapsibleTitleRevealAnchor(
                                 in: kAppPreferencesChromeSpace,
                                 navigationBarBottomY: navigationBarBottomY,
                                 revealClearance: SettingsChromeMetrics.pillRevealClearance,
                                 isVisible: $isCollapsedTitleVisible
                             )
+
+                        SettingsSectionCard(
+                            title: "Language",
+                            subtitle: "Choose whether QuizFlash follows the system language or forces one app language everywhere."
+                        ) {
+                            SettingsMenuPickerRow(
+                                icon: "globe",
+                                tint: .purple,
+                                title: "App Language",
+                                detail: "This changes QuizFlash chrome and system-localized UI while keeping your deck content untouched.",
+                                selection: appLanguageBinding,
+                                options: AppLanguagePreference.allCases
+                            ) { option, locale in
+                                option.localizedTitle(locale: locale)
+                            }
+                        }
 
                         SettingsSectionCard(
                             title: "Calendar & Navigation",
@@ -47,7 +68,9 @@ struct AppPreferencesSettingsView: View {
                                 detail: "Choose whether Home follows the system weekday anchor or forces Monday or Sunday.",
                                 selection: weekStartBinding,
                                 options: AppWeekStartDayPreference.allCases
-                            ) { $0.title }
+                            ) { option, locale in
+                                option.localizedTitle(locale: locale)
+                            }
 
                             SettingsCardDivider()
 
@@ -58,7 +81,9 @@ struct AppPreferencesSettingsView: View {
                                 detail: "Controls where the floating tab bar lands on wider iPad layouts.",
                                 selection: padTabBarPositionBinding,
                                 options: AppPadTabBarPosition.allCases
-                            ) { $0.title }
+                            ) { option, locale in
+                                option.localizedTitle(locale: locale)
+                            }
                         }
 
                         SettingsSectionCard(
@@ -72,7 +97,9 @@ struct AppPreferencesSettingsView: View {
                                 detail: "Choose whether new AI session cards appear first or whether the editor keeps older cards at the top.",
                                 selection: createDeckSortBinding,
                                 options: CreateDeckSortOrder.allCases
-                            ) { $0.title }
+                            ) { option, locale in
+                                option.localizedTitle(locale: locale)
+                            }
 
                             SettingsCardDivider()
 
@@ -127,6 +154,13 @@ struct AppPreferencesSettingsView: View {
         )
     }
 
+    private var appLanguageBinding: Binding<AppLanguagePreference> {
+        Binding(
+            get: { appPreferences.appLanguage },
+            set: { appPreferences.appLanguage = $0 }
+        )
+    }
+
     private var createDeckSortBinding: Binding<CreateDeckSortOrder> {
         Binding(
             get: { appPreferences.createDeckSortOrder },
@@ -159,7 +193,10 @@ struct AppPreferencesSettingsView: View {
             }
         } center: { maxWidth in
             CollapsibleTitlePill(
-                title: "App Defaults",
+                title: .verbatim(String(
+                    localized: "App Defaults",
+                    locale: appPreferences.resolvedLocale
+                )),
                 maxWidth: maxWidth,
                 isVisible: isCollapsedTitleVisible
             )

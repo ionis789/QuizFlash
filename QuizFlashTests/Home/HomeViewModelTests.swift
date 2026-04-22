@@ -73,10 +73,6 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.deltaPercent, 64)
         XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.trend, .improving)
         XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.trendLine, "Improving day by day")
-        XCTAssertEqual(
-            viewModel.dashboardSnapshot.pastWeekPerformance.supportingLine,
-            "Your activity is uneven. More active days will lift the score."
-        )
         XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.accuracyPercent, 81)
         XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.consistencyPercent, 29)
         XCTAssertEqual(viewModel.dashboardSnapshot.pastWeekPerformance.goalCoveragePercent, 25)
@@ -89,16 +85,16 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.dashboardSnapshot.selectedDayInsight.paceLine.contains("3"))
     }
 
-    func testRefreshDashboardSnapshotShiftsPastWeekPerformanceWithSelectedDate() async throws {
+    func testRefreshDashboardSnapshotKeepsCalendarWeekAndRevealsSelectedDayWindow() async throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.firstWeekday = 2
         let firstSelectedDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 4, day: 17)))
         let secondSelectedDate = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: firstSelectedDate))
-        let firstWindowStart = try XCTUnwrap(calendar.date(byAdding: .day, value: -6, to: firstSelectedDate))
+        let weekStart = try XCTUnwrap(calendar.dateInterval(of: .weekOfYear, for: firstSelectedDate)?.start)
 
-        let aggregates: [HomeDailyStudyAggregate] = (0..<8).map { offset in
-            let date = calendar.date(byAdding: .day, value: offset, to: firstWindowStart) ?? firstWindowStart
-            if offset == 0 {
+        let aggregates: [HomeDailyStudyAggregate] = (0..<7).map { offset in
+            let date = calendar.date(byAdding: .day, value: offset, to: weekStart) ?? weekStart
+            if offset == 5 {
                 return HomeDailyStudyAggregate(
                     dayDate: date,
                     uniqueCardCount: 4,
@@ -130,7 +126,7 @@ final class HomeViewModelTests: XCTestCase {
 
         await viewModel.refreshDashboardSnapshot(
             selectedDate: firstSelectedDate,
-            weekStart: calendar.dateInterval(of: .weekOfYear, for: firstSelectedDate)?.start ?? firstSelectedDate,
+            weekStart: weekStart,
             examGoals: [],
             userProfile: nil,
             container: container,
@@ -143,7 +139,7 @@ final class HomeViewModelTests: XCTestCase {
 
         await viewModel.refreshDashboardSnapshot(
             selectedDate: secondSelectedDate,
-            weekStart: calendar.dateInterval(of: .weekOfYear, for: secondSelectedDate)?.start ?? secondSelectedDate,
+            weekStart: weekStart,
             examGoals: [],
             userProfile: nil,
             container: container,
@@ -155,13 +151,20 @@ final class HomeViewModelTests: XCTestCase {
         let secondSummary = viewModel.dashboardSnapshot.pastWeekPerformance
 
         XCTAssertEqual(firstSummary.windowEndDate, firstSelectedDate)
-        XCTAssertEqual(firstSummary.scorePercent, 95)
-        XCTAssertEqual(firstSummary.currentDaySummaries.last?.cardsReviewed, 10)
+        XCTAssertEqual(firstSummary.weekStartDate, weekStart)
+        XCTAssertEqual(firstSummary.scorePercent, 100)
+        XCTAssertEqual(firstSummary.scoredDayCount, 5)
+        XCTAssertEqual(firstSummary.activeDays, 5)
+        XCTAssertEqual(firstSummary.currentDaySummaries.map(\.cardsReviewed), [10, 10, 10, 10, 10, 0, 0])
         XCTAssertEqual(secondSummary.windowEndDate, secondSelectedDate)
-        XCTAssertEqual(secondSummary.scorePercent, 100)
-        XCTAssertGreaterThan(secondSummary.scorePercent, firstSummary.scorePercent)
+        XCTAssertEqual(secondSummary.weekStartDate, weekStart)
+        XCTAssertEqual(secondSummary.scorePercent, 94)
+        XCTAssertEqual(secondSummary.scoredDayCount, 6)
+        XCTAssertEqual(secondSummary.activeDays, 6)
+        XCTAssertLessThan(secondSummary.scorePercent, firstSummary.scorePercent)
         XCTAssertEqual(secondSummary.currentDaySummaries.first?.cardsReviewed, 10)
-        XCTAssertEqual(secondSummary.currentDaySummaries.last?.cardsReviewed, 10)
+        XCTAssertEqual(secondSummary.currentDaySummaries.last?.cardsReviewed, 0)
+        XCTAssertEqual(secondSummary.currentDaySummaries.map(\.cardsReviewed), [10, 10, 10, 10, 10, 4, 0])
     }
 
     func testPerformanceDetailSheetPresentationStateTogglesWithoutMutatingSnapshot() async throws {
@@ -335,8 +338,9 @@ final class HomeViewModelTests: XCTestCase {
             folderCount: 0,
             referenceDate: today
         )
+        let locale = AppPreferences.shared.resolvedLocale
 
-        XCTAssertEqual(summary.title, "Good morning")
+        XCTAssertEqual(summary.title, AppLocalization.string("Good morning", locale: locale))
         XCTAssertEqual(summary.subtitle, "Continue where you left off")
         XCTAssertEqual(summary.contextTitle, "Neuro")
         XCTAssertEqual(summary.primaryPill, "48 cards")
@@ -356,8 +360,9 @@ final class HomeViewModelTests: XCTestCase {
             folderCount: 0,
             referenceDate: Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 3, day: 22, hour: 20)) ?? Date()
         )
+        let locale = AppPreferences.shared.resolvedLocale
 
-        XCTAssertEqual(summary.title, "Good evening")
+        XCTAssertEqual(summary.title, AppLocalization.string("Good evening", locale: locale))
         XCTAssertEqual(summary.subtitle, "Build your study space")
         XCTAssertEqual(summary.contextTitle, "Create your first deck")
         XCTAssertEqual(summary.primaryPill, "New workspace")
@@ -375,8 +380,9 @@ final class HomeViewModelTests: XCTestCase {
             folderCount: 1,
             referenceDate: Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 3, day: 23, hour: 2)) ?? Date()
         )
+        let locale = AppPreferences.shared.resolvedLocale
 
-        XCTAssertEqual(summary.title, "Good night")
+        XCTAssertEqual(summary.title, AppLocalization.string("Good night", locale: locale))
         XCTAssertEqual(summary.primaryPill, "1 folder ready")
     }
 
@@ -411,6 +417,7 @@ final class HomeViewModelTests: XCTestCase {
 
     func testTodayFocusSummaryUsesActionFirstSetupWithoutDecks() {
         let viewModel = HomeViewModel()
+        let locale = AppPreferences.shared.resolvedLocale
 
         let summary = viewModel.todayFocusSummary(
             userProfile: nil,
@@ -420,13 +427,13 @@ final class HomeViewModelTests: XCTestCase {
             referenceDate: Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 3, day: 23, hour: 9)) ?? Date()
         )
 
-        XCTAssertEqual(summary.eyebrow, "Start")
-        XCTAssertEqual(summary.title, "No deck yet")
-        XCTAssertEqual(summary.compactTitle, "No deck yet")
-        XCTAssertEqual(summary.progressValueText, "New")
-        XCTAssertEqual(summary.progressLabel, "Start")
-        XCTAssertEqual(summary.compactDetail, "Create Deck")
-        XCTAssertEqual(summary.ctaTitle, "Create Deck")
+        XCTAssertEqual(summary.eyebrow, AppLocalization.string("Start", locale: locale))
+        XCTAssertEqual(summary.title, AppLocalization.string("No deck yet", locale: locale))
+        XCTAssertEqual(summary.compactTitle, AppLocalization.string("No deck yet", locale: locale))
+        XCTAssertEqual(summary.progressValueText, AppLocalization.string("New", locale: locale))
+        XCTAssertEqual(summary.progressLabel, AppLocalization.string("Start", locale: locale))
+        XCTAssertEqual(summary.compactDetail, AppLocalization.string("Create Deck", locale: locale))
+        XCTAssertEqual(summary.ctaTitle, AppLocalization.string("Create Deck", locale: locale))
         XCTAssertEqual(summary.action, .switchTab(.create))
     }
 
@@ -479,13 +486,18 @@ final class HomeViewModelTests: XCTestCase {
             folderCount: 0,
             referenceDate: today
         )
+        let locale = AppPreferences.shared.resolvedLocale
+        let expectedDetail = String.localizedStringWithFormat(
+            AppLocalization.string("Last opened %@.", locale: locale),
+            HomeViewModel.relativeTimeLabel(for: recentDeck.lastOpenedAt ?? today, referenceDate: today)
+        )
 
-        XCTAssertEqual(summary.eyebrow, "Today goal")
+        XCTAssertEqual(summary.eyebrow, AppLocalization.string("Today goal", locale: locale))
         XCTAssertEqual(summary.title, "Roman Law")
         XCTAssertEqual(summary.compactTitle, "Roman Law")
-        XCTAssertEqual(summary.compactDetail, "Resume Deck")
-        XCTAssertEqual(summary.detail, "Last opened 11h ago.")
-        XCTAssertEqual(summary.ctaTitle, "Resume Deck")
+        XCTAssertEqual(summary.compactDetail, AppLocalization.string("Resume Deck", locale: locale))
+        XCTAssertEqual(summary.detail, expectedDetail)
+        XCTAssertEqual(summary.ctaTitle, AppLocalization.string("Resume Deck", locale: locale))
         XCTAssertEqual(summary.action, .openDeck(recentDeck.persistentModelID))
     }
 

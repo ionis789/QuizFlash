@@ -18,15 +18,17 @@ enum CardReadinessDiagnosticKind: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
+    private var locale: Locale { AppPreferences.persistedResolvedLocale }
+
     /// Short label used by compact chips.
     var shortTitle: String {
         switch self {
         case .matchReady:
-            return "Match-ready"
+            return AppLocalization.string("Match-ready", locale: locale)
         case .matchWeak:
-            return "Match-weak"
+            return AppLocalization.string("Match-weak", locale: locale)
         case .writeMathHeavy:
-            return "Write math-heavy"
+            return AppLocalization.string("Write math-heavy", locale: locale)
         }
     }
 
@@ -34,11 +36,11 @@ enum CardReadinessDiagnosticKind: String, CaseIterable, Identifiable, Sendable {
     var summaryTitle: String {
         switch self {
         case .matchReady:
-            return "match-ready"
+            return AppLocalization.string("match-ready", locale: locale)
         case .matchWeak:
-            return "match-weak"
+            return AppLocalization.string("match-weak", locale: locale)
         case .writeMathHeavy:
-            return "write math-heavy"
+            return AppLocalization.string("write math-heavy", locale: locale)
         }
     }
 
@@ -92,10 +94,24 @@ struct DeckReadinessConversionRecommendation: Identifiable, Equatable, Sendable 
 
     var id: CardKind { targetKind }
     var title: String {
-        "Convert \(count) card\(count == 1 ? "" : "s") to \(targetKind.displayTitle)"
+        let locale = AppPreferences.persistedResolvedLocale
+        let kindTitle = switch targetKind {
+        case .flashcard: AppLocalization.string("Flashcard", locale: locale)
+        case .match: AppLocalization.string("Match", locale: locale)
+        case .quiz: AppLocalization.string("Quiz", locale: locale)
+        case .write: AppLocalization.string("Write", locale: locale)
+        }
+        let format = AppLocalization.string(
+            count == 1 ? "Convert %d card to %@" : "Convert %d cards to %@",
+            locale: locale
+        )
+        return String(format: format, locale: locale, count, kindTitle)
     }
     var detail: String {
-        "Open AI conversion with only the cards flagged by readiness diagnostics."
+        AppLocalization.string(
+            "Open AI conversion with only the cards flagged by readiness diagnostics.",
+            locale: AppPreferences.persistedResolvedLocale
+        )
     }
 }
 
@@ -161,7 +177,10 @@ enum CardReadinessDiagnostics {
             return [
                 CardReadinessDiagnostic(
                     kind: .writeMathHeavy,
-                    detail: "The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.",
+                    detail: AppLocalization.string(
+                        "The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.",
+                        locale: AppPreferences.persistedResolvedLocale
+                    ),
                     recommendedConversionTargetKind: nil
                 )
             ]
@@ -194,7 +213,10 @@ enum CardReadinessDiagnostics {
             return [
                 CardReadinessDiagnostic(
                     kind: .writeMathHeavy,
-                    detail: "This write card looks formula-heavy and is a good candidate for assisted builder input.",
+                    detail: AppLocalization.string(
+                        "This write card looks formula-heavy and is a good candidate for assisted builder input.",
+                        locale: AppPreferences.persistedResolvedLocale
+                    ),
                     recommendedConversionTargetKind: nil
                 )
             ]
@@ -282,14 +304,20 @@ enum CardReadinessDiagnostics {
         if evaluation.isCompact {
             return CardReadinessDiagnostic(
                 kind: .matchReady,
-                detail: "This dedicated prompt-answer pair is compact enough for Match on smaller screens.",
+                detail: AppLocalization.string(
+                    "This dedicated prompt-answer pair is compact enough for Match on smaller screens.",
+                    locale: AppPreferences.persistedResolvedLocale
+                ),
                 recommendedConversionTargetKind: nil
             )
         }
 
         return CardReadinessDiagnostic(
             kind: .matchWeak,
-            detail: "This match card is still too verbose for fast rounds. Tighten the prompt or answer.",
+            detail: AppLocalization.string(
+                "This match card is still too verbose for fast rounds. Tighten the prompt or answer.",
+                locale: AppPreferences.persistedResolvedLocale
+            ),
             recommendedConversionTargetKind: nil
         )
     }

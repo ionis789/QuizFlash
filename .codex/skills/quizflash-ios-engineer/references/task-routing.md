@@ -46,21 +46,21 @@ Do not start by reading broad repo docs unless the task actually needs them.
 - Add `Features/Home/ViewModels/CalendarViewModel.swift` only if the change touches date selection, month paging, or week-start behavior.
 - Read the SwiftData and performance sections of `architecture.md` only if fetch, caching, or heavy derived work changes.
 
-### CreateDeck local UI tweak
+### DeckWorkspace local UI tweak
 
-- Start with `Features/DeckEditor/Views/CreateDeckView.swift` or the local deck-editor view/component you are changing.
-- Add `Features/DeckEditor/ViewModels/CreateDeckViewModel.swift` only if the change touches state, actions, save gating, or derived view-model data.
+- Start with `Features/DeckEditor/Views/DeckWorkspaceView.swift` or the local deck-editor view/component you are changing.
+- Add `Features/DeckEditor/ViewModels/DeckWorkspaceViewModel.swift` only if the change touches state, actions, save gating, or derived view-model data.
 - Do not open `Services/AI/*` for copy, spacing, toolbar, dialog, or overlay tweaks that stay inside the existing view-model contract.
 - Read `architecture.md` only for `fullScreenSheet`, sticky chrome, long-scroll, or navigation behavior.
 
-### CreateDeck AI behavior
+### DeckWorkspace AI behavior
 
-- Start with `Features/DeckEditor/ViewModels/CreateDeckViewModel.swift`.
+- Start with `Features/DeckEditor/ViewModels/DeckWorkspaceViewModel.swift`.
 - Add the narrowest AI files involved:
   - `Services/AI/AIFlashcardService.swift` for generation pipeline behavior
   - `Services/AI/AIWorkspaceCoordinator.swift` for workspace conversion flows
   - `Services/AI/AIGenerationState.swift` for state shape or diagnostics
-- Add `Features/DeckEditor/Views/CreateDeckView.swift` only if the surfaced UI contract changes.
+- Add `Features/DeckEditor/Views/DeckWorkspaceView.swift` only if the surfaced UI contract changes.
 - Read concurrency and SwiftData sections in `architecture.md` for task lifecycle or persistence changes.
 
 ### DeckView chrome or grid tweak
@@ -94,5 +94,5 @@ Do not start by reading broad repo docs unless the task actually needs them.
 
 - A text, copy, spacing, or local overlay change should not automatically pull `project-map.md`.
 - A local Home or DeckView UI tweak should not automatically pull `architecture.md` end to end.
-- A `CreateDeckView` UI tweak should not automatically pull the whole AI stack.
+- A `DeckWorkspaceView` UI tweak should not automatically pull the whole AI stack.
 - If two nearby files explain the change safely, stop there and edit.

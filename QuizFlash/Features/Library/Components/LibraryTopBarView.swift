@@ -13,7 +13,9 @@ import UIKit
 /// A floating top navigation bar tailored for the Library view and its derived contexts.
 /// Preserves the app's existing chrome while presenting a quieter search state.
 struct LibraryTopBarView: View {
-    let title: String
+    @Environment(AppPreferences.self) private var appPreferences
+    let title: AppTextValue
+    let titleFallback: String
     let deckCount: Int
     @Bindable var viewModel: LibraryViewModel
     let coordinateSpaceName: String
@@ -48,6 +50,14 @@ struct LibraryTopBarView: View {
     }
     var searchProgress: CGFloat {
         min(max(searchFieldExpansionProgress, 0), 1)
+    }
+
+    var locale: Locale {
+        appPreferences.resolvedLocale
+    }
+
+    func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
     }
 
     var body: some View {

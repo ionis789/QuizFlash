@@ -70,11 +70,11 @@ struct FloatingAIWorkspaceStatusMenu: View {
 
                 if let onCancel {
                     Button(action: onCancel) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 22, height: 22)
-                            .background(Color(uiColor: .tertiarySystemFill), in: Circle())
+                        ChromeSoftCircleSymbol(
+                            systemName: "xmark",
+                            size: 22,
+                            symbolSize: 16
+                        )
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Cancel AI workspace job")

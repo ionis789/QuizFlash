@@ -1,9 +1,9 @@
 //
-//  AddCardSheetView.swift
+//  FlashcardEditorView.swift
 //  QuizFlash
 //
-//  Card editor with zone-based content and PURE VISUAL ghost previews.
-//  NO data model mutation during drag - ghost is rendered as overlay only.
+//  Zone-based flashcard editor for manual front/back authoring.
+//  Drag previews are visual only and do not mutate the card model.
 //
 
 import SwiftUI
@@ -11,12 +11,13 @@ import PhotosUI
 import SwiftData
 import OSLog
 
-// MARK: - Add Card Sheet View
+// MARK: - Flashcard Editor View
 
-struct CreateCardView: View {
+struct FlashcardEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var context
+    @Environment(AppPreferences.self) private var appPreferences
 
     var onSaveZones: (ZoneModel, ZoneModel) -> Void
 
@@ -38,14 +39,19 @@ struct CreateCardView: View {
     @State private var saveErrorMessage = ""
 
 
-    // PURE VISUAL GHOST - No data mutation
+    // Visual-only ghost preview. The model changes only after the user commits.
     @State private var previewDirection: AddDirection? = nil
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var currentContent: ZoneCardContent { activeSide == 0 ? frontZoneContent : backZoneContent }
     private var canSave: Bool { frontZoneContent.hasContent || backZoneContent.hasContent }
+    private var locale: Locale { appPreferences.resolvedLocale }
     private var canUseInteractiveDismiss: Bool {
         !showSketchModal && !showPreview && !isPhotoPickerPresented
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
     }
 
     private var focusManager = ZoneFocusManager.shared
@@ -53,13 +59,14 @@ struct CreateCardView: View {
     private var lineTracker = ZoneLineTracker.shared
     private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
-        category: "CreateCardView"
+        category: "FlashcardEditorView"
     )
 
     // MARK: - Initialization
 
     init(
-        searchQuery: String? = nil,onSave: @escaping (ZoneModel, ZoneModel) -> Void
+        searchQuery: String? = nil,
+        onSave: @escaping (ZoneModel, ZoneModel) -> Void
     ) {
         self.onSaveZones = onSave
         _frontZoneContent = State(initialValue: ZoneCardContent(rootZone: .text()))
@@ -77,8 +84,7 @@ struct CreateCardView: View {
         frontZone: ZoneModel,
         backZone: ZoneModel,
         searchQuery: String? = nil,
-      
-          onSave: @escaping (ZoneModel, ZoneModel) -> Void
+        onSave: @escaping (ZoneModel, ZoneModel) -> Void
     ) {
 
         self.onSaveZones = onSave
@@ -119,7 +125,7 @@ struct CreateCardView: View {
                 .fullScreenCover(isPresented: $showSketchModal) { CanvasModalView { data in addSketch(data) } }
                 .fullScreenSheet(
                     isPresented: $showPreview,
-                    configuration: .sheet(dragActivationArea: .fixed(180))
+                    configuration: .sheet()
                 ) { safeArea in
                     CardPreviewModeView(
                         front: frontZoneContent,
@@ -134,10 +140,10 @@ struct CreateCardView: View {
                 .swipeBack(enabled: canUseInteractiveDismiss) {
                     dismiss()
                 }
-                .alert("Save Error", isPresented: $showSaveErrorAlert) {
-                Button("OK", role: .cancel) { }
+                .alert(localized("Save Error"), isPresented: $showSaveErrorAlert) {
+                Button(localized("OK"), role: .cancel) { }
             } message: {
-                Text(saveErrorMessage.isEmpty ? "Your card changes couldn't be saved right now." : saveErrorMessage)
+                Text(saveErrorMessage.isEmpty ? localized("Your card changes couldn't be saved right now.") : saveErrorMessage)
             }
                 .onAppear {
                 if selectedPath == nil {
@@ -185,19 +191,6 @@ struct CreateCardView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        Image(systemName: activeSide == 0 ? "questionmark.circle.fill" : "checkmark.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(accent)
-                        Text(activeSide == 0 ? "QUESTION" : "ANSWER")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                        .padding(.bottom, 16)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 8)
-
                     // Pass previewDirection down for visual overlay rendering
                     ZoneEditorView(
                         content: currentContent,
@@ -265,9 +258,9 @@ struct CreateCardView: View {
     }
 
     private var sidePicker: some View {
-        Picker("Side", selection: $activeSide) {
-            Label("Question", systemImage: "questionmark.circle").tag(0)
-            Label("Answer", systemImage: "checkmark.circle").tag(1)
+        Picker(localized("Side"), selection: $activeSide) {
+            Label(localized("Question"), systemImage: "questionmark.circle").tag(0)
+            Label(localized("Answer"), systemImage: "checkmark.circle").tag(1)
         }
             .pickerStyle(.segmented)
             .padding(.horizontal, 20)
@@ -280,7 +273,7 @@ struct CreateCardView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
-            Button("Cancel") { dismiss() }.tint(.secondary)
+            Button(localized("Cancel")) { dismiss() }.tint(.secondary)
         }
         ToolbarItem(placement: .primaryAction) {
             HStack(spacing: 12) {
@@ -298,7 +291,7 @@ struct CreateCardView: View {
                 label: { Image(systemName: "eye").font(.body.weight(.medium)) }
                     .disabled(!canSave)
 
-                Button("Save") { saveCard() }
+                Button(localized("Save")) { saveCard() }
                     .fontWeight(.semibold)
                     .disabled(!canSave)
             }

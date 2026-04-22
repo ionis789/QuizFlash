@@ -86,9 +86,19 @@ actor HomeAnalyticsRepository {
         let goalHitDays: Int
         let bestDayLabel: String?
         let bestDayScorePercent: Int?
+        let bestDayDailyQualityPercent: Int?
         let weakestDayLabel: String?
         let weakestDayScorePercent: Int?
+        let weakestDayDailyQualityPercent: Int?
         let daySummaries: [HomePastWeekPerformanceDaySummary]
+        let scoredDayCount: Int
+    }
+
+    private struct PerformanceCheckpointSummary {
+        let date: Date
+        let windowScorePercent: Int
+        let dailyQualityPercent: Int
+        let cardsReviewed: Int
     }
 
     // MARK: - State
@@ -173,7 +183,10 @@ actor HomeAnalyticsRepository {
         }
 
         let weeklyMomentum = buildWeeklyMomentumSummary(daySummaries: daySummaries)
-        let pastWeekPerformance = buildPastWeekPerformanceSummary(selectedDate: normalizedSelectedDate)
+        let pastWeekPerformance = buildPastWeekPerformanceSummary(
+            selectedDate: normalizedSelectedDate,
+            weekStart: normalizedWeekStart
+        )
         let selectedDayBreakdown = buildSelectedDayBreakdown(
             selectedDate: normalizedSelectedDate,
             selectedDayAggregate: selectedDayAggregate
@@ -440,28 +453,38 @@ actor HomeAnalyticsRepository {
     }
 
     private func buildPastWeekPerformanceSummary(
-        selectedDate: Date
+        selectedDate: Date,
+        weekStart: Date
     ) -> HomePastWeekPerformanceSummary {
         let calendar = Calendar.current
         let normalizedSelectedDate = HomeAnalyticsDayKey.normalizedDay(for: selectedDate)
+        let normalizedWeekStart = HomeAnalyticsDayKey.normalizedDay(for: weekStart)
+        let selectedDayOffset = min(
+            max(calendar.dateComponents([.day], from: normalizedWeekStart, to: normalizedSelectedDate).day ?? 0, 0),
+            6
+        )
         guard
-            let currentWindowStart = calendar.date(byAdding: .day, value: -6, to: normalizedSelectedDate),
-            let previousWindowStart = calendar.date(byAdding: .day, value: -13, to: normalizedSelectedDate),
-            let currentWindowEnd = calendar.date(byAdding: .day, value: 1, to: normalizedSelectedDate)
+            let previousWeekStart = calendar.date(byAdding: .day, value: -7, to: normalizedWeekStart),
+            let currentWeekEnd = calendar.date(byAdding: .day, value: 7, to: normalizedWeekStart),
+            let currentScoringEndDate = calendar.date(byAdding: .day, value: selectedDayOffset, to: normalizedWeekStart),
+            let previousScoringEndDate = calendar.date(byAdding: .day, value: selectedDayOffset, to: previousWeekStart)
         else {
             return .placeholder(referenceDate: normalizedSelectedDate)
         }
 
-        let aggregates = fetchDailyStudyAggregates(start: previousWindowStart, end: currentWindowEnd)
+        let aggregates = fetchDailyStudyAggregates(start: previousWeekStart, end: currentWeekEnd)
         let aggregatesByKey = Dictionary(uniqueKeysWithValues: aggregates.map { ($0.dayKey, $0) })
 
         let previousMetrics = buildPerformanceWindowMetrics(
-            start: previousWindowStart,
-            aggregatesByKey: aggregatesByKey
+            start: previousWeekStart,
+            aggregatesByKey: aggregatesByKey,
+            scoringEndDate: previousScoringEndDate
         )
         let currentMetrics = buildPerformanceWindowMetrics(
-            start: currentWindowStart,
-            aggregatesByKey: aggregatesByKey
+            start: normalizedWeekStart,
+            aggregatesByKey: aggregatesByKey,
+            scoringEndDate: currentScoringEndDate,
+            displayEndDate: currentScoringEndDate
         )
         let deltaPercent = currentMetrics.scorePercent - previousMetrics.scorePercent
         let trend: HomePastWeekPerformanceTrend
@@ -474,6 +497,7 @@ actor HomeAnalyticsRepository {
         }
 
         return HomePastWeekPerformanceSummary(
+            weekStartDate: normalizedWeekStart,
             windowEndDate: normalizedSelectedDate,
             scorePercent: currentMetrics.scorePercent,
             previousScorePercent: previousMetrics.scorePercent,
@@ -483,20 +507,19 @@ actor HomeAnalyticsRepository {
                 activeDays: currentMetrics.activeDays,
                 trend: trend
             ),
-            supportingLine: performanceSupportingLine(
-                metrics: currentMetrics,
-                trend: trend
-            ),
             accuracyPercent: currentMetrics.accuracyPercent,
             consistencyPercent: currentMetrics.consistencyPercent,
             goalCoveragePercent: currentMetrics.goalCoveragePercent,
             efficiencyPercent: currentMetrics.efficiencyPercent,
             activeDays: currentMetrics.activeDays,
+            scoredDayCount: currentMetrics.scoredDayCount,
             goalHitDays: currentMetrics.goalHitDays,
             bestDayLabel: currentMetrics.bestDayLabel,
             bestDayScorePercent: currentMetrics.bestDayScorePercent,
+            bestDayDailyQualityPercent: currentMetrics.bestDayDailyQualityPercent,
             weakestDayLabel: currentMetrics.weakestDayLabel,
             weakestDayScorePercent: currentMetrics.weakestDayScorePercent,
+            weakestDayDailyQualityPercent: currentMetrics.weakestDayDailyQualityPercent,
             currentDaySummaries: currentMetrics.daySummaries,
             previousDaySummaries: previousMetrics.daySummaries
         )
@@ -504,16 +527,107 @@ actor HomeAnalyticsRepository {
 
     private func buildPerformanceWindowMetrics(
         start: Date,
-        aggregatesByKey: [String: HomeDailyStudyAggregate]
+        aggregatesByKey: [String: HomeDailyStudyAggregate],
+        scoringEndDate: Date,
+        displayEndDate: Date? = nil
     ) -> PerformanceWindowMetrics {
+        let locale = AppPreferences.persistedResolvedLocale
+        Self.performanceInsightLabelFormatter.locale = locale
+
+        let daySummaries = buildPerformanceDaySummaries(
+            start: start,
+            aggregatesByKey: aggregatesByKey,
+            displayEndDate: displayEndDate
+        )
+        let normalizedScoringEndDate = HomeAnalyticsDayKey.normalizedDay(for: scoringEndDate)
+        let scoringDaySummaries = daySummaries.filter { $0.date <= normalizedScoringEndDate }
+        let scoringDayCount = max(scoringDaySummaries.count, 1)
+
+        let totalLanded = scoringDaySummaries.map(\.landedCount).reduce(0, +)
+        let totalRetry = scoringDaySummaries.map(\.retryCount).reduce(0, +)
+        let totalCardsReviewed = scoringDaySummaries.map(\.cardsReviewed).reduce(0, +)
+        let totalRawReviewCount = scoringDaySummaries.map(\.rawReviewCount).reduce(0, +)
+        let activeDays = scoringDaySummaries.filter(\.didStudy).count
+        let goalHitDays = scoringDaySummaries.filter(\.didReachGoal).count
+        let cleanFinishRate = (totalLanded + totalRetry) > 0
+            ? Double(totalLanded) / Double(totalLanded + totalRetry)
+            : 0
+        let consistencyRate = Double(activeDays) / Double(scoringDayCount)
+        let goalCoverageRate = scoringDaySummaries
+            .map { min(Double($0.cardsReviewed) / Double(max($0.dailyGoal, 1)), 1.0) }
+            .reduce(0, +) / Double(scoringDayCount)
+        let efficiencyRate = totalCardsReviewed > 0
+            ? Double(totalCardsReviewed) / Double(max(totalRawReviewCount, 1))
+            : 0
+        let weightedScore = (cleanFinishRate * 0.55)
+            + (consistencyRate * 0.20)
+            + (goalCoverageRate * 0.15)
+            + (efficiencyRate * 0.10)
+        let scorePercent = min(max(Int((weightedScore * 100).rounded()), 0), 100)
+        let accuracyPercent = min(max(Int((cleanFinishRate * 100).rounded()), 0), 100)
+        let consistencyPercent = min(max(Int((consistencyRate * 100).rounded()), 0), 100)
+        let goalCoveragePercent = min(max(Int((goalCoverageRate * 100).rounded()), 0), 100)
+        let efficiencyPercent = min(max(Int((efficiencyRate * 100).rounded()), 0), 100)
+
+        let checkpointSummaries = buildPerformanceCheckpointSummaries(
+            daySummaries: scoringDaySummaries,
+            aggregatesByKey: aggregatesByKey
+        )
+        let bestDay = checkpointSummaries.max { lhs, rhs in
+            if lhs.windowScorePercent != rhs.windowScorePercent {
+                return lhs.windowScorePercent < rhs.windowScorePercent
+            }
+            if lhs.dailyQualityPercent != rhs.dailyQualityPercent {
+                return lhs.dailyQualityPercent < rhs.dailyQualityPercent
+            }
+            return lhs.cardsReviewed < rhs.cardsReviewed
+        }
+        let weakestDay = checkpointSummaries.min { lhs, rhs in
+            if lhs.windowScorePercent != rhs.windowScorePercent {
+                return lhs.windowScorePercent < rhs.windowScorePercent
+            }
+            if lhs.dailyQualityPercent != rhs.dailyQualityPercent {
+                return lhs.dailyQualityPercent < rhs.dailyQualityPercent
+            }
+            return lhs.cardsReviewed < rhs.cardsReviewed
+        }
+
+        return PerformanceWindowMetrics(
+            scorePercent: scorePercent,
+            accuracyPercent: accuracyPercent,
+            consistencyPercent: consistencyPercent,
+            goalCoveragePercent: goalCoveragePercent,
+            efficiencyPercent: efficiencyPercent,
+            activeDays: activeDays,
+            goalHitDays: goalHitDays,
+            bestDayLabel: bestDay.map { Self.performanceInsightLabelFormatter.string(from: $0.date) },
+            bestDayScorePercent: bestDay?.windowScorePercent,
+            bestDayDailyQualityPercent: bestDay?.dailyQualityPercent,
+            weakestDayLabel: weakestDay.map { Self.performanceInsightLabelFormatter.string(from: $0.date) },
+            weakestDayScorePercent: weakestDay?.windowScorePercent,
+            weakestDayDailyQualityPercent: weakestDay?.dailyQualityPercent,
+            daySummaries: daySummaries,
+            scoredDayCount: scoringDayCount
+        )
+    }
+
+    private func buildPerformanceDaySummaries(
+        start: Date,
+        aggregatesByKey: [String: HomeDailyStudyAggregate],
+        displayEndDate: Date? = nil
+    ) -> [HomePastWeekPerformanceDaySummary] {
         let calendar = Calendar.current
-        let daySummaries: [HomePastWeekPerformanceDaySummary] = (0..<7).compactMap { offset in
+        let normalizedDisplayEndDate = displayEndDate.map { HomeAnalyticsDayKey.normalizedDay(for: $0) }
+        Self.shortWeekdayFormatter.locale = AppPreferences.persistedResolvedLocale
+
+        return (0..<7).compactMap { offset in
             guard let day = calendar.date(byAdding: .day, value: offset, to: start) else {
                 return nil
             }
 
             let dayKey = HomeAnalyticsDayKey.make(from: day)
-            let aggregate = aggregatesByKey[dayKey]
+            let shouldDisplayAggregate = normalizedDisplayEndDate.map { day <= $0 } ?? true
+            let aggregate = shouldDisplayAggregate ? aggregatesByKey[dayKey] : nil
             let cardsReviewed = aggregate?.uniqueCardCount ?? 0
             let rawReviewCount = aggregate?.rawReviewCount ?? 0
             let landedCount = aggregate?.landedCount ?? 0
@@ -544,61 +658,55 @@ actor HomeAnalyticsRepository {
                 didReachGoal: didReachGoal
             )
         }
+    }
 
-        let totalLanded = daySummaries.map(\.landedCount).reduce(0, +)
-        let totalRetry = daySummaries.map(\.retryCount).reduce(0, +)
-        let totalCardsReviewed = daySummaries.map(\.cardsReviewed).reduce(0, +)
-        let totalRawReviewCount = daySummaries.map(\.rawReviewCount).reduce(0, +)
-        let activeDays = daySummaries.filter(\.didStudy).count
-        let goalHitDays = daySummaries.filter(\.didReachGoal).count
-        let cleanFinishRate = (totalLanded + totalRetry) > 0
-            ? Double(totalLanded) / Double(totalLanded + totalRetry)
-            : 0
-        let consistencyRate = Double(activeDays) / 7.0
-        let goalCoverageRate = daySummaries
-            .map { min(Double($0.cardsReviewed) / Double(max($0.dailyGoal, 1)), 1.0) }
-            .reduce(0, +) / 7.0
-        let efficiencyRate = totalCardsReviewed > 0
-            ? Double(totalCardsReviewed) / Double(max(totalRawReviewCount, 1))
-            : 0
-        let weightedScore = (cleanFinishRate * 0.55)
-            + (consistencyRate * 0.20)
-            + (goalCoverageRate * 0.15)
-            + (efficiencyRate * 0.10)
-        let scorePercent = min(max(Int((weightedScore * 100).rounded()), 0), 100)
-        let accuracyPercent = min(max(Int((cleanFinishRate * 100).rounded()), 0), 100)
-        let consistencyPercent = min(max(Int((consistencyRate * 100).rounded()), 0), 100)
-        let goalCoveragePercent = min(max(Int((goalCoverageRate * 100).rounded()), 0), 100)
-        let efficiencyPercent = min(max(Int((efficiencyRate * 100).rounded()), 0), 100)
+    private func buildPerformanceCheckpointSummaries(
+        daySummaries: [HomePastWeekPerformanceDaySummary],
+        aggregatesByKey: [String: HomeDailyStudyAggregate]
+    ) -> [PerformanceCheckpointSummary] {
+        let calendar = Calendar.current
 
-        let activeDaySummaries = daySummaries.filter(\.didStudy)
-        let bestDay = activeDaySummaries.max { lhs, rhs in
-            if lhs.scorePercent != rhs.scorePercent {
-                return lhs.scorePercent < rhs.scorePercent
+        return daySummaries.compactMap { day in
+            guard
+                day.didStudy,
+                let checkpointStart = calendar.date(byAdding: .day, value: -6, to: day.date)
+            else {
+                return nil
             }
-            return lhs.cardsReviewed < rhs.cardsReviewed
-        }
-        let weakestDay = activeDaySummaries.min { lhs, rhs in
-            if lhs.scorePercent != rhs.scorePercent {
-                return lhs.scorePercent < rhs.scorePercent
-            }
-            return lhs.cardsReviewed < rhs.cardsReviewed
-        }
 
-        return PerformanceWindowMetrics(
-            scorePercent: scorePercent,
-            accuracyPercent: accuracyPercent,
-            consistencyPercent: consistencyPercent,
-            goalCoveragePercent: goalCoveragePercent,
-            efficiencyPercent: efficiencyPercent,
-            activeDays: activeDays,
-            goalHitDays: goalHitDays,
-            bestDayLabel: bestDay.map { Self.performanceInsightLabelFormatter.string(from: $0.date) },
-            bestDayScorePercent: bestDay?.scorePercent,
-            weakestDayLabel: weakestDay.map { Self.performanceInsightLabelFormatter.string(from: $0.date) },
-            weakestDayScorePercent: weakestDay?.scorePercent,
-            daySummaries: daySummaries
-        )
+            let checkpointDaySummaries = buildPerformanceDaySummaries(
+                start: checkpointStart,
+                aggregatesByKey: aggregatesByKey
+            )
+
+            let totalLanded = checkpointDaySummaries.map(\.landedCount).reduce(0, +)
+            let totalRetry = checkpointDaySummaries.map(\.retryCount).reduce(0, +)
+            let totalCardsReviewed = checkpointDaySummaries.map(\.cardsReviewed).reduce(0, +)
+            let totalRawReviewCount = checkpointDaySummaries.map(\.rawReviewCount).reduce(0, +)
+            let activeDays = checkpointDaySummaries.filter(\.didStudy).count
+            let cleanFinishRate = (totalLanded + totalRetry) > 0
+                ? Double(totalLanded) / Double(totalLanded + totalRetry)
+                : 0
+            let consistencyRate = Double(activeDays) / 7.0
+            let goalCoverageRate = checkpointDaySummaries
+                .map { min(Double($0.cardsReviewed) / Double(max($0.dailyGoal, 1)), 1.0) }
+                .reduce(0, +) / 7.0
+            let efficiencyRate = totalCardsReviewed > 0
+                ? Double(totalCardsReviewed) / Double(max(totalRawReviewCount, 1))
+                : 0
+            let weightedScore = (cleanFinishRate * 0.55)
+                + (consistencyRate * 0.20)
+                + (goalCoverageRate * 0.15)
+                + (efficiencyRate * 0.10)
+            let windowScorePercent = min(max(Int((weightedScore * 100).rounded()), 0), 100)
+
+            return PerformanceCheckpointSummary(
+                date: day.date,
+                windowScorePercent: windowScorePercent,
+                dailyQualityPercent: day.scorePercent,
+                cardsReviewed: day.cardsReviewed
+            )
+        }
     }
 
     private func performanceTrendLine(
@@ -616,40 +724,6 @@ actor HomeAnalyticsRepository {
             return "Stable this week"
         case .slipping:
             return "Needs attention"
-        }
-    }
-
-    private func performanceSupportingLine(
-        metrics: PerformanceWindowMetrics,
-        trend: HomePastWeekPerformanceTrend
-    ) -> String {
-        guard metrics.activeDays > 0 else {
-            return "No activity landed in this 7-day window."
-        }
-
-        if metrics.accuracyPercent < 60 {
-            return "Accuracy is soft. More clean finishes will lift the score."
-        }
-
-        if metrics.consistencyPercent < 50 {
-            return "Your activity is uneven. More active days will lift the score."
-        }
-
-        if metrics.goalCoveragePercent >= 70 {
-            return "Goal coverage stayed strong across the week."
-        }
-
-        if metrics.efficiencyPercent < 55 {
-            return "Too many repeat passes are diluting the week."
-        }
-
-        switch trend {
-        case .improving:
-            return "Clean finishes and recent activity are moving in the right direction."
-        case .steady:
-            return "The week is stable, but one stronger day would raise the baseline."
-        case .slipping:
-            return "Recent days softened. A focused review block can recover the week."
         }
     }
 

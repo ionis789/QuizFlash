@@ -169,7 +169,7 @@ struct FlashCardsPlayModeView: View {
         }
         .fullScreenCover(item: $editingCard) { card in
             NavigationStack {
-                CreateCardView(frontZone: card.frontZone, backZone: card.backZone) { frontZone, backZone in
+                FlashcardEditorView(frontZone: card.frontZone, backZone: card.backZone) { frontZone, backZone in
                     if card.frontZone != frontZone || card.backZone != backZone {
                         card.frontZone = frontZone
                         card.backZone = backZone

@@ -138,28 +138,36 @@ extension HomeViewModel {
         referenceDate: Date = Date()
     ) -> HomeTodayFocusHeaderSummary {
         let overview = dashboardSnapshot.selectedDayOverview
+        let locale = Self.homeLocale
         let workspaceState = workspaceOnboardingState(
             allDeckCount: allDeckCount,
             folderCount: folderCount
         )
         let greetingTitle = Self.greetingPhase(for: referenceDate).title
+        let localized: (String.LocalizationValue) -> String = { value in
+            AppLocalization.string(value, locale: locale)
+        }
+        let localizedFormat: (String.LocalizationValue, [CVarArg]) -> String = { value, arguments in
+            let format = AppLocalization.string(value, locale: locale)
+            return String(format: format, locale: locale, arguments: arguments)
+        }
 
         if workspaceState == .needsDeck {
             return HomeTodayFocusHeaderSummary(
                 introTitle: greetingTitle,
-                introSubtitle: "Create your first deck to begin.",
-                eyebrow: "Start",
-                title: "No deck yet",
-                detail: "Create a deck to start studying from Home.",
-                compactTitle: "No deck yet",
-                compactDetail: "Create Deck",
+                introSubtitle: localized("Create your first deck to begin."),
+                eyebrow: localized("Start"),
+                title: localized("No deck yet"),
+                detail: localized("Create a deck to start studying from Home."),
+                compactTitle: localized("No deck yet"),
+                compactDetail: localized("Create Deck"),
                 colorHex: "",
                 primaryPill: "",
                 secondaryPill: nil,
                 progressFraction: 0,
-                progressValueText: "New",
-                progressLabel: "Start",
-                ctaTitle: "Create Deck",
+                progressValueText: localized("New"),
+                progressLabel: localized("Start"),
+                ctaTitle: localized("Create Deck"),
                 action: .switchTab(.create)
             )
         }
@@ -172,35 +180,41 @@ extension HomeViewModel {
             let detail: String
 
             if overview.didReachGoal {
-                detail = "Today's goal is closed."
+                detail = localized("Today's goal is closed.")
             } else if let lastOpenedAt = recentDeck.lastOpenedAt {
-                detail = "Last opened \(Self.relativeTimeLabel(for: lastOpenedAt, referenceDate: referenceDate))."
+                detail = String.localizedStringWithFormat(
+                    localized("Last opened %@."),
+                    Self.relativeTimeLabel(for: lastOpenedAt, referenceDate: referenceDate)
+                )
             } else if let matchingHealth {
                 let deckPressure = matchingHealth.dueCards + matchingHealth.newCards
                 if deckPressure > 0 {
-                    detail = "\(min(deckPressure, max(remainingCards, 1))) cards are ready."
+                    detail = localizedFormat(
+                        "%d cards are ready.",
+                        [min(deckPressure, max(remainingCards, 1))]
+                    )
                 } else {
-                    detail = "\(remainingCards) cards are still open today."
+                    detail = localizedFormat("%d cards are still open today.", [remainingCards])
                 }
             } else {
-                detail = "\(remainingCards) cards are still open today."
+                detail = localizedFormat("%d cards are still open today.", [remainingCards])
             }
 
             return HomeTodayFocusHeaderSummary(
                 introTitle: greetingTitle,
-                introSubtitle: "Continue where you left off.",
-                eyebrow: overview.didReachGoal ? "Today clear" : "Today goal",
+                introSubtitle: localized("Continue where you left off."),
+                eyebrow: overview.didReachGoal ? localized("Today clear") : localized("Today goal"),
                 title: resolvedTitle,
                 detail: detail,
                 compactTitle: resolvedTitle,
-                compactDetail: "Resume Deck",
+                compactDetail: localized("Resume Deck"),
                 colorHex: recentDeck.colorHex,
                 primaryPill: "",
                 secondaryPill: nil,
                 progressFraction: overview.goalCompletionFraction,
-                progressValueText: overview.didReachGoal ? "Done" : "\(remainingCards)",
-                progressLabel: overview.didReachGoal ? "Today" : "To goal",
-                ctaTitle: "Resume Deck",
+                progressValueText: overview.didReachGoal ? localized("Done") : "\(remainingCards)",
+                progressLabel: overview.didReachGoal ? localized("Today") : localized("To goal"),
+                ctaTitle: localized("Resume Deck"),
                 action: .openDeck(recentDeck.persistentModelID)
             )
         }
@@ -208,28 +222,28 @@ extension HomeViewModel {
         if let focusDeck = deckHealthSummaries.first {
             let remainingCards = max(overview.remainingCardsToGoal, 0)
             let focusTitle = focusDeck.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? "Focus deck"
+                ? localized("Focus deck")
                 : focusDeck.title
 
             return HomeTodayFocusHeaderSummary(
                 introTitle: greetingTitle,
                 introSubtitle: overview.cardsReviewed == 0
-                    ? "Start today's goal from this deck."
-                    : "Continue where you left off.",
-                eyebrow: overview.didReachGoal ? "Today clear" : "Today goal",
+                    ? localized("Start today's goal from this deck.")
+                    : localized("Continue where you left off."),
+                eyebrow: overview.didReachGoal ? localized("Today clear") : localized("Today goal"),
                 title: focusTitle,
                 detail: overview.cardsReviewed == 0
-                    ? "Open this deck to start today's goal."
-                    : "\(remainingCards) cards are still open today.",
+                    ? localized("Open this deck to start today's goal.")
+                    : localizedFormat("%d cards are still open today.", [remainingCards]),
                 compactTitle: focusTitle,
-                compactDetail: "Open Deck",
+                compactDetail: localized("Open Deck"),
                 colorHex: focusDeck.colorHex,
                 primaryPill: "",
                 secondaryPill: nil,
                 progressFraction: overview.goalCompletionFraction,
-                progressValueText: overview.didReachGoal ? "Done" : "\(remainingCards)",
-                progressLabel: overview.didReachGoal ? "Today" : "To goal",
-                ctaTitle: "Open Focus Deck",
+                progressValueText: overview.didReachGoal ? localized("Done") : "\(remainingCards)",
+                progressLabel: overview.didReachGoal ? localized("Today") : localized("To goal"),
+                ctaTitle: localized("Open Focus Deck"),
                 action: .openDeck(focusDeck.id)
             )
         }
@@ -240,21 +254,25 @@ extension HomeViewModel {
         return HomeTodayFocusHeaderSummary(
             introTitle: greetingTitle,
             introSubtitle: overview.didReachGoal
-                ? "Today is already closed."
-                : "Pick a deck and continue.",
-            eyebrow: overview.didReachGoal ? "Today clear" : "Today goal",
-            title: Self.greetingPhase(for: referenceDate) == .night ? "Pick a deck for tonight" : "Pick a deck for today",
+                ? localized("Today is already closed.")
+                : localized("Pick a deck and continue."),
+            eyebrow: overview.didReachGoal ? localized("Today clear") : localized("Today goal"),
+            title: Self.greetingPhase(for: referenceDate) == .night
+                ? localized("Pick a deck for tonight")
+                : localized("Pick a deck for today"),
             detail: overview.didReachGoal
-                ? "Today's goal is already closed."
-                : "\(overview.remainingCardsToGoal) cards are still open today.",
-            compactTitle: overview.didReachGoal ? "Today is clear" : "Pick a deck",
-            compactDetail: "Open Home",
+                ? localized("Today's goal is already closed.")
+                : localizedFormat("%d cards are still open today.", [overview.remainingCardsToGoal]),
+            compactTitle: overview.didReachGoal ? localized("Today is clear") : localized("Pick a deck"),
+            compactDetail: localized("Open Home"),
             colorHex: "",
-            primaryPill: overview.didReachGoal ? "Goal closed" : "\(overview.remainingCardsToGoal) left",
+            primaryPill: overview.didReachGoal
+                ? localized("Goal closed")
+                : localizedFormat("%d left", [overview.remainingCardsToGoal]),
             secondaryPill: secondaryPill,
             progressFraction: overview.goalCompletionFraction,
-            progressValueText: overview.didReachGoal ? "Done" : "\(overview.remainingCardsToGoal)",
-            progressLabel: overview.didReachGoal ? "Today" : "To goal",
+            progressValueText: overview.didReachGoal ? localized("Done") : "\(overview.remainingCardsToGoal)",
+            progressLabel: overview.didReachGoal ? localized("Today") : localized("To goal"),
             ctaTitle: nil,
             action: nil
         )
@@ -417,6 +435,14 @@ extension HomeViewModel {
         formatter.dateFormat = "EEEEE"
         return formatter
     }()
+
+    private static var homeLocale: Locale {
+        AppPreferences.shared.resolvedLocale
+    }
+
+    private static var homeCalendar: Calendar {
+        AppPreferences.shared.resolvedCalendar
+    }
 
     func buildSelectedDayOverview(
         for selectedDate: Date,
@@ -1111,18 +1137,21 @@ extension HomeViewModel {
     }
 
     static func labelForSelectedDay(_ date: Date, referenceDate: Date = Date()) -> String {
-        let calendar = Calendar.current
+        let locale = homeLocale
+        let calendar = homeCalendar
         if calendar.isDateInToday(date) {
-            return "Today"
+            return AppLocalization.string("Today", locale: locale)
         }
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: referenceDate),
            calendar.isDate(date, inSameDayAs: yesterday) {
-            return "Yesterday"
+            return AppLocalization.string("Yesterday", locale: locale)
         }
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: referenceDate),
            calendar.isDate(date, inSameDayAs: tomorrow) {
-            return "Tomorrow"
+            return AppLocalization.string("Tomorrow", locale: locale)
         }
+        selectedDayLabelFormatter.locale = locale
+        selectedDayLabelFormatter.calendar = calendar
         return selectedDayLabelFormatter.string(from: date)
     }
 

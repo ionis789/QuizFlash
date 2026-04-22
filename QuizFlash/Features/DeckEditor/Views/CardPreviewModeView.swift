@@ -10,6 +10,7 @@ import UIKit
 
 /// Immersive preview surface for all persisted card kinds.
 struct CardPreviewModeView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     let content: DraftCardContent
     let safeAreaInsets: UIEdgeInsets
     let showsLeadingAccessory: Bool
@@ -32,6 +33,16 @@ struct CardPreviewModeView: View {
     }
     private var readinessDiagnostics: [CardReadinessDiagnostic] {
         CardReadinessDiagnostics.diagnostics(for: content)
+    }
+    private var locale: Locale { appPreferences.resolvedLocale }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
     }
     private var supportsFlip: Bool {
         if case .flashcard = content {
@@ -107,7 +118,6 @@ struct CardPreviewModeView: View {
                 )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .fullScreenSheetDragActivationHeight(contentTopInset)
         }
         .swipeBack(attachment: swipeBackAttachment) {
             handleDone()
@@ -188,7 +198,7 @@ struct CardPreviewModeView: View {
 
             ZStack {
                 VStack(spacing: 2) {
-                    Text("Preview Mode")
+                    Text(localized("Preview Mode"))
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
@@ -231,14 +241,16 @@ struct CardPreviewModeView: View {
     private var statusLabel: String {
         switch content {
         case .flashcard:
-            return isFlipped ? "ANSWER" : "QUESTION"
+            return isFlipped ? localized("ANSWER") : localized("QUESTION")
         case .quiz(let content):
             let correctCount = content.choices.filter(\.isCorrect).count
-            return correctCount == 1 ? "1 CORRECT CHOICE" : "\(correctCount) CORRECT CHOICES"
+            return correctCount == 1
+                ? localized("1 CORRECT CHOICE")
+                : localizedFormat("%d CORRECT CHOICES", correctCount)
         case .write:
-            return "WRITE PREVIEW"
+            return localized("WRITE PREVIEW")
         case .match:
-            return "MATCH PREVIEW"
+            return localized("MATCH PREVIEW")
         }
     }
 
@@ -270,17 +282,19 @@ struct CardPreviewModeView: View {
 
     private func quizPreview(_ content: QuizCardContent) -> some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-            previewSectionCard(title: "Question", symbol: "questionmark.bubble.fill") {
+            previewSectionCard(title: localized("Question"), symbol: "questionmark.bubble.fill") {
                 previewBodyText(
-                    zonePreviewText(content.questionZone, fallback: "No question added"),
+                    zonePreviewText(content.questionZone, fallback: localized("No question added")),
                     tint: .primary
                 )
             }
 
             previewSectionCard(
-                title: "Choices",
+                title: localized("Choices"),
                 symbol: "checklist",
-                subtitle: content.allowsMultipleCorrect ? "Multiple correct answers enabled" : "Single correct answer"
+                subtitle: content.allowsMultipleCorrect
+                    ? localized("Multiple correct answers enabled")
+                    : localized("Single correct answer")
             ) {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                     ForEach(Array(content.choices.enumerated()), id: \.element.id) { index, choice in
@@ -290,12 +304,12 @@ struct CardPreviewModeView: View {
                                 .foregroundStyle(choice.isCorrect ? .green : .secondary)
 
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Choice \(index + 1)")
+                                Text(localizedFormat("Choice %d", index + 1))
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(.secondary)
 
                                 previewBodyText(
-                                    zonePreviewText(choice.contentZone, fallback: "Empty choice"),
+                                    zonePreviewText(choice.contentZone, fallback: localized("Empty choice")),
                                     tint: choice.isCorrect ? .primary : .secondary
                                 )
                             }
@@ -307,9 +321,9 @@ struct CardPreviewModeView: View {
 
             if let explanationZone = content.explanationZone,
                zonePreviewText(explanationZone, fallback: "").isEmpty == false {
-                previewSectionCard(title: "Explanation", symbol: "text.bubble.fill") {
+                previewSectionCard(title: localized("Explanation"), symbol: "text.bubble.fill") {
                     previewBodyText(
-                        zonePreviewText(explanationZone, fallback: "No explanation added"),
+                        zonePreviewText(explanationZone, fallback: localized("No explanation added")),
                         tint: .primary
                     )
                 }
@@ -333,7 +347,7 @@ struct CardPreviewModeView: View {
         let revealedAnswer = normalizedSingleLine(content.blankSelection.omittedText)
 
         return VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-            previewSectionCard(title: "Prompt with Blank", symbol: "rectangle.and.pencil.and.ellipsis") {
+            previewSectionCard(title: localized("Prompt with Blank"), symbol: "rectangle.and.pencil.and.ellipsis") {
                 if let inlineSegments {
                     inlineWritePrompt(
                         segments: inlineSegments,
@@ -341,13 +355,13 @@ struct CardPreviewModeView: View {
                     )
                 } else {
                     previewBodyText(
-                        blankedPrompt ?? zonePreviewText(content.sourceZone, fallback: "No prompt added"),
+                        blankedPrompt ?? zonePreviewText(content.sourceZone, fallback: localized("No prompt added")),
                         tint: .primary
                     )
                 }
             }
 
-            previewSectionCard(title: "Answer Reveal", symbol: "text.cursor") {
+            previewSectionCard(title: localized("Answer Reveal"), symbol: "text.cursor") {
                 if let inlineSegments {
                     inlineWritePrompt(
                         segments: inlineSegments,
@@ -355,7 +369,7 @@ struct CardPreviewModeView: View {
                     )
                 } else {
                     previewBodyText(
-                        revealedAnswer.isEmpty ? "No answer selected" : revealedAnswer,
+                        revealedAnswer.isEmpty ? localized("No answer selected") : revealedAnswer,
                         tint: revealedAnswer.isEmpty ? .secondary : .green
                     )
                 }
@@ -370,23 +384,25 @@ struct CardPreviewModeView: View {
         return VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: UIConstants.Spacing.small) {
-                    compactMetricChip(title: "Prompt", value: "\(prompt.count) chars")
-                    compactMetricChip(title: "Answer", value: "\(answer.count) chars")
+                    compactMetricChip(title: localized("Prompt"), value: localizedFormat("%d chars", prompt.count))
+                    compactMetricChip(title: localized("Answer"), value: localizedFormat("%d chars", answer.count))
                     compactMetricChip(
-                        title: "Shape",
-                        value: prompt.count + answer.count <= 110 ? "Compact" : "Verbose"
+                        title: localized("Shape"),
+                        value: prompt.count + answer.count <= 110
+                            ? localized("Compact")
+                            : localized("Verbose")
                     )
                 }
                 .padding(.vertical, 2)
             }
             .scrollIndicators(.hidden)
 
-            previewSectionCard(title: "Prompt", symbol: "arrow.left.and.right.text.vertical") {
-                previewBodyText(prompt.isEmpty ? "No prompt added" : prompt, tint: prompt.isEmpty ? .secondary : .primary)
+            previewSectionCard(title: localized("Prompt"), symbol: "arrow.left.and.right.text.vertical") {
+                previewBodyText(prompt.isEmpty ? localized("No prompt added") : prompt, tint: prompt.isEmpty ? .secondary : .primary)
             }
 
-            previewSectionCard(title: "Answer", symbol: "rectangle.2.swap") {
-                previewBodyText(answer.isEmpty ? "No answer added" : answer, tint: answer.isEmpty ? .secondary : .primary)
+            previewSectionCard(title: localized("Answer"), symbol: "rectangle.2.swap") {
+                previewBodyText(answer.isEmpty ? localized("No answer added") : answer, tint: answer.isEmpty ? .secondary : .primary)
             }
         }
     }
@@ -509,17 +525,29 @@ struct CardPreviewModeView: View {
 
 /// Compact readiness callouts shown inside preview mode.
 struct CardPreviewReadinessPanel: View {
+    @Environment(AppPreferences.self) private var appPreferences
     let diagnostics: [CardReadinessDiagnostic]
     var onOpenRecommendedConversion: ((CardKind) -> Void)? = nil
 
+    private var locale: Locale { appPreferences.resolvedLocale }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: locale)
+        return String(format: format, locale: locale, arguments: arguments)
+    }
+
     private var recommendedTargets: [CardKind] {
         Array(Set(diagnostics.compactMap(\.recommendedConversionTargetKind)))
-            .sorted { $0.displayTitle < $1.displayTitle }
+            .sorted { $0.localizedTitle(locale: locale) < $1.localizedTitle(locale: locale) }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-            Text("READINESS")
+            Text(localized("READINESS"))
                 .font(.caption.weight(.heavy))
                 .foregroundStyle(.tertiary)
 
@@ -546,7 +574,7 @@ struct CardPreviewReadinessPanel: View {
             if let onOpenRecommendedConversion,
                !recommendedTargets.isEmpty {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    Text("Recommended conversion")
+                    Text(localized("Recommended conversion"))
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.secondary)
 
@@ -558,7 +586,7 @@ struct CardPreviewReadinessPanel: View {
                                 Image(systemName: targetKind.conversionSystemImage)
                                     .font(.caption.weight(.bold))
 
-                                Text("Convert this card to \(targetKind.displayTitle)")
+                                Text(localizedFormat("Convert this card to %@", targetKind.localizedTitle(locale: locale)))
                                     .font(.subheadline.weight(.bold))
                                     .foregroundStyle(.primary)
 

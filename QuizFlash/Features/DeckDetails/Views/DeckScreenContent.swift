@@ -152,7 +152,7 @@ extension DeckContentView {
             }
             .fullScreenSheet(
                 item: $previewedCard,
-                configuration: .sheet(dragActivationArea: .fixed(180))
+                configuration: .sheet()
             ) { card, safeArea in
                 DeckCardPreviewSheetView(
                     card: card,
@@ -166,10 +166,7 @@ extension DeckContentView {
             }
             .fullScreenSheet(
                 item: $viewModel.activitySheetPresentation,
-                configuration: .sheet(
-                    heightMode: .custom(0.75),
-                    dragActivationArea: .fixed(180)
-                )
+                configuration: .sheet(heightMode: .custom(0.75))
             ) { _, safeArea in
                 DeckActivityDetailSheetView(
                     summary: viewModel.activityHistorySummary,
@@ -196,7 +193,7 @@ extension DeckContentView {
                 Color.black.opacity(0.3).ignoresSafeArea()
                 VStack(spacing: 16) {
                     ProgressView().scaleEffect(1.5)
-                    Text("Exporting...").font(.headline)
+                    Text(localized("Exporting...")).font(.headline)
                 }
                     .padding(32)
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
@@ -219,8 +216,11 @@ extension DeckContentView {
                     HStack {
                         Image(systemName: "line.3.horizontal.decrease.circle.fill")
                             .foregroundStyle(Color.accentColor)
-                        Text("Filtered by \"**\(query)**\"")
-                            .font(.subheadline)
+                        (
+                            Text(localized("Filtered by"))
+                            + Text(verbatim: " \"\(query)\"")
+                        )
+                        .font(.subheadline)
                         Spacer()
                     }
                     .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
@@ -262,7 +262,7 @@ extension DeckContentView {
                         .padding(.vertical, 6)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityHint("Opens deck edit mode")
+                    .accessibilityHint(localized("Opens deck edit mode"))
                     .background {
                         Color.clear
                             .onGeometryChange(for: CGFloat.self) { proxy in

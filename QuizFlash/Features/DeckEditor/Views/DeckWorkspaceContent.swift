@@ -98,7 +98,7 @@ extension DeckWorkspaceView {
                 aiPendingSlots
 
                 inlineHistoricalCardsToggle(
-                    title: "Earlier cards",
+                    title: localized("Earlier cards"),
                     hiddenCount: hiddenSessionCardsCount
                 )
 
@@ -124,8 +124,8 @@ extension DeckWorkspaceView {
                 targetCount: max(pausedConversionProgress.totalCount, 1),
                 remainingCount: remainingCount,
                 progress: pausedConversionProgress.fractionCompleted,
-                title: "Conversion paused",
-                subtitle: "Continue from the last completed batch when you're ready.",
+                title: localized("Conversion paused"),
+                subtitle: localized("Continue from the last completed batch when you're ready."),
                 accentColor: .orange,
                 onResume: {
                     aiWorkspaceCoordinator.resumeConversion(context: context)
@@ -199,7 +199,7 @@ extension DeckWorkspaceView {
 
             if createdCount == 0 {
                 streamingPendingMessage(
-                    title: "First converted cards are on the way",
+                    title: localized("First converted cards are on the way"),
                     subtitle: conversionProgress.statusMessage
                 )
             } else {
@@ -213,8 +213,8 @@ extension DeckWorkspaceView {
 
             if createdCount == 0 {
                 streamingPendingMessage(
-                    title: "First cards are on the way",
-                    subtitle: "The first AI results will appear here in a moment."
+                    title: localized("First cards are on the way"),
+                    subtitle: localized("The first AI results will appear here in a moment.")
                 )
             } else {
                 draftCardRows(
@@ -269,15 +269,15 @@ extension DeckWorkspaceView {
 
                     Text(
                         isHistoricalCardsCollapsed
-                            ? "\(hiddenCount) hidden"
-                            : "Showing all"
+                            ? localizedFormat("%d hidden", hiddenCount)
+                            : localized("Showing all")
                     )
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
 
                     Spacer(minLength: 0)
 
-                    Text(isHistoricalCardsCollapsed ? "Show" : "Hide")
+                    Text(isHistoricalCardsCollapsed ? localized("Show") : localized("Hide"))
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(.secondary)
 
@@ -349,10 +349,10 @@ extension DeckWorkspaceView {
             Image(systemName: "rectangle.stack.badge.plus")
                 .font(.system(size: 44, weight: .light))
                 .foregroundStyle(.tertiary)
-            Text("No cards yet")
+            Text(localized("No cards yet"))
                 .font(.headline)
                 .foregroundStyle(.primary)
-            Text("Tap + to choose Flashcard, Match, Quiz, or Write, or use Auto AI to generate cards instantly.")
+            Text(localized("Tap + to choose Flashcard, Match, Quiz, or Write, or use Auto AI to generate cards instantly."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -383,7 +383,7 @@ extension DeckWorkspaceView {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(accent)
 
-                    Text("Saved")
+                    Text(localized("Saved"))
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(.primary)
 

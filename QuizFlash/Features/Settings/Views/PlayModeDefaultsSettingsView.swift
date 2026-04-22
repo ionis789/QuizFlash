@@ -70,6 +70,40 @@ enum SettingsStudyModeKind: String, CaseIterable, Identifiable {
             return "Shape how answer fields behave so write sessions stay fast and keyboard-friendly."
         }
     }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .flashcards:
+            return AppLocalization.string("Flashcards", locale: locale)
+        case .quiz:
+            return AppLocalization.string("Quiz", locale: locale)
+        case .match:
+            return AppLocalization.string("Match", locale: locale)
+        case .write:
+            return AppLocalization.string("Write", locale: locale)
+        }
+    }
+
+    func localizedSubtitle(locale: Locale) -> String {
+        switch self {
+        case .flashcards:
+            return AppLocalization.string("Control flashcard session chrome, swipe feedback, and long-review comfort.",
+                locale: locale
+            )
+        case .quiz:
+            return AppLocalization.string("Tune quiz pacing, progress visibility, and answer target size across decks.",
+                locale: locale
+            )
+        case .match:
+            return AppLocalization.string("Set the global feel for round starts, feedback intensity, and motion in board play.",
+                locale: locale
+            )
+        case .write:
+            return AppLocalization.string("Shape how answer fields behave so write sessions stay fast and keyboard-friendly.",
+                locale: locale
+            )
+        }
+    }
 }
 
 // MARK: - Play Mode Defaults Settings View
@@ -85,6 +119,12 @@ struct PlayModeDefaultsSettingsView: View {
 
     let mode: SettingsStudyModeKind
 
+    private var localizedDefaultsTitle: String {
+        let locale = appPreferences.resolvedLocale
+        let format = AppLocalization.string("%@ Defaults", locale: locale)
+        return String.localizedStringWithFormat(format, mode.localizedTitle(locale: locale))
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             ZStack {
@@ -93,7 +133,9 @@ struct PlayModeDefaultsSettingsView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                        LargeScreenTitle(title: "\(mode.title) Defaults")
+                        LargeScreenTitle(
+                            title: .verbatim(localizedDefaultsTitle)
+                        )
                             .collapsibleTitleRevealAnchor(
                                 in: kPlayModeDefaultsChromeSpace,
                                 navigationBarBottomY: navigationBarBottomY,
@@ -160,7 +202,9 @@ struct PlayModeDefaultsSettingsView: View {
                     detail: "Choose whether flashcard sessions show a strong progress treatment, a smaller compact version, or stay visually quiet.",
                     selection: flashcardsProgressStyleBinding,
                     options: AppStudySessionProgressStyle.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 SettingsCardDivider()
 
@@ -184,7 +228,9 @@ struct PlayModeDefaultsSettingsView: View {
                     detail: "Set the default haptic intensity for card transitions and result feedback in flashcard sessions.",
                     selection: flashcardsSwipeHapticsBinding,
                     options: AppStudyHapticsPreference.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
             }
         }
     }
@@ -255,7 +301,9 @@ struct PlayModeDefaultsSettingsView: View {
                     detail: "Change how large Match cards render their preview content on the board.",
                     selection: matchCardFontSizeBinding,
                     options: AppMatchCardFontSizePreference.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 if appPreferences.matchCardFontSize == .custom {
                     SettingsCardDivider()
@@ -281,7 +329,9 @@ struct PlayModeDefaultsSettingsView: View {
                     detail: "Set the default tactile strength for correct pairs, misses, and round transitions.",
                     selection: matchHapticsBinding,
                     options: AppStudyHapticsPreference.allCases
-                ) { $0.title }
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
 
                 SettingsCardDivider()
 
@@ -446,7 +496,7 @@ struct PlayModeDefaultsSettingsView: View {
             }
         } center: { maxWidth in
             CollapsibleTitlePill(
-                title: "\(mode.title) Defaults",
+                title: .verbatim(localizedDefaultsTitle),
                 maxWidth: maxWidth,
                 isVisible: isCollapsedTitleVisible
             )

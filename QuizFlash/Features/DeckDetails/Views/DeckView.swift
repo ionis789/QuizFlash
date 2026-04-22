@@ -28,6 +28,7 @@ struct DeckContentView: View {
     @Environment(\.modelContext) var context
     @Environment(NavigationManager.self) var router
     @Environment(AIWorkspaceCoordinator.self) var aiWorkspaceCoordinator
+    @Environment(AppPreferences.self) var appPreferences
     @Environment(\.dismiss) var dismiss
     @Environment(ThemeManager.self) var themeManager
     @Bindable var deck: DeckModel
@@ -75,21 +76,32 @@ struct DeckContentView: View {
             + UIConstants.Spacing.standard
     }
 
-    /// Formats deck creation date and card count for display under the deck title.
-    ///
-    /// Uses a static `DateFormatter` to avoid allocating a new formatter on every render pass.
-    var subtitleText: String {
-        let count = deck.cardCount
-        return "\(Self.subtitleDateFormatter.string(from: deck.createdAt))  •  \(count) card\(count == 1 ? "" : "s")"
+    func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: appPreferences.resolvedLocale)
     }
 
-    /// Static date formatter for `subtitleText`. Allocated once for the app session.
-    static let subtitleDateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .medium
-        f.timeStyle = .none
-        return f
-    }()
+    func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
+        let format = AppLocalization.string(value, locale: appPreferences.resolvedLocale)
+        return String(format: format, locale: appPreferences.resolvedLocale, arguments: arguments)
+    }
+
+    /// Formats deck creation date and card count for display under the deck title.
+    var subtitleText: String {
+        let count = deck.cardCount
+        let formatter = DateFormatter()
+        formatter.locale = appPreferences.resolvedLocale
+        formatter.calendar = appPreferences.resolvedCalendar
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+
+        let cardCountText = AppLocalization.numbered(
+            count,
+            singular: "%d card",
+            plural: "%d cards",
+            locale: appPreferences.resolvedLocale
+        )
+        return "\(formatter.string(from: deck.createdAt))  •  \(cardCountText)"
+    }
 
     // MARK: - Body
 
@@ -170,52 +182,55 @@ struct DeckContentView: View {
                 }
             }
             .alert(
-                "Delete \(viewModel.selectedCards.count) card\(viewModel.selectedCards.count == 1 ? "" : "s")?",
+                localizedFormat(
+                    viewModel.selectedCards.count == 1 ? "Delete %d card?" : "Delete %d cards?",
+                    viewModel.selectedCards.count
+                ),
                 isPresented: $viewModel.showDeleteConfirmation
             ) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
+                Button(localized("Cancel"), role: .cancel) { }
+                Button(localized("Delete"), role: .destructive) {
                     withBottomChromeAnimation {
                         viewModel.deleteSelectedCards(from: deck, context: context)
                     }
                 }
-            } message: { Text("This action cannot be undone.") }
+            } message: { Text(localized("This action cannot be undone.")) }
             .alert(
-                "Delete this card?",
+                localized("Delete this card?"),
                 isPresented: Binding(
                     get: { pendingDeleteCardID != nil },
                     set: { if !$0 { pendingDeleteCardID = nil } }
                 )
             ) {
-                Button("Cancel", role: .cancel) {
+                Button(localized("Cancel"), role: .cancel) {
                     pendingDeleteCardID = nil
                 }
-                Button("Delete", role: .destructive) {
+                Button(localized("Delete"), role: .destructive) {
                     guard let id = pendingDeleteCardID else { return }
                     pendingDeleteCardID = nil
                     viewModel.deleteCard(withID: id, from: deck, context: context)
                 }
             } message: {
-                Text("This action cannot be undone.")
+                Text(localized("This action cannot be undone."))
             }
             .sheet(isPresented: $viewModel.showShareSheet) {
                 if let url = viewModel.exportedURL { ShareSheet(items: [url]) }
             }
-            .alert("Export Error", isPresented: $viewModel.showExportError) {
-                Button("OK", role: .cancel) { }
+            .alert(localized("Export Error"), isPresented: $viewModel.showExportError) {
+                Button(localized("OK"), role: .cancel) { }
             } message: { Text(viewModel.exportErrorMessage) }
-            .alert("Save Error", isPresented: $viewModel.showMutationError) {
-                Button("OK", role: .cancel) { }
+            .alert(localized("Save Error"), isPresented: $viewModel.showMutationError) {
+                Button(localized("OK"), role: .cancel) { }
             } message: {
                 Text(viewModel.mutationErrorMessage)
             }
-            .confirmationDialog("Choose Card Type", isPresented: $showAddCardTypeDialog, titleVisibility: .visible) {
-                Button("Flashcard") { presentCardEditor(for: .flashcard) }
-                Button("Quiz") { presentCardEditor(for: .quiz) }
-                Button("Write") { presentCardEditor(for: .write) }
-                Button("Cancel", role: .cancel) { }
+            .confirmationDialog(localized("Choose Card Type"), isPresented: $showAddCardTypeDialog, titleVisibility: .visible) {
+                Button(localized("Flashcard")) { presentCardEditor(for: .flashcard) }
+                Button(localized("Quiz")) { presentCardEditor(for: .quiz) }
+                Button(localized("Write")) { presentCardEditor(for: .write) }
+                Button(localized("Cancel"), role: .cancel) { }
             } message: {
-                Text("Pick the type of card you want to add to this deck.")
+                Text(localized("Pick the type of card you want to add to this deck."))
             }
             .overlay { exportingOverlay }
     }

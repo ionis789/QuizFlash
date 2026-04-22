@@ -16,6 +16,7 @@ import SwiftUI
 /// All inputs are pre-computed by `DeckViewModel` and `CardFetchActor`.
 /// The view remains rendering-only and performs no data fetching.
 struct DeckProgressView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Inputs
@@ -31,15 +32,21 @@ struct DeckProgressView: View {
         stats.dueCards > 0 ? themeManager.roleColor(.buttonDangerFill) : deckTint
     }
 
+    private var locale: Locale { appPreferences.resolvedLocale }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
     private var summaryValueText: String {
-        activity.uniqueCardsReviewed == 0 ? "No" : "\(activity.uniqueCardsReviewed)"
+        activity.uniqueCardsReviewed == 0 ? localized("No") : "\(activity.uniqueCardsReviewed)"
     }
 
     private var summaryLabelText: String {
         if activity.uniqueCardsReviewed == 0 {
-            return "moves"
+            return localized("moves")
         }
-        return activity.uniqueCardsReviewed == 1 ? "card moved" : "cards moved"
+        return activity.uniqueCardsReviewed == 1 ? localized("card moved") : localized("cards moved")
     }
 
     // MARK: - Body
@@ -91,21 +98,21 @@ struct DeckProgressView: View {
         HStack(spacing: 12) {
             DeckMetricTile(
                 highlight: dueTint,
-                title: "Due",
+                title: localized("Due"),
                 value: "\(stats.dueCards)",
                 tint: dueTint
             )
 
             DeckMetricTile(
                 highlight: deckTint,
-                title: "Accuracy",
+                title: localized("Accuracy"),
                 value: "\(stats.accuracy)%",
                 tint: themeManager.textPrimary
             )
 
             DeckMetricTile(
                 highlight: deckTint,
-                title: "Reviews",
+                title: localized("Reviews"),
                 value: "\(stats.totalReviews)",
                 tint: deckTint
             )
@@ -142,19 +149,19 @@ struct DeckProgressView: View {
             DeckProgressLegendItem(
                 color: .teal,
                 count: progress.masteredCards,
-                label: "Mastered"
+                label: localized("Mastered")
             )
             Spacer()
             DeckProgressLegendItem(
                 color: deckTint,
                 count: progress.learningCards,
-                label: "Learning"
+                label: localized("Learning")
             )
             Spacer()
             DeckProgressLegendItem(
                 color: themeManager.textSecondary.opacity(0.42),
                 count: progress.newCards,
-                label: "New"
+                label: localized("New")
             )
         }
     }
@@ -298,6 +305,7 @@ private struct DeckIntegratedMasteryRing: View {
 }
 
 private struct DeckHistoryExpandButton: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     let tint: Color
@@ -309,7 +317,7 @@ private struct DeckHistoryExpandButton: View {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 12, weight: .black))
 
-                Text("History")
+                Text(AppLocalization.string("History", locale: appPreferences.resolvedLocale))
                     .font(.system(size: 12, weight: .black, design: .rounded))
                     .lineLimit(1)
             }
@@ -330,6 +338,6 @@ private struct DeckHistoryExpandButton: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open activity history")
+        .accessibilityLabel(AppLocalization.string("Open activity history", locale: appPreferences.resolvedLocale))
     }
 }

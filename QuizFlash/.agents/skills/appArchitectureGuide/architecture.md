@@ -102,7 +102,7 @@
 - Do not pipe drag progress into static backgrounds or expensive chrome unless the effect is visually required. Route `fullScreenSheetDragProgress` only to backgrounds that actually animate from drag, otherwise keep the backdrop fully static.
 - Prevent simultaneous sheet-drag plus inner-scroll on iOS 17. Freeze nested vertical scroll views while the sheet drag is active so the content does not overscroll and recompose during the same gesture.
 - Do not replace these flows with `NavigationLink` or a plain system `sheet` when the existing product behavior depends on QuizFlash's custom full-screen sheet interaction model.
-- Canonical examples are `QuizFlash/Features/DeckDetails/Views/DeckView.swift`, `QuizFlash/Features/PlayMode/FlashCardsMode/Views/FlashCardsPlayModeView.swift`, and `QuizFlash/Features/DeckEditor/Views/CreateCardView.swift`.
+- Canonical examples are `QuizFlash/Features/DeckDetails/Views/DeckView.swift`, `QuizFlash/Features/PlayMode/FlashCardsMode/Views/FlashCardsPlayModeView.swift`, and `QuizFlash/Features/DeckEditor/Views/FlashcardEditorView.swift`.
 
 ## Code Style And Output Rules
 
@@ -125,4 +125,3 @@
 - Check that new images go through `ImageCache` and new web views go through `MathWebViewPool`.
 - Check that new long scroll surfaces use lazy stacks and stable chrome spacing instead of hard-coded overlay compensation.
 - Check that new immersive modal flows reuse `fullScreenSheet` when they need the app's custom drag-dismiss and backdrop behavior.
-

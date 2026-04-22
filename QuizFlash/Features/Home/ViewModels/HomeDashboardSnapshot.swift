@@ -147,14 +147,14 @@ struct HomeWeeklyMomentumSummary: Equatable, Sendable {
     let daySummaries: [HomeWeeklyDaySummary]
 }
 
-/// Directional trend used by the Home 7-day performance card.
+/// Directional trend used by the Home calendar-week performance card.
 enum HomePastWeekPerformanceTrend: String, Equatable, Sendable {
     case improving
     case steady
     case slipping
 }
 
-/// One compact day column inside the Home 7-day performance comparison.
+/// One compact day column inside the Home calendar-week performance comparison.
 struct HomePastWeekPerformanceDaySummary: Identifiable, Equatable, Sendable {
     let id: String
     let date: Date
@@ -164,31 +164,40 @@ struct HomePastWeekPerformanceDaySummary: Identifiable, Equatable, Sendable {
     let landedCount: Int
     let retryCount: Int
     let dailyGoal: Int
+    /// One-day quality score derived only from clean finishes and goal coverage.
     let scorePercent: Int
     let visualLevel: Int
     let didStudy: Bool
     let didReachGoal: Bool
 }
 
-/// Accuracy-first performance index for the selected 7-day window on Home.
+/// Accuracy-first performance index for the selected calendar week on Home.
 struct HomePastWeekPerformanceSummary: Equatable, Sendable {
+    let weekStartDate: Date
     let windowEndDate: Date
     let scorePercent: Int
     let previousScorePercent: Int
     let deltaPercent: Int
     let trend: HomePastWeekPerformanceTrend
     let trendLine: String
-    let supportingLine: String
     let accuracyPercent: Int
     let consistencyPercent: Int
     let goalCoveragePercent: Int
     let efficiencyPercent: Int
     let activeDays: Int
+    /// Number of days included in the score. Future days in the selected week stay blank and do not penalize the score.
+    let scoredDayCount: Int
     let goalHitDays: Int
     let bestDayLabel: String?
+    /// 7-day score for the checkpoint ending on `bestDayLabel`.
     let bestDayScorePercent: Int?
+    /// One-day quality score for `bestDayLabel`.
+    let bestDayDailyQualityPercent: Int?
     let weakestDayLabel: String?
+    /// 7-day score for the checkpoint ending on `weakestDayLabel`.
     let weakestDayScorePercent: Int?
+    /// One-day quality score for `weakestDayLabel`.
+    let weakestDayDailyQualityPercent: Int?
     let currentDaySummaries: [HomePastWeekPerformanceDaySummary]
     let previousDaySummaries: [HomePastWeekPerformanceDaySummary]
 
@@ -196,25 +205,28 @@ struct HomePastWeekPerformanceSummary: Equatable, Sendable {
         activeDays > 0
     }
 
-    static func placeholder(referenceDate: Date = Date()) -> HomePastWeekPerformanceSummary {
+    nonisolated static func placeholder(referenceDate: Date = Date()) -> HomePastWeekPerformanceSummary {
         HomePastWeekPerformanceSummary(
+            weekStartDate: referenceDate,
             windowEndDate: referenceDate,
             scorePercent: 0,
             previousScorePercent: 0,
             deltaPercent: 0,
             trend: .steady,
             trendLine: "Needs attention",
-            supportingLine: "No activity landed in this 7-day window.",
             accuracyPercent: 0,
             consistencyPercent: 0,
             goalCoveragePercent: 0,
             efficiencyPercent: 0,
             activeDays: 0,
+            scoredDayCount: 1,
             goalHitDays: 0,
             bestDayLabel: nil,
             bestDayScorePercent: nil,
+            bestDayDailyQualityPercent: nil,
             weakestDayLabel: nil,
             weakestDayScorePercent: nil,
+            weakestDayDailyQualityPercent: nil,
             currentDaySummaries: [],
             previousDaySummaries: []
         )
@@ -310,7 +322,7 @@ struct HomeDashboardSnapshot: Equatable {
     let upcomingExamSummaries: [HomeExamGoalSummary]
     let examNarrative: HomeDashboardNarrative?
 
-    static func placeholder(referenceDate: Date = Date()) -> HomeDashboardSnapshot {
+    nonisolated static func placeholder(referenceDate: Date = Date()) -> HomeDashboardSnapshot {
         let overview = HomeSelectedDayOverviewSummary(
             selectedDate: referenceDate,
             selectedDateLabel: "Today",
@@ -408,15 +420,16 @@ enum HomeGreetingPhase: Equatable {
     case night
 
     var title: String {
+        let locale = AppPreferences.shared.resolvedLocale
         switch self {
         case .morning:
-            return "Good morning"
+            return AppLocalization.string("Good morning", locale: locale)
         case .afternoon:
-            return "Good afternoon"
+            return AppLocalization.string("Good afternoon", locale: locale)
         case .evening:
-            return "Good evening"
+            return AppLocalization.string("Good evening", locale: locale)
         case .night:
-            return "Good night"
+            return AppLocalization.string("Good night", locale: locale)
         }
     }
 }

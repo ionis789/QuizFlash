@@ -115,7 +115,7 @@
 - Do not pipe drag progress into static backgrounds or expensive chrome unless the effect is visually required. Route `fullScreenSheetDragProgress` only to backgrounds that actually animate from drag, otherwise keep the backdrop fully static.
 - Prevent simultaneous sheet-drag plus inner-scroll on iOS 17. Freeze nested vertical scroll views while the sheet drag is active so the content does not overscroll and recompose during the same gesture.
 - Do not replace these flows with `NavigationLink` or a plain system `sheet` when the existing product behavior depends on QuizFlash's custom full-screen sheet interaction model.
-- Canonical examples are `QuizFlash/Features/DeckDetails/Views/DeckView.swift`, `QuizFlash/Features/PlayMode/FlashCardsMode/Views/FlashCardsPlayModeView.swift`, and `QuizFlash/Features/DeckEditor/Views/CreateCardView.swift`.
+- Canonical examples are `QuizFlash/Features/DeckDetails/Views/DeckView.swift`, `QuizFlash/Features/PlayMode/FlashCardsMode/Views/FlashCardsPlayModeView.swift`, and `QuizFlash/Features/DeckEditor/Views/FlashcardEditorView.swift`.
 
 ### Menu Standardization
 
@@ -152,7 +152,7 @@
 
 | Wrapper / kind | Most common names in repo | Recommended for new code |
 |---|---|---|
-| `@State` view model | `@State private var viewModel = HomeViewModel()` or `@State private var viewModel: CreateDeckViewModel` | Use `viewModel` for screen-owned instances |
+| `@State` view model | `@State private var viewModel = HomeViewModel()` or `@State private var viewModel: DeckWorkspaceViewModel` | Use `viewModel` for screen-owned instances |
 | `@Environment(\.modelContext)` | `context` | Keep `context`, not `modelContext` in local properties |
 | `@Environment(NavigationManager.self)` | `router` | Use `router` for programmatic navigation |
 | `@Environment(\.dismiss)` | `dismiss` | Keep `dismiss` |
@@ -182,7 +182,7 @@
 
 | Surface | Most common current pattern | Notes |
 |---|---|---|
-| Hero / screen title | `.font(.system(size: 42, weight: .heavy, design: .rounded))` | Used in major hero titles such as `DeckView` and `CreateDeckView` |
+| Hero / screen title | `.font(.system(size: 42, weight: .heavy, design: .rounded))` | Used in major hero titles such as `DeckView` and `DeckWorkspaceView` |
 | Secondary screen title | `.font(.system(size: 20, weight: .bold, design: .rounded))` | Common in floating chrome like `LibraryTopBarView` |
 | Card / deck title | `.font(.headline.weight(.semibold)).fontDesign(.rounded)` or `.font(.system(size: 24, weight: .heavy, design: .rounded))` | Heavier large titles appear in `DeckRowView`; smaller rounded headlines in Home cards |
 | Body text | `.font(.subheadline)` or `.font(.system(size: 19, weight: .medium, design: .rounded))` | Rich card previews often use the rounded custom size variant |
@@ -233,7 +233,7 @@ final class MyFeatureViewModel {
 
 ### 2. Complex async subflows: enum state + supporting flags
 
-Most common in `CreateDeckViewModel`, where AI generation has a dedicated `AIGenerationState` plus separate booleans for dialogs and success overlays.
+Most common in `DeckWorkspaceViewModel`, where AI generation has a dedicated `AIGenerationState` plus separate booleans for dialogs and success overlays.
 
 ```swift
 enum AIGenerationState {
