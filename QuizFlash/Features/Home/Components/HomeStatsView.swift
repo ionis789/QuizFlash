@@ -479,12 +479,12 @@ struct HomeSelectedDayInsightsCard: View {
 
                 Spacer()
 
-                Text(summary.selectedDayExamCount == 0 ? "Open" : "\(summary.selectedDayExamCount) goals")
+                Text(summary.xpEarned == 0 ? "Open" : "\(summary.xpEarned) XP")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(summary.selectedDayExamCount == 0 ? themeManager.textSecondary : accentColor)
+                    .foregroundStyle(summary.xpEarned == 0 ? themeManager.textSecondary : accentColor)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
-                    .background((summary.selectedDayExamCount == 0 ? themeManager.textPrimary : accentColor).opacity(0.10), in: Capsule())
+                    .background((summary.xpEarned == 0 ? themeManager.textPrimary : accentColor).opacity(0.10), in: Capsule())
             }
 
             Text(summary.detailLine)
@@ -496,13 +496,12 @@ struct HomeSelectedDayInsightsCard: View {
             VStack(alignment: .leading, spacing: 10) {
                 HomeInsightLine(icon: "bolt.fill", text: summary.recommendationLine, tint: accentColor)
                 HomeInsightLine(icon: "waveform.path.ecg", text: summary.paceLine, tint: .orange)
-                HomeInsightLine(icon: "calendar.badge.clock", text: summary.examContextLine, tint: .blue)
             }
 
             HStack(spacing: 12) {
                 HomeInlineStatPill(label: "XP", value: "\(summary.xpEarned)", tint: .orange)
                 HomeInlineStatPill(label: "New", value: "\(summary.newCardsLearned)", tint: .purple)
-                HomeInlineStatPill(label: "Goals", value: "\(summary.selectedDayExamCount)", tint: accentColor)
+                HomeInlineStatPill(label: "Pace", value: summary.xpEarned == 0 ? "Open" : "Active", tint: accentColor)
             }
         }
         .frame(maxWidth: .infinity, minHeight: usesRegularMetrics ? 306 : 0, alignment: .topLeading)

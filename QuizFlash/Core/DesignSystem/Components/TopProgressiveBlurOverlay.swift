@@ -61,7 +61,7 @@ struct TopProgressiveBlurOverlay: View {
         featherStart: CGFloat,
         middleLocation: CGFloat
     ) -> some View {
-        LiveBackgroundBlurView(radius: configuration.maxBlurRadius)
+        BackgroundBlurView(radius: configuration.maxBlurRadius)
             .mask {
                 blurMask(featherStart: featherStart)
             }
@@ -98,7 +98,7 @@ struct TopProgressiveBlurOverlay: View {
     }
 }
 
-private struct LiveBackgroundBlurView: UIViewRepresentable {
+struct BackgroundBlurView: UIViewRepresentable {
     let radius: CGFloat
 
     func makeUIView(context: Context) -> StableBackgroundBlurView {
@@ -110,7 +110,7 @@ private struct LiveBackgroundBlurView: UIViewRepresentable {
     }
 }
 
-private final class StableBackgroundBlurView: UIVisualEffectView {
+final class StableBackgroundBlurView: UIVisualEffectView {
     private let keyPath = "filters.gaussianBlur.inputRadius"
     private weak var blurLayer: CALayer?
 

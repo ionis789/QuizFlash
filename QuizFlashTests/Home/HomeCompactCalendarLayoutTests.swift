@@ -113,31 +113,25 @@ final class HomeCompactCalendarLayoutTests: XCTestCase {
             collapseProgress: 0.95,
             dayColumnWidth: 40,
             rowHeight: 38,
-            hasGoalNote: false,
-            hasExamGoalCount: false,
             isHighlighted: false
         )
         let summaryMetrics = HomeCalendarDayMetrics(
             collapseProgress: 0.15,
             dayColumnWidth: 74,
             rowHeight: 62,
-            hasGoalNote: false,
-            hasExamGoalCount: false,
             isHighlighted: true
         )
         let detailMetrics = HomeCalendarDayMetrics(
             collapseProgress: 0.05,
             dayColumnWidth: 116,
             rowHeight: 88,
-            hasGoalNote: true,
-            hasExamGoalCount: true,
             isHighlighted: true
         )
 
         XCTAssertEqual(compactMetrics.contentMode, .compact)
         XCTAssertEqual(summaryMetrics.contentMode, .summary)
         XCTAssertEqual(detailMetrics.contentMode, .detail)
-        XCTAssertTrue(detailMetrics.showsSecondaryNoteMarker)
-        XCTAssertTrue(detailMetrics.usesMarkerCapsule)
+        XCTAssertFalse(detailMetrics.showsSecondaryNoteMarker)
+        XCTAssertFalse(detailMetrics.usesMarkerCapsule)
     }
 }

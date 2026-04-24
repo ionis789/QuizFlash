@@ -69,19 +69,10 @@ private struct HomeDeckHealthCard: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top, spacing: 14) {
                     VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text(summary.title)
-                                .font(.system(.headline, design: .rounded, weight: .bold))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-
-                            if summary.linkedGoalCount > 0 {
-                                HomeDeckHealthBadge(
-                                    text: "\(summary.linkedGoalCount) goal" + (summary.linkedGoalCount == 1 ? "" : "s"),
-                                    tint: accentColor
-                                )
-                            }
-                        }
+                        Text(summary.title)
+                            .font(.system(.headline, design: .rounded, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
 
                         Text(summary.headline)
                             .font(.system(.title3, design: .rounded, weight: .heavy))
@@ -150,20 +141,6 @@ private struct HomeDeckHealthCard: View {
             .flashcardStyle(cornerRadius: 26, surfaceRole: .widget)
         }
         .buttonStyle(.plain)
-    }
-}
-
-private struct HomeDeckHealthBadge: View {
-    let text: String
-    let tint: Color
-
-    var body: some View {
-        Text(text)
-            .font(.caption.weight(.black))
-            .foregroundStyle(tint)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(tint.opacity(0.12), in: Capsule())
     }
 }
 

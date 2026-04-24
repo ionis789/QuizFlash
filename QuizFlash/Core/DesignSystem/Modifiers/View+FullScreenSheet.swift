@@ -35,6 +35,10 @@ private struct FullScreenSheetDragProgressKey: EnvironmentKey {
     static let defaultValue: CGFloat = 0
 }
 
+private struct FullScreenSheetTopChromeClearanceKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
 extension EnvironmentValues {
     var fullScreenSheetDismiss: FullScreenSheetDismissAction? {
         get { self[FullScreenSheetDismissActionKey.self] }
@@ -50,6 +54,12 @@ extension EnvironmentValues {
     var fullScreenSheetDismissCoordinator: FullScreenSheetDismissCoordinator? {
         get { self[FullScreenSheetDismissCoordinatorKey.self] }
         set { self[FullScreenSheetDismissCoordinatorKey.self] = newValue }
+    }
+
+    /// Vertical clearance reserved for the shared custom-sheet top blur/header.
+    var fullScreenSheetTopChromeClearance: CGFloat {
+        get { self[FullScreenSheetTopChromeClearanceKey.self] }
+        set { self[FullScreenSheetTopChromeClearanceKey.self] = newValue }
     }
 }
 
@@ -112,6 +122,9 @@ struct FullScreenSheetConfiguration: Sendable {
     var showsDragIndicator: Bool = false
     var dragIndicatorTopPadding: CGFloat = UIConstants.Spacing.extraLarge
     var backgroundReceivesDragProgress: Bool = true
+    var showsBackdropBlur: Bool = true
+    var showsDefaultTopProgressiveBlur: Bool = true
+    var showsCloseButton: Bool = false
     var appliesDefaultDragTopOverlay: Bool = false
 
     /// Standard rounded QuizFlash sheet with drag indicator and clipped top corners.
@@ -122,7 +135,10 @@ struct FullScreenSheetConfiguration: Sendable {
         dragActivationArea: FullScreenSheetDragActivationArea = .fullSurface,
         showsDragIndicator: Bool = false,
         dragIndicatorTopPadding: CGFloat = UIConstants.Spacing.extraLarge,
-        backgroundReceivesDragProgress: Bool = true
+        backgroundReceivesDragProgress: Bool = true,
+        showsBackdropBlur: Bool = true,
+        showsDefaultTopProgressiveBlur: Bool = true,
+        showsCloseButton: Bool = false
     ) -> FullScreenSheetConfiguration {
         FullScreenSheetConfiguration(
             ignoresSafeArea: ignoresSafeArea,
@@ -132,6 +148,9 @@ struct FullScreenSheetConfiguration: Sendable {
             showsDragIndicator: showsDragIndicator,
             dragIndicatorTopPadding: dragIndicatorTopPadding,
             backgroundReceivesDragProgress: backgroundReceivesDragProgress,
+            showsBackdropBlur: showsBackdropBlur,
+            showsDefaultTopProgressiveBlur: showsDefaultTopProgressiveBlur,
+            showsCloseButton: showsCloseButton,
             appliesDefaultDragTopOverlay: false
         )
     }
@@ -142,7 +161,10 @@ struct FullScreenSheetConfiguration: Sendable {
         heightMode: FullScreenSheetHeightMode = .fullScreen,
         topCornerRadius: CGFloat = UIConstants.Radius.maximum,
         dragActivationArea: FullScreenSheetDragActivationArea = .fullSurface,
-        backgroundReceivesDragProgress: Bool = true
+        backgroundReceivesDragProgress: Bool = true,
+        showsBackdropBlur: Bool = false,
+        showsDefaultTopProgressiveBlur: Bool = false,
+        showsCloseButton: Bool = false
     ) -> FullScreenSheetConfiguration {
         FullScreenSheetConfiguration(
             ignoresSafeArea: ignoresSafeArea,
@@ -152,9 +174,82 @@ struct FullScreenSheetConfiguration: Sendable {
             showsDragIndicator: false,
             dragIndicatorTopPadding: UIConstants.Spacing.extraLarge,
             backgroundReceivesDragProgress: backgroundReceivesDragProgress,
+            showsBackdropBlur: showsBackdropBlur,
+            showsDefaultTopProgressiveBlur: showsDefaultTopProgressiveBlur,
+            showsCloseButton: showsCloseButton,
             appliesDefaultDragTopOverlay: false
         )
     }
+}
+
+// MARK: - Shared Debug Settings
+
+struct CustomSheetDebugSettings: Codable, Equatable {
+    var backdropBlurRadius: CGFloat = 18
+    var backdropPresentationDelay: CGFloat = UIConstants.Animation.medium * 0.18
+    var backdropPresentationDuration: CGFloat = UIConstants.Animation.medium * 1.65
+    var backdropDismissDuration: CGFloat = UIConstants.Animation.medium * 0.18
+    var blurRadius: CGFloat = 3.12
+    var blurFadeExtension: CGFloat = 27
+    var blurTintOpacityTop: CGFloat = 0
+    var blurTintOpacityMiddle: CGFloat = 0
+    var blurAreaHeight: CGFloat = 24
+    var topBlurRevealDistance: CGFloat = 44
+    var contentTopInset: CGFloat = 18
+    var scrimOpacity: CGFloat = 0
+
+    static let `default` = CustomSheetDebugSettings()
+
+    init(
+        backdropBlurRadius: CGFloat = 18,
+        backdropPresentationDelay: CGFloat = UIConstants.Animation.medium * 0.18,
+        backdropPresentationDuration: CGFloat = UIConstants.Animation.medium * 1.65,
+        backdropDismissDuration: CGFloat = UIConstants.Animation.medium * 0.18,
+        blurRadius: CGFloat = 3.12,
+        blurFadeExtension: CGFloat = 27,
+        blurTintOpacityTop: CGFloat = 0,
+        blurTintOpacityMiddle: CGFloat = 0,
+        blurAreaHeight: CGFloat = 24,
+        topBlurRevealDistance: CGFloat = 44,
+        contentTopInset: CGFloat = 18,
+        scrimOpacity: CGFloat = 0
+    ) {
+        self.backdropBlurRadius = backdropBlurRadius
+        self.backdropPresentationDelay = backdropPresentationDelay
+        self.backdropPresentationDuration = backdropPresentationDuration
+        self.backdropDismissDuration = backdropDismissDuration
+        self.blurRadius = blurRadius
+        self.blurFadeExtension = blurFadeExtension
+        self.blurTintOpacityTop = blurTintOpacityTop
+        self.blurTintOpacityMiddle = blurTintOpacityMiddle
+        self.blurAreaHeight = blurAreaHeight
+        self.topBlurRevealDistance = topBlurRevealDistance
+        self.contentTopInset = contentTopInset
+        self.scrimOpacity = scrimOpacity
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = Self.default
+        backdropBlurRadius = try values.decodeIfPresent(CGFloat.self, forKey: .backdropBlurRadius) ?? defaults.backdropBlurRadius
+        backdropPresentationDelay = try values.decodeIfPresent(CGFloat.self, forKey: .backdropPresentationDelay) ?? defaults.backdropPresentationDelay
+        backdropPresentationDuration = try values.decodeIfPresent(CGFloat.self, forKey: .backdropPresentationDuration) ?? defaults.backdropPresentationDuration
+        backdropDismissDuration = try values.decodeIfPresent(CGFloat.self, forKey: .backdropDismissDuration) ?? defaults.backdropDismissDuration
+        blurRadius = try values.decodeIfPresent(CGFloat.self, forKey: .blurRadius) ?? defaults.blurRadius
+        blurFadeExtension = try values.decodeIfPresent(CGFloat.self, forKey: .blurFadeExtension) ?? defaults.blurFadeExtension
+        blurTintOpacityTop = try values.decodeIfPresent(CGFloat.self, forKey: .blurTintOpacityTop) ?? defaults.blurTintOpacityTop
+        blurTintOpacityMiddle = try values.decodeIfPresent(CGFloat.self, forKey: .blurTintOpacityMiddle) ?? defaults.blurTintOpacityMiddle
+        blurAreaHeight = try values.decodeIfPresent(CGFloat.self, forKey: .blurAreaHeight) ?? defaults.blurAreaHeight
+        topBlurRevealDistance = try values.decodeIfPresent(CGFloat.self, forKey: .topBlurRevealDistance) ?? defaults.topBlurRevealDistance
+        contentTopInset = try values.decodeIfPresent(CGFloat.self, forKey: .contentTopInset) ?? defaults.contentTopInset
+        scrimOpacity = try values.decodeIfPresent(CGFloat.self, forKey: .scrimOpacity) ?? defaults.scrimOpacity
+    }
+}
+
+private func fullScreenSheetPresentationTransaction() -> Transaction {
+    var transaction = Transaction()
+    transaction.disablesAnimations = true
+    return transaction
 }
 
 // MARK: - View Extension
@@ -167,13 +262,12 @@ extension View {
         @ViewBuilder content: @escaping (UIEdgeInsets) -> Content,
         @ViewBuilder background: @escaping () -> Background
     ) -> some View {
-        fullScreenCover(isPresented: isPresented) {
-            FullScreenSheetContainer(
-                configuration: configuration,
-                content: content,
-                background: background
-            )
-        }
+        fullScreenSheetOverlay(
+            isPresented: isPresented,
+            configuration: configuration,
+            content: content,
+            background: background
+        )
     }
 
     @ViewBuilder
@@ -183,17 +277,69 @@ extension View {
         @ViewBuilder content: @escaping (Item, UIEdgeInsets) -> Content,
         @ViewBuilder background: @escaping () -> Background
     ) -> some View {
-        fullScreenCover(item: item) { wrappedItem in
-            FullScreenSheetContainer(
-                configuration: configuration,
-                content: { insets in content(wrappedItem, insets) },
-                background: background
-            )
-        }
+        fullScreenSheetOverlay(
+            item: item,
+            configuration: configuration,
+            content: content,
+            background: background
+        )
     }
 
     func fullScreenSheetDragActivationHeight(_ height: CGFloat?) -> some View {
         preference(key: FullScreenSheetDragActivationHeightPreferenceKey.self, value: height)
+    }
+
+    @ViewBuilder
+    private func fullScreenSheetOverlay<Content: View, Background: View>(
+        isPresented: Binding<Bool>,
+        configuration: FullScreenSheetConfiguration,
+        @ViewBuilder content: @escaping (UIEdgeInsets) -> Content,
+        @ViewBuilder background: @escaping () -> Background
+    ) -> some View {
+        overlay(alignment: .bottom) {
+            if isPresented.wrappedValue {
+                FullScreenSheetContainer(
+                    configuration: configuration,
+                    onDismiss: {
+                        withTransaction(fullScreenSheetPresentationTransaction()) {
+                            isPresented.wrappedValue = false
+                        }
+                    },
+                    content: content,
+                    background: background
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
+                .zIndex(1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fullScreenSheetOverlay<Item: Identifiable, Content: View, Background: View>(
+        item: Binding<Item?>,
+        configuration: FullScreenSheetConfiguration,
+        @ViewBuilder content: @escaping (Item, UIEdgeInsets) -> Content,
+        @ViewBuilder background: @escaping () -> Background
+    ) -> some View {
+        overlay(alignment: .bottom) {
+            if let wrappedItem = item.wrappedValue {
+                FullScreenSheetContainer(
+                    configuration: configuration,
+                    onDismiss: {
+                        withTransaction(fullScreenSheetPresentationTransaction()) {
+                            item.wrappedValue = nil
+                        }
+                    },
+                    content: { insets in content(wrappedItem, insets) },
+                    background: background
+                )
+                .id(wrappedItem.id)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
+                .zIndex(1)
+            }
+        }
     }
 }
 
@@ -201,20 +347,42 @@ extension View {
 
 private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     let configuration: FullScreenSheetConfiguration
+    let onDismiss: () -> Void
     @ViewBuilder var content: (UIEdgeInsets) -> Content
     @ViewBuilder var background: Background
 
-    @Environment(\.dismiss) private var dismiss
+    @Environment(AppPreferences.self) private var appPreferences
+    @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var offset: CGFloat = 0
     @State private var scrollDisabled = false
     @State private var isAnimatingDismiss = false
+    @State private var backdropRevealProgress: CGFloat = 0
+    @State private var presentationProgress: CGFloat = 0
+    @State private var contentScrollOffset: CGFloat = 0
     @State private var preferredDragActivationHeight: CGFloat? = nil
     @State private var dismissCoordinator = FullScreenSheetDismissCoordinator()
 
     private var dismissalAnimation: Animation {
-            .snappy(duration: UIConstants.Animation.medium, extraBounce: 0)
+        .snappy(duration: UIConstants.Animation.medium, extraBounce: 0)
+    }
+
+    private var presentationAnimation: Animation {
+        .smooth(duration: UIConstants.Animation.medium * 1.05, extraBounce: 0)
+    }
+
+    private var backdropPresentationAnimation: Animation {
+        .easeInOut(duration: Double(max(resolvedCustomSheetSettings.backdropPresentationDuration, 0)))
+            .delay(Double(max(resolvedCustomSheetSettings.backdropPresentationDelay, 0)))
+    }
+
+    private var backdropDismissAnimation: Animation {
+        .easeOut(duration: Double(max(resolvedCustomSheetSettings.backdropDismissDuration, 0)))
+    }
+
+    private var locale: Locale {
+        appPreferences.resolvedLocale
     }
 
     private var dragIndicatorHeight: CGFloat { 6 }
@@ -227,6 +395,11 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             : 0
     }
 
+    private var closeButtonReservedWidth: CGFloat {
+        guard configuration.showsCloseButton else { return 0 }
+        return UIConstants.Size.actionButton + (UIConstants.Spacing.medium * 2)
+    }
+
     var body: some View {
         let containerHeight = max(windowSize.height, 1)
         let containerWidth = max(windowSize.width, 1)
@@ -237,6 +410,9 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             additionalTopInset: dragIndicatorInset
         )
         let dragProgress = min(max(offset / containerHeight, 0), 1)
+        let visibleSheetOffset = offset + ((1 - presentationProgress) * containerHeight)
+        let effectiveBackdropProgress = min(max(backdropRevealProgress * (1 - dragProgress), 0), 1)
+        let topBlurRevealProgress = resolvedTopBlurRevealProgress(scrollOffset: contentScrollOffset)
         let sheetShape = UnevenRoundedRectangle(
             cornerRadii: .init(
                 topLeading: configuration.topCornerRadius,
@@ -259,10 +435,30 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             StableHostedSheetContent(
                 topCornerRadius: configuration.topCornerRadius,
                 interactionDisabled: scrollDisabled,
-                makeRootView: { content(contentSafeAreaInsets) }
+                rootUpdateKey: hostedContentUpdateKey(contentSafeAreaInsets: contentSafeAreaInsets),
+                onScrollOffsetChange: { newOffset in
+                    if abs(contentScrollOffset - newOffset) > 0.5 {
+                        contentScrollOffset = newOffset
+                    }
+                },
+                makeRootView: {
+                    hostedSheetContent(contentSafeAreaInsets: contentSafeAreaInsets)
+                }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .environment(\.fullScreenSheetDragProgress, dragProgress)
+
+            if configuration.showsDefaultTopProgressiveBlur {
+                defaultTopProgressiveBlur(
+                    contentSafeAreaInsets: contentSafeAreaInsets,
+                    revealProgress: topBlurRevealProgress
+                )
+                .allowsHitTesting(false)
+            }
+
+            if configuration.showsCloseButton {
+                defaultCloseButton(contentSafeAreaInsets: contentSafeAreaInsets)
+            }
 
             if configuration.showsDragIndicator {
                 Capsule()
@@ -275,14 +471,42 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         .compositingGroup()
         .clipShape(sheetShape)
         .frame(width: containerWidth, height: sheetHeight, alignment: .topLeading)
-        .offset(y: offset)
+        .offset(y: visibleSheetOffset)
 
         let baseView = ZStack(alignment: .bottom) {
+            if configuration.showsBackdropBlur {
+                backdropBlurOverlay(revealProgress: effectiveBackdropProgress)
+            }
+
+            if sheetTopY > 0.5 {
+                outsideDismissScrim(
+                    sheetTopY: sheetTopY,
+                    containerHeight: containerHeight,
+                    backdropProgress: effectiveBackdropProgress
+                )
+            }
+
             sheetSurface
+
+#if DEBUG
+            if developmentPreferences.customSheetTuningEnabled {
+                CustomSheetDebugFloatingPanel(
+                    settings: Binding(
+                        get: { developmentPreferences.customSheetDebugSettings },
+                        set: { developmentPreferences.customSheetDebugSettings = $0 }
+                    ),
+                    onReset: {
+                        developmentPreferences.customSheetDebugSettings = .default
+                    }
+                )
+                .padding(.trailing, UIConstants.Spacing.large)
+                .padding(.bottom, max(windowSafeAreaInsets.bottom, UIConstants.Spacing.large) + UIConstants.Size.bottomChromeBarHeight)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            }
+#endif
         }
         .frame(width: containerWidth, height: containerHeight, alignment: .bottom)
         .contentShape(.rect)
-        .presentationBackground { Color.clear }
         .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
         .environment(
             \.fullScreenSheetDismiss,
@@ -293,6 +517,24 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         .environment(\.fullScreenSheetDismissCoordinator, dismissCoordinator)
         .onPreferenceChange(FullScreenSheetDragActivationHeightPreferenceKey.self) {
             preferredDragActivationHeight = $0
+        }
+        .onAppear {
+            offset = 0
+            scrollDisabled = false
+            isAnimatingDismiss = false
+            backdropRevealProgress = 0
+            presentationProgress = 0
+            contentScrollOffset = 0
+
+            Task { @MainActor in
+                await Task.yield()
+                withAnimation(presentationAnimation) {
+                    presentationProgress = 1
+                }
+                withAnimation(backdropPresentationAnimation) {
+                    backdropRevealProgress = 1
+                }
+            }
         }
 
         if #available(iOS 18.0, *) {
@@ -397,11 +639,86 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         }
     }
 
+    @ViewBuilder
+    private func hostedSheetContent(contentSafeAreaInsets: UIEdgeInsets) -> some View {
+        content(contentSafeAreaInsets)
+            .environment(
+                \.fullScreenSheetTopChromeClearance,
+                configuration.showsDefaultTopProgressiveBlur
+                    ? resolvedCustomSheetTopChromeClearance(contentSafeAreaInsets: contentSafeAreaInsets)
+                    : 0
+            )
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
+    }
+
+    private func backdropBlurOverlay(revealProgress: CGFloat) -> some View {
+        BackgroundBlurView(radius: resolvedCustomSheetSettings.backdropBlurRadius)
+            .ignoresSafeArea()
+            .opacity(min(max(revealProgress, 0), 1))
+            .animation(
+                CollapsibleTitleChromeMetrics.shadowFadeAnimation,
+                value: revealProgress
+            )
+            .allowsHitTesting(false)
+    }
+
+    private func defaultCloseButton(contentSafeAreaInsets: UIEdgeInsets) -> some View {
+        ChromeSoftCircleSymbolButton(
+            systemName: "xmark",
+            accessibilityLabel: localized("Close"),
+            action: { animateDismiss(containerHeight: max(windowSize.height, 1)) },
+            symbolSize: UIConstants.Size.iconStandard
+        )
+        .padding(.top, contentSafeAreaInsets.top + UIConstants.Spacing.medium)
+        .padding(.trailing, UIConstants.Spacing.medium)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+    }
+
     private func defaultDragTopOverlay(dragProgress: CGFloat) -> some View {
         topOverlayTint
             .opacity(topOverlayOpacity(for: dragProgress))
             .mask(topOverlayMask)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func defaultTopProgressiveBlur(
+        contentSafeAreaInsets: UIEdgeInsets,
+        revealProgress: CGFloat
+    ) -> some View {
+        TopProgressiveBlurOverlay(
+            topHeight: defaultTopProgressiveBlurHeight(contentSafeAreaInsets: contentSafeAreaInsets),
+            revealProgress: revealProgress,
+            tintColor: Color(ThemeColorToken.backgroundPrimary.assetName),
+            configuration: defaultSheetTopBlurConfiguration
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func outsideDismissScrim(
+        sheetTopY: CGFloat,
+        containerHeight: CGFloat,
+        backdropProgress: CGFloat
+    ) -> some View {
+        ZStack(alignment: .top) {
+            Color.black
+                .opacity(outsideDismissScrimOpacity(sheetTopY: sheetTopY, containerHeight: containerHeight) * backdropProgress)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+            Button {
+                animateDismiss(containerHeight: containerHeight)
+            } label: {
+                Color.clear
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity)
+            .frame(height: min(sheetTopY, containerHeight), alignment: .top)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     // MARK: - Dismiss Logic
@@ -442,13 +759,18 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         isAnimatingDismiss = true
         scrollDisabled = true
 
-        withAnimation(dismissalAnimation) { offset = containerHeight }
+        withAnimation(dismissalAnimation) {
+            offset = containerHeight
+        }
+        withAnimation(backdropDismissAnimation) {
+            backdropRevealProgress = 0
+        }
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))
             var tx = Transaction()
             tx.disablesAnimations = true
-            withTransaction(tx) { dismiss() }
+            withTransaction(tx) { onDismiss() }
             isAnimatingDismiss = false
             scrollDisabled = false
             completion?()
@@ -476,6 +798,51 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         min(max(raw, 0), containerHeight)
     }
 
+    private func defaultTopProgressiveBlurHeight(
+        contentSafeAreaInsets: UIEdgeInsets
+    ) -> CGFloat {
+        return max(
+            contentSafeAreaInsets.top + resolvedCustomSheetSettings.blurAreaHeight,
+            1
+        )
+    }
+
+    private func resolvedCustomSheetTopChromeClearance(
+        contentSafeAreaInsets: UIEdgeInsets
+    ) -> CGFloat {
+        max(
+            resolvedCustomSheetSettings.contentTopInset,
+            0
+        )
+    }
+
+    private func resolvedTopBlurRevealProgress(scrollOffset: CGFloat) -> CGFloat {
+        guard configuration.showsDefaultTopProgressiveBlur else { return 0 }
+        let revealDistance = max(resolvedCustomSheetSettings.topBlurRevealDistance, 1)
+        let normalized = min(max(scrollOffset / revealDistance, 0), 1)
+        return smoothStep(normalized)
+    }
+
+    private var defaultSheetTopBlurConfiguration: ScreenTopProgressiveBlurConfiguration {
+        ScreenTopProgressiveBlurConfiguration(
+            maxBlurRadius: resolvedCustomSheetSettings.blurRadius,
+            fadeExtension: resolvedCustomSheetSettings.blurFadeExtension,
+            tintOpacityTop: Double(resolvedCustomSheetSettings.blurTintOpacityTop),
+            tintOpacityMiddle: Double(resolvedCustomSheetSettings.blurTintOpacityMiddle)
+        )
+    }
+
+    private func outsideDismissScrimOpacity(
+        sheetTopY: CGFloat,
+        containerHeight: CGFloat
+    ) -> Double {
+        Double(min(max(resolvedCustomSheetSettings.scrimOpacity, 0), 1))
+    }
+
+    private var resolvedCustomSheetSettings: CustomSheetDebugSettings {
+        developmentPreferences.customSheetDebugSettings
+    }
+
     private var animationDurationMilliseconds: Int {
         Int(UIConstants.Animation.medium * 1_000)
     }
@@ -497,6 +864,26 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             left: windowSafeAreaInsets.left,
             bottom: windowSafeAreaInsets.bottom,
             right: windowSafeAreaInsets.right
+        )
+    }
+
+    private func smoothStep(_ value: CGFloat) -> CGFloat {
+        let x = min(max(value, 0), 1)
+        return x * x * x * (x * ((x * 6) - 15) + 10)
+    }
+
+    private func hostedContentUpdateKey(
+        contentSafeAreaInsets: UIEdgeInsets
+    ) -> HostedSheetContentUpdateKey {
+        HostedSheetContentUpdateKey(
+            topInset: contentSafeAreaInsets.top,
+            leftInset: contentSafeAreaInsets.left,
+            bottomInset: contentSafeAreaInsets.bottom,
+            rightInset: contentSafeAreaInsets.right,
+            topChromeClearance: configuration.showsDefaultTopProgressiveBlur
+                ? resolvedCustomSheetTopChromeClearance(contentSafeAreaInsets: contentSafeAreaInsets)
+                : 0,
+            showsDefaultTopProgressiveBlur: configuration.showsDefaultTopProgressiveBlur
         )
     }
 
@@ -546,25 +933,40 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 
 // MARK: - Stable Hosted Sheet Content
 
+private struct HostedSheetContentUpdateKey: Equatable {
+    let topInset: CGFloat
+    let leftInset: CGFloat
+    let bottomInset: CGFloat
+    let rightInset: CGFloat
+    let topChromeClearance: CGFloat
+    let showsDefaultTopProgressiveBlur: Bool
+}
+
 /// Hosts the heavy SwiftUI sheet content inside a persistent `UIHostingController`
 /// so drag offset updates on the outer container do not force the entire content
 /// tree to be rebuilt every frame.
 private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentable {
     let topCornerRadius: CGFloat
     let interactionDisabled: Bool
+    let rootUpdateKey: HostedSheetContentUpdateKey
+    let onScrollOffsetChange: (CGFloat) -> Void
     let makeRootView: () -> Root
 
     func makeUIViewController(context: Context) -> SheetHostingContainerController {
         let controller = SheetHostingContainerController(
             rootView: hostedRootView,
-            topCornerRadius: topCornerRadius
+            topCornerRadius: topCornerRadius,
+            rootUpdateKey: rootUpdateKey
         )
+        controller.setTrackedScrollOffsetHandler(onScrollOffsetChange)
         return controller
     }
 
     func updateUIViewController(_ uiViewController: SheetHostingContainerController, context: Context) {
         uiViewController.updateTopCornerRadius(topCornerRadius)
         uiViewController.setSheetInteractionDisabled(interactionDisabled)
+        uiViewController.setTrackedScrollOffsetHandler(onScrollOffsetChange)
+        uiViewController.updateRootView(hostedRootView, rootUpdateKey: rootUpdateKey)
     }
 
     func sizeThatFits(
@@ -589,9 +991,15 @@ private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentab
 
 private final class SheetHostingContainerController: UIViewController {
     private let hostingController: SheetHostingController
+    private var rootUpdateKey: HostedSheetContentUpdateKey
 
-    init(rootView: AnyView, topCornerRadius: CGFloat) {
+    init(
+        rootView: AnyView,
+        topCornerRadius: CGFloat,
+        rootUpdateKey: HostedSheetContentUpdateKey
+    ) {
         self.hostingController = SheetHostingController(rootView: rootView)
+        self.rootUpdateKey = rootUpdateKey
         super.init(nibName: nil, bundle: nil)
         updateTopCornerRadius(topCornerRadius)
     }
@@ -646,6 +1054,16 @@ private final class SheetHostingContainerController: UIViewController {
         hostingController.view.layer.maskedCorners = maskedCorners
         hostingController.view.layer.masksToBounds = resolvedRadius > 0
     }
+
+    func updateRootView(_ rootView: AnyView, rootUpdateKey: HostedSheetContentUpdateKey) {
+        guard self.rootUpdateKey != rootUpdateKey else { return }
+        self.rootUpdateKey = rootUpdateKey
+        hostingController.rootView = rootView
+    }
+
+    func setTrackedScrollOffsetHandler(_ handler: ((CGFloat) -> Void)?) {
+        hostingController.setTrackedScrollOffsetHandler(handler)
+    }
 }
 
 private final class SheetHostingController: UIHostingController<AnyView> {
@@ -656,6 +1074,15 @@ private final class SheetHostingController: UIHostingController<AnyView> {
 
     private var preservedScrollStates: [ObjectIdentifier: ScrollState] = [:]
     private var isSheetInteractionDisabled = false
+    private weak var trackedScrollView: UIScrollView?
+    private var trackedScrollOffsetObservation: NSKeyValueObservation?
+    private var trackedScrollOffsetHandler: ((CGFloat) -> Void)?
+    private var lastReportedTrackedScrollOffset: CGFloat = -.greatestFiniteMagnitude
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        updateTrackedScrollViewIfNeeded()
+    }
 
     func setSheetInteractionDisabled(_ disabled: Bool) {
         guard disabled != isSheetInteractionDisabled else { return }
@@ -666,6 +1093,18 @@ private final class SheetHostingController: UIHostingController<AnyView> {
             freezeNestedScrollViews()
         } else {
             restoreNestedScrollViews()
+        }
+    }
+
+    func setTrackedScrollOffsetHandler(_ handler: ((CGFloat) -> Void)?) {
+        trackedScrollOffsetHandler = handler
+        updateTrackedScrollViewIfNeeded()
+
+        if let trackedScrollView {
+            reportTrackedScrollOffset(from: trackedScrollView)
+        } else {
+            lastReportedTrackedScrollOffset = 0
+            handler?(0)
         }
     }
 
@@ -718,6 +1157,50 @@ private final class SheetHostingController: UIHostingController<AnyView> {
 
         walk(root)
         return result
+    }
+
+    private func updateTrackedScrollViewIfNeeded() {
+        let candidate = nestedVerticalScrollViews(in: view)
+            .filter { !$0.isHidden && $0.alpha > 0.01 && $0.bounds.height > 0 }
+            .max { lhs, rhs in
+                let leftArea = lhs.bounds.width * lhs.bounds.height
+                let rightArea = rhs.bounds.width * rhs.bounds.height
+                return leftArea < rightArea
+            }
+
+        guard candidate !== trackedScrollView else {
+            if let trackedScrollView {
+                reportTrackedScrollOffset(from: trackedScrollView)
+            }
+            return
+        }
+
+        trackedScrollOffsetObservation = nil
+        trackedScrollView = candidate
+        lastReportedTrackedScrollOffset = -.greatestFiniteMagnitude
+
+        guard let candidate else {
+            trackedScrollOffsetHandler?(0)
+            return
+        }
+
+        trackedScrollOffsetObservation = candidate.observe(
+            \.contentOffset,
+            options: [.initial, .new]
+        ) { [weak self] scrollView, _ in
+            self?.reportTrackedScrollOffset(from: scrollView)
+        }
+    }
+
+    private func reportTrackedScrollOffset(from scrollView: UIScrollView) {
+        let offset = max(scrollView.contentOffset.y + scrollView.adjustedContentInset.top, 0)
+        guard abs(offset - lastReportedTrackedScrollOffset) > 0.5 else { return }
+        lastReportedTrackedScrollOffset = offset
+
+        guard let trackedScrollOffsetHandler else { return }
+        DispatchQueue.main.async {
+            trackedScrollOffsetHandler(offset)
+        }
     }
 }
 

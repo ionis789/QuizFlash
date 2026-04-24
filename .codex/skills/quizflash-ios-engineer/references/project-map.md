@@ -36,7 +36,7 @@
 
 ## Feature Areas
 
-- `QuizFlash/Features/Home/*`: Dashboard, folders, recent decks, calendar, home view models
+- `QuizFlash/Features/Home/*`: Dashboard, folders, recent decks, calendar, home view models. Home no longer includes exam-goal flows or exam-specific persistence.
 - `QuizFlash/Features/Library/*`: Search, grouping, selection, library layout, library view model
 - `QuizFlash/Features/DeckDetails/*`: Deck screen, deck stats, grid, menu controls, sharing, deck view model
 - `QuizFlash/Features/DeckEditor/*`: Create/edit flows, zone logic, AI generation UI, editor components

@@ -125,7 +125,7 @@ struct FlashcardEditorView: View {
                 .fullScreenCover(isPresented: $showSketchModal) { CanvasModalView { data in addSketch(data) } }
                 .fullScreenSheet(
                     isPresented: $showPreview,
-                    configuration: .sheet()
+                    configuration: .sheet(showsDefaultTopProgressiveBlur: false)
                 ) { safeArea in
                     CardPreviewModeView(
                         front: frontZoneContent,

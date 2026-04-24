@@ -22,7 +22,6 @@ enum TestModelContainerFactory {
             HomeDailyStudyAggregate.self,
             HomeDailyDeckAggregate.self,
             HomeDailyCardAggregate.self,
-            ExamGoalModel.self,
             DeckPlayModeSettingsModel.self
         ])
         let configuration = ModelConfiguration(

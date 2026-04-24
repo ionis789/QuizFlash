@@ -152,7 +152,7 @@ extension DeckContentView {
             }
             .fullScreenSheet(
                 item: $previewedCard,
-                configuration: .sheet()
+                configuration: .sheet(showsDefaultTopProgressiveBlur: false)
             ) { card, safeArea in
                 DeckCardPreviewSheetView(
                     card: card,
@@ -166,7 +166,10 @@ extension DeckContentView {
             }
             .fullScreenSheet(
                 item: $viewModel.activitySheetPresentation,
-                configuration: .sheet(heightMode: .custom(0.75))
+                configuration: .sheet(
+                    heightMode: .custom(0.75),
+                    showsCloseButton: true
+                )
             ) { _, safeArea in
                 DeckActivityDetailSheetView(
                     summary: viewModel.activityHistorySummary,

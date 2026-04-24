@@ -6,59 +6,6 @@
 import Foundation
 import SwiftData
 
-// MARK: - Home Exam Summaries
-
-/// Lightweight readiness summary for one linked deck inside an exam goal.
-struct HomeExamDeckSummary: Identifiable, Equatable {
-    let id: PersistentIdentifier
-    let title: String
-    let colorHex: String
-    let totalCards: Int
-    let reviewedCards: Int
-    let dueCards: Int
-    let newCards: Int
-    let accuracyFraction: Double
-    let readinessFraction: Double
-
-    /// Cards that still need active work before the linked goal feels healthy.
-    var remainingCards: Int { dueCards + newCards }
-}
-
-/// Home-facing aggregate summary for one upcoming exam goal.
-struct HomeExamGoalSummary: Identifiable, Equatable {
-    let id: PersistentIdentifier
-    let title: String
-    let note: String
-    let date: Date
-    let status: ExamGoalStatus
-    let countdownLabel: String
-    let dateLabel: String
-    let targetWorkload: Int
-    let linkedDeckCount: Int
-    let readinessFraction: Double
-    let overdueCount: Int
-    let dailyPaceNeeded: Int
-    let belowTargetDeckCount: Int
-    let weakestDeck: HomeExamDeckSummary?
-    let summaryLine: String
-    let deckSummaries: [HomeExamDeckSummary]
-
-    var hasNote: Bool {
-        !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-}
-
-/// Short narrative lines shown above the exam-goal cards on Home.
-struct HomeDashboardNarrative: Equatable {
-    let riskDeckLine: String?
-    let closestWinLine: String?
-    let nextBestActionLine: String?
-
-    var visibleLines: [String] {
-        [riskDeckLine, closestWinLine, nextBestActionLine].compactMap { $0 }
-    }
-}
-
 /// Selected-day analytics shown in the top Home dashboard summary.
 struct HomeSelectedDayOverviewSummary: Equatable {
     let selectedDate: Date
@@ -256,9 +203,6 @@ struct HomeCalendarDayInsight: Equatable {
     let didStudy: Bool
     let isPerfectDay: Bool
     let isStreakDay: Bool
-    let hasExamGoal: Bool
-    let hasGoalNote: Bool
-    let examGoalCount: Int
 }
 
 /// Action-oriented summary that explains why the selected calendar day matters.
@@ -267,26 +211,8 @@ struct HomeSelectedDayInsightSummary: Equatable {
     let detailLine: String
     let recommendationLine: String
     let paceLine: String
-    let examContextLine: String
     let xpEarned: Int
     let newCardsLearned: Int
-    let selectedDayExamCount: Int
-}
-
-/// Condensed risk summary for the single exam goal that currently needs the most attention.
-struct HomeExamPressureSummary: Equatable {
-    let goalID: PersistentIdentifier
-    let goalTitle: String
-    let countdownLabel: String
-    let readinessFraction: Double
-    let headline: String
-    let detailLine: String
-    let actionLine: String
-    let overdueCards: Int
-    let dailyPaceNeeded: Int
-    let belowTargetDeckCount: Int
-    let weakestDeckTitle: String?
-    let weakestDeckReadinessFraction: Double?
 }
 
 /// Prioritized deck-level health rollup used by Home to steer the user toward the right deck.
@@ -301,7 +227,6 @@ struct HomeDeckHealthSummary: Identifiable, Equatable {
     let stableCards: Int
     let reviewAccuracy: Int
     let masteryFraction: Double
-    let linkedGoalCount: Int
     let isRecentlyOpened: Bool
     let lastOpenedLabel: String?
     let headline: String
@@ -317,10 +242,6 @@ struct HomeDashboardSnapshot: Equatable {
     let weeklyMomentum: HomeWeeklyMomentumSummary
     let pastWeekPerformance: HomePastWeekPerformanceSummary
     let selectedDayBreakdown: HomeSelectedDayBreakdownSummary
-    let examPressure: HomeExamPressureSummary?
-    let selectedDayExamSummaries: [HomeExamGoalSummary]
-    let upcomingExamSummaries: [HomeExamGoalSummary]
-    let examNarrative: HomeDashboardNarrative?
 
     nonisolated static func placeholder(referenceDate: Date = Date()) -> HomeDashboardSnapshot {
         let overview = HomeSelectedDayOverviewSummary(
@@ -369,10 +290,8 @@ struct HomeDashboardSnapshot: Equatable {
             detailLine: "Nothing is competing for this day yet.",
             recommendationLine: "Start with a short session to create momentum.",
             paceLine: "No recent pace to compare yet.",
-            examContextLine: "No exam goals scheduled around this date.",
             xpEarned: 0,
-            newCardsLearned: 0,
-            selectedDayExamCount: 0
+            newCardsLearned: 0
         )
         let pastWeekPerformance = HomePastWeekPerformanceSummary.placeholder(referenceDate: referenceDate)
 
@@ -381,26 +300,7 @@ struct HomeDashboardSnapshot: Equatable {
             selectedDayInsight: selectedDayInsight,
             weeklyMomentum: weeklyMomentum,
             pastWeekPerformance: pastWeekPerformance,
-            selectedDayBreakdown: selectedDayBreakdown,
-            examPressure: nil,
-            selectedDayExamSummaries: [],
-            upcomingExamSummaries: [],
-            examNarrative: nil
-        )
-    }
-}
-
-/// Cached Home dashboard payload that does not depend on the currently selected day.
-struct HomeDashboardStaticSnapshot: Equatable {
-    let upcomingExamSummaries: [HomeExamGoalSummary]
-    let examPressure: HomeExamPressureSummary?
-    let examNarrative: HomeDashboardNarrative?
-
-    static func empty() -> HomeDashboardStaticSnapshot {
-        HomeDashboardStaticSnapshot(
-            upcomingExamSummaries: [],
-            examPressure: nil,
-            examNarrative: nil
+            selectedDayBreakdown: selectedDayBreakdown
         )
     }
 }

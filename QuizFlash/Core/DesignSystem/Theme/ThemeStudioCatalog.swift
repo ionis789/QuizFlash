@@ -85,7 +85,6 @@ enum ThemeStudioCatalog {
                     slot("titleForeground", .token(.textPrimary), true, "Used by the deck title."),
                     slot("metaForeground", .token(.textSecondary), true, "Used by card count and secondary metadata.")
                 ]),
-                component("HomeExamGoalSummaryCard", note: "Exam pressure summary widget", kind: "widget.card.emphasis", slots: widgetEmphasisSlots),
                 component("HomeWeeklyMomentumCard", note: "Weekly trend widget", kind: "widget.card.emphasis", slots: widgetEmphasisSlots),
                 component("HomeSelectedDayInsightsCard", note: "Selected day insights widget", kind: "widget.card.emphasis", slots: widgetEmphasisSlots),
                 component("FolderCardView", note: "Folder grid card", kind: "widget.card.standard", slots: [

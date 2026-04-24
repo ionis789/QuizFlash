@@ -1365,6 +1365,7 @@ private struct SharedUICatalogSampleSheet: View {
     @Binding var backgroundPreset: SharedUICatalogFullScreenSheetDemo.BackgroundPreset
 
     @Environment(\.fullScreenSheetDismiss) private var dismiss
+    @Environment(\.fullScreenSheetTopChromeClearance) private var topChromeClearance
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -1379,7 +1380,7 @@ private struct SharedUICatalogSampleSheet: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                    .padding(.top, safeAreaInsets.top + UIConstants.Spacing.large)
+                    .padding(.top, max(safeAreaInsets.top, topChromeClearance) + UIConstants.Spacing.large)
 
                 demoCard(title: "Height Mode") {
                     Picker("Height Mode", selection: $heightPreset) {

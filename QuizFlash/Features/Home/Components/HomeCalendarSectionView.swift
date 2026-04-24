@@ -452,18 +452,6 @@ struct CalendarDayCellView: View {
         insight?.isPerfectDay ?? false
     }
 
-    private var hasExamGoal: Bool {
-        insight?.hasExamGoal ?? false
-    }
-
-    private var hasGoalNote: Bool {
-        insight?.hasGoalNote ?? false
-    }
-
-    private var examGoalCount: Int {
-        insight?.examGoalCount ?? 0
-    }
-
     private var activityFraction: Double {
         insight?.activityFraction ?? 0
     }
@@ -473,8 +461,6 @@ struct CalendarDayCellView: View {
             collapseProgress: collapseProgress,
             dayColumnWidth: dayColumnWidth,
             rowHeight: rowHeight,
-            hasGoalNote: hasGoalNote,
-            hasExamGoalCount: examGoalCount > 1,
             isHighlighted: day.isSelected || isToday || didStudy
         )
     }
@@ -512,17 +498,6 @@ struct CalendarDayCellView: View {
         return max(cellMinDimension * scale, 0)
     }
 
-    private var examMarkerColor: Color {
-        if examGoalCount > 1 {
-            return accent.opacity(0.95)
-        }
-        return accent
-    }
-
-    private var noteMarkerColor: Color {
-        themeManager.dangerPrimary
-    }
-
     // MARK: - Body
 
     var body: some View {
@@ -541,32 +516,7 @@ struct CalendarDayCellView: View {
                     .frame(width: tileSize, height: tileSize)
             }
         }
-            .overlay(alignment: .bottom) {
-            if hasExamGoal && !day.isSelected {
-                HStack(spacing: metrics.markerSpacing) {
-                    markerShape(color: examMarkerColor)
-
-                    if metrics.showsSecondaryNoteMarker {
-                        markerShape(color: noteMarkerColor)
-                    }
-                }
-                    .offset(y: metrics.markerOffsetY)
-            }
-        }
             .contentShape(Rectangle())
             .zIndex(day.isSelected ? 1 : 0)
-    }
-
-    @ViewBuilder
-    private func markerShape(color: Color) -> some View {
-        if metrics.usesMarkerCapsule {
-            Capsule()
-                .fill(color)
-                .frame(width: metrics.markerCapsuleWidth, height: metrics.markerDotSize)
-        } else {
-            Circle()
-                .fill(color)
-                .frame(width: metrics.markerDotSize, height: metrics.markerDotSize)
-        }
     }
 }

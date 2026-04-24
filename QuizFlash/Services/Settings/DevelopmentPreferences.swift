@@ -20,6 +20,8 @@ final class DevelopmentPreferences {
         static let playModeDeveloperModeEnabled = "preferences.development.playModeDeveloperModeEnabled"
         static let edgeShadowTuningEnabled = "preferences.development.edgeShadowTuningEnabled"
         static let edgeShadowDebugSettingsByScreen = "preferences.development.edgeShadowDebugSettingsByScreen"
+        static let customSheetTuningEnabled = "preferences.development.customSheetTuningEnabled"
+        static let customSheetDebugSettings = "preferences.development.customSheetDebugSettings"
     }
 
     private let userDefaults: UserDefaults
@@ -64,6 +66,23 @@ final class DevelopmentPreferences {
         }
     }
 
+    /// Shows the floating global tuning panel for shared custom-sheet presentation.
+    var customSheetTuningEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                customSheetTuningEnabled,
+                forKey: Keys.customSheetTuningEnabled
+            )
+        }
+    }
+
+    /// Shared debug tuning applied to every custom sheet at once.
+    var customSheetDebugSettings: CustomSheetDebugSettings {
+        didSet {
+            persistCustomSheetDebugSettings()
+        }
+    }
+
     private var edgeShadowDebugSettingsByScreen: [String: EdgeShadowDebugSettings] {
         didSet {
             persistEdgeShadowDebugSettings()
@@ -85,6 +104,10 @@ final class DevelopmentPreferences {
             forKey: Keys.edgeShadowTuningEnabled
         ) as? Bool ?? false
         self.edgeShadowDebugSettingsByScreen = Self.loadEdgeShadowDebugSettings(from: userDefaults)
+        self.customSheetTuningEnabled = userDefaults.object(
+            forKey: Keys.customSheetTuningEnabled
+        ) as? Bool ?? false
+        self.customSheetDebugSettings = Self.loadCustomSheetDebugSettings(from: userDefaults)
     }
 
     func edgeShadowSettings(for screenID: String) -> EdgeShadowDebugSettings {
@@ -123,5 +146,27 @@ final class DevelopmentPreferences {
 
         let decoder = JSONDecoder()
         return (try? decoder.decode([String: EdgeShadowDebugSettings].self, from: data)) ?? [:]
+    }
+
+    private func persistCustomSheetDebugSettings() {
+        if customSheetDebugSettings == .default {
+            userDefaults.removeObject(forKey: Keys.customSheetDebugSettings)
+            return
+        }
+
+        let encoder = JSONEncoder()
+        guard let data = try? encoder.encode(customSheetDebugSettings) else { return }
+        userDefaults.set(data, forKey: Keys.customSheetDebugSettings)
+    }
+
+    private static func loadCustomSheetDebugSettings(
+        from userDefaults: UserDefaults
+    ) -> CustomSheetDebugSettings {
+        guard let data = userDefaults.data(forKey: Keys.customSheetDebugSettings) else {
+            return .default
+        }
+
+        let decoder = JSONDecoder()
+        return (try? decoder.decode(CustomSheetDebugSettings.self, from: data)) ?? .default
     }
 }

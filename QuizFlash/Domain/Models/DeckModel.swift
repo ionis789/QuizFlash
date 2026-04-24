@@ -81,9 +81,6 @@ class DeckModel {
     @Relationship(deleteRule: .cascade, inverse: \DeckPlayModeSettingsModel.deck)
     var playModeSettings: DeckPlayModeSettingsModel?
 
-    /// Exam goals that currently include this deck in their study scope.
-    var examGoals: [ExamGoalModel] = []
-
     /// The persisted grouping preference used by `DeckView`.
     var cardGroupingMode: DeckCardGroupingMode {
         get { DeckCardGroupingMode(rawValue: cardGroupingModeRaw) ?? .chronological }
@@ -105,6 +102,5 @@ class DeckModel {
         self.lastAssignedCardNumber = 0
         self.cardGroupingModeRaw = DeckCardGroupingMode.chronological.rawValue
         self.playModeSettings = nil
-        self.examGoals = []
     }
 }

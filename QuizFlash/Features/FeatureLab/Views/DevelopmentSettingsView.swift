@@ -91,6 +91,16 @@ struct DevelopmentSettingsView: View {
                 detail: "Shows the floating per-screen shadow tuning button while preserving each screen's saved values.",
                 isOn: edgeShadowTuningEnabledBinding
             )
+
+            SettingsCardDivider()
+
+            SettingsToggleRow(
+                icon: "rectangle.topthird.inset.filled",
+                tint: .purple,
+                title: "Custom Sheet Tuner",
+                detail: "Shows one floating tuning panel that adjusts blur, top clearance, and scrim for every custom sheet at once.",
+                isOn: customSheetTuningEnabledBinding
+            )
         }
     }
 
@@ -231,6 +241,13 @@ struct DevelopmentSettingsView: View {
         Binding(
             get: { developmentPreferences.edgeShadowTuningEnabled },
             set: { developmentPreferences.edgeShadowTuningEnabled = $0 }
+        )
+    }
+
+    private var customSheetTuningEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { developmentPreferences.customSheetTuningEnabled },
+            set: { developmentPreferences.customSheetTuningEnabled = $0 }
         )
     }
 }

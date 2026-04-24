@@ -52,7 +52,6 @@ struct QuizFlashApp: App {
                 HomeDailyStudyAggregate.self,
                 HomeDailyDeckAggregate.self,
                 HomeDailyCardAggregate.self,
-                ExamGoalModel.self,
                 DeckPlayModeSettingsModel.self
             ])
     }

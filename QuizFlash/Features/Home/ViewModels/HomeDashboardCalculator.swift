@@ -25,90 +25,6 @@ private struct HomeDailyReviewAggregate {
 }
 
 extension HomeViewModel {
-    /// Produces the short narrative lines shown above the Home exam-goal cards.
-    ///
-    /// The narrative intentionally stays short and action-oriented rather than
-    /// motivational. It uses current goal pressure plus recent activity logs.
-    func buildDashboardNarrative(
-        upcomingExamSummaries: [HomeExamGoalSummary],
-        userProfile: UserProfile?,
-        referenceDate: Date = Date()
-    ) -> HomeDashboardNarrative? {
-        let summaries = Array(upcomingExamSummaries.prefix(6))
-        guard !summaries.isEmpty else { return nil }
-
-        let riskGoal = summaries.max { lhs, rhs in
-            riskScore(for: lhs) < riskScore(for: rhs)
-        }
-        let closestWinGoal = summaries.max { lhs, rhs in
-            lhs.readinessFraction < rhs.readinessFraction
-        }
-        let recentStudyDays = recentStudyDayCount(referenceDate: referenceDate)
-
-        let riskLine: String?
-        if let riskGoal, let weakestDeck = riskGoal.weakestDeck {
-            riskLine = "Risk deck: \(weakestDeck.title) for \(riskGoal.title) has \(weakestDeck.remainingCards) cards still needing work."
-        } else {
-            riskLine = nil
-        }
-
-        let closestWinLine: String?
-        if let closestWinGoal {
-            closestWinLine = "Closest win: \(closestWinGoal.title) is at \(Int((closestWinGoal.readinessFraction * 100).rounded()))% readiness."
-        } else {
-            closestWinLine = nil
-        }
-
-        let nextBestActionLine: String?
-        if let riskGoal, let weakestDeck = riskGoal.weakestDeck {
-            let streakText: String
-            if let userProfile, userProfile.currentStreak > 0 {
-                streakText = " Keep the \(userProfile.currentStreak)-day streak alive."
-            } else {
-                streakText = ""
-            }
-
-            nextBestActionLine = "Next best action: review \(max(riskGoal.dailyPaceNeeded, 1)) cards/day in \(weakestDeck.title). \(recentStudyDays)/7 recent study days.\(streakText)"
-        } else {
-            nextBestActionLine = nil
-        }
-
-        return HomeDashboardNarrative(
-            riskDeckLine: riskLine,
-            closestWinLine: closestWinLine,
-            nextBestActionLine: nextBestActionLine
-        )
-    }
-
-    /// Refreshes dashboard payloads that stay stable while only the selected day changes.
-    func refreshDashboardStaticSnapshot(
-        examGoals: [ExamGoalModel],
-        userProfile: UserProfile?,
-        referenceDate: Date = Date()
-    ) {
-        let signature = buildDashboardStaticSignature(
-            userProfile: userProfile,
-            referenceDate: referenceDate
-        )
-        guard dashboardStaticSignature != signature else { return }
-        dashboardStaticSignature = signature
-
-        let upcomingExamSummaries = upcomingExamGoalSummaries(
-            from: examGoals,
-            referenceDate: referenceDate
-        )
-
-        dashboardStaticSnapshot = HomeDashboardStaticSnapshot(
-            upcomingExamSummaries: upcomingExamSummaries,
-            examPressure: buildExamPressureSummary(from: upcomingExamSummaries),
-            examNarrative: buildDashboardNarrative(
-                upcomingExamSummaries: upcomingExamSummaries,
-                userProfile: userProfile,
-                referenceDate: referenceDate
-            )
-        )
-    }
-
     /// Builds the lightweight greeting widget summary shown at the top of Home.
     ///
     /// The greeting prefers the most recent deck, then falls back to the highest-priority
@@ -414,14 +330,6 @@ extension HomeViewModel {
 
     // MARK: - Private
 
-    /// Medium date formatter reused by Home exam-goal cards.
-    static let mediumDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter
-    }()
-
     /// Weekday-aware label reused by the selected-day Home summary.
     static let selectedDayLabelFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -703,8 +611,6 @@ extension HomeViewModel {
     func buildSelectedDayInsightSummary(
         selectedDate: Date,
         selectedDayOverview: HomeSelectedDayOverviewSummary,
-        selectedDayExamSummaries: [HomeExamGoalSummary],
-        upcomingExamSummaries: [HomeExamGoalSummary],
         weeklyMomentum: HomeWeeklyMomentumSummary
     ) -> HomeSelectedDayInsightSummary {
         let cacheKey = [
@@ -713,9 +619,7 @@ extension HomeViewModel {
             selectedDayOverview.detailLine,
             "\(selectedDayOverview.cardsReviewed)",
             "\(selectedDayOverview.remainingCardsToGoal)",
-            "\(weeklyMomentum.averageCardsPerActiveDay)",
-            selectedDayExamSummaries.map(\.id.hashValue).map(String.init).joined(separator: "~"),
-            upcomingExamSummaries.map(\.id.hashValue).map(String.init).joined(separator: "~")
+            "\(weeklyMomentum.averageCardsPerActiveDay)"
         ].joined(separator: "||")
 
         if let cached = selectedDayInsightCache[cacheKey] {
@@ -741,23 +645,9 @@ extension HomeViewModel {
             }
         }
 
-        let examContextLine: String
-        if !selectedDayExamSummaries.isEmpty {
-            examContextLine = selectedDayExamSummaries.count == 1
-                ? "One exam goal lands on this day."
-                : "\(selectedDayExamSummaries.count) exam goals land on this day."
-        } else if let nextGoal = upcomingExamSummaries.first {
-            examContextLine = "Nearest pressure point: \(nextGoal.title) is \(nextGoal.countdownLabel.lowercased())."
-        } else {
-            examContextLine = "No exam goals are pressuring this day."
-        }
-
         let headline: String
         let detailLine: String
-        if !selectedDayExamSummaries.isEmpty {
-            headline = selectedDayExamSummaries.count == 1 ? "This day carries an exam target" : "This day is a study checkpoint"
-            detailLine = selectedDayExamSummaries.first?.summaryLine ?? "Use this date to consolidate your strongest recall."
-        } else if selectedDayOverview.didReachGoal {
+        if selectedDayOverview.didReachGoal {
             headline = "This day is already in good shape"
             detailLine = "You cleared the target and can use any extra time for due-card cleanup."
         } else if cardsReviewed > 0 {
@@ -769,13 +659,10 @@ extension HomeViewModel {
         }
 
         let recommendationLine: String
-        if let selectedGoal = selectedDayExamSummaries.first, let weakestDeck = selectedGoal.weakestDeck {
-            recommendationLine = "Best next move: rehearse \(weakestDeck.title) and protect \(selectedGoal.countdownLabel.lowercased())."
-        } else if let pressure = upcomingExamSummaries.first, let weakestDeck = pressure.weakestDeck {
-            let suggestedCards = max(pressure.dailyPaceNeeded, selectedDayOverview.remainingCardsToGoal > 0 ? min(selectedDayOverview.remainingCardsToGoal, pressure.dailyPaceNeeded) : pressure.dailyPaceNeeded)
-            recommendationLine = "Best next move: put \(suggestedCards) reviews into \(weakestDeck.title) to reduce upcoming pressure."
-        } else if selectedDayOverview.didReachGoal {
+        if selectedDayOverview.didReachGoal {
             recommendationLine = "Best next move: keep the streak warm with a short due-card pass."
+        } else if let focusDeck = deckHealthSummaries.first {
+            recommendationLine = "Best next move: open \(focusDeck.title) and work through the cards already waiting there."
         } else {
             recommendationLine = "Best next move: finish the remaining \(selectedDayOverview.remainingCardsToGoal) cards and lock the day."
         }
@@ -785,88 +672,20 @@ extension HomeViewModel {
             detailLine: detailLine,
             recommendationLine: recommendationLine,
             paceLine: paceLine,
-            examContextLine: examContextLine,
             xpEarned: selectedDayOverview.xpEarnedToday,
-            newCardsLearned: selectedDayOverview.newCardsLearned,
-            selectedDayExamCount: selectedDayExamSummaries.count
+            newCardsLearned: selectedDayOverview.newCardsLearned
         )
         selectedDayInsightCache[cacheKey] = summary
         return summary
     }
 
-    func buildExamPressureSummary(
-        from upcomingExamSummaries: [HomeExamGoalSummary]
-    ) -> HomeExamPressureSummary? {
-        guard let topRiskGoal = upcomingExamSummaries.max(by: { riskScore(for: $0) < riskScore(for: $1) }) else {
-            return nil
-        }
-
-        let headline: String
-        if topRiskGoal.belowTargetDeckCount > 0 || topRiskGoal.overdueCount > 0 {
-            headline = "Needs attention now"
-        } else if topRiskGoal.readinessFraction >= 0.75 {
-            headline = "On track"
-        } else {
-            headline = "Steady pressure"
-        }
-
-        let actionLine: String
-        if let weakestDeck = topRiskGoal.weakestDeck {
-            if topRiskGoal.dailyPaceNeeded > 0 {
-                actionLine = "Focus \(topRiskGoal.dailyPaceNeeded) reviews/day in \(weakestDeck.title) to lift readiness."
-            } else {
-                actionLine = "Use \(weakestDeck.title) for quick reinforcement before the deadline."
-            }
-        } else if topRiskGoal.dailyPaceNeeded > 0 {
-            actionLine = "Keep a pace of \(topRiskGoal.dailyPaceNeeded) reviews/day until the goal is stable."
-        } else {
-            actionLine = "Maintain light recall sessions to protect readiness."
-        }
-
-        return HomeExamPressureSummary(
-            goalID: topRiskGoal.id,
-            goalTitle: topRiskGoal.title,
-            countdownLabel: topRiskGoal.countdownLabel,
-            readinessFraction: topRiskGoal.readinessFraction,
-            headline: headline,
-            detailLine: topRiskGoal.summaryLine,
-            actionLine: actionLine,
-            overdueCards: topRiskGoal.overdueCount,
-            dailyPaceNeeded: topRiskGoal.dailyPaceNeeded,
-            belowTargetDeckCount: topRiskGoal.belowTargetDeckCount,
-            weakestDeckTitle: topRiskGoal.weakestDeck?.title,
-            weakestDeckReadinessFraction: topRiskGoal.weakestDeck?.readinessFraction
-        )
-    }
-
-    func activeExamGoalDeckCounts(
-        from examGoals: [ExamGoalModel],
-        referenceDate: Date
-    ) -> [PersistentIdentifier: Int] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: referenceDate)
-
-        var counts: [PersistentIdentifier: Int] = [:]
-        for goal in examGoals where goal.status == .active && calendar.startOfDay(for: goal.date) >= today {
-            for deck in goal.linkedDecks {
-                counts[deck.persistentModelID, default: 0] += 1
-            }
-        }
-        return counts
-    }
-
     func prioritizedDeckHealthCandidates(
         from decks: [DeckModel],
-        recentDeckIDs: Set<PersistentIdentifier>,
-        goalCounts: [PersistentIdentifier: Int]
+        recentDeckIDs: Set<PersistentIdentifier>
     ) -> [DeckModel] {
         decks
             .filter { $0.cardCount > 0 }
             .sorted { lhs, rhs in
-                let lhsGoalCount = goalCounts[lhs.persistentModelID] ?? 0
-                let rhsGoalCount = goalCounts[rhs.persistentModelID] ?? 0
-                if lhsGoalCount != rhsGoalCount { return lhsGoalCount > rhsGoalCount }
-
                 let lhsRecent = recentDeckIDs.contains(lhs.persistentModelID)
                 let rhsRecent = recentDeckIDs.contains(rhs.persistentModelID)
                 if lhsRecent != rhsRecent { return lhsRecent && !rhsRecent }
@@ -881,7 +700,6 @@ extension HomeViewModel {
     func buildDeckHealthSummary(
         for deck: DeckModel,
         report: LearnModeReport,
-        linkedGoalCount: Int,
         isRecentlyOpened: Bool,
         referenceDate: Date
     ) -> HomeDeckHealthSummary {
@@ -890,9 +708,7 @@ extension HomeViewModel {
             : 0
 
         let headline: String
-        if linkedGoalCount > 0 && report.dueCards > 0 {
-            headline = "Exam-linked and under pressure"
-        } else if report.dueCards > 0 {
+        if report.dueCards > 0 {
             headline = "\(report.dueCards) due right now"
         } else if report.newCards > 0 {
             headline = "\(report.newCards) new cards waiting"
@@ -903,9 +719,7 @@ extension HomeViewModel {
         }
 
         let detailLine: String
-        if linkedGoalCount > 0 {
-            detailLine = "Supports \(linkedGoalCount) active exam goal\(linkedGoalCount == 1 ? "" : "s"). Accuracy is \(report.reviewAccuracy)%."
-        } else if report.reviewedCards == 0 {
+        if report.reviewedCards == 0 {
             detailLine = "No reviews logged yet across \(report.totalCards) cards."
         } else {
             detailLine = "\(report.stableCards) stable, \(report.buildingCards) building, \(report.dueCards) due. Accuracy is \(report.reviewAccuracy)%."
@@ -930,7 +744,6 @@ extension HomeViewModel {
             stableCards: report.stableCards,
             reviewAccuracy: report.reviewAccuracy,
             masteryFraction: masteryFraction,
-            linkedGoalCount: linkedGoalCount,
             isRecentlyOpened: isRecentlyOpened,
             lastOpenedLabel: deck.lastOpenedAt.map {
                 Self.relativeTimeLabel(for: $0, referenceDate: referenceDate)
@@ -949,17 +762,15 @@ extension HomeViewModel {
         let newPressure = min(Double(summary.newCards) / Double(summary.totalCards), 1.0) * 0.12
         let buildingPressure = min(Double(summary.buildingCards) / Double(summary.totalCards), 1.0) * 0.18
         let accuracyPressure = (1.0 - (Double(summary.reviewAccuracy) / 100.0)) * 0.18
-        let examPressure = min(Double(summary.linkedGoalCount) * 0.18, 0.36)
         let recentBoost = summary.isRecentlyOpened ? 0.05 : 0
 
-        return duePressure + newPressure + buildingPressure + accuracyPressure + examPressure + recentBoost
+        return duePressure + newPressure + buildingPressure + accuracyPressure + recentBoost
     }
 
     func buildCalendarDayInsight(
         key: String,
         date: Date,
         log: DailyActivityLog?,
-        goals: [ExamGoalModel],
         streakDates: Set<String>
     ) -> HomeCalendarDayInsight {
         let cardsReviewed = log?.cardsReviewed ?? 0
@@ -969,8 +780,6 @@ extension HomeViewModel {
         let activityFraction = didStudy
             ? max(min(Double(cardsReviewed) / Double(dailyGoal), 1.0), xpEarned > 0 ? 0.22 : 0.12)
             : 0
-        let activeGoals = goals.filter { $0.status != .archived }
-        let hasGoalNote = activeGoals.contains { !$0.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
         return HomeCalendarDayInsight(
             date: date,
@@ -981,10 +790,7 @@ extension HomeViewModel {
             activityFraction: activityFraction,
             didStudy: didStudy,
             isPerfectDay: log?.isPerfectDay ?? false,
-            isStreakDay: streakDates.contains(key),
-            hasExamGoal: !activeGoals.isEmpty,
-            hasGoalNote: hasGoalNote,
-            examGoalCount: activeGoals.count
+            isStreakDay: streakDates.contains(key)
         )
     }
 
@@ -999,21 +805,7 @@ extension HomeViewModel {
             selectedDateKey,
             profileSignature(for: userProfile),
             "\(analyticsRevision)",
-            "\(deckRevision)",
-            "\(examGoalsCacheRevision)"
-        ].joined(separator: "||")
-    }
-
-    func buildDashboardStaticSignature(
-        userProfile: UserProfile?,
-        referenceDate: Date
-    ) -> String {
-        [
-            Self.dateKeyFormatter.string(from: referenceDate),
-            profileSignature(for: userProfile),
-            "\(logsCacheRevision)",
-            "\(examGoalsCacheRevision)",
-            "\(activeExamGoalDeckRevisionFingerprint())"
+            "\(deckRevision)"
         ].joined(separator: "||")
     }
 
@@ -1024,15 +816,13 @@ extension HomeViewModel {
         [
             Self.dateKeyFormatter.string(from: referenceDate),
             profileSignature(for: userProfile),
-            "\(logsCacheRevision)",
-            "\(examGoalsCacheRevision)"
+            "\(logsCacheRevision)"
         ].joined(separator: "||")
     }
 
     func buildDeckHealthSignature(
         decks: [DeckModel],
         recentDecks: [DeckModel],
-        examGoals: [ExamGoalModel],
         referenceDate: Date
     ) -> String {
         let deckSignature = decks
@@ -1056,8 +846,7 @@ extension HomeViewModel {
         return [
             Self.dateKeyFormatter.string(from: referenceDate),
             deckSignature,
-            recentSignature,
-            "\(examGoalsCacheRevision)"
+            recentSignature
         ].joined(separator: "||")
     }
 
@@ -1167,207 +956,6 @@ extension HomeViewModel {
         default:
             return .night
         }
-    }
-
-    func buildExamGoalSummary(
-        for goal: ExamGoalModel,
-        referenceDate: Date
-    ) -> HomeExamGoalSummary {
-        let cacheKey = goalSummaryCacheKey(for: goal, referenceDate: referenceDate)
-        if let cached = examGoalSummaryCache[cacheKey] {
-            return cached
-        }
-
-        let calendar = Calendar.current
-        let startOfReferenceDay = calendar.startOfDay(for: referenceDate)
-        let startOfGoalDay = calendar.startOfDay(for: goal.date)
-        let daysRemaining = max(calendar.dateComponents([.day], from: startOfReferenceDay, to: startOfGoalDay).day ?? 0, 0)
-        let deckSummaries = goal.linkedDecks.map { buildDeckSummary(for: $0, now: referenceDate) }
-        let readinessFraction = deckSummaries.isEmpty
-            ? 0
-            : deckSummaries.map(\.readinessFraction).reduce(0, +) / Double(deckSummaries.count)
-        let overdueCount = deckSummaries.map(\.dueCards).reduce(0, +)
-        let remainingCards = deckSummaries.map(\.remainingCards).reduce(0, +)
-        let dailyPaceNeeded = remainingCards == 0 ? 0 : Int(ceil(Double(remainingCards) / Double(max(daysRemaining, 1))))
-        let perDeckTarget = max(1, Int(ceil(Double(goal.targetWorkload) / Double(max(deckSummaries.count, 1)))))
-        let belowTargetDeckCount = deckSummaries.filter {
-            $0.remainingCards > perDeckTarget || $0.readinessFraction < readinessThreshold(daysRemaining: daysRemaining)
-        }.count
-        let weakestDeck = deckSummaries.min { lhs, rhs in
-            if lhs.readinessFraction != rhs.readinessFraction {
-                return lhs.readinessFraction < rhs.readinessFraction
-            }
-            return lhs.remainingCards > rhs.remainingCards
-        }
-
-        let summaryLine: String
-        if daysRemaining == 0 {
-            summaryLine = belowTargetDeckCount > 0
-                ? "Exam day is here and \(belowTargetDeckCount) linked deck\(belowTargetDeckCount == 1 ? "" : "s") still need attention."
-                : "Exam day is here. Focus on calm recall and quick due-card passes."
-        } else if belowTargetDeckCount > 0 {
-            summaryLine = "Exam in \(daysRemaining) day\(daysRemaining == 1 ? "" : "s") and \(belowTargetDeckCount) linked deck\(belowTargetDeckCount == 1 ? "" : "s") are below target."
-        } else if dailyPaceNeeded > 0 {
-            summaryLine = "On track if you keep roughly \(dailyPaceNeeded) review\(dailyPaceNeeded == 1 ? "" : "s") per day."
-        } else {
-            summaryLine = "Linked decks look healthy for this goal right now."
-        }
-
-        let summary = HomeExamGoalSummary(
-            id: goal.persistentModelID,
-            title: goal.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled Goal" : goal.title,
-            note: goal.note,
-            date: goal.date,
-            status: goal.status,
-            countdownLabel: Self.countdownLabel(for: goal.date, referenceDate: referenceDate),
-            dateLabel: Self.mediumDateLabel(for: goal.date),
-            targetWorkload: goal.targetWorkload,
-            linkedDeckCount: deckSummaries.count,
-            readinessFraction: readinessFraction,
-            overdueCount: overdueCount,
-            dailyPaceNeeded: dailyPaceNeeded,
-            belowTargetDeckCount: belowTargetDeckCount,
-            weakestDeck: weakestDeck,
-            summaryLine: summaryLine,
-            deckSummaries: deckSummaries
-        )
-        examGoalSummaryCache[cacheKey] = summary
-        return summary
-    }
-
-    func buildDeckSummary(for deck: DeckModel, now: Date) -> HomeExamDeckSummary {
-        let cacheKey = deckSummaryCacheKey(for: deck, referenceDate: now)
-        if let cached = examDeckSummaryCache[cacheKey] {
-            return cached
-        }
-
-        let cards = deck.cards
-        let totalCards = max(deck.cardCount, cards.count)
-        var reviewedCards = 0
-        var dueCards = 0
-        var newCards = 0
-        var stableCards = 0
-        var successfulReviews = 0
-        var reviewEventCount = 0
-
-        for card in cards {
-            let history = card.reviewHistory
-
-            if history.isEmpty {
-                newCards += 1
-            } else {
-                reviewedCards += 1
-            }
-
-            if card.dueDate <= now {
-                dueCards += 1
-            }
-
-            if card.interval >= 14 {
-                stableCards += 1
-            }
-
-            reviewEventCount += history.count
-            for event in history where event.difficultyRaw >= ReviewDifficulty.good.rawValue {
-                successfulReviews += 1
-            }
-        }
-
-        let accuracyFraction = reviewEventCount == 0
-            ? 0
-            : Double(successfulReviews) / Double(reviewEventCount)
-        let coverageFraction = totalCards > 0
-            ? Double(reviewedCards) / Double(totalCards)
-            : 0
-        let stabilityFraction = totalCards > 0
-            ? Double(stableCards) / Double(totalCards)
-            : 0
-        let duePenalty = totalCards > 0
-            ? Double(dueCards) / Double(totalCards)
-            : 0
-        let readinessFraction = min(
-            1,
-            max(
-                0,
-                (coverageFraction * 0.45)
-                + (accuracyFraction * 0.35)
-                + (stabilityFraction * 0.25)
-                - (duePenalty * 0.20)
-            )
-        )
-
-        let summary = HomeExamDeckSummary(
-            id: deck.persistentModelID,
-            title: deck.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled Deck" : deck.title,
-            colorHex: deck.colorHex,
-            totalCards: totalCards,
-            reviewedCards: reviewedCards,
-            dueCards: dueCards,
-            newCards: newCards,
-            accuracyFraction: accuracyFraction,
-            readinessFraction: readinessFraction
-        )
-        examDeckSummaryCache[cacheKey] = summary
-        return summary
-    }
-
-    func readinessThreshold(daysRemaining: Int) -> Double {
-        switch daysRemaining {
-        case 0...3:
-            return 0.78
-        case 4...7:
-            return 0.68
-        default:
-            return 0.58
-        }
-    }
-
-    func riskScore(for summary: HomeExamGoalSummary) -> Double {
-        let readinessPressure = 1 - summary.readinessFraction
-        let workloadPressure = Double(summary.belowTargetDeckCount) * 0.25
-        let overduePressure = summary.overdueCount > 0 ? min(Double(summary.overdueCount) / 40.0, 0.4) : 0
-        return readinessPressure + workloadPressure + overduePressure
-    }
-
-    func activeExamGoalDeckRevisionFingerprint() -> Int {
-        var aggregate = 17
-        for goal in examGoalsCache.values.flatMap({ $0 }) where goal.status != .archived {
-            aggregate ^= goalSummaryRevisionFingerprint(for: goal)
-        }
-        return aggregate
-    }
-
-    func goalSummaryCacheKey(for goal: ExamGoalModel, referenceDate: Date) -> String {
-        [
-            "\(goal.persistentModelID.hashValue)",
-            Self.dateKeyFormatter.string(from: referenceDate),
-            "\(goalSummaryRevisionFingerprint(for: goal))"
-        ].joined(separator: "||")
-    }
-
-    func goalSummaryRevisionFingerprint(for goal: ExamGoalModel) -> Int {
-        var deckAggregate = goal.linkedDecks.count &* 131
-        for deck in goal.linkedDecks {
-            deckAggregate ^= deckSummaryRevisionFingerprint(for: deck)
-        }
-
-        var hasher = Hasher()
-        hasher.combine(goal.persistentModelID.hashValue)
-        hasher.combine(goal.title)
-        hasher.combine(goal.note)
-        hasher.combine(goal.statusRaw)
-        hasher.combine(Self.dateKeyFormatter.string(from: goal.date))
-        hasher.combine(goal.targetWorkload)
-        hasher.combine(deckAggregate)
-        return hasher.finalize()
-    }
-
-    func deckSummaryCacheKey(for deck: DeckModel, referenceDate: Date) -> String {
-        [
-            "\(deck.persistentModelID.hashValue)",
-            Self.dateKeyFormatter.string(from: referenceDate),
-            "\(deckSummaryRevisionFingerprint(for: deck))"
-        ].joined(separator: "||")
     }
 
     func deckSummaryRevisionFingerprint(for deck: DeckModel) -> Int {

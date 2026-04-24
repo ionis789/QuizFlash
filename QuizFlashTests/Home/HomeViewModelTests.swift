@@ -2,7 +2,7 @@
 //  HomeViewModelTests.swift
 //  QuizFlashTests
 //
-//  Covers folder and exam-goal persistence mutations from Home.
+//  Covers Home dashboard and folder mutations.
 //
 
 import XCTest
@@ -42,11 +42,9 @@ final class HomeViewModelTests: XCTestCase {
         let container = try makeDashboardContainer(with: [selectedAggregate, previousAggregate])
 
         viewModel.updateLogsCache(logs: [])
-        viewModel.updateExamGoalsCache(goals: [])
         await viewModel.refreshDashboardSnapshot(
             selectedDate: selectedDate,
             weekStart: calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate,
-            examGoals: [],
             userProfile: profile,
             container: container,
             analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: [selectedAggregate, previousAggregate]),
@@ -122,12 +120,9 @@ final class HomeViewModelTests: XCTestCase {
         let viewModel = HomeViewModel()
         let container = try makeDashboardContainer(with: aggregates)
         viewModel.updateLogsCache(logs: [])
-        viewModel.updateExamGoalsCache(goals: [])
-
         await viewModel.refreshDashboardSnapshot(
             selectedDate: firstSelectedDate,
             weekStart: weekStart,
-            examGoals: [],
             userProfile: nil,
             container: container,
             analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: aggregates),
@@ -140,7 +135,6 @@ final class HomeViewModelTests: XCTestCase {
         await viewModel.refreshDashboardSnapshot(
             selectedDate: secondSelectedDate,
             weekStart: weekStart,
-            examGoals: [],
             userProfile: nil,
             container: container,
             analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: aggregates),
@@ -185,12 +179,9 @@ final class HomeViewModelTests: XCTestCase {
         let viewModel = HomeViewModel()
         let container = try makeDashboardContainer(with: [aggregate])
         viewModel.updateLogsCache(logs: [])
-        viewModel.updateExamGoalsCache(goals: [])
-
         await viewModel.refreshDashboardSnapshot(
             selectedDate: selectedDate,
             weekStart: calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate,
-            examGoals: [],
             userProfile: nil,
             container: container,
             analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: [aggregate]),
@@ -211,41 +202,6 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.dashboardSnapshot, snapshotBeforePresentation)
     }
 
-    func testRefreshDashboardSnapshotTracksSelectedDayExamSummaries() async throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.firstWeekday = 2
-        let selectedDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 4, day: 10)))
-        let goal = ExamGoalModel(
-            title: "Bio Quiz",
-            note: "Focus on recall",
-            date: selectedDate,
-            targetWorkload: 25,
-            status: .active,
-            linkedDecks: []
-        )
-
-        let viewModel = HomeViewModel()
-        viewModel.updateLogsCache(logs: [])
-        viewModel.updateExamGoalsCache(goals: [goal])
-        let container = try makeDashboardContainer(with: [])
-        await viewModel.refreshDashboardSnapshot(
-            selectedDate: selectedDate,
-            weekStart: calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate,
-            examGoals: [goal],
-            userProfile: nil,
-            container: container,
-            analyticsRevision: 0,
-            deckRevision: 0,
-            referenceDate: selectedDate
-        )
-
-        XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayExamSummaries.count, 1)
-        XCTAssertEqual(viewModel.dashboardSnapshot.upcomingExamSummaries.count, 1)
-        XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayExamSummaries.first?.title, "Bio Quiz")
-        XCTAssertEqual(viewModel.dashboardSnapshot.selectedDayInsight.selectedDayExamCount, 1)
-        XCTAssertEqual(viewModel.dashboardSnapshot.examPressure?.goalTitle, "Bio Quiz")
-    }
-
     func testRefreshCalendarInsightsBuildsActivityAndStreakMarkers() throws {
         let calendar = Calendar(identifier: .gregorian)
         let today = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 22)))
@@ -260,15 +216,6 @@ final class HomeViewModelTests: XCTestCase {
         previousLog.cardsReviewed = 10
         previousLog.xpEarnedToday = 35
 
-        let goal = ExamGoalModel(
-            title: "Chemistry",
-            note: "Review formulas",
-            date: previousDay,
-            targetWorkload: 12,
-            status: .active,
-            linkedDecks: []
-        )
-
         let profile = UserProfile(
             totalXP: 1500,
             currentStreak: 3,
@@ -278,10 +225,8 @@ final class HomeViewModelTests: XCTestCase {
 
         let viewModel = HomeViewModel()
         viewModel.updateLogsCache(logs: [todayLog, previousLog])
-        viewModel.updateExamGoalsCache(goals: [goal])
         viewModel.refreshCalendarInsights(
             dailyLogs: [todayLog, previousLog],
-            examGoals: [goal],
             userProfile: profile,
             referenceDate: today
         )
@@ -292,9 +237,7 @@ final class HomeViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.calendarInsightsCache[todayKey]?.isPerfectDay, true)
         XCTAssertEqual(viewModel.calendarInsightsCache[todayKey]?.isStreakDay, true)
-        XCTAssertEqual(viewModel.calendarInsightsCache[previousKey]?.hasExamGoal, true)
-        XCTAssertEqual(viewModel.calendarInsightsCache[previousKey]?.hasGoalNote, true)
-        XCTAssertEqual(viewModel.calendarInsightsCache[previousKey]?.examGoalCount, 1)
+        XCTAssertEqual(viewModel.calendarInsightsCache[previousKey]?.didStudy, true)
         XCTAssertEqual(viewModel.calendarInsightsCache[twoDaysAgoKey]?.isStreakDay, nil)
     }
 
@@ -319,11 +262,9 @@ final class HomeViewModelTests: XCTestCase {
         let viewModel = HomeViewModel()
         let container = try makeDashboardContainer(with: [aggregate])
         viewModel.updateLogsCache(logs: [])
-        viewModel.updateExamGoalsCache(goals: [])
         await viewModel.refreshDashboardSnapshot(
             selectedDate: today,
             weekStart: calendar.dateInterval(of: .weekOfYear, for: today)?.start ?? today,
-            examGoals: [],
             userProfile: nil,
             container: container,
             analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: [aggregate]),
@@ -467,11 +408,9 @@ final class HomeViewModelTests: XCTestCase {
         let viewModel = HomeViewModel()
         let container = try makeDashboardContainer(with: [aggregate])
         viewModel.updateLogsCache(logs: [])
-        viewModel.updateExamGoalsCache(goals: [])
         await viewModel.refreshDashboardSnapshot(
             selectedDate: today,
             weekStart: calendar.dateInterval(of: .weekOfYear, for: today)?.start ?? today,
-            examGoals: [],
             userProfile: nil,
             container: container,
             analyticsRevision: HomeViewModel.homeAnalyticsFingerprint(for: [aggregate]),
@@ -501,7 +440,7 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertEqual(summary.action, .openDeck(recentDeck.persistentModelID))
     }
 
-    func testRefreshDeckHealthSummariesPrioritizesExamLinkedDecksUnderPressure() async throws {
+    func testRefreshDeckHealthSummariesPrioritizesDecksWithDuePressure() async throws {
         let container = try TestModelContainerFactory.makeInMemoryContainer()
         let context = ModelContext(container)
         let calendar = Calendar(identifier: .gregorian)
@@ -577,36 +516,23 @@ final class HomeViewModelTests: XCTestCase {
         warmupDeck.cardCount = 2
         warmupDeck.lastAssignedCardNumber = 2
 
-        let goal = ExamGoalModel(
-            title: "Biology Exam",
-            note: "High urgency",
-            date: tomorrow,
-            targetWorkload: 20,
-            status: .active,
-            linkedDecks: [pressuredDeck]
-        )
-        context.insert(goal)
-
         try context.save()
 
         let viewModel = HomeViewModel()
         viewModel.updateLogsCache(logs: [])
-        viewModel.updateExamGoalsCache(goals: [goal])
 
         await viewModel.refreshDeckHealthSummaries(
             decks: [pressuredDeck, healthyDeck, warmupDeck],
             recentDecks: [healthyDeck],
-            examGoals: [goal],
             container: container,
             referenceDate: today
         )
 
         XCTAssertEqual(viewModel.deckHealthSummaries.count, 3)
-        XCTAssertEqual(viewModel.deckHealthSummaries.first?.title, "Biology Sprint")
-        XCTAssertEqual(viewModel.deckHealthSummaries.first?.linkedGoalCount, 1)
-        XCTAssertEqual(viewModel.deckHealthSummaries.first?.dueCards, 1)
-        XCTAssertEqual(viewModel.deckHealthSummaries.first?.newCards, 1)
-        XCTAssertEqual(viewModel.deckHealthSummaries.first?.headline, "Exam-linked and under pressure")
+        let pressuredSummary = try XCTUnwrap(
+            viewModel.deckHealthSummaries.first(where: { $0.title == "Biology Sprint" })
+        )
+        XCTAssertEqual(pressuredSummary.title, "Biology Sprint")
 
         let stableSummary = try XCTUnwrap(
             viewModel.deckHealthSummaries.first(where: { $0.title == "History Stable" })
@@ -629,102 +555,6 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertEqual(folders.first?.colorHex, "#123456")
         XCTAssertEqual(viewModel.newFolderTitle, "")
         XCTAssertFalse(viewModel.showCreateFolder)
-    }
-
-    func testSaveExamGoalCreatesLinkedGoal() throws {
-        let context = try TestModelContainerFactory.makeContext()
-        let firstDeck = DeckModel(title: "Deck A", colorHex: "#AAA111")
-        let secondDeck = DeckModel(title: "Deck B", colorHex: "#BBB222")
-        context.insert(firstDeck)
-        context.insert(secondDeck)
-        try context.save()
-
-        let viewModel = HomeViewModel()
-        viewModel.presentCreateExamGoal()
-        viewModel.newExamGoalTitle = "Final Exam"
-        viewModel.newExamGoalNote = "High priority"
-        viewModel.newExamGoalTargetWorkload = 45
-        viewModel.toggleExamGoalDeckSelection(firstDeck.persistentModelID)
-        viewModel.toggleExamGoalDeckSelection(secondDeck.persistentModelID)
-
-        viewModel.saveExamGoal(
-            context: context,
-            availableDecks: [firstDeck, secondDeck],
-            editingGoal: nil
-        )
-
-        let goals = try context.fetchAll(ExamGoalModel.self)
-        XCTAssertEqual(goals.count, 1)
-
-        let goal = try XCTUnwrap(goals.first)
-        XCTAssertEqual(goal.title, "Final Exam")
-        XCTAssertEqual(goal.note, "High priority")
-        XCTAssertEqual(goal.status, .active)
-        XCTAssertEqual(goal.targetWorkload, 45)
-        XCTAssertEqual(Set(goal.linkedDecks.map(\.persistentModelID)), [firstDeck.persistentModelID, secondDeck.persistentModelID])
-        XCTAssertNil(viewModel.examGoalSheetPresentation)
-        XCTAssertTrue(viewModel.newExamGoalLinkedDeckIDs.isEmpty)
-    }
-
-    func testSaveExamGoalEditsExistingGoalAndStatus() throws {
-        let context = try TestModelContainerFactory.makeContext()
-        let originalDeck = DeckModel(title: "Original", colorHex: "#AAAAAA")
-        let replacementDeck = DeckModel(title: "Replacement", colorHex: "#BBBBBB")
-        let goal = ExamGoalModel(
-            title: "Exam",
-            note: "Old note",
-            date: Date(),
-            targetWorkload: 20,
-            status: .active,
-            linkedDecks: []
-        )
-        context.insert(originalDeck)
-        context.insert(replacementDeck)
-        context.insert(goal)
-        goal.linkedDecks = [originalDeck]
-        try context.save()
-
-        let viewModel = HomeViewModel()
-        viewModel.presentExamGoalEditor(for: goal)
-        viewModel.newExamGoalTitle = "Edited Exam"
-        viewModel.newExamGoalNote = "Updated note"
-        viewModel.newExamGoalTargetWorkload = 60
-        viewModel.newExamGoalStatus = .completed
-        viewModel.newExamGoalLinkedDeckIDs = [replacementDeck.persistentModelID]
-
-        viewModel.saveExamGoal(
-            context: context,
-            availableDecks: [originalDeck, replacementDeck],
-            editingGoal: goal
-        )
-
-        XCTAssertEqual(goal.title, "Edited Exam")
-        XCTAssertEqual(goal.note, "Updated note")
-        XCTAssertEqual(goal.targetWorkload, 60)
-        XCTAssertEqual(goal.status, .completed)
-        XCTAssertEqual(goal.linkedDecks.map(\.persistentModelID), [replacementDeck.persistentModelID])
-    }
-
-    func testUpdateExamGoalStatusPersistsStatusMutation() throws {
-        let context = try TestModelContainerFactory.makeContext()
-        let deck = DeckModel(title: "Deck", colorHex: "#111111")
-        let goal = ExamGoalModel(
-            title: "Status Goal",
-            note: "",
-            date: Date(),
-            targetWorkload: 15,
-            status: .active,
-            linkedDecks: []
-        )
-        context.insert(deck)
-        context.insert(goal)
-        goal.linkedDecks = [deck]
-        try context.save()
-
-        let viewModel = HomeViewModel()
-        viewModel.updateExamGoalStatus(.archived, for: goal, context: context)
-
-        XCTAssertEqual(goal.status, .archived)
     }
 
     private func makeDashboardContainer(

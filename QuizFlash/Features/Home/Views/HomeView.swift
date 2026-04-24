@@ -43,7 +43,6 @@ struct HomeView: View {
     @Query(sort: \DeckModel.title) private var allDecks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
     @Query private var dailyLogs: [DailyActivityLog]
-    @Query(sort: \ExamGoalModel.date) private var examGoals: [ExamGoalModel]
     @Query(sort: \HomeDailyStudyAggregate.dayDate, order: .reverse) private var homeStudyAggregates: [HomeDailyStudyAggregate]
 
     /// Sorted by `lastOpenedAt` descending so we can slice the top 5 without
@@ -118,7 +117,6 @@ struct HomeView: View {
                             recentDecks: recentlyOpenedDecks,
                             layoutContext: layoutContext,
                             allDeckCount: allDecks.count,
-                            examGoals: examGoals,
                             router: router
                         )
                         .frame(minHeight: proxy.size.height - calendarLayout.compactHeight)
@@ -167,20 +165,16 @@ struct HomeView: View {
                 }
                 .task(id: calendarInsightsTaskSignature) {
                     viewModel.updateLogsCache(logs: dailyLogs)
-                    viewModel.updateExamGoalsCache(goals: examGoals)
                     viewModel.refreshCalendarInsights(
                         dailyLogs: dailyLogs,
-                        examGoals: examGoals,
                         userProfile: profile
                     )
                 }
                 .task(id: dashboardTaskSignature) {
                     viewModel.updateLogsCache(logs: dailyLogs)
-                    viewModel.updateExamGoalsCache(goals: examGoals)
                     await viewModel.refreshDashboardSnapshot(
                         selectedDate: calendarVM.selectedDate,
                         weekStart: dashboardWeekStartDate,
-                        examGoals: examGoals,
                         userProfile: profile,
                         container: modelContext.container,
                         analyticsRevision: homeAnalyticsTaskFingerprint,
@@ -189,7 +183,10 @@ struct HomeView: View {
                 }
                 .fullScreenSheet(
                     isPresented: $viewModel.showPerformanceDetailSheet,
-                    configuration: .sheet(heightMode: .custom(0.75))
+                    configuration: .sheet(
+                        heightMode: .custom(0.75),
+                        showsCloseButton: true
+                    )
                 ) { safeAreaInsets in
                     HomePerformanceDetailSheetView(
                         summary: viewModel.dashboardSnapshot.pastWeekPerformance,
@@ -201,41 +198,15 @@ struct HomeView: View {
                 .sheet(isPresented: $viewModel.showCreateFolder) {
                     CreateFolderSheet(viewModel: viewModel)
                 }
-                .sheet(item: $viewModel.examGoalSheetPresentation, onDismiss: viewModel.resetExamGoalDraft) { presentation in
-                    CreateExamGoalSheet(
-                        viewModel: viewModel,
-                        decks: allDecks,
-                        editingGoal: editingExamGoal(for: presentation)
-                    )
-                }
-                .alert("Save Error", isPresented: $viewModel.showExamGoalActionError) {
-                    Button("OK", role: .cancel) { }
-                } message: {
-                    Text(viewModel.examGoalActionErrorMessage)
-                }
 
                 debugShadowControls(safeAreaTop: safeAreaTop)
             }
         }
     }
 
-    private func editingExamGoal(for presentation: ExamGoalSheetPresentation) -> ExamGoalModel? {
-        switch presentation {
-        case .create:
-            return nil
-        case .edit(let goalID):
-            return examGoals.first(where: { $0.persistentModelID == goalID })
-        }
-    }
-
     /// Stable signature used to refresh the daily-log cache when Home data changes.
     private var dailyLogsTaskFingerprint: Int {
         HomeViewModel.logsFingerprint(for: dailyLogs)
-    }
-
-    /// Stable signature used to refresh the exam-goal cache when goal data changes.
-    private var examGoalsTaskFingerprint: Int {
-        HomeViewModel.examGoalsFingerprint(for: examGoals)
     }
 
     /// Stable signature used to refresh the Home dashboard when aggregate rows change.
@@ -263,7 +234,6 @@ struct HomeView: View {
     private var calendarInsightsTaskSignature: String {
         [
             "\(dailyLogsTaskFingerprint)",
-            "\(examGoalsTaskFingerprint)",
             userProfileDashboardSignature
         ].joined(separator: "||")
     }
@@ -273,7 +243,6 @@ struct HomeView: View {
         [
             HomeViewModel.dateKeyFormatter.string(from: calendarVM.selectedDate),
             "\(dailyLogsTaskFingerprint)",
-            "\(examGoalsTaskFingerprint)",
             userProfileDashboardSignature,
             "\(homeAnalyticsTaskFingerprint)",
             "\(decksTaskFingerprint)"

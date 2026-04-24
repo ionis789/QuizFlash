@@ -171,8 +171,7 @@
 "Cleanup" = "Очистка";
 "Clear" = "Очистить";
 "Clear search text" = "Очистить текст поиска";
-"Close activity detail" = "Закрыть детали активности";
-"Close performance detail" = "Закрыть детали прогресса";
+"Close" = "Закрыть";
 "Close search" = "Закрыть поиск";
 "Close spaced repetition stats" = "Закрыть статистику интервального повторения";
 "Code" = "Код";
@@ -201,10 +200,8 @@
 "Covers %@ %@" = "Обложки %1$@ %2$@";
 "Create" = "Создать";
 "Create a deck" = "Создать колоду";
-"Create a deck first, then link it to this exam goal." = "Сначала создайте колоду, а затем свяжите ее с этой целью экзамена.";
 "Create a deck to start studying from Home." = "Создайте колоду, чтобы начать учиться с главного экрана.";
 "Create Deck" = "Создать колоду";
-"Create exam goal" = "Создать цель экзамена";
 "Create one from the section header." = "Создайте его из заголовка раздела.";
 "Create your first deck" = "Создайте свою первую колоду";
 "Create your first deck to begin." = "Создайте первую колоду, чтобы начать.";
@@ -249,10 +246,8 @@
 "Empty choice" = "Пустой вариант";
 "Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run." = "Включите подробную отслеживание ИИ, создайте или преобразуйте карточки, а затем вернитесь сюда, чтобы просмотреть полную историю JSON для каждого запуска.";
 "Endpoint: %@" = "Конечная точка: %@";
-"Exam Pressure" = "Экзаменационное давление";
 "Example: Capital of France" = "Пример: столица Франции";
 "Example: Paris" = "Пример: Париж";
-"Exams" = "Экзамены";
 "Expand" = "Развернуть";
 "Experiments" = "Эксперименты";
 "Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated." = "Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.";
@@ -401,8 +396,6 @@
 "No Decks" = "Нет колод";
 "No decks in this folder." = "В этой папке нет колод.";
 "No Decks Yet" = "Пока нет колод";
-"No exam goals" = "Нет целей экзамена";
-"No exam goals yet" = "Целей экзамена пока нет";
 "No explanation added" = "Пояснение не добавлено";
 "No folders yet" = "Папок пока нет";
 "No matching decks or cards" = "Нет подходящих колод или карточек";
@@ -545,7 +538,6 @@
 "Storage" = "Хранилище";
 "Stored Answer" = "Сохранённый ответ";
 "Streak" = "Серия";
-"Study Outlook" = "Перспективы исследования";
 "Summary report" = "Итоговый отчёт";
 "Suspended" = "Приостановлена";
 "Swipe HUD" = "Проведите по интерфейсу";

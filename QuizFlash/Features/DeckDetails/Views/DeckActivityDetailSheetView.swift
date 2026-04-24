@@ -10,21 +10,20 @@ import SwiftUI
 struct DeckActivityDetailSheetView: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(AppPreferences.self) private var appPreferences
-    @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
+    @Environment(\.fullScreenSheetTopChromeClearance) private var topChromeClearance
 
     let summary: DeckActivityHistorySummary
     let deckTint: Color
     let safeAreaInsets: UIEdgeInsets
 
     private var locale: Locale { appPreferences.resolvedLocale }
+    private var headerTrailingReserve: CGFloat { 76 }
+    private var contentTopPadding: CGFloat {
+        max(topChromeClearance, UIConstants.Spacing.medium)
+    }
 
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
-    }
-
-    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
-        let format = AppLocalization.string(value, locale: locale)
-        return String(format: format, locale: locale, arguments: arguments)
     }
 
     var body: some View {
@@ -44,38 +43,24 @@ struct DeckActivityDetailSheetView: View {
                 }
             }
             .padding(.horizontal, UIConstants.Spacing.large)
-            .padding(.top, UIConstants.Spacing.extraLarge)
+            .padding(.top, contentTopPadding)
             .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.extraLarge)
         }
     }
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                    Text(localized("Activity"))
-                        .font(.system(size: 28, weight: .black, design: .rounded))
-                        .foregroundStyle(themeManager.textPrimary)
+            Text(localized("Activity"))
+                .font(.system(size: 28, weight: .black, design: .rounded))
+                .foregroundStyle(themeManager.textPrimary)
 
-                    if summary.hasActivity {
-                        Text(activitySummaryLine)
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundStyle(themeManager.textSecondary)
-                    }
-                }
-
-                Spacer(minLength: 0)
-
-                if let fullScreenSheetDismiss {
-                    ChromeSoftCircleSymbolButton(
-                        systemName: "xmark",
-                        accessibilityLabel: localized("Close activity detail"),
-                        action: { fullScreenSheetDismiss() },
-                        symbolSize: UIConstants.Size.iconStandard
-                    )
-                }
+            if summary.hasActivity {
+                Text(activitySummaryLine)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(themeManager.textSecondary)
             }
         }
+        .padding(.trailing, headerTrailingReserve)
     }
 
     private var activitySummaryLine: String {

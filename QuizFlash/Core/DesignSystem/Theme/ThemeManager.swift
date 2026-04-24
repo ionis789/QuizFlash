@@ -320,7 +320,7 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
             ]
         case .buttonPrimaryFill, .buttonPrimaryForeground:
             [
-                ThemeStudioUsageReference(title: "Primary CTA buttons", detail: "Dashboard actions, exam goal CTA, and important confirm actions."),
+                ThemeStudioUsageReference(title: "Primary CTA buttons", detail: "Dashboard actions and important confirm actions."),
                 ThemeStudioUsageReference(title: "Selected intent", detail: "Buttons meant to read as the app's main affirmative action.")
             ]
         case .buttonSecondaryFill, .buttonSecondaryForeground:
@@ -365,7 +365,7 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
             ]
         case .widgetSurfaceFill:
             [
-                ThemeStudioUsageReference(title: "Dashboard cards", detail: "Home stats, exam goal cards, recent decks, and overview widgets."),
+                ThemeStudioUsageReference(title: "Dashboard cards", detail: "Home stats, recent decks, folders, and overview widgets."),
                 ThemeStudioUsageReference(title: "Shared modules", detail: "Rows and panels that use flashcardStyle(.widget).")
             ]
         case .settingsCardFill, .settingsCardBorder:

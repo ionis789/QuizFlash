@@ -571,8 +571,6 @@ struct HomeCalendarDayMetrics: Equatable {
         collapseProgress: CGFloat,
         dayColumnWidth: CGFloat,
         rowHeight: CGFloat,
-        hasGoalNote: Bool,
-        hasExamGoalCount: Bool,
         isHighlighted: Bool
     ) {
         let progress = min(max(collapseProgress, 0), 1)
@@ -615,7 +613,7 @@ struct HomeCalendarDayMetrics: Equatable {
         markerOffsetY = HomeCalendarAdaptiveLayout.interpolate(from: -4, to: -2, progress: progress)
         progressBarHeight = min(max(rowHeight * 0.06, 3), 6)
         strokeLineWidth = progress < 0.28 ? 1.0 : 0.8
-        showsSecondaryNoteMarker = hasGoalNote && progress < 0.72
-        usesMarkerCapsule = hasExamGoalCount && progress < 0.82
+        showsSecondaryNoteMarker = false
+        usesMarkerCapsule = false
     }
 }

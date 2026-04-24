@@ -172,8 +172,7 @@ Clean finish so far.	Clean finish so far.	Final curat până acum.	Пока чи
 Cleanup	Cleanup	Curăță	Очистка
 Clear	Clear	Șterge	Очистить
 Clear search text	Clear search text	Șterge textul căutării	Очистить текст поиска
-Close activity detail	Close activity detail	Închide detaliile activității	Закрыть детали активности
-Close performance detail	Close performance detail	Închide detaliile performanței	Закрыть детали прогресса
+Close	Close	Închide	Закрыть
 Close search	Close search	Închide căutarea	Закрыть поиск
 Close spaced repetition stats	Close spaced repetition stats	Închide statisticile de repetare spațiată	Закрыть статистику интервального повторения
 Code	Code	Cod	Код
@@ -202,10 +201,8 @@ Correct	Correct	Corect	Верно
 Covers %@ %@	Covers %1$@ %2$@	Acoperă %1$@ %2$@	Обложки %1$@ %2$@
 Create	Create	Creează	Создать
 Create a deck	Create a deck	Creați un deck	Создать колоду
-Create a deck first, then link it to this exam goal.	Create a deck first, then link it to this exam goal.	Creați mai întâi un deck, apoi conectați-l la acest obiectiv al examenului.	Сначала создайте колоду, а затем свяжите ее с этой целью экзамена.
 Create a deck to start studying from Home.	Create a deck to start studying from Home.	Creează un deck ca să începi să studiezi din Acasă.	Создайте колоду, чтобы начать учиться с главного экрана.
 Create Deck	Create Deck	Creează deck	Создать колоду
-Create exam goal	Create exam goal	Creează obiectiv de examen	Создать цель экзамена
 Create one from the section header.	Create one from the section header.	Creați unul din antetul secțiunii.	Создайте его из заголовка раздела.
 Create your first deck	Create your first deck	Creează primul tău deck	Создайте свою первую колоду
 Create your first deck to begin.	Create your first deck to begin.	Creează primul tău deck ca să începi.	Создайте первую колоду, чтобы начать.
@@ -250,10 +247,8 @@ Empty card	Empty card	Card gol	Пустая карточка
 Empty choice	Empty choice	Variantă goală	Пустой вариант
 Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run.	Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run.	Activați urmărirea AI verbosă, generați sau convertiți carduri, apoi reveniți aici pentru a inspecta istoricul complet JSON pentru fiecare rulare.	Включите подробную отслеживание ИИ, создайте или преобразуйте карточки, а затем вернитесь сюда, чтобы просмотреть полную историю JSON для каждого запуска.
 Endpoint: %@	Endpoint: %@	Punct final: %@	Конечная точка: %@
-Exam Pressure	Exam Pressure	Presiunea de examen	Экзаменационное давление
 Example: Capital of France	Example: Capital of France	Exemplu: Capitala Franței	Пример: столица Франции
 Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
-Exams	Exams	Examene	Экзамены
 Expand	Expand	Extinde	Развернуть
 Experiments	Experiments	Experimente	Эксперименты
 Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
@@ -402,8 +397,6 @@ No deck yet	No deck yet	Niciun deck încă	Колоды пока нет
 No Decks	No Decks	Niciun deck	Нет колод
 No decks in this folder.	No decks in this folder.	Nu există deckuri în acest folder.	В этой папке нет колод.
 No Decks Yet	No Decks Yet	Încă nu există deckuri	Пока нет колод
-No exam goals	No exam goals	Fără obiective de examen	Нет целей экзамена
-No exam goals yet	No exam goals yet	Niciun obiectiv de examen încă	Целей экзамена пока нет
 No explanation added	No explanation added	Nicio explicație adăugată	Пояснение не добавлено
 No folders yet	No folders yet	Nu există încă foldere	Папок пока нет
 No matching decks or cards	No matching decks or cards	Niciun deck sau card potrivit	Нет подходящих колод или карточек
@@ -546,7 +539,6 @@ Stop generation	Stop generation	Oprește generarea	Остановить гене
 Storage	Storage	Depozitare	Хранилище
 Stored Answer	Stored Answer	Răspuns salvat	Сохранённый ответ
 Streak	Streak	Serie	Серия
-Study Outlook	Study Outlook	Perspectivă de studiu	Перспективы исследования
 Summary report	Summary report	Raport sumar	Итоговый отчёт
 Suspended	Suspended	Suspendat	Приостановлена
 Swipe HUD	Swipe HUD	Glisați HUD	Проведите по интерфейсу

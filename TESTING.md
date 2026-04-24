@@ -11,7 +11,7 @@ These tests verify data mutations and persistence behavior, not UI rendering.
 - `decks`
   Covers deck-detail mutations like add, pin, delete, bulk delete, grouping persistence, mixed-deck conversion request filtering, and converted-card persistence.
 - `home`
-  Covers folder and exam-goal mutations from Home flows.
+  Covers Home dashboard snapshots, calendar insights, folder mutations, and deck-health prioritization.
 - `library`
   Covers library delete, move, and import mutations.
 - `play`
@@ -25,7 +25,7 @@ These tests verify data mutations and persistence behavior, not UI rendering.
 - card add, delete, pin, bulk delete, and deck grouping persistence
 - type-scoped deck conversion requests for mixed decks
 - same-deck and new-deck converted-card persistence
-- folder and exam-goal mutations
+- Home dashboard and folder mutations
 - play-mode settings persistence
 - review history, daily log, and XP persistence
 - `.qflash` export/import round-trips

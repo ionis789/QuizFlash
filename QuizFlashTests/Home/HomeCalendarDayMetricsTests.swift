@@ -14,16 +14,12 @@ final class HomeCalendarDayMetricsTests: XCTestCase {
             collapseProgress: 0,
             dayColumnWidth: 116,
             rowHeight: 88,
-            hasGoalNote: true,
-            hasExamGoalCount: true,
             isHighlighted: true
         )
         let collapsed = HomeCalendarDayMetrics(
             collapseProgress: 1,
             dayColumnWidth: 44,
             rowHeight: 38,
-            hasGoalNote: true,
-            hasExamGoalCount: true,
             isHighlighted: true
         )
 
@@ -40,22 +36,18 @@ final class HomeCalendarDayMetricsTests: XCTestCase {
             collapseProgress: 0.2,
             dayColumnWidth: 76,
             rowHeight: 62,
-            hasGoalNote: true,
-            hasExamGoalCount: true,
             isHighlighted: false
         )
         let collapsed = HomeCalendarDayMetrics(
             collapseProgress: 0.9,
             dayColumnWidth: 42,
             rowHeight: 36,
-            hasGoalNote: true,
-            hasExamGoalCount: true,
             isHighlighted: false
         )
 
-        XCTAssertTrue(expanded.showsSecondaryNoteMarker)
+        XCTAssertFalse(expanded.showsSecondaryNoteMarker)
         XCTAssertFalse(collapsed.showsSecondaryNoteMarker)
-        XCTAssertTrue(expanded.usesMarkerCapsule)
+        XCTAssertFalse(expanded.usesMarkerCapsule)
         XCTAssertFalse(collapsed.usesMarkerCapsule)
     }
 }

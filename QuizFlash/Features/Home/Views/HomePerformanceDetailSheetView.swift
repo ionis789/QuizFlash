@@ -12,7 +12,7 @@ import SwiftUI
 struct HomePerformanceDetailSheetView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
-    @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
+    @Environment(\.fullScreenSheetTopChromeClearance) private var topChromeClearance
 
     let summary: HomePastWeekPerformanceSummary
     let safeAreaInsets: UIEdgeInsets
@@ -42,16 +42,16 @@ struct HomePerformanceDetailSheetView: View {
         ]
     }
 
-    private var floatingCloseButtonInsetTop: CGFloat {
-        UIConstants.Spacing.medium
-    }
-
     private var headerTrailingReserve: CGFloat {
         76
     }
 
     private var hasPreviousWeekActivity: Bool {
         summary.previousDaySummaries.contains(where: \.didStudy)
+    }
+
+    private var contentTopPadding: CGFloat {
+        max(topChromeClearance, UIConstants.Spacing.medium)
     }
 
     private func localized(_ value: String.LocalizationValue) -> String {
@@ -90,34 +90,20 @@ struct HomePerformanceDetailSheetView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                    if summary.hasActivity {
-                        headerSection
-                        comparisonSection
-                        pillarsSection
-                    } else {
-                        emptyStateSection
-                    }
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+                if summary.hasActivity {
+                    headerSection
+                    comparisonSection
+                    pillarsSection
+                } else {
+                    emptyStateSection
                 }
-                    .padding(.horizontal, UIConstants.Spacing.large)
-                    .padding(.top, UIConstants.Spacing.extraLarge)
-                    .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.extraLarge)
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-
-            if let fullScreenSheetDismiss {
-                ChromeSoftCircleSymbolButton(
-                    systemName: "xmark",
-                    accessibilityLabel: localized("Close performance detail"),
-                    action: { fullScreenSheetDismiss() },
-                    symbolSize: UIConstants.Size.iconStandard
-                )
-                    .padding(.top, floatingCloseButtonInsetTop)
-                    .padding(.trailing, UIConstants.Spacing.medium)
-                    .zIndex(1)
-            }
+            .padding(.horizontal, UIConstants.Spacing.large)
+            .padding(.top, contentTopPadding)
+            .padding(.bottom, safeAreaInsets.bottom + UIConstants.Spacing.extraLarge)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
