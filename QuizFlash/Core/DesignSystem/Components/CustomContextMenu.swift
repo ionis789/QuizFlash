@@ -13,8 +13,8 @@ import SwiftUI
 private struct CustomContextMenuModifier<ID: Hashable, Preview: View>: ViewModifier {
     let id: ID
     let isEnabled: Bool
-    let infoRows: [CustomContextMenuInfoRow]
-    let actions: [CustomContextMenuAction]
+    let infoRows: () -> [CustomContextMenuInfoRow]
+    let actions: () -> [CustomContextMenuAction]
     let config: CustomContextMenuConfig
     let preview: () -> Preview
 
@@ -28,10 +28,14 @@ private struct CustomContextMenuModifier<ID: Hashable, Preview: View>: ViewModif
     }
 
     private var menuSizeCacheKey: String {
-        CustomContextMenuMenuSizeCache.key(for: actions, infoRows: infoRows)
+        CustomContextMenuMenuSizeCache.key(for: actions(), infoRows: infoRows())
     }
 
     private var resolvedMenuSize: CGSize {
+        if let estimatedMenuSize = config.estimatedMenuSize {
+            return estimatedMenuSize
+        }
+
         if measuredMenuSize != .zero {
             return measuredMenuSize
         }
@@ -47,10 +51,10 @@ private struct CustomContextMenuModifier<ID: Hashable, Preview: View>: ViewModif
             }
             .scaleEffect(isPressing ? config.pressScale : 1, anchor: .topLeading)
             .background(alignment: .topLeading) {
-                if resolvedMenuSize == .zero {
+                if config.estimatedMenuSize == nil, resolvedMenuSize == .zero {
                     CustomContextMenuMenuMeasure(
-                        infoRows: infoRows,
-                        actions: actions
+                        infoRows: infoRows(),
+                        actions: actions()
                     ) { newSize in
                         if shouldUpdateMenuSize(with: newSize) {
                             measuredMenuSize = newSize
@@ -65,7 +69,7 @@ private struct CustomContextMenuModifier<ID: Hashable, Preview: View>: ViewModif
                 CustomContextMenuSourceAttachment(
                     id: AnyHashable(id),
                     sourceDescription: String(describing: id),
-                    isEnabled: isEnabled && !actions.isEmpty,
+                    isEnabled: isEnabled,
                     config: config,
                     sourceRegistry: sourceRegistry,
                     onPressingChange: { newValue in
@@ -105,21 +109,23 @@ private struct CustomContextMenuModifier<ID: Hashable, Preview: View>: ViewModif
 
     @MainActor
     private func presentMenu(sourceGlobalFrame: CGRect) {
+        let resolvedInfoRows = infoRows()
+        let resolvedActions = actions()
         guard isEnabled else { return }
-        guard !actions.isEmpty else { return }
+        guard !resolvedActions.isEmpty else { return }
         guard sourceGlobalFrame != .zero else { return }
         CustomContextMenuDebugConsole.log(
             enabled: config.isLoggingEnabled,
             sourceID: String(describing: id),
             event: "ModifierPresentMenu",
-            details: "actionsCount=\(actions.count)"
+            details: "actionsCount=\(resolvedActions.count)"
         )
         let triggerMessage = """
 [CustomContextMenu][TriggerDebug]
 sourceID=\(String(describing: id))
 sourceFrame=(x:\(String(format: "%.1f", sourceGlobalFrame.minX)), y:\(String(format: "%.1f", sourceGlobalFrame.minY)), w:\(String(format: "%.1f", sourceGlobalFrame.width)), h:\(String(format: "%.1f", sourceGlobalFrame.height)))
 measuredMenuSize=(w:\(String(format: "%.1f", resolvedMenuSize.width)), h:\(String(format: "%.1f", resolvedMenuSize.height)))
-actionsCount=\(actions.count)
+actionsCount=\(resolvedActions.count)
 """
         if config.isLoggingEnabled {
             CustomContextMenuLog.debug(triggerMessage)
@@ -129,8 +135,8 @@ actionsCount=\(actions.count)
                 sourceID: AnyHashable(id),
                 sourceFrame: sourceGlobalFrame,
                 preview: AnyView(preview()),
-                infoRows: infoRows,
-                actions: actions,
+                infoRows: resolvedInfoRows,
+                actions: resolvedActions,
                 measuredMenuSize: resolvedMenuSize,
                 config: config
             )
@@ -148,8 +154,8 @@ extension View {
     func customContextMenu<ID: Hashable, Preview: View>(
         id: ID,
         isEnabled: Bool = true,
-        infoRows: [CustomContextMenuInfoRow] = [],
-        actions: [CustomContextMenuAction],
+        infoRows: @autoclosure @escaping () -> [CustomContextMenuInfoRow] = [],
+        actions: @autoclosure @escaping () -> [CustomContextMenuAction],
         config: CustomContextMenuConfig = .init(),
         @ViewBuilder preview: @escaping () -> Preview
     ) -> some View {

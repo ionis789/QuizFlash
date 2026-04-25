@@ -358,7 +358,8 @@ private struct DeckGridCardCell: View {
                     id: card.id,
                     isEnabled: !isSelecting && !isSuspended,
                     infoRows: contextMenuInfoRows,
-                    actions: contextMenuActions
+                    actions: contextMenuActions,
+                    config: .deckGridCardMenu
                 ) {
                     contextMenuPreview
                 }

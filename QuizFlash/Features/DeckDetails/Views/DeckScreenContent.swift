@@ -12,7 +12,7 @@ import UIKit
 extension DeckContentView {
     var deckContent: some View {
         ZStack(alignment: .bottom) {
-            mainContentWithCovers
+            mainContentWithTopEdgeShadow
             if viewModel.isSelecting {
                 BottomChromeContainer(
                     kind: .selection,
@@ -41,7 +41,11 @@ extension DeckContentView {
             }
         }
         .coordinateSpace(name: kDeckChromeSpace)
-        .overlay(alignment: .top) { measuredNavigationBar }
+        .overlay(alignment: .top) {
+            if shouldShowDeckNavigationBar {
+                measuredNavigationBar
+            }
+        }
         .animation(.bottomChromeSpring, value: viewModel.isSelecting)
         .environment(scrollState)
         .swipeBack(
@@ -53,9 +57,95 @@ extension DeckContentView {
                 && unavailablePlayMode == nil
         ) { dismiss() }
         .overlay { unavailablePlayModeOverlay }
+        .overlay {
+            if shouldShowFullScreenSheetBacking {
+                CardPreviewModeBackground()
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
+        }
+        .fullScreenSheet(
+            item: $selectedPlayMode,
+            configuration: .chrome(backgroundReceivesDragProgress: true)
+        ) { mode, safeArea in
+            mode.playSheetView(
+                for: deck,
+                safeAreaInsets: safeArea,
+                availability: viewModel.playModeAvailability
+            )
+        } background: {
+            CardPreviewModeBackground()
+        }
+        .fullScreenSheet(
+            item: $selectedPlayModeSettings,
+            configuration: .chrome(backgroundReceivesDragProgress: false)
+        ) { mode, safeArea in
+            mode.settingsSheetView(
+                for: deck,
+                safeAreaInsets: safeArea,
+                availability: viewModel.playModeAvailability
+            )
+        } background: {
+            if let mode = selectedPlayModeSettings {
+                PlayModeSettingsBackground(deck: deck, mode: mode)
+            } else {
+                CardPreviewModeBackground()
+            }
+        }
+        .fullScreenSheet(
+            item: $previewedCard,
+            configuration: .sheet(showsDefaultTopProgressiveBlur: false)
+        ) { card, safeArea in
+            DeckCardPreviewSheetView(
+                card: card,
+                safeAreaInsets: safeArea,
+                onOpenRecommendedConversion: { targetKind in
+                    handlePreviewRecommendedConversion(for: card, targetKind: targetKind)
+                }
+            )
+        } background: {
+            CardPreviewModeBackground()
+        }
+        .fullScreenSheet(
+            item: $viewModel.activitySheetPresentation,
+            configuration: .sheet(
+                heightMode: .custom(0.75),
+                showsCloseButton: true
+            )
+        ) { _, safeArea in
+            DeckActivityDetailSheetView(
+                summary: viewModel.activityHistorySummary,
+                deckTint: Color(hex: deck.colorHex) ?? themeManager.roleColor(.buttonPrimaryFill),
+                safeAreaInsets: safeArea
+            )
+        } background: {
+            DeckActivitySheetBackground()
+        }
+        .fullScreenCover(item: $cardEditorDestination) { destination in
+            CardEditorView(
+                destination: destination,
+                searchQuery: viewModel.searchQuery
+            ) { content in
+                handleCardEditorSave(destination: destination, content: content)
+            }
+        }
     }
 
     // MARK: Navigation Bar
+
+    var shouldShowDeckNavigationBar: Bool {
+        selectedPlayMode == nil
+            && selectedPlayModeSettings == nil
+            && previewedCard == nil
+            && viewModel.activitySheetPresentation == nil
+            && cardEditorDestination == nil
+    }
+
+    var shouldShowFullScreenSheetBacking: Bool {
+        selectedPlayMode != nil
+            || selectedPlayModeSettings != nil
+            || previewedCard != nil
+    }
 
     var measuredNavigationBar: some View {
         unifiedNavigationBar
@@ -114,7 +204,7 @@ extension DeckContentView {
         return UIConstants.Layout.topEdgeShadowHeight
     }
 
-    var mainContentWithCovers: some View {
+    var mainContentWithTopEdgeShadow: some View {
         mainContent
             .screenTopEdgeShadow(
                 topHeight: structuralTopEdgeShadowHeight,
@@ -122,71 +212,6 @@ extension DeckContentView {
                 debugScreenID: "deck.details",
                 style: .progressiveBlur()
             )
-            .fullScreenSheet(
-                item: $selectedPlayMode,
-                configuration: .chrome(backgroundReceivesDragProgress: true)
-            ) { mode, safeArea in
-                mode.playSheetView(
-                    for: deck,
-                    safeAreaInsets: safeArea,
-                    availability: viewModel.playModeAvailability
-                )
-            } background: {
-                CardPreviewModeBackground()
-            }
-            .fullScreenSheet(
-                item: $selectedPlayModeSettings,
-                configuration: .chrome(backgroundReceivesDragProgress: false)
-            ) { mode, safeArea in
-                mode.settingsSheetView(
-                    for: deck,
-                    safeAreaInsets: safeArea,
-                    availability: viewModel.playModeAvailability
-                )
-            } background: {
-                if let mode = selectedPlayModeSettings {
-                    PlayModeSettingsBackground(deck: deck, mode: mode)
-                } else {
-                    CardPreviewModeBackground()
-                }
-            }
-            .fullScreenSheet(
-                item: $previewedCard,
-                configuration: .sheet(showsDefaultTopProgressiveBlur: false)
-            ) { card, safeArea in
-                DeckCardPreviewSheetView(
-                    card: card,
-                    safeAreaInsets: safeArea,
-                    onOpenRecommendedConversion: { targetKind in
-                        handlePreviewRecommendedConversion(for: card, targetKind: targetKind)
-                    }
-                )
-            } background: {
-                CardPreviewModeBackground()
-            }
-            .fullScreenSheet(
-                item: $viewModel.activitySheetPresentation,
-                configuration: .sheet(
-                    heightMode: .custom(0.75),
-                    showsCloseButton: true
-                )
-            ) { _, safeArea in
-                DeckActivityDetailSheetView(
-                    summary: viewModel.activityHistorySummary,
-                    deckTint: Color(hex: deck.colorHex) ?? themeManager.roleColor(.buttonPrimaryFill),
-                    safeAreaInsets: safeArea
-                )
-            } background: {
-                DeckActivitySheetBackground()
-            }
-            .fullScreenCover(item: $cardEditorDestination) { destination in
-                CardEditorView(
-                    destination: destination,
-                    searchQuery: viewModel.searchQuery
-                ) { content in
-                    handleCardEditorSave(destination: destination, content: content)
-                }
-            }
     }
 
     @ViewBuilder

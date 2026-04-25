@@ -36,24 +36,6 @@ struct CustomSheetDebugFloatingPanel: View {
                             range: 0...32
                         )
                         sliderRow(
-                            title: "Backdrop Delay",
-                            value: binding(for: \.backdropPresentationDelay),
-                            range: 0...0.8,
-                            format: "%.3f"
-                        )
-                        sliderRow(
-                            title: "Backdrop In",
-                            value: binding(for: \.backdropPresentationDuration),
-                            range: 0...1.4,
-                            format: "%.3f"
-                        )
-                        sliderRow(
-                            title: "Backdrop Out",
-                            value: binding(for: \.backdropDismissDuration),
-                            range: 0...0.5,
-                            format: "%.3f"
-                        )
-                        sliderRow(
                             title: "Blur Radius",
                             value: binding(for: \.blurRadius),
                             range: 0...18

@@ -5,6 +5,7 @@
 //  Search cache lifecycle for the Library view model.
 //
 
+import Foundation
 import SwiftData
 
 // MARK: - Search Cache
@@ -24,16 +25,19 @@ extension LibraryViewModel {
     /// share this ViewModel (e.g. the root Library tab reusing the environment
     /// injected instance across tab switches).
     func rebuildCacheIfNeeded(decks: [DeckModel], container: ModelContainer) {
-        let newIDs = Set(decks.map { $0.id })
-        guard newIDs != cachedDeckIDs else { return }
-        cachedDeckIDs = newIDs
-        buildSearchCache(decks: decks, container: container)
+        let signature = Self.searchCacheFingerprint(for: decks)
+        guard signature != searchCacheSignature || cachedSearchPayloads.isEmpty else { return }
+        guard pendingSearchCacheSignature != signature else { return }
+
+        pendingSearchCacheSignature = signature
+        cachedDeckIDs = Set(decks.map(\.persistentModelID))
+        buildSearchCache(decks: decks, container: container, signature: signature)
     }
 
     /// Builds the search payload cache on a background thread.
     /// Safe to call as often as needed — any in-flight build is cancelled
     /// first, so rapid calls (e.g. deck add/delete) don't stack up.
-    func buildSearchCache(decks: [DeckModel], container: ModelContainer) {
+    func buildSearchCache(decks: [DeckModel], container: ModelContainer, signature: Int) {
         cacheTask?.cancel()
 
         // Snapshot only lightweight metadata on the main context.
@@ -50,7 +54,14 @@ extension LibraryViewModel {
         cacheTask = Task { [weak self] in
             // Keep the cache rebuild off the main actor so tab switches stay smooth.
             try? await Task.sleep(for: .milliseconds(350))
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else {
+                await MainActor.run {
+                    if self?.pendingSearchCacheSignature == signature {
+                        self?.pendingSearchCacheSignature = nil
+                    }
+                }
+                return
+            }
 
             await MainActor.run {
                 guard let self, !Task.isCancelled else { return }
@@ -61,14 +72,47 @@ extension LibraryViewModel {
 
             guard !Task.isCancelled, let self else { return }
             let actor: LibrarySearchActor? = await MainActor.run { self.sharedSearchActor }
-            guard let actor else { return }
+            guard let actor else {
+                await MainActor.run {
+                    if self.pendingSearchCacheSignature == signature {
+                        self.pendingSearchCacheSignature = nil
+                    }
+                }
+                return
+            }
 
             let payloads = await actor.buildPayloads(for: deckInfos)
 
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else {
+                await MainActor.run {
+                    if self.pendingSearchCacheSignature == signature {
+                        self.pendingSearchCacheSignature = nil
+                    }
+                }
+                return
+            }
             await MainActor.run {
                 self.cachedSearchPayloads = payloads
+                self.searchCacheSignature = signature
+                self.pendingSearchCacheSignature = nil
+
+                if self.isSearching,
+                   !self.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    self.debounceSearchInput(self.searchText)
+                }
             }
         }
+    }
+
+    static func searchCacheFingerprint(for decks: [DeckModel]) -> Int {
+        var aggregate = decks.count &* 1_000_241
+        for deck in decks {
+            var hasher = Hasher()
+            hasher.combine(deck.persistentModelID.hashValue)
+            hasher.combine(deck.cardCount)
+            hasher.combine(deck.editedAt.timeIntervalSinceReferenceDate.bitPattern)
+            aggregate ^= hasher.finalize()
+        }
+        return aggregate
     }
 }

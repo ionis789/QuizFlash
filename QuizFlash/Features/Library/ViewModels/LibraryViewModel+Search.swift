@@ -40,6 +40,7 @@ extension LibraryViewModel {
             return
         }
 
+        isSearchLoading = true
         inputDebounceTask = Task { @MainActor in
             do {
                 try await Task.sleep(nanoseconds: 150_000_000)
@@ -80,6 +81,11 @@ private extension LibraryViewModel {
         isSearchLoading = true
 
         let payloadsToSearch = cachedSearchPayloads
+        if payloadsToSearch.isEmpty, pendingSearchCacheSignature != nil {
+            renderedSearchQuery = trimmedQuery
+            searchResults = []
+            return
+        }
 
         searchTask = Task {
             guard !Task.isCancelled else { return }

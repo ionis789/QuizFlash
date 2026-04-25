@@ -29,7 +29,7 @@ enum SettingsTextContent: Sendable, ExpressibleByStringLiteral {
         self = .localized(LocalizedStringResource(stringLiteral: value))
     }
 
-    static func localizedLiteral(_ value: String) -> SettingsTextContent {
+    nonisolated static func localizedLiteral(_ value: String) -> SettingsTextContent {
         .localized(LocalizedStringResource(stringLiteral: value))
     }
 }

@@ -72,6 +72,7 @@ extension DeckViewModel {
         todayActivitySummary = snapshot.todayActivity
         activityHistorySummary = snapshot.activityHistory
         playModeAvailability = buildPlayModeAvailability(from: snapshot.gridCards)
+        readinessSummary = CardReadinessDiagnostics.deckSurfaceSummary(for: snapshot.gridCards)
         performGrouping(on: snapshot.gridCards)
     }
 

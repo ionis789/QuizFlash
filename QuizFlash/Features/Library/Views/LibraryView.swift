@@ -106,11 +106,13 @@ struct LibraryView: View {
             searchText: $viewModel.searchText
         )
         // ── Lifecycle & Cache Invalidation ───────────────────────────────────
-        .onAppear {
-            rebuildCacheIfNeeded()
-        }
         .onChange(of: decks) { _, newDecks in
+            guard sharedViewModel.isSearching || sharedViewModel.searchCacheSignature != 0 else { return }
             rebuildCacheIfNeeded(newDecks)
+        }
+        .onChange(of: sharedViewModel.isSearching) { _, isSearching in
+            guard isSearching else { return }
+            rebuildCacheIfNeeded()
         }
         // ── Search State Management ──────────────────────────────────────────
         .onChange(of: sharedViewModel.searchText) { _, newValue in

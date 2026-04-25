@@ -151,11 +151,13 @@ struct FolderView: View {
             searchText: Binding(get: { viewModel.searchText }, set: { viewModel.searchText = $0 })
         )
         // MARK: Lifecycle & Cache Invalidation
-        .onAppear {
-            rebuildCacheIfNeeded()
-        }
         .onChange(of: decks) { _, newDecks in
+            guard viewModel.isSearching || viewModel.searchCacheSignature != 0 else { return }
             rebuildCacheIfNeeded(newDecks)
+        }
+        .onChange(of: viewModel.isSearching) { _, isSearching in
+            guard isSearching else { return }
+            rebuildCacheIfNeeded()
         }
         // MARK: Search State Management
         .onChange(of: viewModel.searchText) { _, newValue in

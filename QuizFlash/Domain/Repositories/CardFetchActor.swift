@@ -177,19 +177,21 @@ actor CardFetchActor {
         // pathologically on iOS 17, including runaway memory growth and empty
         // result sets for otherwise valid decks. Once the deck is resolved in
         // this same context, reading `deck.cards` is the stable path.
-        let deckCards = resolvedCards(for: deck, deckID: deckID)
-        let cards = deckCards.sorted { lhs, rhs in
-            if lhs.isPinned != rhs.isPinned {
-                return lhs.isPinned && !rhs.isPinned
+        let cards = resolvedCards(for: deck, deckID: deckID)
+            .map(CardSortEntry.init(card:))
+            .sorted { lhs, rhs in
+                if lhs.isPinned != rhs.isPinned {
+                    return lhs.isPinned && !rhs.isPinned
+                }
+                if lhs.cardNumber != rhs.cardNumber {
+                    return lhs.cardNumber < rhs.cardNumber
+                }
+                return lhs.createdAt < rhs.createdAt
             }
-            if lhs.cardNumber != rhs.cardNumber {
-                return lhs.cardNumber < rhs.cardNumber
-            }
-            return lhs.createdAt < rhs.createdAt
-        }
 
-        for card in cards {
+        for entry in cards {
             autoreleasepool {
+                let card = entry.card
                 let frontText = card.frontText
                 let backText = card.backText
                 let activityTitle = deckActivityTitle(frontText: frontText, backText: backText)
@@ -198,10 +200,10 @@ actor CardFetchActor {
                     kind:                 card.kind,
                     creationSource:       card.creationSource,
                     conversionMetadata:   card.conversionMetadata,
-                    cardNumber:           card.cardNumber,
+                    cardNumber:           entry.cardNumber,
                     interval:             card.interval,
                     reviewHistoryIsEmpty: card.reviewHistory.isEmpty,
-                    isPinned:             card.isPinned,
+                    isPinned:             entry.isPinned,
                     frontText:            frontText,
                     backText:             backText,
                     frontPreviewText:     lightweightPreviewText(from: frontText),
@@ -256,15 +258,18 @@ actor CardFetchActor {
             filteredCards = deckCards
         }
 
-        let orderedCards = filteredCards.sorted { lhs, rhs in
-            if lhs.cardNumber != rhs.cardNumber {
-                return lhs.cardNumber < rhs.cardNumber
+        let orderedCards = filteredCards
+            .map(CardConversionSortEntry.init(card:))
+            .sorted { lhs, rhs in
+                if lhs.cardNumber != rhs.cardNumber {
+                    return lhs.cardNumber < rhs.cardNumber
+                }
+                return lhs.createdAt < rhs.createdAt
             }
-            return lhs.createdAt < rhs.createdAt
-        }
 
-        let projected = orderedCards.map { card in
-            CardConversionSourceSnapshot(
+        let projected = orderedCards.map { entry in
+            let card = entry.card
+            return CardConversionSourceSnapshot(
                 id: card.persistentModelID,
                 kind: card.kind,
                 content: card.cardContent
@@ -327,6 +332,32 @@ actor CardFetchActor {
         }
 
         return "Untitled card"
+    }
+
+    private struct CardSortEntry {
+        let card: CardModel
+        let isPinned: Bool
+        let cardNumber: Int
+        let createdAt: Date
+
+        init(card: CardModel) {
+            self.card = card
+            self.isPinned = card.isPinned
+            self.cardNumber = card.cardNumber
+            self.createdAt = card.createdAt
+        }
+    }
+
+    private struct CardConversionSortEntry {
+        let card: CardModel
+        let cardNumber: Int
+        let createdAt: Date
+
+        init(card: CardModel) {
+            self.card = card
+            self.cardNumber = card.cardNumber
+            self.createdAt = card.createdAt
+        }
     }
 
     // MARK: - Thumbnail Generation

@@ -202,10 +202,9 @@ struct MixedMathTextView: View {
 //    When the pool is at capacity, excess WebViews are explicitly destroyed
 //    instead of being retained.
 //
-// 3. SINGLE PREWARM
-//    prewarm() must be called once at app launch (QuizFlashApp.init).
-//    The isPrewarmed guard makes subsequent calls no-ops, but call sites
-//    outside the app entry point should be removed to keep intent clear.
+// 3. BOUNDED PREWARM
+//    prewarm() is intentionally small and delayed. WebKit startup is expensive on
+//    iOS 17, so normal Home/Library usage must not pay for a full math pool.
 //
 
 class MathWebViewPool {
@@ -242,21 +241,15 @@ class MathWebViewPool {
 
     // MARK: - Prewarm
 
-    /// Populates the pool with ready-to-use WebViews at app launch.
-    ///
-    /// Call this **once** from `QuizFlashApp.init()`.
-    /// The `isPrewarmed` guard makes subsequent calls safe but they should
-    /// not appear elsewhere — the intent of this method is app-launch only.
-    func prewarm(count: Int = 6) {
+    /// Populates a small number of ready-to-use WebViews after the app settles.
+    func prewarm(count: Int = 2, initialDelayMilliseconds: Int = 1_500) {
         guard !isPrewarmed else { return }
         isPrewarmed = true
 
-        // Stagger creation across the first second to avoid a spike on the
-        // main thread immediately after launch while the UI is still settling.
         let clamped = min(count, Self.maxPoolSize)
         for i in 0..<clamped {
             let task = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(150 * i))
+                try? await Task.sleep(for: .milliseconds(initialDelayMilliseconds + (350 * i)))
                 guard let self, !Task.isCancelled else { return }
                 // Ensure we don't exceed max size during async initialization
                 if self.pool.count < Self.maxPoolSize {

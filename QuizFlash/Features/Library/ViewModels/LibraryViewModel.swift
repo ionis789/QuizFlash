@@ -123,6 +123,7 @@ final class LibraryViewModel {
     let searchEngine = SearchEngine()
 
     /// The payload cache holding data used for swift searching without hitting the database repeatedly.
+    @ObservationIgnored
     var cachedSearchPayloads: [DeckSearchPayload] = []
 
     /// Grouped deck sections for LibraryListView.
@@ -132,7 +133,16 @@ final class LibraryViewModel {
 
     /// Tracks which deck IDs were used to build the current cache.
     /// Deduplication check survives across view re-renders, tab switches, etc.
+    @ObservationIgnored
     var cachedDeckIDs: Set<PersistentIdentifier> = []
+
+    /// Signature for the search payload cache currently available to the search engine.
+    @ObservationIgnored
+    var searchCacheSignature: Int = 0
+
+    /// Signature for the cache build currently in flight.
+    @ObservationIgnored
+    var pendingSearchCacheSignature: Int?
 
     var searchPresentation: LibrarySearchPresentation {
         guard isSearching else { return .browse }

@@ -109,10 +109,8 @@ struct FlashCardsPlayModeView: View {
             let cardBottomPadding: CGFloat = 2
 
             ZStack {
-                if fullScreenSheetDismiss == nil {
-                    screenBackground
-                        .ignoresSafeArea()
-                }
+                screenBackground
+                    .ignoresSafeArea()
 
                 if !viewModel.isComplete {
                     VStack(spacing: 0) {

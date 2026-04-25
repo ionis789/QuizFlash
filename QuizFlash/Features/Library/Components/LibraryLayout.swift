@@ -81,8 +81,8 @@ struct LibraryLayout: View {
     var isSearchBrowseFrozen: Bool {
         viewModel.isSearching && trimmedSearchText.isEmpty
     }
-    var searchBrowseFreezeDimOpacity: CGFloat {
-        0.26
+    var searchBrowseFreezeBlurRadius: CGFloat {
+        18
     }
     var browseStickyHiddenSectionHeaderIDs: Set<String> {
         Set([visualPassedCompactTitleSectionID].compactMap { $0 })
@@ -185,7 +185,8 @@ struct LibraryLayout: View {
                 topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
                 debugScreenID: "library.root",
                 fullScreenFillProgress: isSearchBrowseFrozen ? 1 : 0,
-                fullScreenDimOpacity: isSearchBrowseFrozen ? searchBrowseFreezeDimOpacity : 0,
+                fullScreenDimOpacity: isSearchBrowseFrozen ? 0.08 : 0,
+                fullScreenBlurRadius: searchBrowseFreezeBlurRadius,
                 style: .progressiveBlur()
             )
 

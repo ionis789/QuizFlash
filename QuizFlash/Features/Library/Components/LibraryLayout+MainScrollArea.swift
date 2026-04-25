@@ -7,6 +7,7 @@
 
 import SwiftUI
 import OSLog
+import UIKit
 
 extension LibraryLayout {
     private static let stickyDebugLogger = QuizFlashLog.make("LibraryStickyLayout")
@@ -37,6 +38,7 @@ extension LibraryLayout {
                     .animation(.bottomChromeSpring, value: viewModel.isSelecting)
             }
         }
+        .scrollDisabled(isSearchBrowseFrozen)
         .gesture(
             TapGesture().onEnded {
                 guard viewModel.isSelecting && !isSearching else { return }
@@ -49,13 +51,8 @@ extension LibraryLayout {
         .overlay {
             ZStack(alignment: .top) {
                 if isSearchBrowseFrozen {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            searchDismissRequestID += 1
-                        }
-                        .allowsHitTesting(true)
-                        .accessibilityHidden(true)
+                    searchBrowseFreezeOverlay
+                        .transition(.opacity)
                 }
 
                 if isSearchResultsPresented {
@@ -63,6 +60,7 @@ extension LibraryLayout {
                         .transition(.opacity)
                 }
             }
+            .animation(.easeInOut(duration: 0.18), value: isSearchBrowseFrozen)
             .animation(.easeInOut(duration: 0.18), value: isSearchResultsPresented)
         }
         .onPreferenceChange(LibrarySectionHeaderFramePreferenceKey.self) { frames in
@@ -140,6 +138,14 @@ extension LibraryLayout {
             areCompactChromeVisibilityAnimationsEnabled = true
             isCompactChromeSearchRecoveryAnimating = false
         }
+    }
+
+    var searchBrowseFreezeOverlay: some View {
+        LibrarySearchBrowseTouchShield {
+            searchDismissRequestID += 1
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -438,5 +444,70 @@ extension LibraryLayout {
         Self.stickyDebugLogger.debug(
             "[LibraryStickyDebug] event=passedCompactTitle id=\"\(passedCompactTitleCandidate.id)\" title=\"\(passedCompactTitleCandidate.title)\" labelMinY=\(labelMinY) thresholdY=\(threshold) frames=[\(candidateFrames)]"
         )
+    }
+}
+
+// MARK: - Search Browse Touch Shield
+
+private struct LibrarySearchBrowseTouchShield: UIViewRepresentable {
+    let onTap: () -> Void
+
+    func makeUIView(context: Context) -> ShieldView {
+        let view = ShieldView()
+        view.onTap = onTap
+        return view
+    }
+
+    func updateUIView(_ uiView: ShieldView, context: Context) {
+        uiView.onTap = onTap
+    }
+
+    final class ShieldView: UIView, UIGestureRecognizerDelegate {
+        var onTap: (() -> Void)?
+
+        private lazy var tapGesture: UITapGestureRecognizer = {
+            let gesture = UITapGestureRecognizer(target: self, action: #selector(handleTap))
+            gesture.delegate = self
+            gesture.cancelsTouchesInView = true
+            return gesture
+        }()
+
+        private lazy var panGesture: UIPanGestureRecognizer = {
+            let gesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan))
+            gesture.delegate = self
+            gesture.cancelsTouchesInView = true
+            gesture.maximumNumberOfTouches = 1
+            return gesture
+        }()
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            backgroundColor = .clear
+            isOpaque = false
+            isUserInteractionEnabled = true
+            addGestureRecognizer(tapGesture)
+            addGestureRecognizer(panGesture)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        @objc private func handleTap() {
+            onTap?()
+        }
+
+        @objc private func handlePan() {
+            // Consume search backdrop drags so iOS 17 does not forward them to
+            // the frozen browse ScrollView behind the active search chrome.
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            false
+        }
     }
 }

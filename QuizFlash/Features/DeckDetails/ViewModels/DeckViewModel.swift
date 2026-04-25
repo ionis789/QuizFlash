@@ -199,13 +199,11 @@ final class DeckViewModel {
     /// Lightweight compatibility counts used by deck play-mode surfaces.
     var playModeAvailability: PlayModeCardAvailability = .empty
 
+    /// Cached deck-level readiness diagnostics for the current card snapshot.
+    var readinessSummary: DeckReadinessSummary = .empty
+
     /// Controls the custom-sheet presentation for deck activity history.
     var activitySheetPresentation: DeckActivitySheetPresentation?
-
-    /// Compact readiness summary used by preview and deck-level diagnostics UI.
-    var readinessSummary: DeckReadinessSummary {
-        CardReadinessDiagnostics.deckSurfaceSummary(for: allCardInfos)
-    }
 
     // MARK: - Scroll Restoration
 

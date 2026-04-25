@@ -19,6 +19,7 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
     let topRevealProgress: CGFloat
     let fullScreenFillProgress: CGFloat
     let fullScreenDimOpacity: CGFloat
+    let fullScreenBlurRadius: CGFloat
     let debugScreenID: String?
     let style: ScreenTopEdgeStyle
 
@@ -26,9 +27,10 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
         content
             .overlay {
                 ZStack(alignment: .bottomTrailing) {
+                    fullScreenProgressiveBlurOverlay
                     topEdgeOverlay
 
-                    if fullScreenFillProgress > 0.001 || fullScreenDimOpacity > 0.001 {
+                    if shouldRenderLegacyFullScreenFill {
                         EdgeShadowOverlay(
                             topHeight: 0,
                             bottomHeight: 0,
@@ -82,6 +84,19 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
         return resolvedDebugSettings.resolvedColor
     }
 
+    private var clampedFullScreenFillProgress: CGFloat {
+        min(max(fullScreenFillProgress, 0), 1)
+    }
+
+    private var resolvedFullScreenBlurRadius: CGFloat {
+        max(0, fullScreenBlurRadius)
+    }
+
+    private var shouldRenderLegacyFullScreenFill: Bool {
+        guard case .shadow = style else { return false }
+        return fullScreenFillProgress > 0.001 || fullScreenDimOpacity > 0.001
+    }
+
     @ViewBuilder
     private var topEdgeOverlay: some View {
         switch style {
@@ -105,6 +120,25 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
         }
     }
 
+    @ViewBuilder
+    private var fullScreenProgressiveBlurOverlay: some View {
+        if case .progressiveBlur = style,
+           clampedFullScreenFillProgress > 0.001,
+           resolvedFullScreenBlurRadius > 0.001 {
+            ZStack {
+                BackgroundBlurView(radius: resolvedFullScreenBlurRadius)
+                    .ignoresSafeArea()
+
+                resolvedTopColor
+                    .opacity(fullScreenDimOpacity)
+                    .ignoresSafeArea()
+            }
+            .opacity(clampedFullScreenFillProgress)
+            .animation(.easeInOut(duration: 0.18), value: clampedFullScreenFillProgress)
+            .allowsHitTesting(false)
+        }
+    }
+
     private func resolvedProgressiveBlurConfiguration(
         fallback: ScreenTopProgressiveBlurConfiguration
     ) -> ScreenTopProgressiveBlurConfiguration {
@@ -112,6 +146,7 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
         return resolvedDebugSettings.progressiveBlurConfiguration
     }
 
+#if DEBUG
     private var debugPanelMode: TopChromeDebugPanelMode {
         switch style {
         case .shadow:
@@ -121,7 +156,6 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
         }
     }
 
-#if DEBUG
     private func debugSettingsBinding(for screenID: String) -> Binding<EdgeShadowDebugSettings> {
         Binding(
             get: { developmentPreferences.edgeShadowSettings(for: screenID) },
@@ -142,6 +176,7 @@ extension View {
         debugScreenID: String? = nil,
         fullScreenFillProgress: CGFloat = 0,
         fullScreenDimOpacity: CGFloat = 0,
+        fullScreenBlurRadius: CGFloat = 0,
         style: ScreenTopEdgeStyle = .shadow
     ) -> some View {
         modifier(
@@ -150,6 +185,7 @@ extension View {
                 topRevealProgress: topRevealProgress,
                 fullScreenFillProgress: fullScreenFillProgress,
                 fullScreenDimOpacity: fullScreenDimOpacity,
+                fullScreenBlurRadius: fullScreenBlurRadius,
                 debugScreenID: debugScreenID,
                 style: style
             )

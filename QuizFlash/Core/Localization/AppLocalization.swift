@@ -63,6 +63,16 @@ struct AppTextLabel: View {
 enum AppLocalization {
     nonisolated static let supportedLanguageIdentifiers = ["en", "ro", "ru"]
     nonisolated private static let fallbackLanguageIdentifier = "en"
+    nonisolated private static let localizationBundlesByIdentifier: [String: Bundle] = {
+        supportedLanguageIdentifiers.reduce(into: [:]) { result, identifier in
+            guard let bundlePath = Bundle.main.path(forResource: identifier, ofType: "lproj"),
+                  let bundle = Bundle(path: bundlePath) else {
+                return
+            }
+
+            result[identifier] = bundle
+        }
+    }()
 
     private static let bundleOverrideInstaller: Void = {
         object_setClass(Bundle.main, AppLocalizedMainBundle.self)
@@ -138,11 +148,9 @@ enum AppLocalization {
             .compactMap { $0 }
 
         for candidate in candidates {
-            guard let bundlePath = Bundle.main.path(forResource: candidate, ofType: "lproj"),
-                  let bundle = Bundle(path: bundlePath) else {
-                continue
+            if let bundle = localizationBundlesByIdentifier[candidate] {
+                return bundle
             }
-            return bundle
         }
 
         return nil

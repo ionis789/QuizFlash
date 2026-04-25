@@ -71,6 +71,15 @@ struct CustomContextMenuConfig {
     var rowStagger: Double = 0.032
     var menuCornerRadius: CGFloat = 32
     var isLoggingEnabled = false
+    var estimatedMenuSize: CGSize? = nil
+}
+
+extension CustomContextMenuConfig {
+    static var deckGridCardMenu: CustomContextMenuConfig {
+        var config = CustomContextMenuConfig()
+        config.estimatedMenuSize = CGSize(width: 255, height: 270)
+        return config
+    }
 }
 
 enum CustomContextMenuPhase: Equatable {

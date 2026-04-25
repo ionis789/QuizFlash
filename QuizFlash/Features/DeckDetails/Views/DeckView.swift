@@ -62,6 +62,18 @@ struct DeckContentView: View {
         router.activeTab != ownerTab
     }
 
+    var tabBarVisibilityRule: TabBarVisibilityRule {
+        if viewModel.isSelecting
+            || selectedPlayMode != nil
+            || selectedPlayModeSettings != nil
+            || previewedCard != nil
+            || viewModel.activitySheetPresentation != nil
+            || cardEditorDestination != nil {
+            return .hidden
+        }
+        return .implicit
+    }
+
     /// Reserved top spacing that keeps the hero content below the floating chrome.
     var topContentInset: CGFloat {
         navigationBarHeight + UIConstants.Layout.deckHeroChromeClearance
@@ -110,7 +122,7 @@ struct DeckContentView: View {
             /// Hides the native system navigation bar.
             /// This stabilizes `safeAreaInsets` and prevents layout invalidation during scroll physics (rubber-banding).
             .toolbar(.hidden, for: .navigationBar)
-            .customTabBarVisibility(viewModel.isSelecting ? .hidden : .implicit)
+            .customTabBarVisibility(tabBarVisibilityRule)
             .onAppear {
                 guard !hasLoadedInitialSnapshot, !isSuspended else { return }
                 hasLoadedInitialSnapshot = true

@@ -22,24 +22,21 @@ struct TopProgressiveBlurOverlay: View {
     let revealProgress: CGFloat
     var tintColor: Color = Color(ThemeColorToken.backgroundPrimary.assetName)
     var configuration: ScreenTopProgressiveBlurConfiguration = .quizFlashDefault
+    var revealAnimation: Animation? = CollapsibleTitleChromeMetrics.shadowFadeAnimation
 
     private var clampedRevealProgress: CGFloat {
         min(max(revealProgress, 0), 1)
     }
 
     var body: some View {
-        if topHeight > 0 {
+        if topHeight > 0, clampedRevealProgress > 0.001 {
             let totalHeight = max(topHeight, 1)
-            let featherHeight = min(max(configuration.fadeExtension, 0), totalHeight)
-            let featherStart = max(0, 1 - (featherHeight / totalHeight))
-            let middleLocation = featherStart > 0.001
-                ? min(max(featherStart * 0.7, 0), 1)
-                : 0.32
+            let blurHeight = totalHeight + max(configuration.fadeExtension, 0)
+            let middleLocation = min(max(totalHeight / max(blurHeight, 1), 0), 1)
 
-            VStack(spacing: 0) {
+            let overlay = VStack(spacing: 0) {
                 overlayBody(
-                    totalHeight: totalHeight,
-                    featherStart: featherStart,
+                    blurHeight: blurHeight,
                     middleLocation: middleLocation
                 )
 
@@ -48,41 +45,31 @@ struct TopProgressiveBlurOverlay: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .allowsHitTesting(false)
             .opacity(clampedRevealProgress)
-            .animation(
-                CollapsibleTitleChromeMetrics.shadowFadeAnimation,
-                value: clampedRevealProgress
-            )
+
+            if let revealAnimation {
+                overlay.animation(revealAnimation, value: clampedRevealProgress)
+            } else {
+                overlay
+            }
         }
     }
 
     @ViewBuilder
     private func overlayBody(
-        totalHeight: CGFloat,
-        featherStart: CGFloat,
+        blurHeight: CGFloat,
         middleLocation: CGFloat
     ) -> some View {
-        BackgroundBlurView(radius: configuration.maxBlurRadius)
-            .mask {
-                blurMask(featherStart: featherStart)
-            }
+        VariableBlurView(
+            maxBlurRadius: configuration.maxBlurRadius,
+            direction: .blurredTopClearBottom
+        )
+            .id(variableBlurIdentity)
+            .frame(maxWidth: .infinity)
+            .frame(height: blurHeight, alignment: .top)
             .overlay {
                 tintGradient(middleLocation: middleLocation)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: totalHeight, alignment: .top)
             .ignoresSafeArea(.all, edges: .top)
-    }
-
-    private func blurMask(featherStart: CGFloat) -> LinearGradient {
-        LinearGradient(
-            stops: [
-                .init(color: .white, location: 0),
-                .init(color: .white, location: featherStart),
-                .init(color: .clear, location: 1),
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
     }
 
     private func tintGradient(middleLocation: CGFloat) -> LinearGradient {
@@ -96,6 +83,16 @@ struct TopProgressiveBlurOverlay: View {
             endPoint: .bottom
         )
     }
+
+    private var variableBlurIdentity: VariableBlurIdentity {
+        VariableBlurIdentity(
+            maxBlurRadius: configuration.maxBlurRadius
+        )
+    }
+}
+
+private struct VariableBlurIdentity: Hashable {
+    let maxBlurRadius: CGFloat
 }
 
 struct BackgroundBlurView: UIViewRepresentable {

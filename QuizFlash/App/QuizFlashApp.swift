@@ -21,7 +21,6 @@ struct QuizFlashApp: App {
 
     init() {
         AppLocalization.applyLanguageOverride(AppPreferences.shared.appLanguage)
-        MathWebViewPool.shared.prewarm()
     }
 
     var body: some Scene {
