@@ -39,6 +39,14 @@ struct PlayableCard: Identifiable, Equatable, Sendable {
     let interval: Int
 }
 
+/// Partial flashcard load used to paint the first play-mode card before the
+/// entire deck has been decoded.
+struct PlayableCardLoadBatch: Equatable, Sendable {
+    let cards: [PlayableCard]
+    let totalCount: Int
+    let loadedAll: Bool
+}
+
 // MARK: - Match Payload
 
 /// A validated prompt/answer pair sourced from a flashcard and reduced to preview text for match gameplay.
@@ -257,6 +265,67 @@ actor PlayModeCardRepository {
 
         flushContext()
         return results
+    }
+
+    /// Loads a small ordered batch of flashcards without decoding the whole deck.
+    ///
+    /// This is used by Flashcards play mode so the first card can render as soon
+    /// as a handful of payloads are ready, while the rest of the deck continues
+    /// loading in the background.
+    func loadPlayableCardBatch(
+        for deckID: PersistentIdentifier,
+        order: FlashcardSessionOrder,
+        limit: Int? = nil,
+        excludingIDs: Set<PersistentIdentifier> = []
+    ) -> PlayableCardLoadBatch {
+        guard let deck = activeContext.model(for: deckID) as? DeckModel else {
+            return PlayableCardLoadBatch(cards: [], totalCount: 0, loadedAll: true)
+        }
+
+        let orderedCards = orderedFlashcards(
+            resolvedCards(for: deck, deckID: deckID),
+            order: order
+        )
+        let excludedIDKeys = Set(excludingIDs.map(persistentIdentifierKey))
+        let remainingCards = orderedCards.filter {
+            !excludedIDKeys.contains(persistentIdentifierKey($0.persistentModelID))
+        }
+        let cardsToDecode: ArraySlice<CardModel>
+        if let limit {
+            cardsToDecode = remainingCards.prefix(limit)
+        } else {
+            cardsToDecode = remainingCards[...]
+        }
+
+        var results: [PlayableCard] = []
+        results.reserveCapacity(cardsToDecode.count)
+
+        for card in cardsToDecode {
+            autoreleasepool {
+                guard case .flashcard(let content) = card.cardContent else { return }
+
+                results.append(
+                    PlayableCard(
+                        id: card.persistentModelID,
+                        cardNumber: card.cardNumber,
+                        frontZone: content.frontZone,
+                        backZone: content.backZone,
+                        interval: card.interval
+                    )
+                )
+                card.clearZoneCache()
+            }
+        }
+
+        let loadedAll = results.count >= remainingCards.count
+        let batch = PlayableCardLoadBatch(
+            cards: results,
+            totalCount: orderedCards.count,
+            loadedAll: loadedAll
+        )
+
+        flushContext()
+        return batch
     }
 
     // MARK: - Match
@@ -697,6 +766,10 @@ actor PlayModeCardRepository {
         return allCards.filter { $0.deck?.persistentModelID == deckID }
     }
 
+    private func persistentIdentifierKey(_ id: PersistentIdentifier) -> String {
+        String(describing: id)
+    }
+
     private func sortedCards(_ cards: [CardModel]) -> [CardModel] {
         cards.sorted { lhs, rhs in
             if lhs.isPinned != rhs.isPinned {
@@ -706,6 +779,39 @@ actor PlayModeCardRepository {
                 return lhs.cardNumber < rhs.cardNumber
             }
             return lhs.createdAt < rhs.createdAt
+        }
+    }
+
+    private func orderedFlashcards(
+        _ cards: [CardModel],
+        order: FlashcardSessionOrder
+    ) -> [CardModel] {
+        let flashcards = cards.filter { $0.kind == .flashcard }
+
+        switch order {
+        case .studyPriority:
+            return flashcards.sorted { lhs, rhs in
+                if lhs.interval == 0 && rhs.interval != 0 { return true }
+                if lhs.interval != 0 && rhs.interval == 0 { return false }
+                if lhs.interval != rhs.interval { return lhs.interval < rhs.interval }
+                return lhs.cardNumber < rhs.cardNumber
+            }
+        case .newestFirst:
+            return flashcards.sorted { lhs, rhs in
+                if lhs.cardNumber != rhs.cardNumber {
+                    return lhs.cardNumber > rhs.cardNumber
+                }
+                return lhs.interval < rhs.interval
+            }
+        case .oldestFirst:
+            return flashcards.sorted { lhs, rhs in
+                if lhs.cardNumber != rhs.cardNumber {
+                    return lhs.cardNumber < rhs.cardNumber
+                }
+                return lhs.interval < rhs.interval
+            }
+        case .shuffled:
+            return flashcards.shuffled()
         }
     }
 

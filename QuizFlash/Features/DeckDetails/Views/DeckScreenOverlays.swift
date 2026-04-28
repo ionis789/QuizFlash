@@ -40,7 +40,62 @@ extension DeckContentView {
 
     func openPlayMode(_ mode: DeckPlayModeDestination) {
         dismissUnavailablePlayMode()
+        guard mode == .flashcards else {
+            selectedPlayMode = mode
+            return
+        }
+
+        prepareFlashcardsPlayModeIfNeeded()
+        guard let preparedFlashcardsPlayModeViewModel,
+              preparedFlashcardsPlayModeViewModel.isSessionStarted,
+              !preparedFlashcardsPlayModeViewModel.cards.isEmpty else {
+            presentsFlashcardsAfterPreparation = true
+            return
+        }
+
         selectedPlayMode = mode
+    }
+
+    func prepareFlashcardsPlayModeIfNeeded() {
+        guard deck.cardCount > 0 else { return }
+        if let viewModel = preparedFlashcardsPlayModeViewModel,
+           viewModel.isSessionStarted,
+           !viewModel.cards.isEmpty {
+            return
+        }
+        guard flashcardsPreparationTask == nil else { return }
+
+        let sessionViewModel = preparedFlashcardsPlayModeViewModel ?? FlashCardsPlayModeViewModel(
+            deck: deck,
+            settings: deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
+        )
+        preparedFlashcardsPlayModeViewModel = sessionViewModel
+
+        flashcardsPreparationTask = Task { @MainActor in
+            await sessionViewModel.startSession(container: context.container)
+            flashcardsPreparationTask = nil
+
+            guard presentsFlashcardsAfterPreparation else { return }
+            presentsFlashcardsAfterPreparation = false
+            if sessionViewModel.isSessionStarted, !sessionViewModel.cards.isEmpty {
+                selectedPlayMode = .flashcards
+            }
+        }
+    }
+
+    func resetPreparedFlashcardsPlayMode() {
+        flashcardsPreparationTask?.cancel()
+        flashcardsPreparationTask = nil
+        presentsFlashcardsAfterPreparation = false
+        preparedFlashcardsPlayModeViewModel = nil
+    }
+
+    func cancelPreparedFlashcardsPlayMode() {
+        flashcardsPreparationTask?.cancel()
+        flashcardsPreparationTask = nil
+        presentsFlashcardsAfterPreparation = false
+        preparedFlashcardsPlayModeViewModel?.tearDown()
+        preparedFlashcardsPlayModeViewModel = nil
     }
 
     func presentUnavailablePlayMode(_ mode: DeckPlayModeDestination) {

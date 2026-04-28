@@ -742,11 +742,11 @@ actor HomeAnalyticsRepository {
                     .map {
                         HomeWeeklyReviewedCardSummary(
                             id: $0.aggregateKey,
-                            cardID: $0.card?.persistentModelID,
-                            deckID: $0.deck?.persistentModelID,
-                            deckTitle: resolvedDeckTitle(for: $0.deck, snapshot: $0.deckTitleSnapshot),
-                            deckColorHex: resolvedDeckColorHex(for: $0.deck, snapshot: $0.deckColorHexSnapshot),
-                            title: resolvedCardTitle(for: $0.card, snapshot: $0.cardTitleSnapshot),
+                            cardID: nil,
+                            deckID: nil,
+                            deckTitle: resolvedSnapshotDeckTitle($0.deckTitleSnapshot),
+                            deckColorHex: resolvedSnapshotDeckColorHex($0.deckColorHexSnapshot),
+                            title: resolvedSnapshotCardTitle($0.cardTitleSnapshot),
                             finalDifficulty: $0.finalDifficulty,
                             reviewCount: $0.repeatCount,
                             lastReviewedAt: $0.lastReviewedAt
@@ -761,9 +761,9 @@ actor HomeAnalyticsRepository {
 
                 return HomeWeeklyDeckActivitySummary(
                     id: aggregate.aggregateKey,
-                    deckID: aggregate.deck?.persistentModelID,
-                    title: resolvedDeckTitle(for: aggregate.deck, snapshot: aggregate.deckTitleSnapshot),
-                    colorHex: resolvedDeckColorHex(for: aggregate.deck, snapshot: aggregate.deckColorHexSnapshot),
+                    deckID: nil,
+                    title: resolvedSnapshotDeckTitle(aggregate.deckTitleSnapshot),
+                    colorHex: resolvedSnapshotDeckColorHex(aggregate.deckColorHexSnapshot),
                     uniqueCardCount: aggregate.uniqueCardCount,
                     correctCardCount: aggregate.landedCount,
                     retryCardCount: aggregate.retryCount,
@@ -855,33 +855,19 @@ actor HomeAnalyticsRepository {
         return fallback.isEmpty ? "Untitled Card" : fallback
     }
 
-    private func resolvedDeckTitle(for deck: DeckModel?, snapshot: String) -> String {
-        let trimmed = deck?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !trimmed.isEmpty {
-            return trimmed
-        }
-
+    private func resolvedSnapshotDeckTitle(_ snapshot: String) -> String {
         let fallback = snapshot.trimmingCharacters(in: .whitespacesAndNewlines)
         return fallback.isEmpty ? "Untitled Deck" : fallback
     }
 
-    private func resolvedDeckColorHex(for deck: DeckModel?, snapshot: String) -> String {
-        let live = deck?.colorHex.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !live.isEmpty {
-            return live
-        }
-
+    private func resolvedSnapshotDeckColorHex(_ snapshot: String) -> String {
         let fallback = snapshot.trimmingCharacters(in: .whitespacesAndNewlines)
         return fallback.isEmpty ? "#70707A" : fallback
     }
 
-    private func resolvedCardTitle(for card: CardModel?, snapshot: String) -> String {
-        let liveTitle = normalizedCardTitle(for: card)
-        if liveTitle != "Untitled Card" || snapshot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return liveTitle
-        }
-
+    private func resolvedSnapshotCardTitle(_ snapshot: String) -> String {
         let fallback = snapshot.trimmingCharacters(in: .whitespacesAndNewlines)
         return fallback.isEmpty ? "Untitled Card" : fallback
     }
+
 }

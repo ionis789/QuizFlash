@@ -156,13 +156,16 @@ nonisolated enum FlashcardContentAlignment: String, Codable, CaseIterable, Ident
 
 /// Flashcards runtime preferences persisted per deck.
 nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
+    private static let currentSchemaVersion = 2
+
+    private var schemaVersion: Int = Self.currentSchemaVersion
     var order: FlashcardSessionOrder = .studyPriority
     var retryWrongCards: Bool = true
     var revealFlow: FlashcardRevealFlow = .questionFirst
     var flipBehavior: FlashcardFlipBehavior = .tapToFlip
     var tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D
     var staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated
-    var contentAlignment: FlashcardContentAlignment = .top
+    var contentAlignment: FlashcardContentAlignment = .center
 
     init(
         order: FlashcardSessionOrder = .studyPriority,
@@ -171,8 +174,9 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         flipBehavior: FlashcardFlipBehavior = .tapToFlip,
         tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
-        contentAlignment: FlashcardContentAlignment = .top
+        contentAlignment: FlashcardContentAlignment = .center
     ) {
+        self.schemaVersion = Self.currentSchemaVersion
         self.order = order
         self.retryWrongCards = retryWrongCards
         self.revealFlow = revealFlow
@@ -183,6 +187,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
+        case schemaVersion
         case order
         case retryWrongCards
         case revealFlow
@@ -194,17 +199,23 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
         self.order = try container.decodeIfPresent(FlashcardSessionOrder.self, forKey: .order) ?? .studyPriority
         self.retryWrongCards = try container.decodeIfPresent(Bool.self, forKey: .retryWrongCards) ?? true
         self.revealFlow = try container.decodeIfPresent(FlashcardRevealFlow.self, forKey: .revealFlow) ?? .questionFirst
         self.flipBehavior = try container.decodeIfPresent(FlashcardFlipBehavior.self, forKey: .flipBehavior) ?? .tapToFlip
         self.tapAnimationStyle = try container.decodeIfPresent(FlashcardTapAnimationStyle.self, forKey: .tapAnimationStyle) ?? .flip3D
         self.staticSwapTextMotion = try container.decodeIfPresent(FlashcardStaticSwapTextMotion.self, forKey: .staticSwapTextMotion) ?? .animated
-        self.contentAlignment = try container.decodeIfPresent(FlashcardContentAlignment.self, forKey: .contentAlignment) ?? .top
+        let decodedContentAlignment = try container.decodeIfPresent(FlashcardContentAlignment.self, forKey: .contentAlignment) ?? .center
+        self.contentAlignment = decodedSchemaVersion < Self.currentSchemaVersion && decodedContentAlignment == .top
+            ? .center
+            : decodedContentAlignment
+        self.schemaVersion = Self.currentSchemaVersion
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(Self.currentSchemaVersion, forKey: .schemaVersion)
         try container.encode(order, forKey: .order)
         try container.encode(retryWrongCards, forKey: .retryWrongCards)
         try container.encode(revealFlow, forKey: .revealFlow)

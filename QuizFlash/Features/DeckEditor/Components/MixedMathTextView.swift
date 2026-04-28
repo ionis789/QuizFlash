@@ -26,6 +26,14 @@ enum MixedMathRenderStyle: String, Sendable {
 
 private var quizFlashHorizontalOverflowAssociationKey: UInt8 = 0
 
+#if DEBUG
+struct MathWebViewPoolDebugSnapshot: Equatable {
+    let idleCount: Int
+    let pendingPrewarmTaskCount: Int
+    let isPrewarmed: Bool
+}
+#endif
+
 extension WKWebView {
     var quizflashHasHorizontalOverflow: Bool {
         get {
@@ -290,8 +298,21 @@ class MathWebViewPool {
     /// Empties the entire pool and releases the WKWebViews.
     /// Called automatically on `didReceiveMemoryWarningNotification`.
     func flush() {
+        prewarmTasks.forEach { $0.cancel() }
+        prewarmTasks.removeAll()
         pool.removeAll()
+        isPrewarmed = false
     }
+
+#if DEBUG
+    func debugSnapshot() -> MathWebViewPoolDebugSnapshot {
+        MathWebViewPoolDebugSnapshot(
+            idleCount: pool.count,
+            pendingPrewarmTaskCount: prewarmTasks.count,
+            isPrewarmed: isPrewarmed
+        )
+    }
+#endif
 
     // MARK: - Factory
 
@@ -433,7 +454,10 @@ struct MathWebView: UIViewRepresentable {
         let fontStyle = isItalic ? "italic" : "normal"
         let cssColor  = getCSSColor()
 
-        let safeText  = text.replacingOccurrences(of: "&", with: "&amp;")
+        let safeText  = text
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
         let mdText    = processHTMLMarkdown(safeText)
         let finalText = processInlineCode(mdText, renderStyle: renderStyle)
         
@@ -520,6 +544,9 @@ struct MathWebView: UIViewRepresentable {
             code.inline-code {
                 font-family: ui-monospace, 'SF Mono', Menlo, monospace;
                 font-size: 0.88em;
+                max-width: 100%;
+                overflow-wrap: anywhere;
+                word-break: break-word;
             }
             code.inline-code--standard {
                 background: rgba(120, 120, 120, 0.15);
@@ -677,7 +704,12 @@ struct MathWebView: UIViewRepresentable {
 
         function reportHeight() {
             const el = document.getElementById('content');
-            const h  = Math.max(el.getBoundingClientRect().height, el.scrollHeight);
+            const h = Math.max(
+                el.getBoundingClientRect().height,
+                el.scrollHeight,
+                document.body.scrollHeight,
+                document.documentElement.scrollHeight
+            );
             if (h > 0 && window.webkit && window.webkit.messageHandlers.heightUpdate) {
                 window.webkit.messageHandlers.heightUpdate.postMessage(Math.ceil(h));
             }

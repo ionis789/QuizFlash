@@ -11,6 +11,7 @@
 
 import SwiftUI
 import SwiftData
+import Observation
 
 // MARK: - FlashCards Play Mode ViewModel
 
@@ -38,6 +39,9 @@ final class FlashCardsPlayModeViewModel {
 
     /// Whether `startSession(container:)` has been called at least once.
     var isSessionStarted: Bool = false
+
+    /// Whether every playable flashcard payload for this session has been decoded.
+    var hasLoadedAllCards: Bool = false
 
     // MARK: - Progress Tracking
 
@@ -86,6 +90,9 @@ final class FlashCardsPlayModeViewModel {
     /// Shared detached persistence service reused by all interactive play modes.
     private var persistenceService: PlaySessionPersistenceService?
 
+    /// Background continuation that fills the rest of the deck after first paint.
+    @ObservationIgnored private var remainingCardLoadTask: Task<Void, Never>?
+
     // MARK: - Computed Properties
 
     /// Session accuracy expressed as an integer percentage (0–100).
@@ -130,6 +137,7 @@ final class FlashCardsPlayModeViewModel {
         self.deck = deck
         self.settings = settings
         self.currentCardStartTime = Date()
+        self.totalCardCount = deck.cardCount
     }
 
     // MARK: - Session Lifecycle
@@ -144,31 +152,58 @@ final class FlashCardsPlayModeViewModel {
         guard !isSessionStarted else { return }
         self.container = container
         self.persistenceService = PlaySessionPersistenceService(container: container)
+        MathWebViewPool.shared.prewarm(count: 2, initialDelayMilliseconds: 0)
 
-        // Load cards via a background actor to keep the main ModelContext clean.
-        // The actor decodes all zone data and returns pure Sendable value types,
-        // which means the main context's row cache is never populated with card blobs.
         let repository = PlayModeCardRepository(container: container)
-        let loadedCards = await repository.loadPlayableCards(for: deck.persistentModelID)
+        let deckID = deck.persistentModelID
+        let order = settings.order
+        let initialBatch = await repository.loadPlayableCardBatch(
+            for: deckID,
+            order: order,
+            limit: 6
+        )
 
-        // Study-order sort: new cards (interval == 0) first, then by shortest interval.
-        self.cards = orderedCards(loadedCards)
-        self.totalCardCount = self.cards.count
+        self.cards = initialBatch.cards
+        self.totalCardCount = initialBatch.totalCount
+        self.hasLoadedAllCards = initialBatch.loadedAll
         self.isFlipped = settings.revealFlow == .answerFirst
-
         self.isSessionStarted = true
+
+        guard !initialBatch.loadedAll else { return }
+
+        let loadedIDs = Set(initialBatch.cards.map(\.id))
+        remainingCardLoadTask?.cancel()
+        remainingCardLoadTask = Task { @MainActor [weak self] in
+            let remainingRepository = PlayModeCardRepository(container: container)
+            let remainingBatch = await remainingRepository.loadPlayableCardBatch(
+                for: deckID,
+                order: order,
+                excludingIDs: loadedIDs
+            )
+            guard !Task.isCancelled, let self else { return }
+
+            let currentIDs = Set(self.cards.map(\.id))
+            let newCards = remainingBatch.cards.filter { !currentIDs.contains($0.id) }
+            self.cards.append(contentsOf: newCards)
+            self.totalCardCount = remainingBatch.totalCount
+            self.hasLoadedAllCards = true
+        }
     }
 
-    /// Releases all strong card references and flushes caches.
+    /// Releases all strong card references owned by the active session.
     ///
     /// Must be called from `.onDisappear` to prevent memory bloat between sessions.
+    /// Shared render caches stay alive because they are bounded and already flush
+    /// themselves on memory pressure. Clearing them here forces WebKit and image
+    /// decoding cold starts every time Flashcards is opened.
     func tearDown() {
+        remainingCardLoadTask?.cancel()
+        remainingCardLoadTask = nil
         cards = []
         wrongCards = []
         totalCardCount = 0
+        hasLoadedAllCards = false
         persistenceService = nil
-        MathWebViewPool.shared.flush()
-        ImageCache.shared.clearCache()
     }
 
     // MARK: - Gameplay
@@ -208,7 +243,7 @@ final class FlashCardsPlayModeViewModel {
         currentIndex        += 1        // The next card appears here.
         currentCardStartTime = Date()
 
-        if currentIndex >= cards.count {
+        if currentIndex >= cards.count, hasLoadedAllCards {
             cards = []                  // Release references before completion overlay.
             isComplete = true
         }
@@ -249,6 +284,7 @@ final class FlashCardsPlayModeViewModel {
         correctCount = 0
         isComplete   = false
         isFlipped    = settings.revealFlow == .answerFirst
+        hasLoadedAllCards = true
         currentCardStartTime = Date()
     }
 

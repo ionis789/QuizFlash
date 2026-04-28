@@ -533,12 +533,19 @@ struct ZoneContentView: View {
 struct CardFaceView: View {
     let zone: ZoneModel
     let fontScale: CGFloat
+    let displayTextAlignment: TextBlockAlignment?
     var onTap: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
 
-    init(zone: ZoneModel, fontScale: CGFloat = 1.0, onTap: (() -> Void)? = nil) {
+    init(
+        zone: ZoneModel,
+        fontScale: CGFloat = 1.0,
+        displayTextAlignment: TextBlockAlignment? = nil,
+        onTap: (() -> Void)? = nil
+    ) {
         self.zone = zone
         self.fontScale = fontScale
+        self.displayTextAlignment = displayTextAlignment
         self.onTap = onTap
     }
 
@@ -554,6 +561,7 @@ struct CardFaceView: View {
         case .text, .code:
             if !zone.text.isEmpty {
                 let previewText = displayText(for: zone)
+                let resolvedTextAlignment = displayTextAlignment ?? zone.textAlignment
                 // Route to CodeSnippetView for fenced code blocks.
                 if zone.contentType == .code || previewText.hasPrefix("```") {
                     CodeSnippetView(rawText: previewText)
@@ -571,7 +579,7 @@ struct CardFaceView: View {
                             text: previewText,
                             fontSize: fontSizeFor(zone),
                             textColor: zone.textColor.color,
-                            alignment: zone.textAlignment.horizontalAlignment,
+                            alignment: resolvedTextAlignment.horizontalAlignment,
                             isBold: zone.isBold,
                             isItalic: zone.isItalic,
                             isInteractive: false,
@@ -587,7 +595,7 @@ struct CardFaceView: View {
                                
                         )
                     }
-                        .frame(maxWidth: .infinity, alignment: alignmentFor(zone))
+                        .frame(maxWidth: .infinity, alignment: alignmentFor(resolvedTextAlignment))
                 }
             }
         case .image:
@@ -619,14 +627,32 @@ struct CardFaceView: View {
     private var containerPreview: some View {
         let children = zone.children ?? []
         if zone.direction == .horizontal {
-            HStack(alignment: .top, spacing: 12) { ForEach(children) { child in CardFaceView(zone: child, fontScale: fontScale, onTap: onTap) } }
+            HStack(alignment: .top, spacing: 12) {
+                ForEach(children) { child in
+                    CardFaceView(
+                        zone: child,
+                        fontScale: fontScale,
+                        displayTextAlignment: displayTextAlignment,
+                        onTap: onTap
+                    )
+                }
+            }
         } else {
-            VStack(alignment: .leading, spacing: 12) { ForEach(children) { child in CardFaceView(zone: child, fontScale: fontScale, onTap: onTap) } }
+            VStack(alignment: displayTextAlignment?.horizontalAlignment ?? .leading, spacing: 12) {
+                ForEach(children) { child in
+                    CardFaceView(
+                        zone: child,
+                        fontScale: fontScale,
+                        displayTextAlignment: displayTextAlignment,
+                        onTap: onTap
+                    )
+                }
+            }
         }
     }
 
-    private func alignmentFor(_ zone: ZoneModel) -> Alignment {
-        switch zone.textAlignment { case .leading: return .leading; case .center: return .center; case .trailing: return .trailing }
+    private func alignmentFor(_ textAlignment: TextBlockAlignment) -> Alignment {
+        switch textAlignment { case .leading: return .leading; case .center: return .center; case .trailing: return .trailing }
     }
 
     private func previewFont(for zone: ZoneModel) -> Font {

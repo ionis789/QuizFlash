@@ -66,15 +66,31 @@ extension DeckContentView {
         }
         .fullScreenSheet(
             item: $selectedPlayMode,
-            configuration: .chrome(backgroundReceivesDragProgress: true)
-        ) { mode, safeArea in
-            mode.playSheetView(
-                for: deck,
-                safeAreaInsets: safeArea,
-                availability: viewModel.playModeAvailability
+            configuration: .sheet(
+                heightMode: .fullScreen,
+                backgroundReceivesDragProgress: true,
+                showsBackdropBlur: true,
+                showsDefaultTopProgressiveBlur: false,
+                hidesTabBar: false,
+                coversTabBar: true
             )
+        ) { mode, safeArea in
+            if mode == .flashcards,
+               let preparedFlashcardsPlayModeViewModel {
+                DefaultModePlay(
+                    deck: deck,
+                    safeAreaInsets: safeArea,
+                    viewModel: preparedFlashcardsPlayModeViewModel
+                )
+            } else {
+                mode.playSheetView(
+                    for: deck,
+                    safeAreaInsets: safeArea,
+                    availability: viewModel.playModeAvailability
+                )
+            }
         } background: {
-            CardPreviewModeBackground()
+            PlayModeFullScreenSheetBackground()
         }
         .fullScreenSheet(
             item: $selectedPlayModeSettings,
@@ -134,16 +150,14 @@ extension DeckContentView {
     // MARK: Navigation Bar
 
     var shouldShowDeckNavigationBar: Bool {
-        selectedPlayMode == nil
-            && selectedPlayModeSettings == nil
+        selectedPlayModeSettings == nil
             && previewedCard == nil
             && viewModel.activitySheetPresentation == nil
             && cardEditorDestination == nil
     }
 
     var shouldShowFullScreenSheetBacking: Bool {
-        selectedPlayMode != nil
-            || selectedPlayModeSettings != nil
+        selectedPlayModeSettings != nil
             || previewedCard != nil
     }
 
@@ -410,5 +424,11 @@ private struct DeckHeroEditIndicator: View {
             .shadow(color: Color.black.opacity(0.18), radius: 8, x: 0, y: 4)
             .offset(x: -2, y: 8)
             .accessibilityHidden(true)
+    }
+}
+
+private struct PlayModeFullScreenSheetBackground: View {
+    var body: some View {
+        Color.black
     }
 }

@@ -74,6 +74,7 @@ struct _SwipeHost<Content: View>: UIViewRepresentable {
 
         let host = UIHostingController(rootView: content())
         host.view.backgroundColor = .clear
+        host.view.clipsToBounds = false
         host.view.translatesAutoresizingMaskIntoConstraints = false
         draggable.addSubview(host.view)
         NSLayoutConstraint.activate([
@@ -165,6 +166,12 @@ extension _SwipeHost {
 
         private(set) var isDragging = false
 
+        private struct HostedScrollLock {
+            weak var scrollView: UIScrollView?
+            let wasScrollEnabled: Bool
+            let contentOffset: CGPoint
+        }
+
         // MARK: Spring physics state
 
         /// Total horizontal translation from gesture start (updated each .changed).
@@ -208,6 +215,7 @@ extension _SwipeHost {
         private var latestGestureVelocityX: CGFloat = 0
 
         private var requiredHostedPanGestureIDs: Set<ObjectIdentifier> = []
+        private var hostedScrollLocks: [HostedScrollLock] = []
 
         // MARK: Init
 
@@ -226,6 +234,7 @@ extension _SwipeHost {
         }
 
         deinit {
+            restoreHostedScrollViewsAfterSwipe()
             activeAnimator?.stopAnimation(true)
             pendingSwipeCommitTask?.cancel()
             entranceUnlockTask?.cancel()
@@ -324,7 +333,7 @@ extension _SwipeHost {
             // Reject gestures whose initial velocity is predominantly vertical.
             // This lets the card ignore scroll attempts completely — the `.began`
             // phase never fires for vertical gestures, so the card never moves.
-            return abs(v.x) > abs(v.y) * 1.5
+            return isHorizontalCardSwipeIntent(pan, in: view)
         }
 
         func gestureRecognizer(
@@ -344,7 +353,16 @@ extension _SwipeHost {
         func gestureRecognizer(
             _ g: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
-        ) -> Bool { false }
+        ) -> Bool {
+            guard g === cardPanGesture || other === cardPanGesture else { return false }
+            guard let pan = (g === cardPanGesture ? g : other) as? UIPanGestureRecognizer else {
+                return false
+            }
+            guard isHostedScrollViewGesture(g) || isHostedScrollViewGesture(other) else {
+                return false
+            }
+            return !isHorizontalCardSwipeIntent(pan, in: pan.view)
+        }
 
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
@@ -361,6 +379,7 @@ extension _SwipeHost {
 
             switch gesture.state {
             case .began:
+                lockHostedScrollViewsForHorizontalSwipe()
                 isDragging = true
                 container.isDragging = true
                 isGestureActive = true
@@ -418,7 +437,8 @@ extension _SwipeHost {
                     hapticFired = false
                 }
 
-            case .ended, .cancelled:
+            case .ended, .cancelled, .failed:
+                restoreHostedScrollViewsAfterSwipe()
                 isGestureActive = false
                 isDragging = false
                 stopDisplayLink()
@@ -841,6 +861,56 @@ extension _SwipeHost {
             return false
         }
 
+        private func isHostedScrollViewGesture(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            var currentView = gestureRecognizer.view
+            while let view = currentView {
+                if view === draggable { return false }
+                if view is UIScrollView { return true }
+                currentView = view.superview
+            }
+            return false
+        }
+
+        private func isHorizontalCardSwipeIntent(
+            _ pan: UIPanGestureRecognizer,
+            in view: UIView?
+        ) -> Bool {
+            guard let view else { return false }
+            let velocity = pan.velocity(in: view)
+            let translation = pan.translation(in: view)
+            let horizontalSignal = abs(velocity.x) > 1 ? abs(velocity.x) : abs(translation.x)
+            let verticalSignal = max(abs(velocity.y), abs(translation.y))
+            return horizontalSignal > verticalSignal * 1.5
+        }
+
+        private func lockHostedScrollViewsForHorizontalSwipe() {
+            guard hostedScrollLocks.isEmpty, let draggable else { return }
+
+            let scrollViews = hostedScrollViews(in: draggable)
+            hostedScrollLocks = scrollViews.map { scrollView in
+                HostedScrollLock(
+                    scrollView: scrollView,
+                    wasScrollEnabled: scrollView.isScrollEnabled,
+                    contentOffset: scrollView.contentOffset
+                )
+            }
+
+            for lock in hostedScrollLocks {
+                guard let scrollView = lock.scrollView else { continue }
+                scrollView.setContentOffset(lock.contentOffset, animated: false)
+                scrollView.isScrollEnabled = false
+            }
+        }
+
+        private func restoreHostedScrollViewsAfterSwipe() {
+            guard !hostedScrollLocks.isEmpty else { return }
+            for lock in hostedScrollLocks {
+                guard let scrollView = lock.scrollView else { continue }
+                scrollView.isScrollEnabled = lock.wasScrollEnabled
+            }
+            hostedScrollLocks.removeAll()
+        }
+
         private func isTouchInsideHostedWebView(_ touchedView: UIView?) -> Bool {
             var currentView = touchedView
             while let view = currentView {
@@ -879,6 +949,24 @@ extension _SwipeHost {
             var result: [UIPanGestureRecognizer] = []
             collectHostedWebViewPanGestures(in: root, result: &result)
             return result
+        }
+
+        private func hostedScrollViews(in root: UIView) -> [UIScrollView] {
+            var result: [UIScrollView] = []
+            collectHostedScrollViews(in: root, result: &result)
+            return result
+        }
+
+        private func collectHostedScrollViews(
+            in view: UIView,
+            result: inout [UIScrollView]
+        ) {
+            if let scrollView = view as? UIScrollView {
+                result.append(scrollView)
+            }
+            for subview in view.subviews {
+                collectHostedScrollViews(in: subview, result: &result)
+            }
         }
 
         private func collectHostedWebViewPanGestures(

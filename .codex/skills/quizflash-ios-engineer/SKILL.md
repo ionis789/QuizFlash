@@ -29,6 +29,10 @@ Use the current DeckEditor naming. `CardEditorView` is the router from `CardEdit
 
 Default QuizFlash custom sheets to full-surface drag-dismiss. Do not restrict drag activation to a top strip unless the sheet contains interaction-heavy full-screen content that would become error-prone with full-height dismissal. For standard detail/configuration sheets, the user should be able to drag down from anywhere on the sheet.
 
+Keep all app top chrome on one vertical rhythm. Floating top menus, back buttons, title pills, circular actions, and immersive play-mode headers must align to the shared top anchor used by Library and Deck chrome: `safeTopInset + UIConstants.Layout.deckNavigationTopPadding`, or the shared `.topNavigationChrome(...)` modifier when the surface is not manually managing safe-area geometry. Do not add local extra offsets such as `safeTopInset + 30` in one flow; if a screen needs more breathing room, move the content below the chrome rather than moving the chrome itself.
+
+For immersive play-mode sheets, do not present an empty full-screen shell while the first playable payload is still loading. Prepare the initial visible payload or session view model before setting the sheet item, then pass the prepared state into the sheet. The first visible frame of a gameplay sheet should already have its primary card/content attached; use background continuation only for non-visible remaining data.
+
 When external framework or library behavior matters, prefer the best available primary documentation source before relying on memory. Use `Context7` when that MCP is available for current third-party API docs, examples, and recent usage guidance; fall back to official docs or primary sources when `Context7` is unavailable.
 
 Use these priority levels consistently:

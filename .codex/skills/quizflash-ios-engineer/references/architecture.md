@@ -95,6 +95,7 @@
 
 - Treat iOS 17 scroll stability as a first-class architecture concern. The app has known cases where SwiftUI reconciliation resets `UIScrollView.contentOffset` during cover, sheet, menu, and navigation changes.
 - For long-lived feature screens with floating top chrome, reserve top space with `.safeAreaInset(edge: .top)` based on the measured chrome height. Do not rely on overlay-only chrome plus hard-coded hero top padding.
+- Keep floating top chrome vertically consistent across Library, Deck, Create, and immersive play modes. The standard anchor is `safeTopInset + UIConstants.Layout.deckNavigationTopPadding` or `.topNavigationChrome(...)`; never push one flow's top buttons/title down with ad hoc constants. Additional visual breathing room belongs below the chrome, not in the chrome's top offset.
 - Use a local named coordinate space for hero-collapse detection on scrolling screens. Avoid `frame(in: .global)` checks when overlay chrome or safe-area values can shift during presentation.
 - Use `Core/Helpers/ScrollPositionRestorer.swift` as the first child of the root scroll content when a screen must preserve pixel scroll offset across iOS 17 push/pop, sheet presentation, or other state-driven re-layouts.
 - Persist the real pixel offset in the view model. Never write sentinel offsets like `1` to force restoration.
@@ -114,6 +115,7 @@
 - For heavy iOS 17 sheets, keep drag state in the lightweight outer container and host the presented SwiftUI tree inside one persistent `UIHostingController`. Do not rebuild the sheet content on every `offset` update. `View+FullScreenSheet.swift` is the canonical implementation.
 - Do not pipe drag progress into static backgrounds or expensive chrome unless the effect is visually required. Route `fullScreenSheetDragProgress` only to backgrounds that actually animate from drag, otherwise keep the backdrop fully static.
 - Prevent simultaneous sheet-drag plus inner-scroll on iOS 17. Freeze nested vertical scroll views while the sheet drag is active so the content does not overscroll and recompose during the same gesture.
+- Full-screen gameplay sheets must not animate in with an empty content surface while their first payload is loading. Start the initial payload/session preparation from the presenting screen and set the sheet item only after the first visible card/content is ready; continue loading the rest of the deck in the background after first paint.
 - Do not replace these flows with `NavigationLink` or a plain system `sheet` when the existing product behavior depends on QuizFlash's custom full-screen sheet interaction model.
 - Canonical examples are `QuizFlash/Features/DeckDetails/Views/DeckView.swift`, `QuizFlash/Features/PlayMode/FlashCardsMode/Views/FlashCardsPlayModeView.swift`, and `QuizFlash/Features/DeckEditor/Views/FlashcardEditorView.swift`.
 

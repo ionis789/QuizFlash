@@ -166,6 +166,7 @@ struct FlipCard: View {
 
     // MARK: - Environment
 
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(CardAppearancePreferences.self) private var cardAppearancePreferences
 
@@ -184,11 +185,33 @@ struct FlipCard: View {
     }
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
-    private var cardCornerRadius: CGFloat { isCompact ? 24 : 32 }
+    private var playModeTextScale: CGFloat { 1.5 }
+    private var cardCornerRadius: CGFloat { isCompact ? 42 : 52 }
+    private var minimumScaledContentScale: CGFloat { 0.5 }
     private var hPad: CGFloat { isCompact ? 20 : 28 }
     private var vPad: CGFloat { isCompact ? 20 : 24 }
     private var faceMarkerInset: CGFloat { isCompact ? 8 : 10 }
     private var faceMarkerFrameSize: CGFloat { isCompact ? 22 : 24 }
+    private var cardSurfaceFill: Color {
+        colorScheme == .dark
+            ? Color(red: 0.068, green: 0.068, blue: 0.068)
+            : Color(red: 0.92, green: 0.92, blue: 0.91)
+    }
+    private var cardBorderColor: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.045)
+            : Color.black.opacity(0.08)
+    }
+    private var cardInnerHighlightColor: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.025)
+            : Color.white.opacity(0.36)
+    }
+    private var cardShadowColor: Color {
+        colorScheme == .dark
+            ? Color.black.opacity(0.42)
+            : Color.black.opacity(0.12)
+    }
 
     // MARK: - Init
 
@@ -198,7 +221,7 @@ struct FlipCard: View {
         isFlipped: Binding<Bool>,
         tapAnimationStyle: FlashcardTapAnimationStyle,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
-        contentAlignment: FlashcardContentAlignment = .top,
+        contentAlignment: FlashcardContentAlignment = .center,
         onTap: (() -> Void)? = nil
     ) {
         self.frontZone = card.frontZone
@@ -217,7 +240,7 @@ struct FlipCard: View {
         isFlipped: Binding<Bool>,
         tapAnimationStyle: FlashcardTapAnimationStyle,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
-        contentAlignment: FlashcardContentAlignment = .top,
+        contentAlignment: FlashcardContentAlignment = .center,
         onTap: (() -> Void)? = nil
     ) {
         self.frontZone = frontZone
@@ -297,17 +320,30 @@ struct FlipCard: View {
         marker: FaceMarker,
         @ViewBuilder content: () -> Content
     ) -> some View {
+        let cardShape = RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+
         ZStack {
             content()
         }
-        .flashcardStyle(
-            cornerRadius: cardCornerRadius,
-            shadowRadius: isCompact ? 16 : 24,
-            baseBorderBlurRadius: 3
-        )
-        .overlay(alignment: .topTrailing) {
+        .background {
+            cardShape
+                .fill(cardSurfaceFill)
+                .shadow(color: cardShadowColor, radius: isCompact ? 18 : 24, y: 10)
+        }
+        .overlay {
+            cardShape
+                .strokeBorder(cardBorderColor, lineWidth: 1)
+        }
+        .overlay {
+            cardShape
+                .strokeBorder(cardInnerHighlightColor, lineWidth: 0.7)
+                .blur(radius: 1.2)
+                .clipShape(cardShape)
+        }
+        .clipShape(cardShape)
+        .overlay(alignment: .bottomTrailing) {
             faceMarkerBadge(marker)
-                .padding(.top, faceMarkerInset)
+                .padding(.bottom, faceMarkerInset + 2)
                 .padding(.trailing, faceMarkerInset)
                 .allowsHitTesting(false)
         }
@@ -315,14 +351,8 @@ struct FlipCard: View {
 
     @ViewBuilder
     private func cardFaceContent(zone: ZoneModel, contentHeight: Binding<CGFloat>) -> some View {
-        Group {
-            if contentMode == .scrollable {
-                scrollableContent(zone: zone, contentHeight: contentHeight)
-            } else {
-                scaledContent(zone: zone, contentHeight: contentHeight)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+        adaptiveScrollableContent(zone: zone, contentHeight: contentHeight)
+            .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
     }
 
     private func contentFrameAlignment(
@@ -340,7 +370,12 @@ struct FlipCard: View {
         zone: ZoneModel,
         contentHeight: Binding<CGFloat>
     ) -> some View {
-        CardFaceView(zone: zone, onTap: onTap)
+        CardFaceView(
+            zone: zone,
+            fontScale: playModeTextScale,
+            displayTextAlignment: .leading,
+            onTap: onTap
+        )
             .padding(.horizontal, hPad)
             .padding(.vertical, vPad)
             .background(
@@ -356,90 +391,46 @@ struct FlipCard: View {
             }
     }
 
-    // MARK: - Scale Mode
+    // MARK: - Adaptive Scroll Content
 
-    /// Measures natural content height and shrinks it proportionally so
-    /// everything is always visible without any scrolling.
+    /// Uses one stable vertical scroll container for all card content.
     ///
-    /// No `ScrollView` is used here, so there is no UIKit gesture recogniser
-    /// competing with `SwipeableCard`'s pan and tap recognisers.
+    /// Rich/code/math content is measured asynchronously by WebKit, so switching
+    /// between separate scale and scroll trees can leave the card in the wrong
+    /// branch for a frame or more. A single scroll surface keeps long content
+    /// scrollable as soon as its true height arrives, while short content remains
+    /// vertically centered by adding symmetric spacer height.
     @ViewBuilder
-    private func scaledContent(zone: ZoneModel, contentHeight: Binding<CGFloat>) -> some View {
+    private func adaptiveScrollableContent(zone: ZoneModel, contentHeight: Binding<CGFloat>) -> some View {
         GeometryReader { available in
-            let availableH = available.size.height - vPad * 2
-            let measured   = contentHeight.wrappedValue
-            let scale: CGFloat = measured > 0 && measured > availableH
-                ? max(availableH / measured, 0.5)
-                : 1.0
-            let frameAlignment = contentFrameAlignment(
-                measuredHeight: measured,
-                availableHeight: availableH
-            )
+            let measured = contentHeight.wrappedValue
+            let contentFits = measured > 0 && measured <= available.size.height
+            let shouldCenter = contentAlignment == .center && contentFits
+            let spacerHeight = shouldCenter
+                ? max((available.size.height - measured) / 2, 0)
+                : 0
 
             if zone.hasContent {
-                measuredFaceContent(zone: zone, contentHeight: contentHeight)
-                    .scaleEffect(scale, anchor: .top)
-                    .frame(
-                        width: available.size.width,
-                        height: available.size.height,
-                        alignment: frameAlignment
-                    )
-            } else {
-                emptyContent
-                    .frame(width: available.size.width, height: available.size.height)
-            }
-        }
-    }
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        if spacerHeight > 0 {
+                            Color.clear.frame(height: spacerHeight)
+                        }
 
-    // MARK: - Scroll Mode
-
-    /// Enables vertical scrolling when card content overflows the available height.
-    ///
-    /// ## Gesture Interaction Design
-    ///
-    /// 1. **Overflow detection** — content height is measured via `ContentHeightKey`
-    ///    and compared to the available card height. When content fits, no
-    ///    `ScrollView` is created at all, so taps and horizontal pans pass
-    ///    straight through to `SwipeableCard`.
-    ///
-    /// 2. **When scroll is active** (content overflows) — `UIScrollView` only
-    ///    intercepts vertical pans. Horizontal pans pass through to `SwipeableCard`'s
-    ///    `UIPanGestureRecognizer` because its `gestureRecognizerShouldBegin` approves
-    ///    only gestures with dominant horizontal velocity.
-    ///
-    /// 3. **Tap for flip when scroll is active** — `SwipeableCard`'s
-    ///    `UITapGestureRecognizer` sits below the `ScrollView` layer and is blocked.
-    ///    An `.onTapGesture` is added only on the overflowing path to preserve
-    ///    flip-on-tap while vertical scrolling is enabled.
-    @ViewBuilder
-    private func scrollableContent(zone: ZoneModel, contentHeight: Binding<CGFloat>) -> some View {
-        GeometryReader { available in
-            let availableH  = available.size.height - vPad * 2
-            let measured    = contentHeight.wrappedValue
-            let needsScroll = measured > availableH && measured > 0
-            let frameAlignment = contentFrameAlignment(
-                measuredHeight: measured,
-                availableHeight: availableH
-            )
-
-            if zone.hasContent {
-                if needsScroll {
-                    ScrollView(.vertical, showsIndicators: true) {
                         measuredFaceContent(zone: zone, contentHeight: contentHeight)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+
+                        if spacerHeight > 0 {
+                            Color.clear.frame(height: spacerHeight)
+                        }
                     }
-                    .scrollIndicators(.hidden)
-                    .onTapGesture {
-                        onTap?()
-                    }
-                    .frame(width: available.size.width, height: available.size.height)
-                } else {
-                    measuredFaceContent(zone: zone, contentHeight: contentHeight)
-                        .frame(
-                            width: available.size.width,
-                            height: available.size.height,
-                            alignment: frameAlignment
-                        )
+                    .frame(maxWidth: .infinity)
                 }
+                .scrollDisabled(contentFits)
+                .onTapGesture {
+                    onTap?()
+                }
+                .frame(width: available.size.width, height: available.size.height)
             } else {
                 emptyContent
                     .frame(width: available.size.width, height: available.size.height)
@@ -464,10 +455,10 @@ struct FlipCard: View {
 
     private func faceMarkerBadge(_ marker: FaceMarker) -> some View {
         Text(marker.title)
-            .font(.system(size: isCompact ? 18 : 20, weight: .black, design: .rounded))
+            .font(.system(size: isCompact ? 16 : 18, weight: .black, design: .rounded))
             .foregroundStyle(marker.tint)
             .frame(width: faceMarkerFrameSize, height: faceMarkerFrameSize)
-            .opacity(0.44)
+            .opacity(0.24)
             .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
             .accessibilityHidden(true)
     }

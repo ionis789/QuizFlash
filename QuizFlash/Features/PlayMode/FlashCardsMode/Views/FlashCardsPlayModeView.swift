@@ -29,6 +29,11 @@ struct FlashCardsPlayModeView: View {
         var id: PersistentIdentifier { card.id }
     }
 
+    private enum ScoreZoneEdge {
+        case leading
+        case trailing
+    }
+
     // MARK: - Environment
 
     @Environment(\.dismiss) private var dismiss
@@ -36,6 +41,7 @@ struct FlashCardsPlayModeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var modelContext
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
+    @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Properties
 
@@ -67,51 +73,53 @@ struct FlashCardsPlayModeView: View {
     @State private var swipeFeedbackIsLatched = false
     @State private var swipeFeedbackHideTask: Task<Void, Never>?
     @State private var swipeFeedbackLiveHideTask: Task<Void, Never>?
+#if DEBUG
+    @State private var startupDebugState = FlashcardsStartupDebugState()
+#endif
 
     // MARK: - Convenience
 
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
     private var isCompact: Bool { horizontalSizeClass == .compact }
-    private var chromeButtonSize: CGFloat { UIConstants.Size.capsuleHeight }
-    private var playSurfaceHorizontalPadding: CGFloat { 8 }
+    private var chromeButtonSize: CGFloat { isCompact ? 54 : UIConstants.Size.actionButton }
+    private var playSurfaceHorizontalPadding: CGFloat { isCompact ? 12 : 24 }
+    private var flipPerspectiveBottomClearance: CGFloat { isCompact ? 14 : 22 }
+    private var scoreZoneHeight: CGFloat { isCompact ? 44 : 52 }
+    private var scoreZoneBottomPadding: CGFloat { isCompact ? 10 : 16 }
+    private var cardBottomReserve: CGFloat { flipPerspectiveBottomClearance }
+    private var bottomChromeHeight: CGFloat { scoreZoneHeight + scoreZoneBottomPadding + 6 }
     private var preloadBufferDepth: Int { 2 }
-    private var dismissDragOverlapBelowHeader: CGFloat { isCompact ? 60 : 80 }
     private var promotedCardScale: CGFloat { 0.952 }
     private var promotedCardSpring: Animation { .spring(response: 0.36, dampingFraction: 0.84) }
-    private var dragDismissActivationHeight: CGFloat {
-        headerHeight + currentHeaderBottomPadding + dismissDragOverlapBelowHeader
-    }
     private var resolvedDeckTitle: String {
         let trimmedTitle = viewModel.deck.title.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedTitle.isEmpty ? "Untitled Deck" : trimmedTitle
     }
-    private var currentHeaderBottomPadding: CGFloat { isCompact ? 16 : 24 }
+    private var currentHeaderBottomPadding: CGFloat { isCompact ? 16 : 18 }
     private var currentPlayableCard: PlayableCard? {
         guard viewModel.currentIndex < viewModel.cards.count else { return nil }
         return viewModel.cards[viewModel.currentIndex]
     }
-    private var reviewedProgressFraction: CGFloat {
-        guard viewModel.totalCardCount > 0 else { return 0 }
-        return CGFloat(viewModel.reviewedCardCount) / CGFloat(viewModel.totalCardCount)
-    }
-    private var wrongShareWithinReviewed: CGFloat {
-        let reviewed = max(viewModel.reviewedCardCount, 0)
-        guard reviewed > 0 else { return 0 }
-        return CGFloat(viewModel.wrongCards.count) / CGFloat(reviewed)
+    private var playSessionPositionText: String {
+        let total = max(viewModel.totalCardCount, viewModel.cards.count)
+        guard total > 0 else { return "0 / 0" }
+        let current = min(max(viewModel.currentIndex + 1, 1), total)
+        return "\(current) / \(total)"
     }
 
     // MARK: - Body
 
     var body: some View {
         GeometryReader { geo in
-            let resolvedSafeTopInset = max(safeAreaInsets.top, geo.safeAreaInsets.top)
+            let resolvedSafeTopInset = resolvedTopSafeInset(
+                geometrySafeTop: geo.safeAreaInsets.top,
+                containerHeight: geo.size.height
+            )
             let resolvedSafeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
-            let cardBottomPadding: CGFloat = 2
+            let bottomControlInset = max(resolvedSafeBottomInset - 6, 10)
+            let cardBottomPadding = bottomChromeHeight + bottomControlInset
 
             ZStack {
-                screenBackground
-                    .ignoresSafeArea()
-
                 if !viewModel.isComplete {
                     VStack(spacing: 0) {
                         header(
@@ -119,16 +127,28 @@ struct FlashCardsPlayModeView: View {
                             horizontalPadding: playSurfaceHorizontalPadding
                         )
                         .padding(.bottom, currentHeaderBottomPadding)
+                        .zIndex(100)
 
                         cardArea
                             .padding(.horizontal, playSurfaceHorizontalPadding)
                             .padding(.bottom, cardBottomPadding)
-                            .ignoresSafeArea(edges: .bottom)
+                            .overlay(alignment: .bottom) {
+                                if viewModel.isSessionStarted {
+                                    bottomScoreZones
+                                        .frame(height: bottomChromeHeight)
+                                        .padding(.bottom, bottomControlInset)
+                                }
+                            }
+                            .zIndex(1)
                     }
+                    .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
                     .transition(.opacity)
 
-                    if AppFeatures.current.showsInternalLabs, developmentPreferences.playModeDeveloperModeEnabled {
-                        playModeDeveloperToolsOverlay(safeBottomInset: resolvedSafeBottomInset)
+                    if developmentPreferences.playModeDeveloperModeEnabled {
+                        playModeDeveloperToolsOverlay(
+                            safeBottomInset: resolvedSafeBottomInset,
+                            containerSize: geo.size
+                        )
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
@@ -137,24 +157,54 @@ struct FlashCardsPlayModeView: View {
                     completionOverlay
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
+
             }
-            .fullScreenSheetDragActivationHeight(dragDismissActivationHeight)
+            .background(Color.black.ignoresSafeArea())
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.isComplete)
+        .animation(.smooth(duration: 0.26, extraBounce: 0), value: viewModel.isComplete)
+        .onAppear {
+#if DEBUG
+            startupDebugState.reset()
+            startupDebugState.record("view appear")
+#endif
+        }
         .task {
             if !viewModel.isSessionStarted {
+#if DEBUG
+                startupDebugState.record("task start")
+#endif
                 await viewModel.startSession(container: modelContext.container)
+#if DEBUG
+                startupDebugState.record("task returned")
+#endif
             }
         }
         .onDisappear {
             guard editingCard == nil else { return }
+#if DEBUG
+            startupDebugState.record("view disappear")
+#endif
             showsDeveloperPanel = false
             developerSwipeDebugState.showsLiveSwipeOverlay = false
             resetSwipeFeedbackPresentation()
             developerSwipeDebugState.reset()
             viewModel.tearDown()
         }
+#if DEBUG
+        .onChange(of: viewModel.isSessionStarted) { _, isStarted in
+            startupDebugState.record("isSessionStarted \(isStarted)")
+        }
+        .onChange(of: viewModel.hasLoadedAllCards) { _, hasLoadedAllCards in
+            startupDebugState.record("loadedAll \(hasLoadedAllCards)")
+        }
+        .onChange(of: viewModel.cards.count) { _, count in
+            startupDebugState.record("cards.count \(count)/\(viewModel.totalCardCount)")
+        }
+#endif
         .onChange(of: viewModel.currentIndex) { _, _ in
+#if DEBUG
+            startupDebugState.record("currentIndex \(viewModel.currentIndex)")
+#endif
             liveSwipeFeedbackSnapshot = .idle
             resetLiveSwipeFeedback()
             developerSwipeDebugState.reset()
@@ -181,6 +231,15 @@ struct FlashCardsPlayModeView: View {
             }
         }
         .navigationBarHidden(true)
+    }
+
+    private func resolvedTopSafeInset(geometrySafeTop: CGFloat, containerHeight: CGFloat) -> CGFloat {
+        let reportedInset = max(safeAreaInsets.top, geometrySafeTop)
+        guard fullScreenSheetDismiss != nil else { return reportedInset }
+
+        let compactSheetFallback: CGFloat = containerHeight >= 800 ? 59 : 28
+        let minimumSheetInset = isCompact ? compactSheetFallback : 24
+        return max(reportedInset, minimumSheetInset)
     }
 
     // MARK: - Card Area
@@ -213,6 +272,7 @@ struct FlashCardsPlayModeView: View {
                             swipeGestureTuning: resolvedSwipeGestureTuning,
                             isFlipped: flipBinding
                         )
+                        .padding(.bottom, cardBottomReserve)
                         .opacity(isCurrentCard ? 1 : 0.001)
                         .scaleEffect(isCurrentCard ? 1 : promotedCardScale)
                         .allowsHitTesting(isCurrentCard)
@@ -223,6 +283,13 @@ struct FlashCardsPlayModeView: View {
                             insertion: .identity,
                             removal: .opacity
                         ))
+#if DEBUG
+                        .onAppear {
+                            if isCurrentCard {
+                                startupDebugState.record("card appear #\(entry.displayIndex + 1)")
+                            }
+                        }
+#endif
                     }
                 }
 
@@ -232,7 +299,165 @@ struct FlashCardsPlayModeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.spring(response: 0.20, dampingFraction: 0.86), value: viewModel.currentIndex)
+#if DEBUG
+        .onAppear {
+            startupDebugState.record("cardArea appear")
+        }
+#endif
     }
+
+    private var bottomScoreZones: some View {
+        HStack(spacing: 14) {
+            scoreZone(
+                count: viewModel.wrongCards.count,
+                systemName: "xmark",
+                tint: Color.red.opacity(0.92),
+                edge: .leading
+            )
+
+            Spacer(minLength: 0)
+
+            playSessionPositionPill
+                .layoutPriority(1)
+
+            Spacer(minLength: 0)
+
+            scoreZone(
+                count: viewModel.correctCount,
+                systemName: "checkmark",
+                tint: Color.green.opacity(0.92),
+                edge: .trailing
+            )
+        }
+        .padding(.horizontal, isCompact ? 8 : 14)
+        .padding(.bottom, scoreZoneBottomPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .allowsHitTesting(false)
+    }
+
+    private var playSessionPositionPill: some View {
+        Text(playSessionPositionText)
+            .font(.system(size: isCompact ? 18 : 20, weight: .black, design: .rounded))
+            .foregroundStyle(themeManager.textPrimary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .monospacedDigit()
+            .padding(.horizontal, isCompact ? 16 : 18)
+            .frame(height: scoreZoneHeight)
+            .background {
+                Capsule()
+                    .fill(themeManager.surfacePrimary.opacity(0.66))
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(themeManager.textPrimary.opacity(0.08), lineWidth: 1)
+                    }
+            }
+    }
+
+    private func scoreZone(
+        count: Int,
+        systemName: String,
+        tint: Color,
+        edge: ScoreZoneEdge
+    ) -> some View {
+        HStack(spacing: 8) {
+            if edge == .trailing {
+                Image(systemName: systemName)
+                    .font(.system(size: isCompact ? 13 : 14, weight: .black, design: .rounded))
+                    .foregroundStyle(tint)
+            }
+
+            Text("\(count)")
+                .font(.system(size: isCompact ? 18 : 20, weight: .black, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(tint)
+                .contentTransition(.numericText())
+
+            if edge == .leading {
+                Image(systemName: systemName)
+                    .font(.system(size: isCompact ? 13 : 14, weight: .black, design: .rounded))
+                    .foregroundStyle(tint)
+            }
+        }
+        .padding(.horizontal, isCompact ? 12 : 14)
+        .frame(minWidth: isCompact ? 60 : 66)
+        .frame(height: scoreZoneHeight)
+        .background {
+            Capsule()
+                .fill(themeManager.surfacePrimary.opacity(0.62))
+                .overlay {
+                    Capsule()
+                        .strokeBorder(tint.opacity(0.48), lineWidth: 1.4)
+                }
+        }
+        .shadow(color: tint.opacity(0.12), radius: 12, y: 6)
+        .animation(.snappy(duration: 0.22, extraBounce: 0.04), value: count)
+    }
+
+#if DEBUG
+    private func flashcardsStartupDebugPanel(
+        safeTopInset: CGFloat,
+        safeBottomInset: CGFloat,
+        cardBottomPadding: CGFloat
+    ) -> some View {
+        let pool = MathWebViewPool.shared.debugSnapshot()
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text("FLASHCARDS PERF")
+                    .font(.system(size: 11, weight: .black, design: .monospaced))
+                Spacer(minLength: 0)
+                Text(startupDebugState.elapsedText)
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .monospacedDigit()
+            }
+
+            debugLine("started", viewModel.isSessionStarted.description)
+            debugLine("cards", "\(viewModel.cards.count)/\(viewModel.totalCardCount) loadedAll=\(viewModel.hasLoadedAllCards)")
+            debugLine("index", "\(viewModel.currentIndex) current=\(currentPlayableCard?.cardNumber.description ?? "nil")")
+            debugLine("sheet", "fullScreen=\((fullScreenSheetDismiss != nil).description)")
+            debugLine("safe", "top \(Int(safeTopInset)) bottom \(Int(safeBottomInset)) cardBottom \(Int(cardBottomPadding))")
+            debugLine("header", "\(Int(headerHeight))")
+            debugLine("webPool", "idle \(pool.idleCount) prewarmed \(pool.isPrewarmed) tasks \(pool.pendingPrewarmTaskCount)")
+
+            Divider()
+                .overlay(Color.white.opacity(0.45))
+
+            ForEach(startupDebugState.events.suffix(7)) { event in
+                Text(event.displayText)
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Color.white.opacity(0.92))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.black.opacity(0.78))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.yellow.opacity(0.65), lineWidth: 1)
+                }
+        }
+        .foregroundStyle(Color.yellow)
+    }
+
+    private func debugLine(_ title: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(title)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.yellow.opacity(0.75))
+                .frame(width: 58, alignment: .leading)
+            Text(value)
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+    }
+#endif
 
     private var bufferedCardEntries: [BufferedCardEntry] {
         guard !viewModel.cards.isEmpty, viewModel.currentIndex < viewModel.cards.count else { return [] }
@@ -248,17 +473,27 @@ struct FlashCardsPlayModeView: View {
     // MARK: - Header
 
     private func header(safeTopInset: CGFloat, horizontalPadding: CGFloat) -> some View {
-        VStack(spacing: UIConstants.Spacing.standard) {
-            HStack(spacing: UIConstants.Spacing.small) {
-                flashcardsTitleBlock
-                    .frame(maxWidth: .infinity)
+        ZStack(alignment: .top) {
+            FlashCardsHeaderControlsBridge(
+                buttonSize: chromeButtonSize,
+                editTint: UIColor(accentColor),
+                closeTint: UIColor(themeManager.textPrimary),
+                backgroundTint: UIColor(themeManager.roleColor(.circularToolbarFill)),
+                onEdit: openCurrentCardEditor,
+                onClose: handleDismiss
+            )
+            .frame(height: chromeButtonSize)
+            .zIndex(2)
 
-                editCurrentCardButton
-                dismissButton
-            }
+            flashcardsTitleBlock
+                .padding(.horizontal, chromeButtonSize + UIConstants.Spacing.standard)
+                .frame(height: chromeButtonSize, alignment: .center)
+                .allowsHitTesting(false)
+                .zIndex(1)
         }
-        .padding(.top, safeTopInset + 6)
-        .padding(.horizontal, horizontalPadding)
+        .frame(height: chromeButtonSize, alignment: .top)
+        .padding(.top, safeTopInset + UIConstants.Layout.deckNavigationTopPadding)
+        .padding(.horizontal, max(horizontalPadding, UIConstants.Layout.compactScreenEdgeInset))
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.size.height
         } action: { newHeight in
@@ -269,101 +504,14 @@ struct FlashCardsPlayModeView: View {
     }
 
     private var flashcardsTitleBlock: some View {
-        VStack(spacing: 8) {
-            Text(resolvedDeckTitle)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .allowsTightening(true)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-
-            flashcardsProgressChrome
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .frame(height: chromeButtonSize)
-    }
-
-    private var flashcardsProgressChrome: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.white.opacity(0.10))
-
-                if reviewedProgressFraction > 0 {
-                    reviewProgressFill
-                        .frame(width: proxy.size.width * reviewedProgressFraction)
-                        .animation(.selectionToolbarSpring, value: viewModel.reviewedCardCount)
-                }
-            }
-            .clipShape(Capsule())
-        }
-        .frame(height: 6)
-        .frame(maxWidth: .infinity)
-    }
-
-    @ViewBuilder
-    private var reviewProgressFill: some View {
-        if wrongShareWithinReviewed <= 0 {
-            Capsule()
-                .fill(Color.green)
-        } else if wrongShareWithinReviewed >= 1 {
-            Capsule()
-                .fill(Color.red)
-        } else {
-            Capsule()
-                .fill(reviewProgressGradient)
-        }
-    }
-
-    private var reviewProgressGradient: LinearGradient {
-        let red = Color.red
-        let orange = Color.orange
-        let yellow = Color.yellow
-        let green = Color.green
-        let center = min(max(wrongShareWithinReviewed, 0), 1)
-        let transitionHalfWidth: CGFloat = center == 0 || center == 1 ? 0 : 0.08
-        let leftTransition = max(0, center - transitionHalfWidth)
-        let rightTransition = min(1, center + transitionHalfWidth)
-
-        return LinearGradient(
-            stops: [
-                .init(color: red.opacity(0.88), location: 0),
-                .init(color: red, location: max(0, leftTransition * 0.72)),
-                .init(color: orange, location: leftTransition),
-                .init(color: yellow, location: center),
-                .init(color: Color(red: 0.58, green: 0.84, blue: 0.12), location: rightTransition),
-                .init(color: green.opacity(0.96), location: 1)
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
-
-    private var dismissButton: some View {
-        Button(action: handleDismiss) {
-            Image(systemName: "xmark")
-                .font(.system(size: 20, weight: .bold))
-                .fontDesign(.rounded)
-                .foregroundStyle(.primary)
-                .frame(width: chromeButtonSize, height: chromeButtonSize)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var editCurrentCardButton: some View {
-        Button(action: openCurrentCardEditor) {
-            Image(systemName: "pencil")
-                .font(.system(size: 18, weight: .bold))
-                .fontDesign(.rounded)
-                .foregroundStyle(accentColor)
-                .frame(width: chromeButtonSize, height: chromeButtonSize)
-        }
-        .buttonStyle(.plain)
-        .disabled(currentPlayableCard == nil)
-        .opacity(currentPlayableCard == nil ? 0.45 : 1)
+        Text(resolvedDeckTitle)
+            .font(.system(size: isCompact ? 19 : 22, weight: .bold, design: .rounded))
+            .foregroundStyle(themeManager.textSecondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.62)
+            .allowsTightening(true)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
     }
 
     private func openCurrentCardEditor() {
@@ -441,12 +589,6 @@ struct FlashCardsPlayModeView: View {
         ]
     }
 
-    // MARK: - Background
-
-    private var screenBackground: some View {
-        CardPreviewModeBackground()
-    }
-
     @ViewBuilder
     private var swipeDirectionFeedbackOverlay: some View {
         SwipeArrowAnimatedObjectView(
@@ -504,8 +646,16 @@ struct FlashCardsPlayModeView: View {
         return max(liveProgress, latchedProgress)
     }
 
-    private func playModeDeveloperToolsOverlay(safeBottomInset: CGFloat) -> some View {
-        ZStack(alignment: .bottomTrailing) {
+    private func playModeDeveloperToolsOverlay(
+        safeBottomInset: CGFloat,
+        containerSize: CGSize
+    ) -> some View {
+        let horizontalInset = UIConstants.Layout.compactScreenEdgeInset
+        let panelWidth = min(containerSize.width - (horizontalInset * 2), 360)
+        let availablePanelHeight = containerSize.height - safeBottomInset - bottomChromeHeight - 128
+        let panelMaxHeight = min(max(availablePanelHeight, 280), 540)
+
+        return ZStack(alignment: .bottomTrailing) {
             if developerSwipeDebugState.showsLiveSwipeOverlay {
                 PlayModeDeveloperSwipeOverlayHUD(
                     snapshot: liveSwipeFeedbackSnapshot,
@@ -522,35 +672,47 @@ struct FlashCardsPlayModeView: View {
                 .padding(.bottom, safeBottomInset + 12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
+                .allowsHitTesting(true)
             }
 
             VStack(alignment: .trailing, spacing: UIConstants.Spacing.medium) {
                 if showsDeveloperPanel {
+#if DEBUG
+                    let performanceContent = AnyView(
+                        flashcardsStartupDebugPanel(
+                            safeTopInset: 0,
+                            safeBottomInset: safeBottomInset,
+                            cardBottomPadding: bottomChromeHeight + max(safeBottomInset - 6, 10)
+                        )
+                    )
+#else
+                    let performanceContent: AnyView? = nil
+#endif
+
                     PlayModeDeveloperSwipePanel(
                         state: developerSwipeDebugState,
+                        maxHeight: panelMaxHeight,
+                        performanceContent: performanceContent,
                         onClose: closeDeveloperPanel
                     )
-                        .frame(maxWidth: 300)
+                        .frame(width: panelWidth)
                         .transition(playModeDeveloperPanelTransition)
                 }
 
-                Button(action: toggleDeveloperPanel) {
-                    Image(systemName: showsDeveloperPanel ? "slider.horizontal.3.circle.fill" : "slider.horizontal.3")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(showsDeveloperPanel ? accentColor : .primary)
-                        .frame(width: 52, height: 52)
-                }
-                .buttonStyle(.plain)
-                .flashcardStyle(
-                    cornerRadius: 24,
-                    surfaceRole: .widget,
-                    baseBorderBlurRadius: showsDeveloperPanel ? 3 : 1
+                PlayModeDebugButtonBridge(
+                    title: showsDeveloperPanel ? "Hide Debug" : "Play Debug",
+                    isActive: showsDeveloperPanel,
+                    accentTint: UIColor(accentColor),
+                    onTap: toggleDeveloperPanel
                 )
+                .frame(width: showsDeveloperPanel ? 136 : 128, height: 44)
             }
-            .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset)
-            .padding(.bottom, safeBottomInset + 12)
+            .padding(.horizontal, horizontalInset)
+            .padding(.bottom, safeBottomInset + bottomChromeHeight + 4)
+            .allowsHitTesting(true)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: containerSize.width, height: containerSize.height, alignment: .bottomTrailing)
+        .zIndex(1_200)
     }
 
     private func toggleDeveloperPanel() {
@@ -919,134 +1081,171 @@ private final class PlayModeDeveloperSwipeDebugState {
 
 private struct PlayModeDeveloperSwipePanel: View {
     @Bindable var state: PlayModeDeveloperSwipeDebugState
+    let maxHeight: CGFloat
+    let performanceContent: AnyView?
     let onClose: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            HStack {
-                Text("Play Debug")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
+        VStack(alignment: .leading, spacing: 0) {
+            panelHeader
 
-                Spacer(minLength: 0)
+            Divider()
+                .overlay(Color.white.opacity(0.10))
 
-                closeButton
-            }
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+                    if let performanceContent {
+                        debugSection("Startup Perf") {
+                            performanceContent
+                        }
+                    }
 
-            HStack {
-                Spacer(minLength: 0)
+                    debugSection("Live Swipe") {
+                        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+                            statusChips
 
-                if state.liveSnapshot.fastSwipeDetected {
-                    Text("FLICK")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.cyan)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.cyan.opacity(0.16), in: Capsule())
+                            progressRow(
+                                title: "Distance",
+                                value: state.liveSnapshot.distanceProgress,
+                                tint: .cyan
+                            )
+
+                            progressRow(
+                                title: "Velocity",
+                                value: state.liveSnapshot.velocityProgress,
+                                tint: .orange,
+                                valueText: velocityText
+                            )
+
+                            progressRow(
+                                title: "Projected",
+                                value: state.liveSnapshot.projectedProgress,
+                                tint: .yellow
+                            )
+
+                            progressRow(
+                                title: "Commit Intent",
+                                value: state.liveSnapshot.commitIntentProgress,
+                                tint: .red
+                            )
+
+                            progressRow(
+                                title: "Display Progress",
+                                value: state.displayProgress,
+                                tint: .green
+                            )
+
+                            toggleRow
+                        }
+                    }
+
+                    debugSection("Controls") {
+                        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+                            developerSliderRow(
+                                title: "Flick Sensitivity",
+                                value: $state.flickSensitivity,
+                                range: 0.55...1.90,
+                                tint: .cyan
+                            )
+
+                            developerSliderRow(
+                                title: "Dismiss Distance",
+                                value: $state.dismissDistanceThreshold,
+                                range: 72...180,
+                                tint: .mint
+                            )
+
+                            developerSliderRow(
+                                title: "Dismiss Speed",
+                                value: $state.dismissAnimationSpeed,
+                                range: 0.40...2.20,
+                                tint: .orange
+                            )
+
+                            developerSliderRow(
+                                title: "Arrow Dead Zone",
+                                value: $state.displayDeadZone,
+                                range: 0...0.35,
+                                tint: .yellow
+                            )
+
+                            developerSliderRow(
+                                title: "Arrow Curve",
+                                value: $state.displayCurve,
+                                range: 0.35...1.6,
+                                tint: .pink
+                            )
+
+                            developerSliderRow(
+                                title: "Arrow Width",
+                                value: $state.arrowBaseWidth,
+                                range: 16...64,
+                                tint: .mint
+                            )
+                        }
+                    }
                 }
-
-                Text(directionLabel)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(directionColor)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(directionColor.opacity(0.14), in: Capsule())
-
-                Text(phaseLabel)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.08), in: Capsule())
+                .padding(UIConstants.Spacing.medium)
             }
-
-            progressRow(
-                title: "Distance",
-                value: state.liveSnapshot.distanceProgress,
-                tint: .cyan
-            )
-
-            progressRow(
-                title: "Velocity",
-                value: state.liveSnapshot.velocityProgress,
-                tint: .orange,
-                valueText: velocityText
-            )
-
-            progressRow(
-                title: "Projected",
-                value: state.liveSnapshot.projectedProgress,
-                tint: .yellow
-            )
-
-            progressRow(
-                title: "Commit Intent",
-                value: state.liveSnapshot.commitIntentProgress,
-                tint: .red
-            )
-
-            progressRow(
-                title: "Display Progress",
-                value: state.displayProgress,
-                tint: .green
-            )
-
-            Toggle(isOn: $state.showsLiveSwipeOverlay) {
-                Text("Live Swipe HUD")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.primary)
-                    .textCase(.uppercase)
-            }
-            .tint(.cyan)
-
-            developerSliderRow(
-                title: "Flick Sensitivity",
-                value: $state.flickSensitivity,
-                range: 0.55...1.90,
-                tint: .cyan
-            )
-
-            developerSliderRow(
-                title: "Dismiss Distance",
-                value: $state.dismissDistanceThreshold,
-                range: 72...180,
-                tint: .mint
-            )
-
-            developerSliderRow(
-                title: "Dismiss Speed",
-                value: $state.dismissAnimationSpeed,
-                range: 0.40...2.20,
-                tint: .orange
-            )
-
-            developerSliderRow(
-                title: "Arrow Dead Zone",
-                value: $state.displayDeadZone,
-                range: 0...0.35,
-                tint: .yellow
-            )
-
-            developerSliderRow(
-                title: "Arrow Curve",
-                value: $state.displayCurve,
-                range: 0.35...1.6,
-                tint: .pink
-            )
-
-            developerSliderRow(
-                title: "Arrow Width",
-                value: $state.arrowBaseWidth,
-                range: 16...64,
-                tint: .mint
-            )
         }
-        .padding(UIConstants.Spacing.large)
+        .frame(maxHeight: maxHeight)
         .flashcardStyle(
             cornerRadius: UIConstants.Radius.maximum,
             surfaceRole: .widget,
             baseBorderBlurRadius: 1
         )
+    }
+
+    private var panelHeader: some View {
+        HStack(spacing: UIConstants.Spacing.medium) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Play Debug")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+
+                Text("Swipe state and tuning")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+
+            closeButton
+        }
+        .padding(.horizontal, UIConstants.Spacing.medium)
+        .padding(.vertical, UIConstants.Spacing.small)
+    }
+
+    private var statusChips: some View {
+        HStack(spacing: UIConstants.Spacing.small) {
+            debugChip(directionLabel, tint: directionColor)
+            debugChip(phaseLabel, tint: .gray)
+
+            if state.liveSnapshot.fastSwipeDetected {
+                debugChip("FLICK", tint: .cyan)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var toggleRow: some View {
+        Toggle(isOn: $state.showsLiveSwipeOverlay) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Live Swipe HUD")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .textCase(.uppercase)
+
+                Text(state.showsLiveSwipeOverlay ? "Visible while dragging" : "Hidden")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .tint(.cyan)
+        .padding(.horizontal, UIConstants.Spacing.medium)
+        .padding(.vertical, UIConstants.Spacing.small)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var closeButton: some View {
@@ -1064,6 +1263,39 @@ private struct PlayModeDeveloperSwipePanel: View {
         .buttonStyle(.plain)
         .contentShape(Circle())
         .accessibilityLabel("Close debug panel")
+    }
+
+    private func debugChip(_ title: String, tint: Color) -> some View {
+        Text(title)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(tint.opacity(0.14), in: Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(tint.opacity(0.18), lineWidth: 1)
+            }
+    }
+
+    private func debugSection<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+            Text(title)
+                .font(.caption.weight(.black))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, 2)
+
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+                content()
+            }
+            .padding(UIConstants.Spacing.small)
+            .background(Color.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
     }
 
     private var directionLabel: String {
@@ -1110,14 +1342,18 @@ private struct PlayModeDeveloperSwipePanel: View {
             HStack {
                 Text(title)
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .textCase(.uppercase)
 
                 Spacer(minLength: 0)
 
                 Text(valueText)
-                    .font(.caption.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.caption.monospacedDigit().weight(.bold))
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 70, alignment: .trailing)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.07), in: Capsule())
             }
 
             GeometryReader { proxy in
@@ -1149,23 +1385,34 @@ private struct PlayModeDeveloperSwipePanel: View {
             HStack {
                 Text(title)
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .textCase(.uppercase)
 
                 Spacer(minLength: 0)
 
-                Text(Double(value.wrappedValue).formatted(.number.precision(.fractionLength(2))))
-                    .font(.caption.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.secondary)
+                Text(sliderValueText(value.wrappedValue))
+                    .font(.caption.monospacedDigit().weight(.bold))
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 70, alignment: .trailing)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.07), in: Capsule())
             }
 
             Slider(value: value, in: range)
                 .tint(tint)
         }
+        .padding(.horizontal, UIConstants.Spacing.small)
+        .padding(.vertical, UIConstants.Spacing.small)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func progressText(for value: CGFloat) -> String {
         "\(Int((min(max(value, 0), 1) * 100).rounded()))%"
+    }
+
+    private func sliderValueText(_ value: CGFloat) -> String {
+        Double(value).formatted(.number.precision(.fractionLength(2)))
     }
 }
 
@@ -1300,42 +1547,244 @@ private struct PlayModeDeveloperSwipeOverlayHUD: View {
     }
 }
 
+#if DEBUG
+private struct FlashcardsStartupDebugEvent: Identifiable, Equatable {
+    let id = UUID()
+    let milliseconds: Int
+    let message: String
+
+    var displayText: String {
+        "\(milliseconds)ms  \(message)"
+    }
+}
+
+private struct FlashcardsStartupDebugState: Equatable {
+    private var startTime = CACurrentMediaTime()
+    private(set) var events: [FlashcardsStartupDebugEvent] = []
+
+    var elapsedText: String {
+        "\(Int((CACurrentMediaTime() - startTime) * 1_000))ms"
+    }
+
+    mutating func reset() {
+        startTime = CACurrentMediaTime()
+        events = []
+    }
+
+    mutating func record(_ message: String) {
+        let elapsed = Int((CACurrentMediaTime() - startTime) * 1_000)
+        events.append(
+            FlashcardsStartupDebugEvent(
+                milliseconds: elapsed,
+                message: message
+            )
+        )
+        if events.count > 18 {
+            events.removeFirst(events.count - 18)
+        }
+    }
+}
+#endif
+
+// MARK: - Play Mode Debug Button Bridge
+
+private struct PlayModeDebugButtonBridge: UIViewRepresentable {
+    let title: String
+    let isActive: Bool
+    let accentTint: UIColor
+    let onTap: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onTap: onTap)
+    }
+
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton(type: .system, primaryAction: UIAction { [weak coordinator = context.coordinator] _ in
+            coordinator?.onTap()
+        })
+        button.isUserInteractionEnabled = true
+        button.clipsToBounds = true
+        button.layer.cornerCurve = .continuous
+        button.layer.cornerRadius = 22
+        button.accessibilityLabel = title
+        applyStyle(to: button)
+        return button
+    }
+
+    func updateUIView(_ uiView: UIButton, context: Context) {
+        context.coordinator.onTap = onTap
+        uiView.accessibilityLabel = title
+        applyStyle(to: uiView)
+    }
+
+    private func applyStyle(to button: UIButton) {
+        var configuration = UIButton.Configuration.filled()
+        configuration.title = title
+        configuration.image = UIImage(systemName: "slider.horizontal.3")
+        configuration.imagePadding = 8
+        configuration.baseForegroundColor = isActive ? accentTint : .white
+        configuration.baseBackgroundColor = UIColor(white: 0.18, alpha: 0.86)
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 9, leading: 14, bottom: 9, trailing: 14)
+        configuration.background.cornerRadius = 22
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+            var outgoing = incoming
+            outgoing.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
+            return outgoing
+        }
+        button.configuration = configuration
+    }
+
+    final class Coordinator {
+        var onTap: () -> Void
+
+        init(onTap: @escaping () -> Void) {
+            self.onTap = onTap
+        }
+    }
+}
+
+// MARK: - FlashCards Header Controls Bridge
+
+private struct FlashCardsHeaderControlsBridge: UIViewRepresentable {
+    let buttonSize: CGFloat
+    let editTint: UIColor
+    let closeTint: UIColor
+    let backgroundTint: UIColor
+    let onEdit: () -> Void
+    let onClose: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onEdit: onEdit, onClose: onClose)
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = true
+
+        let editButton = makeButton(
+            systemName: "pencil",
+            tint: editTint,
+            accessibilityLabel: "Edit current card",
+            action: UIAction { [weak coordinator = context.coordinator] _ in
+                coordinator?.onEdit()
+            }
+        )
+
+        let closeButton = makeButton(
+            systemName: "xmark",
+            tint: closeTint,
+            accessibilityLabel: "Close",
+            action: UIAction { [weak coordinator = context.coordinator] _ in
+                coordinator?.onClose()
+            }
+        )
+
+        context.coordinator.editButton = editButton
+        context.coordinator.closeButton = closeButton
+
+        view.addSubview(editButton)
+        view.addSubview(closeButton)
+
+        NSLayoutConstraint.activate([
+            editButton.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            editButton.topAnchor.constraint(equalTo: view.topAnchor),
+            editButton.widthAnchor.constraint(equalToConstant: buttonSize),
+            editButton.heightAnchor.constraint(equalToConstant: buttonSize),
+
+            closeButton.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            closeButton.topAnchor.constraint(equalTo: view.topAnchor),
+            closeButton.widthAnchor.constraint(equalToConstant: buttonSize),
+            closeButton.heightAnchor.constraint(equalToConstant: buttonSize)
+        ])
+
+        applyStyle(to: editButton, systemName: "pencil", tint: editTint)
+        applyStyle(to: closeButton, systemName: "xmark", tint: closeTint)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.onEdit = onEdit
+        context.coordinator.onClose = onClose
+        context.coordinator.editButton?.backgroundColor = backgroundTint
+        context.coordinator.closeButton?.backgroundColor = backgroundTint
+        if let editButton = context.coordinator.editButton {
+            applyStyle(to: editButton, systemName: "pencil", tint: editTint)
+        }
+        if let closeButton = context.coordinator.closeButton {
+            applyStyle(to: closeButton, systemName: "xmark", tint: closeTint)
+        }
+    }
+
+    private func makeButton(
+        systemName: String,
+        tint: UIColor,
+        accessibilityLabel: String,
+        action: UIAction
+    ) -> UIButton {
+        let button = UIButton(type: .system, primaryAction: action)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.accessibilityLabel = accessibilityLabel
+        button.backgroundColor = backgroundTint
+        button.layer.cornerCurve = .continuous
+        button.layer.cornerRadius = buttonSize / 2
+        button.clipsToBounds = true
+        applyStyle(to: button, systemName: systemName, tint: tint)
+        return button
+    }
+
+    private func applyStyle(to button: UIButton, systemName: String, tint: UIColor) {
+        let pointSize = systemName == "xmark" ? 23 : 19
+        let configuration = UIImage.SymbolConfiguration(pointSize: CGFloat(pointSize), weight: .bold)
+        button.setImage(UIImage(systemName: systemName, withConfiguration: configuration), for: .normal)
+        button.tintColor = tint
+        button.backgroundColor = backgroundTint
+        button.layer.cornerRadius = buttonSize / 2
+    }
+
+    final class Coordinator {
+        var onEdit: () -> Void
+        var onClose: () -> Void
+        weak var editButton: UIButton?
+        weak var closeButton: UIButton?
+
+        init(onEdit: @escaping () -> Void, onClose: @escaping () -> Void) {
+            self.onEdit = onEdit
+            self.onClose = onClose
+        }
+    }
+}
+
 // MARK: - iOS 17 Retain-Cycle Wrapper
 
-/// Wraps `FlashCardsPlayModeView` to avoid the iOS 17 retain-cycle caused by
-/// `.fullScreenCover` permanently retaining a `@State` ViewModel initialised
-/// inside `init()`.
-///
-/// The ViewModel is created lazily on first appearance via `.onAppear`, ensuring
-/// the closure-based initialisation escapes the cover's internal storage before
-/// the persistent reference is established.
+/// Wraps `FlashCardsPlayModeView` and owns the session view model for the
+/// lifetime of a single play-mode presentation.
 struct DefaultModePlay: View {
-    @Environment(ThemeManager.self) private var themeManager
-
     let deck: DeckModel
     var safeAreaInsets: UIEdgeInsets = .zero
 
-    @State private var viewModel: FlashCardsPlayModeViewModel? = nil
+    @State private var viewModel: FlashCardsPlayModeViewModel
+
+    init(
+        deck: DeckModel,
+        safeAreaInsets: UIEdgeInsets = .zero,
+        viewModel: FlashCardsPlayModeViewModel? = nil
+    ) {
+        self.deck = deck
+        self.safeAreaInsets = safeAreaInsets
+        _viewModel = State(
+            initialValue: viewModel ?? FlashCardsPlayModeViewModel(
+                deck: deck,
+                settings: deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
+            )
+        )
+    }
 
     var body: some View {
-        Group {
-            if let vm = viewModel {
-                FlashCardsPlayModeView(
-                    deck: deck,
-                    safeAreaInsets: safeAreaInsets,
-                    viewModel: vm
-                )
-            } else {
-                themeManager.screenBackground
-                    .onAppear {
-                        if self.viewModel == nil {
-                            self.viewModel = FlashCardsPlayModeViewModel(
-                                deck: deck,
-                                settings: deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
-                            )
-                        }
-                    }
-            }
-        }
+        FlashCardsPlayModeView(
+            deck: deck,
+            safeAreaInsets: safeAreaInsets,
+            viewModel: viewModel
+        )
     }
 }

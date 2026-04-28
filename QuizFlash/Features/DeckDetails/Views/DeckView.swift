@@ -47,6 +47,9 @@ struct DeckContentView: View {
     @State var showAddCardTypeDialog = false
     @State var pendingDeleteCardID: PersistentIdentifier? = nil
     @State var playModeRecentUsageSnapshot: [DeckPlayModeDestination: Date] = [:]
+    @State var preparedFlashcardsPlayModeViewModel: FlashCardsPlayModeViewModel?
+    @State var flashcardsPreparationTask: Task<Void, Never>?
+    @State var presentsFlashcardsAfterPreparation = false
     @Bindable var viewModel: DeckViewModel
     @State var hasLoadedInitialSnapshot = false
     @State var navigationBarHeight: CGFloat =
@@ -64,7 +67,6 @@ struct DeckContentView: View {
 
     var tabBarVisibilityRule: TabBarVisibilityRule {
         if viewModel.isSelecting
-            || selectedPlayMode != nil
             || selectedPlayModeSettings != nil
             || previewedCard != nil
             || viewModel.activitySheetPresentation != nil
@@ -132,6 +134,7 @@ struct DeckContentView: View {
                     deckID: deck.persistentModelID,
                     container: context.container
                 )
+                prepareFlashcardsPlayModeIfNeeded()
             }
             .onDisappear {
                 guard selectedPlayMode == nil,
@@ -139,14 +142,17 @@ struct DeckContentView: View {
                       previewedCard == nil,
                       cardEditorDestination == nil else { return }
                 viewModel.tearDown()
+                cancelPreparedFlashcardsPlayMode()
                 ImageCache.shared.clearCache()
             }
             .onChange(of: deck.cardCount) {
                 guard !isSuspended else { return }
+                resetPreparedFlashcardsPlayMode()
                 viewModel.requestSnapshotLoad(
                     deckID: deck.persistentModelID,
                     container: context.container
                 )
+                prepareFlashcardsPlayModeIfNeeded()
             }
             .onChange(of: viewModel.sortOrder) {
                 guard !isSuspended else { return }
@@ -164,6 +170,9 @@ struct DeckContentView: View {
             }
             .onChange(of: selectedPlayMode) { old, new in
                 if let completedMode = old, new == nil {
+                    if completedMode == .flashcards {
+                        resetPreparedFlashcardsPlayMode()
+                    }
                     recordCompletedPlayModeSession(completedMode)
                     deck.lastOpenedAt = Date()
                     do {
@@ -179,6 +188,9 @@ struct DeckContentView: View {
                         deckID: deck.persistentModelID,
                         container: context.container
                     )
+                    if completedMode == .flashcards {
+                        prepareFlashcardsPlayModeIfNeeded()
+                    }
                 }
             }
             .onChange(of: isSuspended) { _, suspended in
