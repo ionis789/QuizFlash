@@ -25,6 +25,8 @@ Do not route per-frame scroll offsets through observed SwiftUI state. Persist sc
 
 On iOS 17, do not reconfigure live blur/filter layers during scroll-driven updates. If a root surface needs a top progressive blur, keep the `UIViewRepresentable` stable and mutate only cheap scalar inputs such as opacity or an already-attached radius value. Avoid calling layer/filter refresh code from `updateUIView` on every drag tick; use a static fallback only when a stable live path is not available.
 
+Treat iOS 17.5 as the strict compatibility baseline for SwiftUI/UIKit presentation behavior. Do not assume behavior that works on iOS 18, iOS 26, or a physical newer-OS device is valid on iOS 17. Be especially conservative around `UIViewRepresentable` / `UIViewControllerRepresentable` hosted inside SwiftUI containers, custom sheets, masks/clips, `.compositingGroup()`, material/blur surfaces, gesture recognizers, and overlays. On iOS 17 these combinations can render correctly while hit-testing, scroll interaction, or gesture delivery is broken. When masking interactive hosted content, prefer UIKit-level clipping on the hosted view/controller or clip only non-interactive visual layers; avoid wrapping the whole interactive host in SwiftUI compositing + clip unless it has been verified on iOS 17.5.
+
 Use the current DeckEditor naming. `CardEditorView` is the router from `CardEditorDestination` into concrete editor surfaces. `FlashcardEditorView` owns the zone-based front/back flashcard editor. `QuizCardEditorView`, `MatchCardEditorView`, and `WriteCardEditorView` own their respective typed card authoring flows. Do not reintroduce pre-refactor create/add-card sheet aliases in new code, docs, logs, or comments.
 
 Default QuizFlash custom sheets to full-surface drag-dismiss. Do not restrict drag activation to a top strip unless the sheet contains interaction-heavy full-screen content that would become error-prone with full-height dismissal. For standard detail/configuration sheets, the user should be able to drag down from anywhere on the sheet.
@@ -111,6 +113,10 @@ Use these priority levels consistently:
    - Keep `// MARK: -` sections.
    - Keep DocC comments on new internal and public declarations.
    - Remove `TODO:`, `FIXME:`, and commented-out code from generated output.
+
+## Debug Escalation
+
+When repeated fixes do not change the user's observed behavior, stop guessing and add targeted instrumentation before making another behavioral change. Prefer DEBUG-only probes that reveal the exact owner of the failure: hit-test recipients, gesture recognizer state, state transitions, async cancellation, persistence writes, or payload shape. Keep probes narrowly scoped, easy to remove, and gated behind existing development/debug settings when practical. If the probe exposes a generally useful diagnostic path, keep it as a development-only tool; otherwise remove it before final delivery. In final reports, state what the instrumentation showed and which assumption it confirmed or disproved.
 
 ## Testing Expectations
 

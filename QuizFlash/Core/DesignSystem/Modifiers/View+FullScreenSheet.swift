@@ -524,9 +524,11 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         let sheetSurface = ZStack(alignment: .top) {
             backgroundView(dragProgress: dragProgress)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipShape(sheetShape)
 
             if configuration.appliesDefaultDragTopOverlay {
                 defaultDragTopOverlay(dragProgress: dragProgress)
+                    .clipShape(sheetShape)
                     .allowsHitTesting(false)
             }
 
@@ -551,6 +553,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                     contentSafeAreaInsets: contentSafeAreaInsets,
                     revealProgress: topBlurRevealProgress
                 )
+                .clipShape(sheetShape)
                 .allowsHitTesting(false)
             }
 
@@ -566,8 +569,6 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                     .allowsHitTesting(false)
             }
         }
-        .compositingGroup()
-        .clipShape(sheetShape)
         .frame(width: containerWidth, height: sheetHeight, alignment: .topLeading)
         .offset(y: visibleSheetOffset)
 
