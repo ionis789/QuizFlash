@@ -355,16 +355,6 @@ struct FlipCard: View {
             .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
     }
 
-    private func contentFrameAlignment(
-        measuredHeight: CGFloat,
-        availableHeight: CGFloat
-    ) -> Alignment {
-        guard contentAlignment == .center, measuredHeight > 0, measuredHeight <= availableHeight else {
-            return .top
-        }
-        return .center
-    }
-
     @ViewBuilder
     private func measuredFaceContent(
         zone: ZoneModel,

@@ -48,10 +48,10 @@ key	en	ro	ru
 %d day	%d day	%d zi	%d день
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
-%d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
-%d decks	%d decks	%d pachete	%d колод
+%d deck	%d deck	%d pachet	%d колода
 %d Decks	%d Decks	%d deckuri	%d колод
+%d decks	%d decks	%d pachete	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -117,8 +117,8 @@ All Decks	All Decks	Toate deckurile	Все колоды
 All folders	All folders	Toate foldere	Все папки
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-Answer	Answer	Răspuns	Ответ
 ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
+Answer	Answer	Răspuns	Ответ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
@@ -145,8 +145,8 @@ Card	Card	Card	Карта
 Card %@	Card %@	Card %@	Карта %@
 Card %d	Card %d	Card %d	Карта %d
 card moved	card moved	card mutat	карточка пройдена
-Cards	Cards	Carduri	Карточки
 cards	cards	carduri	карточки
+Cards	Cards	Carduri	Карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 cards moved	cards moved	carduri mutate	карточек пройдено
 CARDS(%@)	CARDS(%@)	CARDURI(%@)	КАРТОЧКИ(%@)
@@ -159,8 +159,8 @@ Choice %d	Choice %d	Varianta %d	Вариант %d
 Choices	Choices	Variante	Варианты
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
+Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose one source type, convert into another, and save the result with minimal setup.	Choose one source type, convert into another, and save the result with minimal setup.	Alegeți un tip de sursă, convertiți-l în altul și salvați rezultatul cu o configurare minimă.	Выберите один тип источника, преобразуйте в другой и сохраните результат с минимальной настройкой.
@@ -179,6 +179,8 @@ Code	Code	Cod	Код
 Code: %@	Code: %@	Cod: %@	Код: %@
 Collapse	Collapse	Restrânge	Свернуть
 Configurations are stored in the app sandbox Application Support folder, outside source control.	Configurations are stored in the app sandbox Application Support folder, outside source control.	Configurațiile sunt stocate în aplicația sandbox Application Support folder, în afara controlului sursei.	Конфигурации хранятся в папке «Поддержка приложений» песочницы приложения, вне системы контроля версий.
+Content Alignment	Content Alignment	Aliniere conținut	Выравнивание контента
+Content alignment: %@.	Content alignment: %@.	Aliniere conținut: %@.	Выравнивание контента: %@.
 Continue	Continue	Continuă	Продолжить
 Continue from the last completed batch when you're ready.	Continue from the last completed batch when you're ready.	Continuă de la ultimul lot finalizat când ești gata.	Продолжите с последнего завершённого пакета, когда будете готовы.
 Continue where you left off.	Continue where you left off.	Continuă de unde ai rămas.	Продолжайте с того места, где остановились.
@@ -439,9 +441,10 @@ Pinned	Pinned	Fixat	Закреплена
 Play Debug	Play Debug	Joacă Debug	Играть в отладку
 PLAY MODES	PLAY MODES	MODURI DE JOCARE	РЕЖИМЫ ИГРЫ
 Play Simulation	Play Simulation	Jucați Simulare	Играть в симуляторы
+Preparing source	Preparing source	Se pregătește sursa	Подготовка источника
 Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
-Preview	Preview	Previzualizare	Предварительный просмотр
 PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
+Preview	Preview	Previzualizare	Предварительный просмотр
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Progress and pace.	Progress and pace.	Progres și ritm.	Прогресс и темп.
 Prompt	Prompt	Enunț	Задание
@@ -588,6 +591,8 @@ Today is clear	Today is clear	Azi e închis	Сегодня закрыто
 Today's goal is closed.	Today's goal is closed.	Obiectivul de azi este închis.	Цель на сегодня закрыта.
 Token: %@	Token: %@	Indicativ: %@	Токен: %@
 Tomorrow	Tomorrow	Mâine	Завтра
+Top	Top	Sus	Сверху
+Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling.	Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling.	Sus fixează conținutul scurt în partea de sus. Centru aliniază vertical conținutul care încape fără derulare.	Сверху закрепляет короткий контент у верхнего края. Центр выравнивает по вертикали контент, который помещается без прокрутки.
 Total cards for auto distribution.	Total cards for auto distribution.	Total carduri pentru distribuirea automată.	Всего карточек для автораздачи.
 Trace JSON	Trace JSON	Urmăriți JSON	Трассировка JSON
 Try a broader phrase, another deck title, or a different card keyword.	Try a broader phrase, another deck title, or a different card keyword.	Încearcă o expresie mai largă, alt titlu de deck sau un alt cuvânt-cheie de card.	Попробуйте более широкую фразу, другое название колоды или другой ключ карточки.
@@ -615,8 +620,8 @@ Write	Write	Scriere	Письмо
 Write Card	Write Card	Card de scriere	Карточка письма
 Write Cards	Write Cards	Carduri de scriere	Карточки письма
 Write Isn't Ready	Write Isn't Ready	Modul Scriere nu este pregătit	Режим письма ещё не готов
-write math-heavy	write math-heavy	scrieri cu formulă	письменные с формулами
 Write math-heavy	Write math-heavy	Scriere cu formulă	Письмо с формулами
+write math-heavy	write math-heavy	scrieri cu formulă	письменные с формулами
 WRITE PREVIEW	WRITE PREVIEW	PREVIZUALIZARE SCRIERE	ПРЕДПРОСМОТР ПИСЬМА
 XP	XP	XP	XP
 Yellow	Yellow	Galben	Жёлтый

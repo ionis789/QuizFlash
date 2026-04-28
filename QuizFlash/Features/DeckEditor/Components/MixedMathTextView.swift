@@ -122,8 +122,7 @@ struct MixedMathTextView: View {
             }
             .animation(.easeInOut(duration: UIConstants.Animation.instant), value: shouldShowHorizontalOverflowHint)
         } else {
-            Text(LocalizedStringKey(clean))
-                .font(swiftUIFont)
+            emphasisText(clean)
                 .foregroundColor(textColor)
                 .multilineTextAlignment(nsTextAlignment)
                 .lineLimit(lineLimit)
@@ -145,13 +144,52 @@ struct MixedMathTextView: View {
     }
 
     private var swiftUIFont: Font {
+        swiftUIFont(isEmphasized: false)
+    }
+
+    private func swiftUIFont(isEmphasized: Bool) -> Font {
         let base = Font.system(size: fontSize)
-        switch (isBold, isItalic) {
+        switch (isBold || isEmphasized, isItalic) {
         case (true,  true):  return base.bold().italic()
         case (true,  false): return base.bold()
         case (false, true):  return base.italic()
         case (false, false): return base
         }
+    }
+
+    /// Renders AI-authored bold markers without routing plain card text through
+    /// localization keys or broad Markdown interpretation.
+    private func emphasisText(_ value: String) -> Text {
+        var result = Text("")
+        var plainBuffer = ""
+        var cursor = value.startIndex
+
+        func flushPlainBuffer() {
+            guard !plainBuffer.isEmpty else { return }
+            result = result + Text(verbatim: plainBuffer)
+                .font(swiftUIFont(isEmphasized: false))
+            plainBuffer.removeAll(keepingCapacity: true)
+        }
+
+        while cursor < value.endIndex {
+            if value[cursor...].hasPrefix("**") {
+                let contentStart = value.index(cursor, offsetBy: 2)
+                if let closing = value[contentStart...].range(of: "**") {
+                    flushPlainBuffer()
+                    let inner = String(value[contentStart..<closing.lowerBound])
+                    result = result + Text(verbatim: inner)
+                        .font(swiftUIFont(isEmphasized: true))
+                    cursor = closing.upperBound
+                    continue
+                }
+            }
+
+            plainBuffer.append(value[cursor])
+            cursor = value.index(after: cursor)
+        }
+
+        flushPlainBuffer()
+        return result
     }
 
     private var nsTextAlignment: TextAlignment {

@@ -405,7 +405,15 @@ struct DeckWorkspaceView: View {
         viewContent
             .fullScreenSheet(
                 item: $viewModel.aiSheetDestination,
-                configuration: .chrome()
+                configuration: .sheet(
+                    heightMode: .fullScreen,
+                    dragActivationArea: .fixed(132),
+                    backgroundReceivesDragProgress: true,
+                    showsBackdropBlur: true,
+                    showsDefaultTopProgressiveBlur: false,
+                    hidesTabBar: true,
+                    coversTabBar: true
+                )
             ) { _, safeArea in
                 AIGenerationSheetView(
                     viewModel: viewModel,

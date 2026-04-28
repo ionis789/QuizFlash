@@ -178,6 +178,8 @@
 "Code: %@" = "Cod: %@";
 "Collapse" = "Restrânge";
 "Configurations are stored in the app sandbox Application Support folder, outside source control." = "Configurațiile sunt stocate în aplicația sandbox Application Support folder, în afara controlului sursei.";
+"Content Alignment" = "Aliniere conținut";
+"Content alignment: %@." = "Aliniere conținut: %@.";
 "Continue" = "Continuă";
 "Continue from the last completed batch when you're ready." = "Continuă de la ultimul lot finalizat când ești gata.";
 "Continue where you left off." = "Continuă de unde ai rămas.";
@@ -438,6 +440,7 @@
 "Play Debug" = "Joacă Debug";
 "PLAY MODES" = "MODURI DE JOCARE";
 "Play Simulation" = "Jucați Simulare";
+"Preparing source" = "Se pregătește sursa";
 "Preparing your material" = "Pregătirea materialului dvs";
 "Preview" = "Previzualizare";
 "PREVIEW" = "PREVIZUALIZARE";
@@ -583,6 +586,8 @@
 "Today's goal is closed." = "Obiectivul de azi este închis.";
 "Token: %@" = "Indicativ: %@";
 "Tomorrow" = "Mâine";
+"Top" = "Sus";
+"Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling." = "Sus fixează conținutul scurt în partea de sus. Centru aliniază vertical conținutul care încape fără derulare.";
 "Total cards for auto distribution." = "Total carduri pentru distribuirea automată.";
 "Trace JSON" = "Urmăriți JSON";
 "Try a broader phrase, another deck title, or a different card keyword." = "Încearcă o expresie mai largă, alt titlu de deck sau un alt cuvânt-cheie de card.";

@@ -207,7 +207,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         self.tapAnimationStyle = try container.decodeIfPresent(FlashcardTapAnimationStyle.self, forKey: .tapAnimationStyle) ?? .flip3D
         self.staticSwapTextMotion = try container.decodeIfPresent(FlashcardStaticSwapTextMotion.self, forKey: .staticSwapTextMotion) ?? .animated
         let decodedContentAlignment = try container.decodeIfPresent(FlashcardContentAlignment.self, forKey: .contentAlignment) ?? .center
-        self.contentAlignment = decodedSchemaVersion < Self.currentSchemaVersion && decodedContentAlignment == .top
+        self.contentAlignment = decodedSchemaVersion < 2 && decodedContentAlignment == .top
             ? .center
             : decodedContentAlignment
         self.schemaVersion = Self.currentSchemaVersion

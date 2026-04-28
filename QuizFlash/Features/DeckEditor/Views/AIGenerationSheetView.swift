@@ -11,7 +11,7 @@ import SwiftUI
 
 struct AIGenerationSheetBackground: View {
     var body: some View {
-        StandardSheetTopStripBackground()
+        Color.black
             .ignoresSafeArea()
     }
 }
@@ -26,6 +26,7 @@ private enum AIGenerationSheetSection: Hashable {
 
 struct AIGenerationSheetView: View {
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Bindable var viewModel: DeckWorkspaceViewModel
     let safeAreaInsets: UIEdgeInsets
     var onPrimaryAction: () -> Void
@@ -33,6 +34,7 @@ struct AIGenerationSheetView: View {
 
     @State private var expandedSection: AIGenerationSheetSection? = .coverage
     @State private var selectedSourcePreview: AIGenerationSourcePreviewItem?
+    @State private var headerHeight: CGFloat = 0
 
     private var accent: Color {
         ThemeManager.shared.accentColor.color
@@ -63,51 +65,44 @@ struct AIGenerationSheetView: View {
     }
 
     var body: some View {
-        ZStack {
-            Group {
+        GeometryReader { proxy in
+            let resolvedSafeTopInset = max(safeAreaInsets.top, proxy.safeAreaInsets.top)
+            let resolvedSafeBottomInset = max(safeAreaInsets.bottom, proxy.safeAreaInsets.bottom)
+
+            ZStack(alignment: .top) {
                 if isPreparingSource {
                     preparingLayout
                         .transition(.opacity)
                 } else {
-                    configurationLayout
+                    configurationLayout(bottomClearance: bottomActionClearance(safeBottomInset: resolvedSafeBottomInset))
                         .transition(.opacity)
                 }
-            }
 
-            if let preview = selectedSourcePreview,
-               let image = previewImage(for: preview) {
-                SourcePreviewOverlay(
-                    image: image,
-                    safeAreaInsets: safeAreaInsets,
-                    onClose: {
-                        withAnimation(.easeInOut(duration: UIConstants.Animation.standard)) {
-                            selectedSourcePreview = nil
+                header(safeTopInset: resolvedSafeTopInset)
+                    .zIndex(2)
+
+                if let preview = selectedSourcePreview,
+                   let image = previewImage(for: preview) {
+                    SourcePreviewOverlay(
+                        image: image,
+                        safeAreaInsets: safeAreaInsets,
+                        onClose: {
+                            withAnimation(.easeInOut(duration: UIConstants.Animation.standard)) {
+                                selectedSourcePreview = nil
+                            }
                         }
-                    }
-                )
-                .transition(.opacity)
-                .zIndex(10)
+                    )
+                    .transition(.opacity)
+                    .zIndex(10)
+                }
             }
-        }
-        .safeAreaInset(edge: .bottom) {
-            if !isPreparingSource {
-                actionBar
-                    .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-                    .padding(.top, UIConstants.Spacing.small)
-                    .padding(.bottom, max(safeAreaInsets.bottom, UIConstants.Spacing.large))
-                    .background {
-                        LinearGradient(
-                            colors: [
-                                Color.black.opacity(0.22),
-                                Color.clear
-                            ],
-                            startPoint: .bottom,
-                            endPoint: .top
-                        )
-                        .ignoresSafeArea()
-                    }
-                    .opacity(selectedSourcePreview == nil ? 1 : 0)
-                    .allowsHitTesting(selectedSourcePreview == nil)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .bottom) {
+                if !isPreparingSource {
+                    bottomActionChrome(safeBottomInset: resolvedSafeBottomInset)
+                        .opacity(selectedSourcePreview == nil ? 1 : 0)
+                        .allowsHitTesting(selectedSourcePreview == nil)
+                }
             }
         }
         .task(id: isPreparingSource) {
@@ -116,19 +111,16 @@ struct AIGenerationSheetView: View {
         }
     }
 
-    private var configurationLayout: some View {
+    private func configurationLayout(bottomClearance: CGFloat) -> some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                topBar
-
                 sourceStatusCard
                     .transition(.opacity.combined(with: .scale(scale: 0.98)))
 
                 section(
                     .coverage,
                     title: "Source Coverage",
-                    summary: coverageSummary,
-                    subtitle: "Range planning"
+                    summary: coverageSummary
                 ) {
                     sourcePreviewStrip
                     distributionModePicker
@@ -144,8 +136,7 @@ struct AIGenerationSheetView: View {
                 section(
                     .type,
                     title: "Card Type",
-                    summary: viewModel.aiGenerationOptions.cardType.localizedTitle(locale: appPreferences.resolvedLocale),
-                    subtitle: "Prompt format"
+                    summary: viewModel.aiGenerationOptions.cardType.localizedTitle(locale: appPreferences.resolvedLocale)
                 ) {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: UIConstants.Spacing.small) {
                         ForEach(AICardGenerationType.allCases) { type in
@@ -164,8 +155,7 @@ struct AIGenerationSheetView: View {
                 section(
                     .level,
                     title: "Card Level",
-                    summary: viewModel.aiGenerationOptions.cardLevel.localizedTitle(locale: appPreferences.resolvedLocale),
-                    subtitle: "Depth"
+                    summary: viewModel.aiGenerationOptions.cardLevel.localizedTitle(locale: appPreferences.resolvedLocale)
                 ) {
                     VStack(spacing: UIConstants.Spacing.small) {
                         ForEach(AICardGenerationLevel.allCases) { level in
@@ -183,8 +173,7 @@ struct AIGenerationSheetView: View {
                 section(
                     .language,
                     title: "Output Language",
-                    summary: viewModel.aiGenerationOptions.localizedOutputLanguageSummary(locale: appPreferences.resolvedLocale),
-                    subtitle: "Auto detect or force a language"
+                    summary: viewModel.aiGenerationOptions.localizedOutputLanguageSummary(locale: appPreferences.resolvedLocale)
                 ) {
                     outputLanguagePicker
                 }
@@ -192,8 +181,7 @@ struct AIGenerationSheetView: View {
                 section(
                     .extraction,
                     title: "Extraction Mode",
-                    summary: viewModel.extractionMode == .fast ? "Fast" : "Quality",
-                    subtitle: "Speed vs quality"
+                    summary: viewModel.extractionMode == .fast ? "Fast" : "Quality"
                 ) {
                     VStack(spacing: UIConstants.Spacing.small) {
                         ModeButton(
@@ -222,20 +210,15 @@ struct AIGenerationSheetView: View {
             }
             .frame(maxWidth: maxContentWidth)
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-            .padding(.top, safeAreaInsets.top + UIConstants.Spacing.small)
-            .padding(.bottom, UIConstants.Spacing.huge)
+            .padding(.top, headerHeight + UIConstants.Spacing.large)
+            .padding(.bottom, bottomClearance)
             .frame(maxWidth: .infinity, alignment: .top)
         }
     }
 
     private var preparingLayout: some View {
         VStack(spacing: 0) {
-            topBar
-                .frame(maxWidth: maxContentWidth)
-                .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-                .padding(.top, safeAreaInsets.top + UIConstants.Spacing.small)
-
-            Spacer(minLength: UIConstants.Spacing.large)
+            Spacer(minLength: headerHeight + UIConstants.Spacing.large)
 
             SourcePreparationCenterStage(state: viewModel.aiSourcePreparationState)
                 .frame(maxWidth: 420)
@@ -257,16 +240,61 @@ struct AIGenerationSheetView: View {
         }
     }
 
-    private var topBar: some View {
-        HStack {
-            Spacer()
+    private func header(safeTopInset: CGFloat) -> some View {
+        VStack(spacing: UIConstants.Spacing.small) {
+            Capsule()
+                .fill(Color.white.opacity(0.2))
+                .frame(width: 56, height: 5)
+                .accessibilityHidden(true)
 
-            ChromeSoftCircleSymbolButton(
-                systemName: "xmark",
-                accessibilityLabel: "Close AI generation",
-                action: onCancel,
-                symbolSize: UIConstants.Size.iconStandard
+            ZStack {
+                VStack(spacing: 2) {
+                    Text(AppLocalization.string("Generate Cards with AI", locale: appPreferences.resolvedLocale))
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Text(headerSubtitle)
+                        .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                HStack {
+                    Spacer(minLength: 0)
+
+                    ChromeSoftCircleSymbolButton(
+                        systemName: "xmark",
+                        accessibilityLabel: AppLocalization.string("Close", locale: appPreferences.resolvedLocale),
+                        action: requestCancel,
+                        symbolSize: UIConstants.Size.iconStandard
+                    )
+                    .frame(width: UIConstants.Size.actionButton, alignment: .trailing)
+                }
+            }
+            .frame(height: UIConstants.Size.capsuleHeight)
+        }
+        .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
+        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+        .background(alignment: .top) {
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.72),
+                    Color.black.opacity(0.34),
+                    Color.clear
+                ],
+                startPoint: .top,
+                endPoint: .bottom
             )
+            .frame(height: headerHeight + UIConstants.Spacing.extraLarge)
+            .allowsHitTesting(false)
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { newHeight in
+            if abs(headerHeight - newHeight) > 0.5 {
+                headerHeight = newHeight
+            }
         }
     }
 
@@ -277,20 +305,20 @@ struct AIGenerationSheetView: View {
                 ZStack {
                     Circle()
                         .fill((viewModel.pdfAnalysis?.isGoodForFast == false ? Color.orange : Color.green).opacity(0.16))
-                        .frame(width: 42, height: 42)
+                        .frame(width: 38, height: 38)
 
                     Image(systemName: viewModel.pdfAnalysis?.qualityIcon ?? "checkmark")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(viewModel.pdfAnalysis?.isGoodForFast == false ? .orange : .green)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(sourceStatusTitle)
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
 
                     Text(sourceStatusSubtitle(source: source))
-                        .font(.subheadline)
+                        .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
                 }
 
@@ -305,8 +333,7 @@ struct AIGenerationSheetView: View {
                         .background(badge.tint.opacity(0.14), in: Capsule())
                 }
             }
-            .padding(UIConstants.Spacing.large)
-            .flashcardStyle(cornerRadius: 28, surfaceRole: .widget)
+            .padding(.vertical, UIConstants.Spacing.small)
         }
     }
 
@@ -357,14 +384,7 @@ struct AIGenerationSheetView: View {
             }
         }
         .padding(UIConstants.Spacing.large)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        }
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
     }
 
     @ViewBuilder
@@ -372,13 +392,11 @@ struct AIGenerationSheetView: View {
         _ section: AIGenerationSheetSection,
         title: String,
         summary: String,
-        subtitle: String,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
-        ExpandableGenerationSection(
+        PlainGenerationSection(
             title: title,
             summary: summary,
-            subtitle: subtitle,
             isExpanded: expandedSection == section,
             onToggle: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
@@ -672,32 +690,60 @@ struct AIGenerationSheetView: View {
         }
     }
 
+    private func bottomActionChrome(safeBottomInset: CGFloat) -> some View {
+        BottomChromeContainer(
+            kind: .selection,
+            bottomPadding: max(safeBottomInset, UIConstants.Spacing.large),
+            horizontalInset: UIConstants.Layout.bottomChromeSideInset,
+            minimumHeightOverride: 64,
+            innerHorizontalPaddingOverride: UIConstants.Spacing.tiny,
+            innerVerticalPaddingOverride: UIConstants.Spacing.tiny
+        ) {
+            actionBar
+        }
+        .frame(maxWidth: maxContentWidth)
+        .frame(maxWidth: .infinity)
+        .background(alignment: .bottom) {
+            LinearGradient(
+                colors: [
+                    Color.clear,
+                    Color.black.opacity(0.34),
+                    Color.black.opacity(0.68)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 180)
+            .allowsHitTesting(false)
+        }
+    }
+
     @ViewBuilder
     private var actionBar: some View {
-        HStack(spacing: UIConstants.Spacing.small) {
-            Button(action: onCancel) {
-                Text("Cancel")
+        HStack(spacing: UIConstants.Spacing.tiny) {
+            Button(action: requestCancel) {
+                Text(AppLocalization.string("Cancel", locale: appPreferences.resolvedLocale))
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .frame(height: 52)
+                    .contentShape(Capsule(style: .continuous))
             }
             .buttonStyle(.plain)
 
-            Button(action: onPrimaryAction) {
-                Text("Generate")
+            Button(action: requestPrimaryAction) {
+                Text(AppLocalization.string("Generate", locale: appPreferences.resolvedLocale))
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .frame(height: 52)
                     .background(accent, in: Capsule(style: .continuous))
+                    .contentShape(Capsule(style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(!viewModel.canConfirmAIGeneration)
             .opacity(viewModel.canConfirmAIGeneration ? 1 : 0.48)
         }
-        .frame(maxWidth: maxContentWidth)
-        .frame(maxWidth: .infinity)
     }
 
     private var sourceStatusTitle: String {
@@ -722,5 +768,83 @@ struct AIGenerationSheetView: View {
             info.recommendation == .fast ? "Fast" : "Quality",
             info.isGoodForFast ? .green : .orange
         )
+    }
+
+    private var headerSubtitle: String {
+        if isPreparingSource {
+            return AppLocalization.string("Preparing source", locale: appPreferences.resolvedLocale)
+        }
+        guard let source = viewModel.preparedAISource else {
+            return AppLocalization.string("Generate", locale: appPreferences.resolvedLocale)
+        }
+        return "\(source.itemCount) \(sourceNounPlural) · \(viewModel.requestedCardCount) \(AppLocalization.string("cards", locale: appPreferences.resolvedLocale))"
+    }
+
+    private func bottomActionClearance(safeBottomInset: CGFloat) -> CGFloat {
+        max(safeBottomInset, UIConstants.Spacing.large)
+            + UIConstants.Size.selectionToolbarBarHeight
+            + UIConstants.Spacing.huge
+    }
+
+    private func requestCancel() {
+        viewModel.clearsPendingAISourceOnSheetDismiss = true
+        if let fullScreenSheetDismiss {
+            fullScreenSheetDismiss()
+        } else {
+            onCancel()
+        }
+    }
+
+    private func requestPrimaryAction() {
+        onPrimaryAction()
+    }
+}
+
+private struct PlainGenerationSection<Content: View>: View {
+    let title: String
+    let summary: String
+    let isExpanded: Bool
+    let onToggle: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: onToggle) {
+                HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
+                    Text(title)
+                        .font(.system(size: 24, weight: .black, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+
+                    Spacer(minLength: UIConstants.Spacing.small)
+
+                    HStack(spacing: UIConstants.Spacing.small) {
+                        Text(summary)
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(2)
+
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 13, weight: .black, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    }
+                }
+                .contentShape(Rectangle())
+                .padding(.vertical, UIConstants.Spacing.medium)
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                content()
+                    .padding(.bottom, UIConstants.Spacing.large)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            Rectangle()
+                .fill(Color.white.opacity(0.10))
+                .frame(height: 1)
+        }
     }
 }

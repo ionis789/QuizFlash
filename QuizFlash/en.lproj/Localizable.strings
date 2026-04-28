@@ -178,6 +178,8 @@
 "Code: %@" = "Code: %@";
 "Collapse" = "Collapse";
 "Configurations are stored in the app sandbox Application Support folder, outside source control." = "Configurations are stored in the app sandbox Application Support folder, outside source control.";
+"Content Alignment" = "Content Alignment";
+"Content alignment: %@." = "Content alignment: %@.";
 "Continue" = "Continue";
 "Continue from the last completed batch when you're ready." = "Continue from the last completed batch when you're ready.";
 "Continue where you left off." = "Continue where you left off.";
@@ -438,6 +440,7 @@
 "Play Debug" = "Play Debug";
 "PLAY MODES" = "PLAY MODES";
 "Play Simulation" = "Play Simulation";
+"Preparing source" = "Preparing source";
 "Preparing your material" = "Preparing your material";
 "Preview" = "Preview";
 "PREVIEW" = "PREVIEW";
@@ -583,6 +586,8 @@
 "Today's goal is closed." = "Today's goal is closed.";
 "Token: %@" = "Token: %@";
 "Tomorrow" = "Tomorrow";
+"Top" = "Top";
+"Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling." = "Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling.";
 "Total cards for auto distribution." = "Total cards for auto distribution.";
 "Trace JSON" = "Trace JSON";
 "Try a broader phrase, another deck title, or a different card keyword." = "Try a broader phrase, another deck title, or a different card keyword.";

@@ -159,65 +159,6 @@ private struct PreparingSourceAnimation: View {
     }
 }
 
-// MARK: - Section Container
-
-struct ExpandableGenerationSection<Content: View>: View {
-    let title: String
-    let summary: String
-    let subtitle: String
-    let isExpanded: Bool
-    let onToggle: () -> Void
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button(action: onToggle) {
-                HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(title)
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
-
-                        Text(subtitle)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    Spacer(minLength: UIConstants.Spacing.small)
-
-                    HStack(spacing: UIConstants.Spacing.small) {
-                        Text(summary)
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.trailing)
-
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.secondary)
-                            .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                    }
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                content()
-                    .padding(.top, UIConstants.Spacing.medium)
-                    .transition(
-                        .opacity.combined(
-                            with: .scale(scale: 0.98, anchor: .top)
-                        )
-                    )
-            }
-        }
-        .clipped()
-        .padding(UIConstants.Spacing.large)
-        .flashcardStyle(cornerRadius: 22, surfaceRole: .widget)
-    }
-}
-
 // MARK: - Source Preview
 
 struct SourcePreviewCard: View {

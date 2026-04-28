@@ -336,13 +336,18 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
 
     @State private var isDismissing = false
 
+    private var requiresModalCover: Bool {
+        configuration.coversTabBar && !configuration.hidesTabBar
+    }
+
     @ViewBuilder
     func body(content presenterContent: Content) -> some View {
-        if configuration.coversTabBar {
+        if requiresModalCover {
             presenterContent
                 .fullScreenCover(isPresented: $isPresented) {
                     presentedSheet
                         .presentationBackground(.clear)
+                        .interactiveDismissDisabled(true)
                 }
         } else {
             presenterContent
@@ -388,13 +393,18 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
 
     @State private var isDismissing = false
 
+    private var requiresModalCover: Bool {
+        configuration.coversTabBar && !configuration.hidesTabBar
+    }
+
     @ViewBuilder
     func body(content presenterContent: Content) -> some View {
-        if configuration.coversTabBar {
+        if requiresModalCover {
             presenterContent
                 .fullScreenCover(item: $item) { wrappedItem in
                     presentedSheet(for: wrappedItem)
                         .presentationBackground(.clear)
+                        .interactiveDismissDisabled(true)
                 }
         } else {
             presenterContent
@@ -578,7 +588,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                 )
             }
 
-            if backdropRevealHeight > 0.5 {
+            if !isFullHeightSheet, backdropRevealHeight > 0.5 {
                 outsideDismissScrim(
                     sheetTopY: backdropRevealHeight,
                     containerHeight: containerHeight,
@@ -633,94 +643,43 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             }
         }
 
-        if #available(iOS 18.0, *) {
-            baseView.gesture(
-                CustomPanGesture { [self] gesture in
-                    let translation = clampedTranslation(
-                        gesture.translation(in: gesture.view).y,
+        baseView.background {
+            SheetPanBridge(
+                sheetTopY: sheetTopY,
+                activationHeight: resolvedDragActivationHeight(sheetHeight: sheetHeight)
+            ) { [self] gesture in
+                let translation = clampedTranslation(
+                    gesture.translation(in: gesture.view).y,
+                    containerHeight: containerHeight
+                )
+                let velocityY = gesture.velocity(in: gesture.view).y
+
+                switch gesture.state {
+                case .began:
+                    scrollDisabled = true
+                    offset = translation
+
+                case .changed:
+                    guard scrollDisabled else { return }
+                    offset = translation
+
+                case .ended, .cancelled, .failed:
+                    guard scrollDisabled else { return }
+                    gesture.isEnabled = false
+                    let predictedEnd = translation + max(velocityY * 0.28, 0)
+                    finalizeDrag(
+                        translation: translation,
+                        predictedEnd: predictedEnd,
                         containerHeight: containerHeight
-                    )
-                    let locationY = gesture.location(in: gesture.view).y
-                    let velocityY = gesture.velocity(in: gesture.view).y
-
-                    switch gesture.state {
-                    case .began:
-                        guard canStartDismiss(at: locationY, sheetTopY: sheetTopY, sheetHeight: sheetHeight) else { return }
-                        scrollDisabled = true
-                        offset = translation
-
-                    case .changed:
-                        guard scrollDisabled else { return }
-                        offset = translation
-
-                    case .ended, .cancelled, .failed:
-                        if scrollDisabled {
-                            gesture.isEnabled = false
-                            let predictedEnd = translation + max(velocityY * 0.28, 0)
-                            finalizeDrag(
-                                translation: translation,
-                                predictedEnd: predictedEnd,
-                                containerHeight: containerHeight
-                            ) {
-                                gesture.isEnabled = true
-                            }
-                        } else {
-                            let startY = gesture.location(in: gesture.view).y - translation
-                            let isDownwardFlick = velocityY > 500
-                                && canStartDismiss(at: startY, sheetTopY: sheetTopY, sheetHeight: sheetHeight)
-                                && fullScreenSheetHasDownwardDismissIntent(gesture, in: gesture.view)
-                            if isDownwardFlick {
-                                gesture.isEnabled = false
-                                animateDismiss(containerHeight: containerHeight) {
-                                    gesture.isEnabled = true
-                                }
-                            }
-                        }
-
-                    default:
-                        ()
+                    ) {
+                        gesture.isEnabled = true
                     }
+
+                default:
+                    break
                 }
-            )
-        } else {
-            baseView.background {
-                LegacySheetPanBridge(
-                    sheetTopY: sheetTopY,
-                    activationHeight: resolvedDragActivationHeight(sheetHeight: sheetHeight)
-                ) { [self] gesture in
-                    let translation = clampedTranslation(
-                        gesture.translation(in: gesture.view).y,
-                        containerHeight: containerHeight
-                    )
-                    let velocityY = gesture.velocity(in: gesture.view).y
-
-                    switch gesture.state {
-                    case .began:
-                        scrollDisabled = true
-                        offset = translation
-
-                    case .changed:
-                        guard scrollDisabled else { return }
-                        offset = translation
-
-                    case .ended, .cancelled, .failed:
-                        guard scrollDisabled else { return }
-                        gesture.isEnabled = false
-                        let predictedEnd = translation + max(velocityY * 0.28, 0)
-                        finalizeDrag(
-                            translation: translation,
-                            predictedEnd: predictedEnd,
-                            containerHeight: containerHeight
-                        ) {
-                            gesture.isEnabled = true
-                        }
-
-                    default:
-                        break
-                    }
-                }
-                .frame(width: 0, height: 0)
             }
+            .frame(width: 0, height: 0)
         }
     }
 
@@ -1274,7 +1233,6 @@ private final class SheetHostingController: UIHostingController<AnyView> {
     func setSheetInteractionDisabled(_ disabled: Bool) {
         guard disabled != isSheetInteractionDisabled else { return }
         isSheetInteractionDisabled = disabled
-        view.isUserInteractionEnabled = !disabled
 
         if disabled {
             freezeNestedScrollViews()
@@ -1391,9 +1349,9 @@ private final class SheetHostingController: UIHostingController<AnyView> {
     }
 }
 
-// MARK: - Legacy Sheet Pan Bridge (iOS 17)
+// MARK: - Sheet Pan Bridge
 
-private struct LegacySheetPanBridge: UIViewRepresentable {
+private struct SheetPanBridge: UIViewRepresentable {
     let sheetTopY: CGFloat
     let activationHeight: CGFloat?
     let onPan: (UIPanGestureRecognizer) -> Void
@@ -1515,55 +1473,6 @@ private struct LegacySheetPanBridge: UIViewRepresentable {
 
         deinit {
             detachPanGesture()
-        }
-    }
-}
-
-// MARK: - Custom Pan Gesture (iOS 18+)
-
-@available(iOS 18.0, *)
-private struct CustomPanGesture: UIGestureRecognizerRepresentable {
-    var handle: (UIPanGestureRecognizer) -> Void
-
-    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
-
-    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
-        let g = UIPanGestureRecognizer()
-        g.delegate = context.coordinator
-        return g
-    }
-
-    func updateUIGestureRecognizer(_ recognizer: UIPanGestureRecognizer, context: Context) { }
-
-    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
-        handle(recognizer)
-    }
-
-    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        func gestureRecognizer(
-            _ gestureRecognizer: UIGestureRecognizer,
-            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
-        ) -> Bool {
-            guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return false }
-            guard fullScreenSheetHasDownwardDismissIntent(pan, in: pan.view) else { return false }
-
-            var scrollOffset: CGFloat = 0
-            if let cv = other.view as? UICollectionView {
-                scrollOffset = cv.contentOffset.y + cv.adjustedContentInset.top
-            }
-            if let sv = other.view as? UIScrollView {
-                scrollOffset = sv.contentOffset.y + sv.adjustedContentInset.top
-            }
-            return Int(scrollOffset) <= 1
-        }
-
-        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
-                fullScreenSheetHasDownwardDismissIntent(pan, in: pan.view)
-            else { return false }
-
-            return !(gestureRecognizer.view?.gestureRecognizers?
-                .contains(where: { ($0.name ?? "").localizedStandardContains("zoom") }) ?? false)
         }
     }
 }

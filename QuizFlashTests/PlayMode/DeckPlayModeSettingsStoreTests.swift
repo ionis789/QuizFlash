@@ -25,7 +25,7 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
         XCTAssertEqual(try context.fetchAll(DeckPlayModeSettingsModel.self).count, 1)
     }
 
-    func testFlashcardSettingsDecodeLegacyPayloadDefaultsContentAlignmentToTop() throws {
+    func testFlashcardSettingsDecodeLegacyPayloadDefaultsContentAlignmentToCenter() throws {
         let legacyPayload = """
         {
           "order": "studyPriority",
@@ -38,6 +38,25 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
         """.data(using: .utf8)!
 
         let decoded = try JSONDecoder().decode(FlashcardModeSettings.self, from: legacyPayload)
+
+        XCTAssertEqual(decoded.contentAlignment, .center)
+    }
+
+    func testFlashcardSettingsDecodeSchemaTwoPreservesSavedContentAlignment() throws {
+        let schemaTwoPayload = """
+        {
+          "schemaVersion": 2,
+          "order": "studyPriority",
+          "retryWrongCards": true,
+          "revealFlow": "questionFirst",
+          "flipBehavior": "tapToFlip",
+          "tapAnimationStyle": "flip3D",
+          "staticSwapTextMotion": "animated",
+          "contentAlignment": "top"
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(FlashcardModeSettings.self, from: schemaTwoPayload)
 
         XCTAssertEqual(decoded.contentAlignment, .top)
     }
