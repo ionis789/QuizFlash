@@ -67,9 +67,6 @@ struct DeckContentView: View {
 
     var tabBarVisibilityRule: TabBarVisibilityRule {
         if viewModel.isSelecting
-            || selectedPlayModeSettings != nil
-            || previewedCard != nil
-            || viewModel.activitySheetPresentation != nil
             || cardEditorDestination != nil {
             return .hidden
         }

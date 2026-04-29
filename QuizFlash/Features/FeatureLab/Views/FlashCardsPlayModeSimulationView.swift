@@ -276,6 +276,7 @@ struct FlashCardsPlayModeSimulationView: View {
                         tapAnimationStyle: developerSwipeDebugState.tapAnimationStyle,
                         staticSwapTextMotion: developerSwipeDebugState.staticSwapTextMotion,
                         contentAlignment: developerSwipeDebugState.contentAlignment,
+                        textSize: developerSwipeDebugState.textSize,
                         onSwipeProgress: resolvedSwipeProgressHandler(isCurrentCard: isCurrentCard),
                         swipeGestureTuning: resolvedSwipeGestureTuning,
                         isFlipped: flipBinding
@@ -1112,6 +1113,7 @@ private final class FlashCardsPlayModeSimulationDebugState {
     var tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D
     var staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated
     var contentAlignment: FlashcardContentAlignment = .top
+    var textSize: FlashcardTextSize = .large
 
     func update(with snapshot: SwipeProgressSnapshot) {
         liveSnapshot = snapshot
@@ -1218,6 +1220,17 @@ private struct FlashCardsPlayModeSimulationControlPanel: View {
 
                 Picker("Content Alignment", selection: $state.contentAlignment) {
                     ForEach(FlashcardContentAlignment.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                panelLabel("Text Size")
+
+                Picker("Text Size", selection: $state.textSize) {
+                    ForEach(FlashcardTextSize.allCases) { option in
                         Text(option.title).tag(option)
                     }
                 }

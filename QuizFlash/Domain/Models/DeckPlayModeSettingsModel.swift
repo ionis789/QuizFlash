@@ -154,9 +154,39 @@ nonisolated enum FlashcardContentAlignment: String, Codable, CaseIterable, Ident
     }
 }
 
+/// Controls how large flashcard text renders during play mode.
+nonisolated enum FlashcardTextSize: String, Codable, CaseIterable, Identifiable, Sendable {
+    case normal
+    case large
+
+    var id: String { rawValue }
+
+    /// Human-readable option label shown in the settings UI.
+    var title: String {
+        switch self {
+        case .normal: return "Normal"
+        case .large:  return "Large"
+        }
+    }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .normal: return AppLocalization.string("Normal", locale: locale)
+        case .large:  return AppLocalization.string("Large", locale: locale)
+        }
+    }
+
+    var playModeScale: Double {
+        switch self {
+        case .normal: return 1.32
+        case .large:  return 1.5
+        }
+    }
+}
+
 /// Flashcards runtime preferences persisted per deck.
 nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
-    private static let currentSchemaVersion = 2
+    private static let currentSchemaVersion = 3
 
     private var schemaVersion: Int = Self.currentSchemaVersion
     var order: FlashcardSessionOrder = .studyPriority
@@ -166,6 +196,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
     var tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D
     var staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated
     var contentAlignment: FlashcardContentAlignment = .center
+    var textSize: FlashcardTextSize = .large
 
     init(
         order: FlashcardSessionOrder = .studyPriority,
@@ -174,7 +205,8 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         flipBehavior: FlashcardFlipBehavior = .tapToFlip,
         tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
-        contentAlignment: FlashcardContentAlignment = .center
+        contentAlignment: FlashcardContentAlignment = .center,
+        textSize: FlashcardTextSize = .large
     ) {
         self.schemaVersion = Self.currentSchemaVersion
         self.order = order
@@ -184,6 +216,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
+        self.textSize = textSize
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -195,6 +228,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         case tapAnimationStyle
         case staticSwapTextMotion
         case contentAlignment
+        case textSize
     }
 
     init(from decoder: Decoder) throws {
@@ -210,6 +244,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         self.contentAlignment = decodedSchemaVersion < 2 && decodedContentAlignment == .top
             ? .center
             : decodedContentAlignment
+        self.textSize = try container.decodeIfPresent(FlashcardTextSize.self, forKey: .textSize) ?? .large
         self.schemaVersion = Self.currentSchemaVersion
     }
 
@@ -223,6 +258,7 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         try container.encode(tapAnimationStyle, forKey: .tapAnimationStyle)
         try container.encode(staticSwapTextMotion, forKey: .staticSwapTextMotion)
         try container.encode(contentAlignment, forKey: .contentAlignment)
+        try container.encode(textSize, forKey: .textSize)
     }
 }
 

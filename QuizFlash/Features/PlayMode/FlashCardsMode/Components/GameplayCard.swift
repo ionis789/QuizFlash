@@ -54,16 +54,52 @@ struct GameplayCard: View {
     /// Controls how short content is positioned vertically inside the card.
     let contentAlignment: FlashcardContentAlignment
 
+    /// Controls the text scale used by the flashcard face renderer.
+    let textSize: FlashcardTextSize
+
     /// Optional live swipe-progress callback used by play-mode developer tooling.
     let onSwipeProgress: ((SwipeProgressSnapshot) -> Void)?
 
     /// Runtime tuning for velocity/projection-based swipe commits.
     let swipeGestureTuning: SwipeGestureTuning
 
+    /// Developer-only layout diagnostics emitted by the visible flashcard face.
+    let onLayoutDebugSnapshot: ((FlashcardGridLayoutDebugSnapshot) -> Void)?
+
     /// Binding to the ViewModel's `isFlipped` property.
     ///
     /// When `true`, `FlipCard` shows the answer (back) face.
     @Binding var isFlipped: Bool
+
+    // MARK: - Init
+
+    init(
+        card: PlayableCard,
+        onSwipe: @escaping (SwipeDirection) -> Void,
+        isInteractionEnabled: Bool,
+        allowsTapToFlip: Bool,
+        tapAnimationStyle: FlashcardTapAnimationStyle,
+        staticSwapTextMotion: FlashcardStaticSwapTextMotion,
+        contentAlignment: FlashcardContentAlignment,
+        textSize: FlashcardTextSize,
+        onSwipeProgress: ((SwipeProgressSnapshot) -> Void)?,
+        swipeGestureTuning: SwipeGestureTuning,
+        onLayoutDebugSnapshot: ((FlashcardGridLayoutDebugSnapshot) -> Void)? = nil,
+        isFlipped: Binding<Bool>
+    ) {
+        self.card = card
+        self.onSwipe = onSwipe
+        self.isInteractionEnabled = isInteractionEnabled
+        self.allowsTapToFlip = allowsTapToFlip
+        self.tapAnimationStyle = tapAnimationStyle
+        self.staticSwapTextMotion = staticSwapTextMotion
+        self.contentAlignment = contentAlignment
+        self.textSize = textSize
+        self.onSwipeProgress = onSwipeProgress
+        self.swipeGestureTuning = swipeGestureTuning
+        self.onLayoutDebugSnapshot = onLayoutDebugSnapshot
+        self._isFlipped = isFlipped
+    }
 
     // MARK: - Body
 
@@ -85,7 +121,9 @@ struct GameplayCard: View {
                 tapAnimationStyle: tapAnimationStyle,
                 staticSwapTextMotion: staticSwapTextMotion,
                 contentAlignment: contentAlignment,
-                onTap: tapHandler
+                textSize: textSize,
+                onTap: tapHandler,
+                onLayoutDebugSnapshot: onLayoutDebugSnapshot
             )
         }
     }

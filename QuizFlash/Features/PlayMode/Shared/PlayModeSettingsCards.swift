@@ -151,9 +151,18 @@ struct PlayModeSettingsModeCard: View {
 
                 PlayModeSettingsSegmentedRow(
                     title: "Content Alignment",
-                    detail: "Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling.",
+                    detail: "Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block.",
                     selection: $flashcardSettings.contentAlignment,
                     options: FlashcardContentAlignment.allCases
+                ) { option, locale in
+                    option.localizedTitle(locale: locale)
+                }
+
+                PlayModeSettingsSegmentedRow(
+                    title: "Text Size",
+                    detail: "Normal keeps text large and clear. Large uses the current oversized playback text.",
+                    selection: $flashcardSettings.textSize,
+                    options: FlashcardTextSize.allCases
                 ) { option, locale in
                     option.localizedTitle(locale: locale)
                 }

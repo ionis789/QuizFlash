@@ -55,6 +55,8 @@ struct MainAppView: View {
 
     /// The visibility rule currently reported by the frontmost child view.
     @State private var tabBarRule: TabBarVisibilityRule = .implicit
+    /// Active custom-sheet requests that temporarily hide the floating tab bar.
+    @State private var sheetHiddenTabBarRequestIDs: Set<UUID> = []
     /// User-driven auto-hide state sourced from the active scroll surface.
     @State private var isTabBarAutoHiddenByScroll = false
 
@@ -95,6 +97,7 @@ struct MainAppView: View {
     ///   `.implicit` → show by default
     private var isTabBarLayoutVisible: Bool {
         guard !keyboardMonitor.isVisible else { return false }
+        guard sheetHiddenTabBarRequestIDs.isEmpty else { return false }
         switch tabBarRule {
         case .visible:  return !isTabBarAutoHiddenByScroll
         case .hidden:   return false
@@ -165,6 +168,19 @@ struct MainAppView: View {
         }
     }
 
+    private func handleSheetTabBarVisibilityRequest(id: UUID, isHidden: Bool) {
+        let alreadyHidden = sheetHiddenTabBarRequestIDs.contains(id)
+        guard alreadyHidden != isHidden else { return }
+
+        withAnimation(.bottomChromeSpring) {
+            if isHidden {
+                sheetHiddenTabBarRequestIDs.insert(id)
+            } else {
+                sheetHiddenTabBarRequestIDs.remove(id)
+            }
+        }
+    }
+
     private func resetTabBarAutoHideIfNeeded() {
         guard isTabBarAutoHiddenByScroll else { return }
         Task { @MainActor in
@@ -189,6 +205,10 @@ struct MainAppView: View {
                 // ── Navigation Layer ─────────────────────────────────────────────
                 rootTabView
                 .environment(\.tabBarScrollAutoHideAction, handleTabBarAutoHideAction)
+                .environment(
+                    \.tabBarSheetVisibilityAction,
+                    TabBarSheetVisibilityAction(update: handleSheetTabBarVisibilityRequest)
+                )
                 .environment(\.bottomChromeIsVisible, isTabBarLayoutVisible)
                 .ignoresSafeArea(.keyboard, edges: .bottom)
                 .dismissKeyboardOnBackgroundTap(enabled: keyboardMonitor.isVisible)

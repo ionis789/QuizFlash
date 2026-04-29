@@ -32,6 +32,27 @@ extension View {
     }
 }
 
+// MARK: - Sheet-Driven Visibility
+
+struct TabBarSheetVisibilityAction {
+    var update: (UUID, Bool) -> Void
+
+    func setHidden(_ isHidden: Bool, for id: UUID) {
+        update(id, isHidden)
+    }
+}
+
+private struct TabBarSheetVisibilityActionKey: EnvironmentKey {
+    static let defaultValue = TabBarSheetVisibilityAction { _, _ in }
+}
+
+extension EnvironmentValues {
+    var tabBarSheetVisibilityAction: TabBarSheetVisibilityAction {
+        get { self[TabBarSheetVisibilityActionKey.self] }
+        set { self[TabBarSheetVisibilityActionKey.self] = newValue }
+    }
+}
+
 // MARK: - Smart Visibility Modifier
 struct HideTabBarOnPushModifier: ViewModifier {
     @Environment(\.isPresented) private var isPresented

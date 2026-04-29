@@ -70,25 +70,34 @@ struct MixedMathTextView: View {
     var allowsReadOnlyOverflowScrolling: Bool = false
     var lineLimit: Int? = nil
     var renderStyle: MixedMathRenderStyle = .standard
+    var intrinsicWidthLimit: CGFloat? = nil
+    var onIntrinsicContentSizeChange: ((CGSize) -> Void)? = nil
     var onTap: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var webHeight: CGFloat = 50
+    @State private var webIntrinsicWidth: CGFloat = 0
     @State private var horizontalOverflowState = HorizontalOverflowState()
 
     var body: some View {
         let clean = MathTextSanitizer.heal(text)
         let signature = renderSignature(for: clean)
-        let shouldAllowWebInteraction = isInteractive || (
-            allowsReadOnlyOverflowScrolling && MathTextSanitizer.containsMath(clean)
+        let usesWebRendering = intrinsicWidthLimit != nil
+            || MathTextSanitizer.containsMath(clean)
+            || MathTextSanitizer.containsInlineCode(clean)
+        let wantsReadOnlyOverflowScrolling = (
+            !isInteractive
+            && allowsReadOnlyOverflowScrolling
+            && MathTextSanitizer.containsMath(clean)
         )
+        let shouldAllowWebInteraction = isInteractive || wantsReadOnlyOverflowScrolling
         let shouldShowHorizontalOverflowHint = (
             !isInteractive
             && allowsReadOnlyOverflowScrolling
             && horizontalOverflowState.hasOverflow
         )
 
-        if MathTextSanitizer.containsMath(clean) || MathTextSanitizer.containsInlineCode(clean) {
+        if usesWebRendering {
             MathWebView(
                 text: clean,
                 fontSize: fontSize,
@@ -100,16 +109,27 @@ struct MixedMathTextView: View {
                 renderStyle: renderStyle,
                 renderSignature: signature,
                 contentHeight: $webHeight,
+                intrinsicContentWidth: $webIntrinsicWidth,
+                reportsIntrinsicContentWidth: intrinsicWidthLimit != nil,
                 horizontalOverflowState: $horizontalOverflowState,
                 isInteractive: isInteractive,
-                allowsReadOnlyOverflowScrolling: shouldAllowWebInteraction && !isInteractive,
+                allowsReadOnlyOverflowScrolling: wantsReadOnlyOverflowScrolling,
                 onTap: onTap
             )
-            .frame(height: webHeight)
-            .frame(maxWidth: .infinity)
+            .frame(
+                width: mathFrameWidth,
+                height: webHeight
+            )
+            .frame(maxWidth: intrinsicWidthLimit == nil ? .infinity : nil)
             // Keep hit-testing disabled for standard read-only previews, but
             // allow block-math overflow areas to receive horizontal pans.
             .allowsHitTesting(shouldAllowWebInteraction)
+            .onChange(of: webHeight) { _, _ in
+                reportIntrinsicContentSize()
+            }
+            .onChange(of: webIntrinsicWidth) { _, _ in
+                reportIntrinsicContentSize()
+            }
             .overlay {
                 if shouldShowHorizontalOverflowHint {
                     HorizontalOverflowIndicator(
@@ -126,9 +146,136 @@ struct MixedMathTextView: View {
                 .foregroundColor(textColor)
                 .multilineTextAlignment(nsTextAlignment)
                 .lineLimit(lineLimit)
-                .frame(maxWidth: .infinity, alignment: frameAlignment)
+                .frame(
+                    width: intrinsicWidthLimit,
+                    alignment: frameAlignment
+                )
+                .frame(maxWidth: intrinsicWidthLimit == nil ? .infinity : nil, alignment: frameAlignment)
                 .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGSize.self) { proxy in
+                    CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
+                } action: { newSize in
+                    guard let intrinsicWidthLimit else { return }
+                    onIntrinsicContentSizeChange?(
+                        measuredPlainTextSize(
+                            clean,
+                            availableWidth: intrinsicWidthLimit,
+                            renderedHeight: newSize.height
+                        )
+                    )
+                }
         }
+    }
+
+    private var mathFrameWidth: CGFloat? {
+        intrinsicWidthLimit.map { max($0, 1) }
+    }
+
+    private func reportIntrinsicContentSize() {
+        guard intrinsicWidthLimit != nil else { return }
+        let width = webIntrinsicWidth > 0
+            ? min(max(ceil(webIntrinsicWidth), 1), max(intrinsicWidthLimit ?? 1, 1))
+            : max(intrinsicWidthLimit ?? 1, 1)
+        let height = max(ceil(webHeight), 1)
+        onIntrinsicContentSizeChange?(CGSize(width: width, height: height))
+    }
+
+    private func measuredPlainTextSize(
+        _ value: String,
+        availableWidth: CGFloat,
+        renderedHeight: CGFloat
+    ) -> CGSize {
+        guard !value.isEmpty else {
+            return CGSize(width: 1, height: max(ceil(renderedHeight), 1))
+        }
+
+        let attributed = plainAttributedString(for: value)
+        let textStorage = NSTextStorage(attributedString: attributed)
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(
+            size: CGSize(width: max(availableWidth, 1), height: .greatestFiniteMagnitude)
+        )
+
+        textContainer.lineFragmentPadding = 0
+        textContainer.lineBreakMode = .byWordWrapping
+        layoutManager.usesFontLeading = true
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.ensureLayout(for: textContainer)
+
+        let glyphRange = layoutManager.glyphRange(for: textContainer)
+        var widestLine: CGFloat = 1
+        layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { _, usedRect, _, _, _ in
+            widestLine = max(widestLine, ceil(usedRect.width))
+        }
+
+        return CGSize(
+            width: min(max(widestLine, 1), max(availableWidth, 1)),
+            height: max(ceil(renderedHeight), 1)
+        )
+    }
+
+    private func plainAttributedString(for value: String) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        var plainBuffer = ""
+        var cursor = value.startIndex
+
+        func append(_ text: String, isEmphasized: Bool = false) {
+            guard !text.isEmpty else { return }
+            result.append(
+                NSAttributedString(
+                    string: text,
+                    attributes: plainTextAttributes(isEmphasized: isEmphasized)
+                )
+            )
+        }
+
+        func flushPlainBuffer() {
+            append(plainBuffer)
+            plainBuffer.removeAll(keepingCapacity: true)
+        }
+
+        while cursor < value.endIndex {
+            if value[cursor...].hasPrefix("**") {
+                let contentStart = value.index(cursor, offsetBy: 2)
+                if let closing = value[contentStart...].range(of: "**") {
+                    flushPlainBuffer()
+                    append(String(value[contentStart..<closing.lowerBound]), isEmphasized: true)
+                    cursor = closing.upperBound
+                    continue
+                }
+            }
+
+            plainBuffer.append(value[cursor])
+            cursor = value.index(after: cursor)
+        }
+
+        flushPlainBuffer()
+        return result
+    }
+
+    private func plainTextAttributes(isEmphasized: Bool) -> [NSAttributedString.Key: Any] {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = uiKitTextAlignment
+        paragraphStyle.lineBreakMode = .byWordWrapping
+
+        return [
+            .font: plainUIFont(isEmphasized: isEmphasized),
+            .paragraphStyle: paragraphStyle
+        ]
+    }
+
+    private func plainUIFont(isEmphasized: Bool) -> UIFont {
+        let weight: UIFont.Weight = (isBold || isEmphasized) ? .bold : .regular
+        let baseFont = UIFont.systemFont(ofSize: fontSize, weight: weight)
+
+        guard isItalic,
+              let descriptor = baseFont.fontDescriptor.withSymbolicTraits(.traitItalic)
+        else {
+            return baseFont
+        }
+
+        return UIFont(descriptor: descriptor, size: fontSize)
     }
 
     private func renderSignature(for cleanText: String) -> String {
@@ -197,6 +344,14 @@ struct MixedMathTextView: View {
         case .center:   return .center
         case .trailing: return .trailing
         default:        return .leading
+        }
+    }
+
+    private var uiKitTextAlignment: NSTextAlignment {
+        switch alignment {
+        case .center:   return .center
+        case .trailing: return .right
+        default:        return .left
         }
     }
 
@@ -387,6 +542,8 @@ struct MathWebView: UIViewRepresentable {
     let renderStyle: MixedMathRenderStyle
     let renderSignature: String
     @Binding var contentHeight: CGFloat
+    @Binding var intrinsicContentWidth: CGFloat
+    let reportsIntrinsicContentWidth: Bool
     @Binding var horizontalOverflowState: HorizontalOverflowState
     /// When `false`, the WKWebView becomes non-interactive so taps and drags
     /// continue to the parent SwiftUI surface unobstructed.
@@ -398,6 +555,8 @@ struct MathWebView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(
             contentHeight: $contentHeight,
+            intrinsicContentWidth: $intrinsicContentWidth,
+            reportsIntrinsicContentWidth: reportsIntrinsicContentWidth,
             horizontalOverflowState: $horizontalOverflowState,
             onTap: onTap
         )
@@ -412,6 +571,7 @@ struct MathWebView: UIViewRepresentable {
 
         // 2. Remove the script message handler to break the JS context retain cycle
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
+        uiView.configuration.userContentController.removeScriptMessageHandler(forName: "widthUpdate")
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "overflowUpdate")
 
         // 3. Return to pool (or discard if full)
@@ -422,9 +582,11 @@ struct MathWebView: UIViewRepresentable {
         let webView = MathWebViewPool.shared.dequeue()
 
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "widthUpdate")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "overflowUpdate")
         let scriptHandlerWrapper = WeakScriptMessageHandler(delegate: context.coordinator)
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "heightUpdate")
+        webView.configuration.userContentController.add(scriptHandlerWrapper, name: "widthUpdate")
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "overflowUpdate")
 
         context.coordinator.webView = webView
@@ -444,6 +606,7 @@ struct MathWebView: UIViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {
         // Re-apply interaction state in case isInteractive changed between renders.
         context.coordinator.onTap = onTap
+        context.coordinator.reportsIntrinsicContentWidth = reportsIntrinsicContentWidth
         webView.quizflashHasHorizontalOverflow = horizontalOverflowState.hasOverflow
         applyInteractivity(to: webView)
         configureTapRecognizer(on: webView, coordinator: context.coordinator)
@@ -473,11 +636,15 @@ struct MathWebView: UIViewRepresentable {
 
         guard onTap != nil else { return }
 
-        let tapGesture = MathWebViewTapGestureRecognizer(target: coordinator, action: #selector(Coordinator.handleTap))
-        tapGesture.cancelsTouchesInView = false
-        tapGesture.numberOfTapsRequired = 1
-        tapGesture.delegate = coordinator
-        webView.scrollView.addGestureRecognizer(tapGesture)
+        [webView, webView.scrollView].forEach { targetView in
+            let tapGesture = MathWebViewTapGestureRecognizer(target: coordinator, action: #selector(Coordinator.handleTap(_:)))
+            tapGesture.cancelsTouchesInView = false
+            tapGesture.delaysTouchesBegan = false
+            tapGesture.delaysTouchesEnded = false
+            tapGesture.numberOfTapsRequired = 1
+            tapGesture.delegate = coordinator
+            targetView.addGestureRecognizer(tapGesture)
+        }
     }
 
     private func loadContent(in webView: WKWebView, context: Context) {
@@ -541,7 +708,22 @@ struct MathWebView: UIViewRepresentable {
                 margin: 0;
                 padding: 0;
             }
-            #content { width: 100%; white-space: pre-wrap; padding: 2px 0px; line-height: 1.5; }
+            #content {
+                width: 100%;
+                white-space: pre-wrap;
+                padding: 2px 0px;
+                line-height: 1.5;
+                overflow-x: auto;
+                overflow-y: visible;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                touch-action: pan-x;
+                overscroll-behavior-x: contain;
+            }
+            #content::-webkit-scrollbar { display: none; }
+            #content.has-complex-inline-math {
+                white-space: nowrap;
+            }
 
             .katex-display {
                 margin: 0.6em 0;
@@ -555,11 +737,12 @@ struct MathWebView: UIViewRepresentable {
             }
             .katex-display::-webkit-scrollbar { display: none; }
             .katex-inline-scroll {
-                display: block;
+                display: inline-block;
+                vertical-align: middle;
                 max-width: 100%;
                 overflow-x: auto;
-                overflow-y: hidden;
-                padding: 4px 0;
+                overflow-y: visible;
+                padding: 6px 0;
                 -webkit-overflow-scrolling: touch;
                 scrollbar-width: none;
                 touch-action: pan-x;
@@ -635,6 +818,7 @@ struct MathWebView: UIViewRepresentable {
             let text = new TextDecoder('utf-8').decode(bytes);
 
             const contentDiv = document.getElementById('content');
+            contentDiv.classList.toggle('has-complex-inline-math', containsComplexInlineMath(text));
             contentDiv.innerHTML = text;
             
             try {
@@ -654,10 +838,16 @@ struct MathWebView: UIViewRepresentable {
 
             clearTimeout(updateTimeout);
             prepareOverflowContainers();
-            reportHeight();
+            reportLayoutMetrics();
             reportOverflow();
-            updateTimeout = setTimeout(reportHeight, 50);
+            updateTimeout = setTimeout(reportLayoutMetrics, 50);
             setTimeout(reportOverflow, 50);
+        }
+
+        function containsComplexInlineMath(text) {
+            const hasComplexMathEnvironment = /\\\\begin\\{(?:[a-zA-Z]*matrix|cases|aligned|array)\\}/.test(text);
+            const hasInlineDelimiter = /\\$[^$]+\\$|\\\\\\([^]+?\\\\\\)/.test(text);
+            return hasComplexMathEnvironment && hasInlineDelimiter;
         }
 
         function prepareOverflowContainers() {
@@ -667,6 +857,7 @@ struct MathWebView: UIViewRepresentable {
             bindInlineTrailingPunctuation(contentDiv);
 
             const overflowTargets = [
+                contentDiv,
                 ...Array.from(contentDiv.querySelectorAll('.katex-display'))
             ];
 
@@ -740,17 +931,117 @@ struct MathWebView: UIViewRepresentable {
             });
         }
 
-        function reportHeight() {
+        function reportLayoutMetrics() {
             const el = document.getElementById('content');
-            const h = Math.max(
-                el.getBoundingClientRect().height,
-                el.scrollHeight,
-                document.body.scrollHeight,
-                document.documentElement.scrollHeight
-            );
-            if (h > 0 && window.webkit && window.webkit.messageHandlers.heightUpdate) {
-                window.webkit.messageHandlers.heightUpdate.postMessage(Math.ceil(h));
+            const bounds = measuredVisualContentBounds(el);
+            if (bounds.height > 0 && window.webkit && window.webkit.messageHandlers.heightUpdate) {
+                window.webkit.messageHandlers.heightUpdate.postMessage(Math.ceil(bounds.height));
             }
+            if (bounds.width > 0 && window.webkit && window.webkit.messageHandlers.widthUpdate) {
+                window.webkit.messageHandlers.widthUpdate.postMessage(Math.ceil(bounds.width));
+            }
+        }
+
+        function measuredVisualContentBounds(el) {
+            const contentRect = el.getBoundingClientRect();
+            const maxWidth = Math.max(contentRect.width, 1);
+            const rects = [];
+            const range = document.createRange();
+
+            function appendRects(list) {
+                Array.from(list).forEach(rect => {
+                    if (rect.width > 0.5 && rect.height > 0.5) {
+                        rects.push(rect);
+                    }
+                });
+            }
+
+            function collect(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    collectTextTokenRects(node);
+                    return;
+                }
+
+                if (node.nodeType !== Node.ELEMENT_NODE) { return; }
+
+                if (node.classList.contains('inline-code')) {
+                    appendRects(node.getClientRects());
+                    return;
+                }
+
+                if (node.classList.contains('katex')) {
+                    collectKatexVisualRects(node);
+                    return;
+                }
+
+                Array.from(node.childNodes).forEach(collect);
+            }
+
+            function collectKatexVisualRects(node) {
+                appendRects(node.getClientRects());
+
+                const visualNodes = Array.from(node.querySelectorAll('*')).filter(child => {
+                    if (child.closest('.katex-mathml')) { return false; }
+                    if (child.tagName === 'ANNOTATION') { return false; }
+                    const style = window.getComputedStyle(child);
+                    if (style.display === 'none' || style.visibility === 'hidden') { return false; }
+                    return true;
+                });
+
+                visualNodes.forEach(child => appendRects(child.getClientRects()));
+            }
+
+            function collectTextTokenRects(node) {
+                const value = node.textContent || '';
+                const tokenPattern = /\\S+/g;
+                let match;
+
+                while ((match = tokenPattern.exec(value)) !== null) {
+                    range.setStart(node, match.index);
+                    range.setEnd(node, match.index + match[0].length);
+                    appendRects(range.getClientRects());
+                }
+            }
+
+            collect(el);
+            range.detach();
+
+            if (rects.length === 0) {
+                return {
+                    width: Math.min(maxWidth, Math.max(el.scrollWidth, contentRect.width, 1)),
+                    height: Math.max(contentRect.height, el.scrollHeight, 1)
+                };
+            }
+
+            const lines = [];
+            let minTop = Number.POSITIVE_INFINITY;
+            let maxBottom = Number.NEGATIVE_INFINITY;
+            rects.forEach(rect => {
+                const midY = rect.top + (rect.height / 2);
+                let line = lines.find(candidate => Math.abs(candidate.midY - midY) < 4);
+                if (!line) {
+                    line = { midY: midY, left: rect.left, right: rect.right };
+                    lines.push(line);
+                } else {
+                    line.left = Math.min(line.left, rect.left);
+                    line.right = Math.max(line.right, rect.right);
+                    line.midY = (line.midY + midY) / 2;
+                }
+                minTop = Math.min(minTop, rect.top);
+                maxBottom = Math.max(maxBottom, rect.bottom);
+            });
+
+            const widestLine = lines.reduce((width, line) => {
+                return Math.max(width, line.right - line.left);
+            }, 1);
+            const paddedMathWrapper = el.querySelector('.katex-display, .katex-inline-scroll') !== null;
+            const verticalPadding = paddedMathWrapper ? 12 : 4;
+            const visualHeight = Math.max(maxBottom - minTop + verticalPadding, 1);
+
+            return {
+                width: Math.min(Math.ceil(widestLine), Math.ceil(maxWidth)),
+                height: Math.ceil(visualHeight)
+            };
         }
 
         function reportOverflow() {
@@ -761,7 +1052,7 @@ struct MathWebView: UIViewRepresentable {
                 return;
             }
 
-            const displays = Array.from(document.querySelectorAll('.katex-display, .katex-inline-scroll'));
+            const displays = Array.from(document.querySelectorAll('#content, .katex-display, .katex-inline-scroll'));
             const overflowState = displays.reduce(
                 (state, block) => {
                     const hasOverflow = (block.scrollWidth - block.clientWidth) > 1;
@@ -784,7 +1075,7 @@ struct MathWebView: UIViewRepresentable {
         if (window.ResizeObserver) {
             new ResizeObserver(() => {
                 prepareOverflowContainers();
-                reportHeight();
+                reportLayoutMetrics();
                 reportOverflow();
             }).observe(document.getElementById('content'));
         }
@@ -837,6 +1128,8 @@ struct MathWebView: UIViewRepresentable {
 
     class Coordinator: NSObject, WKScriptMessageHandler, UIGestureRecognizerDelegate {
         @Binding var contentHeight: CGFloat
+        @Binding var intrinsicContentWidth: CGFloat
+        var reportsIntrinsicContentWidth: Bool
         @Binding var horizontalOverflowState: HorizontalOverflowState
         weak var webView: WKWebView? // WEAK reference to break the retain cycle
         var lastRenderedSignature: String = ""
@@ -845,10 +1138,14 @@ struct MathWebView: UIViewRepresentable {
 
         init(
             contentHeight: Binding<CGFloat>,
+            intrinsicContentWidth: Binding<CGFloat>,
+            reportsIntrinsicContentWidth: Bool,
             horizontalOverflowState: Binding<HorizontalOverflowState>,
             onTap: (() -> Void)?
         ) {
             _contentHeight = contentHeight
+            _intrinsicContentWidth = intrinsicContentWidth
+            self.reportsIntrinsicContentWidth = reportsIntrinsicContentWidth
             _horizontalOverflowState = horizontalOverflowState
             self.onTap = onTap
         }
@@ -866,6 +1163,13 @@ struct MathWebView: UIViewRepresentable {
                 guard let h = message.body as? Double, h > 0 else { return }
                 Task { @MainActor in
                     self.contentHeight = CGFloat(h)
+                }
+
+            case "widthUpdate":
+                guard reportsIntrinsicContentWidth else { return }
+                guard let w = message.body as? Double, w > 0 else { return }
+                Task { @MainActor in
+                    self.intrinsicContentWidth = CGFloat(w)
                 }
 
             case "overflowUpdate":
@@ -924,7 +1228,8 @@ struct MathWebView: UIViewRepresentable {
             }
         }
 
-        @objc func handleTap() {
+        @objc func handleTap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended else { return }
             onTap?()
         }
 

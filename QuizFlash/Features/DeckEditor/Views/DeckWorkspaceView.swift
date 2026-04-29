@@ -27,6 +27,7 @@ struct DeckWorkspaceView: View {
     @Environment(NavigationManager.self) var router
     @Environment(AIWorkspaceCoordinator.self) var aiWorkspaceCoordinator
     @Environment(AppPreferences.self) var appPreferences
+    @Environment(DevelopmentPreferences.self) var developmentPreferences
     @Environment(ThemeManager.self) var themeManager
 
     /// Fetches all available folders to populate the destination picker.
@@ -161,6 +162,7 @@ struct DeckWorkspaceView: View {
             && !viewModel.isSelectingCards
             && !isTitleFocused
             && viewModel.aiSheetDestination == nil
+            && !viewModel.showAIPickerOptions
             && !viewModel.showSuccessOverlay
             && !hasUnifiedAISession
     }
@@ -169,6 +171,7 @@ struct DeckWorkspaceView: View {
     }
     var swipeBackEnabled: Bool {
         viewModel.aiSheetDestination == nil
+            && !viewModel.showAIPickerOptions
             && !viewModel.showSuccessOverlay
             && !isTitleFocused
             && !hasUnifiedAISession
@@ -176,13 +179,15 @@ struct DeckWorkspaceView: View {
 
     /// Contextual rule for tab bar visibility.
     ///
-    /// Forces the tab bar to hide only while the keyboard is active.
-    /// Materialization (card reveal animation) intentionally leaves the bar visible.
+    /// Forces the tab bar to hide only for workspace-owned states.
+    /// Custom AI sheets own tab-bar hiding through `fullScreenSheet` so dismissal can
+    /// reveal the bar in sync with the sheet animation instead of waiting for the
+    /// presentation binding to be cleared.
     var tabRule: TabBarVisibilityRule {
         if isShowingWorkspaceConvert {
             return .implicit
         }
-        if isTitleFocused || viewModel.aiSheetDestination != nil || viewModel.isSelectingCards {
+        if isTitleFocused || viewModel.isSelectingCards {
             return .hidden
         }
         return .implicit
@@ -404,6 +409,27 @@ struct DeckWorkspaceView: View {
     var generationSheetContent: some View {
         viewContent
             .fullScreenSheet(
+                isPresented: $viewModel.showAIPickerOptions,
+                configuration: .sheet(
+                    heightMode: .custom(0.35),
+                    dragActivationArea: .fullSurface,
+                    showsDragIndicator: true,
+                    backgroundReceivesDragProgress: true,
+                    showsBackdropBlur: true,
+                    showsDefaultTopProgressiveBlur: false,
+                    hidesTabBar: true,
+                    coversTabBar: false
+                )
+            ) { safeArea in
+                AIGenerationSourcePickerSheetView(
+                    safeAreaInsets: safeArea,
+                    onPhotos: chooseAIPhotoSourceFromPicker,
+                    onPDF: chooseAIPDFSourceFromPicker
+                )
+            } background: {
+                AIGenerationSheetBackground()
+            }
+            .fullScreenSheet(
                 item: $viewModel.aiSheetDestination,
                 configuration: .sheet(
                     heightMode: .fullScreen,
@@ -532,11 +558,6 @@ struct DeckWorkspaceView: View {
         } message: {
             Text(localized("You have unsaved changes in this deck."))
         }
-        .confirmationDialog(localized("Generate Cards with AI"), isPresented: $viewModel.showAIPickerOptions, titleVisibility: .visible) {
-            Button(localized("Choose Photos")) { viewModel.showAIPhotoPicker = true }
-            Button(localized("Choose PDF")) { viewModel.showAIPDFPicker = true }
-            Button(localized("Cancel"), role: .cancel) { }
-        } message: { Text(localized("Extract text from images or documents.")) }
         .confirmationDialog(localized("Choose Card Type"), isPresented: $showAddCardTypeDialog, titleVisibility: .visible) {
             addCardTypeButtons
             Button(localized("Cancel"), role: .cancel) { }

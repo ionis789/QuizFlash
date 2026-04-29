@@ -261,7 +261,6 @@
 "Exporting %d decks…" = "Se exportă %d deckuri…";
 "Exporting %d deck…" = "Se exportă %d deck…";
 "Exporting..." = "Se exportă...";
-"Extract text from images or documents." = "Extrageți text din imagini sau documente.";
 "Fill in every answer before saving." = "Completează toate răspunsurile înainte de salvare.";
 "Filtered by \"**%@**\"" = "Filtrată după „**%@**”";
 "First cards are on the way" = "Primele carduri sunt pe drum";
@@ -322,6 +321,7 @@
 "Keeping the current list stable while the next result set is prepared." = "Păstrăm lista curentă stabilă până când se pregătește următorul set de rezultate.";
 "Labs" = "Laborator";
 "Landed" = "Reușite";
+"Large" = "Mare";
 "Last Interaction" = "Ultima interacțiune";
 "Last opened %@." = "Deschis ultima dată %@.";
 "Last week" = "Săptămâna trecută";
@@ -404,6 +404,8 @@
 "No prompt added" = "Niciun enunț adăugat";
 "No question added" = "Nicio întrebare adăugată";
 "None" = "Fără";
+"Normal" = "Normal";
+"Normal keeps text large and clear. Large uses the current oversized playback text." = "Normal păstrează textul mare și clar. Mare folosește textul supradimensionat actual din redare.";
 "Not now" = "Nu acum";
 "Nothing in the shared UI registry matches â%@â." = "Nimic din registrul UI partajat nu se potrivește cu â%@â.";
 "Nothing landed on %@" = "Nimic nu a aterizat pe %@";
@@ -428,6 +430,7 @@
 "Pace" = "Ritm";
 "Pause AI generation" = "Pune pe pauză generarea AI";
 "Performance" = "Performanță";
+"Photos or PDF" = "Poze sau PDF";
 "Pick a deck" = "Alege un deck";
 "Pick a deck and continue." = "Alege un deck și continuă.";
 "Pick a deck for today" = "Alege un deck pentru azi";
@@ -491,6 +494,7 @@
 "Save changes before leaving?" = "Salvezi modificările înainte de ieșire?";
 "Save deck" = "Salvează deckul";
 "Save Error" = "Eroare la salvare";
+"Save to" = "Salvează în";
 "Saved" = "Salvat";
 "Saved Configurations" = "Configurații salvate";
 "Scroll this surface and watch the rows pass behind the sticky header blur." = "Derulați această suprafață și urmăriți cum trec rândurile în spatele neclarității antetului lipicios.";
@@ -546,8 +550,8 @@
 "Swipe HUD" = "Glisați HUD";
 "Swipe review" = "Repetare prin glisare";
 "Tab Bar" = "Bara de file";
+"Tap + to add a card, or generate cards with AI." = "Atinge + ca să adaugi un card sau generează carduri cu AI.";
 "Tap + to add your first card" = "Atinge + ca să adaugi primul card";
-"Tap + to choose Flashcard, Match, Quiz, or Write, or use Auto AI to generate cards instantly." = "Atingeți + pentru a alege Flashcard, Potrivire, Test sau Scriere sau utilizați Auto AI pentru a genera carduri instantaneu.";
 "Tap another day in the chart or start a short review block to build this week with meaningful history." = "Atingeți o altă zi în diagramă sau începeți un bloc scurt de revizuire pentru a construi această săptămână cu un istoric semnificativ.";
 "Tap cards" = "Atinge carduri";
 "Tap Create to make your first deck\nand start learning." = "Atinge Creează pentru a face primul deck\nși a începe să înveți.";
@@ -555,6 +559,8 @@
 "Target cleared for today" = "Ținta e atinsă azi";
 "Template examples" = "Exemple de șabloane";
 "Templates only prefill endpoint and model strings. You can freely edit everything after that, while keeping the current API key." = "Șabloanele completează numai punctele finale și șirurile de model. Puteți edita liber totul după aceea, păstrând în același timp cheia API actuală.";
+"Text Size" = "Dimensiune text";
+"Text size: %@." = "Dimensiune text: %@.";
 "Text: %@" = "Text: %@";
 "The current AI conversion will stop immediately." = "Conversia actuală AI se va opri imediat.";
 "The current AI generation will stop immediately." = "Generația actuală de AI se va opri imediat.";
@@ -587,7 +593,7 @@
 "Token: %@" = "Indicativ: %@";
 "Tomorrow" = "Mâine";
 "Top" = "Sus";
-"Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling." = "Sus fixează conținutul scurt în partea de sus. Centru aliniază vertical conținutul care încape fără derulare.";
+"Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block." = "Sus fixează conținutul scurt în partea de sus. Centru folosește ghidajul de grilă pentru un bloc de text centrat natural.";
 "Total cards for auto distribution." = "Total carduri pentru distribuirea automată.";
 "Trace JSON" = "Urmăriți JSON";
 "Try a broader phrase, another deck title, or a different card keyword." = "Încearcă o expresie mai largă, alt titlu de deck sau un alt cuvânt-cheie de card.";

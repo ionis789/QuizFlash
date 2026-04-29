@@ -352,7 +352,7 @@ extension DeckWorkspaceView {
             Text(localized("No cards yet"))
                 .font(.headline)
                 .foregroundStyle(.primary)
-            Text(localized("Tap + to choose Flashcard, Match, Quiz, or Write, or use Auto AI to generate cards instantly."))
+            Text(localized("Tap + to add a card, or generate cards with AI."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -366,6 +366,24 @@ extension DeckWorkspaceView {
                 isTitleFocused = false
                 showAddCardTypeDialog = true
         }
+    }
+
+    func presentAIGenerationSourcePicker() {
+        isTitleFocused = false
+        exitDraftSelectionModeForExternalAction()
+        viewModel.showAIPickerOptions = true
+    }
+
+    func chooseAIPhotoSourceFromPicker() {
+        isTitleFocused = false
+        viewModel.showAIPickerOptions = false
+        viewModel.showAIPhotoPicker = true
+    }
+
+    func chooseAIPDFSourceFromPicker() {
+        isTitleFocused = false
+        viewModel.showAIPickerOptions = false
+        viewModel.showAIPDFPicker = true
     }
 
     func openCardEditor(for kind: CardKind) {

@@ -84,7 +84,8 @@ struct PlayModeSettingsScreen: View {
                 flashcardSettings.tapAnimationStyle == .staticSwap
                     ? AppLocalization.string("Static text motion: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.staticSwapTextMotion.localizedTitle(locale: locale))
                     : AppLocalization.string("Static text motion applies only when Static Swap is selected.", locale: locale),
-                AppLocalization.string("Content alignment: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.contentAlignment.localizedTitle(locale: locale))
+                AppLocalization.string("Content alignment: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.contentAlignment.localizedTitle(locale: locale)),
+                AppLocalization.string("Text size: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.textSize.localizedTitle(locale: locale))
             ]
         case .quiz:
             return [

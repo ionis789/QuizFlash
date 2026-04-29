@@ -40,9 +40,10 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
         let decoded = try JSONDecoder().decode(FlashcardModeSettings.self, from: legacyPayload)
 
         XCTAssertEqual(decoded.contentAlignment, .center)
+        XCTAssertEqual(decoded.textSize, .large)
     }
 
-    func testFlashcardSettingsDecodeSchemaTwoPreservesSavedContentAlignment() throws {
+    func testFlashcardSettingsDecodeSchemaTwoPreservesSavedContentAlignmentAndDefaultsTextSizeToLarge() throws {
         let schemaTwoPayload = """
         {
           "schemaVersion": 2,
@@ -59,9 +60,10 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
         let decoded = try JSONDecoder().decode(FlashcardModeSettings.self, from: schemaTwoPayload)
 
         XCTAssertEqual(decoded.contentAlignment, .top)
+        XCTAssertEqual(decoded.textSize, .large)
     }
 
-    func testFlashcardContentAlignmentPersistsThroughDeckSettingsBucket() throws {
+    func testFlashcardLayoutSettingsPersistThroughDeckSettingsBucket() throws {
         let context = try TestModelContainerFactory.makeContext()
         let deck = DeckModel(title: "Settings", colorHex: "#FFFFFF")
         context.insert(deck)
@@ -70,11 +72,13 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
         let settings = DeckPlayModeSettingsStore.resolve(for: deck, in: context)
         var flashcardSettings = settings.flashcardSettings
         flashcardSettings.contentAlignment = .center
+        flashcardSettings.textSize = .normal
         settings.flashcardSettings = flashcardSettings
         try context.save()
 
         let resolvedAgain = DeckPlayModeSettingsStore.resolve(for: deck, in: context)
         XCTAssertEqual(resolvedAgain.flashcardSettings.contentAlignment, .center)
+        XCTAssertEqual(resolvedAgain.flashcardSettings.textSize, .normal)
     }
 }
 

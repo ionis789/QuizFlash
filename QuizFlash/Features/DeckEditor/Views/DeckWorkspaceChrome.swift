@@ -166,13 +166,11 @@ extension DeckWorkspaceView {
 
                 Spacer(minLength: 0)
 
-                HStack(spacing: UIConstants.Spacing.small) {
+                if shouldShowMockAIHeaderAction {
                     mockAIActionControl
-                    generateActionControl
                 }
-                .opacity(shouldShowInlineHeaderActions ? 1 : 0)
-                .allowsHitTesting(shouldShowInlineHeaderActions)
-                .accessibilityHidden(!shouldShowInlineHeaderActions)
+
+                headerGenerateActionControl
             }
 
             if !viewModel.draftCards.isEmpty {
@@ -192,7 +190,15 @@ extension DeckWorkspaceView {
         }
     }
 
-    var shouldShowInlineHeaderActions: Bool {
+    var shouldShowMockAIHeaderAction: Bool {
+        !isShowingWorkspaceConvert
+            && developmentPreferences.deckWorkspaceMockAIEnabled
+            && !hasUnifiedAISession
+            && !viewModel.isSelectingCards
+            && !shouldShowFloatingGenerate
+    }
+
+    var shouldShowPrimaryGenerateAction: Bool {
         !isShowingWorkspaceConvert
             && !hasUnifiedAISession
             && !viewModel.isSelectingCards
@@ -223,17 +229,30 @@ extension DeckWorkspaceView {
                 }
             }
         } label: {
-            HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
-                Text(destinationTitle)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+            HStack(alignment: .center, spacing: UIConstants.Spacing.small + 2) {
+                Image(systemName: viewModel.selectedFolder == nil ? "tray.full" : "folder.fill")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(accent)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(localized("Save to"))
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+
+                    Text(destinationTitle)
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                }
 
                 Image(systemName: "chevron.down.compact")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(.tertiary)
             }
-            .contentShape(Rectangle())
+            .padding(.leading, UIConstants.Spacing.small)
+            .padding(.trailing, UIConstants.Spacing.tiny)
+            .contentShape(Capsule(style: .continuous))
         }
         .quizFlashButtonStyle(.surface, shape: .capsule, size: UIConstants.Size.capsuleHeight)
         .accessibilityLabel(
@@ -295,6 +314,39 @@ extension DeckWorkspaceView {
                 symbol: "checkmark",
                 tint: canSave ? themeManager.roleColor(.buttonDangerForeground) : .secondary
             )
+        }
+    }
+
+    @ViewBuilder
+    var headerGenerateActionControl: some View {
+        if aiVisualStatusText != nil {
+            generateActionControl
+        } else {
+            primaryGenerateActionControl
+        }
+    }
+
+    @ViewBuilder
+    var primaryGenerateActionControl: some View {
+        if shouldShowPrimaryGenerateAction {
+            CreateDeckCapsuleButton(
+                action: {
+                    presentAIGenerationSourcePicker()
+                },
+                isEnabled: canStartLocalGeneration,
+                chrome: .accentAlt,
+                accessibilityLabel: localized("Generate cards with AI")
+            ) {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    Image(systemName: "wand.and.stars")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+
+                    Text(localized("Generate"))
+                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
+            }
         }
     }
 
@@ -369,9 +421,7 @@ extension DeckWorkspaceView {
         } else {
             CreateDeckCapsuleButton(
                 action: {
-                    isTitleFocused = false
-                    exitDraftSelectionModeForExternalAction()
-                    viewModel.showAIPickerOptions = true
+                    presentAIGenerationSourcePicker()
                 },
                 isEnabled: canStartLocalGeneration,
                 chrome: .accentAlt,

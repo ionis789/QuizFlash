@@ -621,19 +621,34 @@ private struct MiniCardPreview: View {
 
     private func estimatedTextBlockSize(forWidth width: CGFloat) -> CGSize {
         let font = roundedUIFont(size: titleFontSize, weight: .bold)
-        let label = UILabel()
-        label.numberOfLines = 6
-        label.lineBreakMode = .byTruncatingTail
-        label.font = font
-        label.text = titleText
-
-        let fittedSize = label.sizeThatFits(
-            CGSize(width: width, height: .greatestFiniteMagnitude)
+        let attributed = NSAttributedString(
+            string: titleText,
+            attributes: [.font: font]
+        )
+        let textStorage = NSTextStorage(attributedString: attributed)
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(
+            size: CGSize(width: max(width, 1), height: .greatestFiniteMagnitude)
         )
 
+        textContainer.lineFragmentPadding = 0
+        textContainer.maximumNumberOfLines = 6
+        textContainer.lineBreakMode = .byTruncatingTail
+        layoutManager.usesFontLeading = true
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.ensureLayout(for: textContainer)
+
+        let glyphRange = layoutManager.glyphRange(for: textContainer)
+        var widestLine: CGFloat = 1
+        layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { _, usedRect, _, _, _ in
+            widestLine = max(widestLine, ceil(usedRect.width))
+        }
+        let usedRect = layoutManager.usedRect(for: textContainer)
+
         return CGSize(
-            width: min(ceil(fittedSize.width), width),
-            height: min(ceil(fittedSize.height), maxTextHeight)
+            width: min(max(widestLine, 1), width),
+            height: min(max(ceil(usedRect.height), 1), maxTextHeight)
         )
     }
 

@@ -261,7 +261,6 @@
 "Exporting %d decks…" = "Exporting %d decks…";
 "Exporting %d deck…" = "Exporting %d deck…";
 "Exporting..." = "Exporting...";
-"Extract text from images or documents." = "Extract text from images or documents.";
 "Fill in every answer before saving." = "Fill in every answer before saving.";
 "Filtered by \"**%@**\"" = "Filtered by \"**%@**\"";
 "First cards are on the way" = "First cards are on the way";
@@ -322,6 +321,7 @@
 "Keeping the current list stable while the next result set is prepared." = "Keeping the current list stable while the next result set is prepared.";
 "Labs" = "Labs";
 "Landed" = "Landed";
+"Large" = "Large";
 "Last Interaction" = "Last Interaction";
 "Last opened %@." = "Last opened %@.";
 "Last week" = "Last week";
@@ -404,6 +404,8 @@
 "No prompt added" = "No prompt added";
 "No question added" = "No question added";
 "None" = "None";
+"Normal" = "Normal";
+"Normal keeps text large and clear. Large uses the current oversized playback text." = "Normal keeps text large and clear. Large uses the current oversized playback text.";
 "Not now" = "Not now";
 "Nothing in the shared UI registry matches â%@â." = "Nothing in the shared UI registry matches â%@â.";
 "Nothing landed on %@" = "Nothing landed on %@";
@@ -428,6 +430,7 @@
 "Pace" = "Pace";
 "Pause AI generation" = "Pause AI generation";
 "Performance" = "Performance";
+"Photos or PDF" = "Photos or PDF";
 "Pick a deck" = "Pick a deck";
 "Pick a deck and continue." = "Pick a deck and continue.";
 "Pick a deck for today" = "Pick a deck for today";
@@ -491,6 +494,7 @@
 "Save changes before leaving?" = "Save changes before leaving?";
 "Save deck" = "Save deck";
 "Save Error" = "Save Error";
+"Save to" = "Save to";
 "Saved" = "Saved";
 "Saved Configurations" = "Saved Configurations";
 "Scroll this surface and watch the rows pass behind the sticky header blur." = "Scroll this surface and watch the rows pass behind the sticky header blur.";
@@ -546,8 +550,8 @@
 "Swipe HUD" = "Swipe HUD";
 "Swipe review" = "Swipe review";
 "Tab Bar" = "Tab Bar";
+"Tap + to add a card, or generate cards with AI." = "Tap + to add a card, or generate cards with AI.";
 "Tap + to add your first card" = "Tap + to add your first card";
-"Tap + to choose Flashcard, Match, Quiz, or Write, or use Auto AI to generate cards instantly." = "Tap + to choose Flashcard, Match, Quiz, or Write, or use Auto AI to generate cards instantly.";
 "Tap another day in the chart or start a short review block to build this week with meaningful history." = "Tap another day in the chart or start a short review block to build this week with meaningful history.";
 "Tap cards" = "Tap cards";
 "Tap Create to make your first deck\nand start learning." = "Tap Create to make your first deck\nand start learning.";
@@ -555,6 +559,8 @@
 "Target cleared for today" = "Target cleared for today";
 "Template examples" = "Template examples";
 "Templates only prefill endpoint and model strings. You can freely edit everything after that, while keeping the current API key." = "Templates only prefill endpoint and model strings. You can freely edit everything after that, while keeping the current API key.";
+"Text Size" = "Text Size";
+"Text size: %@." = "Text size: %@.";
 "Text: %@" = "Text: %@";
 "The current AI conversion will stop immediately." = "The current AI conversion will stop immediately.";
 "The current AI generation will stop immediately." = "The current AI generation will stop immediately.";
@@ -587,7 +593,7 @@
 "Token: %@" = "Token: %@";
 "Tomorrow" = "Tomorrow";
 "Top" = "Top";
-"Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling." = "Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling.";
+"Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block." = "Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block.";
 "Total cards for auto distribution." = "Total cards for auto distribution.";
 "Trace JSON" = "Trace JSON";
 "Try a broader phrase, another deck title, or a different card keyword." = "Try a broader phrase, another deck title, or a different card keyword.";

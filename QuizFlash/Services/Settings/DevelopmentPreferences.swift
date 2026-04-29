@@ -16,7 +16,9 @@ final class DevelopmentPreferences {
 
     private enum Keys {
         static let aiDebugTracingEnabled = AIDebugTracePreferenceKeys.debugTracingEnabled
+        static let deckWorkspaceMockAIEnabled = "preferences.development.deckWorkspaceMockAIEnabled"
         static let deckGridTextLayoutDebugEnabled = "preferences.development.deckGridTextLayoutDebugEnabled"
+        static let flashcardGridTextLayoutDebugEnabled = "preferences.development.flashcardGridTextLayoutDebugEnabled"
         static let playModeDeveloperModeEnabled = "preferences.development.playModeDeveloperModeEnabled"
         static let edgeShadowTuningEnabled = "preferences.development.edgeShadowTuningEnabled"
         static let edgeShadowDebugSettingsByScreen = "preferences.development.edgeShadowDebugSettingsByScreen"
@@ -36,12 +38,32 @@ final class DevelopmentPreferences {
         }
     }
 
+    /// Shows the mock AI generation shortcut in the deck workspace.
+    var deckWorkspaceMockAIEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                deckWorkspaceMockAIEnabled,
+                forKey: Keys.deckWorkspaceMockAIEnabled
+            )
+        }
+    }
+
     /// Shows the MiniCardPreview measurement guides used during deck-grid tuning.
     var deckGridTextLayoutDebugEnabled: Bool {
         didSet {
             userDefaults.set(
                 deckGridTextLayoutDebugEnabled,
                 forKey: Keys.deckGridTextLayoutDebugEnabled
+            )
+        }
+    }
+
+    /// Shows the flashcard play-mode text-block guides used during card layout tuning.
+    var flashcardGridTextLayoutDebugEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                flashcardGridTextLayoutDebugEnabled,
+                forKey: Keys.flashcardGridTextLayoutDebugEnabled
             )
         }
     }
@@ -94,8 +116,14 @@ final class DevelopmentPreferences {
         self.aiDebugTracingEnabled = userDefaults.object(
             forKey: Keys.aiDebugTracingEnabled
         ) as? Bool ?? AppFeatures.current.enablesAITraceTooling
+        self.deckWorkspaceMockAIEnabled = userDefaults.object(
+            forKey: Keys.deckWorkspaceMockAIEnabled
+        ) as? Bool ?? false
         self.deckGridTextLayoutDebugEnabled = userDefaults.object(
             forKey: Keys.deckGridTextLayoutDebugEnabled
+        ) as? Bool ?? false
+        self.flashcardGridTextLayoutDebugEnabled = userDefaults.object(
+            forKey: Keys.flashcardGridTextLayoutDebugEnabled
         ) as? Bool ?? false
         self.playModeDeveloperModeEnabled = userDefaults.object(
             forKey: Keys.playModeDeveloperModeEnabled

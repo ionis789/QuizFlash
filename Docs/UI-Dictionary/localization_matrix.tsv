@@ -117,8 +117,8 @@ All Decks	All Decks	Toate deckurile	Все колоды
 All folders	All folders	Toate foldere	Все папки
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
 Answer	Answer	Răspuns	Ответ
+ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
@@ -126,8 +126,8 @@ Auto	Auto	Auto	Авто
 Auto keeps the full source covered, then balances density by text weight.	Auto keeps the full source covered, then balances density by text weight.	Auto menține întreaga sursă acoperită, apoi echilibrează densitatea în funcție de greutatea textului.	В режиме «Авто» сохраняется весь источник, а затем балансируется плотность по весу текста.
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
-Blank	Blank	Gol	Пропуск
 BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
+Blank	Blank	Gol	Пропуск
 Blue	Blue	Albastru	Синий
 Blur Color	Blur Color	Culoare blur	Цвет блюра
 Blur Header Lab	Blur Header Lab	Blur Header Lab	Лаборатория размытия заголовков
@@ -262,7 +262,6 @@ Export selected decks	Export selected decks	Exportă deckurile selectate	Экс�
 Exporting %d decks…	Exporting %d decks…	Se exportă %d deckuri…	Экспорт %d колод…
 Exporting %d deck…	Exporting %d deck…	Se exportă %d deck…	Экспорт %d колоды…
 Exporting...	Exporting...	Se exportă...	Экспорт...
-Extract text from images or documents.	Extract text from images or documents.	Extrageți text din imagini sau documente.	Извлечение текста из изображений или документов.
 Fill in every answer before saving.	Fill in every answer before saving.	Completează toate răspunsurile înainte de salvare.	Заполните все ответы перед сохранением.
 "Filtered by ""**%@**"""	"Filtered by ""**%@**"""	Filtrată după „**%@**”	"Отфильтровано по ""**%@**"""
 First cards are on the way	First cards are on the way	Primele carduri sunt pe drum	Первые карточки уже создаются
@@ -323,6 +322,7 @@ Keep Editing	Keep Editing	Continuă editarea	Продолжить редакти
 Keeping the current list stable while the next result set is prepared.	Keeping the current list stable while the next result set is prepared.	Păstrăm lista curentă stabilă până când se pregătește următorul set de rezultate.	Текущий список остается стабильным, пока готовится следующий набор результатов.
 Labs	Labs	Laborator	Лабы
 Landed	Landed	Reușite	Уверенно
+Large	Large	Mare	Крупный
 Last Interaction	Last Interaction	Ultima interacțiune	Последнее взаимодействие
 Last opened %@.	Last opened %@.	Deschis ultima dată %@.	Последний раз открывали %@.
 Last week	Last week	Săptămâna trecută	Прошлая неделя
@@ -354,8 +354,8 @@ Match Isn't Ready	Match Isn't Ready	Potrivirea nu este pregătită	Режим с
 MATCH PREVIEW	MATCH PREVIEW	PREVIZUALIZARE POTRIVIRE	ПРЕДПРОСМОТР СОПОСТАВЛЕНИЯ
 Match-ready	Match-ready	Pregătit pentru potrivire	Готово для сопоставления
 match-ready	match-ready	pregătite pentru potrivire	готовые для сопоставления
-match-weak	match-weak	potriviri slabe	слабые для сопоставления
 Match-weak	Match-weak	Potrivire slabă	Слабое сопоставление
+match-weak	match-weak	potriviri slabe	слабые для сопоставления
 Medium	Medium	Mediu	Средний
 Mock AI	Mock AI	Simulare AI	Мок ИИ
 Mode	Mode	Modul	Режим
@@ -405,6 +405,8 @@ No matching decks or cards	No matching decks or cards	Niciun deck sau card potri
 No prompt added	No prompt added	Niciun enunț adăugat	Подсказка не добавлена
 No question added	No question added	Nicio întrebare adăugată	Вопрос не добавлен
 None	None	Fără	Нет
+Normal	Normal	Normal	Обычный
+Normal keeps text large and clear. Large uses the current oversized playback text.	Normal keeps text large and clear. Large uses the current oversized playback text.	Normal păstrează textul mare și clar. Mare folosește textul supradimensionat actual din redare.	Обычный сохраняет текст крупным и читаемым. Крупный использует текущий увеличенный текст в режиме просмотра.
 Not now	Not now	Nu acum	Не сейчас
 Nothing in the shared UI registry matches â%@â.	Nothing in the shared UI registry matches â%@â.	Nimic din registrul UI partajat nu se potrivește cu â%@â.	Ничто в реестре общего пользовательского интерфейса не соответствует %@â.
 Nothing landed on %@	Nothing landed on %@	Nimic nu a aterizat pe %@	На %@ ничего не попало
@@ -429,6 +431,7 @@ Owner: %@	Owner: %@	Proprietar: %@	Владелец: %@
 Pace	Pace	Ritm	Темп
 Pause AI generation	Pause AI generation	Pune pe pauză generarea AI	Поставить AI генерацию на паузу
 Performance	Performance	Performanță	Прогресс
+Photos or PDF	Photos or PDF	Poze sau PDF	Фото или PDF
 Pick a deck	Pick a deck	Alege un deck	Выберите колоду
 Pick a deck and continue.	Pick a deck and continue.	Alege un deck și continuă.	Выберите колоду и продолжайте.
 Pick a deck for today	Pick a deck for today	Alege un deck pentru azi	Выберите колоду на сегодня
@@ -447,8 +450,8 @@ PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview	Preview	Previzualizare	Предварительный просмотр
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Progress and pace.	Progress and pace.	Progres și ritm.	Прогресс и темп.
-Prompt	Prompt	Enunț	Задание
 PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
+Prompt	Prompt	Enunț	Задание
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Purple	Purple	Mov	Фиолетовый
 Question	Question	Întrebare	Вопрос
@@ -492,6 +495,7 @@ Save Changes	Save Changes	Salvează modificările	Сохранить измен�
 Save changes before leaving?	Save changes before leaving?	Salvezi modificările înainte de ieșire?	Сохранить изменения перед выходом?
 Save deck	Save deck	Salvează deckul	Сохранить колоду
 Save Error	Save Error	Eroare la salvare	Ошибка сохранения
+Save to	Save to	Salvează în	Сохранить в
 Saved	Saved	Salvat	Сохранено
 Saved Configurations	Saved Configurations	Configurații salvate	Сохраненные конфигурации
 Score signals	Score signals	Semnale scor	Сигналы счёта
@@ -547,8 +551,8 @@ Suspended	Suspended	Suspendat	Приостановлена
 Swipe HUD	Swipe HUD	Glisați HUD	Проведите по интерфейсу
 Swipe review	Swipe review	Repetare prin glisare	Повтор свайпом
 Tab Bar	Tab Bar	Bara de file	Панель вкладок
+Tap + to add a card, or generate cards with AI.	Tap + to add a card, or generate cards with AI.	Atinge + ca să adaugi un card sau generează carduri cu AI.	Нажмите +, чтобы добавить карточку, или сгенерируйте карточки с AI.
 Tap + to add your first card	Tap + to add your first card	Atinge + ca să adaugi primul card	Нажмите +, чтобы добавить первую карточку
-Tap + to choose Flashcard, Match, Quiz, or Write, or use Auto AI to generate cards instantly.	Tap + to choose Flashcard, Match, Quiz, or Write, or use Auto AI to generate cards instantly.	Atingeți + pentru a alege Flashcard, Potrivire, Test sau Scriere sau utilizați Auto AI pentru a genera carduri instantaneu.	Нажмите +, чтобы выбрать «Карточка», «Сопоставить», «Викторина» или «Написать», или используйте Auto AI для мгновенного создания карточек.
 Tap another day in the chart or start a short review block to build this week with meaningful history.	Tap another day in the chart or start a short review block to build this week with meaningful history.	Atingeți o altă zi în diagramă sau începeți un bloc scurt de revizuire pentru a construi această săptămână cu un istoric semnificativ.	Коснитесь другого дня на графике или начните блок короткого обзора, чтобы создать на этой неделе содержательную историю.
 Tap cards	Tap cards	Atinge carduri	Нажмите на карточки
 "Tap Create to make your first deck
@@ -560,6 +564,8 @@ Tap the label above to flip the card	Tap the label above to flip the card	Atinge
 Target cleared for today	Target cleared for today	Ținta e atinsă azi	Цель на сегодня закрыта
 Template examples	Template examples	Exemple de șabloane	Примеры шаблонов
 Templates only prefill endpoint and model strings. You can freely edit everything after that, while keeping the current API key.	Templates only prefill endpoint and model strings. You can freely edit everything after that, while keeping the current API key.	Șabloanele completează numai punctele finale și șirurile de model. Puteți edita liber totul după aceea, păstrând în același timp cheia API actuală.	Шаблоны предварительно заполняют только строки конечной точки и модели. После этого вы сможете свободно все редактировать, сохраняя при этом текущий ключ API.
+Text Size	Text Size	Dimensiune text	Размер текста
+Text size: %@.	Text size: %@.	Dimensiune text: %@.	Размер текста: %@.
 Text: %@	Text: %@	Text: %@	Текст: %@
 The current AI conversion will stop immediately.	The current AI conversion will stop immediately.	Conversia actuală AI se va opri imediat.	Текущее преобразование ИИ будет немедленно остановлено.
 The current AI generation will stop immediately.	The current AI generation will stop immediately.	Generația actuală de AI se va opri imediat.	Нынешнее поколение ИИ немедленно остановится.
@@ -577,8 +583,8 @@ This migration slice only enables the shared routing foundation. Flashcard editi
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
 This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-this week	this week	săptămâna asta	эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
+this week	this week	săptămâna asta	эта неделя
 This write card looks formula-heavy and is a good candidate for assisted builder input.	This write card looks formula-heavy and is a good candidate for assisted builder input.	Acest card de scriere pare încărcat de formule și este un bun candidat pentru introducerea asistată.	Эта карточка на письмо перегружена формулами и хорошо подходит для ввода с помощником.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
@@ -592,7 +598,7 @@ Today's goal is closed.	Today's goal is closed.	Obiectivul de azi este închis.	
 Token: %@	Token: %@	Indicativ: %@	Токен: %@
 Tomorrow	Tomorrow	Mâine	Завтра
 Top	Top	Sus	Сверху
-Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling.	Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling.	Sus fixează conținutul scurt în partea de sus. Centru aliniază vertical conținutul care încape fără derulare.	Сверху закрепляет короткий контент у верхнего края. Центр выравнивает по вертикали контент, который помещается без прокрутки.
+Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block.	Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block.	Sus fixează conținutul scurt în partea de sus. Centru folosește ghidajul de grilă pentru un bloc de text centrat natural.	Сверху закрепляет короткий контент у верхнего края. Центр использует сеточные направляющие для естественно центрированного текстового блока.
 Total cards for auto distribution.	Total cards for auto distribution.	Total carduri pentru distribuirea automată.	Всего карточек для автораздачи.
 Trace JSON	Trace JSON	Urmăriți JSON	Трассировка JSON
 Try a broader phrase, another deck title, or a different card keyword.	Try a broader phrase, another deck title, or a different card keyword.	Încearcă o expresie mai largă, alt titlu de deck sau un alt cuvânt-cheie de card.	Попробуйте более широкую фразу, другое название колоды или другой ключ карточки.
@@ -620,8 +626,8 @@ Write	Write	Scriere	Письмо
 Write Card	Write Card	Card de scriere	Карточка письма
 Write Cards	Write Cards	Carduri de scriere	Карточки письма
 Write Isn't Ready	Write Isn't Ready	Modul Scriere nu este pregătit	Режим письма ещё не готов
-Write math-heavy	Write math-heavy	Scriere cu formulă	Письмо с формулами
 write math-heavy	write math-heavy	scrieri cu formulă	письменные с формулами
+Write math-heavy	Write math-heavy	Scriere cu formulă	Письмо с формулами
 WRITE PREVIEW	WRITE PREVIEW	PREVIZUALIZARE SCRIERE	ПРЕДПРОСМОТР ПИСЬМА
 XP	XP	XP	XP
 Yellow	Yellow	Galben	Жёлтый

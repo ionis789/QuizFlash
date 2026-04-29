@@ -17,12 +17,16 @@ final class DevelopmentPreferencesTests: XCTestCase {
 
         let preferences = DevelopmentPreferences(userDefaults: defaults)
         preferences.aiDebugTracingEnabled = false
+        preferences.deckWorkspaceMockAIEnabled = true
         preferences.deckGridTextLayoutDebugEnabled = true
+        preferences.flashcardGridTextLayoutDebugEnabled = true
         preferences.playModeDeveloperModeEnabled = true
 
         let reloadedPreferences = DevelopmentPreferences(userDefaults: defaults)
         XCTAssertFalse(reloadedPreferences.aiDebugTracingEnabled)
+        XCTAssertTrue(reloadedPreferences.deckWorkspaceMockAIEnabled)
         XCTAssertTrue(reloadedPreferences.deckGridTextLayoutDebugEnabled)
+        XCTAssertTrue(reloadedPreferences.flashcardGridTextLayoutDebugEnabled)
         XCTAssertTrue(reloadedPreferences.playModeDeveloperModeEnabled)
     }
 
@@ -31,13 +35,17 @@ final class DevelopmentPreferencesTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         defaults.set(false, forKey: AIDebugTracePreferenceKeys.debugTracingEnabled)
+        defaults.set(true, forKey: "preferences.development.deckWorkspaceMockAIEnabled")
         defaults.set(true, forKey: "preferences.development.deckGridTextLayoutDebugEnabled")
+        defaults.set(true, forKey: "preferences.development.flashcardGridTextLayoutDebugEnabled")
         defaults.set(true, forKey: "preferences.development.playModeDeveloperModeEnabled")
 
         let preferences = DevelopmentPreferences(userDefaults: defaults)
 
         XCTAssertFalse(preferences.aiDebugTracingEnabled)
+        XCTAssertTrue(preferences.deckWorkspaceMockAIEnabled)
         XCTAssertTrue(preferences.deckGridTextLayoutDebugEnabled)
+        XCTAssertTrue(preferences.flashcardGridTextLayoutDebugEnabled)
         XCTAssertTrue(preferences.playModeDeveloperModeEnabled)
     }
 }

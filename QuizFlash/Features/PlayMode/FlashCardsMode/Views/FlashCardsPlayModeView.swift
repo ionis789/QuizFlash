@@ -58,6 +58,9 @@ struct FlashCardsPlayModeView: View {
     @State private var editingCard: CardModel?
     @State private var showsDeveloperPanel = false
     @State private var developerSwipeDebugState = PlayModeDeveloperSwipeDebugState()
+    @State private var currentLayoutDebugSnapshot: FlashcardGridLayoutDebugSnapshot?
+    @State private var currentLayoutDebugCardID: PersistentIdentifier?
+    @State private var didCopyFloatingLayoutDebug = false
     @State private var liveSwipeFeedbackSnapshot = SwipeProgressSnapshot.idle
     @State private var swipeFeedbackLiveDirection: SwipeDirection?
     @State private var swipeFeedbackLiveProgress: CGFloat = 0
@@ -206,6 +209,8 @@ struct FlashCardsPlayModeView: View {
             startupDebugState.record("currentIndex \(viewModel.currentIndex)")
 #endif
             liveSwipeFeedbackSnapshot = .idle
+            currentLayoutDebugSnapshot = nil
+            currentLayoutDebugCardID = nil
             resetLiveSwipeFeedback()
             developerSwipeDebugState.reset()
         }
@@ -268,8 +273,14 @@ struct FlashCardsPlayModeView: View {
                             tapAnimationStyle: viewModel.settings.tapAnimationStyle,
                             staticSwapTextMotion: viewModel.settings.staticSwapTextMotion,
                             contentAlignment: viewModel.settings.contentAlignment,
+                            textSize: viewModel.settings.textSize,
                             onSwipeProgress: resolvedSwipeProgressHandler(isCurrentCard: isCurrentCard),
                             swipeGestureTuning: resolvedSwipeGestureTuning,
+                            onLayoutDebugSnapshot: isCurrentCard
+                                ? { snapshot in
+                                    updateCurrentLayoutDebugSnapshot(snapshot, cardID: entry.card.id)
+                                }
+                                : nil,
                             isFlipped: flipBinding
                         )
                         .padding(.bottom, cardBottomReserve)
@@ -468,6 +479,48 @@ struct FlashCardsPlayModeView: View {
                 card: card
             )
         }
+    }
+
+    private var currentVisibleFaceDebugTitle: String {
+        viewModel.isFlipped ? "back" : "front"
+    }
+
+    private var currentVisibleZone: ZoneModel? {
+        guard let currentPlayableCard else { return nil }
+        return viewModel.isFlipped ? currentPlayableCard.backZone : currentPlayableCard.frontZone
+    }
+
+    private var currentLayoutDebugReport: String? {
+        guard
+            let currentPlayableCard,
+            let currentVisibleZone,
+            let snapshot = currentLayoutDebugSnapshot,
+            currentLayoutDebugCardID == currentPlayableCard.id,
+            snapshot.face == currentVisibleFaceDebugTitle
+        else {
+            return nil
+        }
+
+        return FlashcardLayoutDebugReportFormatter.makeReport(
+            deckTitle: resolvedDeckTitle,
+            card: currentPlayableCard,
+            currentIndex: viewModel.currentIndex,
+            totalCount: max(viewModel.totalCardCount, viewModel.cards.count),
+            isFlipped: viewModel.isFlipped,
+            settings: viewModel.settings,
+            visibleZone: currentVisibleZone,
+            snapshot: snapshot
+        )
+    }
+
+    private func updateCurrentLayoutDebugSnapshot(
+        _ snapshot: FlashcardGridLayoutDebugSnapshot,
+        cardID: PersistentIdentifier
+    ) {
+        guard currentPlayableCard?.id == cardID else { return }
+        guard snapshot.face == currentVisibleFaceDebugTitle else { return }
+        currentLayoutDebugSnapshot = snapshot
+        currentLayoutDebugCardID = cardID
     }
 
     // MARK: - Header
@@ -693,10 +746,33 @@ struct FlashCardsPlayModeView: View {
                         state: developerSwipeDebugState,
                         maxHeight: panelMaxHeight,
                         performanceContent: performanceContent,
+                        layoutDebugSnapshot: currentLayoutDebugSnapshot,
+                        layoutDebugReport: currentLayoutDebugReport,
                         onClose: closeDeveloperPanel
                     )
                         .frame(width: panelWidth)
                         .transition(playModeDeveloperPanelTransition)
+                }
+
+                if currentLayoutDebugReport != nil {
+                    Button(action: copyFloatingLayoutDebugReport) {
+                        HStack(spacing: 8) {
+                            Image(systemName: didCopyFloatingLayoutDebug ? "checkmark" : "doc.on.doc")
+                                .font(.system(size: 15, weight: .black))
+                            Text(didCopyFloatingLayoutDebug ? "Copied" : "Copy")
+                                .font(.system(size: 15, weight: .black, design: .rounded))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .frame(height: 44)
+                        .background(Color.black.opacity(0.72), in: Capsule())
+                        .overlay {
+                            Capsule()
+                                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.scale(scale: 0.92).combined(with: .opacity))
                 }
 
                 PlayModeDebugButtonBridge(
@@ -713,6 +789,16 @@ struct FlashCardsPlayModeView: View {
         }
         .frame(width: containerSize.width, height: containerSize.height, alignment: .bottomTrailing)
         .zIndex(1_200)
+    }
+
+    private func copyFloatingLayoutDebugReport() {
+        guard let currentLayoutDebugReport else { return }
+        UIPasteboard.general.string = currentLayoutDebugReport
+        didCopyFloatingLayoutDebug = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            didCopyFloatingLayoutDebug = false
+        }
     }
 
     private func toggleDeveloperPanel() {
@@ -1079,11 +1165,145 @@ private final class PlayModeDeveloperSwipeDebugState {
     }
 }
 
+nonisolated private enum FlashcardLayoutDebugReportFormatter {
+    static func makeReport(
+        deckTitle: String,
+        card: PlayableCard,
+        currentIndex: Int,
+        totalCount: Int,
+        isFlipped: Bool,
+        settings: FlashcardModeSettings,
+        visibleZone: ZoneModel,
+        snapshot: FlashcardGridLayoutDebugSnapshot
+    ) -> String {
+        var lines: [String] = []
+        lines.append("QuizFlash Flashcard Layout Debug")
+        lines.append("timestamp: \(ISO8601DateFormatter().string(from: Date()))")
+        lines.append("deck: \(deckTitle)")
+        lines.append("position: \(currentIndex + 1) / \(max(totalCount, 0))")
+        lines.append("cardNumber: \(card.cardNumber)")
+        lines.append("cardID: \(card.id)")
+        lines.append("visibleFace: \(snapshot.face)")
+        lines.append("isFlipped: \(isFlipped)")
+        lines.append(
+            "settings: revealFlow=\(settings.revealFlow.rawValue), flipBehavior=\(settings.flipBehavior.rawValue), tapAnimation=\(settings.tapAnimationStyle.rawValue), staticSwapMotion=\(settings.staticSwapTextMotion.rawValue), contentAlignment=\(settings.contentAlignment.rawValue), textSize=\(settings.textSize.rawValue)"
+        )
+        lines.append("frontPreview: \(card.frontZone.previewText(maxLength: 220))")
+        lines.append("backPreview: \(card.backZone.previewText(maxLength: 220))")
+        lines.append("")
+        lines.append("FACE METRICS")
+        lines.append("containerSize: \(size(snapshot.containerSize))")
+        lines.append("horizontalPadding: \(metric(snapshot.horizontalPadding))")
+        lines.append("verticalPadding: \(metric(snapshot.verticalPadding))")
+        lines.append("availableContentSize: \(size(snapshot.availableContentSize))")
+        lines.append("estimatedContentSize: \(size(snapshot.estimatedContentSize))")
+        lines.append("measuredContentSize: \(size(snapshot.measuredContentSize))")
+        lines.append("contentBodyHeight: \(metric(snapshot.contentBodyHeight))")
+        lines.append("contentFitsVertically: \(snapshot.contentFitsVertically)")
+        lines.append("centeredTopInset: \(metric(snapshot.centeredTopInset))")
+        lines.append("scrollContentHeight: \(metric(snapshot.scrollContentHeight))")
+        lines.append("")
+        lines.append("ZONE TREE")
+        lines.append(contentsOf: zoneTreeLines(for: visibleZone, path: "root", depth: 0))
+        lines.append("")
+        lines.append("LEAF METRICS")
+
+        if snapshot.leafSnapshots.isEmpty {
+            lines.append("no leaf metrics captured")
+        } else {
+            for leaf in snapshot.leafSnapshots {
+                lines.append(contentsOf: leafLines(for: leaf))
+            }
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    private static func zoneTreeLines(for zone: ZoneModel, path: String, depth: Int) -> [String] {
+        let indent = String(repeating: "  ", count: depth)
+        if zone.isLeaf {
+            var line = "\(indent)- \(path) leaf type=\(zone.contentType.rawValue) hasContent=\(zone.hasContent) alignment=\(zone.textAlignment.rawValue)"
+            if zone.contentType == .text || zone.contentType == .code {
+                line += " chars=\(zone.text.count) preview=\"\(singleLinePreview(zone.text, limit: 120))\""
+            }
+            return [line]
+        }
+
+        let children = zone.children ?? []
+        var lines = [
+            "\(indent)- \(path) container direction=\(zone.direction.rawValue) children=\(children.count) filledChildren=\(children.filter(\.hasContent).count)"
+        ]
+        for (index, child) in children.enumerated() {
+            lines.append(contentsOf: zoneTreeLines(for: child, path: "\(path).\(index)", depth: depth + 1))
+        }
+        return lines
+    }
+
+    private static func leafLines(for leaf: FlashcardGridLeafLayoutDebugSnapshot) -> [String] {
+        let maxEstimatedLine = leaf.estimatedLineWidths.max() ?? 0
+        let textWidthLimit = leaf.textWidthLimit ?? leaf.contentLayoutWidth
+        let rightSpaceAfterBlock = max(leaf.availableWidth - leaf.leadingInset - leaf.blockSize.width, 0)
+        let remainingTextWidth = max(textWidthLimit - maxEstimatedLine, 0)
+        let lineWidths = leaf.estimatedLineWidths.map(metric).joined(separator: ", ")
+        let renderedLineWidths = leaf.renderedLineWidths.map(metric).joined(separator: ", ")
+        let renderedLines = leaf.renderedLineTexts.enumerated()
+            .map { index, lineText in
+                let lineWidth = index < leaf.renderedLineWidths.count ? leaf.renderedLineWidths[index] : 0
+                return "    \(index + 1). [\(metric(lineWidth))] \"\(lineText)\""
+            }
+            .joined(separator: "\n")
+
+        return [
+            "- \(leaf.path) id=\(leaf.zoneID.uuidString)",
+            "  type=\(leaf.contentType.rawValue) hasContent=\(leaf.hasContent) math=\(leaf.containsMath) inlineCode=\(leaf.containsInlineCode)",
+            "  availableWidth=\(metric(leaf.availableWidth)) estimated=\(size(leaf.estimatedSize)) rendered=\(size(leaf.renderedContentSize))",
+            "  block=\(size(leaf.blockSize)) leadingInset=\(metric(leaf.leadingInset)) rightSpaceAfterBlock=\(metric(rightSpaceAfterBlock))",
+            "  contentLayoutWidth=\(metric(leaf.contentLayoutWidth)) textWidthLimit=\(metric(textWidthLimit)) remainingTextWidthAfterWidestLine=\(metric(remainingTextWidth))",
+            "  textInsets=\(metric(leaf.textHorizontalInsets)) bulletInset=\(metric(leaf.bulletHorizontalInset)) intrinsicText=\(leaf.usesIntrinsicTextMeasurement)",
+            "  zoneAlignment=\(leaf.zoneTextAlignment.rawValue) naturalBlockCentering=\(leaf.usesNaturalBlockCentering)",
+            "  style=\(leaf.textStyle.rawValue) font=\(leaf.fontFamily.rawValue) bold=\(leaf.isBold) italic=\(leaf.isItalic) bullet=\(leaf.hasBullet) highlight=\(leaf.highlightColor.rawValue)",
+            "  chars=\(leaf.textCharacterCount) explicitLines=\(leaf.textLineCount) estimatedLineWidths=[\(lineWidths)]",
+            "  renderedLineWidths=[\(renderedLineWidths)]",
+            "  renderedLines:",
+            renderedLines.isEmpty ? "    <none>" : renderedLines,
+            "  preview=\"\(leaf.textPreview)\"",
+            "  fullText:",
+            leaf.fullText.isEmpty ? "  <empty>" : indentMultiline(leaf.fullText, prefix: "  | ")
+        ]
+    }
+
+    private static func singleLinePreview(_ value: String, limit: Int) -> String {
+        let collapsed = value
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard collapsed.count > limit else { return collapsed }
+        return String(collapsed.prefix(limit)) + "..."
+    }
+
+    private static func indentMultiline(_ value: String, prefix: String) -> String {
+        value.components(separatedBy: .newlines)
+            .map { prefix + $0 }
+            .joined(separator: "\n")
+    }
+
+    private static func size(_ size: CGSize) -> String {
+        "\(metric(size.width)) x \(metric(size.height))"
+    }
+
+    private static func metric(_ value: CGFloat) -> String {
+        Double(value).formatted(.number.precision(.fractionLength(0...1)))
+    }
+}
+
 private struct PlayModeDeveloperSwipePanel: View {
     @Bindable var state: PlayModeDeveloperSwipeDebugState
     let maxHeight: CGFloat
     let performanceContent: AnyView?
+    let layoutDebugSnapshot: FlashcardGridLayoutDebugSnapshot?
+    let layoutDebugReport: String?
     let onClose: () -> Void
+
+    @State private var didCopyLayoutDebug = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1098,6 +1318,10 @@ private struct PlayModeDeveloperSwipePanel: View {
                         debugSection("Startup Perf") {
                             performanceContent
                         }
+                    }
+
+                    debugSection("Card Layout") {
+                        layoutDebugSection
                     }
 
                     debugSection("Live Swipe") {
@@ -1194,6 +1418,9 @@ private struct PlayModeDeveloperSwipePanel: View {
             surfaceRole: .widget,
             baseBorderBlurRadius: 1
         )
+        .onChange(of: layoutDebugReport ?? "") { _, _ in
+            didCopyLayoutDebug = false
+        }
     }
 
     private var panelHeader: some View {
@@ -1248,6 +1475,71 @@ private struct PlayModeDeveloperSwipePanel: View {
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
+    @ViewBuilder
+    private var layoutDebugSection: some View {
+        if let snapshot = layoutDebugSnapshot {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    debugChip(snapshot.face.uppercased(), tint: .cyan)
+                    debugChip("\(snapshot.leafSnapshots.count) LEAFS", tint: .orange)
+                    debugChip(snapshot.contentFitsVertically ? "FITS" : "SCROLL", tint: .mint)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    debugLayoutLine("container", sizeText(snapshot.containerSize))
+                    debugLayoutLine("available", sizeText(snapshot.availableContentSize))
+                    debugLayoutLine("estimated", sizeText(snapshot.estimatedContentSize))
+                    debugLayoutLine("measured", sizeText(snapshot.measuredContentSize))
+                    debugLayoutLine("top inset", metricText(snapshot.centeredTopInset))
+                }
+
+                if let widestLeaf = snapshot.leafSnapshots.max(by: { $0.blockSize.width < $1.blockSize.width }) {
+                    debugLayoutLine(
+                        "widest leaf",
+                        "\(widestLeaf.path) block=\(metricText(widestLeaf.blockSize.width)) lead=\(metricText(widestLeaf.leadingInset))"
+                    )
+                }
+
+                Button(action: copyLayoutDebugReport) {
+                    HStack(spacing: 8) {
+                        Image(systemName: didCopyLayoutDebug ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 13, weight: .black))
+                        Text(didCopyLayoutDebug ? "Copied" : "Copy Layout")
+                            .font(.caption.weight(.black))
+                    }
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.08), in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(layoutDebugReport == nil)
+                .opacity(layoutDebugReport == nil ? 0.45 : 1)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                debugChip("WAITING", tint: .secondary)
+                Text("Open the current flashcard face until layout metrics arrive.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func copyLayoutDebugReport() {
+        guard let layoutDebugReport else { return }
+        UIPasteboard.general.string = layoutDebugReport
+        didCopyLayoutDebug = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            didCopyLayoutDebug = false
+        }
+    }
+
     private var closeButton: some View {
         Button(action: onClose) {
             Image(systemName: "xmark")
@@ -1277,6 +1569,22 @@ private struct PlayModeDeveloperSwipePanel: View {
                 Capsule()
                     .strokeBorder(tint.opacity(0.18), lineWidth: 1)
             }
+    }
+
+    private func debugLayoutLine(_ title: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(title)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .frame(width: 74, alignment: .leading)
+
+            Text(value)
+                .font(.caption2.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
     }
 
     private func debugSection<Content: View>(
@@ -1413,6 +1721,14 @@ private struct PlayModeDeveloperSwipePanel: View {
 
     private func sliderValueText(_ value: CGFloat) -> String {
         Double(value).formatted(.number.precision(.fractionLength(2)))
+    }
+
+    private func sizeText(_ size: CGSize) -> String {
+        "\(metricText(size.width)) x \(metricText(size.height))"
+    }
+
+    private func metricText(_ value: CGFloat) -> String {
+        Double(value).formatted(.number.precision(.fractionLength(0...1)))
     }
 }
 

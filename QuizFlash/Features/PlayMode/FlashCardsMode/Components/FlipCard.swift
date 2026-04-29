@@ -5,26 +5,12 @@
 //  A SwiftUI view that renders both faces of a flashcard and animates
 //  a 3D flip transition between the question (front) and answer (back) faces.
 //
-//  Content overflow is handled by two user-selectable modes:
-//  - **Scale** — shrinks content proportionally to always fit inside the card.
-//  - **Scroll** — enables vertical scrolling when content overflows, with
-//    `scrollDisabled(true)` when content fits so gestures pass through
-//    to `SwipeableCard`'s UIKit recognisers unobstructed.
+//  Content overflow is handled by one stable vertical scroll surface, with
+//  `scrollDisabled(true)` when content fits so gestures pass through to
+//  `SwipeableCard`'s UIKit recognisers unobstructed.
 //
 
 import SwiftUI
-
-// MARK: - ContentHeightKey
-
-/// `PreferenceKey` used to propagate the natural (unconstrained) height of
-/// card-face content up through the view hierarchy so the parent can decide
-/// whether to scale or enable scrolling.
-private struct ContentHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
 
 // MARK: - Static Swap Transition
 
@@ -113,9 +99,8 @@ private struct FlipFaceModifier: AnimatableModifier {
 /// Renders the question and answer faces of a flashcard using either a 3D
 /// flip or a static content swap controlled by the `isFlipped` binding.
 ///
-/// The view exposes two overflow modes via `CardContentMode`, allowing users
-/// to choose between proportional scaling and a scrollable layout without
-/// restarting the session.
+/// The view uses one scroll surface for both short and overflowing content so
+/// WebKit-rendered math/code can settle without switching view trees mid-frame.
 ///
 /// ## Performance Notes
 /// - 3D flip visibility is gated by the live rotation angle so front/back text
@@ -127,6 +112,15 @@ struct FlipCard: View {
     private enum FaceMarker {
         case question
         case answer
+
+        var debugTitle: String {
+            switch self {
+            case .question:
+                return "front"
+            case .answer:
+                return "back"
+            }
+        }
 
         var title: String {
             switch self {
@@ -162,32 +156,32 @@ struct FlipCard: View {
     private let tapAnimationStyle: FlashcardTapAnimationStyle
     private let staticSwapTextMotion: FlashcardStaticSwapTextMotion
     private let contentAlignment: FlashcardContentAlignment
+    private let textSize: FlashcardTextSize
     private let onTap: (() -> Void)?
+    private let onLayoutDebugSnapshot: ((FlashcardGridLayoutDebugSnapshot) -> Void)?
 
     // MARK: - Environment
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(CardAppearancePreferences.self) private var cardAppearancePreferences
+    @Environment(DevelopmentPreferences.self) private var developmentPreferences
 
     // MARK: - State
 
-    /// Measured natural height of the front face content.
-    @State private var frontContentHeight: CGFloat = 0
+    /// Measured rendered size of the front face content.
+    @State private var frontContentSize: CGSize = .zero
 
-    /// Measured natural height of the back face content.
-    @State private var backContentHeight: CGFloat = 0
+    /// Measured rendered size of the back face content.
+    @State private var backContentSize: CGSize = .zero
+
+    @State private var latestFrontLayoutDebugSnapshot: FlashcardGridLayoutDebugSnapshot?
+    @State private var latestBackLayoutDebugSnapshot: FlashcardGridLayoutDebugSnapshot?
 
     // MARK: - Convenience
 
-    private var contentMode: CardContentMode {
-        cardAppearancePreferences.cardContentMode
-    }
-
     private var isCompact: Bool { horizontalSizeClass == .compact }
-    private var playModeTextScale: CGFloat { 1.5 }
+    private var playModeTextScale: CGFloat { CGFloat(textSize.playModeScale) }
     private var cardCornerRadius: CGFloat { isCompact ? 42 : 52 }
-    private var minimumScaledContentScale: CGFloat { 0.5 }
     private var hPad: CGFloat { isCompact ? 20 : 28 }
     private var vPad: CGFloat { isCompact ? 20 : 24 }
     private var faceMarkerInset: CGFloat { isCompact ? 8 : 10 }
@@ -222,7 +216,9 @@ struct FlipCard: View {
         tapAnimationStyle: FlashcardTapAnimationStyle,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
         contentAlignment: FlashcardContentAlignment = .center,
-        onTap: (() -> Void)? = nil
+        textSize: FlashcardTextSize = .large,
+        onTap: (() -> Void)? = nil,
+        onLayoutDebugSnapshot: ((FlashcardGridLayoutDebugSnapshot) -> Void)? = nil
     ) {
         self.frontZone = card.frontZone
         self.backZone = card.backZone
@@ -230,7 +226,9 @@ struct FlipCard: View {
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
+        self.textSize = textSize
         self.onTap = onTap
+        self.onLayoutDebugSnapshot = onLayoutDebugSnapshot
     }
 
     /// Creates a card renderer directly from question and answer zones.
@@ -241,7 +239,9 @@ struct FlipCard: View {
         tapAnimationStyle: FlashcardTapAnimationStyle,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
         contentAlignment: FlashcardContentAlignment = .center,
-        onTap: (() -> Void)? = nil
+        textSize: FlashcardTextSize = .large,
+        onTap: (() -> Void)? = nil,
+        onLayoutDebugSnapshot: ((FlashcardGridLayoutDebugSnapshot) -> Void)? = nil
     ) {
         self.frontZone = frontZone
         self.backZone = backZone
@@ -249,7 +249,9 @@ struct FlipCard: View {
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
+        self.textSize = textSize
         self.onTap = onTap
+        self.onLayoutDebugSnapshot = onLayoutDebugSnapshot
     }
 
     // MARK: - Body
@@ -266,6 +268,9 @@ struct FlipCard: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Full-surface hit testing so SwipeableCard gestures fire everywhere.
         .contentShape(Rectangle())
+        .onChange(of: isFlipped) { _, _ in
+            publishStoredLayoutDebugSnapshot()
+        }
     }
 
     // MARK: - Card Face Builder
@@ -274,10 +279,10 @@ struct FlipCard: View {
         let rotation = isFlipped ? 180.0 : 0.0
 
         return ZStack {
-            cardFace(zone: backZone, marker: .answer, contentHeight: $backContentHeight)
+            cardFace(zone: backZone, marker: .answer, contentSize: $backContentSize)
                 .modifier(FlipFaceModifier(rotationDegrees: rotation + 180))
 
-            cardFace(zone: frontZone, marker: .question, contentHeight: $frontContentHeight)
+            cardFace(zone: frontZone, marker: .question, contentSize: $frontContentSize)
                 .modifier(FlipFaceModifier(rotationDegrees: rotation))
         }
     }
@@ -287,19 +292,19 @@ struct FlipCard: View {
             if staticSwapTextMotion == .animated {
                 ZStack {
                     if isFlipped {
-                        cardFace(zone: backZone, marker: .answer, contentHeight: $backContentHeight)
+                        cardFace(zone: backZone, marker: .answer, contentSize: $backContentSize)
                             .id("back-face")
                             .transition(.flashcardStaticSwap)
                     } else {
-                        cardFace(zone: frontZone, marker: .question, contentHeight: $frontContentHeight)
+                        cardFace(zone: frontZone, marker: .question, contentSize: $frontContentSize)
                             .id("front-face")
                             .transition(.flashcardStaticSwap)
                     }
                 }
             } else if isFlipped {
-                cardFace(zone: backZone, marker: .answer, contentHeight: $backContentHeight)
+                cardFace(zone: backZone, marker: .answer, contentSize: $backContentSize)
             } else {
-                cardFace(zone: frontZone, marker: .question, contentHeight: $frontContentHeight)
+                cardFace(zone: frontZone, marker: .question, contentSize: $frontContentSize)
             }
         }
     }
@@ -308,10 +313,10 @@ struct FlipCard: View {
     private func cardFace(
         zone: ZoneModel,
         marker: FaceMarker,
-        contentHeight: Binding<CGFloat>
+        contentSize: Binding<CGSize>
     ) -> some View {
         cardShell(marker: marker) {
-            cardFaceContent(zone: zone, contentHeight: contentHeight)
+            cardFaceContent(zone: zone, marker: marker, contentSize: contentSize)
         }
     }
 
@@ -350,34 +355,55 @@ struct FlipCard: View {
     }
 
     @ViewBuilder
-    private func cardFaceContent(zone: ZoneModel, contentHeight: Binding<CGFloat>) -> some View {
-        adaptiveScrollableContent(zone: zone, contentHeight: contentHeight)
+    private func cardFaceContent(
+        zone: ZoneModel,
+        marker: FaceMarker,
+        contentSize: Binding<CGSize>
+    ) -> some View {
+        adaptiveScrollableContent(zone: zone, marker: marker, contentSize: contentSize)
             .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
     }
 
     @ViewBuilder
     private func measuredFaceContent(
         zone: ZoneModel,
-        contentHeight: Binding<CGFloat>
+        contentSize: Binding<CGSize>,
+        contentWidth: CGFloat,
+        centersLeafBlocks: Bool
     ) -> some View {
-        CardFaceView(
-            zone: zone,
-            fontScale: playModeTextScale,
-            displayTextAlignment: .leading,
-            onTap: onTap
-        )
-            .padding(.horizontal, hPad)
-            .padding(.vertical, vPad)
-            .background(
-                GeometryReader { inner in
-                    Color.clear.preference(
-                        key: ContentHeightKey.self,
-                        value: inner.size.height
-                    )
+        Group {
+            if centersLeafBlocks {
+                FlashcardGridFaceView(
+                    zone: zone,
+                    fontScale: playModeTextScale,
+                    availableWidth: contentWidth,
+                    centersLeafBlocks: true,
+                    showsDebugGuides: showsFlashcardGridGuides,
+                    collectsDebugMetrics: onLayoutDebugSnapshot != nil,
+                    onTap: onTap
+                )
+            } else {
+                CardFaceView(
+                    zone: zone,
+                    fontScale: playModeTextScale,
+                    displayTextAlignment: nil,
+                    onTap: onTap
+                )
+            }
+        }
+            .frame(width: contentWidth, alignment: .topLeading)
+            .onGeometryChange(for: CGSize.self) { proxy in
+                CGSize(
+                    width: ceil(proxy.size.width),
+                    height: ceil(proxy.size.height)
+                )
+            } action: { newSize in
+                guard newSize.width > 0, newSize.height > 0 else { return }
+                let oldSize = contentSize.wrappedValue
+                if abs(oldSize.width - newSize.width) > 0.5
+                    || abs(oldSize.height - newSize.height) > 0.5 {
+                    contentSize.wrappedValue = newSize
                 }
-            )
-            .onPreferenceChange(ContentHeightKey.self) { h in
-                if h > 0 { contentHeight.wrappedValue = h }
             }
     }
 
@@ -391,32 +417,59 @@ struct FlipCard: View {
     /// scrollable as soon as its true height arrives, while short content remains
     /// vertically centered by adding symmetric spacer height.
     @ViewBuilder
-    private func adaptiveScrollableContent(zone: ZoneModel, contentHeight: Binding<CGFloat>) -> some View {
+    private func adaptiveScrollableContent(
+        zone: ZoneModel,
+        marker: FaceMarker,
+        contentSize: Binding<CGSize>
+    ) -> some View {
         GeometryReader { available in
-            let measured = contentHeight.wrappedValue
-            let contentFits = measured > 0 && measured <= available.size.height
-            let shouldCenter = contentAlignment == .center && contentFits
-            let spacerHeight = shouldCenter
-                ? max((available.size.height - measured) / 2, 0)
-                : 0
+            let centersContentBlock = contentAlignment == .center
+            let availableContentWidth = max(available.size.width - (hPad * 2), 1)
+            let estimatedContentSize = FlashcardGridContentEstimator.estimatedSize(
+                for: zone,
+                fontScale: playModeTextScale,
+                availableWidth: availableContentWidth
+            )
+            let layout = FlashcardGridContentLayout(
+                containerSize: available.size,
+                horizontalPadding: hPad,
+                verticalPadding: vPad,
+                estimatedContentSize: estimatedContentSize,
+                measuredContentSize: contentSize.wrappedValue,
+                centersContentBlock: centersContentBlock
+            )
 
             if zone.hasContent {
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        if spacerHeight > 0 {
-                            Color.clear.frame(height: spacerHeight)
+                    ZStack(alignment: .topLeading) {
+                        if showsFlashcardGridGuides {
+                            flashcardGridDebugGuides(layout: layout)
                         }
 
-                        measuredFaceContent(zone: zone, contentHeight: contentHeight)
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
-
-                        if spacerHeight > 0 {
-                            Color.clear.frame(height: spacerHeight)
+                        measuredFaceContent(
+                            zone: zone,
+                            contentSize: contentSize,
+                            contentWidth: layout.availableContentWidth,
+                            centersLeafBlocks: centersContentBlock
+                        )
+                        .onPreferenceChange(FlashcardGridLeafDebugPreferenceKey.self) { leafSnapshots in
+                            updateLayoutDebugSnapshot(
+                                marker: marker,
+                                layout: layout,
+                                leafSnapshots: leafSnapshots
+                            )
                         }
+                        .padding(.top, vPad + layout.centeredTopInset)
+                        .padding(.leading, hPad)
+                        .padding(.bottom, vPad + layout.centeredTopInset)
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(
+                        width: available.size.width,
+                        height: layout.scrollContentHeight,
+                        alignment: .topLeading
+                    )
                 }
-                .scrollDisabled(contentFits)
+                .scrollDisabled(layout.contentFitsVertically)
                 .onTapGesture {
                     onTap?()
                 }
@@ -426,6 +479,23 @@ struct FlipCard: View {
                     .frame(width: available.size.width, height: available.size.height)
             }
         }
+    }
+
+    @ViewBuilder
+    private func flashcardGridDebugGuides(layout: FlashcardGridContentLayout) -> some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .stroke(
+                Color.cyan.opacity(0.9),
+                style: StrokeStyle(lineWidth: 1.6, dash: [7, 5])
+            )
+            .frame(
+                width: layout.debugAvailableFrame.width,
+                height: layout.debugAvailableFrame.height,
+                alignment: .topLeading
+            )
+            .padding(.leading, hPad)
+            .padding(.top, vPad)
+            .allowsHitTesting(false)
     }
 
     // MARK: - Empty State
@@ -451,6 +521,64 @@ struct FlipCard: View {
             .opacity(0.24)
             .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
             .accessibilityHidden(true)
+    }
+
+    private var showsFlashcardGridGuides: Bool {
+        AppFeatures.current.showsVisualDebugOverlays
+            && developmentPreferences.flashcardGridTextLayoutDebugEnabled
+    }
+
+    private var visibleMarker: FaceMarker {
+        isFlipped ? .answer : .question
+    }
+
+    private func updateLayoutDebugSnapshot(
+        marker: FaceMarker,
+        layout: FlashcardGridContentLayout,
+        leafSnapshots: [FlashcardGridLeafLayoutDebugSnapshot]
+    ) {
+        guard onLayoutDebugSnapshot != nil else { return }
+
+        let snapshot = FlashcardGridLayoutDebugSnapshot(
+            face: marker.debugTitle,
+            containerSize: roundedSize(layout.containerSize),
+            horizontalPadding: ceil(layout.horizontalPadding),
+            verticalPadding: ceil(layout.verticalPadding),
+            availableContentSize: roundedSize(layout.debugAvailableFrame),
+            estimatedContentSize: roundedSize(layout.estimatedContentSize),
+            measuredContentSize: roundedSize(layout.measuredContentSize),
+            contentBodyHeight: ceil(layout.contentBodyHeight),
+            contentFitsVertically: layout.contentFitsVertically,
+            centeredTopInset: ceil(layout.centeredTopInset),
+            scrollContentHeight: ceil(layout.scrollContentHeight),
+            leafSnapshots: leafSnapshots.sorted { $0.path < $1.path }
+        )
+
+        switch marker {
+        case .question:
+            latestFrontLayoutDebugSnapshot = snapshot
+        case .answer:
+            latestBackLayoutDebugSnapshot = snapshot
+        }
+
+        if marker == visibleMarker {
+            onLayoutDebugSnapshot?(snapshot)
+        }
+    }
+
+    private func publishStoredLayoutDebugSnapshot() {
+        guard let onLayoutDebugSnapshot else { return }
+        let snapshot = visibleMarker == .answer
+            ? latestBackLayoutDebugSnapshot
+            : latestFrontLayoutDebugSnapshot
+
+        if let snapshot {
+            onLayoutDebugSnapshot(snapshot)
+        }
+    }
+
+    private func roundedSize(_ size: CGSize) -> CGSize {
+        CGSize(width: ceil(size.width), height: ceil(size.height))
     }
 
 }

@@ -23,7 +23,7 @@ final class MiniCardPreviewLayoutCalculatorTests: XCTestCase {
         XCTAssertEqual(narrowCalculator.availableTextWidth, 1, accuracy: 0.001)
     }
 
-    func testResolvedTextBlockSizePrefersRenderedMeasurementAndClampsWidth() {
+    func testResolvedTextBlockSizeUsesRenderedMeasurementWhenAvailable() {
         let calculator = MiniCardPreviewLayoutCalculator(
             containerSize: CGSize(width: 120, height: 180),
             contentPadding: 16

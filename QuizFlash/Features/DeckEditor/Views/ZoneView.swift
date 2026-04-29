@@ -41,6 +41,7 @@ struct ZoneEditorView: View {
     let path: ZonePath
     @Binding var selectedPath: ZonePath?
     var highlightContext: HighlightContext?
+    var fontScale: CGFloat
     var previewDirection: Binding<AddDirection?>
 
     private var zone: ZoneModel? { content.zone(at: path) }
@@ -51,12 +52,14 @@ struct ZoneEditorView: View {
         path: ZonePath,
         selectedPath: Binding<ZonePath?>,
         highlightContext: HighlightContext?,
+        fontScale: CGFloat = 1.0,
         previewDirection: Binding<AddDirection?> = .constant(nil)
     ) {
         self.content = content
         self.path = path
         self._selectedPath = selectedPath
         self.highlightContext = highlightContext
+        self.fontScale = fontScale
         self.previewDirection = previewDirection
     }
 
@@ -77,6 +80,7 @@ struct ZoneEditorView: View {
             path: path,
             isSelected: isSelected,
             highlightContext: highlightContext,
+            fontScale: fontScale,
             onSelect: { selectZone() },
             previewDirection: previewDirection
         )
@@ -106,6 +110,7 @@ struct ZoneEditorView: View {
                         path: childPath,
                         selectedPath: $selectedPath,
                         highlightContext: highlightContext,
+                        fontScale: fontScale,
                         previewDirection: maskedPreviewDirection(for: isChildSelected, isHorizontal: true)
                     )
                         .frame(maxHeight: .infinity)
@@ -133,6 +138,7 @@ struct ZoneEditorView: View {
                         path: childPath,
                         selectedPath: $selectedPath,
                         highlightContext: highlightContext,
+                        fontScale: fontScale,
                         previewDirection: maskedPreviewDirection(for: isChildSelected, isHorizontal: false)
                     )
 
@@ -182,6 +188,7 @@ struct ZoneContentView: View {
     let path: ZonePath
     let isSelected: Bool
     var highlightContext: HighlightContext?
+    var fontScale: CGFloat
     var onSelect: () -> Void
     @Binding var previewDirection: AddDirection?
 
@@ -203,6 +210,7 @@ struct ZoneContentView: View {
         path: ZonePath,
         isSelected: Bool,
         highlightContext: HighlightContext? = nil,
+        fontScale: CGFloat = 1.0,
         onSelect: @escaping () -> Void,
         previewDirection: Binding<AddDirection?> = .constant(nil)
     ) {
@@ -210,6 +218,7 @@ struct ZoneContentView: View {
         self.path = path
         self.isSelected = isSelected
         self.highlightContext = highlightContext
+        self.fontScale = fontScale
         self.onSelect = onSelect
         self._previewDirection = previewDirection
     }
@@ -355,10 +364,10 @@ struct ZoneContentView: View {
 
     private func fontSizeFor(_ zone: ZoneModel?) -> CGFloat {
         switch zone?.textStyle ?? .body {
-        case .caption: return 16
-        case .body: return 22
-        case .headline: return 26
-        case .title: return 32
+        case .caption: return 16 * fontScale
+        case .body: return 22 * fontScale
+        case .headline: return 26 * fontScale
+        case .title: return 32 * fontScale
         }
     }
 
@@ -450,13 +459,13 @@ struct ZoneContentView: View {
         let style = zone?.textStyle ?? .body; let family = zone?.fontFamily ?? .system
         let weight: Font.Weight = zone?.isBold == true ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
         let size: CGFloat; switch style { case .body: size = 22; case .title: size = 32; case .headline: size = 26; case .caption: size = 16 }
-        return family.font(size: size, weight: weight)
+        return family.font(size: size * fontScale, weight: weight)
     }
     private var textUIFont: UIFont {
         let style = zone?.textStyle ?? .body; let family = zone?.fontFamily ?? .system
         let weight: UIFont.Weight = zone?.isBold == true ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
         let size: CGFloat; switch style { case .body: size = 22; case .title: size = 32; case .headline: size = 26; case .caption: size = 16 }
-        return family.uiFont(size: size, weight: weight)
+        return family.uiFont(size: size * fontScale, weight: weight)
     }
 
     // MARK: - Image View

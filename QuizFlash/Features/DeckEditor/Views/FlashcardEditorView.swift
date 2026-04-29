@@ -16,6 +16,7 @@ import OSLog
 struct FlashcardEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var context
     @Environment(AppPreferences.self) private var appPreferences
 
@@ -46,6 +47,15 @@ struct FlashcardEditorView: View {
     private var currentContent: ZoneCardContent { activeSide == 0 ? frontZoneContent : backZoneContent }
     private var canSave: Bool { frontZoneContent.hasContent || backZoneContent.hasContent }
     private var locale: Locale { appPreferences.resolvedLocale }
+    private var isCompact: Bool { horizontalSizeClass == .compact }
+    private var topChromeHorizontalInset: CGFloat {
+        isCompact ? UIConstants.Layout.compactScreenEdgeInset : UIConstants.Layout.screenEdgeInset
+    }
+    private var editorCardCornerRadius: CGFloat { isCompact ? 42 : 52 }
+    private var editorCardHorizontalPadding: CGFloat { isCompact ? 20 : 28 }
+    private var editorCardVerticalPadding: CGFloat { isCompact ? 20 : 24 }
+    private var editorTextScale: CGFloat { CGFloat(FlashcardTextSize.large.playModeScale) }
+    private static let playModeCardAspectRatio: CGFloat = 369.0 / 613.0
     private var canUseInteractiveDismiss: Bool {
         !showSketchModal && !showPreview && !isPhotoPickerPresented
     }
@@ -102,14 +112,17 @@ struct FlashcardEditorView: View {
     // MARK: - Body
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                sidePicker
-                Divider().background(accent.opacity(0.2))
+        ZStack(alignment: .top) {
+            editorBackground.ignoresSafeArea()
+
+            VStack(spacing: UIConstants.Spacing.medium) {
+                topChrome
+                sideSwitch
                 editorArea
             }
-                .background(backgroundGradient.ignoresSafeArea())
-                .safeAreaInset(edge: .bottom) {
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .safeAreaInset(edge: .bottom) {
                 if let path = selectedPath {
                     formatBar(for: path)
                         .padding(.horizontal, 16)
@@ -117,51 +130,48 @@ struct FlashcardEditorView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar { toolbarContent }
-                .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-                .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhoto, matching: .images)
-                .onChange(of: selectedPhoto) { _, item in addPhoto(item) }
-                .fullScreenCover(isPresented: $showSketchModal) { CanvasModalView { data in addSketch(data) } }
-                .fullScreenSheet(
-                    isPresented: $showPreview,
-                    configuration: .sheet(showsDefaultTopProgressiveBlur: false)
-                ) { safeArea in
-                    CardPreviewModeView(
-                        front: frontZoneContent,
-                        back: backZoneContent,
-                        safeAreaInsets: safeArea
-                    )
-                } background: {
-                    CardPreviewModeBackground()
-                }
-                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedPath)
-                .animation(.spring(response: 0.2, dampingFraction: 0.7), value: previewDirection)
-                .swipeBack(enabled: canUseInteractiveDismiss) {
-                    dismiss()
-                }
-                .alert(localized("Save Error"), isPresented: $showSaveErrorAlert) {
-                Button(localized("OK"), role: .cancel) { }
-            } message: {
-                Text(saveErrorMessage.isEmpty ? localized("Your card changes couldn't be saved right now.") : saveErrorMessage)
+        .toolbar(.hidden, for: .navigationBar)
+        .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhoto, matching: .images)
+        .onChange(of: selectedPhoto) { _, item in addPhoto(item) }
+        .fullScreenCover(isPresented: $showSketchModal) { CanvasModalView { data in addSketch(data) } }
+        .fullScreenSheet(
+            isPresented: $showPreview,
+            configuration: .sheet(showsDefaultTopProgressiveBlur: false)
+        ) { safeArea in
+            CardPreviewModeView(
+                front: frontZoneContent,
+                back: backZoneContent,
+                safeAreaInsets: safeArea
+            )
+        } background: {
+            CardPreviewModeBackground()
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedPath)
+        .animation(.spring(response: 0.2, dampingFraction: 0.7), value: previewDirection)
+        .swipeBack(enabled: canUseInteractiveDismiss) {
+            dismiss()
+        }
+        .alert(localized("Save Error"), isPresented: $showSaveErrorAlert) {
+            Button(localized("OK"), role: .cancel) { }
+        } message: {
+            Text(saveErrorMessage.isEmpty ? localized("Your card changes couldn't be saved right now.") : saveErrorMessage)
+        }
+        .onAppear {
+            if selectedPath == nil {
+                selectedPath = .root
             }
-                .onAppear {
-                if selectedPath == nil {
-                    selectedPath = .root
-                }
 
-                // Delayed focus for initial zone
-                if highlightContext == nil || highlightContext?.isDismissed == true {
-                    scheduleFocusAction(after: .milliseconds(400)) {
-                        if let rootZoneID = currentContent.rootZone.id as UUID? {
-                            focusManager.requestFocus(for: rootZoneID)
-                        }
+            // Delayed focus for initial zone.
+            if highlightContext == nil || highlightContext?.isDismissed == true {
+                scheduleFocusAction(after: .milliseconds(400)) {
+                    if let rootZoneID = currentContent.rootZone.id as UUID? {
+                        focusManager.requestFocus(for: rootZoneID)
                     }
                 }
             }
-                .onDisappear {
-                cancelScheduledEditorTasks()
-            }
+        }
+        .onDisappear {
+            cancelScheduledEditorTasks()
         }
     }
 
@@ -188,46 +198,81 @@ struct FlashcardEditorView: View {
     }
 
     private var editorArea: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Pass previewDirection down for visual overlay rendering
-                    ZoneEditorView(
-                        content: currentContent,
-                        path: .root,
-                        selectedPath: $selectedPath,
-                        highlightContext: highlightContext,
-                        previewDirection: $previewDirection
-                    )
+        GeometryReader { geometry in
+            let horizontalInset: CGFloat = 20
+            let maxEditorWidth: CGFloat = isCompact ? .infinity : 620
+            let proposedWidth = max(geometry.size.width - (horizontalInset * 2), 1)
+            let cardWidth = min(proposedWidth, maxEditorWidth)
+            let cardHeight = cardWidth / Self.playModeCardAspectRatio
+            let contentWidth = max(cardWidth - (editorCardHorizontalPadding * 2), 1)
+            let contentHeight = max(cardHeight - (editorCardVerticalPadding * 2), 1)
+            let estimatedContentSize = FlashcardGridContentEstimator.estimatedSize(
+                for: currentContent.rootZone,
+                fontScale: editorTextScale,
+                availableWidth: contentWidth
+            )
+            let editorContentWidth = editorBlockWidth(
+                estimatedWidth: estimatedContentSize.width,
+                availableWidth: contentWidth
+            )
+            let contentFitsVertically = estimatedContentSize.height <= contentHeight
+            let contentFrameAlignment: Alignment = contentFitsVertically ? .center : .top
 
-                    Color.clear
-                        .frame(height: 80)
-                        .contentShape(Rectangle())
-                        .onTapGesture { addZoneAtBottom() }
-                        .id("bottom")
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .center, spacing: 0) {
+                        // Pass previewDirection down for visual overlay rendering.
+                        ZoneEditorView(
+                            content: currentContent,
+                            path: .root,
+                            selectedPath: $selectedPath,
+                            highlightContext: highlightContext,
+                            fontScale: editorTextScale,
+                            previewDirection: $previewDirection
+                        )
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: editorContentWidth, alignment: .center)
+                    }
+                    .padding(.horizontal, editorCardHorizontalPadding)
+                    .padding(.vertical, editorCardVerticalPadding)
+                    .frame(width: cardWidth, alignment: .topLeading)
+                    .frame(minHeight: cardHeight, alignment: contentFrameAlignment)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if selectedPath == nil {
+                            selectedPath = .root
+                        }
+                    }
                 }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .scrollDismissesKeyboard(.interactively)
+                .frame(width: cardWidth, height: cardHeight, alignment: .topLeading)
+                .background(
+                    RoundedRectangle(cornerRadius: editorCardCornerRadius, style: .continuous)
                         .fill(cardBackground)
                         .shadow(color: shadowColor, radius: 12, y: 6)
                 )
-                    .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .overlay(
+                    RoundedRectangle(cornerRadius: editorCardCornerRadius, style: .continuous)
                         .stroke(borderColor, lineWidth: 1)
                 )
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 60)
-            }
-                .scrollDismissesKeyboard(.interactively)
+                .clipShape(RoundedRectangle(cornerRadius: editorCardCornerRadius, style: .continuous))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.horizontal, horizontalInset)
+                .padding(.top, 16)
+                .padding(.bottom, 60)
                 .onChange(of: selectedPath) { _, newPath in
-                if let path = newPath {
-                    scheduleSelectionScroll(after: .milliseconds(100), to: path, in: proxy)
+                    if let path = newPath {
+                        scheduleSelectionScroll(after: .milliseconds(100), to: path, in: proxy)
+                    }
                 }
             }
         }
+    }
+
+    private func editorBlockWidth(estimatedWidth: CGFloat, availableWidth: CGFloat) -> CGFloat {
+        guard currentContent.rootZone.hasContent else { return availableWidth }
+        let minimumComfortWidth = min(availableWidth, isCompact ? 220 : 280)
+        return min(max(ceil(estimatedWidth), minimumComfortWidth), availableWidth)
     }
 
     private func scheduleSelectionScroll(after delay: Duration, to path: ZonePath, in proxy: ScrollViewProxy) {
@@ -257,45 +302,127 @@ struct FlashcardEditorView: View {
         scheduledScrollTask = nil
     }
 
-    private var sidePicker: some View {
-        Picker(localized("Side"), selection: $activeSide) {
-            Label(localized("Question"), systemImage: "questionmark.circle").tag(0)
-            Label(localized("Answer"), systemImage: "checkmark.circle").tag(1)
-        }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-            .onChange(of: activeSide) { oldSide, newSide in
-            handleSideChange(from: oldSide, to: newSide)
-        }
-    }
+    private var topChrome: some View {
+        HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
+            ChromeSoftCircleSymbolButton(
+                systemName: "xmark",
+                accessibilityLabel: localized("Cancel"),
+                action: closeEditor,
+                size: UIConstants.Size.actionButton
+            )
 
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .cancellationAction) {
-            Button(localized("Cancel")) { dismiss() }.tint(.secondary)
-        }
-        ToolbarItem(placement: .primaryAction) {
-            HStack(spacing: 12) {
-                Button { isPhotoPickerPresented = true }
-                label: { Image(systemName: "photo.on.rectangle").font(.body.weight(.medium)) }
-                    .tint(accent)
+            Spacer(minLength: 0)
 
-                Button { showSketchModal = true }
-                label: { Image(systemName: "pencil.and.scribble").font(.body.weight(.medium)) }
-                    .tint(accent)
+            HStack(spacing: UIConstants.Spacing.small) {
+                topActionButton(
+                    systemName: "photo.on.rectangle",
+                    accessibilityLabel: localized("Choose Photos"),
+                    isEnabled: true
+                ) {
+                    isPhotoPickerPresented = true
+                }
 
-                Divider().frame(height: 24)
+                topActionButton(
+                    systemName: "pencil.and.scribble",
+                    accessibilityLabel: localized("Sketch"),
+                    isEnabled: true
+                ) {
+                    showSketchModal = true
+                }
 
-                Button { showPreview = true }
-                label: { Image(systemName: "eye").font(.body.weight(.medium)) }
-                    .disabled(!canSave)
+                topActionButton(
+                    systemName: "eye",
+                    accessibilityLabel: localized("Preview"),
+                    isEnabled: canSave
+                ) {
+                    openPreview()
+                }
 
-                Button(localized("Save")) { saveCard() }
-                    .fontWeight(.semibold)
-                    .disabled(!canSave)
+                Button(action: saveCard) {
+                    ChromeSoftCircleSymbol(
+                        systemName: "checkmark",
+                        size: UIConstants.Size.actionButton,
+                        symbolSize: 24,
+                        tint: canSave ? .white : .secondary,
+                        backgroundTint: canSave ? accent : Color(uiColor: .tertiarySystemFill)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSave)
+                .opacity(canSave ? 1 : 0.55)
+                .accessibilityLabel(localized("Save"))
             }
         }
+        .topNavigationChrome(horizontalInset: topChromeHorizontalInset)
+    }
+
+    private func topActionButton(
+        systemName: String,
+        accessibilityLabel: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            ChromeSoftCircleSymbol(
+                systemName: systemName,
+                size: UIConstants.Size.actionButton,
+                symbolSize: 22,
+                tint: isEnabled ? accent : .secondary,
+                backgroundTint: Color(uiColor: .tertiarySystemFill)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.5)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var sideSwitch: some View {
+        HStack(spacing: 0) {
+            sideSwitchButton(title: localized("Question"), side: 0)
+            sideSwitchButton(title: localized("Answer"), side: 1)
+        }
+        .padding(4)
+        .frame(height: 62)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.72))
+        )
+        .padding(.horizontal, topChromeHorizontalInset)
+    }
+
+    private func sideSwitchButton(title: String, side: Int) -> some View {
+        Button {
+            guard activeSide != side else { return }
+            let oldSide = activeSide
+            activeSide = side
+            handleSideChange(from: oldSide, to: side)
+        } label: {
+            Text(title)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundStyle(activeSide == side ? .primary : .secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background {
+                    if activeSide == side {
+                        Capsule(style: .continuous)
+                            .fill(Color.white.opacity(colorScheme == .dark ? 0.18 : 0.95))
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func openPreview() {
+        guard canSave else { return }
+        focusManager.forceReleaseKeyboard()
+        selectedPath = nil
+        previewDirection = nil
+        showPreview = true
+    }
+
+    private func closeEditor() {
+        focusManager.forceReleaseKeyboard()
+        dismiss()
     }
 
     // MARK: - Side Change Handling
@@ -527,27 +654,21 @@ struct FlashcardEditorView: View {
         return nil
     }
 
-    private var backgroundGradient: some View {
-        LinearGradient(
-            colors: colorScheme == .dark
-                ? [Color(uiColor: .systemBackground), Color(uiColor: .secondarySystemBackground)]
-            : [Color(uiColor: .systemGray6), Color(uiColor: .systemBackground)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
+    private var editorBackground: Color {
+        colorScheme == .dark ? .black : Color(uiColor: .systemGray6)
     }
 
     private var cardBackground: some ShapeStyle {
         colorScheme == .dark
-            ? AnyShapeStyle(Color(uiColor: .secondarySystemBackground))
-        : AnyShapeStyle(Color.white)
+            ? AnyShapeStyle(Color(red: 0.068, green: 0.068, blue: 0.068))
+            : AnyShapeStyle(Color(red: 0.92, green: 0.92, blue: 0.91))
     }
 
     private var shadowColor: Color {
-        colorScheme == .dark ? Color.black.opacity(0.5) : Color.black.opacity(0.12)
+        colorScheme == .dark ? Color.black.opacity(0.42) : Color.black.opacity(0.12)
     }
 
     private var borderColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.06)
+        colorScheme == .dark ? Color.white.opacity(0.045) : Color.black.opacity(0.08)
     }
 }

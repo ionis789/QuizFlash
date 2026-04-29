@@ -261,7 +261,6 @@
 "Exporting %d decks…" = "Экспорт %d колод…";
 "Exporting %d deck…" = "Экспорт %d колоды…";
 "Exporting..." = "Экспорт...";
-"Extract text from images or documents." = "Извлечение текста из изображений или документов.";
 "Fill in every answer before saving." = "Заполните все ответы перед сохранением.";
 "Filtered by \"**%@**\"" = "Отфильтровано по \"**%@**\"";
 "First cards are on the way" = "Первые карточки уже создаются";
@@ -322,6 +321,7 @@
 "Keeping the current list stable while the next result set is prepared." = "Текущий список остается стабильным, пока готовится следующий набор результатов.";
 "Labs" = "Лабы";
 "Landed" = "Уверенно";
+"Large" = "Крупный";
 "Last Interaction" = "Последнее взаимодействие";
 "Last opened %@." = "Последний раз открывали %@.";
 "Last week" = "Прошлая неделя";
@@ -404,6 +404,8 @@
 "No prompt added" = "Подсказка не добавлена";
 "No question added" = "Вопрос не добавлен";
 "None" = "Нет";
+"Normal" = "Обычный";
+"Normal keeps text large and clear. Large uses the current oversized playback text." = "Обычный сохраняет текст крупным и читаемым. Крупный использует текущий увеличенный текст в режиме просмотра.";
 "Not now" = "Не сейчас";
 "Nothing in the shared UI registry matches â%@â." = "Ничто в реестре общего пользовательского интерфейса не соответствует %@â.";
 "Nothing landed on %@" = "На %@ ничего не попало";
@@ -428,6 +430,7 @@
 "Pace" = "Темп";
 "Pause AI generation" = "Поставить AI генерацию на паузу";
 "Performance" = "Прогресс";
+"Photos or PDF" = "Фото или PDF";
 "Pick a deck" = "Выберите колоду";
 "Pick a deck and continue." = "Выберите колоду и продолжайте.";
 "Pick a deck for today" = "Выберите колоду на сегодня";
@@ -491,6 +494,7 @@
 "Save changes before leaving?" = "Сохранить изменения перед выходом?";
 "Save deck" = "Сохранить колоду";
 "Save Error" = "Ошибка сохранения";
+"Save to" = "Сохранить в";
 "Saved" = "Сохранено";
 "Saved Configurations" = "Сохраненные конфигурации";
 "Scroll this surface and watch the rows pass behind the sticky header blur." = "Прокрутите эту поверхность и наблюдайте, как строки проходят за размытым липким заголовком.";
@@ -546,8 +550,8 @@
 "Swipe HUD" = "Проведите по интерфейсу";
 "Swipe review" = "Повтор свайпом";
 "Tab Bar" = "Панель вкладок";
+"Tap + to add a card, or generate cards with AI." = "Нажмите +, чтобы добавить карточку, или сгенерируйте карточки с AI.";
 "Tap + to add your first card" = "Нажмите +, чтобы добавить первую карточку";
-"Tap + to choose Flashcard, Match, Quiz, or Write, or use Auto AI to generate cards instantly." = "Нажмите +, чтобы выбрать «Карточка», «Сопоставить», «Викторина» или «Написать», или используйте Auto AI для мгновенного создания карточек.";
 "Tap another day in the chart or start a short review block to build this week with meaningful history." = "Коснитесь другого дня на графике или начните блок короткого обзора, чтобы создать на этой неделе содержательную историю.";
 "Tap cards" = "Нажмите на карточки";
 "Tap Create to make your first deck\nand start learning." = "Нажмите Создать, чтобы сделать первую колоду\nи начать учиться.";
@@ -555,6 +559,8 @@
 "Target cleared for today" = "Цель на сегодня закрыта";
 "Template examples" = "Примеры шаблонов";
 "Templates only prefill endpoint and model strings. You can freely edit everything after that, while keeping the current API key." = "Шаблоны предварительно заполняют только строки конечной точки и модели. После этого вы сможете свободно все редактировать, сохраняя при этом текущий ключ API.";
+"Text Size" = "Размер текста";
+"Text size: %@." = "Размер текста: %@.";
 "Text: %@" = "Текст: %@";
 "The current AI conversion will stop immediately." = "Текущее преобразование ИИ будет немедленно остановлено.";
 "The current AI generation will stop immediately." = "Нынешнее поколение ИИ немедленно остановится.";
@@ -587,7 +593,7 @@
 "Token: %@" = "Токен: %@";
 "Tomorrow" = "Завтра";
 "Top" = "Сверху";
-"Top keeps short content pinned to the top. Center vertically centers content that already fits without scrolling." = "Сверху закрепляет короткий контент у верхнего края. Центр выравнивает по вертикали контент, который помещается без прокрутки.";
+"Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block." = "Сверху закрепляет короткий контент у верхнего края. Центр использует сеточные направляющие для естественно центрированного текстового блока.";
 "Total cards for auto distribution." = "Всего карточек для автораздачи.";
 "Trace JSON" = "Трассировка JSON";
 "Try a broader phrase, another deck title, or a different card keyword." = "Попробуйте более широкую фразу, другое название колоды или другой ключ карточки.";

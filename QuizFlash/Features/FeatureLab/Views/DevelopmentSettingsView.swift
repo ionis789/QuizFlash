@@ -85,6 +85,16 @@ struct DevelopmentSettingsView: View {
             SettingsCardDivider()
 
             SettingsToggleRow(
+                icon: "rectangle.dashed",
+                tint: .orange,
+                title: "FlashCard Grid Guides",
+                detail: nil,
+                isOn: flashcardGridTextLayoutDebugBinding
+            )
+
+            SettingsCardDivider()
+
+            SettingsToggleRow(
                 icon: "sparkles.tv",
                 tint: .cyan,
                 title: "Edge Shadow Tuner",
@@ -169,6 +179,16 @@ struct DevelopmentSettingsView: View {
 
             SettingsCardDivider()
 
+            SettingsToggleRow(
+                icon: "bolt.badge.clock",
+                tint: .blue,
+                title: "Mock AI Shortcut",
+                detail: "Shows the deck workspace mock generation control for local seed data.",
+                isOn: deckWorkspaceMockAIEnabledBinding
+            )
+
+            SettingsCardDivider()
+
             NavigationLink {
                 AIDebugTraceHistoryView()
             } label: {
@@ -223,10 +243,24 @@ struct DevelopmentSettingsView: View {
         )
     }
 
+    private var flashcardGridTextLayoutDebugBinding: Binding<Bool> {
+        Binding(
+            get: { developmentPreferences.flashcardGridTextLayoutDebugEnabled },
+            set: { developmentPreferences.flashcardGridTextLayoutDebugEnabled = $0 }
+        )
+    }
+
     private var aiDebugTracingEnabledBinding: Binding<Bool> {
         Binding(
             get: { developmentPreferences.aiDebugTracingEnabled },
             set: { developmentPreferences.aiDebugTracingEnabled = $0 }
+        )
+    }
+
+    private var deckWorkspaceMockAIEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { developmentPreferences.deckWorkspaceMockAIEnabled },
+            set: { developmentPreferences.deckWorkspaceMockAIEnabled = $0 }
         )
     }
 
