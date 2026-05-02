@@ -41,6 +41,8 @@ struct FlashcardGridLeafLayoutDebugSnapshot: Equatable {
     let textHorizontalInsets: CGFloat
     let bulletHorizontalInset: CGFloat
     let usesIntrinsicTextMeasurement: Bool
+    let zoneSizeMode: ZoneSizeMode
+    let zoneBlockAlignment: ZoneBlockAlignment
     let zoneTextAlignment: TextBlockAlignment
     let usesNaturalBlockCentering: Bool
     let textStyle: TextBlockStyle
@@ -79,7 +81,7 @@ struct FlashcardGridContentLayout {
     let verticalPadding: CGFloat
     let estimatedContentSize: CGSize
     let measuredContentSize: CGSize
-    let centersContentBlock: Bool
+    let verticalAlignment: ZoneVerticalAlignment
 
     var availableContentWidth: CGFloat {
         max(containerSize.width - (horizontalPadding * 2), 1)
@@ -102,19 +104,49 @@ struct FlashcardGridContentLayout {
     }
 
     var centeredTopInset: CGFloat {
-        guard centersContentBlock, contentFitsVertically else { return 0 }
-        return max((availableContentHeight - contentBodyHeight) / 2, 0)
+        guard effectiveVerticalAlignment == .center else { return 0 }
+        return contentTopInset
+    }
+
+    var contentTopInset: CGFloat {
+        guard contentFitsVertically else { return 0 }
+        let extraHeight = max(availableContentHeight - contentBodyHeight, 0)
+        switch effectiveVerticalAlignment {
+        case .auto, .top:
+            return 0
+        case .center:
+            return extraHeight / 2
+        case .bottom:
+            return extraHeight
+        }
+    }
+
+    var contentBottomInset: CGFloat {
+        guard contentFitsVertically else { return 0 }
+        let extraHeight = max(availableContentHeight - contentBodyHeight, 0)
+        switch effectiveVerticalAlignment {
+        case .auto, .top:
+            return extraHeight
+        case .center:
+            return extraHeight / 2
+        case .bottom:
+            return 0
+        }
     }
 
     var scrollContentHeight: CGFloat {
         max(
             containerSize.height,
-            verticalPadding + centeredTopInset + contentBodyHeight + verticalPadding + centeredTopInset
+            verticalPadding + contentTopInset + contentBodyHeight + verticalPadding + contentBottomInset
         )
     }
 
     var debugAvailableFrame: CGSize {
         CGSize(width: availableContentWidth, height: availableContentHeight)
+    }
+
+    private var effectiveVerticalAlignment: ZoneVerticalAlignment {
+        verticalAlignment.resolved(fallback: .center)
     }
 }
 
@@ -235,15 +267,14 @@ private struct FlashcardGridLeafPreview: View {
     @State private var renderedContentSize: CGSize = .zero
 
     var body: some View {
-        let estimatedSize = FlashcardGridContentEstimator.estimatedSize(
+        let layout = CardZoneLayoutEngine.leafLayout(
             for: zone,
-            fontScale: fontScale,
-            availableWidth: availableWidth
+            spec: CardZoneLayoutSpec(
+                availableWidth: availableWidth,
+                fontScale: fontScale
+            ),
+            measuredContentSize: renderedContentSize
         )
-        let blockSize = resolvedBlockSize(estimatedSize: estimatedSize)
-        let leadingInset = resolvedLeadingInset(blockSize: blockSize)
-        let contentLayoutWidth = layoutWidth(for: blockSize, leadingInset: leadingInset)
-        let textWidthLimit = resolvedTextWidthLimit(layoutWidth: contentLayoutWidth)
 
         ZStack(alignment: .topLeading) {
             if showsDebugGuides {
@@ -252,41 +283,35 @@ private struct FlashcardGridLeafPreview: View {
                         Color.orange.opacity(0.95),
                         style: StrokeStyle(lineWidth: 1.6, dash: [5, 4])
                     )
-                    .frame(width: blockSize.width, height: blockSize.height)
-                    .offset(x: leadingInset)
+                    .frame(width: layout.blockSize.width, height: layout.blockSize.height)
+                    .offset(x: layout.leadingInset)
                     .allowsHitTesting(false)
             }
 
-            leafContent(layoutWidth: contentLayoutWidth, textWidthLimit: textWidthLimit)
-                .frame(width: contentLayoutWidth, alignment: .topLeading)
-                .offset(x: leadingInset)
+            leafContent(layout: layout)
+                .frame(width: layout.contentLayoutWidth, alignment: .topLeading)
+                .offset(x: layout.leadingInset)
                 .onGeometryChange(for: CGSize.self) { proxy in
                     CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
                 } action: { newSize in
-                    if usesIntrinsicTextMeasurement {
+                    if layout.usesIntrinsicTextMeasurement {
                         updateRenderedContentHeight(newSize.height)
                     } else {
                         updateRenderedContentSize(newSize)
                     }
                 }
         }
-        .frame(width: availableWidth, height: blockSize.height, alignment: .topLeading)
+        .frame(width: availableWidth, height: layout.blockSize.height, alignment: .topLeading)
         .preference(
             key: FlashcardGridLeafDebugPreferenceKey.self,
             value: collectsDebugMetrics
-                ? [debugSnapshot(
-                    estimatedSize: estimatedSize,
-                    blockSize: blockSize,
-                    leadingInset: leadingInset,
-                    contentLayoutWidth: contentLayoutWidth,
-                    textWidthLimit: textWidthLimit
-                )]
+                ? [debugSnapshot(layout: layout)]
                 : []
         )
     }
 
     @ViewBuilder
-    private func leafContent(layoutWidth: CGFloat, textWidthLimit: CGFloat?) -> some View {
+    private func leafContent(layout: CardZoneLayoutResult) -> some View {
         switch zone.contentType {
         case .empty:
             Color.clear.frame(height: 28).padding(.vertical, 4)
@@ -300,8 +325,7 @@ private struct FlashcardGridLeafPreview: View {
                 } else {
                     textLeafContent(
                         previewText,
-                        layoutWidth: layoutWidth,
-                        textWidthLimit: textWidthLimit ?? max(layoutWidth, 1)
+                        layout: layout
                     )
                 }
             }
@@ -331,12 +355,12 @@ private struct FlashcardGridLeafPreview: View {
 
     private func textLeafContent(
         _ previewText: String,
-        layoutWidth: CGFloat,
-        textWidthLimit: CGFloat
+        layout: CardZoneLayoutResult
     ) -> some View {
         let healedText = MathTextSanitizer.heal(previewText)
         let usesMathRenderer = MathTextSanitizer.containsMath(healedText)
             || MathTextSanitizer.containsInlineCode(healedText)
+        let textWidthLimit = layout.textWidthLimit ?? max(layout.contentLayoutWidth, 1)
 
         return HStack(alignment: .top, spacing: zone.hasBullet ? FlashcardGridContentMetrics.bulletSpacing : 0) {
             if zone.hasBullet {
@@ -354,7 +378,7 @@ private struct FlashcardGridLeafPreview: View {
                     text: previewText,
                     fontSize: fontSizeFor(zone),
                     textColor: zone.textColor.color,
-                    alignment: resolvedTextAlignment.horizontalAlignment,
+                    alignment: layout.resolvedTextAlignment.horizontalAlignment,
                     isBold: zone.isBold,
                     isItalic: zone.isItalic,
                     isInteractive: false,
@@ -363,7 +387,7 @@ private struct FlashcardGridLeafPreview: View {
                     onIntrinsicContentSizeChange: { size in
                         updateRenderedContentSize(
                             CGSize(
-                                width: ceil(size.width + textHorizontalInsets + bulletHorizontalInset),
+                                width: ceil(size.width + layout.textHorizontalInsets + layout.bulletHorizontalInset),
                                 height: ceil(size.height + FlashcardGridContentMetrics.textVerticalPadding)
                             )
                         )
@@ -371,7 +395,7 @@ private struct FlashcardGridLeafPreview: View {
                     onTap: onTap
                 )
                 .padding(.vertical, FlashcardGridContentMetrics.textVerticalPadding / 2)
-                .padding(.horizontal, textHorizontalInsets / 2)
+                .padding(.horizontal, layout.textHorizontalInsets / 2)
                 .background(
                     zone.highlightColor.color.map { color in
                         RoundedRectangle(cornerRadius: 4).fill(color)
@@ -383,11 +407,11 @@ private struct FlashcardGridLeafPreview: View {
                     zone: zone,
                     fontScale: fontScale,
                     availableWidth: textWidthLimit,
-                    textAlignment: resolvedTextAlignment,
+                    textAlignment: layout.resolvedTextAlignment,
                     onIntrinsicContentSizeChange: { size in
                         updateRenderedContentSize(
                             CGSize(
-                                width: ceil(size.width + textHorizontalInsets + bulletHorizontalInset),
+                                width: ceil(size.width + layout.textHorizontalInsets + layout.bulletHorizontalInset),
                                 height: ceil(size.height + FlashcardGridContentMetrics.textVerticalPadding)
                             )
                         )
@@ -395,7 +419,7 @@ private struct FlashcardGridLeafPreview: View {
                     onTap: onTap
                 )
                 .padding(.vertical, FlashcardGridContentMetrics.textVerticalPadding / 2)
-                .padding(.horizontal, textHorizontalInsets / 2)
+                .padding(.horizontal, layout.textHorizontalInsets / 2)
                 .background(
                     zone.highlightColor.color.map { color in
                         RoundedRectangle(cornerRadius: 4).fill(color)
@@ -403,36 +427,7 @@ private struct FlashcardGridLeafPreview: View {
                 )
             }
         }
-        .frame(width: layoutWidth, alignment: .topLeading)
-    }
-
-    private func resolvedBlockSize(estimatedSize: CGSize) -> CGSize {
-        let measuredWidth = renderedContentSize.width > 0
-            ? renderedContentSize.width
-            : estimatedSize.width
-        let measuredHeight = renderedContentSize.height > 0
-            ? renderedContentSize.height
-            : estimatedSize.height
-
-        return CGSize(
-            width: usesNaturalBlockCentering ? min(max(ceil(measuredWidth), 1), availableWidth) : availableWidth,
-            height: max(ceil(measuredHeight), 1)
-        )
-    }
-
-    private func resolvedLeadingInset(blockSize: CGSize) -> CGFloat {
-        if usesNaturalBlockCentering {
-            return max((availableWidth - blockSize.width) / 2, 0)
-        }
-
-        switch zone.textAlignment {
-        case .leading:
-            return 0
-        case .center:
-            return max((availableWidth - blockSize.width) / 2, 0)
-        case .trailing:
-            return max(availableWidth - blockSize.width, 0)
-        }
+        .frame(width: layout.contentLayoutWidth, alignment: .topLeading)
     }
 
     private func updateRenderedContentSize(_ newSize: CGSize) {
@@ -459,31 +454,12 @@ private struct FlashcardGridLeafPreview: View {
         }
     }
 
-    private func layoutWidth(for blockSize: CGSize, leadingInset _: CGFloat) -> CGFloat {
-        guard usesIntrinsicTextMeasurement else {
-            return blockSize.width
-        }
-
-        return availableWidth
-    }
-
-    private func resolvedTextWidthLimit(layoutWidth: CGFloat) -> CGFloat? {
-        guard usesIntrinsicTextMeasurement else { return nil }
-        return max(layoutWidth - textHorizontalInsets - bulletHorizontalInset, 1)
-    }
-
-    private func debugSnapshot(
-        estimatedSize: CGSize,
-        blockSize: CGSize,
-        leadingInset: CGFloat,
-        contentLayoutWidth: CGFloat,
-        textWidthLimit: CGFloat?
-    ) -> FlashcardGridLeafLayoutDebugSnapshot {
+    private func debugSnapshot(layout: CardZoneLayoutResult) -> FlashcardGridLeafLayoutDebugSnapshot {
         let displayText = zone.contentType == .text ? displayText(for: zone) : zone.text
         let healedText = MathTextSanitizer.heal(displayText)
         let containsMath = MathTextSanitizer.containsMath(healedText)
         let containsInlineCode = MathTextSanitizer.containsInlineCode(healedText)
-        let effectiveTextWidthLimit = textWidthLimit ?? max(contentLayoutWidth, 1)
+        let effectiveTextWidthLimit = layout.textWidthLimit ?? max(layout.contentLayoutWidth, 1)
         let estimatedLineWidths = zone.contentType == .text
             ? FlashcardGridContentEstimator.debugLineWidths(
                 for: zone,
@@ -506,17 +482,19 @@ private struct FlashcardGridLeafPreview: View {
             contentType: zone.contentType,
             hasContent: zone.hasContent,
             availableWidth: ceil(availableWidth),
-            estimatedSize: roundedSize(estimatedSize),
+            estimatedSize: layout.estimatedContentSize,
             renderedContentSize: roundedSize(renderedContentSize),
-            blockSize: roundedSize(blockSize),
-            leadingInset: ceil(leadingInset),
-            contentLayoutWidth: ceil(contentLayoutWidth),
-            textWidthLimit: textWidthLimit.map(ceil),
-            textHorizontalInsets: ceil(textHorizontalInsets),
-            bulletHorizontalInset: ceil(bulletHorizontalInset),
-            usesIntrinsicTextMeasurement: usesIntrinsicTextMeasurement,
+            blockSize: layout.blockSize,
+            leadingInset: layout.leadingInset,
+            contentLayoutWidth: layout.contentLayoutWidth,
+            textWidthLimit: layout.textWidthLimit,
+            textHorizontalInsets: layout.textHorizontalInsets,
+            bulletHorizontalInset: layout.bulletHorizontalInset,
+            usesIntrinsicTextMeasurement: layout.usesIntrinsicTextMeasurement,
+            zoneSizeMode: zone.sizeMode,
+            zoneBlockAlignment: zone.blockAlignment,
             zoneTextAlignment: zone.textAlignment,
-            usesNaturalBlockCentering: usesNaturalBlockCentering,
+            usesNaturalBlockCentering: layout.usesAutoBlockCentering,
             textStyle: zone.textStyle,
             fontFamily: zone.fontFamily,
             isBold: zone.isBold,
@@ -547,30 +525,6 @@ private struct FlashcardGridLeafPreview: View {
         return String(collapsed.prefix(160)) + "..."
     }
 
-    private var usesIntrinsicTextMeasurement: Bool {
-        guard zone.contentType == .text else { return false }
-        let previewText = displayText(for: zone)
-        return !previewText.isEmpty && !previewText.hasPrefix("```")
-    }
-
-    private var usesNaturalBlockCentering: Bool {
-        centersLeafBlocks && zone.textAlignment == .leading
-    }
-
-    private var resolvedTextAlignment: TextBlockAlignment {
-        usesNaturalBlockCentering ? .leading : zone.textAlignment
-    }
-
-    private var textHorizontalInsets: CGFloat {
-        zone.highlightColor != .none ? FlashcardGridContentMetrics.highlightedHorizontalPadding : 0
-    }
-
-    private var bulletHorizontalInset: CGFloat {
-        zone.hasBullet
-            ? FlashcardGridContentMetrics.bulletWidth + FlashcardGridContentMetrics.bulletSpacing
-            : 0
-    }
-
     private func displayText(for zone: ZoneModel) -> String {
         switch zone.contentType {
         case .text:
@@ -590,15 +544,17 @@ private struct FlashcardGridLeafPreview: View {
     }
 }
 
-// MARK: - Flashcard Grid Content Metrics
+// MARK: - Card Zone Content Metrics
 
-private enum FlashcardGridContentMetrics {
+enum CardZoneContentMetrics {
     static let childSpacing: CGFloat = 12
     static let textVerticalPadding: CGFloat = 8
     static let highlightedHorizontalPadding: CGFloat = 12
     static let bulletWidth: CGFloat = 6
     static let bulletSpacing: CGFloat = 8
 }
+
+typealias FlashcardGridContentMetrics = CardZoneContentMetrics
 
 // MARK: - Plain Text Grid Layout
 

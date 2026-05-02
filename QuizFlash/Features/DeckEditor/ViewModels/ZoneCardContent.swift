@@ -94,12 +94,14 @@ final class ZoneCardContent {
 
         if path.indices.isEmpty {
             let oldRoot = rootZone
+            let preservedVerticalAlignment = oldRoot.verticalAlignment
             switch direction {
             case .left:  rootZone = .container(direction: .horizontal, children: [newZone, oldRoot])
             case .right: rootZone = .container(direction: .horizontal, children: [oldRoot, newZone])
             case .up:    rootZone = .container(direction: .vertical,   children: [newZone, oldRoot])
             case .down:  rootZone = .container(direction: .vertical,   children: [oldRoot, newZone])
             }
+            rootZone.verticalAlignment = preservedVerticalAlignment
             return newZoneID
         }
 
@@ -132,6 +134,82 @@ final class ZoneCardContent {
         return newZoneID
     }
 
+    /// Inserts a new empty text zone relative to the requested semantic path.
+    ///
+    /// Empty-card taps reuse the root zone so the first edit does not create
+    /// unnecessary container nesting.
+    @discardableResult
+    func addTextZone(relativeTo path: ZonePath?, direction: AddDirection) -> UUID {
+        if !rootZone.hasContent, rootZone.isLeaf {
+            let preservedVerticalAlignment = rootZone.verticalAlignment
+            rootZone = .text()
+            rootZone.verticalAlignment = preservedVerticalAlignment
+            return rootZone.id
+        }
+
+        return addZone(relativeTo: path ?? .root, direction: direction)
+    }
+
+    // MARK: - Duplicate And Move
+
+    /// Duplicates the zone at `path` immediately after the original in vertical order.
+    @discardableResult
+    func duplicateZone(at path: ZonePath) -> UUID? {
+        guard var copiedZone = zone(at: path) else { return nil }
+        copiedZone.regenerateIDsRecursively()
+
+        if path.indices.isEmpty {
+            let preservedVerticalAlignment = rootZone.verticalAlignment
+            rootZone = .container(direction: .vertical, children: [rootZone, copiedZone])
+            rootZone.verticalAlignment = preservedVerticalAlignment
+            return copiedZone.id
+        }
+
+        guard let parentPath = path.parent, let childIndex = path.lastIndex else { return nil }
+        updateZone(at: parentPath) { parent in
+            var kids = parent.children ?? []
+            guard childIndex < kids.count else { return }
+            kids.insert(copiedZone, at: childIndex + 1)
+            parent.children = kids
+        }
+
+        return copiedZone.id
+    }
+
+    /// Moves the zone at `path` one slot up within its parent container.
+    @discardableResult
+    func moveZoneUp(at path: ZonePath) -> ZonePath? {
+        guard let parentPath = path.parent,
+              let childIndex = path.lastIndex,
+              childIndex > 0 else { return nil }
+
+        updateZone(at: parentPath) { parent in
+            guard var kids = parent.children, childIndex < kids.count else { return }
+            kids.swapAt(childIndex, childIndex - 1)
+            parent.children = kids
+        }
+
+        return ZonePath(indices: parentPath.indices + [childIndex - 1])
+    }
+
+    /// Moves the zone at `path` one slot down within its parent container.
+    @discardableResult
+    func moveZoneDown(at path: ZonePath) -> ZonePath? {
+        guard let parentPath = path.parent,
+              let childIndex = path.lastIndex else { return nil }
+
+        let childCount = zone(at: parentPath)?.children?.count ?? 0
+        guard childIndex < childCount - 1 else { return nil }
+
+        updateZone(at: parentPath) { parent in
+            guard var kids = parent.children, childIndex < kids.count - 1 else { return }
+            kids.swapAt(childIndex, childIndex + 1)
+            parent.children = kids
+        }
+
+        return ZonePath(indices: parentPath.indices + [childIndex + 1])
+    }
+
     // MARK: - Delete Zone
 
     /// Removes the zone at the given path from the tree.
@@ -143,7 +221,9 @@ final class ZoneCardContent {
     ///   replaces the entire tree with an empty text zone.
     func deleteZone(at path: ZonePath) {
         guard !path.indices.isEmpty else {
+            let preservedVerticalAlignment = rootZone.verticalAlignment
             rootZone = .text()
+            rootZone.verticalAlignment = preservedVerticalAlignment
             return
         }
         guard let parentPath = path.parent, let childIndex = path.lastIndex else { return }
@@ -163,7 +243,9 @@ final class ZoneCardContent {
     /// Call this before saving to avoid persisting unnecessary nesting produced
     /// by sequential zone deletions.
     func cleanup() {
+        let preservedVerticalAlignment = rootZone.verticalAlignment
         cleanupRecursive(zone: &rootZone)
+        rootZone.verticalAlignment = preservedVerticalAlignment
     }
 
     // MARK: - Private Helpers
@@ -200,5 +282,16 @@ final class ZoneCardContent {
             else if kids.isEmpty    { zone.children = nil; zone.contentType = .empty }
             else                    { zone.children = kids }
         }
+    }
+}
+
+private extension ZoneModel {
+    mutating func regenerateIDsRecursively() {
+        id = UUID()
+        guard var kids = children else { return }
+        for index in kids.indices {
+            kids[index].regenerateIDsRecursively()
+        }
+        children = kids
     }
 }

@@ -371,26 +371,15 @@ struct FlipCard: View {
         contentWidth: CGFloat,
         centersLeafBlocks: Bool
     ) -> some View {
-        Group {
-            if centersLeafBlocks {
-                FlashcardGridFaceView(
-                    zone: zone,
-                    fontScale: playModeTextScale,
-                    availableWidth: contentWidth,
-                    centersLeafBlocks: true,
-                    showsDebugGuides: showsFlashcardGridGuides,
-                    collectsDebugMetrics: onLayoutDebugSnapshot != nil,
-                    onTap: onTap
-                )
-            } else {
-                CardFaceView(
-                    zone: zone,
-                    fontScale: playModeTextScale,
-                    displayTextAlignment: nil,
-                    onTap: onTap
-                )
-            }
-        }
+        FlashcardGridFaceView(
+            zone: zone,
+            fontScale: playModeTextScale,
+            availableWidth: contentWidth,
+            centersLeafBlocks: centersLeafBlocks,
+            showsDebugGuides: showsFlashcardGridGuides,
+            collectsDebugMetrics: onLayoutDebugSnapshot != nil,
+            onTap: onTap
+        )
             .frame(width: contentWidth, alignment: .topLeading)
             .onGeometryChange(for: CGSize.self) { proxy in
                 CGSize(
@@ -423,7 +412,8 @@ struct FlipCard: View {
         contentSize: Binding<CGSize>
     ) -> some View {
         GeometryReader { available in
-            let centersContentBlock = contentAlignment == .center
+            let fallbackVerticalAlignment = ZoneVerticalAlignment(fallbackContentAlignment: contentAlignment)
+            let faceVerticalAlignment = zone.verticalAlignment.resolved(fallback: fallbackVerticalAlignment)
             let availableContentWidth = max(available.size.width - (hPad * 2), 1)
             let estimatedContentSize = FlashcardGridContentEstimator.estimatedSize(
                 for: zone,
@@ -436,7 +426,7 @@ struct FlipCard: View {
                 verticalPadding: vPad,
                 estimatedContentSize: estimatedContentSize,
                 measuredContentSize: contentSize.wrappedValue,
-                centersContentBlock: centersContentBlock
+                verticalAlignment: faceVerticalAlignment
             )
 
             if zone.hasContent {
@@ -450,7 +440,7 @@ struct FlipCard: View {
                             zone: zone,
                             contentSize: contentSize,
                             contentWidth: layout.availableContentWidth,
-                            centersLeafBlocks: centersContentBlock
+                            centersLeafBlocks: faceVerticalAlignment == .center
                         )
                         .onPreferenceChange(FlashcardGridLeafDebugPreferenceKey.self) { leafSnapshots in
                             updateLayoutDebugSnapshot(
@@ -459,9 +449,9 @@ struct FlipCard: View {
                                 leafSnapshots: leafSnapshots
                             )
                         }
-                        .padding(.top, vPad + layout.centeredTopInset)
+                        .padding(.top, vPad + layout.contentTopInset)
                         .padding(.leading, hPad)
-                        .padding(.bottom, vPad + layout.centeredTopInset)
+                        .padding(.bottom, vPad + layout.contentBottomInset)
                     }
                     .frame(
                         width: available.size.width,

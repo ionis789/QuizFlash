@@ -10,7 +10,7 @@ import SwiftUI
 
 // MARK: - Editor Format Menu Bar
 
-/// The persistent formatting toolbar shown at the bottom of the card editor.
+/// The persistent formatting toolbar shown near the top of the card editor.
 ///
 /// Contains:
 /// - A radial drag-to-add button for inserting zones in any direction
@@ -27,6 +27,13 @@ struct EditorFormatMenuBar: View {
     var onAddZoneAction: (AddDirection) -> Void
     var onPreviewDirection: (AddDirection?) -> Void
     var onSplit: () -> Void
+    var onDuplicate: () -> Void
+    var onMoveUp: () -> Void
+    var onMoveDown: () -> Void
+    var onChoosePhoto: () -> Void
+    var onSketch: () -> Void
+    var canPreview: Bool
+    var onPreview: () -> Void
     var onClose: () -> Void
 
     // MARK: - Local UI State
@@ -34,7 +41,7 @@ struct EditorFormatMenuBar: View {
     @State private var activeDirection: AddDirection? = nil
 
     // MARK: - Layout Constants
-    private let menuCenter = CGPoint(x: 50, y: -90)
+    private let menuCenter = CGPoint(x: 50, y: 86)
     /// Radial distance between the hub and each directional bubble (in points).
     private let arrowRadius: CGFloat = 44
     /// Minimum drag distance from the hub centre required to select a direction.
@@ -46,6 +53,13 @@ struct EditorFormatMenuBar: View {
         onAddZoneAction: @escaping (AddDirection) -> Void,
         onPreviewDirection: @escaping (AddDirection?) -> Void,
         onSplit: @escaping () -> Void,
+        onDuplicate: @escaping () -> Void,
+        onMoveUp: @escaping () -> Void,
+        onMoveDown: @escaping () -> Void,
+        onChoosePhoto: @escaping () -> Void,
+        onSketch: @escaping () -> Void,
+        canPreview: Bool,
+        onPreview: @escaping () -> Void,
         onClose: @escaping () -> Void
     ) {
         self.content = content
@@ -53,6 +67,13 @@ struct EditorFormatMenuBar: View {
         self.onAddZoneAction = onAddZoneAction
         self.onPreviewDirection = onPreviewDirection
         self.onSplit = onSplit
+        self.onDuplicate = onDuplicate
+        self.onMoveUp = onMoveUp
+        self.onMoveDown = onMoveDown
+        self.onChoosePhoto = onChoosePhoto
+        self.onSketch = onSketch
+        self.canPreview = canPreview
+        self.onPreview = onPreview
         self.onClose = onClose
     }
 
@@ -88,12 +109,19 @@ struct EditorFormatMenuBar: View {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    if canSplit { ToolbarButton(icon: "rectangle.split.1x2") { onSplit() } }
+                    cardActionTools
+                    toolbarDivider
+                    addZoneTapTools
+
+                    if canSplit { ToolbarButton(icon: "rectangle.split.1x2", accessibilityLabel: localized("Split Zone")) { onSplit() } }
                     
                     if zone?.contentType == .text || zone?.contentType == .empty { textTools }
                     else if zone?.contentType == .image || zone?.contentType == .sketch { mediaTools }
-                    
-                    ToolbarButton(icon: "trash", tint: .red) { content.deleteZone(at: path); onClose() }
+
+                    ToolbarButton(icon: "arrow.up", accessibilityLabel: localized("Move Up")) { onMoveUp() }
+                    ToolbarButton(icon: "arrow.down", accessibilityLabel: localized("Move Down")) { onMoveDown() }
+                    ToolbarButton(icon: "doc.on.doc", accessibilityLabel: localized("Duplicate")) { onDuplicate() }
+                    ToolbarButton(icon: "trash", tint: .red, accessibilityLabel: localized("Delete")) { content.deleteZone(at: path); onClose() }
                 }
                 .padding(.horizontal, 8)
             }
@@ -111,7 +139,7 @@ struct EditorFormatMenuBar: View {
             .padding(.leading, 8)
             .padding(.trailing, 12)
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.ultraThinMaterial)
@@ -150,6 +178,49 @@ struct EditorFormatMenuBar: View {
                     .onChanged { value in handleDragChange(value) }
                     .onEnded { value in handleDragEnd(value) }
             )
+    }
+
+    private var cardActionTools: some View {
+        HStack(spacing: 8) {
+            ToolbarButton(
+                icon: "photo.on.rectangle",
+                accessibilityLabel: localized("Choose Photos"),
+                action: onChoosePhoto
+            )
+            ToolbarButton(
+                icon: "pencil.and.scribble",
+                accessibilityLabel: localized("Sketch"),
+                action: onSketch
+            )
+            ToolbarButton(
+                icon: "eye",
+                tint: canPreview ? .primary : .secondary,
+                isEnabled: canPreview,
+                accessibilityLabel: localized("Preview"),
+                action: onPreview
+            )
+        }
+    }
+
+    private var toolbarDivider: some View {
+        Divider().frame(height: 28)
+    }
+
+    private var addZoneTapTools: some View {
+        HStack(spacing: 8) {
+            ToolbarButton(icon: AddDirection.left.icon, accessibilityLabel: localized("Add Left")) {
+                onAddZoneAction(.left)
+            }
+            ToolbarButton(icon: AddDirection.up.icon, accessibilityLabel: localized("Add Above")) {
+                onAddZoneAction(.up)
+            }
+            ToolbarButton(icon: AddDirection.down.icon, accessibilityLabel: localized("Add Below")) {
+                onAddZoneAction(.down)
+            }
+            ToolbarButton(icon: AddDirection.right.icon, accessibilityLabel: localized("Add Right")) {
+                onAddZoneAction(.right)
+            }
+        }
     }
 
     // MARK: - Drag Handling
@@ -206,6 +277,11 @@ struct EditorFormatMenuBar: View {
     // MARK: - Text Tools
     private var textTools: some View {
         HStack(spacing: 8) {
+            verticalAlignmentMenu
+            sizeModeMenu
+            if showsBlockPositionMenu { blockAlignmentMenu }
+            textAlignmentMenu
+
             Menu {
                 ForEach([TextBlockStyle.title, .headline, .body, .caption], id: \.self) { style in
                     Button {
@@ -217,10 +293,10 @@ struct EditorFormatMenuBar: View {
                         }
                     }
                 }
-            } label: { ToolbarButton(icon: "textformat.size") }
+            } label: { ToolbarButton(icon: "textformat.size", accessibilityLabel: localized("Text Size")) }
             
-            ToolbarButton(icon: "bold", isActive: zone?.isBold == true) { content.updateZone(at: path) { $0.isBold.toggle() } }
-            ToolbarButton(icon: "italic", isActive: zone?.isItalic == true) { content.updateZone(at: path) { $0.isItalic.toggle() } }
+            ToolbarButton(icon: "bold", isActive: zone?.isBold == true, accessibilityLabel: localized("Bold")) { content.updateZone(at: path) { $0.isBold.toggle() } }
+            ToolbarButton(icon: "italic", isActive: zone?.isItalic == true, accessibilityLabel: localized("Italic")) { content.updateZone(at: path) { $0.isItalic.toggle() } }
             
             Menu {
                 ForEach(FontFamily.allCases, id: \.self) { family in
@@ -234,19 +310,13 @@ struct EditorFormatMenuBar: View {
                         }
                     }
                 }
-            } label: { ToolbarButton(icon: zone?.fontFamily.icon ?? "textformat") }
-            
-            Menu {
-                Button { content.updateZone(at: path) { $0.textAlignment = .leading } } label: { Label(localized("Align Left"), systemImage: "text.alignleft") }
-                Button { content.updateZone(at: path) { $0.textAlignment = .center } } label: { Label(localized("Align Center"), systemImage: "text.aligncenter") }
-                Button { content.updateZone(at: path) { $0.textAlignment = .trailing } } label: { Label(localized("Align Right"), systemImage: "text.alignright") }
-            } label: { ToolbarButton(icon: "text.alignleft") }
-            
+            } label: { ToolbarButton(icon: zone?.fontFamily.icon ?? "textformat", accessibilityLabel: localized("Font")) }
+
             Menu {
                 ForEach(TextBlockColor.allCases, id: \.self) { color in
                     Button { content.updateZone(at: path) { $0.textColor = color } } label: { HStack { Circle().fill(color.color).frame(width: 14, height: 14); Text(color.localizedName(locale: locale)) } }
                 }
-            } label: { ToolbarButton(icon: "paintpalette", tint: zone?.textColor.color ?? .primary) }
+            } label: { ToolbarButton(icon: "paintpalette", tint: zone?.textColor.color ?? .primary, accessibilityLabel: localized("Text Color")) }
             
             Menu {
                 ForEach(HighlightColor.allCases, id: \.self) { highlight in
@@ -258,31 +328,244 @@ struct EditorFormatMenuBar: View {
                         }
                     }
                 }
-            } label: { ToolbarButton(icon: "highlighter", isActive: zone?.highlightColor != HighlightColor.none, tint: .primary) }
+            } label: { ToolbarButton(icon: "highlighter", isActive: zone?.highlightColor != HighlightColor.none, tint: .primary, accessibilityLabel: localized("Highlight")) }
             
-            ToolbarButton(icon: "list.bullet", isActive: zone?.hasBullet == true) { content.updateZone(at: path) { $0.hasBullet.toggle() } }
+            ToolbarButton(icon: "list.bullet", isActive: zone?.hasBullet == true, accessibilityLabel: localized("Bullet List")) { content.updateZone(at: path) { $0.hasBullet.toggle() } }
         }
     }
     
     // MARK: - Media Tools
     private var mediaTools: some View {
         HStack(spacing: 8) {
-            Menu {
-                Button { content.updateZone(at: path) { $0.textAlignment = .leading } } label: { HStack { Text(localized("Align Left")); if zone?.textAlignment == .leading { Image(systemName: "checkmark") } } }
-                Button { content.updateZone(at: path) { $0.textAlignment = .center } } label: { HStack { Text(localized("Align Center")); if zone?.textAlignment == .center { Image(systemName: "checkmark") } } }
-                Button { content.updateZone(at: path) { $0.textAlignment = .trailing } } label: { HStack { Text(localized("Align Right")); if zone?.textAlignment == .trailing { Image(systemName: "checkmark") } } }
-            } label: { ToolbarButton(icon: alignmentIcon(for: zone?.textAlignment ?? .leading)) }
-            
+            verticalAlignmentMenu
+            sizeModeMenu
+            if showsBlockPositionMenu { blockAlignmentMenu }
+
             Menu {
                 Button { content.updateZone(at: path) { $0.imageScale = 0.3 } } label: { HStack { Text(localized("Small")); if zone?.imageScale == 0.3 { Image(systemName: "checkmark") } } }
                 Button { content.updateZone(at: path) { $0.imageScale = 0.7 } } label: { HStack { Text(localized("Medium")); if zone?.imageScale == 0.7 { Image(systemName: "checkmark") } } }
                 Button { content.updateZone(at: path) { $0.imageScale = 1.0 } } label: { HStack { Text(localized("Full Width")); if zone?.imageScale == 1.0 { Image(systemName: "checkmark") } } }
-            } label: { ToolbarButton(icon: "aspectratio") }
+            } label: { ToolbarButton(icon: "aspectratio", accessibilityLabel: localized("Image Size")) }
         }
     }
-    
+
+    // MARK: - Layout Tools
+
+    private var showsBlockPositionMenu: Bool {
+        guard let zone else { return true }
+        return zone.sizeMode != .fillWidth
+    }
+
+    private var sizeModeMenu: some View {
+        Menu {
+            Button {
+                content.updateZone(at: path) {
+                    $0.sizeMode = .auto
+                    if $0.blockAlignment == .center {
+                        $0.blockAlignment = .auto
+                    }
+                    $0.fixedWidth = nil
+                    $0.fixedHeight = nil
+                }
+            } label: {
+                menuRow(title: localized("Auto Size"), systemImage: "arrow.up.left.and.down.right.magnifyingglass", isSelected: zone?.sizeMode == .auto)
+            }
+
+            Button {
+                content.updateZone(at: path) {
+                    $0.sizeMode = .fillWidth
+                    $0.blockAlignment = .leading
+                    $0.fixedWidth = nil
+                    $0.fixedHeight = nil
+                }
+            } label: {
+                menuRow(title: localized("Fill Width"), systemImage: "arrow.left.and.right", isSelected: zone?.sizeMode == .fillWidth)
+            }
+
+            if zone?.sizeMode == .fixed {
+                Button { } label: {
+                    menuRow(title: localized("Fixed Size"), systemImage: "rectangle.resize", isSelected: true)
+                }
+                .disabled(true)
+            }
+        } label: {
+            ToolbarButton(icon: sizeModeIcon(for: zone?.sizeMode ?? .auto), accessibilityLabel: localized("Zone Size"))
+        }
+    }
+
+    private var verticalAlignmentMenu: some View {
+        Menu {
+            Button {
+                content.updateZone(at: .root) { $0.verticalAlignment = .top }
+            } label: {
+                menuRow(
+                    title: localized("Align Top"),
+                    systemImage: "align.vertical.top",
+                    isSelected: resolvedVerticalAlignment == .top
+                )
+            }
+
+            Button {
+                content.updateZone(at: .root) { $0.verticalAlignment = .center }
+            } label: {
+                menuRow(
+                    title: localized("Align Middle"),
+                    systemImage: "align.vertical.center",
+                    isSelected: resolvedVerticalAlignment == .center
+                )
+            }
+
+            Button {
+                content.updateZone(at: .root) { $0.verticalAlignment = .bottom }
+            } label: {
+                menuRow(
+                    title: localized("Align Bottom"),
+                    systemImage: "align.vertical.bottom",
+                    isSelected: resolvedVerticalAlignment == .bottom
+                )
+            }
+        } label: {
+            ToolbarButton(
+                icon: verticalAlignmentIcon(for: resolvedVerticalAlignment),
+                accessibilityLabel: localized("Vertical Position")
+            )
+        }
+    }
+
+    private var blockAlignmentMenu: some View {
+        Menu {
+            Button {
+                content.updateZone(at: path) {
+                    $0.sizeMode = .auto
+                    $0.blockAlignment = .auto
+                    $0.fixedWidth = nil
+                    $0.fixedHeight = nil
+                }
+            } label: {
+                menuRow(title: localized("Auto Block"), systemImage: "sparkles", isSelected: isAutoBlockSelected)
+            }
+
+            Button {
+                content.updateZone(at: path) {
+                    if $0.sizeMode == .fillWidth {
+                        $0.sizeMode = .auto
+                        $0.fixedWidth = nil
+                        $0.fixedHeight = nil
+                    }
+                    $0.blockAlignment = .leading
+                }
+            } label: {
+                menuRow(title: localized("Block Left"), systemImage: "rectangle.leadinghalf.inset.filled", isSelected: zone?.blockAlignment == .leading)
+            }
+
+            if zone?.sizeMode == .fixed {
+                Button {
+                    content.updateZone(at: path) { $0.blockAlignment = .center }
+                } label: {
+                    menuRow(title: localized("Block Center"), systemImage: "rectangle.center.inset.filled", isSelected: zone?.blockAlignment == .center)
+                }
+            }
+
+            Button {
+                content.updateZone(at: path) {
+                    if $0.sizeMode == .fillWidth {
+                        $0.sizeMode = .auto
+                        $0.fixedWidth = nil
+                        $0.fixedHeight = nil
+                    }
+                    $0.blockAlignment = .trailing
+                }
+            } label: {
+                menuRow(title: localized("Block Right"), systemImage: "rectangle.trailinghalf.inset.filled", isSelected: zone?.blockAlignment == .trailing)
+            }
+        } label: {
+            ToolbarButton(icon: blockAlignmentIcon(for: zone), accessibilityLabel: localized("Block Position"))
+        }
+    }
+
+    private var textAlignmentMenu: some View {
+        Menu {
+            Button {
+                content.updateZone(at: path) { $0.textAlignment = .leading }
+            } label: {
+                menuRow(title: localized("Align Left"), systemImage: "text.alignleft", isSelected: zone?.textAlignment == .leading)
+            }
+
+            Button {
+                content.updateZone(at: path) { $0.textAlignment = .center }
+            } label: {
+                menuRow(title: localized("Align Center"), systemImage: "text.aligncenter", isSelected: zone?.textAlignment == .center)
+            }
+
+            Button {
+                content.updateZone(at: path) { $0.textAlignment = .trailing }
+            } label: {
+                menuRow(title: localized("Align Right"), systemImage: "text.alignright", isSelected: zone?.textAlignment == .trailing)
+            }
+        } label: {
+            ToolbarButton(icon: alignmentIcon(for: zone?.textAlignment ?? .leading), accessibilityLabel: localized("Text Lines"))
+        }
+    }
+
+    private func menuRow(title: String, systemImage: String, isSelected: Bool) -> some View {
+        HStack {
+            Label(title, systemImage: systemImage)
+            if isSelected { Image(systemName: "checkmark") }
+        }
+    }
+
+    private func sizeModeIcon(for mode: ZoneSizeMode) -> String {
+        switch mode {
+        case .auto:
+            return "arrow.up.left.and.down.right.magnifyingglass"
+        case .fillWidth:
+            return "arrow.left.and.right"
+        case .fixed:
+            return "rectangle.resize"
+        }
+    }
+
+    private var isAutoBlockSelected: Bool {
+        guard let zone else { return true }
+        return zone.blockAlignment == .auto
+            || (zone.sizeMode != .fixed && zone.blockAlignment == .center)
+    }
+
+    private func blockAlignmentIcon(for zone: ZoneModel?) -> String {
+        let alignment = zone?.blockAlignment ?? .auto
+        if zone?.sizeMode != .fixed && alignment == .center {
+            return "sparkles"
+        }
+
+        switch alignment {
+        case .auto:
+            return "sparkles"
+        case .leading:
+            return "rectangle.leadinghalf.inset.filled"
+        case .center:
+            return "rectangle.center.inset.filled"
+        case .trailing:
+            return "rectangle.trailinghalf.inset.filled"
+        }
+    }
+
     private func alignmentIcon(for alignment: TextBlockAlignment) -> String {
         switch alignment { case .leading: return "text.alignleft"; case .center: return "text.aligncenter"; case .trailing: return "text.alignright" }
+    }
+
+    private var resolvedVerticalAlignment: ZoneVerticalAlignment {
+        content.rootZone.verticalAlignment.resolved(fallback: .center)
+    }
+
+    private func verticalAlignmentIcon(for alignment: ZoneVerticalAlignment) -> String {
+        switch alignment {
+        case .auto, .center:
+            return "align.vertical.center"
+        case .top:
+            return "align.vertical.top"
+        case .bottom:
+            return "align.vertical.bottom"
+        }
     }
 }
 
@@ -357,6 +640,8 @@ struct ToolbarButton: View {
     let icon: String
     var isActive: Bool = false
     var tint: Color = .primary
+    var isEnabled: Bool = true
+    var accessibilityLabel: String?
     var action: (() -> Void)? = nil
     
     var body: some View {
@@ -364,9 +649,12 @@ struct ToolbarButton: View {
             Image(systemName: icon)
                 .font(.body.weight(.medium))
                 .foregroundStyle(isActive ? ThemeManager.shared.accentColor.color : tint)
-                .frame(width: 34, height: 34)
+                .frame(width: 32, height: 32)
                 .background(isActive ? ThemeManager.shared.accentColor.color.opacity(0.12) : Color(uiColor: .tertiarySystemFill))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         }
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.45)
+        .accessibilityLabel(accessibilityLabel ?? icon)
     }
 }

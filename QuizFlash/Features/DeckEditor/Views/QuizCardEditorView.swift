@@ -218,6 +218,23 @@ struct QuizCardEditorView: View {
             onSplit: {
                 splitZone()
             },
+            onDuplicate: {
+                duplicateSelectedZone()
+            },
+            onMoveUp: {
+                moveSelectedZoneUp()
+            },
+            onMoveDown: {
+                moveSelectedZoneDown()
+            },
+            onChoosePhoto: {
+                isPhotoPickerPresented = true
+            },
+            onSketch: {
+                showSketchModal = true
+            },
+            canPreview: false,
+            onPreview: { },
             onClose: {
                 focusManager.forceReleaseKeyboard()
                 currentSelectedPath = nil
@@ -610,6 +627,40 @@ struct QuizCardEditorView: View {
         }
     }
 
+    private func duplicateSelectedZone() {
+        guard let content = currentContent, let path = currentSelectedPath else { return }
+
+        var newZoneID: UUID?
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+            newZoneID = content.duplicateZone(at: path)
+            if let newZoneID, let newPath = findPath(for: newZoneID, in: content.rootZone) {
+                currentSelectedPath = newPath
+            }
+        }
+
+        if let newZoneID {
+            requestFocus(for: newZoneID, delaySeconds: 0.12)
+        }
+    }
+
+    private func moveSelectedZoneUp() {
+        guard let content = currentContent, let path = currentSelectedPath else { return }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            if let newPath = content.moveZoneUp(at: path) {
+                currentSelectedPath = newPath
+            }
+        }
+    }
+
+    private func moveSelectedZoneDown() {
+        guard let content = currentContent, let path = currentSelectedPath else { return }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            if let newPath = content.moveZoneDown(at: path) {
+                currentSelectedPath = newPath
+            }
+        }
+    }
+
     private func splitZone() {
         guard let content = currentContent,
               let path = currentSelectedPath,
@@ -640,6 +691,10 @@ struct QuizCardEditorView: View {
                     currentZone.contentType = .text
                     currentZone.textStyle = zone.textStyle
                     currentZone.textAlignment = zone.textAlignment
+                    currentZone.sizeMode = zone.sizeMode
+                    currentZone.blockAlignment = zone.blockAlignment
+                    currentZone.fixedWidth = zone.fixedWidth
+                    currentZone.fixedHeight = zone.fixedHeight
                     currentZone.textColor = zone.textColor
                     currentZone.isBold = zone.isBold
                     currentZone.isItalic = zone.isItalic

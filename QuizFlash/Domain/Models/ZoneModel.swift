@@ -37,6 +37,48 @@ nonisolated enum ZoneContentType: String, Codable {
     case empty, text, image, sketch, code
 }
 
+// MARK: - Zone Size Mode
+
+/// Describes how much rectangle a leaf zone occupies inside the card content area.
+nonisolated enum ZoneSizeMode: String, Codable, Equatable, Sendable, CaseIterable {
+    case auto
+    case fillWidth
+    case fixed
+}
+
+// MARK: - Zone Block Alignment
+
+/// Describes where a zone rectangle sits inside the card content area.
+nonisolated enum ZoneBlockAlignment: String, Codable, Equatable, Sendable, CaseIterable {
+    case leading
+    case center
+    case trailing
+    case auto
+}
+
+// MARK: - Zone Vertical Alignment
+
+/// Describes how a whole card face positions its zone tree on the vertical axis.
+nonisolated enum ZoneVerticalAlignment: String, Codable, Equatable, Sendable, CaseIterable {
+    case auto
+    case top
+    case center
+    case bottom
+
+    init(fallbackContentAlignment: FlashcardContentAlignment) {
+        switch fallbackContentAlignment {
+        case .top:
+            self = .top
+        case .center:
+            self = .center
+        }
+    }
+
+    func resolved(fallback: ZoneVerticalAlignment) -> ZoneVerticalAlignment {
+        self == .auto ? fallback.resolved(fallback: .center) : self
+    }
+}
+
 // MARK: - Zone Model
 
 /// A recursive value type representing one node in a flashcard content tree.
@@ -76,6 +118,21 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
 
     /// The horizontal text alignment applied to this zone.
     var textAlignment: TextBlockAlignment = .leading
+
+    /// The size mode applied to this zone's layout rectangle.
+    var sizeMode: ZoneSizeMode = .auto
+
+    /// The block alignment applied to this zone's layout rectangle.
+    var blockAlignment: ZoneBlockAlignment = .auto
+
+    /// Explicit width used when `sizeMode` is `.fixed`.
+    var fixedWidth: CGFloat? = nil
+
+    /// Explicit height used when `sizeMode` is `.fixed`.
+    var fixedHeight: CGFloat? = nil
+
+    /// The vertical alignment applied to the card face rooted at this zone.
+    var verticalAlignment: ZoneVerticalAlignment = .auto
 
     /// The foreground text colour applied to this zone.
     var textColor: TextBlockColor = .primary
@@ -162,6 +219,119 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         return Array(result.prefix(3))
     }
 
+    // MARK: - Initialization
+
+    /// Creates a zone with explicit content, styling, and layout values.
+    init(
+        id: UUID = UUID(),
+        contentType: ZoneContentType = .empty,
+        codeLanguage: String? = nil,
+        text: String = "",
+        imageData: Data? = nil,
+        textStyle: TextBlockStyle = .body,
+        textAlignment: TextBlockAlignment = .leading,
+        sizeMode: ZoneSizeMode = .auto,
+        blockAlignment: ZoneBlockAlignment = .auto,
+        verticalAlignment: ZoneVerticalAlignment = .auto,
+        fixedWidth: CGFloat? = nil,
+        fixedHeight: CGFloat? = nil,
+        textColor: TextBlockColor = .primary,
+        isBold: Bool = false,
+        isItalic: Bool = false,
+        hasBullet: Bool = false,
+        fontFamily: FontFamily = .system,
+        highlightColor: HighlightColor = .none,
+        imageScale: CGFloat = 1.0,
+        children: [ZoneModel]? = nil,
+        direction: ZoneDirection = .horizontal
+    ) {
+        self.id = id
+        self.contentType = contentType
+        self.codeLanguage = codeLanguage
+        self.text = text
+        self.imageData = imageData
+        self.textStyle = textStyle
+        self.textAlignment = textAlignment
+        self.sizeMode = sizeMode
+        self.blockAlignment = blockAlignment
+        self.verticalAlignment = verticalAlignment
+        self.fixedWidth = fixedWidth
+        self.fixedHeight = fixedHeight
+        self.textColor = textColor
+        self.isBold = isBold
+        self.isItalic = isItalic
+        self.hasBullet = hasBullet
+        self.fontFamily = fontFamily
+        self.highlightColor = highlightColor
+        self.imageScale = imageScale
+        self.children = children
+        self.direction = direction
+    }
+
+    // MARK: - Codable
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case contentType
+        case codeLanguage
+        case text
+        case imageData
+        case textStyle
+        case textAlignment
+        case sizeMode
+        case blockAlignment
+        case verticalAlignment
+        case fixedWidth
+        case fixedHeight
+        case textColor
+        case isBold
+        case isItalic
+        case hasBullet
+        case fontFamily
+        case highlightColor
+        case imageScale
+        case children
+        case direction
+    }
+
+    /// Decodes a zone while migrating pre-layout-mode cards safely.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedTextAlignment = try container.decodeIfPresent(TextBlockAlignment.self, forKey: .textAlignment) ?? .leading
+        let decodedSizeMode = try container.decodeIfPresent(ZoneSizeMode.self, forKey: .sizeMode)
+        let decodedBlockAlignment = try container.decodeIfPresent(ZoneBlockAlignment.self, forKey: .blockAlignment)
+
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.contentType = try container.decodeIfPresent(ZoneContentType.self, forKey: .contentType) ?? .empty
+        self.codeLanguage = try container.decodeIfPresent(String.self, forKey: .codeLanguage)
+        self.text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
+        self.imageData = try container.decodeIfPresent(Data.self, forKey: .imageData)
+        self.textStyle = try container.decodeIfPresent(TextBlockStyle.self, forKey: .textStyle) ?? .body
+        self.textAlignment = decodedTextAlignment
+        self.sizeMode = decodedSizeMode ?? Self.migratedSizeMode(from: decodedTextAlignment)
+        self.blockAlignment = decodedBlockAlignment ?? Self.migratedBlockAlignment(from: decodedTextAlignment)
+        self.verticalAlignment = try container.decodeIfPresent(ZoneVerticalAlignment.self, forKey: .verticalAlignment) ?? .auto
+        self.fixedWidth = try container.decodeIfPresent(CGFloat.self, forKey: .fixedWidth)
+        self.fixedHeight = try container.decodeIfPresent(CGFloat.self, forKey: .fixedHeight)
+        self.textColor = try container.decodeIfPresent(TextBlockColor.self, forKey: .textColor) ?? .primary
+        self.isBold = try container.decodeIfPresent(Bool.self, forKey: .isBold) ?? false
+        self.isItalic = try container.decodeIfPresent(Bool.self, forKey: .isItalic) ?? false
+        self.hasBullet = try container.decodeIfPresent(Bool.self, forKey: .hasBullet) ?? false
+        self.fontFamily = try container.decodeIfPresent(FontFamily.self, forKey: .fontFamily) ?? .system
+        self.highlightColor = try container.decodeIfPresent(HighlightColor.self, forKey: .highlightColor) ?? .none
+        self.imageScale = try container.decodeIfPresent(CGFloat.self, forKey: .imageScale) ?? 1.0
+        self.children = try container.decodeIfPresent([ZoneModel].self, forKey: .children)
+        self.direction = try container.decodeIfPresent(ZoneDirection.self, forKey: .direction) ?? .horizontal
+    }
+
+    private static func migratedSizeMode(from oldAlignment: TextBlockAlignment) -> ZoneSizeMode {
+        oldAlignment == .leading ? .auto : .fillWidth
+    }
+
+    private static func migratedBlockAlignment(from oldAlignment: TextBlockAlignment) -> ZoneBlockAlignment {
+        oldAlignment == .leading ? .auto : .leading
+    }
+
     // MARK: - Factory Methods
 
     /// Creates an empty leaf zone.
@@ -216,12 +386,16 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     /// - Returns: A new container `ZoneModel` that includes both this zone and the new empty zone.
     mutating func addZone(in addDirection: AddDirection) -> ZoneModel {
         let newZone = ZoneModel.empty()
+        let preservedVerticalAlignment = verticalAlignment
+        var container: ZoneModel
         switch addDirection {
-        case .left:  return .container(direction: .horizontal, children: [newZone, self])
-        case .right: return .container(direction: .horizontal, children: [self, newZone])
-        case .up:    return .container(direction: .vertical,   children: [newZone, self])
-        case .down:  return .container(direction: .vertical,   children: [self, newZone])
+        case .left:  container = .container(direction: .horizontal, children: [newZone, self])
+        case .right: container = .container(direction: .horizontal, children: [self, newZone])
+        case .up:    container = .container(direction: .vertical,   children: [newZone, self])
+        case .down:  container = .container(direction: .vertical,   children: [self, newZone])
         }
+        container.verticalAlignment = preservedVerticalAlignment
+        return container
     }
 
     // MARK: - Preview Text

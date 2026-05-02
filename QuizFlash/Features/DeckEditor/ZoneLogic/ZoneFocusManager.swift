@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - Focus Notifications
 
@@ -100,8 +101,17 @@ final class ZoneFocusManager {
     
     /// Force releases keyboard immediately
     func forceReleaseKeyboard() {
+        focusNotificationTask?.cancel()
         keyboardRetainTask?.cancel()
+        pendingFocusZoneID = nil
+        focusedZoneID = nil
         shouldRetainKeyboard = false
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
     }
     
     // MARK: - Focus Retention for Transitions

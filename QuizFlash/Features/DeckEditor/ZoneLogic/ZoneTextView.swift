@@ -7,7 +7,7 @@ import SwiftUI
 import UIKit
 
 // MARK: - Full Hit Text View
-/// Custom UITextView that captures touches across its ENTIRE surface, even in empty space created by stretching.
+/// Custom UITextView that keeps selection stable inside the editor surface.
 final class FullHitTextView: UITextView {
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         if self.bounds.contains(point) {
@@ -83,46 +83,6 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         onFocusChange?(false)
     }
     
-    // MARK: - Smart Empty Space Tap (Now works perfectly on stretched zones too)
-    
-    @objc func handleEmptySpaceTap(_ gesture: UITapGestureRecognizer) {
-        guard gesture.state == .ended,
-              let textView = gesture.view as? UITextView else { return }
-        
-        if !textView.isFirstResponder {
-            textView.becomeFirstResponder()
-        }
-        
-        let tapPoint = gesture.location(in: textView)
-        
-        // Calculate exact bounding box where text ends
-        let textRect = textView.layoutManager.boundingRect(
-            forGlyphRange: NSRange(location: 0, length: textView.textStorage.length),
-            in: textView.textContainer
-        )
-        
-        // If user tapped BELOW the last line of text
-        if tapPoint.y > textRect.maxY {
-            let lineHeight = textView.font?.lineHeight ?? 22
-            let emptySpaceY = tapPoint.y - textRect.maxY
-            let newLinesCount = Int(emptySpaceY / lineHeight) + 1
-            
-            if newLinesCount > 0 {
-                let padding = String(repeating: "\n", count: newLinesCount)
-                let newText = (textView.text ?? "") + padding
-                
-                self.isUpdating = true
-                textView.text = newText
-                self.isUpdating = false
-                
-                let endPosition = textView.endOfDocument
-                textView.selectedTextRange = textView.textRange(from: endPosition, to: endPosition)
-                
-                self.textViewDidChange(textView)
-            }
-        }
-    }
-    
     private func reportCursorPosition(from textView: UITextView) {
         guard let text = textView.text else { return }
         let nsRange = textView.selectedRange
@@ -155,6 +115,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     let textAlignment: NSTextAlignment
     let isBold: Bool
     let isItalic: Bool
+    var lineSpacing: CGFloat = 0
     let zoneID: UUID
     let isFirstResponder: Bool
     var onTextChange: ((String) -> Void)?
@@ -189,11 +150,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         
         textView.text = text
-        
-        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(context.coordinator.handleEmptySpaceTap(_:)))
-        tapGesture.cancelsTouchesInView = false
-        tapGesture.delegate = context.coordinator
-        textView.addGestureRecognizer(tapGesture)
+        updateStyling(of: textView)
         
         return textView
     }
@@ -250,16 +207,18 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         let width = proposal.width ?? UIView.layoutFittingExpandedSize.width
         let targetSize = CGSize(width: width, height: UIView.layoutFittingCompressedSize.height)
         let calculatedSize = uiView.sizeThatFits(targetSize)
-        
-        // Inherit stretched height from neighbors
-        let proposedHeight = proposal.height ?? 0
-        return CGSize(width: width, height: max(proposedHeight, calculatedSize.height))
+
+        return CGSize(
+            width: width,
+            height: max(ceil(calculatedSize.height), ceil(font.lineHeight))
+        )
     }
     
     private func updateStyling(of textView: UITextView) {
         textView.font = font
         textView.textColor = textColor
-        
+        textView.typingAttributes = textAttributes
+
         if textView.text.isEmpty && textView.textAlignment != textAlignment {
             textView.text = " "
             textView.textAlignment = textAlignment
@@ -267,6 +226,24 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         } else {
             textView.textAlignment = textAlignment
         }
+
+        let fullRange = NSRange(location: 0, length: textView.textStorage.length)
+        if fullRange.length > 0 {
+            textView.textStorage.setAttributes(textAttributes, range: fullRange)
+        }
+    }
+
+    private var textAttributes: [NSAttributedString.Key: Any] {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = textAlignment
+        paragraphStyle.lineBreakMode = .byWordWrapping
+        paragraphStyle.lineSpacing = max(lineSpacing, 0)
+
+        return [
+            .font: font,
+            .foregroundColor: textColor,
+            .paragraphStyle: paragraphStyle
+        ]
     }
 }
 

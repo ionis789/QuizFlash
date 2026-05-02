@@ -15,6 +15,7 @@ struct CardPreviewModeView: View {
     let safeAreaInsets: UIEdgeInsets
     let showsLeadingAccessory: Bool
     let leadingAccessory: AnyView
+    let contentAlignment: FlashcardContentAlignment
     let onOpenRecommendedConversion: ((CardKind) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
@@ -59,16 +60,23 @@ struct CardPreviewModeView: View {
         safeAreaInsets: UIEdgeInsets = .zero,
         showsLeadingAccessory: Bool = false,
         leadingAccessory: AnyView = AnyView(EmptyView()),
+        contentAlignment: FlashcardContentAlignment = .center,
         onOpenRecommendedConversion: ((CardKind) -> Void)? = nil
     ) {
         self.content = content
         self.safeAreaInsets = safeAreaInsets
         self.showsLeadingAccessory = showsLeadingAccessory
         self.leadingAccessory = leadingAccessory
+        self.contentAlignment = contentAlignment
         self.onOpenRecommendedConversion = onOpenRecommendedConversion
     }
 
-    init(front: ZoneCardContent, back: ZoneCardContent, safeAreaInsets: UIEdgeInsets = .zero) {
+    init(
+        front: ZoneCardContent,
+        back: ZoneCardContent,
+        safeAreaInsets: UIEdgeInsets = .zero,
+        contentAlignment: FlashcardContentAlignment = .center
+    ) {
         self.init(
             content: .flashcard(
                 FlashcardCardContent(
@@ -78,7 +86,8 @@ struct CardPreviewModeView: View {
                     backType: .text
                 )
             ),
-            safeAreaInsets: safeAreaInsets
+            safeAreaInsets: safeAreaInsets,
+            contentAlignment: contentAlignment
         )
     }
 
@@ -139,6 +148,7 @@ struct CardPreviewModeView: View {
                     backZone: flashcardContent.backZone,
                     isFlipped: $isFlipped,
                     tapAnimationStyle: .flip3D,
+                    contentAlignment: contentAlignment,
                     onTap: togglePreviewFlip
                 )
                 .frame(maxWidth: .infinity)

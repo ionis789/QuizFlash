@@ -19,8 +19,10 @@ struct FlashcardEditorView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var context
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(KeyboardMonitor.self) private var keyboardMonitor
 
     var onSaveZones: (ZoneModel, ZoneModel) -> Void
+    private let contentAlignment: FlashcardContentAlignment
 
     // MARK: - State
 
@@ -35,7 +37,6 @@ struct FlashcardEditorView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var isPhotoPickerPresented = false
     @State private var scheduledFocusTask: Task<Void, Never>?
-    @State private var scheduledScrollTask: Task<Void, Never>?
     @State private var showSaveErrorAlert = false
     @State private var saveErrorMessage = ""
 
@@ -51,11 +52,10 @@ struct FlashcardEditorView: View {
     private var topChromeHorizontalInset: CGFloat {
         isCompact ? UIConstants.Layout.compactScreenEdgeInset : UIConstants.Layout.screenEdgeInset
     }
-    private var editorCardCornerRadius: CGFloat { isCompact ? 42 : 52 }
-    private var editorCardHorizontalPadding: CGFloat { isCompact ? 20 : 28 }
-    private var editorCardVerticalPadding: CGFloat { isCompact ? 20 : 24 }
     private var editorTextScale: CGFloat { CGFloat(FlashcardTextSize.large.playModeScale) }
-    private static let playModeCardAspectRatio: CGFloat = 369.0 / 613.0
+    private var verticalAlignmentFallback: ZoneVerticalAlignment {
+        ZoneVerticalAlignment(fallbackContentAlignment: contentAlignment)
+    }
     private var canUseInteractiveDismiss: Bool {
         !showSketchModal && !showPreview && !isPhotoPickerPresented
     }
@@ -76,9 +76,11 @@ struct FlashcardEditorView: View {
 
     init(
         searchQuery: String? = nil,
+        contentAlignment: FlashcardContentAlignment = .center,
         onSave: @escaping (ZoneModel, ZoneModel) -> Void
     ) {
         self.onSaveZones = onSave
+        self.contentAlignment = contentAlignment
         _frontZoneContent = State(initialValue: ZoneCardContent(rootZone: .text()))
         _backZoneContent = State(initialValue: ZoneCardContent(rootZone: .text()))
        
@@ -94,10 +96,12 @@ struct FlashcardEditorView: View {
         frontZone: ZoneModel,
         backZone: ZoneModel,
         searchQuery: String? = nil,
+        contentAlignment: FlashcardContentAlignment = .center,
         onSave: @escaping (ZoneModel, ZoneModel) -> Void
     ) {
 
         self.onSaveZones = onSave
+        self.contentAlignment = contentAlignment
         _frontZoneContent = State(initialValue: ZoneCardContent(rootZone: frontZone))
         _backZoneContent = State(initialValue: ZoneCardContent(rootZone: backZone))
 
@@ -115,21 +119,14 @@ struct FlashcardEditorView: View {
         ZStack(alignment: .top) {
             editorBackground.ignoresSafeArea()
 
-            VStack(spacing: UIConstants.Spacing.medium) {
+            VStack(spacing: UIConstants.Spacing.small) {
                 topChrome
-                sideSwitch
                 editorArea
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+            floatingFormatBar
         }
-        .safeAreaInset(edge: .bottom) {
-                if let path = selectedPath {
-                    formatBar(for: path)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
         .toolbar(.hidden, for: .navigationBar)
         .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhoto, matching: .images)
         .onChange(of: selectedPhoto) { _, item in addPhoto(item) }
@@ -141,7 +138,8 @@ struct FlashcardEditorView: View {
             CardPreviewModeView(
                 front: frontZoneContent,
                 back: backZoneContent,
-                safeAreaInsets: safeArea
+                safeAreaInsets: safeArea,
+                contentAlignment: contentAlignment
             )
         } background: {
             CardPreviewModeBackground()
@@ -160,19 +158,35 @@ struct FlashcardEditorView: View {
             if selectedPath == nil {
                 selectedPath = .root
             }
-
-            // Delayed focus for initial zone.
-            if highlightContext == nil || highlightContext?.isDismissed == true {
-                scheduleFocusAction(after: .milliseconds(400)) {
-                    if let rootZoneID = currentContent.rootZone.id as UUID? {
-                        focusManager.requestFocus(for: rootZoneID)
-                    }
-                }
-            }
+            focusManager.forceReleaseKeyboard()
         }
         .onDisappear {
             cancelScheduledEditorTasks()
         }
+    }
+
+    @ViewBuilder
+    private var floatingFormatBar: some View {
+        if let path = selectedPath {
+            VStack {
+                Spacer(minLength: 0)
+                formatBar(for: path)
+                    .padding(.horizontal, topChromeHorizontalInset)
+                    .padding(.bottom, floatingToolbarBottomInset)
+            }
+            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .zIndex(30)
+        }
+    }
+
+    private var floatingToolbarBottomInset: CGFloat {
+        let base = UIConstants.Spacing.standard
+        guard keyboardMonitor.isVisible else {
+            return base
+        }
+
+        return keyboardMonitor.visibleHeight + base
     }
 
     @ViewBuilder
@@ -189,6 +203,19 @@ struct FlashcardEditorView: View {
                 previewDirection = direction
             },
             onSplit: { splitZone() },
+            onDuplicate: { duplicateSelectedZone() },
+            onMoveUp: { moveSelectedZoneUp() },
+            onMoveDown: { moveSelectedZoneDown() },
+            onChoosePhoto: {
+                isPhotoPickerPresented = true
+            },
+            onSketch: {
+                showSketchModal = true
+            },
+            canPreview: canSave,
+            onPreview: {
+                openPreview()
+            },
             onClose: {
                 focusManager.forceReleaseKeyboard()
                 selectedPath = nil
@@ -198,91 +225,113 @@ struct FlashcardEditorView: View {
     }
 
     private var editorArea: some View {
-        GeometryReader { geometry in
-            let horizontalInset: CGFloat = 20
-            let maxEditorWidth: CGFloat = isCompact ? .infinity : 620
-            let proposedWidth = max(geometry.size.width - (horizontalInset * 2), 1)
-            let cardWidth = min(proposedWidth, maxEditorWidth)
-            let cardHeight = cardWidth / Self.playModeCardAspectRatio
-            let contentWidth = max(cardWidth - (editorCardHorizontalPadding * 2), 1)
-            let contentHeight = max(cardHeight - (editorCardVerticalPadding * 2), 1)
-            let estimatedContentSize = FlashcardGridContentEstimator.estimatedSize(
-                for: currentContent.rootZone,
-                fontScale: editorTextScale,
-                availableWidth: contentWidth
-            )
-            let editorContentWidth = editorBlockWidth(
-                estimatedWidth: estimatedContentSize.width,
-                availableWidth: contentWidth
-            )
-            let contentFitsVertically = estimatedContentSize.height <= contentHeight
-            let contentFrameAlignment: Alignment = contentFitsVertically ? .center : .top
+        ZoneEditorCanvas(
+            content: currentContent,
+            selectedPath: $selectedPath,
+            previewDirection: $previewDirection,
+            highlightContext: highlightContext,
+            fontScale: editorTextScale,
+            verticalAlignmentFallback: verticalAlignmentFallback,
+            onEmptySpaceTap: handleCanvasEmptySpaceTap
+        )
+    }
 
-            ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .center, spacing: 0) {
-                        // Pass previewDirection down for visual overlay rendering.
-                        ZoneEditorView(
-                            content: currentContent,
-                            path: .root,
-                            selectedPath: $selectedPath,
-                            highlightContext: highlightContext,
-                            fontScale: editorTextScale,
-                            previewDirection: $previewDirection
-                        )
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(width: editorContentWidth, alignment: .center)
-                    }
-                    .padding(.horizontal, editorCardHorizontalPadding)
-                    .padding(.vertical, editorCardVerticalPadding)
-                    .frame(width: cardWidth, alignment: .topLeading)
-                    .frame(minHeight: cardHeight, alignment: contentFrameAlignment)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        if selectedPath == nil {
-                            selectedPath = .root
-                        }
-                    }
+    private func handleCanvasEmptySpaceTap(_ context: ZoneEditorCanvasTapContext) {
+        focusManager.prepareForZoneInsertion()
+
+        if !currentContent.rootZone.hasContent, currentContent.rootZone.isLeaf {
+            selectedPath = .root
+            currentContent.updateZone(at: .root) { zone in
+                zone.contentType = .text
+                zone.sizeMode = .auto
+                zone.blockAlignment = .auto
+                zone.textAlignment = .leading
+            }
+            scheduleFocusAction(after: .milliseconds(80)) {
+                focusManager.requestFocus(for: currentContent.rootZone.id)
+                focusManager.releaseKeyboardRetention(afterDelay: 0.1)
+            }
+            return
+        }
+
+        let insertion = insertionPoint(for: context)
+        insertTextZoneWithFocus(relativeTo: insertion.path, direction: insertion.direction)
+    }
+
+    private func insertionPoint(for context: ZoneEditorCanvasTapContext) -> (path: ZonePath, direction: AddDirection) {
+        let sortedFrames = context.zoneFrames
+            .filter { currentContent.zone(at: $0.path) != nil }
+            .sorted {
+                if abs($0.frame.midY - $1.frame.midY) > 1 {
+                    return $0.frame.midY < $1.frame.midY
                 }
-                .scrollDismissesKeyboard(.interactively)
-                .frame(width: cardWidth, height: cardHeight, alignment: .topLeading)
-                .background(
-                    RoundedRectangle(cornerRadius: editorCardCornerRadius, style: .continuous)
-                        .fill(cardBackground)
-                        .shadow(color: shadowColor, radius: 12, y: 6)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: editorCardCornerRadius, style: .continuous)
-                        .stroke(borderColor, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: editorCardCornerRadius, style: .continuous))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .padding(.horizontal, horizontalInset)
-                .padding(.top, 16)
-                .padding(.bottom, 60)
-                .onChange(of: selectedPath) { _, newPath in
-                    if let path = newPath {
-                        scheduleSelectionScroll(after: .milliseconds(100), to: path, in: proxy)
-                    }
-                }
+                return $0.frame.midX < $1.frame.midX
+            }
+
+        guard let first = sortedFrames.first else {
+            return (.root, .down)
+        }
+
+        if context.location.y < first.frame.midY {
+            return (first.path, .up)
+        }
+
+        if let horizontalInsertion = horizontalInsertionPoint(for: context.location, in: sortedFrames) {
+            return horizontalInsertion
+        }
+
+        for frame in sortedFrames {
+            if context.location.y < frame.frame.midY {
+                return (frame.path, .up)
             }
         }
+
+        return (sortedFrames.last?.path ?? .root, .down)
     }
 
-    private func editorBlockWidth(estimatedWidth: CGFloat, availableWidth: CGFloat) -> CGFloat {
-        guard currentContent.rootZone.hasContent else { return availableWidth }
-        let minimumComfortWidth = min(availableWidth, isCompact ? 220 : 280)
-        return min(max(ceil(estimatedWidth), minimumComfortWidth), availableWidth)
+    private func horizontalInsertionPoint(
+        for location: CGPoint,
+        in frames: [ZoneEditorResolvedZoneFrame]
+    ) -> (path: ZonePath, direction: AddDirection)? {
+        let verticalTolerance: CGFloat = 10
+        let candidates = frames.filter {
+            location.y >= $0.frame.minY - verticalTolerance
+                && location.y <= $0.frame.maxY + verticalTolerance
+        }
+
+        guard let nearest = candidates.min(by: {
+            abs($0.frame.midY - location.y) < abs($1.frame.midY - location.y)
+        }) else {
+            return nil
+        }
+
+        if location.x < nearest.frame.minX {
+            return (nearest.path, .left)
+        }
+
+        if location.x > nearest.frame.maxX {
+            return (nearest.path, .right)
+        }
+
+        return nil
     }
 
-    private func scheduleSelectionScroll(after delay: Duration, to path: ZonePath, in proxy: ScrollViewProxy) {
-        scheduledScrollTask?.cancel()
-        scheduledScrollTask = Task { @MainActor in
-            try? await Task.sleep(for: delay)
-            guard !Task.isCancelled else { return }
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) {
-                proxy.scrollTo(path.id, anchor: .center)
+    private func insertTextZoneWithFocus(relativeTo path: ZonePath?, direction: AddDirection) {
+        var newZoneID: UUID?
+
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            newZoneID = currentContent.addTextZone(relativeTo: path, direction: direction)
+            if let newID = newZoneID, let newPath = findPath(for: newID, in: currentContent.rootZone) {
+                selectedPath = newPath
             }
+        }
+
+        scheduleFocusAction(after: .milliseconds(150)) {
+            if let id = newZoneID {
+                focusManager.requestFocus(for: id)
+            }
+            focusManager.releaseKeyboardRetention(afterDelay: 0.1)
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
     }
 
@@ -297,9 +346,7 @@ struct FlashcardEditorView: View {
 
     private func cancelScheduledEditorTasks() {
         scheduledFocusTask?.cancel()
-        scheduledScrollTask?.cancel()
         scheduledFocusTask = nil
-        scheduledScrollTask = nil
     }
 
     private var topChrome: some View {
@@ -313,68 +360,25 @@ struct FlashcardEditorView: View {
 
             Spacer(minLength: 0)
 
-            HStack(spacing: UIConstants.Spacing.small) {
-                topActionButton(
-                    systemName: "photo.on.rectangle",
-                    accessibilityLabel: localized("Choose Photos"),
-                    isEnabled: true
-                ) {
-                    isPhotoPickerPresented = true
-                }
+            sideSwitch
 
-                topActionButton(
-                    systemName: "pencil.and.scribble",
-                    accessibilityLabel: localized("Sketch"),
-                    isEnabled: true
-                ) {
-                    showSketchModal = true
-                }
+            Spacer(minLength: 0)
 
-                topActionButton(
-                    systemName: "eye",
-                    accessibilityLabel: localized("Preview"),
-                    isEnabled: canSave
-                ) {
-                    openPreview()
-                }
-
-                Button(action: saveCard) {
-                    ChromeSoftCircleSymbol(
-                        systemName: "checkmark",
-                        size: UIConstants.Size.actionButton,
-                        symbolSize: 24,
-                        tint: canSave ? .white : .secondary,
-                        backgroundTint: canSave ? accent : Color(uiColor: .tertiarySystemFill)
-                    )
-                }
-                .buttonStyle(.plain)
-                .disabled(!canSave)
-                .opacity(canSave ? 1 : 0.55)
-                .accessibilityLabel(localized("Save"))
+            Button(action: saveCard) {
+                ChromeSoftCircleSymbol(
+                    systemName: "checkmark",
+                    size: UIConstants.Size.actionButton,
+                    symbolSize: 24,
+                    tint: canSave ? .white : .secondary,
+                    backgroundTint: canSave ? accent : Color(uiColor: .tertiarySystemFill)
+                )
             }
+            .buttonStyle(.plain)
+            .disabled(!canSave)
+            .opacity(canSave ? 1 : 0.55)
+            .accessibilityLabel(localized("Save"))
         }
         .topNavigationChrome(horizontalInset: topChromeHorizontalInset)
-    }
-
-    private func topActionButton(
-        systemName: String,
-        accessibilityLabel: String,
-        isEnabled: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            ChromeSoftCircleSymbol(
-                systemName: systemName,
-                size: UIConstants.Size.actionButton,
-                symbolSize: 22,
-                tint: isEnabled ? accent : .secondary,
-                backgroundTint: Color(uiColor: .tertiarySystemFill)
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.5)
-        .accessibilityLabel(accessibilityLabel)
     }
 
     private var sideSwitch: some View {
@@ -382,13 +386,16 @@ struct FlashcardEditorView: View {
             sideSwitchButton(title: localized("Question"), side: 0)
             sideSwitchButton(title: localized("Answer"), side: 1)
         }
-        .padding(4)
-        .frame(height: 62)
+        .padding(3)
+        .frame(width: isCompact ? 218 : 244, height: 42)
         .background(
             Capsule(style: .continuous)
                 .fill(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.72))
         )
-        .padding(.horizontal, topChromeHorizontalInset)
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.45), lineWidth: 0.7)
+        )
     }
 
     private func sideSwitchButton(title: String, side: Int) -> some View {
@@ -399,7 +406,7 @@ struct FlashcardEditorView: View {
             handleSideChange(from: oldSide, to: side)
         } label: {
             Text(title)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(activeSide == side ? .primary : .secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background {
@@ -466,21 +473,44 @@ struct FlashcardEditorView: View {
 
     private func addZoneWithFocus(in direction: AddDirection) {
         guard let path = selectedPath else { return }
+        insertTextZoneWithFocus(relativeTo: path, direction: direction)
+    }
+
+    private func duplicateSelectedZone() {
+        guard let path = selectedPath else { return }
 
         var newZoneID: UUID?
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            newZoneID = currentContent.addZone(relativeTo: path, direction: direction)
-            if let newID = newZoneID, let p = findPath(for: newID, in: currentContent.rootZone) {
-                selectedPath = p
+            newZoneID = currentContent.duplicateZone(at: path)
+            if let newID = newZoneID,
+               let newPath = findPath(for: newID, in: currentContent.rootZone) {
+                selectedPath = newPath
             }
         }
 
-        scheduleFocusAction(after: .milliseconds(150)) {
+        scheduleFocusAction(after: .milliseconds(120)) {
             if let id = newZoneID {
                 focusManager.requestFocus(for: id)
             }
-            focusManager.releaseKeyboardRetention(afterDelay: 0.1)
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        }
+    }
+
+    private func moveSelectedZoneUp() {
+        guard let path = selectedPath else { return }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            if let newPath = currentContent.moveZoneUp(at: path) {
+                selectedPath = newPath
+            }
+        }
+    }
+
+    private func moveSelectedZoneDown() {
+        guard let path = selectedPath else { return }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            if let newPath = currentContent.moveZoneDown(at: path) {
+                selectedPath = newPath
+            }
         }
     }
 
@@ -512,6 +542,10 @@ struct FlashcardEditorView: View {
                     z.contentType = .text
                     z.textStyle = zone.textStyle
                     z.textAlignment = zone.textAlignment
+                    z.sizeMode = zone.sizeMode
+                    z.blockAlignment = zone.blockAlignment
+                    z.fixedWidth = zone.fixedWidth
+                    z.fixedHeight = zone.fixedHeight
                     z.textColor = zone.textColor
                     z.isBold = zone.isBold
                     z.isItalic = zone.isItalic
@@ -524,39 +558,6 @@ struct FlashcardEditorView: View {
         scheduleFocusAction(after: .milliseconds(100)) {
             focusManager.requestFocus(for: zoneID) // Focus stays on TOP zone
             focusManager.releaseKeyboardRetention(afterDelay: 0.1)
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        }
-    }
-
-    private func addZoneAtBottom() {
-        let root = currentContent.rootZone
-        var newZoneID: UUID?
-
-        focusManager.prepareForZoneInsertion()
-
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            if !root.isLeaf && root.direction == .vertical {
-                let newIndex = root.children?.count ?? 0
-                let newZone = ZoneModel.empty()
-                newZoneID = newZone.id
-
-                currentContent.updateZone(at: .root) { rootZone in
-                    var kids = rootZone.children ?? []
-                    kids.append(newZone)
-                    rootZone.children = kids
-                }
-                selectedPath = ZonePath(indices: [newIndex])
-            } else {
-                newZoneID = currentContent.addZone(relativeTo: .root, direction: .down)
-                selectedPath = ZonePath(indices: [1])
-            }
-        }
-
-        scheduleFocusAction(after: .milliseconds(150)) {
-            if let id = newZoneID {
-                focusManager.requestFocus(for: id)
-            }
-            focusManager.releaseKeyboardRetention()
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
     }
@@ -658,17 +659,4 @@ struct FlashcardEditorView: View {
         colorScheme == .dark ? .black : Color(uiColor: .systemGray6)
     }
 
-    private var cardBackground: some ShapeStyle {
-        colorScheme == .dark
-            ? AnyShapeStyle(Color(red: 0.068, green: 0.068, blue: 0.068))
-            : AnyShapeStyle(Color(red: 0.92, green: 0.92, blue: 0.91))
-    }
-
-    private var shadowColor: Color {
-        colorScheme == .dark ? Color.black.opacity(0.42) : Color.black.opacity(0.12)
-    }
-
-    private var borderColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.045) : Color.black.opacity(0.08)
-    }
 }

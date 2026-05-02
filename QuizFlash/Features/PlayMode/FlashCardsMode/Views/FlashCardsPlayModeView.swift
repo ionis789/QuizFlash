@@ -222,7 +222,11 @@ struct FlashCardsPlayModeView: View {
         }
         .fullScreenCover(item: $editingCard) { card in
             NavigationStack {
-                FlashcardEditorView(frontZone: card.frontZone, backZone: card.backZone) { frontZone, backZone in
+                FlashcardEditorView(
+                    frontZone: card.frontZone,
+                    backZone: card.backZone,
+                    contentAlignment: viewModel.settings.contentAlignment
+                ) { frontZone, backZone in
                     if card.frontZone != frontZone || card.backZone != backZone {
                         card.frontZone = frontZone
                         card.backZone = backZone
@@ -1222,7 +1226,7 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
     private static func zoneTreeLines(for zone: ZoneModel, path: String, depth: Int) -> [String] {
         let indent = String(repeating: "  ", count: depth)
         if zone.isLeaf {
-            var line = "\(indent)- \(path) leaf type=\(zone.contentType.rawValue) hasContent=\(zone.hasContent) alignment=\(zone.textAlignment.rawValue)"
+            var line = "\(indent)- \(path) leaf type=\(zone.contentType.rawValue) hasContent=\(zone.hasContent) sizeMode=\(zone.sizeMode.rawValue) blockAlignment=\(zone.blockAlignment.rawValue) textAlignment=\(zone.textAlignment.rawValue)"
             if zone.contentType == .text || zone.contentType == .code {
                 line += " chars=\(zone.text.count) preview=\"\(singleLinePreview(zone.text, limit: 120))\""
             }
@@ -1260,7 +1264,7 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
             "  block=\(size(leaf.blockSize)) leadingInset=\(metric(leaf.leadingInset)) rightSpaceAfterBlock=\(metric(rightSpaceAfterBlock))",
             "  contentLayoutWidth=\(metric(leaf.contentLayoutWidth)) textWidthLimit=\(metric(textWidthLimit)) remainingTextWidthAfterWidestLine=\(metric(remainingTextWidth))",
             "  textInsets=\(metric(leaf.textHorizontalInsets)) bulletInset=\(metric(leaf.bulletHorizontalInset)) intrinsicText=\(leaf.usesIntrinsicTextMeasurement)",
-            "  zoneAlignment=\(leaf.zoneTextAlignment.rawValue) naturalBlockCentering=\(leaf.usesNaturalBlockCentering)",
+            "  sizeMode=\(leaf.zoneSizeMode.rawValue) blockAlignment=\(leaf.zoneBlockAlignment.rawValue) textAlignment=\(leaf.zoneTextAlignment.rawValue) autoBlockCentering=\(leaf.usesNaturalBlockCentering)",
             "  style=\(leaf.textStyle.rawValue) font=\(leaf.fontFamily.rawValue) bold=\(leaf.isBold) italic=\(leaf.isItalic) bullet=\(leaf.hasBullet) highlight=\(leaf.highlightColor.rawValue)",
             "  chars=\(leaf.textCharacterCount) explicitLines=\(leaf.textLineCount) estimatedLineWidths=[\(lineWidths)]",
             "  renderedLineWidths=[\(renderedLineWidths)]",
