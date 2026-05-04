@@ -19,6 +19,7 @@ final class DevelopmentPreferences {
         static let deckWorkspaceMockAIEnabled = "preferences.development.deckWorkspaceMockAIEnabled"
         static let deckGridTextLayoutDebugEnabled = "preferences.development.deckGridTextLayoutDebugEnabled"
         static let flashcardGridTextLayoutDebugEnabled = "preferences.development.flashcardGridTextLayoutDebugEnabled"
+        static let zoneEditorDebugHUDEnabled = "preferences.development.zoneEditorDebugHUDEnabled"
         static let playModeDeveloperModeEnabled = "preferences.development.playModeDeveloperModeEnabled"
         static let edgeShadowTuningEnabled = "preferences.development.edgeShadowTuningEnabled"
         static let edgeShadowDebugSettingsByScreen = "preferences.development.edgeShadowDebugSettingsByScreen"
@@ -64,6 +65,16 @@ final class DevelopmentPreferences {
             userDefaults.set(
                 flashcardGridTextLayoutDebugEnabled,
                 forKey: Keys.flashcardGridTextLayoutDebugEnabled
+            )
+        }
+    }
+
+    /// Shows the live zone editor diagnostics HUD on top of the authoring card.
+    var zoneEditorDebugHUDEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                zoneEditorDebugHUDEnabled,
+                forKey: Keys.zoneEditorDebugHUDEnabled
             )
         }
     }
@@ -124,6 +135,9 @@ final class DevelopmentPreferences {
         ) as? Bool ?? false
         self.flashcardGridTextLayoutDebugEnabled = userDefaults.object(
             forKey: Keys.flashcardGridTextLayoutDebugEnabled
+        ) as? Bool ?? false
+        self.zoneEditorDebugHUDEnabled = userDefaults.object(
+            forKey: Keys.zoneEditorDebugHUDEnabled
         ) as? Bool ?? false
         self.playModeDeveloperModeEnabled = userDefaults.object(
             forKey: Keys.playModeDeveloperModeEnabled

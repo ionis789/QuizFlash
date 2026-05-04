@@ -25,7 +25,10 @@ nonisolated enum CardOrientation: String, Codable {
 
 // MARK: - Zone Direction
 
-/// Describes the axis along which child zones are arranged inside a container zone.
+/// Describes the stored axis for container zones.
+///
+/// New authoring flows normalize container zones to `.vertical`; `.horizontal`
+/// remains only so older saved/shared zone JSON can still decode safely.
 nonisolated enum ZoneDirection: String, Codable {
     case horizontal, vertical
 }
@@ -378,26 +381,6 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         try? JSONDecoder().decode(ZoneModel.self, from: data)
     }
 
-    // MARK: - Mutation Helpers
-
-    /// Wraps this zone in a new container that places a new empty zone relative to it.
-    ///
-    /// - Parameter addDirection: The direction from which the new zone is inserted.
-    /// - Returns: A new container `ZoneModel` that includes both this zone and the new empty zone.
-    mutating func addZone(in addDirection: AddDirection) -> ZoneModel {
-        let newZone = ZoneModel.empty()
-        let preservedVerticalAlignment = verticalAlignment
-        var container: ZoneModel
-        switch addDirection {
-        case .left:  container = .container(direction: .horizontal, children: [newZone, self])
-        case .right: container = .container(direction: .horizontal, children: [self, newZone])
-        case .up:    container = .container(direction: .vertical,   children: [newZone, self])
-        case .down:  container = .container(direction: .vertical,   children: [self, newZone])
-        }
-        container.verticalAlignment = preservedVerticalAlignment
-        return container
-    }
-
     // MARK: - Preview Text
 
     /// Returns a single-line plain-text preview of the first non-empty leaf in the subtree.
@@ -428,28 +411,9 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
 
 // MARK: - Add Direction
 
-/// Represents the four cardinal directions for inserting a new zone relative to an existing one.
+/// Represents the vertical insertion direction for a new authoring zone.
 enum AddDirection: String, CaseIterable {
-
-    case left, right, up, down
-
-    /// The SF Symbol icon name that visually represents this direction.
-    var icon: String {
-        switch self {
-        case .left:  return "arrow.left.square"
-        case .right: return "arrow.right.square"
-        case .up:    return "arrow.up.square"
-        case .down:  return "arrow.down.square"
-        }
-    }
-
-    /// The `ZoneDirection` axis corresponding to this add direction.
-    var zoneDirection: ZoneDirection {
-        switch self {
-        case .left, .right: return .horizontal
-        case .up, .down:    return .vertical
-        }
-    }
+    case up, down
 }
 
 // MARK: - Zone Path

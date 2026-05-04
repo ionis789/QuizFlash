@@ -225,7 +225,8 @@ struct FlashCardsPlayModeView: View {
                 FlashcardEditorView(
                     frontZone: card.frontZone,
                     backZone: card.backZone,
-                    contentAlignment: viewModel.settings.contentAlignment
+                    contentAlignment: viewModel.settings.contentAlignment,
+                    textSize: viewModel.settings.textSize
                 ) { frontZone, backZone in
                     if card.frontZone != frontZone || card.backZone != backZone {
                         card.frontZone = frontZone

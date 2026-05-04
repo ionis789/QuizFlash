@@ -41,7 +41,9 @@ final class ZoneCardContent {
     /// Creates a new `ZoneCardContent` with the given root zone.
     /// - Parameter rootZone: The initial zone tree. Defaults to a single empty text zone.
     init(rootZone: ZoneModel = .text()) {
-        self.rootZone = rootZone
+        var normalizedRoot = rootZone
+        normalizedRoot.normalizeAuthoringLayoutRecursively()
+        self.rootZone = normalizedRoot
     }
 
     // MARK: - Read
@@ -81,7 +83,8 @@ final class ZoneCardContent {
 
     /// Inserts a new empty zone relative to the zone at the given path.
     ///
-    /// Reuses the parent container's axis when compatible (avoids unnecessary nesting).
+    /// Reuses an existing vertical parent container when possible to avoid
+    /// unnecessary nesting.
     ///
     /// - Parameters:
     ///   - path: The index path to the reference zone.
@@ -96,10 +99,10 @@ final class ZoneCardContent {
             let oldRoot = rootZone
             let preservedVerticalAlignment = oldRoot.verticalAlignment
             switch direction {
-            case .left:  rootZone = .container(direction: .horizontal, children: [newZone, oldRoot])
-            case .right: rootZone = .container(direction: .horizontal, children: [oldRoot, newZone])
-            case .up:    rootZone = .container(direction: .vertical,   children: [newZone, oldRoot])
-            case .down:  rootZone = .container(direction: .vertical,   children: [oldRoot, newZone])
+            case .up:
+                rootZone = .container(direction: .vertical, children: [newZone, oldRoot])
+            case .down:
+                rootZone = .container(direction: .vertical, children: [oldRoot, newZone])
             }
             rootZone.verticalAlignment = preservedVerticalAlignment
             return newZoneID
@@ -109,25 +112,27 @@ final class ZoneCardContent {
         let parentZone = parentPath.indices.isEmpty ? rootZone : zone(at: parentPath)
         guard let parent = parentZone else { return newZoneID }
 
-        if !parent.isLeaf && parent.direction == direction.zoneDirection {
-            // The parent is already a container on the same axis — insert directly.
+        if !parent.isLeaf && parent.direction == .vertical {
+            // The parent is already a vertical container, so insert directly.
             updateZone(at: parentPath) { parentZone in
                 var kids = parentZone.children ?? []
                 switch direction {
-                case .left, .up:    kids.insert(newZone, at: childIndex)
-                case .right, .down: kids.insert(newZone, at: childIndex + 1)
+                case .up:
+                    kids.insert(newZone, at: childIndex)
+                case .down:
+                    kids.insert(newZone, at: childIndex + 1)
                 }
                 parentZone.children = kids
             }
         } else {
-            // Wrap the current zone in a new container on the required axis.
+            // Wrap the current zone in a new vertical container.
             updateZone(at: path) { currentZone in
                 let oldZone = currentZone
                 switch direction {
-                case .left:  currentZone = .container(direction: .horizontal, children: [newZone, oldZone])
-                case .right: currentZone = .container(direction: .horizontal, children: [oldZone, newZone])
-                case .up:    currentZone = .container(direction: .vertical,   children: [newZone, oldZone])
-                case .down:  currentZone = .container(direction: .vertical,   children: [oldZone, newZone])
+                case .up:
+                    currentZone = .container(direction: .vertical, children: [newZone, oldZone])
+                case .down:
+                    currentZone = .container(direction: .vertical, children: [oldZone, newZone])
                 }
             }
         }
@@ -280,12 +285,24 @@ final class ZoneCardContent {
             for i in 0..<kids.count { cleanupRecursive(zone: &kids[i]) }
             if kids.count == 1      { zone = kids[0] }
             else if kids.isEmpty    { zone.children = nil; zone.contentType = .empty }
-            else                    { zone.children = kids }
+            else {
+                zone.direction = .vertical
+                zone.children = kids
+            }
         }
     }
 }
 
 private extension ZoneModel {
+    mutating func normalizeAuthoringLayoutRecursively() {
+        guard var kids = children else { return }
+        for index in kids.indices {
+            kids[index].normalizeAuthoringLayoutRecursively()
+        }
+        direction = .vertical
+        children = kids
+    }
+
     mutating func regenerateIDsRecursively() {
         id = UUID()
         guard var kids = children else { return }

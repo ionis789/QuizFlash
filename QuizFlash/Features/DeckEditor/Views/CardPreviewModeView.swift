@@ -16,6 +16,7 @@ struct CardPreviewModeView: View {
     let showsLeadingAccessory: Bool
     let leadingAccessory: AnyView
     let contentAlignment: FlashcardContentAlignment
+    let textSize: FlashcardTextSize
     let onOpenRecommendedConversion: ((CardKind) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
@@ -61,6 +62,7 @@ struct CardPreviewModeView: View {
         showsLeadingAccessory: Bool = false,
         leadingAccessory: AnyView = AnyView(EmptyView()),
         contentAlignment: FlashcardContentAlignment = .center,
+        textSize: FlashcardTextSize = .large,
         onOpenRecommendedConversion: ((CardKind) -> Void)? = nil
     ) {
         self.content = content
@@ -68,6 +70,7 @@ struct CardPreviewModeView: View {
         self.showsLeadingAccessory = showsLeadingAccessory
         self.leadingAccessory = leadingAccessory
         self.contentAlignment = contentAlignment
+        self.textSize = textSize
         self.onOpenRecommendedConversion = onOpenRecommendedConversion
     }
 
@@ -75,7 +78,8 @@ struct CardPreviewModeView: View {
         front: ZoneCardContent,
         back: ZoneCardContent,
         safeAreaInsets: UIEdgeInsets = .zero,
-        contentAlignment: FlashcardContentAlignment = .center
+        contentAlignment: FlashcardContentAlignment = .center,
+        textSize: FlashcardTextSize = .large
     ) {
         self.init(
             content: .flashcard(
@@ -87,7 +91,8 @@ struct CardPreviewModeView: View {
                 )
             ),
             safeAreaInsets: safeAreaInsets,
-            contentAlignment: contentAlignment
+            contentAlignment: contentAlignment,
+            textSize: textSize
         )
     }
 
@@ -149,6 +154,7 @@ struct CardPreviewModeView: View {
                     isFlipped: $isFlipped,
                     tapAnimationStyle: .flip3D,
                     contentAlignment: contentAlignment,
+                    textSize: textSize,
                     onTap: togglePreviewFlip
                 )
                 .frame(maxWidth: .infinity)

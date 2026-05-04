@@ -16,6 +16,19 @@ extension Notification.Name {
     static let scrollToCursor = Notification.Name("scrollToCursor")
     static let zoneFocusRequest = Notification.Name("zoneFocusRequest")
     static let focusZoneTextView = Notification.Name("focusZoneTextView")
+    static let zoneEditorCaretMoved = Notification.Name("zoneEditorCaretMoved")
+    static let zoneEditorResizeHandleMoved = Notification.Name("zoneEditorResizeHandleMoved")
+}
+
+enum ZoneEditorCaretScrollNotification {
+    static let pathIDKey = "pathID"
+    static let anchorYKey = "anchorY"
+}
+
+enum ZoneEditorResizeScrollNotification {
+    static let pathIDKey = "pathID"
+    static let anchorYKey = "anchorY"
+    static let deltaYKey = "deltaY"
 }
 
 // MARK: - Zone Focus Manager
@@ -42,13 +55,15 @@ final class ZoneFocusManager {
     private var keyboardRetainTask: Task<Void, Never>?
     private var focusRetentionTask: Task<Void, Never>?
     private var focusNotificationTask: Task<Void, Never>?
+    private var pendingCursorLocations: [UUID: Int] = [:]
     
     // MARK: - Focus Management
     
     /// Requests focus for a specific zone
     func requestFocus(for zoneID: UUID) {
         pendingFocusZoneID = zoneID
-        focusedZoneID = zoneID
+        ZoneEditorDebugStore.shared.recordFocusEvent("manager requestFocus", zoneID: zoneID)
+        reportDebugState()
         
         // Post notification for UIKit components
         NotificationCenter.default.post(
@@ -72,11 +87,25 @@ final class ZoneFocusManager {
     func clearPendingFocus() {
         pendingFocusZoneID = nil
         releaseKeyboardRetention()
+        ZoneEditorDebugStore.shared.recordFocusEvent("manager clearPending", zoneID: focusedZoneID)
+        reportDebugState()
+    }
+
+    func requestCursorLocation(_ location: Int, for zoneID: UUID) {
+        pendingCursorLocations[zoneID] = max(location, 0)
+    }
+
+    func takePendingCursorLocation(for zoneID: UUID) -> Int? {
+        let location = pendingCursorLocations[zoneID]
+        pendingCursorLocations.removeValue(forKey: zoneID)
+        return location
     }
     
     /// Updates the currently focused zone
     func updateFocusedZone(_ zoneID: UUID?) {
         focusedZoneID = zoneID
+        ZoneEditorDebugStore.shared.recordFocusEvent("manager updateFocused", zoneID: zoneID)
+        reportDebugState()
     }
     
     // MARK: - Keyboard Retention
@@ -85,6 +114,7 @@ final class ZoneFocusManager {
     func prepareForZoneInsertion() {
         keyboardRetainTask?.cancel()
         shouldRetainKeyboard = true
+        reportDebugState()
     }
     
     /// Releases keyboard retention after a delay
@@ -95,6 +125,7 @@ final class ZoneFocusManager {
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 self.shouldRetainKeyboard = false
+                self.reportDebugState()
             }
         }
     }
@@ -106,6 +137,8 @@ final class ZoneFocusManager {
         pendingFocusZoneID = nil
         focusedZoneID = nil
         shouldRetainKeyboard = false
+        ZoneEditorDebugStore.shared.recordFocusEvent("manager forceRelease", zoneID: nil)
+        reportDebugState()
         UIApplication.shared.sendAction(
             #selector(UIResponder.resignFirstResponder),
             to: nil,
@@ -121,6 +154,7 @@ final class ZoneFocusManager {
         focusRetentionTask?.cancel()
         keyboardRetainTask?.cancel()
         shouldRetainKeyboard = true
+        reportDebugState()
     }
     
     /// Releases focus retention after transition
@@ -133,6 +167,14 @@ final class ZoneFocusManager {
                 self.releaseKeyboardRetention(afterDelay: 0.05)
             }
         }
+    }
+
+    private func reportDebugState() {
+        ZoneEditorDebugStore.shared.updateFocusManager(
+            focusedZoneID: focusedZoneID,
+            pendingZoneID: pendingFocusZoneID,
+            retainKeyboard: shouldRetainKeyboard
+        )
     }
 }
 

@@ -37,7 +37,12 @@ struct ZoneEditorCanvas: View {
 
     @State private var zoneFrames: [ZoneEditorResolvedZoneFrame] = []
     @State private var scheduledScrollTask: Task<Void, Never>?
+    @State private var scheduledResizeScrollTask: Task<Void, Never>?
     @State private var lastTapDebugLine: String = ""
+    @State private var debugStore = ZoneEditorDebugStore.shared
+    @State private var resizeScrollDriver = ZoneResizeAutoscrollDriver()
+
+    private var focusManager: ZoneFocusManager { ZoneFocusManager.shared }
 
     private static let coordinateSpaceName = "ZoneEditorCanvasContent"
     private static let playModeCardAspectRatio: CGFloat = 369.0 / 613.0
@@ -85,6 +90,11 @@ struct ZoneEditorCanvas: View {
                     .frame(width: cardWidth, alignment: .topLeading)
                     .frame(minHeight: cardHeight + keyboardAvoidanceInset, alignment: .topLeading)
                 }
+                .background {
+                    ZoneEditorScrollViewLocator { scrollView in
+                        resizeScrollDriver.attach(scrollView)
+                    }
+                }
                 .scrollDismissesKeyboard(.interactively)
                 .frame(width: cardWidth, height: cardHeight, alignment: .topLeading)
                 .background(cardSurface)
@@ -100,13 +110,118 @@ struct ZoneEditorCanvas: View {
                 .padding(.bottom, UIConstants.Spacing.small)
                 .onChange(of: selectedPath) { _, newPath in
                     scheduleSelectionScroll(to: newPath, in: proxy)
+                    updateCanvasDebug(
+                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        contentSize: CGSize(width: contentWidth, height: contentHeight)
+                    )
                 }
                 .onChange(of: keyboardMonitor.visibleHeight) { _, _ in
                     scheduleSelectionScroll(to: selectedPath, in: proxy)
+                    updateCanvasDebug(
+                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        contentSize: CGSize(width: contentWidth, height: contentHeight)
+                    )
+                }
+                .onChange(of: keyboardMonitor.isVisible) { _, _ in
+                    updateCanvasDebug(
+                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        contentSize: CGSize(width: contentWidth, height: contentHeight)
+                    )
+                }
+                .onChange(of: focusManager.focusedZoneID) { _, _ in
+                    updateCanvasDebug(
+                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        contentSize: CGSize(width: contentWidth, height: contentHeight)
+                    )
+                }
+                .onChange(of: focusManager.pendingFocusZoneID) { _, _ in
+                    updateCanvasDebug(
+                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        contentSize: CGSize(width: contentWidth, height: contentHeight)
+                    )
+                }
+                .onChange(of: zoneFrames) { _, _ in
+                    updateCanvasDebug(
+                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        contentSize: CGSize(width: contentWidth, height: contentHeight)
+                    )
+                }
+                .onAppear {
+                    updateCanvasDebug(
+                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        contentSize: CGSize(width: contentWidth, height: contentHeight)
+                    )
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .zoneEditorCaretMoved)) { notification in
+                    guard let selectedPath,
+                          notification.userInfo?[ZoneEditorCaretScrollNotification.pathIDKey] as? String == selectedPath.id else {
+                        return
+                    }
+
+                    let rawAnchor = notification.userInfo?[ZoneEditorCaretScrollNotification.anchorYKey]
+                    let requestedAnchorY: CGFloat
+                    if let number = rawAnchor as? NSNumber {
+                        requestedAnchorY = CGFloat(number.doubleValue)
+                    } else if let value = rawAnchor as? CGFloat {
+                        requestedAnchorY = value
+                    } else if let value = rawAnchor as? Double {
+                        requestedAnchorY = CGFloat(value)
+                    } else {
+                        requestedAnchorY = 0.5
+                    }
+                    let anchorY = min(max(requestedAnchorY, 0.08), 0.92)
+                    scheduleSelectionScroll(
+                        to: selectedPath,
+                        in: proxy,
+                        anchor: UnitPoint(x: 0.5, y: keyboardMonitor.isVisible ? anchorY : 0.5)
+                    )
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .zoneEditorResizeHandleMoved)) { notification in
+                    guard let selectedPath,
+                          notification.userInfo?[ZoneEditorResizeScrollNotification.pathIDKey] as? String == selectedPath.id else {
+                        return
+                    }
+
+                    let rawAnchor = notification.userInfo?[ZoneEditorResizeScrollNotification.anchorYKey]
+                    let requestedAnchorY: CGFloat
+                    if let number = rawAnchor as? NSNumber {
+                        requestedAnchorY = CGFloat(number.doubleValue)
+                    } else if let value = rawAnchor as? CGFloat {
+                        requestedAnchorY = value
+                    } else if let value = rawAnchor as? Double {
+                        requestedAnchorY = CGFloat(value)
+                    } else {
+                        requestedAnchorY = 0.86
+                    }
+
+                    let rawDeltaY = notification.userInfo?[ZoneEditorResizeScrollNotification.deltaYKey]
+                    let deltaY: CGFloat
+                    if let number = rawDeltaY as? NSNumber {
+                        deltaY = CGFloat(number.doubleValue)
+                    } else if let value = rawDeltaY as? CGFloat {
+                        deltaY = value
+                    } else if let value = rawDeltaY as? Double {
+                        deltaY = CGFloat(value)
+                    } else {
+                        deltaY = 0
+                    }
+
+                    if resizeScrollDriver.scrollForResize(deltaY: deltaY) {
+                        return
+                    }
+
+                    scheduleResizeScroll(
+                        to: selectedPath,
+                        in: proxy,
+                        anchor: UnitPoint(x: 0.5, y: min(max(requestedAnchorY, 0.08), 0.94))
+                    )
                 }
                 .onDisappear {
                     scheduledScrollTask?.cancel()
                     scheduledScrollTask = nil
+                    scheduledResizeScrollTask?.cancel()
+                    scheduledResizeScrollTask = nil
+                    resizeScrollDriver.detach()
                 }
             }
         }
@@ -175,10 +290,12 @@ struct ZoneEditorCanvas: View {
     private func handleEmptySpaceTap(location: CGPoint, contentSize: CGSize) {
         guard !zoneFrames.contains(where: { $0.frame.insetBy(dx: -6, dy: -6).contains(location) }) else {
             lastTapDebugLine = "tap zone/select"
+            ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
             return
         }
 
         lastTapDebugLine = "tap empty x=\(Int(location.x)) y=\(Int(location.y))"
+        ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
         onEmptySpaceTap(
             ZoneEditorCanvasTapContext(
                 location: location,
@@ -188,15 +305,37 @@ struct ZoneEditorCanvas: View {
         )
     }
 
-    private func scheduleSelectionScroll(to path: ZonePath?, in proxy: ScrollViewProxy) {
+    private func scheduleSelectionScroll(
+        to path: ZonePath?,
+        in proxy: ScrollViewProxy,
+        anchor: UnitPoint? = nil
+    ) {
         scheduledScrollTask?.cancel()
         guard let path else { return }
 
         scheduledScrollTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(100))
             guard !Task.isCancelled else { return }
+            let resolvedAnchor = anchor ?? (keyboardMonitor.isVisible ? .top : .center)
             withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) {
-                proxy.scrollTo(path.id, anchor: keyboardMonitor.isVisible ? .top : .center)
+                proxy.scrollTo(path.id, anchor: resolvedAnchor)
+            }
+        }
+    }
+
+    private func scheduleResizeScroll(
+        to path: ZonePath?,
+        in proxy: ScrollViewProxy,
+        anchor: UnitPoint
+    ) {
+        scheduledResizeScrollTask?.cancel()
+        guard let path else { return }
+
+        scheduledResizeScrollTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(18))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.14)) {
+                proxy.scrollTo(path.id, anchor: anchor)
             }
         }
     }
@@ -214,19 +353,56 @@ struct ZoneEditorCanvas: View {
 
     @ViewBuilder
     private var debugOverlay: some View {
-        if showsDebugOverlay {
+        if showsDebugTools {
             VStack(alignment: .leading, spacing: 3) {
-                Text(selectedDebugLine)
-                Text(lastTapDebugLine.isEmpty ? "tap idle" : lastTapDebugLine)
-                if let selectedFrame {
-                    Text("rect \(Int(selectedFrame.width))x\(Int(selectedFrame.height)) @ \(Int(selectedFrame.minX)),\(Int(selectedFrame.minY))")
+                Button {
+                    developmentPreferences.zoneEditorDebugHUDEnabled.toggle()
+                } label: {
+                    Text(developmentPreferences.zoneEditorDebugHUDEnabled ? "DBG ON" : "DBG")
+                        .font(.caption2.monospaced().weight(.bold))
+                        .foregroundStyle(developmentPreferences.zoneEditorDebugHUDEnabled ? .black : .orange)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(
+                            developmentPreferences.zoneEditorDebugHUDEnabled ? Color.orange : Color.black.opacity(0.62),
+                            in: Capsule(style: .continuous)
+                        )
+                }
+                .buttonStyle(.plain)
+
+                if developmentPreferences.zoneEditorDebugHUDEnabled {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(selectedDebugLine)
+                        Text(lastTapDebugLine.isEmpty ? "tap idle" : lastTapDebugLine)
+                        if let selectedFrame {
+                            Text("rect \(Int(selectedFrame.width))x\(Int(selectedFrame.height)) @ \(Int(selectedFrame.minX)),\(Int(selectedFrame.minY))")
+                        }
+                        ForEach(Array(debugStore.hudLines.enumerated()), id: \.offset) { _, line in
+                            Text(line)
+                        }
+                    }
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.orange)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
+                    .padding(6)
+                    .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: UIConstants.Radius.small))
+                    .allowsHitTesting(false)
+                } else if showsGridDebugOverlay {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(selectedDebugLine)
+                        Text(lastTapDebugLine.isEmpty ? "tap idle" : lastTapDebugLine)
+                        if let selectedFrame {
+                            Text("rect \(Int(selectedFrame.width))x\(Int(selectedFrame.height)) @ \(Int(selectedFrame.minX)),\(Int(selectedFrame.minY))")
+                        }
+                    }
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.orange)
+                    .padding(UIConstants.Spacing.tiny)
+                    .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: UIConstants.Radius.small))
+                    .allowsHitTesting(false)
                 }
             }
-            .font(.caption2.monospaced())
-            .foregroundStyle(.orange)
-            .padding(UIConstants.Spacing.tiny)
-            .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: UIConstants.Radius.small))
-            .allowsHitTesting(false)
         }
     }
 
@@ -243,7 +419,26 @@ struct ZoneEditorCanvas: View {
         return zoneFrames.first { $0.path == selectedPath }?.frame
     }
 
-    private var showsDebugOverlay: Bool {
+    private func updateCanvasDebug(cardSize: CGSize, contentSize: CGSize) {
+        debugStore.updateCanvas(
+            cardSize: cardSize,
+            contentSize: contentSize,
+            selectedFrame: selectedFrame,
+            keyboardVisible: keyboardMonitor.isVisible,
+            keyboardHeight: keyboardMonitor.visibleHeight
+        )
+        debugStore.updateFocusManager(
+            focusedZoneID: focusManager.focusedZoneID,
+            pendingZoneID: focusManager.pendingFocusZoneID,
+            retainKeyboard: focusManager.shouldRetainKeyboard
+        )
+    }
+
+    private var showsDebugTools: Bool {
+        AppFeatures.current.showsVisualDebugOverlays
+    }
+
+    private var showsGridDebugOverlay: Bool {
         AppFeatures.current.showsVisualDebugOverlays
             && developmentPreferences.flashcardGridTextLayoutDebugEnabled
     }
@@ -260,5 +455,121 @@ struct ZoneEditorCanvas: View {
 
     private var borderColor: Color {
         colorScheme == .dark ? Color.white.opacity(0.045) : Color.black.opacity(0.08)
+    }
+}
+
+// MARK: - Resize Autoscroll
+
+@MainActor
+private final class ZoneResizeAutoscrollDriver {
+    private weak var scrollView: UIScrollView?
+    private var lastScrollTime: TimeInterval = 0
+
+    func attach(_ scrollView: UIScrollView?) {
+        guard self.scrollView !== scrollView else { return }
+        self.scrollView = scrollView
+        lastScrollTime = 0
+    }
+
+    func detach() {
+        scrollView = nil
+        lastScrollTime = 0
+    }
+
+    func scrollForResize(deltaY: CGFloat) -> Bool {
+        guard let scrollView,
+              scrollView.bounds.height > 0,
+              abs(deltaY) >= 0.5
+        else {
+            return false
+        }
+
+        let now = Date.timeIntervalSinceReferenceDate
+        guard now - lastScrollTime >= 1.0 / 45.0 else {
+            return true
+        }
+
+        let currentY = scrollView.contentOffset.y
+        let direction: CGFloat = deltaY > 0 ? 1 : -1
+        let distance = min(max(abs(deltaY) * 0.45, 5), 24)
+        let minOffsetY = -scrollView.adjustedContentInset.top
+        let maxOffsetY = max(
+            minOffsetY,
+            scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom
+        )
+        let targetY = min(max(currentY + direction * distance, minOffsetY), maxOffsetY)
+
+        guard abs(targetY - currentY) > 0.25 else {
+            return true
+        }
+
+        scrollView.setContentOffset(
+            CGPoint(x: scrollView.contentOffset.x, y: targetY),
+            animated: false
+        )
+        lastScrollTime = now
+        return true
+    }
+}
+
+private struct ZoneEditorScrollViewLocator: UIViewRepresentable {
+    var onResolve: (UIScrollView?) -> Void
+
+    func makeUIView(context: Context) -> ResolverView {
+        let view = ResolverView()
+        view.onResolve = onResolve
+        return view
+    }
+
+    func updateUIView(_ uiView: ResolverView, context: Context) {
+        uiView.onResolve = onResolve
+        uiView.resolveSoon()
+    }
+
+    final class ResolverView: UIView {
+        var onResolve: ((UIScrollView?) -> Void)?
+        private weak var resolvedScrollView: UIScrollView?
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            isOpaque = false
+            backgroundColor = .clear
+            isUserInteractionEnabled = false
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func didMoveToSuperview() {
+            super.didMoveToSuperview()
+            resolveSoon()
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            resolveSoon()
+        }
+
+        func resolveSoon() {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                let scrollView = self.nearestAncestorScrollView()
+                guard self.resolvedScrollView !== scrollView else { return }
+                self.resolvedScrollView = scrollView
+                self.onResolve?(scrollView)
+            }
+        }
+
+        private func nearestAncestorScrollView() -> UIScrollView? {
+            var view = superview
+            while let candidate = view {
+                if let scrollView = candidate as? UIScrollView {
+                    return scrollView
+                }
+                view = candidate.superview
+            }
+            return nil
+        }
     }
 }

@@ -70,7 +70,32 @@ final class ZoneModelLayoutMigrationTests: XCTestCase {
         XCTAssertEqual(content.rootZone.verticalAlignment, .top)
     }
 
-    func testFixedZoneHeightExpandsToRenderedContentHeight() {
+    func testAuthoringInitializationNormalizesHorizontalContainersToVertical() {
+        let root = ZoneModel.container(
+            direction: .horizontal,
+            children: [
+                ZoneModel.text("Left"),
+                ZoneModel.text("Right")
+            ]
+        )
+
+        let content = ZoneCardContent(rootZone: root)
+
+        XCTAssertEqual(content.rootZone.direction, .vertical)
+        XCTAssertEqual(content.rootZone.children?.map(\.text), ["Left", "Right"])
+    }
+
+    func testAuthoringInsertionUsesVerticalOrder() {
+        let content = ZoneCardContent(rootZone: ZoneModel.text("Root"))
+
+        _ = content.addTextZone(relativeTo: .root, direction: .down)
+
+        XCTAssertEqual(content.rootZone.direction, .vertical)
+        XCTAssertEqual(content.rootZone.children?.first?.text, "Root")
+        XCTAssertEqual(content.rootZone.children?.last?.contentType, .empty)
+    }
+
+    func testFixedTextZoneHeightExpandsWhenContentIsTaller() {
         var zone = ZoneModel.text("Tall content")
         zone.sizeMode = .fixed
         zone.fixedWidth = 160

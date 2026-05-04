@@ -5,6 +5,8 @@
 
 import SwiftUI
 import UIKit
+import Observation
+import Foundation
 
 // MARK: - Full Hit Text View
 /// Custom UITextView that keeps selection stable inside the editor surface.
@@ -17,6 +19,174 @@ final class FullHitTextView: UITextView {
     }
 }
 
+// MARK: - Zone Editor Debug Store
+
+@Observable
+@MainActor
+final class ZoneEditorDebugStore {
+    static let shared = ZoneEditorDebugStore()
+
+    private(set) var eventIndex: Int = 0
+    private(set) var lastEvent: String = "idle"
+    private(set) var focusLine: String = "focus idle"
+    private(set) var textViewLine: String = "textview idle"
+    private(set) var selectedZoneLine: String = "zone idle"
+    private(set) var selectedLayoutLine: String = "layout idle"
+    private(set) var resizeHandleLine: String = "handle idle"
+    private(set) var resizeTouchLine: String = "touch idle"
+    private(set) var resizeCalcLine: String = "resize idle"
+    private(set) var canvasLine: String = "canvas idle"
+    private(set) var tapLine: String = "tap idle"
+    private(set) var caretLine: String = "caret idle"
+
+    private var resizeBeginCount = 0
+    private var resizeMoveCount = 0
+    private var resizeEndCount = 0
+    private var lastResizeMovePublishTime: TimeInterval = 0
+
+    private init() { }
+
+    var hudLines: [String] {
+        [
+            "#\(eventIndex) \(lastEvent)",
+            focusLine,
+            textViewLine,
+            selectedZoneLine,
+            selectedLayoutLine,
+            resizeHandleLine,
+            resizeTouchLine,
+            resizeCalcLine,
+            canvasLine,
+            tapLine,
+            caretLine
+        ]
+    }
+
+    func recordEvent(_ value: String) {
+        eventIndex += 1
+        lastEvent = value
+    }
+
+    func updateFocusManager(focusedZoneID: UUID?, pendingZoneID: UUID?, retainKeyboard: Bool) {
+        focusLine = "focus manager focused=\(shortID(focusedZoneID)) pending=\(shortID(pendingZoneID)) retain=\(retainKeyboard ? "1" : "0")"
+    }
+
+    func updateTextView(
+        zoneID: UUID?,
+        mountedFocused: Bool,
+        textViewFirstResponder: Bool,
+        uiViewFirstResponder: Bool,
+        requestedFirstResponder: Bool,
+        textLength: Int
+    ) {
+        textViewLine = "text mounted=\(flag(mountedFocused)) swiftFR=\(flag(textViewFirstResponder)) uiFR=\(flag(uiViewFirstResponder)) request=\(flag(requestedFirstResponder)) len=\(textLength) zone=\(shortID(zoneID))"
+    }
+
+    func updateSelectedZone(
+        pathID: String,
+        zoneID: UUID?,
+        contentType: String,
+        sizeMode: String,
+        blockAlignment: String,
+        textAlignment: String,
+        verticalAlignment: String,
+        fixedWidth: CGFloat?,
+        fixedHeight: CGFloat?
+    ) {
+        selectedZoneLine = "zone path=\(pathID) id=\(shortID(zoneID)) type=\(contentType) size=\(sizeMode) block=\(blockAlignment) text=\(textAlignment) y=\(verticalAlignment) fixed=\(format(fixedWidth))x\(format(fixedHeight))"
+    }
+
+    func updateSelectedLayout(
+        blockSize: CGSize,
+        contentWidth: CGFloat,
+        leadingInset: CGFloat,
+        renderedSize: CGSize,
+        isSelected: Bool,
+        isResizing: Bool
+    ) {
+        selectedLayoutLine = "layout block=\(format(blockSize.width))x\(format(blockSize.height)) contentW=\(format(contentWidth)) lead=\(format(leadingInset)) measured=\(format(renderedSize.width))x\(format(renderedSize.height)) selected=\(flag(isSelected)) resizing=\(flag(isResizing))"
+    }
+
+    func updateResizeHandle(blockSize: CGSize, hitSize: CGSize, glyphSize: CGFloat, selected: Bool) {
+        resizeHandleLine = "handle selected=\(flag(selected)) block=\(format(blockSize.width))x\(format(blockSize.height)) hit=\(format(hitSize.width))x\(format(hitSize.height)) glyph=\(format(glyphSize))"
+    }
+
+    func recordResizeTouch(phase: String, x: CGFloat, y: CGFloat, dx: CGFloat, dy: CGFloat) {
+        let shouldPublish: Bool
+        switch phase {
+        case "began":
+            resizeBeginCount += 1
+            shouldPublish = true
+        case "moved":
+            resizeMoveCount += 1
+            let now = Date.timeIntervalSinceReferenceDate
+            shouldPublish = now - lastResizeMovePublishTime >= 0.05 || resizeMoveCount % 10 == 0
+            if shouldPublish {
+                lastResizeMovePublishTime = now
+            }
+        case "ended", "cancelled":
+            resizeEndCount += 1
+            shouldPublish = true
+        default:
+            shouldPublish = true
+            break
+        }
+
+        guard shouldPublish else { return }
+
+        resizeTouchLine = "touch \(phase) begin=\(resizeBeginCount) move=\(resizeMoveCount) end=\(resizeEndCount) local=\(format(x)),\(format(y)) delta=\(format(dx)),\(format(dy))"
+        recordEvent("corner touch \(phase)")
+    }
+
+    func updateResizeCalculation(axis: String, startSize: CGSize, nextSize: CGSize, translation: CGSize) {
+        resizeCalcLine = "resize axis=\(axis) start=\(format(startSize.width))x\(format(startSize.height)) next=\(format(nextSize.width))x\(format(nextSize.height)) delta=\(format(translation.width)),\(format(translation.height))"
+    }
+
+    func updateCanvas(
+        cardSize: CGSize,
+        contentSize: CGSize,
+        selectedFrame: CGRect?,
+        keyboardVisible: Bool,
+        keyboardHeight: CGFloat
+    ) {
+        let frameText: String
+        if let selectedFrame {
+            frameText = "\(format(selectedFrame.width))x\(format(selectedFrame.height)) @\(format(selectedFrame.minX)),\(format(selectedFrame.minY))"
+        } else {
+            frameText = "nil"
+        }
+        canvasLine = "canvas card=\(format(cardSize.width))x\(format(cardSize.height)) content=\(format(contentSize.width))x\(format(contentSize.height)) selectedFrame=\(frameText) keyboard=\(flag(keyboardVisible)):\(format(keyboardHeight))"
+    }
+
+    func recordTap(_ value: String) {
+        tapLine = value
+        recordEvent(value)
+    }
+
+    func recordFocusEvent(_ value: String, zoneID: UUID?) {
+        focusLine = "\(value) zone=\(shortID(zoneID))"
+        recordEvent(value)
+    }
+
+    func recordCaret(zoneID: UUID?, selectedRange: NSRange, anchorY: CGFloat) {
+        caretLine = "caret zone=\(shortID(zoneID)) loc=\(selectedRange.location) len=\(selectedRange.length) anchorY=\(format(anchorY))"
+    }
+
+    private func shortID(_ id: UUID?) -> String {
+        guard let id else { return "nil" }
+        return String(id.uuidString.prefix(6))
+    }
+
+    private func flag(_ value: Bool) -> String {
+        value ? "1" : "0"
+    }
+
+    private func format(_ value: CGFloat?) -> String {
+        guard let value else { return "nil" }
+        return String(format: "%.0f", Double(value))
+    }
+}
+
 // MARK: - Zone Text View Coordinator
 
 final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
@@ -24,8 +194,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
+    var onCaretAnchorChange: ((CGFloat) -> Void)?
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
+    var font: UIFont = .preferredFont(forTextStyle: .body)
+    var lineSpacing: CGFloat = 0
+    var contentInset: UIEdgeInsets = .zero
+    var extendsTextOnBlankTap: Bool = false
     
     private var lastText: String = ""
     var isUpdating: Bool = false
@@ -44,8 +219,23 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                self.zoneID == zoneID {
                 // Prevent glitch: only bring focus if not already here
                 if !(self.textView?.isFirstResponder ?? false) {
-                    self.textView?.becomeFirstResponder()
+                    let didFocus = self.textView?.becomeFirstResponder() ?? false
+                    if !didFocus {
+                        Task { @MainActor in
+                            ZoneEditorDebugStore.shared.recordFocusEvent("focus notification failed", zoneID: zoneID)
+                        }
+                        self.onFocusChange?(false)
+                        return
+                    }
+                    Task { @MainActor in
+                        ZoneEditorDebugStore.shared.recordFocusEvent("focus notification becameFR", zoneID: zoneID)
+                    }
+                } else {
+                    Task { @MainActor in
+                        ZoneEditorDebugStore.shared.recordFocusEvent("focus notification alreadyFR", zoneID: zoneID)
+                    }
                 }
+                self.applyPendingCursorLocation(for: zoneID)
             }
         }
     }
@@ -58,6 +248,32 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
         return true
+    }
+
+    @objc func handleSurfaceTap(_ recognizer: UITapGestureRecognizer) {
+        guard recognizer.state == .ended,
+              extendsTextOnBlankTap,
+              let textView,
+              textView.bounds.contains(recognizer.location(in: textView)) else {
+            return
+        }
+
+        if !textView.isFirstResponder {
+            textView.becomeFirstResponder()
+        }
+
+        reportCursorPosition(from: textView)
+    }
+
+    private func applyPendingCursorLocation(for zoneID: UUID) {
+        guard let textView,
+              let requestedLocation = ZoneFocusManager.shared.takePendingCursorLocation(for: zoneID) else {
+            return
+        }
+
+        let clampedLocation = min(max(requestedLocation, 0), (textView.text as NSString).length)
+        textView.selectedRange = NSRange(location: clampedLocation, length: 0)
+        reportCursorPosition(from: textView)
     }
     
     func textViewDidChange(_ textView: UITextView) {
@@ -75,11 +291,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
     
     func textViewDidBeginEditing(_ textView: UITextView) {
+        ZoneEditorDebugStore.shared.recordFocusEvent("textView didBegin", zoneID: zoneID)
         onFocusChange?(true)
         reportCursorPosition(from: textView)
     }
     
     func textViewDidEndEditing(_ textView: UITextView) {
+        ZoneEditorDebugStore.shared.recordFocusEvent("textView didEnd", zoneID: zoneID)
         onFocusChange?(false)
     }
     
@@ -89,6 +307,20 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         onCursorChange?(nsRange, text)
         let (focusedLineIndex, totalLines) = calculateLineInfo(from: text, location: nsRange.location)
         onFocusLineChange?(focusedLineIndex, totalLines)
+
+        if let selectedTextRange = textView.selectedTextRange {
+            let caretRect = textView.caretRect(for: selectedTextRange.start)
+            let anchorY = min(
+                max(caretRect.midY / max(textView.bounds.height, 1), 0.08),
+                0.92
+            )
+            ZoneEditorDebugStore.shared.recordCaret(
+                zoneID: zoneID,
+                selectedRange: nsRange,
+                anchorY: anchorY
+            )
+            onCaretAnchorChange?(anchorY)
+        }
     }
     
     private func calculateLineInfo(from text: String, location: Int) -> (lineIndex: Int, totalLines: Int) {
@@ -98,7 +330,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         
         var currentIndex = 0
         for (index, line) in lines.enumerated() {
-            let lineLength = line.count + 1
+            let lineLength = (line as NSString).length + 1
             if location < currentIndex + lineLength { return (index, totalLines) }
             currentIndex += lineLength
         }
@@ -116,11 +348,15 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     let isBold: Bool
     let isItalic: Bool
     var lineSpacing: CGFloat = 0
+    var contentInset: UIEdgeInsets = .zero
+    var cursorTintColor: UIColor = .systemPurple
+    var extendsTextOnBlankTap: Bool = false
     let zoneID: UUID
     let isFirstResponder: Bool
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
+    var onCaretAnchorChange: ((CGFloat) -> Void)?
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
     
@@ -130,10 +366,15 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         textView.delegate = context.coordinator
         context.coordinator.textView = textView
         context.coordinator.zoneID = zoneID
+        context.coordinator.font = font
+        context.coordinator.lineSpacing = lineSpacing
+        context.coordinator.contentInset = contentInset
+        context.coordinator.extendsTextOnBlankTap = extendsTextOnBlankTap
         
         textView.font = font
         textView.textColor = textColor
         textView.textAlignment = textAlignment
+        textView.tintColor = cursorTintColor
         textView.backgroundColor = .clear
         textView.adjustsFontForContentSizeCategory = true
         textView.autocapitalizationType = .none
@@ -143,11 +384,19 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         textView.returnKeyType = .default
         textView.isScrollEnabled = false
         textView.textContainer.lineFragmentPadding = 0
-        textView.textContainerInset = .zero
+        textView.textContainerInset = contentInset
         textView.allowsEditingTextAttributes = false
         
         textView.textContainer.lineBreakMode = .byWordWrapping
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        let surfaceTapRecognizer = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(ZoneTextViewCoordinator.handleSurfaceTap(_:))
+        )
+        surfaceTapRecognizer.cancelsTouchesInView = false
+        surfaceTapRecognizer.delegate = context.coordinator
+        textView.addGestureRecognizer(surfaceTapRecognizer)
         
         textView.text = text
         updateStyling(of: textView)
@@ -160,8 +409,21 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.onTextChange = onTextChange
         context.coordinator.onCursorChange = onCursorChange
         context.coordinator.onFocusLineChange = onFocusLineChange
+        context.coordinator.onCaretAnchorChange = onCaretAnchorChange
         context.coordinator.onCommit = onCommit
         context.coordinator.onFocusChange = onFocusChange
+        context.coordinator.font = font
+        context.coordinator.lineSpacing = lineSpacing
+        context.coordinator.contentInset = contentInset
+        context.coordinator.extendsTextOnBlankTap = extendsTextOnBlankTap
+        ZoneEditorDebugStore.shared.updateTextView(
+            zoneID: zoneID,
+            mountedFocused: isFirstResponder,
+            textViewFirstResponder: textView.isFirstResponder,
+            uiViewFirstResponder: textView.isFirstResponder,
+            requestedFirstResponder: isFirstResponder,
+            textLength: ((textView.text ?? "") as NSString).length
+        )
         
         guard textView.text != text else {
             updateStyling(of: textView)
@@ -169,13 +431,20 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             return
         }
         
+        let oldText = textView.text ?? ""
         let selectedRange = textView.selectedRange
+        let shouldMoveCursorToEnd = extendsTextOnBlankTap
+            && text.hasPrefix(oldText)
+            && text.count > oldText.count
+            && text.dropFirst(oldText.count).allSatisfy { $0 == "\n" }
         
         context.coordinator.isUpdating = true
         textView.text = text
         context.coordinator.isUpdating = false
         
-        if selectedRange.location != NSNotFound && 
+        if shouldMoveCursorToEnd {
+            textView.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+        } else if selectedRange.location != NSNotFound &&
            selectedRange.location <= (text as NSString).length {
             textView.selectedRange = selectedRange
         }
@@ -217,7 +486,9 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     private func updateStyling(of textView: UITextView) {
         textView.font = font
         textView.textColor = textColor
+        textView.tintColor = cursorTintColor
         textView.typingAttributes = textAttributes
+        textView.textContainerInset = contentInset
 
         if textView.text.isEmpty && textView.textAlignment != textAlignment {
             textView.text = " "
@@ -225,6 +496,86 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             textView.text = ""
         } else {
             textView.textAlignment = textAlignment
+        }
+
+        let fullRange = NSRange(location: 0, length: textView.textStorage.length)
+        if fullRange.length > 0 {
+            textView.textStorage.setAttributes(textAttributes, range: fullRange)
+        }
+    }
+
+    private var textAttributes: [NSAttributedString.Key: Any] {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = textAlignment
+        paragraphStyle.lineBreakMode = .byWordWrapping
+        paragraphStyle.lineSpacing = max(lineSpacing, 0)
+
+        return [
+            .font: font,
+            .foregroundColor: textColor,
+            .paragraphStyle: paragraphStyle
+        ]
+    }
+}
+
+// MARK: - Zone Plain Text Preview
+
+/// Read-only text renderer used by the zone preview and hidden editor measurer.
+/// It intentionally mirrors `ZoneTextViewRepresentable` so focusing a zone does
+/// not change text metrics, wrapping, or insets.
+struct ZonePlainTextViewRepresentable: UIViewRepresentable {
+    let text: String
+    let font: UIFont
+    let textColor: UIColor
+    let textAlignment: NSTextAlignment
+    var lineSpacing: CGFloat = 0
+    var contentInset: UIEdgeInsets = .zero
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView()
+        textView.backgroundColor = .clear
+        textView.isOpaque = false
+        textView.isEditable = false
+        textView.isSelectable = false
+        textView.isScrollEnabled = false
+        textView.isUserInteractionEnabled = false
+        textView.adjustsFontForContentSizeCategory = true
+        textView.textContainer.lineFragmentPadding = 0
+        textView.textContainerInset = contentInset
+        textView.textContainer.lineBreakMode = .byWordWrapping
+        textView.textContainer.maximumNumberOfLines = 0
+        textView.layoutManager.usesFontLeading = true
+        textView.contentInset = .zero
+        textView.scrollIndicatorInsets = .zero
+        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        apply(textView)
+        return textView
+    }
+
+    func updateUIView(_ textView: UITextView, context: Context) {
+        apply(textView)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize {
+        let width = max(proposal.width ?? UIView.layoutFittingExpandedSize.width, 1)
+        let targetSize = CGSize(width: width, height: UIView.layoutFittingCompressedSize.height)
+        let calculatedSize = uiView.sizeThatFits(targetSize)
+
+        return CGSize(
+            width: width,
+            height: max(ceil(calculatedSize.height), ceil(font.lineHeight + contentInset.top + contentInset.bottom))
+        )
+    }
+
+    private func apply(_ textView: UITextView) {
+        textView.font = font
+        textView.textColor = textColor
+        textView.textAlignment = textAlignment
+        textView.textContainerInset = contentInset
+
+        if textView.text != text {
+            textView.text = text
         }
 
         let fullRange = NSRange(location: 0, length: textView.textStorage.length)

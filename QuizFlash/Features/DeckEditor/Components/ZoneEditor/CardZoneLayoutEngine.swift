@@ -87,7 +87,8 @@ enum CardZoneLayoutEngine {
         )
         let resolvedHeight = blockHeight(
             for: zone,
-            measuredHeight: measuredHeight
+            measuredHeight: measuredHeight,
+            availableWidth: spec.availableWidth
         )
         let blockSize = CGSize(width: resolvedWidth, height: resolvedHeight)
         let leadingInset = leadingInset(
@@ -132,7 +133,8 @@ enum CardZoneLayoutEngine {
 
     private static func blockHeight(
         for zone: ZoneModel,
-        measuredHeight: CGFloat
+        measuredHeight: CGFloat,
+        availableWidth: CGFloat
     ) -> CGFloat {
         let contentHeight = max(ceil(measuredHeight), 1)
 
@@ -141,7 +143,23 @@ enum CardZoneLayoutEngine {
             return contentHeight
         case .fixed:
             let fixedHeight = max(ceil(zone.fixedHeight ?? measuredHeight), 1)
-            return max(fixedHeight, contentHeight)
+            let resolvedHeight = fixedHeightCanScaleContent(for: zone)
+                ? fixedHeight
+                : max(fixedHeight, contentHeight)
+            return min(resolvedHeight, maximumFixedHeight(forAvailableWidth: availableWidth))
+        }
+    }
+
+    private static func maximumFixedHeight(forAvailableWidth availableWidth: CGFloat) -> CGFloat {
+        max(ceil(availableWidth * 1.75), 520)
+    }
+
+    private static func fixedHeightCanScaleContent(for zone: ZoneModel) -> Bool {
+        switch zone.contentType {
+        case .image, .sketch, .empty:
+            return true
+        case .text, .code:
+            return false
         }
     }
 

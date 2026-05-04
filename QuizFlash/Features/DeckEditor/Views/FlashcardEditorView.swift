@@ -23,6 +23,7 @@ struct FlashcardEditorView: View {
 
     var onSaveZones: (ZoneModel, ZoneModel) -> Void
     private let contentAlignment: FlashcardContentAlignment
+    private let textSize: FlashcardTextSize
 
     // MARK: - State
 
@@ -52,14 +53,10 @@ struct FlashcardEditorView: View {
     private var topChromeHorizontalInset: CGFloat {
         isCompact ? UIConstants.Layout.compactScreenEdgeInset : UIConstants.Layout.screenEdgeInset
     }
-    private var editorTextScale: CGFloat { CGFloat(FlashcardTextSize.large.playModeScale) }
+    private var editorTextScale: CGFloat { CGFloat(textSize.playModeScale) }
     private var verticalAlignmentFallback: ZoneVerticalAlignment {
         ZoneVerticalAlignment(fallbackContentAlignment: contentAlignment)
     }
-    private var canUseInteractiveDismiss: Bool {
-        !showSketchModal && !showPreview && !isPhotoPickerPresented
-    }
-
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
     }
@@ -77,10 +74,12 @@ struct FlashcardEditorView: View {
     init(
         searchQuery: String? = nil,
         contentAlignment: FlashcardContentAlignment = .center,
+        textSize: FlashcardTextSize = .large,
         onSave: @escaping (ZoneModel, ZoneModel) -> Void
     ) {
         self.onSaveZones = onSave
         self.contentAlignment = contentAlignment
+        self.textSize = textSize
         _frontZoneContent = State(initialValue: ZoneCardContent(rootZone: .text()))
         _backZoneContent = State(initialValue: ZoneCardContent(rootZone: .text()))
        
@@ -97,11 +96,13 @@ struct FlashcardEditorView: View {
         backZone: ZoneModel,
         searchQuery: String? = nil,
         contentAlignment: FlashcardContentAlignment = .center,
+        textSize: FlashcardTextSize = .large,
         onSave: @escaping (ZoneModel, ZoneModel) -> Void
     ) {
 
         self.onSaveZones = onSave
         self.contentAlignment = contentAlignment
+        self.textSize = textSize
         _frontZoneContent = State(initialValue: ZoneCardContent(rootZone: frontZone))
         _backZoneContent = State(initialValue: ZoneCardContent(rootZone: backZone))
 
@@ -139,16 +140,14 @@ struct FlashcardEditorView: View {
                 front: frontZoneContent,
                 back: backZoneContent,
                 safeAreaInsets: safeArea,
-                contentAlignment: contentAlignment
+                contentAlignment: contentAlignment,
+                textSize: textSize
             )
         } background: {
             CardPreviewModeBackground()
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedPath)
         .animation(.spring(response: 0.2, dampingFraction: 0.7), value: previewDirection)
-        .swipeBack(enabled: canUseInteractiveDismiss) {
-            dismiss()
-        }
         .alert(localized("Save Error"), isPresented: $showSaveErrorAlert) {
             Button(localized("OK"), role: .cancel) { }
         } message: {
@@ -170,6 +169,16 @@ struct FlashcardEditorView: View {
         if let path = selectedPath {
             VStack {
                 Spacer(minLength: 0)
+                if let focusedPath = focusedSelectedPath {
+                    HStack {
+                        zoneManagementButton(for: focusedPath)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, topChromeHorizontalInset)
+                    .padding(.bottom, 6)
+                    .transition(.scale(scale: 0.88).combined(with: .opacity))
+                }
+
                 formatBar(for: path)
                     .padding(.horizontal, topChromeHorizontalInset)
                     .padding(.bottom, floatingToolbarBottomInset)
@@ -189,23 +198,20 @@ struct FlashcardEditorView: View {
         return keyboardMonitor.visibleHeight + base
     }
 
+    private var focusedSelectedPath: ZonePath? {
+        guard let selectedPath,
+              let zone = currentContent.zone(at: selectedPath),
+              focusManager.focusedZoneID == zone.id
+        else { return nil }
+
+        return selectedPath
+    }
+
     @ViewBuilder
     private func formatBar(for path: ZonePath) -> some View {
         EditorFormatMenuBar(
             content: currentContent,
             path: path,
-            onAddZoneAction: { direction in
-                focusManager.prepareForZoneInsertion()
-                addZoneWithFocus(in: direction)
-            },
-            onPreviewDirection: { direction in
-                // PURE VISUAL - Only updates overlay state, no data mutation
-                previewDirection = direction
-            },
-            onSplit: { splitZone() },
-            onDuplicate: { duplicateSelectedZone() },
-            onMoveUp: { moveSelectedZoneUp() },
-            onMoveDown: { moveSelectedZoneDown() },
             onChoosePhoto: {
                 isPhotoPickerPresented = true
             },
@@ -216,6 +222,21 @@ struct FlashcardEditorView: View {
             onPreview: {
                 openPreview()
             },
+            onClose: {
+                focusManager.forceReleaseKeyboard()
+                previewDirection = nil
+            }
+        )
+    }
+
+    private func zoneManagementButton(for path: ZonePath) -> some View {
+        ZoneManagementFloatingButton(
+            content: currentContent,
+            path: path,
+            onSplit: { splitZone() },
+            onDuplicate: { duplicateSelectedZone() },
+            onMoveUp: { moveSelectedZoneUp() },
+            onMoveDown: { moveSelectedZoneDown() },
             onClose: {
                 focusManager.forceReleaseKeyboard()
                 selectedPath = nil
@@ -276,10 +297,6 @@ struct FlashcardEditorView: View {
             return (first.path, .up)
         }
 
-        if let horizontalInsertion = horizontalInsertionPoint(for: context.location, in: sortedFrames) {
-            return horizontalInsertion
-        }
-
         for frame in sortedFrames {
             if context.location.y < frame.frame.midY {
                 return (frame.path, .up)
@@ -287,33 +304,6 @@ struct FlashcardEditorView: View {
         }
 
         return (sortedFrames.last?.path ?? .root, .down)
-    }
-
-    private func horizontalInsertionPoint(
-        for location: CGPoint,
-        in frames: [ZoneEditorResolvedZoneFrame]
-    ) -> (path: ZonePath, direction: AddDirection)? {
-        let verticalTolerance: CGFloat = 10
-        let candidates = frames.filter {
-            location.y >= $0.frame.minY - verticalTolerance
-                && location.y <= $0.frame.maxY + verticalTolerance
-        }
-
-        guard let nearest = candidates.min(by: {
-            abs($0.frame.midY - location.y) < abs($1.frame.midY - location.y)
-        }) else {
-            return nil
-        }
-
-        if location.x < nearest.frame.minX {
-            return (nearest.path, .left)
-        }
-
-        if location.x > nearest.frame.maxX {
-            return (nearest.path, .right)
-        }
-
-        return nil
     }
 
     private func insertTextZoneWithFocus(relativeTo path: ZonePath?, direction: AddDirection) {
@@ -469,12 +459,7 @@ struct FlashcardEditorView: View {
         }
     }
 
-    // MARK: - Zone Operations (NO GHOST LOGIC)
-
-    private func addZoneWithFocus(in direction: AddDirection) {
-        guard let path = selectedPath else { return }
-        insertTextZoneWithFocus(relativeTo: path, direction: direction)
-    }
+    // MARK: - Zone Operations
 
     private func duplicateSelectedZone() {
         guard let path = selectedPath else { return }

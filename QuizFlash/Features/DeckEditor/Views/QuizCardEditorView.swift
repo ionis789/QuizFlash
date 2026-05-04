@@ -167,7 +167,14 @@ struct QuizCardEditorView: View {
             .background(backgroundGradient.ignoresSafeArea())
             .safeAreaInset(edge: .bottom) {
                 if let content = currentContent, let path = currentSelectedPath {
-                    formatBar(content: content, path: path)
+                    VStack(alignment: .leading, spacing: 6) {
+                        if isFocusedSelection(content: content, path: path) {
+                            zoneManagementButton(content: content, path: path)
+                                .transition(.scale(scale: 0.88).combined(with: .opacity))
+                        }
+
+                        formatBar(content: content, path: path)
+                    }
                         .padding(.horizontal, UIConstants.Spacing.standard)
                         .padding(.bottom, UIConstants.Spacing.small)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -208,25 +215,6 @@ struct QuizCardEditorView: View {
         EditorFormatMenuBar(
             content: content,
             path: path,
-            onAddZoneAction: { direction in
-                focusManager.prepareForZoneInsertion()
-                addZoneWithFocus(in: direction)
-            },
-            onPreviewDirection: { direction in
-                previewDirection = direction
-            },
-            onSplit: {
-                splitZone()
-            },
-            onDuplicate: {
-                duplicateSelectedZone()
-            },
-            onMoveUp: {
-                moveSelectedZoneUp()
-            },
-            onMoveDown: {
-                moveSelectedZoneDown()
-            },
             onChoosePhoto: {
                 isPhotoPickerPresented = true
             },
@@ -235,6 +223,27 @@ struct QuizCardEditorView: View {
             },
             canPreview: false,
             onPreview: { },
+            onClose: {
+                focusManager.forceReleaseKeyboard()
+                currentSelectedPath = nil
+                previewDirection = nil
+            }
+        )
+    }
+
+    private func isFocusedSelection(content: ZoneCardContent, path: ZonePath) -> Bool {
+        guard let zone = content.zone(at: path) else { return false }
+        return focusManager.focusedZoneID == zone.id
+    }
+
+    private func zoneManagementButton(content: ZoneCardContent, path: ZonePath) -> some View {
+        ZoneManagementFloatingButton(
+            content: content,
+            path: path,
+            onSplit: { splitZone() },
+            onDuplicate: { duplicateSelectedZone() },
+            onMoveUp: { moveSelectedZoneUp() },
+            onMoveDown: { moveSelectedZoneDown() },
             onClose: {
                 focusManager.forceReleaseKeyboard()
                 currentSelectedPath = nil
@@ -608,22 +617,6 @@ struct QuizCardEditorView: View {
             if activeEditor == .explanation {
                 activateEditor(.question)
             }
-        }
-    }
-
-    private func addZoneWithFocus(in direction: AddDirection) {
-        guard let content = currentContent, let path = currentSelectedPath else { return }
-
-        var newZoneID: UUID?
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-            newZoneID = content.addZone(relativeTo: path, direction: direction)
-            if let newZoneID, let newPath = findPath(for: newZoneID, in: content.rootZone) {
-                currentSelectedPath = newPath
-            }
-        }
-
-        if let newZoneID {
-            requestFocus(for: newZoneID, delaySeconds: 0.12)
         }
     }
 

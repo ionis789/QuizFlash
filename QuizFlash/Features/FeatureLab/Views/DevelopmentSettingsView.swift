@@ -95,6 +95,16 @@ struct DevelopmentSettingsView: View {
             SettingsCardDivider()
 
             SettingsToggleRow(
+                icon: "cursorarrow.motionlines",
+                tint: .purple,
+                title: "Zone Editor HUD",
+                detail: "Shows live focus, keyboard, selected-zone, and resize-corner touch diagnostics inside the flashcard editor.",
+                isOn: zoneEditorDebugHUDBinding
+            )
+
+            SettingsCardDivider()
+
+            SettingsToggleRow(
                 icon: "sparkles.tv",
                 tint: .cyan,
                 title: "Edge Shadow Tuner",
@@ -247,6 +257,13 @@ struct DevelopmentSettingsView: View {
         Binding(
             get: { developmentPreferences.flashcardGridTextLayoutDebugEnabled },
             set: { developmentPreferences.flashcardGridTextLayoutDebugEnabled = $0 }
+        )
+    }
+
+    private var zoneEditorDebugHUDBinding: Binding<Bool> {
+        Binding(
+            get: { developmentPreferences.zoneEditorDebugHUDEnabled },
+            set: { developmentPreferences.zoneEditorDebugHUDEnabled = $0 }
         )
     }
 
