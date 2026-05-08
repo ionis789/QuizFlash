@@ -549,6 +549,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         let visibleSheetProgress = 1 - min(max(visibleSheetOffset / max(progressDistance, 1), 0), 1)
         let effectiveBackdropProgress = fullScreenSheetClampedProgress(visibleSheetProgress)
         let topBlurRevealProgress = resolvedTopBlurRevealProgress(scrollOffset: contentScrollOffset)
+        let topChromeDragHeight = resolvedTopChromeDragHeight(contentSafeAreaInsets: contentSafeAreaInsets)
         let sheetShape = UnevenRoundedRectangle(
             cornerRadii: .init(
                 topLeading: configuration.topCornerRadius,
@@ -692,7 +693,8 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         baseView.background {
             SheetPanBridge(
                 sheetTopY: sheetTopY,
-                activationHeight: resolvedDragActivationHeight(sheetHeight: sheetHeight)
+                activationHeight: resolvedDragActivationHeight(sheetHeight: sheetHeight),
+                alwaysActiveTopHeight: topChromeDragHeight
             ) { [self] gesture in
                 let translation = clampedTranslation(
                     gesture.translation(in: gesture.view).y,
@@ -917,6 +919,15 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             contentSafeAreaInsets.top + resolvedCustomSheetSettings.blurAreaHeight,
             1
         )
+    }
+
+    private func resolvedTopChromeDragHeight(
+        contentSafeAreaInsets: UIEdgeInsets
+    ) -> CGFloat {
+        guard configuration.showsDefaultTopProgressiveBlur else { return 0 }
+
+        return defaultTopProgressiveBlurHeight(contentSafeAreaInsets: contentSafeAreaInsets)
+            + max(defaultSheetTopBlurConfiguration.fadeExtension, 0)
     }
 
     private func resolvedCustomSheetTopChromeClearance(
@@ -1385,12 +1396,14 @@ private final class SheetHostingController: UIHostingController<AnyView> {
 private struct SheetPanBridge: UIViewRepresentable {
     let sheetTopY: CGFloat
     let activationHeight: CGFloat?
+    let alwaysActiveTopHeight: CGFloat
     let onPan: (UIPanGestureRecognizer) -> Void
 
     func makeUIView(context: Context) -> ProbeView {
         let view = ProbeView()
         view.sheetTopY = sheetTopY
         view.activationHeight = activationHeight
+        view.alwaysActiveTopHeight = alwaysActiveTopHeight
         view.onPan = onPan
         return view
     }
@@ -1398,17 +1411,20 @@ private struct SheetPanBridge: UIViewRepresentable {
     func updateUIView(_ uiView: ProbeView, context: Context) {
         uiView.sheetTopY = sheetTopY
         uiView.activationHeight = activationHeight
+        uiView.alwaysActiveTopHeight = alwaysActiveTopHeight
         uiView.onPan = onPan
     }
 
     final class ProbeView: UIView, UIGestureRecognizerDelegate {
         var sheetTopY: CGFloat = 0
         var activationHeight: CGFloat?
+        var alwaysActiveTopHeight: CGFloat = 0
         var onPan: ((UIPanGestureRecognizer) -> Void)?
 
         private weak var hostView: UIView?
-        private lazy var panGesture: UIPanGestureRecognizer = {
-            let gesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        private var panBeganInAlwaysActiveTopArea = false
+        private lazy var panGesture: TopChromeSheetPanGestureRecognizer = {
+            let gesture = TopChromeSheetPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
             gesture.delegate = self
             gesture.cancelsTouchesInView = false
             gesture.delaysTouchesBegan = false
@@ -1442,6 +1458,10 @@ private struct SheetPanBridge: UIViewRepresentable {
         }
 
         @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+            if gesture.state == .ended || gesture.state == .cancelled || gesture.state == .failed {
+                panBeganInAlwaysActiveTopArea = false
+                panGesture.beganInAlwaysActiveTopArea = false
+            }
             onPan?(gesture)
         }
 
@@ -1451,11 +1471,17 @@ private struct SheetPanBridge: UIViewRepresentable {
 
             let location = pan.location(in: host)
             guard location.y >= sheetTopY else { return false }
-            if let activationHeight, location.y > sheetTopY + activationHeight {
+            let beginsInAlwaysActiveTopArea = isInAlwaysActiveTopArea(locationY: location.y)
+            if !beginsInAlwaysActiveTopArea,
+               let activationHeight,
+               location.y > sheetTopY + activationHeight {
                 return false
             }
 
-            return fullScreenSheetHasDownwardDismissIntent(pan, in: host)
+            let hasDismissIntent = fullScreenSheetHasDownwardDismissIntent(pan, in: host)
+            panBeganInAlwaysActiveTopArea = beginsInAlwaysActiveTopArea && hasDismissIntent
+            panGesture.beganInAlwaysActiveTopArea = panBeganInAlwaysActiveTopArea
+            return hasDismissIntent
         }
 
         func gestureRecognizer(
@@ -1467,6 +1493,10 @@ private struct SheetPanBridge: UIViewRepresentable {
 
             guard fullScreenSheetHasDownwardDismissIntent(pan, in: host) else { return false }
 
+            if panBeganInAlwaysActiveTopArea {
+                return false
+            }
+
             var scrollOffset: CGFloat = 0
             if let collectionView = otherGestureRecognizer.view as? UICollectionView {
                 scrollOffset = collectionView.contentOffset.y + collectionView.adjustedContentInset.top
@@ -1474,6 +1504,19 @@ private struct SheetPanBridge: UIViewRepresentable {
                 scrollOffset = scrollView.contentOffset.y + scrollView.adjustedContentInset.top
             }
             return Int(scrollOffset) <= 1
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            false
+        }
+
+        private func isInAlwaysActiveTopArea(locationY: CGFloat) -> Bool {
+            alwaysActiveTopHeight > 0 &&
+            locationY >= sheetTopY &&
+            locationY <= sheetTopY + alwaysActiveTopHeight
         }
 
         private func attachPanGestureIfNeeded() {
@@ -1504,6 +1547,18 @@ private struct SheetPanBridge: UIViewRepresentable {
 
         deinit {
             detachPanGesture()
+        }
+    }
+
+    final class TopChromeSheetPanGestureRecognizer: UIPanGestureRecognizer {
+        var beganInAlwaysActiveTopArea = false
+
+        override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool {
+            if beganInAlwaysActiveTopArea,
+               preventingGestureRecognizer.view is UIScrollView {
+                return false
+            }
+            return super.canBePrevented(by: preventingGestureRecognizer)
         }
     }
 }

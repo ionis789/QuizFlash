@@ -66,6 +66,9 @@ final class MatchModeViewModel {
     private var persistenceService: PlaySessionPersistenceService?
 
     @ObservationIgnored
+    private var container: ModelContainer?
+
+    @ObservationIgnored
     private var pendingPairs: [MatchPlayablePair] = []
 
     @ObservationIgnored
@@ -178,6 +181,20 @@ final class MatchModeViewModel {
         !allPairs.isEmpty && allPairs.allSatisfy { $0.sourceKind == .flashcard }
     }
 
+    /// The unresolved pairs currently visible on the match board, ordered like the prompt lane.
+    var editableRoundPairs: [MatchPlayablePair] {
+        guard let activeRound else { return [] }
+
+        return activeRound.promptOrder.compactMap { pairID in
+            guard !matchedIDs.contains(pairID) else { return nil }
+            return currentRoundPairLookup[pairID]
+        }
+    }
+
+    var canEditVisibleRound: Bool {
+        !editableRoundPairs.isEmpty
+    }
+
     // MARK: - Lifecycle
 
     /// Loads and validates the deck's match payloads, then materializes the first round board.
@@ -187,6 +204,7 @@ final class MatchModeViewModel {
         self.roundCapacity = roundCapacity
         self.sessionStartTime = Date()
         self.loadState = .loading
+        self.container = container
         self.persistenceService = PlaySessionPersistenceService(container: container)
 
         guard settings.allowsFlashcardFallback else {
@@ -223,9 +241,35 @@ final class MatchModeViewModel {
         pendingPairs = []
         currentRoundPairLookup = [:]
         pairPresentedAt = [:]
+        container = nil
         persistenceService = nil
         MathWebViewPool.shared.flush()
         ImageCache.shared.clearCache()
+    }
+
+    func refreshPairSnapshot(for cardID: PersistentIdentifier) async {
+        await refreshPairSnapshots(for: [cardID])
+    }
+
+    func refreshPairSnapshots(for cardIDs: [PersistentIdentifier]) async {
+        guard let container else { return }
+        let requestedIDs = Set(cardIDs)
+        guard !requestedIDs.isEmpty else { return }
+
+        let repository = PlayModeCardRepository(container: container)
+        let result = await repository.loadValidatedMatchPairs(for: deck.persistentModelID)
+        let sortedPairs = Self.studyOrdered(result.cards)
+        let refreshedPairs = Dictionary(uniqueKeysWithValues: sortedPairs.map { ($0.id, $0) })
+
+        diagnostics = result.diagnostics
+
+        for cardID in requestedIDs {
+            if let refreshedPair = refreshedPairs[cardID] {
+                replacePairInActiveSession(refreshedPair)
+            } else {
+                removePairFromActiveSession(cardID)
+            }
+        }
     }
 
     // MARK: - Interaction
@@ -325,9 +369,11 @@ final class MatchModeViewModel {
         missedIDs.insert(answerID)
         missedCardIDs.insert(promptID)
         missedCardIDs.insert(answerID)
-        mismatchPromptID = promptID
-        mismatchAnswerID = answerID
-        mismatchAnimationToken += 1
+        withAnimation(.easeInOut(duration: 0.12)) {
+            mismatchPromptID = promptID
+            mismatchAnswerID = answerID
+            mismatchAnimationToken += 1
+        }
 
         let newlyFailedIDs = [promptID, answerID].filter { failedPersistedIDsInChunk.insert($0).inserted }
         if !newlyFailedIDs.isEmpty {
@@ -348,13 +394,15 @@ final class MatchModeViewModel {
         feedbackTask?.cancel()
         feedbackTask = Task { [weak self] in
             guard let self else { return }
-            let delay = settings.feedbackIntensity == .subtle ? 240 : 420
+            let delay = settings.feedbackIntensity == .subtle ? 170 : 230
             try? await Task.sleep(for: .milliseconds(delay))
             guard !Task.isCancelled else { return }
-            selectedPromptID = nil
-            selectedAnswerID = nil
-            mismatchPromptID = nil
-            mismatchAnswerID = nil
+            withAnimation(.easeInOut(duration: 0.16)) {
+                self.selectedPromptID = nil
+                self.selectedAnswerID = nil
+                self.mismatchPromptID = nil
+                self.mismatchAnswerID = nil
+            }
         }
     }
 
@@ -454,6 +502,54 @@ final class MatchModeViewModel {
 
         Task.detached(priority: .utility) {
             await persistenceService?.persistReviews(reviews)
+        }
+    }
+
+    private func replacePairInActiveSession(_ pair: MatchPlayablePair) {
+        if let index = allPairs.firstIndex(where: { $0.id == pair.id }) {
+            allPairs[index] = pair
+        }
+
+        if let index = pendingPairs.firstIndex(where: { $0.id == pair.id }) {
+            pendingPairs[index] = pair
+        }
+
+        if currentRoundPairLookup[pair.id] != nil {
+            currentRoundPairLookup[pair.id] = pair
+        }
+
+        guard let currentRound = activeRound,
+              currentRound.pairs.contains(where: { $0.id == pair.id }) else { return }
+
+        activeRound = MatchRoundState(
+            pairs: currentRound.pairs.map { $0.id == pair.id ? pair : $0 },
+            promptOrder: currentRound.promptOrder,
+            answerOrder: currentRound.answerOrder
+        )
+    }
+
+    private func removePairFromActiveSession(_ cardID: PersistentIdentifier) {
+        allPairs.removeAll { $0.id == cardID }
+        pendingPairs.removeAll { $0.id == cardID }
+        currentRoundPairLookup.removeValue(forKey: cardID)
+        pairPresentedAt.removeValue(forKey: cardID)
+        selectedPromptID = selectedPromptID == cardID ? nil : selectedPromptID
+        selectedAnswerID = selectedAnswerID == cardID ? nil : selectedAnswerID
+        confirmingMatchID = confirmingMatchID == cardID ? nil : confirmingMatchID
+        removingMatchID = removingMatchID == cardID ? nil : removingMatchID
+        mismatchPromptID = mismatchPromptID == cardID ? nil : mismatchPromptID
+        mismatchAnswerID = mismatchAnswerID == cardID ? nil : mismatchAnswerID
+
+        if let currentRound = activeRound, currentRound.pairs.contains(where: { $0.id == cardID }) {
+            activeRound = MatchRoundState(
+                pairs: currentRound.pairs.filter { $0.id != cardID },
+                promptOrder: currentRound.promptOrder.filter { $0 != cardID },
+                answerOrder: currentRound.answerOrder.filter { $0 != cardID }
+            )
+        }
+
+        if currentRoundPairLookup.isEmpty {
+            finishRoundIfNeeded()
         }
     }
 

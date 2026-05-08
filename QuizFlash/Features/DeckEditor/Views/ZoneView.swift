@@ -197,7 +197,7 @@ private enum ZoneResizeDragAxis {
 /// Handles:
 /// - Focus negotiation with `ZoneFocusManager` and `ZoneController`
 /// - Switching between `ZoneTextViewRepresentable` (edit mode) and
-///   `MixedMathTextView` / `CodeSnippetView` (preview mode)
+///   a read-only raw text preview that mirrors the editor metrics
 /// - Image long-press → full-screen `ImageCropEditorView`
 /// - Ghost block overlays for vertical zone insertion
 struct ZoneContentView: View {
@@ -215,6 +215,7 @@ struct ZoneContentView: View {
     @State private var isPressingImage: Bool = false
     @State private var renderedContentSize: CGSize = .zero
     @State private var resizeStartSize: CGSize?
+    @State private var resizeStartLeadingInset: CGFloat?
     @State private var resizeLastCommittedSize: CGSize?
     @State private var resizeDragAxis: ZoneResizeDragAxis?
     @State private var liveResizeSize: CGSize?
@@ -288,13 +289,11 @@ struct ZoneContentView: View {
                 blockFrameReporter(layout: layout, zoneID: zone.id)
                 blockSurface(layout: layout, zone: zone)
 
-                if isTextViewFirstResponder {
-                    selectedOutline(layout: layout)
-                } else if isSelected {
-                    selectedIdleOutline(layout: layout)
+                if isSelected {
+                    selectionOutline(layout: layout, active: isTextViewFirstResponder)
                 }
 
-                contentView(layout: layout)
+                contentView
                     .frame(
                         width: layout.contentLayoutWidth,
                         height: layoutZone.sizeMode == .fixed ? layout.blockSize.height : nil,
@@ -319,37 +318,39 @@ struct ZoneContentView: View {
             .simultaneousGesture(
                 SpatialTapGesture().onEnded { value in
                     guard !isResizingZone else { return }
-                    onSelect()
 
                     let type = zone.contentType
 
                     if type == .text || type == .empty || type == .code {
-                        if !isTextViewFirstResponder {
-                            let cursorLocation = cursorLocation(
-                                forTapAt: value.location,
-                                layout: layout,
-                                zone: zone
-                            )
-                            focusManager.requestCursorLocation(cursorLocation, for: zone.id)
-                            ZoneEditorDebugStore.shared.recordTap(
-                                "tap zone path=\(path.id) type=\(zone.contentType.rawValue) cursor=\(cursorLocation)"
-                            )
-                        } else {
-                            ZoneEditorDebugStore.shared.recordTap(
-                                "tap zone path=\(path.id) type=\(zone.contentType.rawValue)"
-                            )
-                        }
+                        guard !isTextViewFirstResponder else { return }
+
+                        onSelect()
+                        let cursorPoint = textViewPoint(
+                            forTapAt: value.location,
+                            layout: layout,
+                            zone: zone
+                        )
+                        focusManager.requestCursorPoint(cursorPoint, for: zone.id)
+                        NotificationCenter.default.post(
+                            name: .focusZoneTextView,
+                            object: zone.id
+                        )
+                        ZoneEditorDebugStore.shared.recordTap(
+                            "tap zone path=\(path.id) type=\(zone.contentType.rawValue) point=\(Int(cursorPoint.x)),\(Int(cursorPoint.y))"
+                        )
                         if !isTextViewFirstResponder {
                             focusManager.requestFocus(for: zone.id)
                             isFocused = true
                         }
                     } else {
+                        onSelect()
                         ZoneEditorDebugStore.shared.recordTap("tap zone path=\(path.id) type=\(zone.contentType.rawValue)")
                         focusManager.updateFocusedZone(zone.id)
                         zoneController.updateFocusedZone(zone.id)
                         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                     }
-                }
+                },
+                including: isTextResizableZone(zone) || isTextViewFirstResponder ? .none : .all
             )
             .onAppear {
                 syncFocusState(with: focusManager.focusedZoneID)
@@ -374,7 +375,7 @@ struct ZoneContentView: View {
             }
             .onChange(of: focusManager.pendingFocusZoneID) { _, pendingID in
                 if pendingID == currentZoneID {
-                    if zone.contentType == .text || zone.contentType == .empty {
+                    if zone.contentType == .text || zone.contentType == .empty || zone.contentType == .code {
                         if !isSelected {
                             onSelect()
                         }
@@ -399,20 +400,12 @@ struct ZoneContentView: View {
         }
     }
 
-    private func selectedOutline(layout: CardZoneLayoutResult) -> some View {
+    private func selectionOutline(layout: CardZoneLayoutResult, active: Bool) -> some View {
         RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
             .stroke(
-                accent.opacity(0.95),
-                style: StrokeStyle(lineWidth: 1.6, dash: [5, 4])
+                active ? accent.opacity(0.35) : Color.gray.opacity(0.18),
+                lineWidth: 1
             )
-            .frame(width: layout.blockSize.width, height: layout.blockSize.height)
-            .offset(x: layout.leadingInset)
-            .allowsHitTesting(false)
-    }
-
-    private func selectedIdleOutline(layout: CardZoneLayoutResult) -> some View {
-        RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
-            .stroke(Color.gray.opacity(0.22), lineWidth: 1)
             .frame(width: layout.blockSize.width, height: layout.blockSize.height)
             .offset(x: layout.leadingInset)
             .allowsHitTesting(false)
@@ -444,10 +437,9 @@ struct ZoneContentView: View {
     }
 
     private func resizeHandle(layout: CardZoneLayoutResult) -> some View {
-        let captureOutset: CGFloat = 36
         let cornerHitSize: CGFloat = 132
-        let captureWidth = max(layout.blockSize.width + (captureOutset * 2), cornerHitSize)
-        let captureHeight = max(layout.blockSize.height + (captureOutset * 2), cornerHitSize)
+        let captureBlockSize = isResizingZone ? (resizeStartSize ?? layout.blockSize) : layout.blockSize
+        let captureLeadingInset = isResizingZone ? (resizeStartLeadingInset ?? layout.leadingInset) : layout.leadingInset
         let glyphSize: CGFloat = 13
         let glyphOutset: CGFloat = 3
 
@@ -457,16 +449,19 @@ struct ZoneContentView: View {
                 onChanged: { translation in
                     handleResizeChange(
                         translation: translation,
-                        startSize: layout.blockSize
+                        startSize: layout.blockSize,
+                        startLeadingInset: layout.leadingInset
                     )
                 },
                 onEnded: {
                     finishResize()
                 }
             )
-            .frame(width: captureWidth, height: captureHeight)
-            .offset(x: layout.leadingInset + layout.blockSize.width - captureWidth + captureOutset,
-                    y: layout.blockSize.height - captureHeight + captureOutset)
+            .frame(width: cornerHitSize, height: cornerHitSize)
+            .offset(
+                x: captureLeadingInset + captureBlockSize.width - (cornerHitSize / 2),
+                y: captureBlockSize.height - (cornerHitSize / 2)
+            )
 
             ZoneResizeCornerHandle(accent: accent, isActive: isResizingZone)
                 .frame(width: glyphSize, height: glyphSize)
@@ -477,7 +472,6 @@ struct ZoneContentView: View {
                 .allowsHitTesting(false)
         }
         .frame(width: availableWidth, height: layout.blockSize.height, alignment: .topLeading)
-        .contentShape(Rectangle())
         .zIndex(10_000)
         .accessibilityLabel(localized("Resize Zone"))
         .onAppear {
@@ -521,9 +515,14 @@ struct ZoneContentView: View {
         return layoutZone
     }
 
-    private func handleResizeChange(translation: CGSize, startSize: CGSize) {
+    private func handleResizeChange(
+        translation: CGSize,
+        startSize: CGSize,
+        startLeadingInset: CGFloat
+    ) {
         if resizeStartSize == nil {
             resizeStartSize = startSize
+            resizeStartLeadingInset = startLeadingInset
             resizeLastCommittedSize = startSize
             resizeDragAxis = nil
             isResizingZone = true
@@ -545,13 +544,28 @@ struct ZoneContentView: View {
             max(baseSize.width + widthDelta, minimumResizableWidth),
             maxWidth
         )
-        let nextWidth = snappedResizeWidth(rawWidth)
+        var nextWidth = clampedResizeWidth(rawWidth)
         let rawHeight = min(
             max(baseSize.height + heightDelta, baseMinimumResizableHeight),
             maximumResizableHeight
         )
         let proposedHeight = continuousResizeHeight(rawHeight)
-        let requiredHeight = cachedMinimumContentHeight(forWidth: nextWidth)
+        var requiredHeight = cachedMinimumContentHeight(forWidth: nextWidth)
+
+        if shouldAutoExpandWidthDuringResize(
+            translation: translation,
+            proposedHeight: proposedHeight,
+            requiredHeight: requiredHeight
+        ),
+           proposedHeight < requiredHeight,
+           let expandedWidth = autoExpandedWidth(
+               forTargetHeight: proposedHeight,
+               startingAt: nextWidth
+           ) {
+            nextWidth = expandedWidth
+            requiredHeight = cachedMinimumContentHeight(forWidth: nextWidth)
+        }
+
         let nextHeight = min(
             max(proposedHeight, requiredHeight, baseMinimumResizableHeight),
             maximumResizableHeight
@@ -566,8 +580,8 @@ struct ZoneContentView: View {
         )
 
         if let last = resizeLastCommittedSize,
-           abs(last.width - nextSize.width) < 2,
-           abs(last.height - nextSize.height) < 2 {
+           abs(last.width - nextSize.width) < 0.5,
+           abs(last.height - nextSize.height) < 0.5 {
             return
         }
 
@@ -578,6 +592,7 @@ struct ZoneContentView: View {
     private func finishResize() {
         defer {
             resizeStartSize = nil
+            resizeStartLeadingInset = nil
             resizeLastCommittedSize = nil
             resizeDragAxis = nil
             liveResizeSize = nil
@@ -600,12 +615,26 @@ struct ZoneContentView: View {
             max(safeFinalSize.height, requiredFinalHeight, minimumHeight),
             maximumHeight
         )
+        let shouldTrimTrailingBlankLines: Bool
+        if let zone, !zone.text.isEmpty {
+            let fullHeight = measuredRawTextSize(
+                for: zone,
+                width: safeFinalSize.width,
+                preservesTrailingBlankLines: true
+            ).height
+            shouldTrimTrailingBlankLines = finalFixedHeight < fullHeight - 1
+        } else {
+            shouldTrimTrailingBlankLines = false
+        }
         ZoneEditorDebugStore.shared.recordEvent(
             "resize finish final=\(Int(safeFinalSize.width))x\(Int(safeFinalSize.height)) requiredH=\(Int(requiredFinalHeight))"
         )
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
 
         content.updateZone(at: path) { zone in
+            if shouldTrimTrailingBlankLines {
+                zone.text = textWithoutTrailingBlankLines(zone.text)
+            }
             zone.sizeMode = .fixed
             zone.fixedWidth = safeFinalSize.width
             zone.fixedHeight = finalFixedHeight
@@ -616,14 +645,9 @@ struct ZoneContentView: View {
         .free
     }
 
-    private func snappedResizeWidth(_ width: CGFloat) -> CGFloat {
-        let grid: CGFloat = 4
+    private func clampedResizeWidth(_ width: CGFloat) -> CGFloat {
         let maxWidth = max(availableWidth, minimumResizableWidth)
-        if width >= maxWidth - (grid / 2) {
-            return maxWidth
-        }
-
-        return min(max((width / grid).rounded() * grid, minimumResizableWidth), maxWidth)
+        return min(max(width, minimumResizableWidth), maxWidth)
     }
 
     private func continuousResizeHeight(_ height: CGFloat) -> CGFloat {
@@ -631,6 +655,55 @@ struct ZoneContentView: View {
             max(height, baseMinimumResizableHeight),
             maximumResizableHeight
         )
+    }
+
+    private func shouldAutoExpandWidthDuringResize(
+        translation: CGSize,
+        proposedHeight: CGFloat,
+        requiredHeight: CGFloat
+    ) -> Bool {
+        guard proposedHeight < requiredHeight else { return false }
+
+        let horizontalMotion = abs(translation.width)
+        let verticalMotion = abs(translation.height)
+        let isClearlyFlatteningVertically = translation.height < -6
+            && verticalMotion >= max(horizontalMotion * 0.75, 10)
+
+        return isClearlyFlatteningVertically
+    }
+
+    private func autoExpandedWidth(
+        forTargetHeight targetHeight: CGFloat,
+        startingAt currentWidth: CGFloat
+    ) -> CGFloat? {
+        guard let zone,
+              isTextResizableZone(zone),
+              !zone.text.isEmpty else {
+            return nil
+        }
+
+        let maxWidth = max(availableWidth, currentWidth)
+        let targetHeight = max(targetHeight, baseMinimumResizableHeight)
+        guard currentWidth < maxWidth - 0.5 else { return nil }
+
+        let heightAtMaxWidth = cachedMinimumContentHeight(forWidth: maxWidth)
+        guard heightAtMaxWidth <= targetHeight + 0.5 else {
+            return maxWidth
+        }
+
+        var low = currentWidth
+        var high = maxWidth
+        for _ in 0..<8 {
+            let mid = (low + high) / 2
+            let midHeight = cachedMinimumContentHeight(forWidth: mid)
+            if midHeight <= targetHeight + 0.5 {
+                high = mid
+            } else {
+                low = mid
+            }
+        }
+
+        return clampedResizeWidth(high)
     }
 
     private func commitLiveResize(_ size: CGSize, translation: CGSize) {
@@ -730,97 +803,79 @@ struct ZoneContentView: View {
         for zone: ZoneModel,
         layoutZone: ZoneModel
     ) -> CGSize {
-        if layoutZone.sizeMode != .fixed,
-           layoutZone.contentType == .empty,
-           layoutZone.text.isEmpty {
-            return renderedContentSize
-        }
-
         guard isTextResizableZone(layoutZone) else {
             return renderedContentSize
         }
 
-        if layoutZone.sizeMode != .fixed,
-           usesDeterministicPlainTextLayout(layoutZone),
-           !needsFocusedRawTextMeasurement(layoutZone) {
-            return .zero
-        }
-
-        let estimatedSize = FlashcardGridContentEstimator.estimatedSize(
-            for: layoutZone,
-            fontScale: fontScale,
-            availableWidth: availableWidth
-        )
-        let previewWidth = renderedContentSize.width > 0
-            ? renderedContentSize.width
-            : estimatedSize.width
-        let previewHeight = renderedContentSize.height > 0
-            ? renderedContentSize.height
-            : estimatedSize.height
-
         let contentWidth: CGFloat
-        if layoutZone.sizeMode == .fixed {
-            contentWidth = min(
-                max(layoutZone.fixedWidth ?? previewWidth, minimumResizableWidth(for: zone)),
-                availableWidth
-            )
-        } else {
-            contentWidth = min(max(previewWidth, 1), availableWidth)
+        switch layoutZone.sizeMode {
+        case .fixed:
+            contentWidth = min(max(layoutZone.fixedWidth ?? availableWidth, minimumResizableWidth(for: zone)), availableWidth)
+        case .fillWidth:
+            contentWidth = availableWidth
+        case .auto:
+            if layoutZone.text.isEmpty {
+                contentWidth = isSelected || isFocused
+                    ? min(max(156, minimumResizableWidth(for: zone)), availableWidth)
+                    : 1
+            } else {
+                contentWidth = rawTextMeasurementWidth(for: layoutZone, constrainedTo: availableWidth)
+            }
         }
 
-        let previewSize = CGSize(
-            width: max(contentWidth, 1),
-            height: max(previewHeight, 1)
-        )
-
-        guard layoutZone.sizeMode == .fixed || needsFocusedRawTextMeasurement(layoutZone) else {
-            return previewSize
-        }
-
-        let editorRequiredHeight = minimumContentHeight(
-            for: zone,
-            width: contentWidth
-        )
+        let measuredSize = measuredRawTextSize(for: layoutZone, width: contentWidth)
+        let rawHeight = layoutZone.text.isEmpty
+            ? baseMinimumResizableHeight(for: zone)
+            : measuredSize.height
 
         return CGSize(
             width: max(contentWidth, 1),
-            height: max(previewSize.height, editorRequiredHeight)
+            height: min(max(rawHeight, baseMinimumResizableHeight(for: zone)), maximumResizableHeight)
         )
     }
 
-    private func cursorLocation(
-        forTapAt point: CGPoint,
-        layout: CardZoneLayoutResult,
-        zone: ZoneModel
-    ) -> Int {
-        let nsText = zone.text as NSString
-        guard nsText.length > 0 else { return 0 }
+    private func rawTextMeasurementWidth(
+        for zone: ZoneModel,
+        constrainedTo width: CGFloat
+    ) -> CGFloat {
+        let maxWidth = max(width, 1)
+        let measuredSize = measuredRawTextSize(for: zone, width: maxWidth)
+        return min(
+            max(ceil(measuredSize.width), minimumResizableWidth(for: zone)),
+            maxWidth
+        )
+    }
 
+    private func measuredRawTextSize(
+        for zone: ZoneModel,
+        width: CGFloat,
+        preservesTrailingBlankLines: Bool = false
+    ) -> CGSize {
         let bulletOffset = zone.hasBullet
             ? CardZoneContentMetrics.bulletWidth + CardZoneContentMetrics.bulletSpacing
             : 0
-        let textViewX = point.x
-            - layout.leadingInset
-            - bulletOffset
-            - editorTextHorizontalPadding(for: zone)
-        let textViewY = point.y
-        let textViewWidth = max(
-            layout.contentLayoutWidth
-            - bulletOffset
-            - (editorTextHorizontalPadding(for: zone) * 2),
+        let horizontalPadding = editorTextHorizontalPadding(for: zone) * 2
+        let textViewWidth = max(width - bulletOffset - horizontalPadding, 1)
+        let textContainerWidth = max(
+            textViewWidth - editorTextContentInsets.left - editorTextContentInsets.right,
             1
         )
-
+        let textForMeasurement = preservesTrailingBlankLines
+            ? zone.text
+            : textWithoutTrailingBlankLines(zone.text)
+        let rawText = textForMeasurement.isEmpty ? " " : textForMeasurement
+        let measuredText = rawText.hasSuffix("\n") ? rawText + " " : rawText
         let textStorage = NSTextStorage(
             attributedString: NSAttributedString(
-                string: zone.text,
+                string: measuredText,
                 attributes: textMeasurementAttributes(for: zone)
             )
         )
         let layoutManager = NSLayoutManager()
         let textContainer = NSTextContainer(
-            size: CGSize(width: textViewWidth, height: .greatestFiniteMagnitude)
+            size: CGSize(width: textContainerWidth, height: .greatestFiniteMagnitude)
         )
+
         textContainer.lineFragmentPadding = 0
         textContainer.lineBreakMode = .byWordWrapping
         textContainer.maximumNumberOfLines = 0
@@ -829,17 +884,47 @@ struct ZoneContentView: View {
         textStorage.addLayoutManager(layoutManager)
         layoutManager.ensureLayout(for: textContainer)
 
-        let containerPoint = CGPoint(
-            x: min(max(textViewX - editorTextContentInsets.left, 0), textViewWidth),
-            y: max(textViewY - editorTextContentInsets.top, 0)
-        )
-        let characterIndex = layoutManager.characterIndex(
-            for: containerPoint,
-            in: textContainer,
-            fractionOfDistanceBetweenInsertionPoints: nil
-        )
+        let glyphRange = layoutManager.glyphRange(for: textContainer)
+        var widestLine: CGFloat = 0
+        layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { _, usedRect, _, _, _ in
+            widestLine = max(widestLine, ceil(usedRect.width))
+        }
+        let usedRect = layoutManager.usedRect(for: textContainer)
 
-        return min(max(characterIndex, 0), nsText.length)
+        return CGSize(
+            width: ceil(widestLine + editorTextContentInsets.left + editorTextContentInsets.right + horizontalPadding + bulletOffset),
+            height: ceil(
+                usedRect.height
+                + editorTextContentInsets.top
+                + editorTextContentInsets.bottom
+                + 2
+            )
+        )
+    }
+
+    private func textViewPoint(
+        forTapAt point: CGPoint,
+        layout: CardZoneLayoutResult,
+        zone: ZoneModel
+    ) -> CGPoint {
+        let bulletOffset = zone.hasBullet
+            ? CardZoneContentMetrics.bulletWidth + CardZoneContentMetrics.bulletSpacing
+            : 0
+        let textViewWidth = max(
+            layout.contentLayoutWidth
+            - bulletOffset
+            - (editorTextHorizontalPadding(for: zone) * 2),
+            1
+        )
+        let textViewX = point.x
+            - layout.leadingInset
+            - bulletOffset
+            - editorTextHorizontalPadding(for: zone)
+
+        return CGPoint(
+            x: min(max(textViewX, 0), textViewWidth),
+            y: max(point.y, 0)
+        )
     }
 
     private func minimumContentHeight(forWidth width: CGFloat) -> CGFloat {
@@ -861,40 +946,15 @@ struct ZoneContentView: View {
     }
 
     private func measuredTextHeight(for zone: ZoneModel, width: CGFloat) -> CGFloat {
-        let textViewWidth = max(width - (editorTextHorizontalPadding(for: zone) * 2), 1)
-        let textContainerWidth = max(
-            textViewWidth - editorTextContentInsets.left - editorTextContentInsets.right,
-            1
-        )
-        let rawText = zone.text.isEmpty ? " " : zone.text
-        let measuredText = rawText.hasSuffix("\n") ? rawText + " " : rawText
-        let textStorage = NSTextStorage(
-            attributedString: NSAttributedString(
-                string: measuredText,
-                attributes: textMeasurementAttributes(for: zone)
-            )
-        )
-        let layoutManager = NSLayoutManager()
-        let textContainer = NSTextContainer(
-            size: CGSize(width: textContainerWidth, height: .greatestFiniteMagnitude)
-        )
+        measuredRawTextSize(for: zone, width: width).height
+    }
 
-        textContainer.lineFragmentPadding = 0
-        textContainer.lineBreakMode = .byWordWrapping
-        textContainer.maximumNumberOfLines = 0
-        layoutManager.usesFontLeading = true
-        layoutManager.addTextContainer(textContainer)
-        textStorage.addLayoutManager(layoutManager)
-        layoutManager.ensureLayout(for: textContainer)
-
-        let usedRect = layoutManager.usedRect(for: textContainer)
-
-        return ceil(
-            usedRect.height
-            + editorTextContentInsets.top
-            + editorTextContentInsets.bottom
-            + 2
-        )
+    private func textWithoutTrailingBlankLines(_ text: String) -> String {
+        var trimmed = text
+        while trimmed.last == "\n" {
+            trimmed.removeLast()
+        }
+        return trimmed
     }
 
     private func textMeasurementAttributes(for zone: ZoneModel) -> [NSAttributedString.Key: Any] {
@@ -913,27 +973,6 @@ struct ZoneContentView: View {
         zone.contentType == .text || zone.contentType == .empty || zone.contentType == .code
     }
 
-    private func usesDeterministicPlainTextLayout(_ zone: ZoneModel) -> Bool {
-        guard zone.contentType == .text else { return false }
-        let text = MathTextSanitizer.stripTerminalZonePeriod(zone.text)
-        return !MathTextSanitizer.containsMath(text)
-            && !MathTextSanitizer.containsInlineCode(text)
-            && !text.contains("**")
-            && !text.hasPrefix("```")
-    }
-
-    private func needsFocusedRawTextMeasurement(_ zone: ZoneModel) -> Bool {
-        guard isFocused || isTextViewFirstResponder else { return false }
-        guard zone.contentType == .text || zone.contentType == .code else { return false }
-
-        let text = MathTextSanitizer.stripTerminalZonePeriod(zone.text)
-        return zone.contentType == .code
-            || MathTextSanitizer.containsMath(text)
-            || MathTextSanitizer.containsInlineCode(text)
-            || text.contains("**")
-            || text.hasPrefix("```")
-    }
-
     private func updateRenderedContentSize(_ newSize: CGSize) {
         guard !isResizingZone else { return }
         guard newSize.width > 0, newSize.height > 0 else { return }
@@ -948,22 +987,10 @@ struct ZoneContentView: View {
         }
     }
 
-    private func updateRenderedContentHeight(_ newHeight: CGFloat) {
-        guard !isResizingZone else { return }
-        guard newHeight > 0 else { return }
-        let clampedHeight = max(ceil(newHeight), 1)
-        if abs(renderedContentSize.height - clampedHeight) > 0.5 {
-            renderedContentSize = CGSize(
-                width: renderedContentSize.width,
-                height: clampedHeight
-            )
-        }
-    }
-
     @ViewBuilder
-    private func contentView(layout: CardZoneLayoutResult) -> some View {
+    private var contentView: some View {
         switch zone?.contentType ?? .empty {
-        case .empty, .text, .code: textViewWithGhostOverlay(layout: layout)
+        case .empty, .text, .code: textViewWithGhostOverlay
         case .image: imageView
         case .sketch: sketchView
         }
@@ -972,7 +999,7 @@ struct ZoneContentView: View {
     // MARK: - textViewWithGhostOverlay
 
     @ViewBuilder
-    private func textViewWithGhostOverlay(layout: CardZoneLayoutResult) -> some View {
+    private var textViewWithGhostOverlay: some View {
         VStack(spacing: 8) {
             if isSelected, previewDirection == .up {
                 FakeGhostBlockView()
@@ -987,14 +1014,14 @@ struct ZoneContentView: View {
                         .padding(.top, 10)
                 }
 
-                if isFocused {
+                if shouldUseInteractiveTextSurface {
                     textEditorCore
                         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else if zone?.text.isEmpty ?? true {
                     emptyZonePreview
                         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else {
-                    renderedTextPreview(layout: layout)
+                    rawTextPreview
                         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: topAlignmentFor(zone))
                 }
             }
@@ -1009,6 +1036,15 @@ struct ZoneContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
+    private var shouldUseInteractiveTextSurface: Bool {
+        guard let zone else { return false }
+        guard zone.contentType == .text || zone.contentType == .empty || zone.contentType == .code else {
+            return false
+        }
+
+        return true
+    }
+
     private var emptyZonePreview: some View {
         RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
             .fill(Color.clear)
@@ -1016,86 +1052,17 @@ struct ZoneContentView: View {
             .contentShape(Rectangle())
     }
 
-    private func renderedTextPreview(layout: CardZoneLayoutResult) -> some View {
-        let textInsets = editorTextContentInsets
-        return Group {
-            if zone?.contentType == .code || zone?.text.hasPrefix("```") == true {
-                CodeSnippetView(rawText: zone?.text ?? "")
-                    .padding(.top, textInsets.top)
-                    .padding(.bottom, textInsets.bottom)
-                    .padding(.leading, textInsets.left)
-                    .padding(.trailing, textInsets.right)
-                    .onGeometryChange(for: CGSize.self) { proxy in
-                        CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
-                    } action: { size in
-                        updateRenderedContentHeight(size.height)
-                    }
-            } else {
-                renderedPlainOrRichTextPreview(textInsets: textInsets, layout: layout)
-                    .background(Color.clear)
-                    .onGeometryChange(for: CGSize.self) { proxy in
-                        CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
-                    } action: { size in
-                        updateRenderedContentHeight(size.height)
-                    }
-                    .contentShape(Rectangle())
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func renderedPlainOrRichTextPreview(
-        textInsets: UIEdgeInsets,
-        layout: CardZoneLayoutResult
-    ) -> some View {
-        if shouldUseRichTextPreview {
-            let widthLimit = layout.textWidthLimit ?? max(
-                layout.contentLayoutWidth
-                - layout.textHorizontalInsets
-                - layout.bulletHorizontalInset,
-                1
-            )
-            MixedMathTextView(
-                text: zone?.text ?? "",
-                fontSize: fontSizeFor(zone),
-                textColor: zone?.textColor.color ?? .primary,
-                alignment: alignmentFor(zone).horizontalAlignment,
-                isBold: zone?.isBold ?? false,
-                isItalic: zone?.isItalic ?? false,
-                isInteractive: false,
-                intrinsicWidthLimit: widthLimit,
-                onIntrinsicContentSizeChange: { size in
-                    updateRenderedContentSize(
-                        CGSize(
-                            width: ceil(size.width + layout.textHorizontalInsets + layout.bulletHorizontalInset),
-                            height: ceil(size.height + editorTextVerticalPadding)
-                        )
-                    )
-                }
-            )
-            .padding(.top, textInsets.top)
-            .padding(.bottom, textInsets.bottom)
-            .padding(.leading, textInsets.left)
-            .padding(.trailing, textInsets.right)
-            .padding(.horizontal, editorTextHorizontalPadding)
-        } else {
-            ZonePlainTextViewRepresentable(
-                text: zone?.text ?? "",
-                font: textUIFont,
-                textColor: UIColor(zone?.textColor.color ?? .primary),
-                textAlignment: zone?.textAlignment.nsTextAlignment ?? .left,
-                lineSpacing: editorTextLineSpacing,
-                contentInset: textInsets
-            )
-            .padding(.horizontal, editorTextHorizontalPadding)
-        }
-    }
-
-    private var shouldUseRichTextPreview: Bool {
-        let text = zone?.text ?? ""
-        return MathTextSanitizer.containsMath(text)
-            || MathTextSanitizer.containsInlineCode(text)
-            || text.contains("**")
+    private var rawTextPreview: some View {
+        ZonePlainTextViewRepresentable(
+            text: zone?.text ?? "",
+            font: textUIFont,
+            textColor: UIColor(zone?.textColor.color ?? .primary),
+            textAlignment: zone?.textAlignment.nsTextAlignment ?? .left,
+            lineSpacing: editorTextLineSpacing,
+            contentInset: editorTextContentInsets
+        )
+        .padding(.horizontal, editorTextHorizontalPadding)
+        .contentShape(Rectangle())
     }
 
     private var highlightedBackground: some View {
@@ -1118,8 +1085,6 @@ struct ZoneContentView: View {
 
     @ViewBuilder
     private var textEditorCore: some View {
-        let rawText = zone?.text ?? ""
-        let dummyText = rawText.isEmpty ? " " : rawText
         let currentTextColor = zone?.textColor.color ?? .primary
         let currentTextAlignment = zone?.textAlignment.nsTextAlignment ?? .left
         let currentIsBold = zone?.isBold ?? false
@@ -1130,27 +1095,10 @@ struct ZoneContentView: View {
         let textInsets = editorTextContentInsets
 
         ZStack(alignment: .topLeading) {
-            ZonePlainTextViewRepresentable(
-                text: dummyText,
-                font: textUIFont,
-                textColor: UIColor(currentTextColor),
-                textAlignment: currentTextAlignment,
-                lineSpacing: editorTextLineSpacing,
-                contentInset: textInsets
-            )
-            .opacity(0)
-            .frame(maxWidth: .infinity, alignment: topAlignmentFor(zone))
-            .layoutPriority(1)
-            .onGeometryChange(for: CGSize.self) { proxy in
-                CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
-            } action: { size in
-                updateRenderedContentHeight(size.height)
-            }
-
             ZoneTextViewRepresentable(
                 text: pureTextBinding, font: textUIFont, textColor: UIColor(currentTextColor), textAlignment: currentTextAlignment, isBold: currentIsBold, isItalic: currentIsItalic, lineSpacing: editorTextLineSpacing, contentInset: textInsets, cursorTintColor: UIColor(accent), extendsTextOnBlankTap: false, zoneID: zoneID, isFirstResponder: isFocused,
                 onTextChange: { newText in
-                    if currentContentType == .text || currentContentType == .empty {
+                    if currentContentType == .text || currentContentType == .empty || currentContentType == .code {
                         highlightContext?.dismiss()
                         content.updateZone(at: currentPath) { z in z.text = newText; if z.contentType == .empty { z.contentType = .text } }
                     }

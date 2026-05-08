@@ -636,16 +636,35 @@ private enum FlashcardPlainTextLayoutMeasurer {
 
             var current: [FlashcardPlainTextToken] = []
             for token in tokens {
-                let candidate = current.isEmpty
-                    ? [token.trimmedLeadingWhitespace()].filter { !$0.isEmpty }
-                    : current + [token]
-                let candidateWidth = measuredWidth(for: normalizedLineTokens(candidate))
+                var remainingToken = token
 
-                if !current.isEmpty, candidateWidth > widthLimit {
-                    output.append(line(from: current, zone: zone, fontScale: fontScale))
-                    current = token.trimmedLeadingWhitespace().isEmpty ? [] : [token.trimmedLeadingWhitespace()]
-                } else {
+                while !remainingToken.isEmpty {
+                    let nextToken = current.isEmpty
+                        ? remainingToken.trimmedLeadingWhitespace()
+                        : remainingToken
+
+                    guard !nextToken.isEmpty else { break }
+
+                    let candidate = current.isEmpty
+                        ? [nextToken]
+                        : current + [nextToken]
+                    let candidateWidth = measuredWidth(for: normalizedLineTokens(candidate))
+
+                    if !current.isEmpty, candidateWidth > widthLimit {
+                        output.append(line(from: current, zone: zone, fontScale: fontScale))
+                        current = []
+                        continue
+                    }
+
+                    if current.isEmpty, candidateWidth > widthLimit {
+                        let split = splitOversizedToken(nextToken, widthLimit: widthLimit)
+                        output.append(line(from: [split.lineToken], zone: zone, fontScale: fontScale))
+                        remainingToken = split.remainingToken
+                        continue
+                    }
+
                     current = candidate
+                    break
                 }
             }
 
@@ -740,6 +759,40 @@ private enum FlashcardPlainTextLayoutMeasurer {
         }
 
         return normalized.filter { !$0.text.isEmpty }
+    }
+
+    private static func splitOversizedToken(
+        _ token: FlashcardPlainTextToken,
+        widthLimit: CGFloat
+    ) -> (lineToken: FlashcardPlainTextToken, remainingToken: FlashcardPlainTextToken) {
+        guard !token.text.isEmpty else {
+            return (token, token)
+        }
+
+        let start = token.text.startIndex
+        var candidateEnd = start
+        var bestEnd = start
+
+        while candidateEnd < token.text.endIndex {
+            let nextEnd = token.text.index(after: candidateEnd)
+            let candidateText = String(token.text[start..<nextEnd])
+            let candidateWidth = measuredWidth(for: [token.replacingText(candidateText)])
+
+            if candidateWidth <= widthLimit || bestEnd == start {
+                bestEnd = nextEnd
+                candidateEnd = nextEnd
+            } else {
+                break
+            }
+        }
+
+        let lineText = String(token.text[start..<bestEnd])
+        let remainingText = String(token.text[bestEnd...])
+
+        return (
+            token.replacingText(lineText),
+            token.replacingText(remainingText)
+        )
     }
 
     private static func line(
@@ -930,7 +983,7 @@ private struct FlashcardPlainTextToken: Equatable {
         .joined()
     }
 
-    private func replacingText(_ value: String) -> FlashcardPlainTextToken {
+    func replacingText(_ value: String) -> FlashcardPlainTextToken {
         FlashcardPlainTextToken(
             text: value,
             attributes: attributes,

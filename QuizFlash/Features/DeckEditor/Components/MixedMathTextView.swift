@@ -573,6 +573,7 @@ struct MathWebView: UIViewRepresentable {
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "widthUpdate")
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "overflowUpdate")
+        uiView.configuration.userContentController.removeScriptMessageHandler(forName: "tapUpdate")
 
         // 3. Return to pool (or discard if full)
         MathWebViewPool.shared.enqueue(uiView)
@@ -584,10 +585,12 @@ struct MathWebView: UIViewRepresentable {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "widthUpdate")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "overflowUpdate")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "tapUpdate")
         let scriptHandlerWrapper = WeakScriptMessageHandler(delegate: context.coordinator)
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "heightUpdate")
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "widthUpdate")
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "overflowUpdate")
+        webView.configuration.userContentController.add(scriptHandlerWrapper, name: "tapUpdate")
 
         context.coordinator.webView = webView
         context.coordinator.lastRenderedSignature = renderSignature
@@ -801,6 +804,15 @@ struct MathWebView: UIViewRepresentable {
         };
         
         let updateTimeout;
+        let tapMovementLimit = 10;
+        let tapDurationLimit = 450;
+        let syntheticClickSuppressionWindow = 650;
+        let tapBridgeState = {
+            startPoint: null,
+            startTime: 0,
+            lastTouchTapTime: 0,
+            isInstalled: false
+        };
 
         function updateMathContent(b64, color, fontSize, align, weight, fontStyle, allowDisplayMathOverflowScrolling) {
             document.body.style.color = color;
@@ -818,6 +830,7 @@ struct MathWebView: UIViewRepresentable {
             let text = new TextDecoder('utf-8').decode(bytes);
 
             const contentDiv = document.getElementById('content');
+            installTapBridge(contentDiv);
             contentDiv.classList.toggle('has-complex-inline-math', containsComplexInlineMath(text));
             contentDiv.innerHTML = text;
             
@@ -842,6 +855,51 @@ struct MathWebView: UIViewRepresentable {
             reportOverflow();
             updateTimeout = setTimeout(reportLayoutMetrics, 50);
             setTimeout(reportOverflow, 50);
+        }
+
+        function installTapBridge(contentDiv) {
+            if (!contentDiv || tapBridgeState.isInstalled) { return; }
+            tapBridgeState.isInstalled = true;
+
+            contentDiv.addEventListener('touchstart', event => {
+                const touch = event.changedTouches && event.changedTouches[0];
+                if (!touch) { return; }
+                tapBridgeState.startPoint = { x: touch.clientX, y: touch.clientY };
+                tapBridgeState.startTime = Date.now();
+            }, { passive: true });
+
+            contentDiv.addEventListener('touchend', event => {
+                const touch = event.changedTouches && event.changedTouches[0];
+                if (!touch || !tapBridgeState.startPoint) {
+                    tapBridgeState.startPoint = null;
+                    return;
+                }
+
+                const dx = touch.clientX - tapBridgeState.startPoint.x;
+                const dy = touch.clientY - tapBridgeState.startPoint.y;
+                const distance = Math.hypot(dx, dy);
+                const duration = Date.now() - tapBridgeState.startTime;
+                tapBridgeState.startPoint = null;
+
+                if (distance > tapMovementLimit || duration > tapDurationLimit) { return; }
+                tapBridgeState.lastTouchTapTime = Date.now();
+                postTapUpdate();
+            }, { passive: true });
+
+            contentDiv.addEventListener('touchcancel', () => {
+                tapBridgeState.startPoint = null;
+            }, { passive: true });
+
+            contentDiv.addEventListener('click', () => {
+                if (Date.now() - tapBridgeState.lastTouchTapTime < syntheticClickSuppressionWindow) { return; }
+                postTapUpdate();
+            });
+        }
+
+        function postTapUpdate() {
+            if (window.webkit && window.webkit.messageHandlers.tapUpdate) {
+                window.webkit.messageHandlers.tapUpdate.postMessage(true);
+            }
         }
 
         function containsComplexInlineMath(text) {
@@ -1079,6 +1137,7 @@ struct MathWebView: UIViewRepresentable {
                 reportOverflow();
             }).observe(document.getElementById('content'));
         }
+        installTapBridge(document.getElementById('content'));
         </script>
         </body>
         </html>
@@ -1135,6 +1194,7 @@ struct MathWebView: UIViewRepresentable {
         var lastRenderedSignature: String = ""
         var onTap: (() -> Void)?
         private var updateRetryTask: Task<Void, Never>?
+        private var lastTapEmissionTime: TimeInterval = 0
 
         init(
             contentHeight: Binding<CGFloat>,
@@ -1194,6 +1254,11 @@ struct MathWebView: UIViewRepresentable {
                         : .init()
                 }
 
+            case "tapUpdate":
+                Task { @MainActor in
+                    self.emitTap()
+                }
+
             default:
                 return
             }
@@ -1230,6 +1295,16 @@ struct MathWebView: UIViewRepresentable {
 
         @objc func handleTap(_ recognizer: UITapGestureRecognizer) {
             guard recognizer.state == .ended else { return }
+            Task { @MainActor in
+                self.emitTap()
+            }
+        }
+
+        @MainActor
+        private func emitTap() {
+            let now = Date().timeIntervalSinceReferenceDate
+            guard now - lastTapEmissionTime > 0.28 else { return }
+            lastTapEmissionTime = now
             onTap?()
         }
 

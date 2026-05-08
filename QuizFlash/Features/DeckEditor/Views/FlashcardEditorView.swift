@@ -134,7 +134,10 @@ struct FlashcardEditorView: View {
         .fullScreenCover(isPresented: $showSketchModal) { CanvasModalView { data in addSketch(data) } }
         .fullScreenSheet(
             isPresented: $showPreview,
-            configuration: .sheet(showsDefaultTopProgressiveBlur: false)
+            configuration: .sheet(
+                heightMode: .fullScreen,
+                showsDefaultTopProgressiveBlur: false
+            )
         ) { safeArea in
             CardPreviewModeView(
                 front: frontZoneContent,
@@ -144,7 +147,7 @@ struct FlashcardEditorView: View {
                 textSize: textSize
             )
         } background: {
-            CardPreviewModeBackground()
+            Color.clear
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedPath)
         .animation(.spring(response: 0.2, dampingFraction: 0.7), value: previewDirection)
@@ -166,7 +169,7 @@ struct FlashcardEditorView: View {
 
     @ViewBuilder
     private var floatingFormatBar: some View {
-        if let path = selectedPath {
+        if let path = formatBarPath {
             VStack {
                 Spacer(minLength: 0)
                 if let focusedPath = focusedSelectedPath {
@@ -187,6 +190,27 @@ struct FlashcardEditorView: View {
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .zIndex(30)
         }
+    }
+
+    private var formatBarPath: ZonePath? {
+        if let selectedPath, currentContent.zone(at: selectedPath) != nil {
+            return selectedPath
+        }
+
+        return firstLeafPath(in: currentContent.rootZone, currentPath: .root) ?? .root
+    }
+
+    private func firstLeafPath(in zone: ZoneModel, currentPath: ZonePath) -> ZonePath? {
+        guard !zone.isLeaf else { return currentPath }
+        guard let children = zone.children else { return nil }
+
+        for (index, child) in children.enumerated() {
+            if let path = firstLeafPath(in: child, currentPath: currentPath.appending(index)) {
+                return path
+            }
+        }
+
+        return nil
     }
 
     private var floatingToolbarBottomInset: CGFloat {
@@ -412,6 +436,8 @@ struct FlashcardEditorView: View {
     private func openPreview() {
         guard canSave else { return }
         focusManager.forceReleaseKeyboard()
+        zoneController.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
         selectedPath = nil
         previewDirection = nil
         showPreview = true

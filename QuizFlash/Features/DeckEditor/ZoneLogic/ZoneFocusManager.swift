@@ -56,6 +56,7 @@ final class ZoneFocusManager {
     private var focusRetentionTask: Task<Void, Never>?
     private var focusNotificationTask: Task<Void, Never>?
     private var pendingCursorLocations: [UUID: Int] = [:]
+    private var pendingCursorPoints: [UUID: CGPoint] = [:]
     
     // MARK: - Focus Management
     
@@ -99,6 +100,17 @@ final class ZoneFocusManager {
         let location = pendingCursorLocations[zoneID]
         pendingCursorLocations.removeValue(forKey: zoneID)
         return location
+    }
+
+    func requestCursorPoint(_ point: CGPoint, for zoneID: UUID) {
+        pendingCursorPoints[zoneID] = point
+        pendingCursorLocations.removeValue(forKey: zoneID)
+    }
+
+    func takePendingCursorPoint(for zoneID: UUID) -> CGPoint? {
+        let point = pendingCursorPoints[zoneID]
+        pendingCursorPoints.removeValue(forKey: zoneID)
+        return point
     }
     
     /// Updates the currently focused zone

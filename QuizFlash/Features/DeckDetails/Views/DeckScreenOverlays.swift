@@ -313,6 +313,7 @@ extension DeckContentView {
 
     struct DeckCardPreviewSheetView: View {
         let card: CardModel
+        let flashcardSettings: FlashcardModeSettings
         let safeAreaInsets: UIEdgeInsets
         let onOpenRecommendedConversion: (CardKind) -> Void
 
@@ -340,6 +341,8 @@ extension DeckContentView {
                         safeAreaInsets: safeAreaInsets,
                         showsLeadingAccessory: true,
                         leadingAccessory: AnyView(statsButton),
+                        contentAlignment: flashcardSettings.contentAlignment,
+                        textSize: flashcardSettings.textSize,
                         onOpenRecommendedConversion: onOpenRecommendedConversion
                     )
 

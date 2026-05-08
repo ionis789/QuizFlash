@@ -110,17 +110,25 @@ extension DeckContentView {
         }
         .fullScreenSheet(
             item: $previewedCard,
-            configuration: .sheet(showsDefaultTopProgressiveBlur: false)
+            configuration: .sheet(
+                heightMode: .fullScreen,
+                showsDefaultTopProgressiveBlur: false
+            )
         ) { card, safeArea in
             DeckCardPreviewSheetView(
                 card: card,
+                flashcardSettings: deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings(),
                 safeAreaInsets: safeArea,
                 onOpenRecommendedConversion: { targetKind in
                     handlePreviewRecommendedConversion(for: card, targetKind: targetKind)
                 }
             )
         } background: {
-            CardPreviewModeBackground()
+            if case .flashcard = previewedCard?.cardContent {
+                Color.clear
+            } else {
+                CardPreviewModeBackground()
+            }
         }
         .fullScreenSheet(
             item: $viewModel.activitySheetPresentation,

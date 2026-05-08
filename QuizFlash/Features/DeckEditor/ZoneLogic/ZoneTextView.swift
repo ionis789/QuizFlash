@@ -11,6 +11,19 @@ import Foundation
 // MARK: - Full Hit Text View
 /// Custom UITextView that keeps selection stable inside the editor surface.
 final class FullHitTextView: UITextView {
+    var usesCompactCaret: Bool = true
+
+    override func caretRect(for position: UITextPosition) -> CGRect {
+        var rect = super.caretRect(for: position)
+        guard usesCompactCaret else { return rect }
+
+        let targetHeight = min(max((font?.lineHeight ?? rect.height) * 0.48, 14), 26)
+        rect.origin.y += max((rect.height - targetHeight) / 2, 0)
+        rect.size.height = targetHeight
+        rect.size.width = 1.8
+        return rect
+    }
+
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         if self.bounds.contains(point) {
             return self
@@ -245,16 +258,42 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             NotificationCenter.default.removeObserver(observer)
         }
     }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard gestureRecognizer.name == Self.surfaceTapRecognizerName else {
+            return true
+        }
+
+        guard extendsTextOnBlankTap,
+              let textView,
+              !textView.isFirstResponder else {
+            return false
+        }
+
+        let point = touch.location(in: textView)
+        return textView.bounds.contains(point) && isBlankSurfaceTap(at: point, in: textView)
+    }
     
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        return true
+        true
     }
 
     @objc func handleSurfaceTap(_ recognizer: UITapGestureRecognizer) {
         guard recognizer.state == .ended,
               extendsTextOnBlankTap,
               let textView,
-              textView.bounds.contains(recognizer.location(in: textView)) else {
+              textView.bounds.contains(recognizer.location(in: textView)),
+              isBlankSurfaceTap(at: recognizer.location(in: textView), in: textView) else {
+            return
+        }
+
+        applySurfaceTap(at: recognizer.location(in: textView))
+    }
+
+    func applySurfaceTap(at tapPoint: CGPoint) {
+        guard extendsTextOnBlankTap,
+              let textView,
+              textView.bounds.contains(tapPoint) else {
             return
         }
 
@@ -262,12 +301,103 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             textView.becomeFirstResponder()
         }
 
+        setCursor(at: tapPoint, in: textView)
         reportCursorPosition(from: textView)
     }
 
+    private func setCursor(at point: CGPoint, in textView: UITextView) {
+        textView.layoutIfNeeded()
+
+        let boundedPoint = CGPoint(
+            x: min(max(point.x, 0), max(textView.bounds.width, 0)),
+            y: min(max(point.y, 0), max(textView.bounds.height, 0))
+        )
+
+        if let position = textView.closestPosition(to: boundedPoint) {
+            let location = textView.offset(from: textView.beginningOfDocument, to: position)
+            let clampedLocation = min(max(location, 0), (textView.text as NSString).length)
+            textView.selectedRange = NSRange(location: clampedLocation, length: 0)
+        } else {
+            let location = insertionLocation(for: boundedPoint, in: textView)
+            textView.selectedRange = NSRange(location: location, length: 0)
+        }
+    }
+
+    private func insertionLocation(for point: CGPoint, in textView: UITextView) -> Int {
+        let nsText = (textView.text ?? "") as NSString
+        guard nsText.length > 0 else { return 0 }
+
+        let layoutManager = textView.layoutManager
+        let textContainer = textView.textContainer
+        layoutManager.ensureLayout(for: textContainer)
+
+        var containerPoint = point
+        containerPoint.x -= textView.textContainerInset.left
+        containerPoint.y -= textView.textContainerInset.top
+        containerPoint.x += textView.contentOffset.x
+        containerPoint.y += textView.contentOffset.y
+
+        let usedRect = layoutManager.usedRect(for: textContainer)
+        if containerPoint.y >= usedRect.maxY {
+            return nsText.length
+        }
+
+        var insertionFraction: CGFloat = 0
+        let characterIndex = layoutManager.characterIndex(
+            for: containerPoint,
+            in: textContainer,
+            fractionOfDistanceBetweenInsertionPoints: &insertionFraction
+        )
+        let insertionIndex = characterIndex + (insertionFraction > 0.5 ? 1 : 0)
+        return min(max(insertionIndex, 0), nsText.length)
+    }
+
+    private func isBlankSurfaceTap(at point: CGPoint, in textView: UITextView) -> Bool {
+        let nsText = (textView.text ?? "") as NSString
+        guard nsText.length > 0 else { return true }
+
+        let layoutManager = textView.layoutManager
+        let textContainer = textView.textContainer
+        layoutManager.ensureLayout(for: textContainer)
+
+        var containerPoint = point
+        containerPoint.x -= textView.textContainerInset.left
+        containerPoint.y -= textView.textContainerInset.top
+        containerPoint.x += textView.contentOffset.x
+        containerPoint.y += textView.contentOffset.y
+
+        let usedRect = layoutManager.usedRect(for: textContainer).insetBy(dx: -4, dy: -4)
+        guard usedRect.contains(containerPoint) else { return true }
+
+        var fraction: CGFloat = 0
+        let characterIndex = layoutManager.characterIndex(
+            for: containerPoint,
+            in: textContainer,
+            fractionOfDistanceBetweenInsertionPoints: &fraction
+        )
+        let glyphIndex = layoutManager.glyphIndexForCharacter(at: min(characterIndex, max(nsText.length - 1, 0)))
+        let glyphRect = layoutManager.boundingRect(
+            forGlyphRange: NSRange(location: glyphIndex, length: 1),
+            in: textContainer
+        ).insetBy(dx: -8, dy: -6)
+
+        return !glyphRect.contains(containerPoint)
+    }
+
+    static let surfaceTapRecognizerName = "ZoneTextViewSurfaceTapRecognizer"
+
     private func applyPendingCursorLocation(for zoneID: UUID) {
-        guard let textView,
-              let requestedLocation = ZoneFocusManager.shared.takePendingCursorLocation(for: zoneID) else {
+        guard let textView else {
+            return
+        }
+
+        if let requestedPoint = ZoneFocusManager.shared.takePendingCursorPoint(for: zoneID) {
+            setCursor(at: requestedPoint, in: textView)
+            reportCursorPosition(from: textView)
+            return
+        }
+
+        guard let requestedLocation = ZoneFocusManager.shared.takePendingCursorLocation(for: zoneID) else {
             return
         }
 
@@ -292,13 +422,21 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     
     func textViewDidBeginEditing(_ textView: UITextView) {
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didBegin", zoneID: zoneID)
+        updateSurfaceTapRecognizer(in: textView, enabled: false)
         onFocusChange?(true)
         reportCursorPosition(from: textView)
     }
     
     func textViewDidEndEditing(_ textView: UITextView) {
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didEnd", zoneID: zoneID)
+        updateSurfaceTapRecognizer(in: textView, enabled: extendsTextOnBlankTap)
         onFocusChange?(false)
+    }
+
+    func updateSurfaceTapRecognizer(in textView: UITextView, enabled: Bool) {
+        textView.gestureRecognizers?
+            .filter { $0.name == Self.surfaceTapRecognizerName }
+            .forEach { $0.isEnabled = enabled }
     }
     
     private func reportCursorPosition(from textView: UITextView) {
@@ -382,10 +520,13 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         textView.spellCheckingType = .no
         textView.keyboardType = .default
         textView.returnKeyType = .default
+        textView.isEditable = true
+        textView.isSelectable = true
         textView.isScrollEnabled = false
         textView.textContainer.lineFragmentPadding = 0
         textView.textContainerInset = contentInset
         textView.allowsEditingTextAttributes = false
+        textView.usesCompactCaret = true
         
         textView.textContainer.lineBreakMode = .byWordWrapping
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -394,6 +535,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             target: context.coordinator,
             action: #selector(ZoneTextViewCoordinator.handleSurfaceTap(_:))
         )
+        surfaceTapRecognizer.name = ZoneTextViewCoordinator.surfaceTapRecognizerName
         surfaceTapRecognizer.cancelsTouchesInView = false
         surfaceTapRecognizer.delegate = context.coordinator
         textView.addGestureRecognizer(surfaceTapRecognizer)
@@ -416,6 +558,11 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.lineSpacing = lineSpacing
         context.coordinator.contentInset = contentInset
         context.coordinator.extendsTextOnBlankTap = extendsTextOnBlankTap
+        (textView as? FullHitTextView)?.usesCompactCaret = true
+        context.coordinator.updateSurfaceTapRecognizer(
+            in: textView,
+            enabled: extendsTextOnBlankTap && !textView.isFirstResponder
+        )
         ZoneEditorDebugStore.shared.updateTextView(
             zoneID: zoneID,
             mountedFocused: isFirstResponder,
@@ -520,7 +667,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
 
 // MARK: - Zone Plain Text Preview
 
-/// Read-only text renderer used by the zone preview and hidden editor measurer.
+/// Read-only text renderer used by the raw zone preview.
 /// It intentionally mirrors `ZoneTextViewRepresentable` so focusing a zone does
 /// not change text metrics, wrapping, or insets.
 struct ZonePlainTextViewRepresentable: UIViewRepresentable {

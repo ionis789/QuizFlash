@@ -48,6 +48,14 @@ struct EditorFormatMenuBar: View {
     private var zone: ZoneModel? { content.zone(at: path) }
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var locale: Locale { appPreferences.resolvedLocale }
+    private var showsTextTools: Bool {
+        guard let zone, zone.isLeaf else { return false }
+        return zone.contentType == .text || zone.contentType == .empty || zone.contentType == .code
+    }
+    private var showsMediaTools: Bool {
+        guard let zone, zone.isLeaf else { return false }
+        return zone.contentType == .image || zone.contentType == .sketch
+    }
 
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
@@ -59,8 +67,8 @@ struct EditorFormatMenuBar: View {
                 HStack(spacing: 8) {
                     cardActionTools
                     
-                    if zone?.contentType == .text || zone?.contentType == .empty { textTools }
-                    else if zone?.contentType == .image || zone?.contentType == .sketch { mediaTools }
+                    if showsTextTools { textTools }
+                    else if showsMediaTools { mediaTools }
                 }
                 .padding(.leading, 12)
                 .padding(.trailing, 8)

@@ -190,6 +190,12 @@ struct DeckContentView: View {
                     }
                 }
             }
+            .onChange(of: selectedPlayModeSettings) { old, new in
+                guard old == .flashcards, new == nil else { return }
+                resetPreparedFlashcardsPlayMode()
+                guard !isSuspended else { return }
+                prepareFlashcardsPlayModeIfNeeded()
+            }
             .onChange(of: isSuspended) { _, suspended in
                 if suspended {
                     viewModel.suspendHeavyWork()

@@ -37,6 +37,16 @@ struct CardPreviewModeView: View {
         CardReadinessDiagnostics.diagnostics(for: content)
     }
     private var locale: Locale { appPreferences.resolvedLocale }
+    private var isSheetPresentation: Bool { fullScreenSheetDismiss != nil }
+    private var isFlashcardSheetPresentation: Bool { isSheetPresentation && supportsFlip }
+    private var playChromeButtonSize: CGFloat { isCompact ? 54 : UIConstants.Size.actionButton }
+    private var playSurfaceHorizontalPadding: CGFloat { isCompact ? 12 : 24 }
+    private var playFlipPerspectiveBottomClearance: CGFloat { isCompact ? 14 : 22 }
+    private var playScoreZoneHeight: CGFloat { isCompact ? 44 : 52 }
+    private var playScoreZoneBottomPadding: CGFloat { isCompact ? 10 : 16 }
+    private var playCardBottomReserve: CGFloat { playFlipPerspectiveBottomClearance }
+    private var playBottomChromeHeight: CGFloat { playScoreZoneHeight + playScoreZoneBottomPadding + 6 }
+    private var playHeaderBottomPadding: CGFloat { isCompact ? 16 : 18 }
 
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
@@ -107,11 +117,17 @@ struct CardPreviewModeView: View {
             let contentHorizontalInset = isCompact
                 ? UIConstants.Spacing.standard
                 : (isLandscape ? geo.size.width * 0.15 : 40)
-            let contentTopInset = topChromeHeight + UIConstants.Spacing.medium
-            let contentBottomPadding = max(resolvedSafeBottomInset, UIConstants.Spacing.standard)
-            let availableCardHeight = max(
-                UIConstants.Size.cardMinHeight,
-                geo.size.height - contentTopInset - contentBottomPadding
+            let contentTopInset = isFlashcardSheetPresentation ? 0 : topChromeHeight + UIConstants.Spacing.medium
+            let contentBottomPadding = isFlashcardSheetPresentation ? 0 : max(resolvedSafeBottomInset, UIConstants.Spacing.standard)
+            let previewCardMaxWidth = resolvedPreviewCardMaxWidth(
+                containerWidth: geo.size.width,
+                horizontalInset: contentHorizontalInset
+            )
+            let previewCardHeight = resolvedPreviewCardHeight(
+                containerSize: geo.size,
+                contentTopInset: contentTopInset,
+                bottomPadding: contentBottomPadding,
+                cardMaxWidth: previewCardMaxWidth
             )
 
             ZStack(alignment: .top) {
@@ -120,61 +136,57 @@ struct CardPreviewModeView: View {
                 }
 
                 previewSurface(
-                    availableCardHeight: availableCardHeight,
+                    previewCardMaxWidth: previewCardMaxWidth,
+                    previewCardHeight: previewCardHeight,
                     contentTopInset: contentTopInset,
                     horizontalInset: contentHorizontalInset,
                     bottomPadding: contentBottomPadding
                 )
 
-                topChrome(
-                    safeTopInset: resolvedSafeTopInset,
-                    horizontalInset: headerHorizontalInset
-                )
+                if !isFlashcardSheetPresentation {
+                    topChrome(
+                        safeTopInset: resolvedSafeTopInset,
+                        horizontalInset: headerHorizontalInset
+                    )
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .swipeBack(attachment: swipeBackAttachment) {
             handleDone()
         }
+        .onAppear {
+            if isFlashcardSheetPresentation {
+                ZoneFocusManager.shared.forceReleaseKeyboard()
+                ZoneController.shared.forceReleaseKeyboard()
+                ZoneController.shared.updateFocusedZone(nil)
+            }
+        }
     }
 
     @ViewBuilder
     private func previewSurface(
-        availableCardHeight: CGFloat,
+        previewCardMaxWidth: CGFloat,
+        previewCardHeight: CGFloat,
         contentTopInset: CGFloat,
         horizontalInset: CGFloat,
         bottomPadding: CGFloat
     ) -> some View {
         switch content {
         case .flashcard(let flashcardContent):
-            ZStack(alignment: .bottom) {
-                FlipCard(
-                    frontZone: flashcardContent.frontZone,
-                    backZone: flashcardContent.backZone,
-                    isFlipped: $isFlipped,
-                    tapAnimationStyle: .flip3D,
-                    contentAlignment: contentAlignment,
-                    textSize: textSize,
-                    onTap: togglePreviewFlip
-                )
-                .frame(maxWidth: .infinity)
-                .frame(height: availableCardHeight)
-                .layoutPriority(1)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    togglePreviewFlip()
-                }
-                .padding(.top, contentTopInset)
-                .padding(.horizontal, horizontalInset)
-                .padding(.bottom, bottomPadding)
+            if isSheetPresentation {
+                sheetFlashcardPreviewSurface(flashcardContent)
+            } else {
+                ZStack(alignment: .bottom) {
+                    flashcardPreviewCard(flashcardContent)
+                        .frame(maxWidth: previewCardMaxWidth)
+                        .frame(height: previewCardHeight)
+                        .padding(.horizontal, horizontalInset)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        .padding(.top, contentTopInset)
+                        .padding(.bottom, bottomPadding)
 
-                if !readinessDiagnostics.isEmpty {
-                    CardPreviewReadinessPanel(
-                        diagnostics: readinessDiagnostics,
-                        onOpenRecommendedConversion: onOpenRecommendedConversion
-                    )
-                        .padding(.horizontal, horizontalInset + UIConstants.Spacing.small)
-                        .padding(.bottom, bottomPadding + UIConstants.Spacing.standard)
+                    readinessPanel(horizontalInset: horizontalInset, bottomPadding: bottomPadding)
                 }
             }
         default:
@@ -197,6 +209,102 @@ struct CardPreviewModeView: View {
             }
             .scrollIndicators(.hidden)
         }
+    }
+
+    @ViewBuilder
+    private func sheetFlashcardPreviewSurface(_ flashcardContent: FlashcardCardContent) -> some View {
+        GeometryReader { geo in
+            let cardSize = resolvedSheetFlashcardSize(
+                containerSize: geo.size,
+                geometrySafeAreaInsets: geo.safeAreaInsets
+            )
+
+            flashcardPreviewCard(flashcardContent)
+                .frame(width: cardSize.width, height: cardSize.height)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+    }
+
+    private func flashcardPreviewCard(_ flashcardContent: FlashcardCardContent) -> some View {
+        FlipCard(
+            frontZone: flashcardContent.frontZone,
+            backZone: flashcardContent.backZone,
+            isFlipped: $isFlipped,
+            tapAnimationStyle: .flip3D,
+            contentAlignment: contentAlignment,
+            textSize: textSize,
+            onTap: togglePreviewFlip
+        )
+        .layoutPriority(1)
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func readinessPanel(horizontalInset: CGFloat, bottomPadding: CGFloat) -> some View {
+        if !readinessDiagnostics.isEmpty {
+            CardPreviewReadinessPanel(
+                diagnostics: readinessDiagnostics,
+                onOpenRecommendedConversion: onOpenRecommendedConversion
+            )
+            .padding(.horizontal, horizontalInset + UIConstants.Spacing.small)
+            .padding(.bottom, bottomPadding + UIConstants.Spacing.standard)
+        }
+    }
+
+    private func resolvedPreviewCardMaxWidth(containerWidth: CGFloat, horizontalInset: CGFloat) -> CGFloat {
+        let availableWidth = max(containerWidth - (horizontalInset * 2), 1)
+        guard !isCompact else { return availableWidth }
+        return min(availableWidth, UIConstants.isPad ? 640 : 560)
+    }
+
+    private func resolvedPreviewCardHeight(
+        containerSize: CGSize,
+        contentTopInset: CGFloat,
+        bottomPadding: CGFloat,
+        cardMaxWidth: CGFloat
+    ) -> CGFloat {
+        let availableHeight = max(
+            containerSize.height - contentTopInset - bottomPadding - UIConstants.Spacing.standard,
+            UIConstants.Size.cardMinHeight
+        )
+        let targetAspect: CGFloat = isCompact ? 1.48 : 1.36
+        let targetHeight = cardMaxWidth * targetAspect
+        let minimumHeight = min(availableHeight, UIConstants.isPad ? 420 : 360)
+        return min(max(targetHeight, minimumHeight), availableHeight)
+    }
+
+    private func resolvedSheetFlashcardSize(
+        containerSize: CGSize,
+        geometrySafeAreaInsets: EdgeInsets
+    ) -> CGSize {
+        let safeTopInset = resolvedPlayTopSafeInset(
+            geometrySafeTop: geometrySafeAreaInsets.top,
+            containerHeight: containerSize.height
+        )
+        let safeBottomInset = max(safeAreaInsets.bottom, geometrySafeAreaInsets.bottom)
+        let bottomControlInset = max(safeBottomInset - 6, 10)
+        let cardBottomPadding = playBottomChromeHeight + bottomControlInset
+        let headerHeight = safeTopInset
+            + UIConstants.Layout.deckNavigationTopPadding
+            + playChromeButtonSize
+            + playHeaderBottomPadding
+
+        let width = max(containerSize.width - (playSurfaceHorizontalPadding * 2), 1)
+        let height = max(
+            containerSize.height - headerHeight - cardBottomPadding - playCardBottomReserve,
+            UIConstants.Size.cardMinHeight
+        )
+
+        return CGSize(width: width, height: height)
+    }
+
+    private func resolvedPlayTopSafeInset(geometrySafeTop: CGFloat, containerHeight: CGFloat) -> CGFloat {
+        let reportedInset = max(safeAreaInsets.top, geometrySafeTop)
+        guard isSheetPresentation else { return reportedInset }
+
+        let compactSheetFallback: CGFloat = containerHeight >= 800 ? 59 : 28
+        let minimumSheetInset = isCompact ? compactSheetFallback : 24
+        return max(reportedInset, minimumSheetInset)
     }
 
     private func togglePreviewFlip() {
