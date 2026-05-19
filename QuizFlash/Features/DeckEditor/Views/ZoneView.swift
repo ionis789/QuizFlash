@@ -78,6 +78,7 @@ struct ZoneEditorView: View {
     var highlightContext: HighlightContext?
     var fontScale: CGFloat
     var availableWidth: CGFloat
+    var maxEditableZoneHeight: CGFloat?
     var previewDirection: Binding<AddDirection?>
 
     private var zone: ZoneModel? { content.zone(at: path) }
@@ -90,6 +91,7 @@ struct ZoneEditorView: View {
         highlightContext: HighlightContext?,
         fontScale: CGFloat = 1.0,
         availableWidth: CGFloat = 320,
+        maxEditableZoneHeight: CGFloat? = nil,
         previewDirection: Binding<AddDirection?> = .constant(nil)
     ) {
         self.content = content
@@ -98,6 +100,7 @@ struct ZoneEditorView: View {
         self.highlightContext = highlightContext
         self.fontScale = fontScale
         self.availableWidth = availableWidth
+        self.maxEditableZoneHeight = maxEditableZoneHeight
         self.previewDirection = previewDirection
     }
 
@@ -149,6 +152,7 @@ struct ZoneEditorView: View {
                     highlightContext: highlightContext,
                     fontScale: fontScale,
                     availableWidth: availableWidth,
+                    maxEditableZoneHeight: maxEditableZoneHeight,
                     previewDirection: maskedPreviewDirection(for: isChildSelected)
                 )
                 .frame(width: availableWidth, alignment: .topLeading)
@@ -206,6 +210,7 @@ struct ZoneContentView: View {
     var highlightContext: HighlightContext?
     var fontScale: CGFloat
     var availableWidth: CGFloat
+    var maxEditableZoneHeight: CGFloat?
     var onSelect: () -> Void
     @Binding var previewDirection: AddDirection?
 
@@ -238,6 +243,7 @@ struct ZoneContentView: View {
         highlightContext: HighlightContext? = nil,
         fontScale: CGFloat = 1.0,
         availableWidth: CGFloat = 320,
+        maxEditableZoneHeight: CGFloat? = nil,
         onSelect: @escaping () -> Void,
         previewDirection: Binding<AddDirection?> = .constant(nil)
     ) {
@@ -247,6 +253,7 @@ struct ZoneContentView: View {
         self.highlightContext = highlightContext
         self.fontScale = fontScale
         self.availableWidth = availableWidth
+        self.maxEditableZoneHeight = maxEditableZoneHeight
         self.onSelect = onSelect
         self._previewDirection = previewDirection
     }
@@ -288,7 +295,7 @@ struct ZoneContentView: View {
                     selectionOutline(layout: layout, zone: zone, active: isTextViewFirstResponder)
                 }
 
-                contentView
+                contentView(maxVisibleTextHeight: contentFrameHeight ?? maximumResizableHeight)
                     .frame(
                         width: contentPlacement.width,
                         height: contentFrameHeight,
@@ -464,7 +471,7 @@ struct ZoneContentView: View {
     }
 
     private var maximumResizableHeight: CGFloat {
-        max(availableWidth * 1.75, 520)
+        max(baseMinimumResizableHeight, ceil(maxEditableZoneHeight ?? max(availableWidth * 1.75, 520)))
     }
 
     private func measuredLayoutContentSize(
@@ -475,19 +482,7 @@ struct ZoneContentView: View {
             return renderedContentSize
         }
 
-        let contentWidth: CGFloat
-        switch layoutZone.sizeMode {
-        case .fixed:
-            contentWidth = min(max(layoutZone.fixedWidth ?? availableWidth, minimumResizableWidth(for: zone)), availableWidth)
-        case .fillWidth:
-            contentWidth = availableWidth
-        case .auto:
-            if layoutZone.text.isEmpty {
-                contentWidth = stableEmptyTextWidth(for: zone)
-            } else {
-                contentWidth = rawTextMeasurementWidth(for: layoutZone, constrainedTo: availableWidth)
-            }
-        }
+        let contentWidth = measuredLayoutContentWidth(for: zone, layoutZone: layoutZone)
 
         let measuredSize = measuredRawTextSize(
             for: layoutZone,
@@ -502,6 +497,23 @@ struct ZoneContentView: View {
             width: max(contentWidth, 1),
             height: min(max(rawHeight, baseMinimumResizableHeight(for: zone)), maximumResizableHeight)
         )
+    }
+
+    private func measuredLayoutContentWidth(
+        for zone: ZoneModel,
+        layoutZone: ZoneModel
+    ) -> CGFloat {
+        switch layoutZone.sizeMode {
+        case .fixed:
+            return min(max(layoutZone.fixedWidth ?? availableWidth, minimumResizableWidth(for: zone)), availableWidth)
+        case .fillWidth:
+            return availableWidth
+        case .auto:
+            if layoutZone.text.isEmpty {
+                return stableEmptyTextWidth(for: zone)
+            }
+            return rawTextMeasurementWidth(for: layoutZone, constrainedTo: availableWidth)
+        }
     }
 
     private func contentPlacement(
@@ -681,9 +693,10 @@ struct ZoneContentView: View {
     }
 
     @ViewBuilder
-    private var contentView: some View {
+    private func contentView(maxVisibleTextHeight: CGFloat) -> some View {
         switch zone?.contentType ?? .empty {
-        case .empty, .text, .code: textViewWithGhostOverlay
+        case .empty, .text, .code:
+            textViewWithGhostOverlay(maxVisibleTextHeight: maxVisibleTextHeight)
         case .image: imageView
         case .sketch: sketchView
         }
@@ -692,7 +705,7 @@ struct ZoneContentView: View {
     // MARK: - textViewWithGhostOverlay
 
     @ViewBuilder
-    private var textViewWithGhostOverlay: some View {
+    private func textViewWithGhostOverlay(maxVisibleTextHeight: CGFloat) -> some View {
         VStack(spacing: 8) {
             if isSelected, previewDirection == .up {
                 FakeGhostBlockView()
@@ -708,7 +721,7 @@ struct ZoneContentView: View {
                 }
 
                 if shouldUseInteractiveTextSurface {
-                    textEditorCore
+                    textEditorCore(maxVisibleTextHeight: maxVisibleTextHeight)
                         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else if zone?.text.isEmpty ?? true {
                     emptyZonePreview
@@ -784,7 +797,7 @@ struct ZoneContentView: View {
     // MARK: - Text Editor Core
 
     @ViewBuilder
-    private var textEditorCore: some View {
+    private func textEditorCore(maxVisibleTextHeight: CGFloat) -> some View {
         let currentTextColor = zone?.textColor.color ?? .primary
         let currentTextAlignment = zone?.textAlignment.nsTextAlignment ?? .left
         let currentIsBold = zone?.isBold ?? false
@@ -796,7 +809,7 @@ struct ZoneContentView: View {
 
         ZStack(alignment: .topLeading) {
             ZoneTextViewRepresentable(
-                text: pureTextBinding, font: textUIFont, textColor: UIColor(currentTextColor), textAlignment: currentTextAlignment, isBold: currentIsBold, isItalic: currentIsItalic, lineSpacing: editorTextLineSpacing, contentInset: textInsets, cursorTintColor: UIColor(accent), zoneID: zoneID, isFirstResponder: isFocused,
+                text: pureTextBinding, font: textUIFont, textColor: UIColor(currentTextColor), textAlignment: currentTextAlignment, isBold: currentIsBold, isItalic: currentIsItalic, lineSpacing: editorTextLineSpacing, contentInset: textInsets, maximumVisibleHeight: maxVisibleTextHeight, cursorTintColor: UIColor(accent), zoneID: zoneID, isFirstResponder: isFocused,
                 onTextChange: { newText in
                     if currentContentType == .text || currentContentType == .empty || currentContentType == .code {
                         highlightContext?.dismiss()

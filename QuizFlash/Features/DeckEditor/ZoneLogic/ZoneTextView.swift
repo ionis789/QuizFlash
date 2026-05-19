@@ -219,8 +219,11 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     var font: UIFont = .preferredFont(forTextStyle: .body)
     var lineSpacing: CGFloat = 0
     var contentInset: UIEdgeInsets = .zero
+    var maximumVisibleHeight: CGFloat?
     
     private var lastText: String = ""
+    private var lastAcceptedText: String = ""
+    private var lastAcceptedSelectedRange: NSRange = NSRange(location: 0, length: 0)
     var isUpdating: Bool = false
     weak var textView: UITextView?
     private var focusObserver: NSObjectProtocol?
@@ -306,11 +309,19 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     static let doubleTapPassthroughRecognizerName = "ZoneTextViewDoubleTapPassthroughRecognizer"
 
     func textViewDidChange(_ textView: UITextView) {
+        normalizePlaceholderIfNeeded(in: textView)
         guard let displayText = textView.text else { return }
         guard !isUpdating else { return }
 
         let modelText = ZoneTextViewEmptyCaret.modelText(from: displayText)
+        if shouldRejectCurrentText(modelText, in: textView) {
+            restoreLastAcceptedText(in: textView)
+            reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
+            return
+        }
+
         lastText = modelText
+        rememberAcceptedText(modelText, selectedRange: textView.selectedRange)
         waitsForSettledTextLayoutCaret = true
         onTextChange?(modelText)
         reportCursorPosition(from: textView, includeCaretAnchor: false)
@@ -333,6 +344,10 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     func textViewDidBeginEditing(_ textView: UITextView) {
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didBegin", zoneID: zoneID)
         onFocusChange?(true)
+        rememberAcceptedText(
+            ZoneTextViewEmptyCaret.modelText(from: textView.text ?? ""),
+            selectedRange: textView.selectedRange
+        )
         reportCursorPosition(from: textView, includeCaretAnchor: true)
         scheduleSettledCaretReport(from: textView)
     }
@@ -396,6 +411,74 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                 windowRect: caretRectInWindow
             )
             onCaretGeometryChange?(anchorY, caretRectInWindow)
+        }
+    }
+
+    func rememberAcceptedText(_ modelText: String, selectedRange: NSRange) {
+        lastAcceptedText = modelText
+        lastAcceptedSelectedRange = ZoneTextViewEmptyCaret.modelRange(
+            from: selectedRange,
+            displayText: ZoneTextViewEmptyCaret.displayText(for: modelText)
+        )
+        lastText = modelText
+    }
+
+    private func normalizePlaceholderIfNeeded(in textView: UITextView) {
+        guard let displayText = textView.text,
+              !ZoneTextViewEmptyCaret.isPlaceholderDisplay(displayText),
+              displayText.contains(ZoneTextViewEmptyCaret.placeholder) else {
+            return
+        }
+
+        let originalRange = textView.selectedRange
+        let modelText = ZoneTextViewEmptyCaret.modelText(from: displayText)
+        let modelRange = ZoneTextViewEmptyCaret.modelRange(
+            from: originalRange,
+            displayText: displayText
+        )
+
+        isUpdating = true
+        textView.text = ZoneTextViewEmptyCaret.displayText(for: modelText)
+        isUpdating = false
+        let displayRange = ZoneTextViewEmptyCaret.displayRange(
+            fromModelRange: modelRange,
+            modelText: modelText
+        )
+        if displayRange.location <= (textView.text as NSString).length {
+            textView.selectedRange = displayRange
+        }
+    }
+
+    private func shouldRejectCurrentText(_ modelText: String, in textView: UITextView) -> Bool {
+        guard let maximumVisibleHeight,
+              maximumVisibleHeight > 0,
+              textView.bounds.width > 1,
+              (modelText as NSString).length > (lastAcceptedText as NSString).length else {
+            return false
+        }
+
+        textView.layoutIfNeeded()
+        let targetSize = CGSize(
+            width: textView.bounds.width,
+            height: UIView.layoutFittingCompressedSize.height
+        )
+        let requiredHeight = ceil(textView.sizeThatFits(targetSize).height)
+        return requiredHeight > ceil(maximumVisibleHeight) + 0.5
+    }
+
+    private func restoreLastAcceptedText(in textView: UITextView) {
+        let displayText = ZoneTextViewEmptyCaret.displayText(for: lastAcceptedText)
+        let displayRange = ZoneTextViewEmptyCaret.displayRange(
+            fromModelRange: lastAcceptedSelectedRange,
+            modelText: lastAcceptedText
+        )
+
+        isUpdating = true
+        textView.text = displayText
+        isUpdating = false
+
+        if displayRange.location <= (displayText as NSString).length {
+            textView.selectedRange = displayRange
         }
     }
 
@@ -475,6 +558,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     let isItalic: Bool
     var lineSpacing: CGFloat = 0
     var contentInset: UIEdgeInsets = .zero
+    var maximumVisibleHeight: CGFloat?
     var cursorTintColor: UIColor = .systemPurple
     let zoneID: UUID
     let isFirstResponder: Bool
@@ -494,6 +578,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.font = font
         context.coordinator.lineSpacing = lineSpacing
         context.coordinator.contentInset = contentInset
+        context.coordinator.maximumVisibleHeight = maximumVisibleHeight
         
         textView.font = font
         textView.textColor = textColor
@@ -541,6 +626,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             fromModelRange: textView.selectedRange,
             modelText: text
         )
+        context.coordinator.rememberAcceptedText(text, selectedRange: textView.selectedRange)
         updateStyling(of: textView)
         
         return textView
@@ -557,6 +643,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.font = font
         context.coordinator.lineSpacing = lineSpacing
         context.coordinator.contentInset = contentInset
+        context.coordinator.maximumVisibleHeight = maximumVisibleHeight
         (textView as? FullHitTextView)?.usesCompactCaret = true
         ZoneEditorDebugStore.shared.updateTextView(
             zoneID: zoneID,
@@ -570,6 +657,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         let displayText = ZoneTextViewEmptyCaret.displayText(for: text)
         guard textView.text != displayText else {
             updateStyling(of: textView)
+            context.coordinator.rememberAcceptedText(text, selectedRange: textView.selectedRange)
             syncFocus(textView: textView, isFirstResponder: isFirstResponder, context: context)
             return
         }
@@ -592,6 +680,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         }
         
         updateStyling(of: textView)
+        context.coordinator.rememberAcceptedText(text, selectedRange: textView.selectedRange)
         syncFocus(textView: textView, isFirstResponder: isFirstResponder, context: context)
     }
     
