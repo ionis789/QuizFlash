@@ -97,10 +97,13 @@ final class ZoneController {
     
     /// Updates cached height info for a zone
     func updateZoneHeightInfo(for zoneID: UUID, lineCount: Int, focusedLineIndex: Int = 0) {
-        zoneHeightCache[zoneID] = ZoneHeightInfo(
+        let nextInfo = ZoneHeightInfo(
             lineCount: lineCount,
             focusedLineIndex: focusedLineIndex
         )
+        guard zoneHeightCache[zoneID] != nextInfo else { return }
+
+        zoneHeightCache[zoneID] = nextInfo
     }
     
     /// Gets height info for a zone

@@ -178,6 +178,11 @@ struct ZoneEditorView: View {
     private func selectZone() {
         let wasSelected = selectedPath == path
         selectedPath = path
+        NotificationCenter.default.post(
+            name: .zoneEditorZoneTapped,
+            object: nil,
+            userInfo: [ZoneEditorCaretScrollNotification.pathIDKey: path.id]
+        )
         if !wasSelected {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
@@ -185,12 +190,6 @@ struct ZoneEditorView: View {
 }
 
 // MARK: - Zone Content View (Leaf)
-
-private enum ZoneResizeDragAxis {
-    case horizontal
-    case vertical
-    case free
-}
 
 /// Renders the content of a single leaf zone: text editor, image, or sketch.
 ///
@@ -214,19 +213,8 @@ struct ZoneContentView: View {
     @State private var isCroppingImage: Bool = false
     @State private var isPressingImage: Bool = false
     @State private var renderedContentSize: CGSize = .zero
-    @State private var resizeStartSize: CGSize?
-    @State private var resizeStartLeadingInset: CGFloat?
-    @State private var resizeLastCommittedSize: CGSize?
-    @State private var resizeDragAxis: ZoneResizeDragAxis?
-    @State private var liveResizeSize: CGSize?
     @State private var lastPostedCaretAnchorY: CGFloat?
-    @State private var isResizingZone: Bool = false
     @State private var isTextViewFirstResponder: Bool = false
-    @State private var resizeHeightRequirementCache: [Int: CGFloat] = [:]
-    @State private var lastResizeFeedbackStep: CGSize?
-    @State private var lastResizeFeedbackTime: TimeInterval = 0
-    @State private var lastResizeScrollPostTime: TimeInterval = 0
-    @State private var lastResizeScrollTranslationHeight: CGFloat = 0
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AppPreferences.self) private var appPreferences
@@ -270,7 +258,7 @@ struct ZoneContentView: View {
 
     var body: some View {
         if let zone {
-            let layoutZone = normalizedLayoutZone(resizePreviewZone(for: zone))
+            let layoutZone = normalizedLayoutZone(zone)
             let measuredContentSize = measuredLayoutContentSize(
                 for: zone,
                 layoutZone: layoutZone
@@ -280,27 +268,34 @@ struct ZoneContentView: View {
                 spec: CardZoneLayoutSpec(
                     availableWidth: availableWidth,
                     fontScale: fontScale,
-                    minimumAutoWidth: isSelected || isFocused ? 156 : 1
+                    minimumAutoWidth: stableMinimumAutoWidth(for: layoutZone)
                 ),
+                measuredContentSize: measuredContentSize
+            )
+            let visualOutset = visualZoneOutset(for: zone)
+            let contentFrameHeight = contentFrameHeight(for: layoutZone, layout: layout)
+            let contentPlacement = contentPlacement(
+                for: layoutZone,
+                layout: layout,
                 measuredContentSize: measuredContentSize
             )
 
             ZStack(alignment: .topLeading) {
-                blockFrameReporter(layout: layout, zoneID: zone.id)
+                blockFrameReporter(layout: layout, zone: zone)
                 blockSurface(layout: layout, zone: zone)
 
                 if isSelected {
-                    selectionOutline(layout: layout, active: isTextViewFirstResponder)
+                    selectionOutline(layout: layout, zone: zone, active: isTextViewFirstResponder)
                 }
 
                 contentView
                     .frame(
-                        width: layout.contentLayoutWidth,
-                        height: layoutZone.sizeMode == .fixed ? layout.blockSize.height : nil,
+                        width: contentPlacement.width,
+                        height: contentFrameHeight,
                         alignment: .topLeading
                     )
                     .clipped()
-                    .offset(x: layout.leadingInset)
+                    .offset(x: contentPlacement.leadingInset)
                     .onGeometryChange(for: CGSize.self) { proxy in
                         CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
                     } action: { newSize in
@@ -309,40 +304,18 @@ struct ZoneContentView: View {
                         }
                     }
 
-                if isSelected {
-                    resizeHandle(layout: layout)
-                }
             }
-            .frame(width: availableWidth, height: layout.blockSize.height, alignment: .topLeading)
+            .frame(
+                width: availableWidth,
+                height: layout.blockSize.height + (visualOutset.vertical * 2),
+                alignment: .topLeading
+            )
             .contentShape(Rectangle())
             .simultaneousGesture(
-                SpatialTapGesture().onEnded { value in
-                    guard !isResizingZone else { return }
-
+                SpatialTapGesture().onEnded { _ in
                     let type = zone.contentType
 
-                    if type == .text || type == .empty || type == .code {
-                        guard !isTextViewFirstResponder else { return }
-
-                        onSelect()
-                        let cursorPoint = textViewPoint(
-                            forTapAt: value.location,
-                            layout: layout,
-                            zone: zone
-                        )
-                        focusManager.requestCursorPoint(cursorPoint, for: zone.id)
-                        NotificationCenter.default.post(
-                            name: .focusZoneTextView,
-                            object: zone.id
-                        )
-                        ZoneEditorDebugStore.shared.recordTap(
-                            "tap zone path=\(path.id) type=\(zone.contentType.rawValue) point=\(Int(cursorPoint.x)),\(Int(cursorPoint.y))"
-                        )
-                        if !isTextViewFirstResponder {
-                            focusManager.requestFocus(for: zone.id)
-                            isFocused = true
-                        }
-                    } else {
+                    if type != .text && type != .empty && type != .code {
                         onSelect()
                         ZoneEditorDebugStore.shared.recordTap("tap zone path=\(path.id) type=\(zone.contentType.rawValue)")
                         focusManager.updateFocusedZone(zone.id)
@@ -360,9 +333,6 @@ struct ZoneContentView: View {
                 reportDebugZoneState(zone: zone, layout: layout)
             }
             .onChange(of: isTextViewFirstResponder) { _, _ in
-                reportDebugZoneState(zone: zone, layout: layout)
-            }
-            .onChange(of: isResizingZone) { _, _ in
                 reportDebugZoneState(zone: zone, layout: layout)
             }
             .onChange(of: isFocused) { _, focused in
@@ -400,29 +370,41 @@ struct ZoneContentView: View {
         }
     }
 
-    private func selectionOutline(layout: CardZoneLayoutResult, active: Bool) -> some View {
-        RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
+    private func selectionOutline(layout: CardZoneLayoutResult, zone: ZoneModel, active: Bool) -> some View {
+        let outset = visualZoneOutset(for: zone)
+
+        return RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
             .stroke(
                 active ? accent.opacity(0.35) : Color.gray.opacity(0.18),
                 lineWidth: 1
             )
-            .frame(width: layout.blockSize.width, height: layout.blockSize.height)
-            .offset(x: layout.leadingInset)
+            .frame(
+                width: layout.blockSize.width + (outset.horizontal * 2),
+                height: layout.blockSize.height + (outset.vertical * 2)
+            )
+            .offset(x: layout.leadingInset - outset.horizontal, y: -outset.vertical)
             .allowsHitTesting(false)
     }
 
-    private func blockFrameReporter(layout: CardZoneLayoutResult, zoneID: UUID) -> some View {
-        Color.clear
-            .frame(width: layout.blockSize.width, height: layout.blockSize.height)
-            .offset(x: layout.leadingInset)
+    private func blockFrameReporter(layout: CardZoneLayoutResult, zone: ZoneModel) -> some View {
+        let outset = visualZoneOutset(for: zone)
+
+        return Color.clear
+            .frame(
+                width: layout.blockSize.width + (outset.horizontal * 2),
+                height: layout.blockSize.height + (outset.vertical * 2)
+            )
+            .offset(x: layout.leadingInset - outset.horizontal, y: -outset.vertical)
             .allowsHitTesting(false)
             .anchorPreference(key: ZoneEditorZoneBoundsPreferenceKey.self, value: .bounds) { anchor in
-                [ZoneEditorZoneBounds(path: path, zoneID: zoneID, bounds: anchor)]
+                [ZoneEditorZoneBounds(path: path, zoneID: zone.id, bounds: anchor)]
             }
     }
 
     private func blockSurface(layout: CardZoneLayoutResult, zone: ZoneModel) -> some View {
-        ZStack {
+        let outset = visualZoneOutset(for: zone)
+
+        return ZStack {
             RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
                 .fill(Color.gray.opacity(0.05))
                 .overlay(idleZoneStroke)
@@ -431,74 +413,12 @@ struct ZoneContentView: View {
                     .fill(highlight)
             }
         }
-        .frame(width: layout.blockSize.width, height: layout.blockSize.height)
-        .offset(x: layout.leadingInset)
+        .frame(
+            width: layout.blockSize.width + (outset.horizontal * 2),
+            height: layout.blockSize.height + (outset.vertical * 2)
+        )
+        .offset(x: layout.leadingInset - outset.horizontal, y: -outset.vertical)
         .allowsHitTesting(false)
-    }
-
-    private func resizeHandle(layout: CardZoneLayoutResult) -> some View {
-        let cornerHitSize: CGFloat = 132
-        let captureBlockSize = isResizingZone ? (resizeStartSize ?? layout.blockSize) : layout.blockSize
-        let captureLeadingInset = isResizingZone ? (resizeStartLeadingInset ?? layout.leadingInset) : layout.leadingInset
-        let glyphSize: CGFloat = 13
-        let glyphOutset: CGFloat = 3
-
-        return ZStack(alignment: .topLeading) {
-            ZoneResizeTouchCapture(
-                cornerHitSize: cornerHitSize,
-                onChanged: { translation in
-                    handleResizeChange(
-                        translation: translation,
-                        startSize: layout.blockSize,
-                        startLeadingInset: layout.leadingInset
-                    )
-                },
-                onEnded: {
-                    finishResize()
-                }
-            )
-            .frame(width: cornerHitSize, height: cornerHitSize)
-            .offset(
-                x: captureLeadingInset + captureBlockSize.width - (cornerHitSize / 2),
-                y: captureBlockSize.height - (cornerHitSize / 2)
-            )
-
-            ZoneResizeCornerHandle(accent: accent, isActive: isResizingZone)
-                .frame(width: glyphSize, height: glyphSize)
-                .offset(
-                    x: layout.leadingInset + layout.blockSize.width - glyphSize + glyphOutset,
-                    y: layout.blockSize.height - glyphSize + glyphOutset
-                )
-                .allowsHitTesting(false)
-        }
-        .frame(width: availableWidth, height: layout.blockSize.height, alignment: .topLeading)
-        .zIndex(10_000)
-        .accessibilityLabel(localized("Resize Zone"))
-        .onAppear {
-            ZoneEditorDebugStore.shared.updateResizeHandle(
-                blockSize: layout.blockSize,
-                hitSize: CGSize(width: cornerHitSize, height: cornerHitSize),
-                glyphSize: glyphSize,
-                selected: isSelected
-            )
-        }
-        .onChange(of: resizeHandleDebugSignature(layout: layout, hitWidth: cornerHitSize, hitHeight: cornerHitSize, glyphSize: glyphSize)) { _, _ in
-            ZoneEditorDebugStore.shared.updateResizeHandle(
-                blockSize: layout.blockSize,
-                hitSize: CGSize(width: cornerHitSize, height: cornerHitSize),
-                glyphSize: glyphSize,
-                selected: isSelected
-            )
-        }
-    }
-
-    private func resizePreviewZone(for zone: ZoneModel) -> ZoneModel {
-        guard let liveResizeSize else { return zone }
-        var previewZone = zone
-        previewZone.sizeMode = .fixed
-        previewZone.fixedWidth = liveResizeSize.width
-        previewZone.fixedHeight = liveResizeSize.height
-        return previewZone
     }
 
     private func normalizedLayoutZone(_ zone: ZoneModel) -> ZoneModel {
@@ -513,262 +433,6 @@ struct ZoneContentView: View {
         }
 
         return layoutZone
-    }
-
-    private func handleResizeChange(
-        translation: CGSize,
-        startSize: CGSize,
-        startLeadingInset: CGFloat
-    ) {
-        if resizeStartSize == nil {
-            resizeStartSize = startSize
-            resizeStartLeadingInset = startLeadingInset
-            resizeLastCommittedSize = startSize
-            resizeDragAxis = nil
-            isResizingZone = true
-            resizeHeightRequirementCache.removeAll(keepingCapacity: true)
-            lastResizeFeedbackStep = nil
-            lastResizeFeedbackTime = 0
-            lastResizeScrollPostTime = 0
-            lastResizeScrollTranslationHeight = 0
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            ZoneEditorDebugStore.shared.recordEvent("resize start path=\(path.id)")
-        }
-
-        let baseSize = resizeStartSize ?? startSize
-        let axis = resolvedResizeAxis(for: translation)
-        let widthDelta = axis == .vertical ? 0 : translation.width
-        let heightDelta = axis == .horizontal ? 0 : translation.height
-        let maxWidth = max(availableWidth, 1)
-        let rawWidth = min(
-            max(baseSize.width + widthDelta, minimumResizableWidth),
-            maxWidth
-        )
-        var nextWidth = clampedResizeWidth(rawWidth)
-        let rawHeight = min(
-            max(baseSize.height + heightDelta, baseMinimumResizableHeight),
-            maximumResizableHeight
-        )
-        let proposedHeight = continuousResizeHeight(rawHeight)
-        var requiredHeight = cachedMinimumContentHeight(forWidth: nextWidth)
-
-        if shouldAutoExpandWidthDuringResize(
-            translation: translation,
-            proposedHeight: proposedHeight,
-            requiredHeight: requiredHeight
-        ),
-           proposedHeight < requiredHeight,
-           let expandedWidth = autoExpandedWidth(
-               forTargetHeight: proposedHeight,
-               startingAt: nextWidth
-           ) {
-            nextWidth = expandedWidth
-            requiredHeight = cachedMinimumContentHeight(forWidth: nextWidth)
-        }
-
-        let nextHeight = min(
-            max(proposedHeight, requiredHeight, baseMinimumResizableHeight),
-            maximumResizableHeight
-        )
-
-        let nextSize = CGSize(width: nextWidth, height: nextHeight)
-        ZoneEditorDebugStore.shared.updateResizeCalculation(
-            axis: resizeAxisDebugName(axis),
-            startSize: baseSize,
-            nextSize: nextSize,
-            translation: translation
-        )
-
-        if let last = resizeLastCommittedSize,
-           abs(last.width - nextSize.width) < 0.5,
-           abs(last.height - nextSize.height) < 0.5 {
-            return
-        }
-
-        resizeLastCommittedSize = nextSize
-        commitLiveResize(nextSize, translation: translation)
-    }
-
-    private func finishResize() {
-        defer {
-            resizeStartSize = nil
-            resizeStartLeadingInset = nil
-            resizeLastCommittedSize = nil
-            resizeDragAxis = nil
-            liveResizeSize = nil
-            resizeHeightRequirementCache.removeAll(keepingCapacity: false)
-            lastResizeFeedbackStep = nil
-            lastResizeScrollTranslationHeight = 0
-            isResizingZone = false
-        }
-
-        guard let finalSize = liveResizeSize else { return }
-        let minimumWidth = minimumResizableWidth
-        let minimumHeight = baseMinimumResizableHeight
-        let maximumHeight = maximumResizableHeight
-        let safeFinalSize = CGSize(
-            width: min(max(finalSize.width, minimumWidth), availableWidth),
-            height: min(max(finalSize.height, minimumHeight), maximumHeight)
-        )
-        let requiredFinalHeight = minimumContentHeight(forWidth: safeFinalSize.width)
-        let finalFixedHeight = min(
-            max(safeFinalSize.height, requiredFinalHeight, minimumHeight),
-            maximumHeight
-        )
-        let shouldTrimTrailingBlankLines: Bool
-        if let zone, !zone.text.isEmpty {
-            let fullHeight = measuredRawTextSize(
-                for: zone,
-                width: safeFinalSize.width,
-                preservesTrailingBlankLines: true
-            ).height
-            shouldTrimTrailingBlankLines = finalFixedHeight < fullHeight - 1
-        } else {
-            shouldTrimTrailingBlankLines = false
-        }
-        ZoneEditorDebugStore.shared.recordEvent(
-            "resize finish final=\(Int(safeFinalSize.width))x\(Int(safeFinalSize.height)) requiredH=\(Int(requiredFinalHeight))"
-        )
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-
-        content.updateZone(at: path) { zone in
-            if shouldTrimTrailingBlankLines {
-                zone.text = textWithoutTrailingBlankLines(zone.text)
-            }
-            zone.sizeMode = .fixed
-            zone.fixedWidth = safeFinalSize.width
-            zone.fixedHeight = finalFixedHeight
-        }
-    }
-
-    private func resolvedResizeAxis(for translation: CGSize) -> ZoneResizeDragAxis {
-        .free
-    }
-
-    private func clampedResizeWidth(_ width: CGFloat) -> CGFloat {
-        let maxWidth = max(availableWidth, minimumResizableWidth)
-        return min(max(width, minimumResizableWidth), maxWidth)
-    }
-
-    private func continuousResizeHeight(_ height: CGFloat) -> CGFloat {
-        return min(
-            max(height, baseMinimumResizableHeight),
-            maximumResizableHeight
-        )
-    }
-
-    private func shouldAutoExpandWidthDuringResize(
-        translation: CGSize,
-        proposedHeight: CGFloat,
-        requiredHeight: CGFloat
-    ) -> Bool {
-        guard proposedHeight < requiredHeight else { return false }
-
-        let horizontalMotion = abs(translation.width)
-        let verticalMotion = abs(translation.height)
-        let isClearlyFlatteningVertically = translation.height < -6
-            && verticalMotion >= max(horizontalMotion * 0.75, 10)
-
-        return isClearlyFlatteningVertically
-    }
-
-    private func autoExpandedWidth(
-        forTargetHeight targetHeight: CGFloat,
-        startingAt currentWidth: CGFloat
-    ) -> CGFloat? {
-        guard let zone,
-              isTextResizableZone(zone),
-              !zone.text.isEmpty else {
-            return nil
-        }
-
-        let maxWidth = max(availableWidth, currentWidth)
-        let targetHeight = max(targetHeight, baseMinimumResizableHeight)
-        guard currentWidth < maxWidth - 0.5 else { return nil }
-
-        let heightAtMaxWidth = cachedMinimumContentHeight(forWidth: maxWidth)
-        guard heightAtMaxWidth <= targetHeight + 0.5 else {
-            return maxWidth
-        }
-
-        var low = currentWidth
-        var high = maxWidth
-        for _ in 0..<8 {
-            let mid = (low + high) / 2
-            let midHeight = cachedMinimumContentHeight(forWidth: mid)
-            if midHeight <= targetHeight + 0.5 {
-                high = mid
-            } else {
-                low = mid
-            }
-        }
-
-        return clampedResizeWidth(high)
-    }
-
-    private func commitLiveResize(_ size: CGSize, translation: CGSize) {
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
-            liveResizeSize = size
-        }
-        triggerResizeFeedbackIfNeeded(for: size)
-        postResizeScrollHintIfNeeded(translation: translation)
-    }
-
-    private func cachedMinimumContentHeight(forWidth width: CGFloat) -> CGFloat {
-        let key = Int((width * 2).rounded())
-        if let cached = resizeHeightRequirementCache[key] {
-            return cached
-        }
-
-        let measuredHeight = minimumContentHeight(forWidth: width)
-        resizeHeightRequirementCache[key] = measuredHeight
-        return measuredHeight
-    }
-
-    private func triggerResizeFeedbackIfNeeded(for size: CGSize) {
-        let feedbackStep = CGSize(
-            width: floor(size.width / 24),
-            height: floor(size.height / 24)
-        )
-        guard feedbackStep != lastResizeFeedbackStep else { return }
-
-        let now = Date.timeIntervalSinceReferenceDate
-        guard now - lastResizeFeedbackTime >= 0.11 else { return }
-
-        UISelectionFeedbackGenerator().selectionChanged()
-        lastResizeFeedbackStep = feedbackStep
-        lastResizeFeedbackTime = now
-    }
-
-    private func postResizeScrollHintIfNeeded(translation: CGSize) {
-        let deltaY = translation.height - lastResizeScrollTranslationHeight
-        guard abs(deltaY) >= 1.5 else { return }
-
-        let now = Date.timeIntervalSinceReferenceDate
-        guard now - lastResizeScrollPostTime >= 0.04 else { return }
-        lastResizeScrollPostTime = now
-        lastResizeScrollTranslationHeight = translation.height
-
-        let anchorY: CGFloat
-        if translation.height > 12 {
-            anchorY = 0.90
-        } else if translation.height < -12 {
-            anchorY = 0.12
-        } else {
-            anchorY = 0.55
-        }
-
-        NotificationCenter.default.post(
-            name: .zoneEditorResizeHandleMoved,
-            object: nil,
-            userInfo: [
-                ZoneEditorResizeScrollNotification.pathIDKey: path.id,
-                ZoneEditorResizeScrollNotification.anchorYKey: anchorY,
-                ZoneEditorResizeScrollNotification.deltaYKey: deltaY
-            ]
-        )
     }
 
     private var minimumResizableWidth: CGFloat {
@@ -792,7 +456,11 @@ struct ZoneContentView: View {
     }
 
     private func baseMinimumResizableHeight(for zone: ZoneModel?) -> CGFloat {
-        max(36, fontSizeFor(zone) + 12)
+        let textInsets = editorTextContentInsets(for: zone)
+        return max(
+            48,
+            ceil(textUIFont(for: zone).lineHeight + textInsets.top + textInsets.bottom)
+        )
     }
 
     private var maximumResizableHeight: CGFloat {
@@ -815,15 +483,17 @@ struct ZoneContentView: View {
             contentWidth = availableWidth
         case .auto:
             if layoutZone.text.isEmpty {
-                contentWidth = isSelected || isFocused
-                    ? min(max(156, minimumResizableWidth(for: zone)), availableWidth)
-                    : 1
+                contentWidth = stableEmptyTextWidth(for: zone)
             } else {
                 contentWidth = rawTextMeasurementWidth(for: layoutZone, constrainedTo: availableWidth)
             }
         }
 
-        let measuredSize = measuredRawTextSize(for: layoutZone, width: contentWidth)
+        let measuredSize = measuredRawTextSize(
+            for: layoutZone,
+            width: contentWidth,
+            preservesTrailingBlankLines: true
+        )
         let rawHeight = layoutZone.text.isEmpty
             ? baseMinimumResizableHeight(for: zone)
             : measuredSize.height
@@ -834,6 +504,43 @@ struct ZoneContentView: View {
         )
     }
 
+    private func contentPlacement(
+        for zone: ZoneModel,
+        layout: CardZoneLayoutResult,
+        measuredContentSize: CGSize
+    ) -> (leadingInset: CGFloat, width: CGFloat) {
+        guard isTextResizableZone(zone),
+              zone.sizeMode == .auto,
+              !zone.text.isEmpty else {
+            return (layout.leadingInset, layout.contentLayoutWidth)
+        }
+
+        let roundedSlack = min(
+            max(layout.blockSize.width - measuredContentSize.width, 0),
+            1
+        )
+        guard roundedSlack > 0 else {
+            return (layout.leadingInset, layout.contentLayoutWidth)
+        }
+
+        return (
+            leadingInset: layout.leadingInset + roundedSlack / 2,
+            width: max(layout.contentLayoutWidth - roundedSlack, 1)
+        )
+    }
+
+    private func stableMinimumAutoWidth(for zone: ZoneModel) -> CGFloat {
+        guard isTextResizableZone(zone), zone.text.isEmpty else {
+            return minimumResizableWidth(for: zone)
+        }
+
+        return stableEmptyTextWidth(for: zone)
+    }
+
+    private func stableEmptyTextWidth(for zone: ZoneModel) -> CGFloat {
+        min(max(156, minimumResizableWidth(for: zone)), availableWidth)
+    }
+
     private func rawTextMeasurementWidth(
         for zone: ZoneModel,
         constrainedTo width: CGFloat
@@ -841,7 +548,10 @@ struct ZoneContentView: View {
         let maxWidth = max(width, 1)
         let measuredSize = measuredRawTextSize(for: zone, width: maxWidth)
         return min(
-            max(ceil(measuredSize.width), minimumResizableWidth(for: zone)),
+            max(
+                ceil(measuredSize.width),
+                stableEmptyTextWidth(for: zone)
+            ),
             maxWidth
         )
     }
@@ -856,8 +566,9 @@ struct ZoneContentView: View {
             : 0
         let horizontalPadding = editorTextHorizontalPadding(for: zone) * 2
         let textViewWidth = max(width - bulletOffset - horizontalPadding, 1)
+        let textInsets = editorTextContentInsets(for: zone)
         let textContainerWidth = max(
-            textViewWidth - editorTextContentInsets.left - editorTextContentInsets.right,
+            textViewWidth - textInsets.left - textInsets.right,
             1
         )
         let textForMeasurement = preservesTrailingBlankLines
@@ -884,46 +595,13 @@ struct ZoneContentView: View {
         textStorage.addLayoutManager(layoutManager)
         layoutManager.ensureLayout(for: textContainer)
 
-        let glyphRange = layoutManager.glyphRange(for: textContainer)
-        var widestLine: CGFloat = 0
-        layoutManager.enumerateLineFragments(forGlyphRange: glyphRange) { _, usedRect, _, _, _ in
-            widestLine = max(widestLine, ceil(usedRect.width))
-        }
         let usedRect = layoutManager.usedRect(for: textContainer)
+        let measuredWidth = usedRect.width + textInsets.left + textInsets.right + horizontalPadding + bulletOffset
+        let measuredHeight = ceil(usedRect.height + textInsets.top + textInsets.bottom)
 
         return CGSize(
-            width: ceil(widestLine + editorTextContentInsets.left + editorTextContentInsets.right + horizontalPadding + bulletOffset),
-            height: ceil(
-                usedRect.height
-                + editorTextContentInsets.top
-                + editorTextContentInsets.bottom
-                + 2
-            )
-        )
-    }
-
-    private func textViewPoint(
-        forTapAt point: CGPoint,
-        layout: CardZoneLayoutResult,
-        zone: ZoneModel
-    ) -> CGPoint {
-        let bulletOffset = zone.hasBullet
-            ? CardZoneContentMetrics.bulletWidth + CardZoneContentMetrics.bulletSpacing
-            : 0
-        let textViewWidth = max(
-            layout.contentLayoutWidth
-            - bulletOffset
-            - (editorTextHorizontalPadding(for: zone) * 2),
-            1
-        )
-        let textViewX = point.x
-            - layout.leadingInset
-            - bulletOffset
-            - editorTextHorizontalPadding(for: zone)
-
-        return CGPoint(
-            x: min(max(textViewX, 0), textViewWidth),
-            y: max(point.y, 0)
+            width: measuredWidth,
+            height: measuredHeight
         )
     }
 
@@ -958,8 +636,15 @@ struct ZoneContentView: View {
     }
 
     private func textMeasurementAttributes(for zone: ZoneModel) -> [NSAttributedString.Key: Any] {
+        textMeasurementAttributes(for: zone, alignment: zone.textAlignment.nsTextAlignment)
+    }
+
+    private func textMeasurementAttributes(
+        for zone: ZoneModel,
+        alignment: NSTextAlignment
+    ) -> [NSAttributedString.Key: Any] {
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = zone.textAlignment.nsTextAlignment
+        paragraphStyle.alignment = alignment
         paragraphStyle.lineBreakMode = .byWordWrapping
         paragraphStyle.lineSpacing = max(editorTextLineSpacing, 0)
 
@@ -973,8 +658,16 @@ struct ZoneContentView: View {
         zone.contentType == .text || zone.contentType == .empty || zone.contentType == .code
     }
 
+    private func contentFrameHeight(for zone: ZoneModel, layout: CardZoneLayoutResult) -> CGFloat? {
+        switch zone.contentType {
+        case .image, .sketch:
+            return layout.blockSize.height
+        case .empty, .text, .code:
+            return zone.sizeMode == .fixed ? layout.blockSize.height : nil
+        }
+    }
+
     private func updateRenderedContentSize(_ newSize: CGSize) {
-        guard !isResizingZone else { return }
         guard newSize.width > 0, newSize.height > 0 else { return }
         let clampedSize = CGSize(
             width: min(max(ceil(newSize.width), 1), availableWidth),
@@ -1069,7 +762,14 @@ struct ZoneContentView: View {
         let rawText = zone?.text ?? ""
         let displayText = rawText.hasSuffix("\n") ? rawText + "\u{200B}" : (rawText.isEmpty ? "\u{200B}" : rawText)
         let attrString = highlightContext?.generateOverlay(for: displayText, font: textFont, highlightColor: ThemeManager.shared.accentColor.color) ?? AttributedString(displayText)
-        return Text(attrString).multilineTextAlignment(zone?.textAlignment.alignment ?? .leading).allowsHitTesting(false)
+        return Text(attrString)
+            .multilineTextAlignment(zone?.textAlignment.alignment ?? .leading)
+            .lineSpacing(editorTextLineSpacing)
+            .padding(.top, editorTextContentInsets.top)
+            .padding(.leading, editorTextContentInsets.left)
+            .padding(.trailing, editorTextContentInsets.right)
+            .padding(.bottom, editorTextContentInsets.bottom)
+            .allowsHitTesting(false)
     }
 
     private func fontSizeFor(_ zone: ZoneModel?) -> CGFloat {
@@ -1096,7 +796,7 @@ struct ZoneContentView: View {
 
         ZStack(alignment: .topLeading) {
             ZoneTextViewRepresentable(
-                text: pureTextBinding, font: textUIFont, textColor: UIColor(currentTextColor), textAlignment: currentTextAlignment, isBold: currentIsBold, isItalic: currentIsItalic, lineSpacing: editorTextLineSpacing, contentInset: textInsets, cursorTintColor: UIColor(accent), extendsTextOnBlankTap: false, zoneID: zoneID, isFirstResponder: isFocused,
+                text: pureTextBinding, font: textUIFont, textColor: UIColor(currentTextColor), textAlignment: currentTextAlignment, isBold: currentIsBold, isItalic: currentIsItalic, lineSpacing: editorTextLineSpacing, contentInset: textInsets, cursorTintColor: UIColor(accent), zoneID: zoneID, isFirstResponder: isFocused,
                 onTextChange: { newText in
                     if currentContentType == .text || currentContentType == .empty || currentContentType == .code {
                         highlightContext?.dismiss()
@@ -1108,8 +808,8 @@ struct ZoneContentView: View {
                     lineTracker.updateFocusedLine(for: zoneID, lineIndex: lineIndex, totalLines: totalLines)
                     zoneController.updateZoneHeightInfo(for: zoneID, lineCount: totalLines, focusedLineIndex: lineIndex)
                 },
-                onCaretAnchorChange: { anchorY in
-                    postCaretScrollHint(anchorY: anchorY)
+                onCaretGeometryChange: { anchorY, caretRectInWindow in
+                    postCaretScrollHint(anchorY: anchorY, caretRectInWindow: caretRectInWindow)
                 },
                 onCommit: { },
                 onFocusChange: { focused in
@@ -1187,14 +887,8 @@ struct ZoneContentView: View {
         isFocused = true; onSelect()
     }
 
-    private func postCaretScrollHint(anchorY: CGFloat) {
+    private func postCaretScrollHint(anchorY: CGFloat, caretRectInWindow: CGRect) {
         let normalizedAnchorY = min(max(anchorY, 0.08), 0.92)
-
-        if let lastPostedCaretAnchorY,
-           abs(lastPostedCaretAnchorY - normalizedAnchorY) < 0.04 {
-            return
-        }
-
         lastPostedCaretAnchorY = normalizedAnchorY
 
         NotificationCenter.default.post(
@@ -1202,7 +896,8 @@ struct ZoneContentView: View {
             object: nil,
             userInfo: [
                 ZoneEditorCaretScrollNotification.pathIDKey: path.id,
-                ZoneEditorCaretScrollNotification.anchorYKey: normalizedAnchorY
+                ZoneEditorCaretScrollNotification.anchorYKey: normalizedAnchorY,
+                ZoneEditorCaretScrollNotification.caretRectInWindowKey: NSValue(cgRect: caretRectInWindow)
             ]
         )
     }
@@ -1239,8 +934,7 @@ struct ZoneContentView: View {
             contentWidth: layout.contentLayoutWidth,
             leadingInset: layout.leadingInset,
             renderedSize: renderedContentSize,
-            isSelected: isSelected,
-            isResizing: isResizingZone
+            isSelected: isSelected
         )
     }
 
@@ -1265,34 +959,6 @@ struct ZoneContentView: View {
             isFocused ? "mounted" : "unmounted"
         ]
         return parts.joined(separator: "|")
-    }
-
-    private func resizeHandleDebugSignature(
-        layout: CardZoneLayoutResult,
-        hitWidth: CGFloat,
-        hitHeight: CGFloat,
-        glyphSize: CGFloat
-    ) -> String {
-        let parts: [String] = [
-            String(Int(layout.blockSize.width)),
-            String(Int(layout.blockSize.height)),
-            String(Int(hitWidth)),
-            String(Int(hitHeight)),
-            String(Int(glyphSize)),
-            isSelected ? "selected" : "idle"
-        ]
-        return parts.joined(separator: "|")
-    }
-
-    private func resizeAxisDebugName(_ axis: ZoneResizeDragAxis) -> String {
-        switch axis {
-        case .horizontal:
-            return "horizontal"
-        case .vertical:
-            return "vertical"
-        case .free:
-            return "free"
-        }
     }
 
     // MARK: - Pure Text Binding
@@ -1340,7 +1006,8 @@ struct ZoneContentView: View {
     }
 
     private func editorTextHorizontalPadding(for zone: ZoneModel?) -> CGFloat {
-        zone?.highlightColor != HighlightColor.none ? 6 : 0
+        guard zone.map(isTextResizableZone) == true else { return 0 }
+        return 0
     }
 
     private var editorTextLineSpacing: CGFloat {
@@ -1352,12 +1019,39 @@ struct ZoneContentView: View {
     }
 
     private var editorTextContentInsets: UIEdgeInsets {
-        UIEdgeInsets(top: 4, left: 0, bottom: 4, right: 0)
+        editorTextContentInsets(for: zone)
+    }
+
+    private func editorTextContentInsets(for zone: ZoneModel?) -> UIEdgeInsets {
+        guard let zone,
+              isTextResizableZone(zone) else {
+            return .zero
+        }
+
+        return UIEdgeInsets(
+            top: zoneTextVerticalPadding,
+            left: zoneTextHorizontalPadding,
+            bottom: zoneTextVerticalPadding,
+            right: zoneTextHorizontalPadding
+        )
     }
 
     private var zoneCornerRadius: CGFloat {
         18
     }
+
+    private func visualZoneOutset(for zone: ZoneModel?) -> (horizontal: CGFloat, vertical: CGFloat) {
+        guard let zone,
+              isTextResizableZone(zone) else {
+            return (horizontal: 0, vertical: 0)
+        }
+
+        return (horizontal: 0, vertical: 0)
+    }
+
+    private var zoneTextHorizontalPadding: CGFloat { 12 }
+
+    private var zoneTextVerticalPadding: CGFloat { 16 }
 
     // MARK: - Image View
     @ViewBuilder
@@ -1383,8 +1077,7 @@ struct ZoneContentView: View {
                         }
                     }
                 )
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: topAlignmentFor(zone))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
     }
 
@@ -1397,8 +1090,7 @@ struct ZoneContentView: View {
                 .scaledToFit()
                 .background(colorScheme == .dark ? Color.black : Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: topAlignmentFor(zone))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
     }
 
@@ -1413,209 +1105,6 @@ struct ZoneContentView: View {
 
     private func alignmentFor(_ zone: ZoneModel?) -> Alignment { switch zone?.textAlignment ?? .leading { case .leading: return .leading; case .center: return .center; case .trailing: return .trailing } }
     private func topAlignmentFor(_ zone: ZoneModel?) -> Alignment { switch zone?.textAlignment ?? .leading { case .leading: return .topLeading; case .center: return .top; case .trailing: return .topTrailing } }
-}
-
-// MARK: - Zone Resize Handle
-
-struct ZoneResizeCornerHandle: View {
-    let accent: Color
-    let isActive: Bool
-
-    var body: some View {
-        ZoneResizeCornerGlyph()
-            .stroke(
-                accent,
-                style: StrokeStyle(
-                    lineWidth: 3.2,
-                    lineCap: .round,
-                    lineJoin: .round
-                )
-            )
-            .padding(1)
-            .shadow(color: accent.opacity(isActive ? 0.38 : 0.24), radius: isActive ? 4 : 2, y: 1)
-    }
-}
-
-struct ZoneResizeCornerGlyph: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let minX = rect.minX
-        let maxX = rect.maxX
-        let minY = rect.minY
-        let maxY = rect.maxY
-        let radius = min(rect.width, rect.height) * 0.36
-
-        path.move(to: CGPoint(x: minX, y: maxY))
-        path.addLine(to: CGPoint(x: maxX - radius, y: maxY))
-        path.addQuadCurve(
-            to: CGPoint(x: maxX, y: maxY - radius),
-            control: CGPoint(x: maxX, y: maxY)
-        )
-        path.addLine(to: CGPoint(x: maxX, y: minY))
-
-        return path
-    }
-}
-
-struct ZoneResizeTouchCapture: UIViewRepresentable {
-    var cornerHitSize: CGFloat = 132
-    var onChanged: (CGSize) -> Void
-    var onEnded: () -> Void
-
-    func makeUIView(context: Context) -> TouchCaptureView {
-        let view = TouchCaptureView()
-        view.cornerHitSize = cornerHitSize
-        view.onChanged = onChanged
-        view.onEnded = onEnded
-        return view
-    }
-
-    func updateUIView(_ uiView: TouchCaptureView, context: Context) {
-        uiView.cornerHitSize = cornerHitSize
-        uiView.onChanged = onChanged
-        uiView.onEnded = onEnded
-    }
-
-    final class ResizePanGestureRecognizer: UIPanGestureRecognizer {
-        override func canPrevent(_ preventedGestureRecognizer: UIGestureRecognizer) -> Bool {
-            true
-        }
-
-        override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool {
-            false
-        }
-    }
-
-    final class TouchCaptureView: UIView, UIGestureRecognizerDelegate {
-        var cornerHitSize: CGFloat = 132
-        var onChanged: ((CGSize) -> Void)?
-        var onEnded: (() -> Void)?
-        private var lastDeliveredTranslation: CGSize = .zero
-        private var lastDeliveryTime: TimeInterval = 0
-        private var startWindowLocation: CGPoint?
-        private lazy var panGesture: ResizePanGestureRecognizer = {
-            let recognizer = ResizePanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
-            recognizer.minimumNumberOfTouches = 1
-            recognizer.maximumNumberOfTouches = 1
-            recognizer.cancelsTouchesInView = true
-            recognizer.delaysTouchesBegan = false
-            recognizer.delaysTouchesEnded = false
-            recognizer.delegate = self
-            recognizer.name = "QuizFlash.ZoneResizeCornerPan"
-            return recognizer
-        }()
-
-        override init(frame: CGRect) {
-            super.init(frame: frame)
-            isOpaque = false
-            backgroundColor = .clear
-            isUserInteractionEnabled = true
-            isMultipleTouchEnabled = false
-            isExclusiveTouch = true
-            layer.zPosition = 10_000
-            addGestureRecognizer(panGesture)
-        }
-
-        required init?(coder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
-        }
-
-        override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-            let hitSize = max(cornerHitSize, 44)
-            let hitRect = CGRect(
-                x: bounds.maxX - hitSize,
-                y: bounds.maxY - hitSize,
-                width: hitSize,
-                height: hitSize
-            )
-            return hitRect.contains(point)
-        }
-
-        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-            self.point(inside: point, with: event) ? self : nil
-        }
-
-        override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            true
-        }
-
-        func gestureRecognizer(
-            _ gestureRecognizer: UIGestureRecognizer,
-            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
-        ) -> Bool {
-            false
-        }
-
-        @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
-            let location = recognizer.location(in: self)
-            let windowLocation = recognizer.location(in: nil)
-
-            switch recognizer.state {
-            case .began:
-                startWindowLocation = windowLocation
-                lastDeliveredTranslation = .zero
-                lastDeliveryTime = 0
-                reportTouch(phase: "began", location: location, translation: .zero)
-                onChanged?(.zero)
-            case .changed:
-                let translation = stableTranslation(from: windowLocation)
-                if shouldDeliver(translation: translation) {
-                    lastDeliveredTranslation = translation
-                    lastDeliveryTime = Date.timeIntervalSinceReferenceDate
-                    reportTouch(phase: "moved", location: location, translation: translation)
-                    onChanged?(translation)
-                }
-            case .ended:
-                finish(phase: "ended", location: location, translation: stableTranslation(from: windowLocation))
-            case .cancelled:
-                finish(phase: "cancelled", location: location, translation: stableTranslation(from: windowLocation))
-            case .failed:
-                finish(phase: "failed", location: location, translation: stableTranslation(from: windowLocation))
-            default:
-                break
-            }
-        }
-
-        private func stableTranslation(from windowLocation: CGPoint) -> CGSize {
-            guard let startWindowLocation else { return .zero }
-            return CGSize(
-                width: windowLocation.x - startWindowLocation.x,
-                height: windowLocation.y - startWindowLocation.y
-            )
-        }
-
-        private func shouldDeliver(translation: CGSize) -> Bool {
-            let dx = translation.width - lastDeliveredTranslation.width
-            let dy = translation.height - lastDeliveredTranslation.height
-            if hypot(dx, dy) >= 1.5 { return true }
-
-            let elapsed = Date.timeIntervalSinceReferenceDate - lastDeliveryTime
-            return elapsed >= 1.0 / 30.0
-        }
-
-        private func finish(phase: String, location: CGPoint, translation: CGSize) {
-            if translation != lastDeliveredTranslation {
-                onChanged?(translation)
-            }
-            reportTouch(phase: phase, location: location, translation: translation)
-            lastDeliveredTranslation = .zero
-            lastDeliveryTime = 0
-            startWindowLocation = nil
-            onEnded?()
-        }
-
-        private func reportTouch(phase: String, location: CGPoint, translation: CGSize) {
-            Task { @MainActor in
-                ZoneEditorDebugStore.shared.recordResizeTouch(
-                    phase: phase,
-                    x: location.x,
-                    y: location.y,
-                    dx: translation.width,
-                    dy: translation.height
-                )
-            }
-        }
-    }
 }
 
 struct CardFaceView: View {
@@ -1767,14 +1256,18 @@ struct CachedImageView: View {
     var body: some View {
         Group {
             if let image = uiImage {
-                HStack(spacing: 0) {
-                    if alignment == .trailing || alignment == .center { Spacer(minLength: 0) }
-                    Image(uiImage: image).resizable().aspectRatio(contentMode: .fit).frame(maxWidth: UIScreen.main.bounds.width * scale * 0.85)
-                        .background { if isSketch { RoundedRectangle(cornerRadius: cornerRadius).fill(colorScheme == .dark ? Color.black : Color.white) } }
-                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-                        .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
-                    if alignment == .leading || alignment == .center { Spacer(minLength: 0) }
-                }
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .background {
+                        if isSketch {
+                            RoundedRectangle(cornerRadius: cornerRadius)
+                                .fill(colorScheme == .dark ? Color.black : Color.white)
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+                    .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
             } else { ProgressView().frame(height: 100) }
         }
             .task { loadImage() }

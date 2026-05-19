@@ -48,8 +48,8 @@
 "%d days ago" = "%d дн. назад";
 "%d deck" = "%d колода";
 "%d Deck" = "%d колода";
-"%d Decks" = "%d колод";
 "%d decks" = "%d колод";
+"%d Decks" = "%d колод";
 "%d flashcards" = "%d флэшкарточек";
 "%d goal days" = "%d дней с целью";
 "%d hidden" = "%d скрыто";
@@ -110,6 +110,7 @@
 "Add Right" = "Добавить справа";
 "Add source text before saving." = "Добавьте исходный текст перед сохранением.";
 "Add text and mark a blank to preview the card." = "Добавьте текст и отметьте пропуск для предпросмотра.";
+"Adjust only study content, keeping app chrome and controls stable." = "Настраивает только учебный контент, оставляя интерфейс приложения стабильным.";
 "AI generation paused" = "AI генерация на паузе";
 "Align Bottom" = "Выровнять по низу";
 "Align Center" = "По центру";
@@ -127,14 +128,16 @@
 "ANSWER %@" = "ОТВЕТ %@";
 "Answer Reveal" = "Показ ответа";
 "ANSWERS" = "ОТВЕТЫ";
+"App Interface" = "Интерфейс приложения";
+"App Text" = "Текст приложения";
 "Auto" = "Авто";
 "Auto Block" = "Автоблок";
 "Auto keeps the full source covered, then balances density by text weight." = "В режиме «Авто» сохраняется весь источник, а затем балансируется плотность по весу текста.";
 "Auto Size" = "Авторазмер";
 "Background is rendered inside the shared sheet surface and clipped by the top corner radius." = "Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.";
 "Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request." = "Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.";
-"BLANK" = "ПРОПУСК";
 "Blank" = "Пропуск";
+"BLANK" = "ПРОПУСК";
 "Block Center" = "Блок по центру";
 "Block Left" = "Блок слева";
 "Block Position" = "Позиция блока";
@@ -157,9 +160,11 @@
 "Card" = "Карта";
 "Card %@" = "Карта %@";
 "Card %d" = "Карта %d";
+"Card Content" = "Содержимое карточки";
 "card moved" = "карточка пройдена";
-"cards" = "карточки";
+"Card Text" = "Текст карточки";
 "Cards" = "Карточки";
+"cards" = "карточки";
 "Cards Count" = "Количество карт";
 "cards moved" = "карточек пройдено";
 "CARDS(%@)" = "КАРТОЧКИ(%@)";
@@ -170,10 +175,11 @@
 "Choice %@" = "Выбор %@";
 "Choice %d" = "Вариант %d";
 "Choices" = "Варианты";
+"Choose a comfortable base size for QuizFlash interface text." = "Выберите удобный базовый размер текста интерфейса QuizFlash.";
 "Choose a deck" = "Выберите колоду";
 "Choose a language" = "Выберите язык";
-"Choose Card Type" = "Выбрать тип карточки";
 "Choose card type" = "Выбрать тип карточки";
+"Choose Card Type" = "Выбрать тип карточки";
 "Choose destination folder, currently %@" = "Выберите папку назначения, сейчас %@";
 "Choose destination folder, currently Library" = "Выберите папку назначения, сейчас Библиотека";
 "Choose one source type, convert into another, and save the result with minimal setup." = "Выберите один тип источника, преобразуйте в другой и сохраните результат с минимальной настройкой.";
@@ -197,6 +203,7 @@
 "Continue" = "Продолжить";
 "Continue from the last completed batch when you're ready." = "Продолжите с последнего завершённого пакета, когда будете готовы.";
 "Continue where you left off." = "Продолжайте с того места, где остановились.";
+"Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported." = "Управляет оболочкой QuizFlash, строками настроек, навигационными подписями и другими элементами интерфейса приложения там, где поддерживается Dynamic Type.";
 "Conversion" = "Конверсия";
 "Conversion paused" = "Конвертация приостановлена";
 "Conversion stopped" = "Преобразование остановлено";
@@ -232,6 +239,7 @@
 "Deck Health" = "Здоровье колоды";
 "Deck Title" = "Название колоды";
 "DECK-SCOPED SETTINGS" = "НАСТРОЙКИ ПАЛУБЫ";
+"Deck-specific play mode settings still apply on top where they exist. For example, Match can keep its Small, Standard, Large, or Custom setting while this slider acts as the global content scale." = "Настройки режимов обучения для конкретной колоды по-прежнему применяются поверх, где они есть. Например, режим «Сопоставление» может сохранить размер Small, Standard, Large или Custom, а этот ползунок работает как глобальный масштаб контента.";
 "Default" = "По умолчанию";
 "Default %@" = "По умолчанию %@";
 "Delete" = "Удалить";
@@ -290,6 +298,7 @@
 "Focus deck" = "Главная колода";
 "Focus Streak" = "Полоса фокуса";
 "Folders" = "Папки";
+"Follow the text size selected in iOS Settings." = "Следовать размеру текста, выбранному в настройках iOS.";
 "Font" = "Шрифт";
 "Freed" = "Фрид";
 "Full Width" = "На всю ширину";
@@ -324,6 +333,7 @@
 "Highlight" = "Выделение";
 "History" = "История";
 "Home" = "Главная";
+"How does changing text size affect a study card?" = "Как изменение размера текста влияет на учебную карточку?";
 "Image" = "Изображение";
 "Image Size" = "Размер изображения";
 "Import" = "Импорт";
@@ -359,6 +369,7 @@
 "Library (All Decks)" = "Библиотека (все колоды)";
 "List" = "Список";
 "Live card memory and schedule snapshot" = "Живой снимок памяти карточки и расписания";
+"Live Preview" = "Живой предпросмотр";
 "Live Swipe HUD" = "Живой HUD смахивания";
 "Log Out" = "Выйти";
 "Manual" = "Вручную";
@@ -468,16 +479,16 @@
 "Play Simulation" = "Играть в симуляторы";
 "Preparing source" = "Подготовка источника";
 "Preparing your material" = "Подготовка вашего материала";
-"PREVIEW" = "ПРЕДПРОСМОТР";
 "Preview" = "Предварительный просмотр";
+"PREVIEW" = "ПРЕДПРОСМОТР";
 "Preview Mode" = "Режим предварительного просмотра";
 "Progress and pace." = "Прогресс и темп.";
 "Prompt" = "Задание";
 "PROMPT" = "ЗАДАНИЕ";
 "Prompt with Blank" = "Подсказка с пропуском";
 "Purple" = "Фиолетовый";
-"QUESTION" = "ВОПРОС";
 "Question" = "Вопрос";
+"QUESTION" = "ВОПРОС";
 "Quiz" = "Квиз";
 "Quiz Card" = "Карточка-викторина";
 "Quiz Cards" = "Карточки викторины";
@@ -503,8 +514,8 @@
 "Resize Zone" = "Изменить размер зоны";
 "Resume AI generation" = "Возобновить AI генерацию";
 "Resume Deck" = "Продолжить колоду";
-"Retry" = "Повтор";
 "RETRY" = "ПОВТОРИТЬ";
+"Retry" = "Повтор";
 "Retry cards" = "Повторить";
 "Reviewed" = "Пройдено";
 "Reviews" = "Повторы";
@@ -521,6 +532,7 @@
 "Save to" = "Сохранить в";
 "Saved" = "Сохранено";
 "Saved Configurations" = "Сохраненные конфигурации";
+"Scales authored card text in the flashcard editor, preview, Flashcards, Match, Quiz, and Write modes without changing saved card data." = "Масштабирует созданный текст карточек в редакторе, предпросмотре и режимах Flashcards, Match, Quiz и Write, не изменяя сохраненные данные карточек.";
 "Score signals" = "Сигналы счёта";
 "Scroll this surface and watch the rows pass behind the sticky header blur." = "Прокрутите эту поверхность и наблюдайте, как строки проходят за размытым липким заголовком.";
 "Search" = "Поиск";
@@ -592,6 +604,7 @@
 "The current AI conversion will stop immediately." = "Текущее преобразование ИИ будет немедленно остановлено.";
 "The current AI generation will stop immediately." = "Нынешнее поколение ИИ немедленно остановится.";
 "The first AI results will appear here in a moment." = "Первые результаты AI скоро появятся здесь.";
+"The interface stays readable while authored card content can be tuned separately for review comfort." = "Интерфейс остается читаемым, а содержимое карточек можно отдельно настроить для удобного повторения.";
 "The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text." = "В пропущенном ответе много символов, поэтому ввод с помощником обычно подходит лучше, чем свободный текст.";
 "The persisted JSON trace could not be loaded. It may have been deleted or corrupted." = "Не удалось загрузить сохраненную трассировку JSON. Возможно, он был удален или поврежден.";
 "These notes stay subtle and only flag cards that may need gentler answer entry or cleanup before practice." = "Эти примечания остаются тонкими и помечают только карточки, которые могут потребовать более аккуратного ввода ответов или очистки перед практикой.";
@@ -634,6 +647,7 @@
 "Unpin" = "Открепить";
 "Untitled Deck" = "Колода без названия";
 "Upcoming" = "Дальше";
+"Use System Text Size" = "Использовать системный размер текста";
 "Use the current text selection as the omitted answer." = "Используйте текущее выделение как пропущенный ответ.";
 "Verbose" = "Подробно";
 "Vertical Position" = "Положение по вертикали";

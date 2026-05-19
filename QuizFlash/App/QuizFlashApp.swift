@@ -36,6 +36,7 @@ struct QuizFlashApp: App {
                 .environment(appMigrationStore)
                 .environment(\.locale, appPreferences.resolvedLocale)
                 .tint(themeManager.accentColor.color)
+                .quizFlashAppTextSize(appPreferences)
                 .preferredColorScheme(.dark)
                 .onAppear {
                     print(URL.documentsDirectory.path())
@@ -53,5 +54,16 @@ struct QuizFlashApp: App {
                 HomeDailyCardAggregate.self,
                 DeckPlayModeSettingsModel.self
             ])
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func quizFlashAppTextSize(_ appPreferences: AppPreferences) -> some View {
+        if appPreferences.usesSystemTextSize {
+            self
+        } else {
+            dynamicTypeSize(appPreferences.appInterfaceDynamicTypeSize)
+        }
     }
 }

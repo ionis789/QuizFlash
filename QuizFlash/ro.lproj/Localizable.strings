@@ -48,8 +48,8 @@
 "%d days ago" = "acum %d zile";
 "%d deck" = "%d pachet";
 "%d Deck" = "%d deck";
-"%d Decks" = "%d deckuri";
 "%d decks" = "%d pachete";
+"%d Decks" = "%d deckuri";
 "%d flashcards" = "%d flashcarduri";
 "%d goal days" = "%d zile cu țintă";
 "%d hidden" = "%d ascunse";
@@ -110,6 +110,7 @@
 "Add Right" = "Adaugă la dreapta";
 "Add source text before saving." = "Adaugă textul sursă înainte de salvare.";
 "Add text and mark a blank to preview the card." = "Adaugă text și marchează un spațiu liber pentru previzualizare.";
+"Adjust only study content, keeping app chrome and controls stable." = "Ajustează doar conținutul de studiu, păstrând stabilă interfața aplicației.";
 "AI generation paused" = "Generarea AI este pe pauză";
 "Align Bottom" = "Aliniază jos";
 "Align Center" = "Aliniază la centru";
@@ -127,14 +128,16 @@
 "ANSWER %@" = "RĂSPUNS %@";
 "Answer Reveal" = "Afișare răspuns";
 "ANSWERS" = "RĂSPUNSURI";
+"App Interface" = "Interfața aplicației";
+"App Text" = "Text aplicație";
 "Auto" = "Auto";
 "Auto Block" = "Bloc auto";
 "Auto keeps the full source covered, then balances density by text weight." = "Auto menține întreaga sursă acoperită, apoi echilibrează densitatea în funcție de greutatea textului.";
 "Auto Size" = "Dimensiune automată";
 "Background is rendered inside the shared sheet surface and clipped by the top corner radius." = "Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.";
 "Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request." = "Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.";
-"BLANK" = "SPAȚIU LIBER";
 "Blank" = "Gol";
+"BLANK" = "SPAȚIU LIBER";
 "Block Center" = "Bloc centru";
 "Block Left" = "Bloc stânga";
 "Block Position" = "Poziție bloc";
@@ -157,9 +160,11 @@
 "Card" = "Card";
 "Card %@" = "Card %@";
 "Card %d" = "Card %d";
+"Card Content" = "Conținut card";
 "card moved" = "card mutat";
-"cards" = "carduri";
+"Card Text" = "Text card";
 "Cards" = "Carduri";
+"cards" = "carduri";
 "Cards Count" = "Carduri Număr";
 "cards moved" = "carduri mutate";
 "CARDS(%@)" = "CARDURI(%@)";
@@ -170,10 +175,11 @@
 "Choice %@" = "Alegere %@";
 "Choice %d" = "Varianta %d";
 "Choices" = "Variante";
+"Choose a comfortable base size for QuizFlash interface text." = "Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.";
 "Choose a deck" = "Alegeți un deck";
 "Choose a language" = "Alegeți o limbă";
-"Choose Card Type" = "Alege tipul cardului";
 "Choose card type" = "Alege tipul cardului";
+"Choose Card Type" = "Alege tipul cardului";
 "Choose destination folder, currently %@" = "Alege folderul de destinație, acum %@";
 "Choose destination folder, currently Library" = "Alege folderul de destinație, acum Bibliotecă";
 "Choose one source type, convert into another, and save the result with minimal setup." = "Alegeți un tip de sursă, convertiți-l în altul și salvați rezultatul cu o configurare minimă.";
@@ -197,6 +203,7 @@
 "Continue" = "Continuă";
 "Continue from the last completed batch when you're ready." = "Continuă de la ultimul lot finalizat când ești gata.";
 "Continue where you left off." = "Continuă de unde ai rămas.";
+"Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported." = "Controlează chrome-ul QuizFlash, rândurile de setări, etichetele de navigare și alte elemente UI ale aplicației unde Dynamic Type este suportat.";
 "Conversion" = "Conversie";
 "Conversion paused" = "Conversie pauzată";
 "Conversion stopped" = "Conversia a fost oprită";
@@ -232,6 +239,7 @@
 "Deck Health" = "Deck Sănătate";
 "Deck Title" = "Deck Titlu";
 "DECK-SCOPED SETTINGS" = "SETĂRI PENTRU PUNTE";
+"Deck-specific play mode settings still apply on top where they exist. For example, Match can keep its Small, Standard, Large, or Custom setting while this slider acts as the global content scale." = "Setările specifice modurilor de joc rămân aplicate deasupra acolo unde există. De exemplu, Potrivire poate păstra setarea Mic, Standard, Mare sau Personalizat, iar acest slider acționează ca scală globală pentru conținut.";
 "Default" = "Implicit";
 "Default %@" = "%@ implicit";
 "Delete" = "Șterge";
@@ -290,6 +298,7 @@
 "Focus deck" = "Deck principal";
 "Focus Streak" = "Seria de focalizare";
 "Folders" = "Foldere";
+"Follow the text size selected in iOS Settings." = "Urmează dimensiunea textului aleasă în Setările iOS.";
 "Font" = "Font";
 "Freed" = "Eliberat";
 "Full Width" = "Lățime completă";
@@ -324,6 +333,7 @@
 "Highlight" = "Evidențiere";
 "History" = "Istoric";
 "Home" = "Acasă";
+"How does changing text size affect a study card?" = "Cum afectează schimbarea dimensiunii textului un card de studiu?";
 "Image" = "Imagine";
 "Image Size" = "Dimensiune imagine";
 "Import" = "Importă";
@@ -359,6 +369,7 @@
 "Library (All Decks)" = "Bibliotecă (toate deckurile)";
 "List" = "Listă";
 "Live card memory and schedule snapshot" = "Instantaneu live al memoriei cardului și al programului";
+"Live Preview" = "Previzualizare live";
 "Live Swipe HUD" = "Live Swipe HUD";
 "Log Out" = "Deconectare";
 "Manual" = "Manual";
@@ -468,16 +479,16 @@
 "Play Simulation" = "Jucați Simulare";
 "Preparing source" = "Se pregătește sursa";
 "Preparing your material" = "Pregătirea materialului dvs";
-"PREVIEW" = "PREVIZUALIZARE";
 "Preview" = "Previzualizare";
+"PREVIEW" = "PREVIZUALIZARE";
 "Preview Mode" = "Modul de previzualizare";
 "Progress and pace." = "Progres și ritm.";
 "Prompt" = "Enunț";
 "PROMPT" = "ENUNȚ";
 "Prompt with Blank" = "Enunț cu spațiu liber";
 "Purple" = "Mov";
-"QUESTION" = "ÎNTREBARE";
 "Question" = "Întrebare";
+"QUESTION" = "ÎNTREBARE";
 "Quiz" = "Quiz";
 "Quiz Card" = "Card quiz";
 "Quiz Cards" = "Carduri quiz";
@@ -503,8 +514,8 @@
 "Resize Zone" = "Redimensionează zona";
 "Resume AI generation" = "Reia generarea AI";
 "Resume Deck" = "Reia deckul";
-"Retry" = "Reîncearcă";
 "RETRY" = "ÎNCERCAȚI";
+"Retry" = "Reîncearcă";
 "Retry cards" = "De repetat";
 "Reviewed" = "Revizuite";
 "Reviews" = "Repetări";
@@ -521,6 +532,7 @@
 "Save to" = "Salvează în";
 "Saved" = "Salvat";
 "Saved Configurations" = "Configurații salvate";
+"Scales authored card text in the flashcard editor, preview, Flashcards, Match, Quiz, and Write modes without changing saved card data." = "Scalează textul cardurilor create în editorul de flashcarduri, previzualizare și modurile Flashcards, Potrivire, Quiz și Scriere, fără să modifice datele salvate ale cardului.";
 "Score signals" = "Semnale scor";
 "Scroll this surface and watch the rows pass behind the sticky header blur." = "Derulați această suprafață și urmăriți cum trec rândurile în spatele neclarității antetului lipicios.";
 "Search" = "Căutare";
@@ -592,6 +604,7 @@
 "The current AI conversion will stop immediately." = "Conversia actuală AI se va opri imediat.";
 "The current AI generation will stop immediately." = "Generația actuală de AI se va opri imediat.";
 "The first AI results will appear here in a moment." = "Primele rezultate AI vor apărea aici în curând.";
+"The interface stays readable while authored card content can be tuned separately for review comfort." = "Interfața rămâne lizibilă, iar conținutul cardurilor poate fi ajustat separat pentru confort la recapitulare.";
 "The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text." = "Răspunsul omis are destule simboluri încât introducerea asistată va fi, de obicei, mai potrivită decât textul liber.";
 "The persisted JSON trace could not be loaded. It may have been deleted or corrupted." = "Urma JSON persistentă nu a putut fi încărcată. Este posibil să fi fost șters sau corupt.";
 "These notes stay subtle and only flag cards that may need gentler answer entry or cleanup before practice." = "Aceste note rămân subtile și doar semnalează carduri care ar putea necesita o introducere mai blândă a răspunsului sau o curățare înainte de antrenament.";
@@ -634,6 +647,7 @@
 "Unpin" = "Anulează fixarea";
 "Untitled Deck" = "Deck fără titlu";
 "Upcoming" = "Următoarele";
+"Use System Text Size" = "Folosește dimensiunea textului din sistem";
 "Use the current text selection as the omitted answer." = "Folosește selecția curentă ca răspuns omis.";
 "Verbose" = "Detaliat";
 "Vertical Position" = "Poziție verticală";

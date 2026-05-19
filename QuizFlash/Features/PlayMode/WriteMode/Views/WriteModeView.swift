@@ -52,6 +52,7 @@ private struct WriteModeSessionView: View {
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var context
+    @Environment(AppPreferences.self) private var appPreferences
 
     let deck: DeckModel
     let safeAreaInsets: UIEdgeInsets
@@ -201,7 +202,7 @@ private struct WriteModeSessionView: View {
                         assistedBuilderInput(for: prompt)
                     } else {
                         TextField("Enter the missing text", text: $viewModel.currentInput, axis: .vertical)
-                            .font(.system(size: 20, weight: .semibold, design: .rounded))
+                            .font(.system(size: 20 * appPreferences.cardContentFontScale, weight: .semibold, design: .rounded))
                             .foregroundStyle(.primary)
                             .padding(UIConstants.Spacing.standard)
                             .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card))
@@ -468,7 +469,7 @@ private struct WriteModeSessionView: View {
         return VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
                 Text(viewModel.currentInput.isEmpty ? "Build the answer from the segments below." : viewModel.currentInput)
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .font(.system(size: 20 * appPreferences.cardContentFontScale, weight: .semibold, design: .rounded))
                     .foregroundStyle(viewModel.currentInput.isEmpty ? .secondary : .primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(UIConstants.Spacing.standard)
@@ -522,7 +523,7 @@ private struct WriteModeSessionView: View {
         if MathTextSanitizer.needsRichPreview(prompt.sourceText) {
             MixedMathTextView(
                 text: viewModel.shouldShowCanonicalAnswer ? prompt.sourceText : prompt.blankedPrompt,
-                fontSize: 22,
+                fontSize: 22 * appPreferences.cardContentFontScale,
                 textColor: .primary,
                 alignment: .leading,
                 isInteractive: false,
@@ -546,7 +547,7 @@ private struct WriteModeSessionView: View {
                 .underline(true, color: underlineTint) +
             Text(prompt.suffixText)
         )
-        .font(.system(size: 22, weight: .medium, design: .rounded))
+        .font(.system(size: 22 * appPreferences.cardContentFontScale, weight: .medium, design: .rounded))
         .foregroundStyle(.primary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)

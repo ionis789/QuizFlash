@@ -52,6 +52,7 @@ private struct QuizModeSessionView: View {
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var context
+    @Environment(AppPreferences.self) private var appPreferences
 
     let deck: DeckModel
     let safeAreaInsets: UIEdgeInsets
@@ -180,7 +181,10 @@ private struct QuizModeSessionView: View {
                         .font(.caption.weight(.black))
                         .foregroundStyle(.secondary)
 
-                    CardFaceView(zone: card.questionZone)
+                    CardFaceView(
+                        zone: card.questionZone,
+                        fontScale: appPreferences.cardContentFontScale
+                    )
                 }
 
                 PlayModeContentCard {
@@ -195,6 +199,7 @@ private struct QuizModeSessionView: View {
                                 isSelected: viewModel.selectedChoiceIDs.contains(choice.id),
                                 isEvaluated: viewModel.isEvaluated,
                                 isCorrect: choice.isCorrect,
+                                fontScale: appPreferences.cardContentFontScale,
                                 action: { viewModel.selectChoice(choice.id) }
                             )
                         }
@@ -207,7 +212,10 @@ private struct QuizModeSessionView: View {
                             .font(.caption.weight(.black))
                             .foregroundStyle(.secondary)
 
-                        CardFaceView(zone: explanationZone)
+                        CardFaceView(
+                            zone: explanationZone,
+                            fontScale: appPreferences.cardContentFontScale
+                        )
                     }
                 } else if viewModel.isEvaluated,
                           card.explanationZone != nil,
@@ -417,6 +425,7 @@ private struct QuizChoiceRow: View {
     let isSelected: Bool
     let isEvaluated: Bool
     let isCorrect: Bool
+    let fontScale: CGFloat
     let action: () -> Void
 
     var body: some View {
@@ -432,7 +441,7 @@ private struct QuizChoiceRow: View {
                         .foregroundStyle(badgeForeground)
                 }
 
-                CardFaceView(zone: choice.contentZone)
+                CardFaceView(zone: choice.contentZone, fontScale: fontScale)
 
                 Spacer(minLength: 0)
             }

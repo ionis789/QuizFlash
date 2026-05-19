@@ -17,18 +17,13 @@ extension Notification.Name {
     static let zoneFocusRequest = Notification.Name("zoneFocusRequest")
     static let focusZoneTextView = Notification.Name("focusZoneTextView")
     static let zoneEditorCaretMoved = Notification.Name("zoneEditorCaretMoved")
-    static let zoneEditorResizeHandleMoved = Notification.Name("zoneEditorResizeHandleMoved")
+    static let zoneEditorZoneTapped = Notification.Name("zoneEditorZoneTapped")
 }
 
 enum ZoneEditorCaretScrollNotification {
     static let pathIDKey = "pathID"
     static let anchorYKey = "anchorY"
-}
-
-enum ZoneEditorResizeScrollNotification {
-    static let pathIDKey = "pathID"
-    static let anchorYKey = "anchorY"
-    static let deltaYKey = "deltaY"
+    static let caretRectInWindowKey = "caretRectInWindow"
 }
 
 // MARK: - Zone Focus Manager
@@ -55,8 +50,6 @@ final class ZoneFocusManager {
     private var keyboardRetainTask: Task<Void, Never>?
     private var focusRetentionTask: Task<Void, Never>?
     private var focusNotificationTask: Task<Void, Never>?
-    private var pendingCursorLocations: [UUID: Int] = [:]
-    private var pendingCursorPoints: [UUID: CGPoint] = [:]
     
     // MARK: - Focus Management
     
@@ -92,29 +85,9 @@ final class ZoneFocusManager {
         reportDebugState()
     }
 
-    func requestCursorLocation(_ location: Int, for zoneID: UUID) {
-        pendingCursorLocations[zoneID] = max(location, 0)
-    }
-
-    func takePendingCursorLocation(for zoneID: UUID) -> Int? {
-        let location = pendingCursorLocations[zoneID]
-        pendingCursorLocations.removeValue(forKey: zoneID)
-        return location
-    }
-
-    func requestCursorPoint(_ point: CGPoint, for zoneID: UUID) {
-        pendingCursorPoints[zoneID] = point
-        pendingCursorLocations.removeValue(forKey: zoneID)
-    }
-
-    func takePendingCursorPoint(for zoneID: UUID) -> CGPoint? {
-        let point = pendingCursorPoints[zoneID]
-        pendingCursorPoints.removeValue(forKey: zoneID)
-        return point
-    }
-    
     /// Updates the currently focused zone
     func updateFocusedZone(_ zoneID: UUID?) {
+        guard focusedZoneID != zoneID else { return }
         focusedZoneID = zoneID
         ZoneEditorDebugStore.shared.recordFocusEvent("manager updateFocused", zoneID: zoneID)
         reportDebugState()
@@ -217,6 +190,11 @@ final class ZoneLineTracker {
     
     /// Updates focused line for a zone
     func updateFocusedLine(for zoneID: UUID, lineIndex: Int, totalLines: Int? = nil) {
+        if focusedLines[zoneID] == lineIndex,
+           totalLines == nil || lineCounts[zoneID] == totalLines {
+            return
+        }
+
         focusedLines[zoneID] = lineIndex
         if let totalLines = totalLines {
             lineCounts[zoneID] = totalLines

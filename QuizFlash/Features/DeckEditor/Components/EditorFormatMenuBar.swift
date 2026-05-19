@@ -9,12 +9,6 @@ import SwiftUI
 
 // MARK: - Editor Format Menu Bar
 
-/// The persistent formatting toolbar shown near the top of the card editor.
-///
-/// Contains:
-/// - Text formatting controls (style, weight, alignment, colour, highlight, bullet)
-/// - Media controls when the selected zone contains an image or sketch
-/// - A "Done" button to dismiss the bar
 struct EditorFormatMenuBar: View {
     @Environment(AppPreferences.self) private var appPreferences
 
@@ -24,6 +18,7 @@ struct EditorFormatMenuBar: View {
     var onChoosePhoto: () -> Void
     var onSketch: () -> Void
     var canPreview: Bool
+    var showsPrimaryActions: Bool
     var onPreview: () -> Void
     var onClose: () -> Void
 
@@ -33,6 +28,7 @@ struct EditorFormatMenuBar: View {
         onChoosePhoto: @escaping () -> Void,
         onSketch: @escaping () -> Void,
         canPreview: Bool,
+        showsPrimaryActions: Bool = true,
         onPreview: @escaping () -> Void,
         onClose: @escaping () -> Void
     ) {
@@ -41,6 +37,7 @@ struct EditorFormatMenuBar: View {
         self.onChoosePhoto = onChoosePhoto
         self.onSketch = onSketch
         self.canPreview = canPreview
+        self.showsPrimaryActions = showsPrimaryActions
         self.onPreview = onPreview
         self.onClose = onClose
     }
@@ -62,41 +59,47 @@ struct EditorFormatMenuBar: View {
     }
     
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 6) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    cardActionTools
+                HStack(spacing: 20) {
+                    if showsPrimaryActions {
+                        cardActionTools
+                    }
                     
                     if showsTextTools { textTools }
                     else if showsMediaTools { mediaTools }
                 }
-                .padding(.leading, 12)
-                .padding(.trailing, 8)
+                .padding(.leading, 16)
+                .padding(.trailing, 10)
             }
             
-            Divider().frame(height: 28)
+            Divider()
+                .frame(height: 26)
             
             Button { onClose() } label: {
-                Text(localized("Done"))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(accent, in: Capsule())
+                Image(systemName: "keyboard.chevron.compact.down")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .frame(width: 42, height: 36)
+                    .contentShape(Rectangle())
             }
-            .padding(.leading, 8)
-            .padding(.trailing, 12)
+            .padding(.trailing, 10)
+            .accessibilityLabel(localized("Hide Keyboard"))
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 5)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            Capsule(style: .continuous)
                 .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.12), radius: 10, y: 5)
+                .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
         )
     }
 
     private var cardActionTools: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 16) {
             ToolbarButton(
                 icon: "photo.on.rectangle",
                 accessibilityLabel: localized("Choose Photos"),
@@ -119,7 +122,7 @@ struct EditorFormatMenuBar: View {
 
     // MARK: - Text Tools
     private var textTools: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 16) {
             textAlignmentMenu
 
             Menu {
@@ -176,13 +179,42 @@ struct EditorFormatMenuBar: View {
     
     // MARK: - Media Tools
     private var mediaTools: some View {
-        HStack(spacing: 8) {
-            Menu {
-                Button { content.updateZone(at: path) { $0.imageScale = 0.3 } } label: { HStack { Text(localized("Small")); if zone?.imageScale == 0.3 { Image(systemName: "checkmark") } } }
-                Button { content.updateZone(at: path) { $0.imageScale = 0.7 } } label: { HStack { Text(localized("Medium")); if zone?.imageScale == 0.7 { Image(systemName: "checkmark") } } }
-                Button { content.updateZone(at: path) { $0.imageScale = 1.0 } } label: { HStack { Text(localized("Full Width")); if zone?.imageScale == 1.0 { Image(systemName: "checkmark") } } }
-            } label: { ToolbarButton(icon: "aspectratio", accessibilityLabel: localized("Image Size")) }
+        HStack(spacing: 12) {
+            Image(systemName: "aspectratio")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(.primary)
+                .frame(width: 28, height: 34)
+
+            Slider(
+                value: imageScaleBinding,
+                in: 0.2...1.0,
+                step: 0.01
+            )
+            .tint(accent)
+            .frame(width: 136)
+            .accessibilityLabel(localized("Image Size"))
+
+            Text("\(Int(((zone?.imageScale ?? 1.0) * 100).rounded()))%")
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 42, alignment: .trailing)
         }
+    }
+
+    private var imageScaleBinding: Binding<Double> {
+        Binding(
+            get: {
+                Double(zone?.imageScale ?? 1.0)
+            },
+            set: { value in
+                content.updateZone(at: path) {
+                    $0.imageScale = CGFloat(value)
+                    $0.sizeMode = .auto
+                    $0.fixedWidth = nil
+                    $0.fixedHeight = nil
+                }
+            }
+        )
     }
 
     private var textAlignmentMenu: some View {
@@ -504,14 +536,13 @@ struct ToolbarButton: View {
     var body: some View {
         Button { action?() } label: {
             Image(systemName: icon)
-                .font(.body.weight(.medium))
+                .font(.system(size: 19, weight: .medium))
                 .foregroundStyle(isActive ? ThemeManager.shared.accentColor.color : tint)
-                .frame(width: 32, height: 32)
-                .background(isActive ? ThemeManager.shared.accentColor.color.opacity(0.12) : Color(uiColor: .tertiarySystemFill))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .frame(width: 30, height: 34)
+                .contentShape(Rectangle())
         }
         .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.45)
+        .opacity(isEnabled ? 1 : 0.38)
         .accessibilityLabel(accessibilityLabel ?? icon)
     }
 }

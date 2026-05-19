@@ -70,12 +70,23 @@ enum CardZoneLayoutEngine {
         let textHorizontalInsets = horizontalTextInsets(for: zone)
         let bulletHorizontalInset = bulletInset(for: zone)
         let intrinsicMeasurement = usesIntrinsicTextMeasurement(for: zone)
-        let measuredWidth = measuredContentSize.width > 0
-            ? measuredContentSize.width
-            : estimatedSize.width
-        let measuredHeight = measuredContentSize.height > 0
-            ? measuredContentSize.height
-            : estimatedSize.height
+        let usesMediaIntrinsicLayout = usesMediaIntrinsicLayout(for: zone)
+        let measuredWidth: CGFloat = {
+            if usesMediaIntrinsicLayout {
+                return estimatedSize.width
+            }
+            return measuredContentSize.width > 0
+                ? measuredContentSize.width
+                : estimatedSize.width
+        }()
+        let measuredHeight: CGFloat = {
+            if usesMediaIntrinsicLayout {
+                return estimatedSize.height
+            }
+            return measuredContentSize.height > 0
+                ? measuredContentSize.height
+                : estimatedSize.height
+        }()
         let naturalWidth = min(
             max(ceil(measuredWidth), minimumAutoWidth(for: zone, spec: spec)),
             spec.availableWidth
@@ -121,6 +132,10 @@ enum CardZoneLayoutEngine {
         naturalWidth: CGFloat,
         availableWidth: CGFloat
     ) -> CGFloat {
+        if usesMediaIntrinsicLayout(for: zone) {
+            return min(max(ceil(naturalWidth), 1), availableWidth)
+        }
+
         switch zone.sizeMode {
         case .auto:
             return min(max(ceil(naturalWidth), 1), availableWidth)
@@ -137,6 +152,10 @@ enum CardZoneLayoutEngine {
         availableWidth: CGFloat
     ) -> CGFloat {
         let contentHeight = max(ceil(measuredHeight), 1)
+
+        if usesMediaIntrinsicLayout(for: zone) {
+            return contentHeight
+        }
 
         switch zone.sizeMode {
         case .auto, .fillWidth:
@@ -159,6 +178,15 @@ enum CardZoneLayoutEngine {
         case .image, .sketch, .empty:
             return true
         case .text, .code:
+            return false
+        }
+    }
+
+    private static func usesMediaIntrinsicLayout(for zone: ZoneModel) -> Bool {
+        switch zone.contentType {
+        case .image, .sketch:
+            return true
+        case .empty, .text, .code:
             return false
         }
     }

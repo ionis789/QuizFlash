@@ -21,6 +21,10 @@ Treat `Docs/UI-Dictionary/localization_matrix.tsv` as the human-editable source 
 
 Preserve layout stability on dynamic scroll surfaces. When selected dates, filters, live counters, or other in-place state changes can swap text or metrics inside a scrolling screen, reserve stable heights for the affected slots so the surrounding card or section does not jump and disturb scroll position. Avoid springy or bouncy text motion for these changing values unless the user explicitly asks for that treatment.
 
+Treat animation smoothness as a first-class product requirement. For visible transitions, avoid mounting expensive SwiftUI subtrees, recomputing large layouts, observing per-frame geometry, or triggering persistence/async work on the same state edge that starts the animation. Prefer animating cheap layer-friendly properties such as opacity, scale, and transform on already-mounted views; keep keyboard, scroll, and toolbar animations isolated so they do not invalidate each other.
+
+When animation or interaction lag survives an initial optimization, lead with an explicit debugging protocol instead of passively waiting for another symptom report. Add narrowly scoped DEBUG-only visual instrumentation when useful, tell the user exactly what gesture/video to capture, and explain which metrics will confirm or reject the current hypothesis.
+
 Do not route per-frame scroll offsets through observed SwiftUI state. Persist scroll restoration offsets in `@ObservationIgnored` view-model storage or other non-observed holders so scroll probes do not invalidate an entire screen on every drag tick.
 
 On iOS 17, do not reconfigure live blur/filter layers during scroll-driven updates. If a root surface needs a top progressive blur, keep the `UIViewRepresentable` stable and mutate only cheap scalar inputs such as opacity or an already-attached radius value. Avoid calling layer/filter refresh code from `updateUIView` on every drag tick; use a static fallback only when a stable live path is not available.
@@ -76,6 +80,35 @@ Use these priority levels consistently:
    - capture screenshots or recordings for visual regressions
    - use it as a fast QA pass before or alongside manual device verification
 
+## Context Budget Protocol
+
+Use progressive disclosure for every task, even when the user gives only a bug report, screenshot, or video and does not name files.
+
+1. `MUST` infer the smallest likely owner area from user language and visible UI before reading code.
+   - Examples: "flashcard editor zones", "match play", "preview sheet", "deck grid", "settings text size".
+2. `MUST` start with `rg` discovery, not broad file reads, when exact files are not named.
+   - Search for unique visible labels, view names, symbols, debug HUD text, or feature terms.
+   - Prefer `rg --files` and `rg "symbol"` over opening directories or long files.
+3. `MUST` read code in slices with `sed -n` around relevant symbols.
+   - Do not dump full files over roughly 350 lines unless the file itself is small or the first targeted reads prove the whole file is needed.
+   - Do not dump full `git diff` for a dirty repo; restrict diff to touched or suspected files.
+4. `SHOULD` keep the initial code read set to 2-4 files for local UI/interaction bugs.
+   - Expand to 5-7 files only after identifying a concrete cross-file contract, such as a binding, environment object, shared layout engine, or notification.
+5. `MUST` state the escalation reason before reading a broad reference or another feature cluster.
+   - Good: "The view only forwards state; I need the view model mutation owner."
+   - Bad: "I'll read architecture/project-map just in case."
+6. `MUST NOT` read `references/project-map.md`, `references/architecture.md`, or `references/component-catalog.md` by default for a local bug.
+   - Use `task-routing.md` first.
+   - Pull only the relevant reference section when the local code does not explain ownership or safety.
+7. `MUST` stop reading once the current hypothesis has enough evidence for a focused patch.
+   - Prefer a small patch plus targeted build over a large speculative refactor.
+   - If the same symptom has already resisted two fixes, switch to targeted instrumentation before more behavioral changes.
+8. `SHOULD` extract only a few representative frames from videos unless frame-by-frame timing matters.
+   - Use 3-8 frames around the failure and user-provided timestamps when available.
+   - Do not transcribe or inspect an entire video unless the bug depends on gesture timing.
+
+When context is already large, summarize findings and continue from the narrowed owner files instead of reopening broad references.
+
 ## Context Loading Rules
 
 - `MUST` prefer the smallest viable read set for edits to existing files.
@@ -85,6 +118,21 @@ Use these priority levels consistently:
   - `DeckWorkspaceView.swift` copy, spacing, or overlay tweaks should start in `DeckWorkspaceView.swift` plus the narrow owning extension/component; do not read `AIFlashcardService.swift` unless the change reaches AI pipeline behavior.
   - `HomeCalendarSectionView.swift` spacing or compact-calendar tweaks should start in `HomeCalendarSectionView.swift` plus `HomeCalendarAdaptiveLayout.swift`; pull `HomeViewModel.swift` only if the change touches summaries or derived data.
   - `DeckView.swift` dialog, toolbar, or overlay copy tweaks should start in `DeckView.swift`; pull `DeckViewModel.swift` only if the action, mutation, or state flow changes.
+
+## Flashcard Zone Editor Guardrails
+
+The flashcard zone editor is interaction-sensitive and can regress from small SwiftUI/UIKit changes. Treat bugs in `FlashcardEditorView`, `ZoneView`, `ZoneTextView`, zone resizing, cursor placement, selection, keyboard avoidance, or editor/play preview parity as a special local system.
+
+`MUST` preserve these invariants:
+- Tap on text places the caret; text selection starts only from native long press, drag handles, or double tap.
+- Moving the caret must not change zone size, text wrapping, padding, alignment, or scroll position.
+- Focus and unfocus must use identical text metrics. The focused `UITextView` and unfocused raw preview must not have different insets, line spacing, font, width, or vertical alignment.
+- A newly created empty text zone must keep a stable minimum visual size after losing focus; it must not collapse to a one-line sliver.
+- Resize handles, debug HUDs, selection outlines, toolbar overlays, and parent gestures must not steal `UITextView` touch handling.
+- Per-caret or per-selection updates must not invalidate the whole card layout. Avoid using cursor changes to update observed state that recomputes sizes.
+- Do not switch between rendered math/rich preview and raw editor metrics inside the editor unless the task explicitly reintroduces compiled preview behavior.
+
+For zone editor bugs, start with the route in `references/task-routing.md` before opening broader DeckEditor files.
 
 ## Workflow
 

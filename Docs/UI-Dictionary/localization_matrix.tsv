@@ -47,8 +47,8 @@ key	en	ro	ru
 %d day	%d day	%d zi	%d день
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
-%d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
+%d deck	%d deck	%d pachet	%d колода
 %d decks	%d decks	%d pachete	%d колод
 %d Decks	%d Decks	%d deckuri	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
@@ -111,6 +111,7 @@ Add Left	Add Left	Adaugă la stânga	Добавить слева
 Add Right	Add Right	Adaugă la dreapta	Добавить справа
 Add source text before saving.	Add source text before saving.	Adaugă textul sursă înainte de salvare.	Добавьте исходный текст перед сохранением.
 Add text and mark a blank to preview the card.	Add text and mark a blank to preview the card.	Adaugă text și marchează un spațiu liber pentru previzualizare.	Добавьте текст и отметьте пропуск для предпросмотра.
+Adjust only study content, keeping app chrome and controls stable.	Adjust only study content, keeping app chrome and controls stable.	Ajustează doar conținutul de studiu, păstrând stabilă interfața aplicației.	Настраивает только учебный контент, оставляя интерфейс приложения стабильным.
 AI generation paused	AI generation paused	Generarea AI este pe pauză	AI генерация на паузе
 Align Bottom	Align Bottom	Aliniază jos	Выровнять по низу
 Align Center	Align Center	Aliniază la centru	По центру
@@ -128,6 +129,8 @@ Answer	Answer	Răspuns	Ответ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
+App Interface	App Interface	Interfața aplicației	Интерфейс приложения
+App Text	App Text	Text aplicație	Текст приложения
 Auto	Auto	Auto	Авто
 Auto Block	Auto Block	Bloc auto	Автоблок
 Auto keeps the full source covered, then balances density by text weight.	Auto keeps the full source covered, then balances density by text weight.	Auto menține întreaga sursă acoperită, apoi echilibrează densitatea în funcție de greutatea textului.	В режиме «Авто» сохраняется весь источник, а затем балансируется плотность по весу текста.
@@ -158,9 +161,11 @@ Caption	Caption	Legendă	Подпись
 Card	Card	Card	Карта
 Card %@	Card %@	Card %@	Карта %@
 Card %d	Card %d	Card %d	Карта %d
+Card Content	Card Content	Conținut card	Содержимое карточки
 card moved	card moved	card mutat	карточка пройдена
-Cards	Cards	Carduri	Карточки
+Card Text	Card Text	Text card	Текст карточки
 cards	cards	carduri	карточки
+Cards	Cards	Carduri	Карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 cards moved	cards moved	carduri mutate	карточек пройдено
 CARDS(%@)	CARDS(%@)	CARDURI(%@)	КАРТОЧКИ(%@)
@@ -171,10 +176,11 @@ Change these controls while the sheet is open. Height, corner radius, drag zone,
 Choice %@	Choice %@	Alegere %@	Выбор %@
 Choice %d	Choice %d	Varianta %d	Вариант %d
 Choices	Choices	Variante	Варианты
+Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
+Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose one source type, convert into another, and save the result with minimal setup.	Choose one source type, convert into another, and save the result with minimal setup.	Alegeți un tip de sursă, convertiți-l în altul și salvați rezultatul cu o configurare minimă.	Выберите один тип источника, преобразуйте в другой и сохраните результат с минимальной настройкой.
@@ -198,6 +204,7 @@ Content alignment: %@.	Content alignment: %@.	Aliniere conținut: %@.	Вырав
 Continue	Continue	Continuă	Продолжить
 Continue from the last completed batch when you're ready.	Continue from the last completed batch when you're ready.	Continuă de la ultimul lot finalizat când ești gata.	Продолжите с последнего завершённого пакета, когда будете готовы.
 Continue where you left off.	Continue where you left off.	Continuă de unde ai rămas.	Продолжайте с того места, где остановились.
+Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported.	Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported.	Controlează chrome-ul QuizFlash, rândurile de setări, etichetele de navigare și alte elemente UI ale aplicației unde Dynamic Type este suportat.	Управляет оболочкой QuizFlash, строками настроек, навигационными подписями и другими элементами интерфейса приложения там, где поддерживается Dynamic Type.
 Conversion	Conversion	Conversie	Конверсия
 Conversion paused	Conversion paused	Conversie pauzată	Конвертация приостановлена
 Conversion stopped	Conversion stopped	Conversia a fost oprită	Преобразование остановлено
@@ -233,6 +240,7 @@ Daily Workload	Daily Workload	Volumul de lucru zilnic	Ежедневная на�
 Deck Health	Deck Health	Deck Sănătate	Здоровье колоды
 Deck Title	Deck Title	Deck Titlu	Название колоды
 DECK-SCOPED SETTINGS	DECK-SCOPED SETTINGS	SETĂRI PENTRU PUNTE	НАСТРОЙКИ ПАЛУБЫ
+Deck-specific play mode settings still apply on top where they exist. For example, Match can keep its Small, Standard, Large, or Custom setting while this slider acts as the global content scale.	Deck-specific play mode settings still apply on top where they exist. For example, Match can keep its Small, Standard, Large, or Custom setting while this slider acts as the global content scale.	Setările specifice modurilor de joc rămân aplicate deasupra acolo unde există. De exemplu, Potrivire poate păstra setarea Mic, Standard, Mare sau Personalizat, iar acest slider acționează ca scală globală pentru conținut.	Настройки режимов обучения для конкретной колоды по-прежнему применяются поверх, где они есть. Например, режим «Сопоставление» может сохранить размер Small, Standard, Large или Custom, а этот ползунок работает как глобальный масштаб контента.
 Default	Default	Implicit	По умолчанию
 Default %@	Default %@	%@ implicit	По умолчанию %@
 Delete	Delete	Șterge	Удалить
@@ -269,8 +277,8 @@ Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
 Experiments	Experiments	Experimente	Эксперименты
 Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
-Explanation	Explanation	Explicație	Объяснение
 EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
+Explanation	Explanation	Explicație	Объяснение
 Export Deck	Export Deck	Exportă deckul	Экспортировать колоду
 Export Error	Export Error	Eroare la export	Ошибка экспорта
 Export selected decks	Export selected decks	Exportă deckurile selectate	Экспортировать выбранные колоды
@@ -291,6 +299,7 @@ FLICK	FLICK	SCUTURA	щелкнуть
 Focus deck	Focus deck	Deck principal	Главная колода
 Focus Streak	Focus Streak	Seria de focalizare	Полоса фокуса
 Folders	Folders	Foldere	Папки
+Follow the text size selected in iOS Settings.	Follow the text size selected in iOS Settings.	Urmează dimensiunea textului aleasă în Setările iOS.	Следовать размеру текста, выбранному в настройках iOS.
 Font	Font	Font	Шрифт
 Freed	Freed	Eliberat	Фрид
 Full Width	Full Width	Lățime completă	На всю ширину
@@ -325,6 +334,7 @@ Hide Shadow	Hide Shadow	Ascunde umbra	Скрыть тень
 Highlight	Highlight	Evidențiere	Выделение
 History	History	Istoric	История
 Home	Home	Acasă	Главная
+How does changing text size affect a study card?	How does changing text size affect a study card?	Cum afectează schimbarea dimensiunii textului un card de studiu?	Как изменение размера текста влияет на учебную карточку?
 Image	Image	Imagine	Изображение
 Image Size	Image Size	Dimensiune imagine	Размер изображения
 Import	Import	Importă	Импорт
@@ -360,6 +370,7 @@ Library	Library	Bibliotecă	Библиотека
 Library (All Decks)	Library (All Decks)	Bibliotecă (toate deckurile)	Библиотека (все колоды)
 List	List	Listă	Список
 Live card memory and schedule snapshot	Live card memory and schedule snapshot	Instantaneu live al memoriei cardului și al programului	Живой снимок памяти карточки и расписания
+Live Preview	Live Preview	Previzualizare live	Живой предпросмотр
 Live Swipe HUD	Live Swipe HUD	Live Swipe HUD	Живой HUD смахивания
 Log Out	Log Out	Deconectare	Выйти
 Manual	Manual	Manual	Вручную
@@ -375,8 +386,8 @@ Match Isn't Ready	Match Isn't Ready	Potrivirea nu este pregătită	Режим с
 MATCH PREVIEW	MATCH PREVIEW	PREVIZUALIZARE POTRIVIRE	ПРЕДПРОСМОТР СОПОСТАВЛЕНИЯ
 Match-ready	Match-ready	Pregătit pentru potrivire	Готово для сопоставления
 match-ready	match-ready	pregătite pentru potrivire	готовые для сопоставления
-match-weak	match-weak	potriviri slabe	слабые для сопоставления
 Match-weak	Match-weak	Potrivire slabă	Слабое сопоставление
+match-weak	match-weak	potriviri slabe	слабые для сопоставления
 Medium	Medium	Mediu	Средний
 Mock AI	Mock AI	Simulare AI	Мок ИИ
 Mode	Mode	Modul	Режим
@@ -469,16 +480,16 @@ PLAY MODES	PLAY MODES	MODURI DE JOCARE	РЕЖИМЫ ИГРЫ
 Play Simulation	Play Simulation	Jucați Simulare	Играть в симуляторы
 Preparing source	Preparing source	Se pregătește sursa	Подготовка источника
 Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
-Preview	Preview	Previzualizare	Предварительный просмотр
 PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
+Preview	Preview	Previzualizare	Предварительный просмотр
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Progress and pace.	Progress and pace.	Progres și ritm.	Прогресс и темп.
 Prompt	Prompt	Enunț	Задание
 PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Purple	Purple	Mov	Фиолетовый
-Question	Question	Întrebare	Вопрос
 QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
+Question	Question	Întrebare	Вопрос
 Quiz	Quiz	Quiz	Квиз
 Quiz Card	Quiz Card	Card quiz	Карточка-викторина
 Quiz Cards	Quiz Cards	Carduri quiz	Карточки викторины
@@ -486,8 +497,8 @@ Quiz Isn't Ready	Quiz Isn't Ready	Quiz-ul nu este pregătit	Режим викт�
 QuizFlash	QuizFlash	QuizFlash	__ВИКТОРИНА__
 QuizFlash User	QuizFlash User	QuizFlash Utilizator	QuizFlash Пользователь
 Radius %.1f	Radius %.1f	Raza %.1f	Радиус %.1f
-READINESS	READINESS	PREGĂTIREA	ГОТОВНОСТЬ
 readiness	readiness	pregătire	готовность
+READINESS	READINESS	PREGĂTIREA	ГОТОВНОСТЬ
 Readiness and workload.	Readiness and workload.	Pregătire și volum.	Готовность и нагрузка.
 Reading	Reading	Citire	Чтение
 Reading Docs...	Reading Docs...	Se citesc documentele...	Чтение документов...
@@ -504,8 +515,8 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry	Retry	Reîncearcă	Повтор
+RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
 Reviews	Reviews	Repetări	Повторы
@@ -522,6 +533,7 @@ Save Error	Save Error	Eroare la salvare	Ошибка сохранения
 Save to	Save to	Salvează în	Сохранить в
 Saved	Saved	Salvat	Сохранено
 Saved Configurations	Saved Configurations	Configurații salvate	Сохраненные конфигурации
+Scales authored card text in the flashcard editor, preview, Flashcards, Match, Quiz, and Write modes without changing saved card data.	Scales authored card text in the flashcard editor, preview, Flashcards, Match, Quiz, and Write modes without changing saved card data.	Scalează textul cardurilor create în editorul de flashcarduri, previzualizare și modurile Flashcards, Potrivire, Quiz și Scriere, fără să modifice datele salvate ale cardului.	Масштабирует созданный текст карточек в редакторе, предпросмотре и режимах Flashcards, Match, Quiz и Write, не изменяя сохраненные данные карточек.
 Score signals	Score signals	Semnale scor	Сигналы счёта
 Scroll this surface and watch the rows pass behind the sticky header blur.	Scroll this surface and watch the rows pass behind the sticky header blur.	Derulați această suprafață și urmăriți cum trec rândurile în spatele neclarității antetului lipicios.	Прокрутите эту поверхность и наблюдайте, как строки проходят за размытым липким заголовком.
 Search	Search	Căutare	Поиск
@@ -597,6 +609,7 @@ Text: %@	Text: %@	Text: %@	Текст: %@
 The current AI conversion will stop immediately.	The current AI conversion will stop immediately.	Conversia actuală AI se va opri imediat.	Текущее преобразование ИИ будет немедленно остановлено.
 The current AI generation will stop immediately.	The current AI generation will stop immediately.	Generația actuală de AI se va opri imediat.	Нынешнее поколение ИИ немедленно остановится.
 The first AI results will appear here in a moment.	The first AI results will appear here in a moment.	Primele rezultate AI vor apărea aici în curând.	Первые результаты AI скоро появятся здесь.
+The interface stays readable while authored card content can be tuned separately for review comfort.	The interface stays readable while authored card content can be tuned separately for review comfort.	Interfața rămâne lizibilă, iar conținutul cardurilor poate fi ajustat separat pentru confort la recapitulare.	Интерфейс остается читаемым, а содержимое карточек можно отдельно настроить для удобного повторения.
 The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	Răspunsul omis are destule simboluri încât introducerea asistată va fi, de obicei, mai potrivită decât textul liber.	В пропущенном ответе много символов, поэтому ввод с помощником обычно подходит лучше, чем свободный текст.
 The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	Urma JSON persistentă nu a putut fi încărcată. Este posibil să fi fost șters sau corupt.	Не удалось загрузить сохраненную трассировку JSON. Возможно, он был удален или поврежден.
 These notes stay subtle and only flag cards that may need gentler answer entry or cleanup before practice.	These notes stay subtle and only flag cards that may need gentler answer entry or cleanup before practice.	Aceste note rămân subtile și doar semnalează carduri care ar putea necesita o introducere mai blândă a răspunsului sau o curățare înainte de antrenament.	Эти примечания остаются тонкими и помечают только карточки, которые могут потребовать более аккуратного ввода ответов или очистки перед практикой.
@@ -610,8 +623,8 @@ This migration slice only enables the shared routing foundation. Flashcard editi
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
 This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-This Week	This Week	Săptămâna asta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
+This Week	This Week	Săptămâna asta	Эта неделя
 This write card looks formula-heavy and is a good candidate for assisted builder input.	This write card looks formula-heavy and is a good candidate for assisted builder input.	Acest card de scriere pare încărcat de formule și este un bun candidat pentru introducerea asistată.	Эта карточка на письмо перегружена формулами и хорошо подходит для ввода с помощником.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
@@ -639,6 +652,7 @@ Universal OpenAI-Compatible Setup	Universal OpenAI-Compatible Setup	Configurare 
 Unpin	Unpin	Anulează fixarea	Открепить
 Untitled Deck	Untitled Deck	Deck fără titlu	Колода без названия
 Upcoming	Upcoming	Următoarele	Дальше
+Use System Text Size	Use System Text Size	Folosește dimensiunea textului din sistem	Использовать системный размер текста
 Use the current text selection as the omitted answer.	Use the current text selection as the omitted answer.	Folosește selecția curentă ca răspuns omis.	Используйте текущее выделение как пропущенный ответ.
 Verbose	Verbose	Detaliat	Подробно
 Vertical Position	Vertical Position	Poziție verticală	Положение по вертикали

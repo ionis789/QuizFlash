@@ -7,6 +7,7 @@
 
 import Foundation
 import Observation
+import SwiftUI
 
 // MARK: - App Language Preference
 
@@ -276,6 +277,9 @@ final class AppPreferences {
         static let createDeckSortOrder = "preferences.createDeck.sortOrder"
         static let autoCollapseEarlierCards = "preferences.createDeck.autoCollapseEarlierCards"
         static let padTabBarPosition = "preferences.navigation.padTabBarPosition"
+        static let usesSystemTextSize = "preferences.text.usesSystemTextSize"
+        static let appInterfaceTextScale = "preferences.text.appInterfaceScale"
+        static let cardContentTextScale = "preferences.text.cardContentScale"
         static let flashcardsProgressStyle = "preferences.playMode.flashcards.progressStyle"
         static let flashcardsSwipeHaptics = "preferences.playMode.flashcards.swipeHaptics"
         static let flashcardsKeepsScreenAwake = "preferences.playMode.flashcards.keepsScreenAwake"
@@ -347,6 +351,48 @@ final class AppPreferences {
             userDefaults.set(
                 padTabBarPosition.rawValue,
                 forKey: Keys.padTabBarPosition
+            )
+        }
+    }
+
+    /// When enabled, app chrome follows the device Dynamic Type setting.
+    var usesSystemTextSize: Bool {
+        didSet {
+            userDefaults.set(
+                usesSystemTextSize,
+                forKey: Keys.usesSystemTextSize
+            )
+        }
+    }
+
+    /// Preferred scale for app-owned interface text when system text size is not used.
+    var appInterfaceTextScale: Double {
+        didSet {
+            let clamped = Self.clampedAppInterfaceTextScale(appInterfaceTextScale)
+            if abs(clamped - appInterfaceTextScale) > .ulpOfOne {
+                appInterfaceTextScale = clamped
+                return
+            }
+
+            userDefaults.set(
+                clamped,
+                forKey: Keys.appInterfaceTextScale
+            )
+        }
+    }
+
+    /// Preferred global scale for authored card content in editors and play modes.
+    var cardContentTextScale: Double {
+        didSet {
+            let clamped = Self.clampedCardContentTextScale(cardContentTextScale)
+            if abs(clamped - cardContentTextScale) > .ulpOfOne {
+                cardContentTextScale = clamped
+                return
+            }
+
+            userDefaults.set(
+                clamped,
+                forKey: Keys.cardContentTextScale
             )
         }
     }
@@ -514,6 +560,15 @@ final class AppPreferences {
         self.padTabBarPosition = AppPadTabBarPosition(
             rawValue: userDefaults.string(forKey: Keys.padTabBarPosition) ?? ""
         ) ?? .center
+        self.usesSystemTextSize = userDefaults.object(
+            forKey: Keys.usesSystemTextSize
+        ) as? Bool ?? true
+        self.appInterfaceTextScale = Self.clampedAppInterfaceTextScale(
+            userDefaults.object(forKey: Keys.appInterfaceTextScale) as? Double ?? 1
+        )
+        self.cardContentTextScale = Self.clampedCardContentTextScale(
+            userDefaults.object(forKey: Keys.cardContentTextScale) as? Double ?? 1
+        )
         self.flashcardsProgressStyle = AppStudySessionProgressStyle(
             rawValue: userDefaults.string(forKey: Keys.flashcardsProgressStyle) ?? ""
         ) ?? .prominent
@@ -576,21 +631,59 @@ final class AppPreferences {
         "language:\(appLanguage.rawValue):\(resolvedLocale.identifier)"
     }
 
+    /// Dynamic Type bucket used by the app chrome when a custom text size is selected.
+    var appInterfaceDynamicTypeSize: DynamicTypeSize {
+        Self.dynamicTypeSize(for: appInterfaceTextScale)
+    }
+
+    /// Stable multiplier for authored card content.
+    var cardContentFontScale: CGFloat {
+        CGFloat(Self.clampedCardContentTextScale(cardContentTextScale))
+    }
+
     /// Resolved scale applied to Match mini card typography.
     var matchCardFontScale: CGFloat {
+        let matchScale: Double
         switch matchCardFontSize {
         case .small:
-            return 0.84
+            matchScale = 0.84
         case .standard:
-            return 1.0
+            matchScale = 1.0
         case .large:
-            return 1.12
+            matchScale = 1.12
         case .custom:
-            return CGFloat(Self.clampedMatchCardFontSize(matchCustomCardFontSizePixels) / 22.0)
+            matchScale = Self.clampedMatchCardFontSize(matchCustomCardFontSizePixels) / 22.0
         }
+
+        return CGFloat(matchScale * Self.clampedCardContentTextScale(cardContentTextScale))
     }
 
     private static func clampedMatchCardFontSize(_ value: Double) -> Double {
         min(max(value.rounded(), 14), 34)
+    }
+
+    private static func clampedAppInterfaceTextScale(_ value: Double) -> Double {
+        min(max((value / 0.05).rounded() * 0.05, 0.85), 1.30)
+    }
+
+    private static func clampedCardContentTextScale(_ value: Double) -> Double {
+        min(max((value / 0.05).rounded() * 0.05, 0.75), 1.40)
+    }
+
+    private static func dynamicTypeSize(for scale: Double) -> DynamicTypeSize {
+        switch clampedAppInterfaceTextScale(scale) {
+        case ..<0.90:
+            return .small
+        case ..<0.98:
+            return .medium
+        case ..<1.08:
+            return .large
+        case ..<1.18:
+            return .xLarge
+        case ..<1.26:
+            return .xxLarge
+        default:
+            return .xxxLarge
+        }
     }
 }

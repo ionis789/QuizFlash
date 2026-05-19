@@ -202,6 +202,21 @@ struct SettingsView: View {
                 )
             }
             .buttonStyle(.plain)
+
+            SettingsCardDivider()
+
+            NavigationLink {
+                SettingsTextSizeView()
+            } label: {
+                SettingsNavigationRow(
+                    icon: "textformat.size",
+                    tint: .blue,
+                    title: "Text Size",
+                    detail: nil,
+                    value: textSizeSummary
+                )
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -460,6 +475,14 @@ struct SettingsView: View {
         appPreferences.writeAutoFocusesAnswerField
             ? AppLocalization.string("Auto Focus", locale: appPreferences.resolvedLocale)
             : AppLocalization.string("Manual Focus", locale: appPreferences.resolvedLocale)
+    }
+
+    private var textSizeSummary: String {
+        let appText = appPreferences.usesSystemTextSize
+            ? AppLocalization.string("System", locale: appPreferences.resolvedLocale)
+            : "\(Int((appPreferences.appInterfaceTextScale * 100).rounded()))%"
+        let cardText = "\(Int((appPreferences.cardContentTextScale * 100).rounded()))%"
+        return "\(appText) / \(cardText)"
     }
 
     private var deckCountSummary: String {

@@ -8,6 +8,49 @@ import UIKit
 import Observation
 import Foundation
 
+private enum ZoneTextViewEmptyCaret {
+    static let placeholder = "\u{200B}"
+
+    static func displayText(for modelText: String) -> String {
+        modelText.isEmpty ? placeholder : modelText
+    }
+
+    static func modelText(from displayText: String) -> String {
+        displayText.replacingOccurrences(of: placeholder, with: "")
+    }
+
+    static func isPlaceholderDisplay(_ displayText: String?) -> Bool {
+        displayText == placeholder
+    }
+
+    static func modelRange(from displayRange: NSRange, displayText: String) -> NSRange {
+        guard !isPlaceholderDisplay(displayText) else {
+            return NSRange(location: 0, length: 0)
+        }
+
+        let nsText = displayText as NSString
+        let clampedLocation = min(max(displayRange.location, 0), nsText.length)
+        let clampedEnd = min(max(displayRange.location + displayRange.length, clampedLocation), nsText.length)
+        let prefix = nsText.substring(to: clampedLocation)
+        let selectedText = nsText.substring(with: NSRange(location: clampedLocation, length: clampedEnd - clampedLocation))
+        let placeholdersBefore = placeholderCount(in: prefix)
+        let placeholdersInSelection = placeholderCount(in: selectedText)
+
+        return NSRange(
+            location: max(clampedLocation - placeholdersBefore, 0),
+            length: max((clampedEnd - clampedLocation) - placeholdersInSelection, 0)
+        )
+    }
+
+    static func displayRange(fromModelRange range: NSRange, modelText: String) -> NSRange {
+        modelText.isEmpty ? NSRange(location: 0, length: 0) : range
+    }
+
+    private static func placeholderCount(in text: String) -> Int {
+        text.components(separatedBy: placeholder).count - 1
+    }
+}
+
 // MARK: - Full Hit Text View
 /// Custom UITextView that keeps selection stable inside the editor surface.
 final class FullHitTextView: UITextView {
@@ -17,10 +60,7 @@ final class FullHitTextView: UITextView {
         var rect = super.caretRect(for: position)
         guard usesCompactCaret else { return rect }
 
-        let targetHeight = min(max((font?.lineHeight ?? rect.height) * 0.48, 14), 26)
-        rect.origin.y += max((rect.height - targetHeight) / 2, 0)
-        rect.size.height = targetHeight
-        rect.size.width = 1.8
+        rect.size.width = 2.1
         return rect
     }
 
@@ -45,17 +85,10 @@ final class ZoneEditorDebugStore {
     private(set) var textViewLine: String = "textview idle"
     private(set) var selectedZoneLine: String = "zone idle"
     private(set) var selectedLayoutLine: String = "layout idle"
-    private(set) var resizeHandleLine: String = "handle idle"
-    private(set) var resizeTouchLine: String = "touch idle"
-    private(set) var resizeCalcLine: String = "resize idle"
     private(set) var canvasLine: String = "canvas idle"
+    private(set) var toolbarLine: String = "toolbar idle"
     private(set) var tapLine: String = "tap idle"
     private(set) var caretLine: String = "caret idle"
-
-    private var resizeBeginCount = 0
-    private var resizeMoveCount = 0
-    private var resizeEndCount = 0
-    private var lastResizeMovePublishTime: TimeInterval = 0
 
     private init() { }
 
@@ -66,10 +99,8 @@ final class ZoneEditorDebugStore {
             textViewLine,
             selectedZoneLine,
             selectedLayoutLine,
-            resizeHandleLine,
-            resizeTouchLine,
-            resizeCalcLine,
             canvasLine,
+            toolbarLine,
             tapLine,
             caretLine
         ]
@@ -114,45 +145,9 @@ final class ZoneEditorDebugStore {
         contentWidth: CGFloat,
         leadingInset: CGFloat,
         renderedSize: CGSize,
-        isSelected: Bool,
-        isResizing: Bool
+        isSelected: Bool
     ) {
-        selectedLayoutLine = "layout block=\(format(blockSize.width))x\(format(blockSize.height)) contentW=\(format(contentWidth)) lead=\(format(leadingInset)) measured=\(format(renderedSize.width))x\(format(renderedSize.height)) selected=\(flag(isSelected)) resizing=\(flag(isResizing))"
-    }
-
-    func updateResizeHandle(blockSize: CGSize, hitSize: CGSize, glyphSize: CGFloat, selected: Bool) {
-        resizeHandleLine = "handle selected=\(flag(selected)) block=\(format(blockSize.width))x\(format(blockSize.height)) hit=\(format(hitSize.width))x\(format(hitSize.height)) glyph=\(format(glyphSize))"
-    }
-
-    func recordResizeTouch(phase: String, x: CGFloat, y: CGFloat, dx: CGFloat, dy: CGFloat) {
-        let shouldPublish: Bool
-        switch phase {
-        case "began":
-            resizeBeginCount += 1
-            shouldPublish = true
-        case "moved":
-            resizeMoveCount += 1
-            let now = Date.timeIntervalSinceReferenceDate
-            shouldPublish = now - lastResizeMovePublishTime >= 0.05 || resizeMoveCount % 10 == 0
-            if shouldPublish {
-                lastResizeMovePublishTime = now
-            }
-        case "ended", "cancelled":
-            resizeEndCount += 1
-            shouldPublish = true
-        default:
-            shouldPublish = true
-            break
-        }
-
-        guard shouldPublish else { return }
-
-        resizeTouchLine = "touch \(phase) begin=\(resizeBeginCount) move=\(resizeMoveCount) end=\(resizeEndCount) local=\(format(x)),\(format(y)) delta=\(format(dx)),\(format(dy))"
-        recordEvent("corner touch \(phase)")
-    }
-
-    func updateResizeCalculation(axis: String, startSize: CGSize, nextSize: CGSize, translation: CGSize) {
-        resizeCalcLine = "resize axis=\(axis) start=\(format(startSize.width))x\(format(startSize.height)) next=\(format(nextSize.width))x\(format(nextSize.height)) delta=\(format(translation.width)),\(format(translation.height))"
+        selectedLayoutLine = "layout block=\(format(blockSize.width))x\(format(blockSize.height)) contentW=\(format(contentWidth)) lead=\(format(leadingInset)) measured=\(format(renderedSize.width))x\(format(renderedSize.height)) selected=\(flag(isSelected))"
     }
 
     func updateCanvas(
@@ -171,6 +166,17 @@ final class ZoneEditorDebugStore {
         canvasLine = "canvas card=\(format(cardSize.width))x\(format(cardSize.height)) content=\(format(contentSize.width))x\(format(contentSize.height)) selectedFrame=\(frameText) keyboard=\(flag(keyboardVisible)):\(format(keyboardHeight))"
     }
 
+    func updateToolbar(
+        isVisible: Bool,
+        keyboardHeight: CGFloat,
+        toolbarTopY: CGFloat?,
+        toolbarScale: CGFloat,
+        toolbarOpacity: Double,
+        topUpdateCount: Int
+    ) {
+        toolbarLine = "toolbar vis=\(flag(isVisible)) kb=\(format(keyboardHeight)) top=\(format(toolbarTopY)) scale=\(format(toolbarScale)) op=\(format(CGFloat(toolbarOpacity))) topUpdates=\(topUpdateCount)"
+    }
+
     func recordTap(_ value: String) {
         tapLine = value
         recordEvent(value)
@@ -181,8 +187,8 @@ final class ZoneEditorDebugStore {
         recordEvent(value)
     }
 
-    func recordCaret(zoneID: UUID?, selectedRange: NSRange, anchorY: CGFloat) {
-        caretLine = "caret zone=\(shortID(zoneID)) loc=\(selectedRange.location) len=\(selectedRange.length) anchorY=\(format(anchorY))"
+    func recordCaret(zoneID: UUID?, selectedRange: NSRange, anchorY: CGFloat, windowRect: CGRect) {
+        caretLine = "caret zone=\(shortID(zoneID)) loc=\(selectedRange.location) len=\(selectedRange.length) anchorY=\(format(anchorY)) windowY=\(format(windowRect.maxY))"
     }
 
     private func shortID(_ id: UUID?) -> String {
@@ -207,18 +213,24 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
-    var onCaretAnchorChange: ((CGFloat) -> Void)?
+    var onCaretGeometryChange: ((CGFloat, CGRect) -> Void)?
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
     var font: UIFont = .preferredFont(forTextStyle: .body)
     var lineSpacing: CGFloat = 0
     var contentInset: UIEdgeInsets = .zero
-    var extendsTextOnBlankTap: Bool = false
     
     private var lastText: String = ""
     var isUpdating: Bool = false
     weak var textView: UITextView?
     private var focusObserver: NSObjectProtocol?
+    private var lastReportedCursorRange: NSRange?
+    private var lastReportedText: String?
+    private var lastReportedLineInfo: (zoneID: UUID?, lineIndex: Int, totalLines: Int)?
+    private var lastReportedCaretAnchorY: CGFloat?
+    private var lastReportedCaretWindowRect: CGRect?
+    private var caretReportGeneration = 0
+    private var waitsForSettledTextLayoutCaret = false
     
     override init() {
         super.init()
@@ -248,217 +260,193 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                         ZoneEditorDebugStore.shared.recordFocusEvent("focus notification alreadyFR", zoneID: zoneID)
                     }
                 }
-                self.applyPendingCursorLocation(for: zoneID)
             }
         }
     }
     
     deinit {
+        caretReportGeneration += 1
         if let observer = focusObserver {
             NotificationCenter.default.removeObserver(observer)
         }
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        guard gestureRecognizer.name == Self.surfaceTapRecognizerName else {
+        guard gestureRecognizer.name != Self.doubleTapPassthroughRecognizerName else {
             return true
         }
 
-        guard extendsTextOnBlankTap,
+        guard gestureRecognizer.name == Self.selectionCollapseTapRecognizerName,
               let textView,
-              !textView.isFirstResponder else {
+              textView.selectedRange.length > 0 else {
             return false
         }
 
-        let point = touch.location(in: textView)
-        return textView.bounds.contains(point) && isBlankSurfaceTap(at: point, in: textView)
+        return textView.bounds.contains(touch.location(in: textView))
     }
-    
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
         true
     }
 
-    @objc func handleSurfaceTap(_ recognizer: UITapGestureRecognizer) {
+    @objc func handleSelectionCollapseTap(_ recognizer: UITapGestureRecognizer) {
         guard recognizer.state == .ended,
-              extendsTextOnBlankTap,
               let textView,
-              textView.bounds.contains(recognizer.location(in: textView)),
-              isBlankSurfaceTap(at: recognizer.location(in: textView), in: textView) else {
+              textView.selectedRange.length > 0 else {
             return
         }
 
-        applySurfaceTap(at: recognizer.location(in: textView))
+        placeCaret(at: recognizer.location(in: textView), in: textView)
     }
 
-    func applySurfaceTap(at tapPoint: CGPoint) {
-        guard extendsTextOnBlankTap,
-              let textView,
-              textView.bounds.contains(tapPoint) else {
-            return
-        }
+    static let selectionCollapseTapRecognizerName = "ZoneTextViewSelectionCollapseTapRecognizer"
+    static let doubleTapPassthroughRecognizerName = "ZoneTextViewDoubleTapPassthroughRecognizer"
 
-        if !textView.isFirstResponder {
-            textView.becomeFirstResponder()
-        }
-
-        setCursor(at: tapPoint, in: textView)
-        reportCursorPosition(from: textView)
-    }
-
-    private func setCursor(at point: CGPoint, in textView: UITextView) {
-        textView.layoutIfNeeded()
-
-        let boundedPoint = CGPoint(
-            x: min(max(point.x, 0), max(textView.bounds.width, 0)),
-            y: min(max(point.y, 0), max(textView.bounds.height, 0))
-        )
-
-        if let position = textView.closestPosition(to: boundedPoint) {
-            let location = textView.offset(from: textView.beginningOfDocument, to: position)
-            let clampedLocation = min(max(location, 0), (textView.text as NSString).length)
-            textView.selectedRange = NSRange(location: clampedLocation, length: 0)
-        } else {
-            let location = insertionLocation(for: boundedPoint, in: textView)
-            textView.selectedRange = NSRange(location: location, length: 0)
-        }
-    }
-
-    private func insertionLocation(for point: CGPoint, in textView: UITextView) -> Int {
-        let nsText = (textView.text ?? "") as NSString
-        guard nsText.length > 0 else { return 0 }
-
-        let layoutManager = textView.layoutManager
-        let textContainer = textView.textContainer
-        layoutManager.ensureLayout(for: textContainer)
-
-        var containerPoint = point
-        containerPoint.x -= textView.textContainerInset.left
-        containerPoint.y -= textView.textContainerInset.top
-        containerPoint.x += textView.contentOffset.x
-        containerPoint.y += textView.contentOffset.y
-
-        let usedRect = layoutManager.usedRect(for: textContainer)
-        if containerPoint.y >= usedRect.maxY {
-            return nsText.length
-        }
-
-        var insertionFraction: CGFloat = 0
-        let characterIndex = layoutManager.characterIndex(
-            for: containerPoint,
-            in: textContainer,
-            fractionOfDistanceBetweenInsertionPoints: &insertionFraction
-        )
-        let insertionIndex = characterIndex + (insertionFraction > 0.5 ? 1 : 0)
-        return min(max(insertionIndex, 0), nsText.length)
-    }
-
-    private func isBlankSurfaceTap(at point: CGPoint, in textView: UITextView) -> Bool {
-        let nsText = (textView.text ?? "") as NSString
-        guard nsText.length > 0 else { return true }
-
-        let layoutManager = textView.layoutManager
-        let textContainer = textView.textContainer
-        layoutManager.ensureLayout(for: textContainer)
-
-        var containerPoint = point
-        containerPoint.x -= textView.textContainerInset.left
-        containerPoint.y -= textView.textContainerInset.top
-        containerPoint.x += textView.contentOffset.x
-        containerPoint.y += textView.contentOffset.y
-
-        let usedRect = layoutManager.usedRect(for: textContainer).insetBy(dx: -4, dy: -4)
-        guard usedRect.contains(containerPoint) else { return true }
-
-        var fraction: CGFloat = 0
-        let characterIndex = layoutManager.characterIndex(
-            for: containerPoint,
-            in: textContainer,
-            fractionOfDistanceBetweenInsertionPoints: &fraction
-        )
-        let glyphIndex = layoutManager.glyphIndexForCharacter(at: min(characterIndex, max(nsText.length - 1, 0)))
-        let glyphRect = layoutManager.boundingRect(
-            forGlyphRange: NSRange(location: glyphIndex, length: 1),
-            in: textContainer
-        ).insetBy(dx: -8, dy: -6)
-
-        return !glyphRect.contains(containerPoint)
-    }
-
-    static let surfaceTapRecognizerName = "ZoneTextViewSurfaceTapRecognizer"
-
-    private func applyPendingCursorLocation(for zoneID: UUID) {
-        guard let textView else {
-            return
-        }
-
-        if let requestedPoint = ZoneFocusManager.shared.takePendingCursorPoint(for: zoneID) {
-            setCursor(at: requestedPoint, in: textView)
-            reportCursorPosition(from: textView)
-            return
-        }
-
-        guard let requestedLocation = ZoneFocusManager.shared.takePendingCursorLocation(for: zoneID) else {
-            return
-        }
-
-        let clampedLocation = min(max(requestedLocation, 0), (textView.text as NSString).length)
-        textView.selectedRange = NSRange(location: clampedLocation, length: 0)
-        reportCursorPosition(from: textView)
-    }
-    
     func textViewDidChange(_ textView: UITextView) {
-        guard let text = textView.text else { return }
+        guard let displayText = textView.text else { return }
         guard !isUpdating else { return }
-        
-        lastText = text
-        onTextChange?(text)
-        reportCursorPosition(from: textView)
+
+        let modelText = ZoneTextViewEmptyCaret.modelText(from: displayText)
+        lastText = modelText
+        waitsForSettledTextLayoutCaret = true
+        onTextChange?(modelText)
+        reportCursorPosition(from: textView, includeCaretAnchor: false)
+        scheduleSettledCaretReport(from: textView)
     }
     
     func textViewDidChangeSelection(_ textView: UITextView) {
         guard !isUpdating else { return }
-        reportCursorPosition(from: textView)
+
+        guard !waitsForSettledTextLayoutCaret else {
+            reportCursorPosition(from: textView, includeCaretAnchor: false)
+            scheduleSettledCaretReport(from: textView)
+            return
+        }
+
+        reportCursorPosition(from: textView, includeCaretAnchor: true)
+        scheduleSettledCaretReport(from: textView)
     }
     
     func textViewDidBeginEditing(_ textView: UITextView) {
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didBegin", zoneID: zoneID)
-        updateSurfaceTapRecognizer(in: textView, enabled: false)
         onFocusChange?(true)
-        reportCursorPosition(from: textView)
+        reportCursorPosition(from: textView, includeCaretAnchor: true)
+        scheduleSettledCaretReport(from: textView)
     }
     
     func textViewDidEndEditing(_ textView: UITextView) {
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didEnd", zoneID: zoneID)
-        updateSurfaceTapRecognizer(in: textView, enabled: extendsTextOnBlankTap)
         onFocusChange?(false)
     }
-
-    func updateSurfaceTapRecognizer(in textView: UITextView, enabled: Bool) {
-        textView.gestureRecognizers?
-            .filter { $0.name == Self.surfaceTapRecognizerName }
-            .forEach { $0.isEnabled = enabled }
-    }
     
-    private func reportCursorPosition(from textView: UITextView) {
-        guard let text = textView.text else { return }
-        let nsRange = textView.selectedRange
-        onCursorChange?(nsRange, text)
+    private func reportCursorPosition(
+        from textView: UITextView,
+        includeCaretAnchor: Bool,
+        forceCaretGeometry: Bool = false
+    ) {
+        guard let displayText = textView.text else { return }
+        let text = ZoneTextViewEmptyCaret.modelText(from: displayText)
+        let nsRange = ZoneTextViewEmptyCaret.modelRange(
+            from: textView.selectedRange,
+            displayText: displayText
+        )
+        if lastReportedCursorRange != nsRange || lastReportedText != text {
+            lastReportedCursorRange = nsRange
+            lastReportedText = text
+            onCursorChange?(nsRange, text)
+        }
+
         let (focusedLineIndex, totalLines) = calculateLineInfo(from: text, location: nsRange.location)
-        onFocusLineChange?(focusedLineIndex, totalLines)
+        if lastReportedLineInfo?.zoneID != zoneID
+            || lastReportedLineInfo?.lineIndex != focusedLineIndex
+            || lastReportedLineInfo?.totalLines != totalLines {
+            lastReportedLineInfo = (zoneID, focusedLineIndex, totalLines)
+            onFocusLineChange?(focusedLineIndex, totalLines)
+        }
+
+        guard includeCaretAnchor else { return }
+        guard textView.window != nil else { return }
 
         if let selectedTextRange = textView.selectedTextRange {
+            textView.layoutIfNeeded()
+            textView.layoutManager.ensureLayout(for: textView.textContainer)
             let caretRect = textView.caretRect(for: selectedTextRange.start)
+            let caretRectInWindow = textView.convert(caretRect, to: nil)
             let anchorY = min(
                 max(caretRect.midY / max(textView.bounds.height, 1), 0.08),
                 0.92
             )
+            if !forceCaretGeometry,
+               let lastReportedCaretAnchorY,
+               let lastReportedCaretWindowRect,
+               abs(lastReportedCaretAnchorY - anchorY) < 0.02,
+               lastReportedCaretWindowRect.isNearlyEqual(to: caretRectInWindow, tolerance: 1) {
+                return
+            }
+
+            lastReportedCaretAnchorY = anchorY
+            lastReportedCaretWindowRect = caretRectInWindow
             ZoneEditorDebugStore.shared.recordCaret(
                 zoneID: zoneID,
                 selectedRange: nsRange,
-                anchorY: anchorY
+                anchorY: anchorY,
+                windowRect: caretRectInWindow
             )
-            onCaretAnchorChange?(anchorY)
+            onCaretGeometryChange?(anchorY, caretRectInWindow)
         }
+    }
+
+    private func scheduleSettledCaretReport(from textView: UITextView) {
+        caretReportGeneration += 1
+        let generation = caretReportGeneration
+
+        DispatchQueue.main.async { [weak self, weak textView] in
+            guard let self,
+                  let textView,
+                  self.caretReportGeneration == generation,
+                  textView.window != nil else { return }
+
+            textView.window?.layoutIfNeeded()
+            textView.superview?.layoutIfNeeded()
+            self.waitsForSettledTextLayoutCaret = false
+            self.reportCursorPosition(
+                from: textView,
+                includeCaretAnchor: true,
+                forceCaretGeometry: true
+            )
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self, weak textView] in
+                guard let self,
+                      let textView,
+                      self.caretReportGeneration == generation,
+                      textView.window != nil else { return }
+
+                textView.window?.layoutIfNeeded()
+                textView.superview?.layoutIfNeeded()
+                self.reportCursorPosition(
+                    from: textView,
+                    includeCaretAnchor: true,
+                    forceCaretGeometry: true
+                )
+            }
+        }
+    }
+
+    private func placeCaret(at point: CGPoint, in textView: UITextView) {
+        guard let position = textView.closestPosition(to: point) else { return }
+
+        let location = textView.offset(from: textView.beginningOfDocument, to: position)
+        let textLength = ((textView.text ?? "") as NSString).length
+        let clampedLocation = min(max(location, 0), textLength)
+        let range = NSRange(location: clampedLocation, length: 0)
+        textView.selectedRange = ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text)
+            ? NSRange(location: 0, length: 0)
+            : range
+        reportCursorPosition(from: textView, includeCaretAnchor: true)
+        scheduleSettledCaretReport(from: textView)
     }
     
     private func calculateLineInfo(from text: String, location: Int) -> (lineIndex: Int, totalLines: Int) {
@@ -488,13 +476,12 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     var lineSpacing: CGFloat = 0
     var contentInset: UIEdgeInsets = .zero
     var cursorTintColor: UIColor = .systemPurple
-    var extendsTextOnBlankTap: Bool = false
     let zoneID: UUID
     let isFirstResponder: Bool
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
-    var onCaretAnchorChange: ((CGFloat) -> Void)?
+    var onCaretGeometryChange: ((CGFloat, CGRect) -> Void)?
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
     
@@ -507,7 +494,6 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.font = font
         context.coordinator.lineSpacing = lineSpacing
         context.coordinator.contentInset = contentInset
-        context.coordinator.extendsTextOnBlankTap = extendsTextOnBlankTap
         
         textView.font = font
         textView.textColor = textColor
@@ -531,16 +517,30 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         textView.textContainer.lineBreakMode = .byWordWrapping
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        let surfaceTapRecognizer = UITapGestureRecognizer(
+        let doubleTapRecognizer = UITapGestureRecognizer()
+        doubleTapRecognizer.name = ZoneTextViewCoordinator.doubleTapPassthroughRecognizerName
+        doubleTapRecognizer.numberOfTapsRequired = 2
+        doubleTapRecognizer.cancelsTouchesInView = false
+        doubleTapRecognizer.delegate = context.coordinator
+
+        let selectionCollapseTapRecognizer = UITapGestureRecognizer(
             target: context.coordinator,
-            action: #selector(ZoneTextViewCoordinator.handleSurfaceTap(_:))
+            action: #selector(ZoneTextViewCoordinator.handleSelectionCollapseTap(_:))
         )
-        surfaceTapRecognizer.name = ZoneTextViewCoordinator.surfaceTapRecognizerName
-        surfaceTapRecognizer.cancelsTouchesInView = false
-        surfaceTapRecognizer.delegate = context.coordinator
-        textView.addGestureRecognizer(surfaceTapRecognizer)
-        
-        textView.text = text
+        selectionCollapseTapRecognizer.name = ZoneTextViewCoordinator.selectionCollapseTapRecognizerName
+        selectionCollapseTapRecognizer.numberOfTapsRequired = 1
+        selectionCollapseTapRecognizer.cancelsTouchesInView = false
+        selectionCollapseTapRecognizer.delegate = context.coordinator
+        selectionCollapseTapRecognizer.require(toFail: doubleTapRecognizer)
+
+        textView.addGestureRecognizer(doubleTapRecognizer)
+        textView.addGestureRecognizer(selectionCollapseTapRecognizer)
+
+        textView.text = ZoneTextViewEmptyCaret.displayText(for: text)
+        textView.selectedRange = ZoneTextViewEmptyCaret.displayRange(
+            fromModelRange: textView.selectedRange,
+            modelText: text
+        )
         updateStyling(of: textView)
         
         return textView
@@ -551,49 +551,44 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.onTextChange = onTextChange
         context.coordinator.onCursorChange = onCursorChange
         context.coordinator.onFocusLineChange = onFocusLineChange
-        context.coordinator.onCaretAnchorChange = onCaretAnchorChange
+        context.coordinator.onCaretGeometryChange = onCaretGeometryChange
         context.coordinator.onCommit = onCommit
         context.coordinator.onFocusChange = onFocusChange
         context.coordinator.font = font
         context.coordinator.lineSpacing = lineSpacing
         context.coordinator.contentInset = contentInset
-        context.coordinator.extendsTextOnBlankTap = extendsTextOnBlankTap
         (textView as? FullHitTextView)?.usesCompactCaret = true
-        context.coordinator.updateSurfaceTapRecognizer(
-            in: textView,
-            enabled: extendsTextOnBlankTap && !textView.isFirstResponder
-        )
         ZoneEditorDebugStore.shared.updateTextView(
             zoneID: zoneID,
             mountedFocused: isFirstResponder,
             textViewFirstResponder: textView.isFirstResponder,
             uiViewFirstResponder: textView.isFirstResponder,
             requestedFirstResponder: isFirstResponder,
-            textLength: ((textView.text ?? "") as NSString).length
+            textLength: (ZoneTextViewEmptyCaret.modelText(from: textView.text ?? "") as NSString).length
         )
-        
-        guard textView.text != text else {
+
+        let displayText = ZoneTextViewEmptyCaret.displayText(for: text)
+        guard textView.text != displayText else {
             updateStyling(of: textView)
             syncFocus(textView: textView, isFirstResponder: isFirstResponder, context: context)
             return
         }
         
-        let oldText = textView.text ?? ""
-        let selectedRange = textView.selectedRange
-        let shouldMoveCursorToEnd = extendsTextOnBlankTap
-            && text.hasPrefix(oldText)
-            && text.count > oldText.count
-            && text.dropFirst(oldText.count).allSatisfy { $0 == "\n" }
-        
+        let selectedRange = ZoneTextViewEmptyCaret.modelRange(
+            from: textView.selectedRange,
+            displayText: textView.text ?? ""
+        )
         context.coordinator.isUpdating = true
-        textView.text = text
+        textView.text = displayText
         context.coordinator.isUpdating = false
-        
-        if shouldMoveCursorToEnd {
-            textView.selectedRange = NSRange(location: (text as NSString).length, length: 0)
-        } else if selectedRange.location != NSNotFound &&
-           selectedRange.location <= (text as NSString).length {
-            textView.selectedRange = selectedRange
+
+        let displayRange = ZoneTextViewEmptyCaret.displayRange(
+            fromModelRange: selectedRange,
+            modelText: text
+        )
+        if selectedRange.location != NSNotFound &&
+           displayRange.location <= (displayText as NSString).length {
+            textView.selectedRange = displayRange
         }
         
         updateStyling(of: textView)
@@ -636,18 +631,15 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         textView.tintColor = cursorTintColor
         textView.typingAttributes = textAttributes
         textView.textContainerInset = contentInset
-
-        if textView.text.isEmpty && textView.textAlignment != textAlignment {
-            textView.text = " "
-            textView.textAlignment = textAlignment
-            textView.text = ""
-        } else {
-            textView.textAlignment = textAlignment
-        }
+        textView.textAlignment = textAlignment
 
         let fullRange = NSRange(location: 0, length: textView.textStorage.length)
         if fullRange.length > 0 {
-            textView.textStorage.setAttributes(textAttributes, range: fullRange)
+            var attributes = textAttributes
+            if ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text) {
+                attributes[.foregroundColor] = UIColor.clear
+            }
+            textView.textStorage.setAttributes(attributes, range: fullRange)
         }
     }
 
@@ -662,6 +654,15 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             .foregroundColor: textColor,
             .paragraphStyle: paragraphStyle
         ]
+    }
+}
+
+private extension CGRect {
+    func isNearlyEqual(to other: CGRect, tolerance: CGFloat) -> Bool {
+        abs(origin.x - other.origin.x) <= tolerance
+            && abs(origin.y - other.origin.y) <= tolerance
+            && abs(size.width - other.size.width) <= tolerance
+            && abs(size.height - other.size.height) <= tolerance
     }
 }
 

@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftUI
+import UIKit
 
 // MARK: - Flashcard Grid Layout Debug
 
@@ -289,7 +290,11 @@ private struct FlashcardGridLeafPreview: View {
             }
 
             leafContent(layout: layout)
-                .frame(width: layout.contentLayoutWidth, alignment: .topLeading)
+                .frame(
+                    width: layout.contentLayoutWidth,
+                    height: contentFrameHeight(for: layout),
+                    alignment: .topLeading
+                )
                 .offset(x: layout.leadingInset)
                 .onGeometryChange(for: CGSize.self) { proxy in
                     CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
@@ -308,6 +313,15 @@ private struct FlashcardGridLeafPreview: View {
                 ? [debugSnapshot(layout: layout)]
                 : []
         )
+    }
+
+    private func contentFrameHeight(for layout: CardZoneLayoutResult) -> CGFloat? {
+        switch zone.contentType {
+        case .image, .sketch:
+            return layout.blockSize.height
+        case .empty, .text, .code:
+            return zone.sizeMode == .fixed ? layout.blockSize.height : nil
+        }
     }
 
     @ViewBuilder
@@ -1114,10 +1128,25 @@ enum FlashcardGridContentEstimator {
         case .image, .sketch:
             let imageWidth = min(
                 availableWidth,
-                max(UIScreen.main.bounds.width * zone.imageScale * 0.85, 1)
+                max(availableWidth * zone.imageScale, 1)
             )
-            return CGSize(width: imageWidth, height: imageWidth * 0.66)
+            return CGSize(
+                width: imageWidth,
+                height: imageWidth * imageHeightRatio(for: zone.imageData)
+            )
         }
+    }
+
+    private static func imageHeightRatio(for data: Data?) -> CGFloat {
+        guard let data,
+              let image = UIImage(data: data),
+              image.size.width > 0,
+              image.size.height > 0
+        else {
+            return 0.66
+        }
+
+        return max(image.size.height / image.size.width, 0.05)
     }
 
     private static func measuredTextSize(

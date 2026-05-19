@@ -14,6 +14,8 @@ final class KeyboardMonitor {
 
     private(set) var isVisible = false
     private(set) var visibleHeight: CGFloat = 0
+    private(set) var animationDuration: TimeInterval = 0.25
+    private(set) var animationOptions: UIView.AnimationOptions = [.curveEaseInOut]
 
     private var observers: [NSObjectProtocol] = []
 
@@ -32,14 +34,33 @@ final class KeyboardMonitor {
             ) { [weak self] notification in
                 let notificationName = notification.name
                 let endFrame = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue
+                let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval
+                let curveRaw = notification.userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? Int
                 Task { @MainActor [weak self] in
-                    self?.handle(notificationName: notificationName, endFrame: endFrame)
+                    self?.handle(
+                        notificationName: notificationName,
+                        endFrame: endFrame,
+                        animationDuration: duration,
+                        animationCurveRaw: curveRaw
+                    )
                 }
             }
         }
     }
 
-    private func handle(notificationName: NSNotification.Name, endFrame: CGRect?) {
+    private func handle(
+        notificationName: NSNotification.Name,
+        endFrame: CGRect?,
+        animationDuration: TimeInterval?,
+        animationCurveRaw: Int?
+    ) {
+        if let animationDuration {
+            self.animationDuration = animationDuration
+        }
+        if let animationCurveRaw {
+            self.animationOptions = UIView.AnimationOptions(rawValue: UInt(animationCurveRaw << 16))
+        }
+
         if notificationName == UIResponder.keyboardWillHideNotification
             || notificationName == UIResponder.keyboardDidHideNotification {
             isVisible = false

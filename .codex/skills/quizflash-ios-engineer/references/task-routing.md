@@ -6,6 +6,19 @@ Use this file to minimize context for existing-file tasks. Default rule:
 
 Do not start by reading broad repo docs unless the task actually needs them.
 
+## Context Budget Procedure
+
+When the user describes a bug from screenshots, videos, UI copy, or behavior but does not name files:
+
+1. Infer the smallest likely feature area from visible UI text, controls, and mode names.
+2. Run `rg` for those UI strings, symbols, route names, or distinctive model names before reading files.
+3. Open only 2-4 likely owner files first. Prefer slices around matching symbols over full-file reads.
+4. Expand to 5-7 files only when a concrete cross-file contract is involved, such as a view forwarding gestures into a UIKit wrapper or a persisted model feeding a renderer.
+5. Before reading broad references or a whole feature cluster, state the specific missing fact that requires it.
+6. Stop reading once the root-cause hypothesis is testable; patch and verify instead of collecting more context.
+
+For video-heavy UI debugging, extract a few representative frames first and use the video only for timing-sensitive gesture or animation issues.
+
 ## Escalation Triggers
 
 - Read `project-map.md` only when ownership, placement, or feature boundaries are unclear.
@@ -53,6 +66,25 @@ Do not start by reading broad repo docs unless the task actually needs them.
 - Do not open `Services/AI/*` for copy, spacing, toolbar, dialog, or overlay tweaks that stay inside the existing view-model contract.
 - Read `architecture.md` only for `fullScreenSheet`, sticky chrome, long-scroll, or navigation behavior.
 
+### Flashcard zone editor interaction/layout bug
+
+Use this route for card-zone editing issues: caret placement, long-press selection, focus/unfocus jumps, resize handles, raw text editor metrics, toolbar overlap, keyboard avoidance, editor/play preview parity, or visual zone outlines.
+
+- Start with the narrow symptom:
+  - Text input, caret, selection, focus state: `Features/DeckEditor/ZoneLogic/ZoneTextView.swift`, then `Features/DeckEditor/ZoneLogic/ZoneFocusManager.swift`.
+  - Zone frame, resize, hit testing, handles, empty-zone sizing: `Features/DeckEditor/Views/ZoneView.swift`, then the local resize/helper symbols found by `rg "resize|handle|ZoneResize|minimum|caret" Features/DeckEditor`.
+  - Toolbar, keyboard, scroll, canvas placement: `Features/DeckEditor/Views/FlashcardEditorView.swift`, then `Features/DeckEditor/Components/EditorFormatMenuBar.swift`.
+  - Editor/play size or wrapping mismatch: `Features/DeckEditor/Components/FlashcardGridContentLayout.swift` plus the exact play-mode renderer found by `rg "FlashcardGridContentLayout|contentAlignment|textSize" Features Domain`.
+- Do not open `MixedMathTextView.swift` for raw editor bugs unless the issue explicitly involves compiled math/rich preview or play-mode rendering.
+- Do not read `project-map.md` or `architecture.md` for local cursor, focus, resize, or outline bugs unless the fix crosses shared sheet/navigation/long-scroll infrastructure.
+- Keep UIKit wrapper and SwiftUI container reads paired. Most bugs here come from a contract mismatch between `UITextView` behavior, SwiftUI frame updates, focus state, and gesture hit testing.
+- If the same class of editor bug has already been patched repeatedly, add temporary instrumentation or a debug overlay before making another blind layout tweak.
+- Preserve these invariants while fixing:
+  - Focus/unfocus must not change text width, line wrapping, padding, or zone position.
+  - Simple tap places the caret; native selection starts only from long press, drag handles, or double tap.
+  - Resize cannot cut existing text below its measurable raw-text minimum, but it must allow shrinking when visual slack exists.
+  - Empty zones keep a stable editable minimum area after focus leaves.
+
 ### DeckWorkspace AI behavior
 
 - Start with `Features/DeckEditor/ViewModels/DeckWorkspaceViewModel.swift`.
@@ -90,9 +122,18 @@ Do not start by reading broad repo docs unless the task actually needs them.
 - Add mode-specific settings types only if the change reaches mode contracts rather than local UI.
 - Read `architecture.md` only if the change touches persistence safety or `fullScreenSheet` behavior.
 
+### Unknown UI owner from screenshot or screen recording
+
+- Start with `rg` on visible labels, button text, accessibility labels, and distinctive debug strings.
+- If the UI is a sheet, search both the presented view and the custom sheet/presentation wrapper before touching global gesture code.
+- If a bug appears in both preview and play mode, find the shared renderer or model first; do not patch each surface separately unless they intentionally diverge.
+- If a tap/drag is ignored, inspect competing gestures and UIKit representables before changing visual layout.
+
 ## Fast Rejection Rules
 
 - A text, copy, spacing, or local overlay change should not automatically pull `project-map.md`.
 - A local Home or DeckView UI tweak should not automatically pull `architecture.md` end to end.
 - A `DeckWorkspaceView` UI tweak should not automatically pull the whole AI stack.
+- A flashcard zone-editor touch or layout bug should not automatically pull every `Features/DeckEditor` file.
+- A screenshot/video bug should not start with broad repo docs; use `rg` and a small owner-file set first.
 - If two nearby files explain the change safely, stop there and edit.
