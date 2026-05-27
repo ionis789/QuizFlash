@@ -1,0 +1,24 @@
+{
+  "originHash" : "67a1a7d5caaaaaed7c5712511a171780363ca159f64781dbc7f28f490e9286d6",
+  "pins" : [
+    {
+      "identity" : "lottie-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/airbnb/lottie-ios.git",
+      "state" : {
+        "revision" : "0cb03fd7564d27345bcd96144b811e56212949c6",
+        "version" : "4.6.0"
+      }
+    },
+    {
+      "identity" : "pzcircularcontrol",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/philptr/PZCircularControl.git",
+      "state" : {
+        "revision" : "8a3423f7d91542d81c255157dd57656ca223792c",
+        "version" : "1.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}

@@ -1,0 +1,303 @@
+//
+//  FlashCardsPlayModeViewModel.swift
+//  QuizFlash
+//
+//  Manages the runtime state for a default (swipe-to-rate) flashcard session.
+//
+//  ## iOS 17 Memory-Safe Persistence
+//  All SwiftData writes are pushed to a background `Task.detached` so that the
+//  main `ModelContext` never retains card data in the row cache during playback.
+//
+
+import SwiftUI
+import SwiftData
+
+// MARK: - FlashCards Play Mode ViewModel
+
+/// The ViewModel for `FlashCardsPlayModeView`, coordinating card sequencing,
+/// XP scoring, SRS updates, and gamification writes for a single swipe-based
+/// play session.
+///
+/// All properties are observable via the `@Observable` macro (iOS 17+).
+/// The class is `@MainActor`-bound so every property mutation is
+/// automatically safe to consume from SwiftUI without extra synchronisation.
+@Observable
+@MainActor
+final class FlashCardsPlayModeViewModel {
+
+    // MARK: - Session State
+
+    /// The deck that this session is playing through.
+    let deck: DeckModel
+
+    /// The deck-scoped flashcard settings captured when the session starts.
+    let settings: FlashcardModeSettings
+
+    /// Lightweight, `Sendable` snapshots of the deck's cards loaded for playback.
+    var cards: [PlayableCard] = []
+
+    /// Whether `startSession(container:)` has been called at least once.
+    var isSessionStarted: Bool = false
+
+    // MARK: - Progress Tracking
+
+    /// Index of the card currently shown to the user.
+    var currentIndex: Int = 0
+
+    /// Number of cards the user swiped right (marked correct) in this session.
+    var correctCount: Int = 0
+
+    /// `true` when the user has reviewed every card in the session.
+    var isComplete: Bool = false
+
+    /// Total number of cards in the current run, preserved even if `cards`
+    /// gets cleared to release memory after completion.
+    var totalCardCount: Int = 0
+
+    /// Cards the user swiped left (marked incorrect) — eligible for retry.
+    var wrongCards: [PlayableCard] = []
+
+    /// `true` when the current card is showing its back (answer) face.
+    var isFlipped: Bool = false
+
+    // MARK: - Gamification
+
+    /// Total XP earned during this session (base + speed bonus per card).
+    var sessionXP: Int = 0
+
+    /// Timestamp captured when the session started, used to compute total duration.
+    let sessionStartTime: Date = Date()
+
+    /// Total number of swipe events recorded (correct + incorrect).
+    var totalSessionSwipes: Int = 0
+
+    /// Total number of correct swipes recorded.
+    var totalSessionCorrect: Int = 0
+
+    // MARK: - Private
+
+    /// Timestamp of when the current card was first presented to the user.
+    private var currentCardStartTime: Date = Date()
+
+    /// Stored container reference captured during `startSession(container:)`.
+    /// Passed into detached tasks instead of capturing a `ModelContext` reference.
+    private var container: ModelContainer?
+
+    /// Shared detached persistence service reused by all interactive play modes.
+    private var persistenceService: PlaySessionPersistenceService?
+
+    // MARK: - Computed Properties
+
+    /// Session accuracy expressed as an integer percentage (0–100).
+    ///
+    /// Returns `0` before any swipe has been recorded to avoid division by zero.
+    var sessionAccuracy: Int {
+        guard totalSessionSwipes > 0 else { return 0 }
+        return Int((Double(totalSessionCorrect) / Double(totalSessionSwipes)) * 100)
+    }
+
+    /// Human-readable representation of time elapsed since `sessionStartTime`.
+    ///
+    /// Examples: `"42s"`, `"1m 7s"`.
+    var formattedSessionDuration: String {
+        Self.formatInterval(Date().timeIntervalSince(sessionStartTime))
+    }
+
+    /// Number of cards already reviewed in the active run.
+    var reviewedCardCount: Int {
+        min(currentIndex, totalCardCount)
+    }
+
+    /// Fractional progress for the header progress bar.
+    var progressFraction: Double {
+        guard totalCardCount > 0 else { return 0 }
+        return min(1, Double(reviewedCardCount) / Double(totalCardCount))
+    }
+
+    // MARK: - Static Helpers
+
+    /// Formats a `TimeInterval` into a concise string such as `"1m 7s"` or `"42s"`.
+    static func formatInterval(_ interval: TimeInterval) -> String {
+        let total = Int(interval)
+        let minutes = total / 60
+        let seconds = total % 60
+        return minutes > 0 ? "\(minutes)m \(seconds)s" : "\(seconds)s"
+    }
+
+    // MARK: - Init
+
+    init(deck: DeckModel, settings: FlashcardModeSettings) {
+        self.deck = deck
+        self.settings = settings
+        self.currentCardStartTime = Date()
+    }
+
+    // MARK: - Session Lifecycle
+
+    /// Starts the session by loading `PlayableCard` snapshots on a background actor.
+    ///
+    /// Calling this when `isSessionStarted == true` is a no-op, making it safe
+    /// to call from `.task {}` which may fire more than once in some edge cases.
+    ///
+    /// - Parameter container: The `ModelContainer` from the SwiftUI environment.
+    func startSession(container: ModelContainer) async {
+        guard !isSessionStarted else { return }
+        self.container = container
+        self.persistenceService = PlaySessionPersistenceService(container: container)
+
+        // Load cards via a background actor to keep the main ModelContext clean.
+        // The actor decodes all zone data and returns pure Sendable value types,
+        // which means the main context's row cache is never populated with card blobs.
+        let repository = PlayModeCardRepository(container: container)
+        let loadedCards = await repository.loadPlayableCards(for: deck.persistentModelID)
+
+        // Study-order sort: new cards (interval == 0) first, then by shortest interval.
+        self.cards = orderedCards(loadedCards)
+        self.totalCardCount = self.cards.count
+        self.isFlipped = settings.revealFlow == .answerFirst
+
+        self.isSessionStarted = true
+    }
+
+    /// Releases all strong card references and flushes caches.
+    ///
+    /// Must be called from `.onDisappear` to prevent memory bloat between sessions.
+    func tearDown() {
+        cards = []
+        wrongCards = []
+        totalCardCount = 0
+        persistenceService = nil
+        MathWebViewPool.shared.flush()
+        ImageCache.shared.clearCache()
+    }
+
+    // MARK: - Gameplay
+
+    /// Handles a swipe event from `SwipeableCard`.
+    ///
+    /// The function performs two distinct phases:
+    /// 1. **Immediate** — updates lightweight in-memory state so the next card
+    ///    appears on screen before any disk I/O has been started.
+    /// 2. **Deferred** — persists the SRS update and gamification counters to
+    ///    SwiftData on a utility-priority background task.
+    ///
+    /// - Parameter direction: `.right` for a correct answer, `.left` for incorrect.
+    func handleSwipe(_ direction: SwipeDirection) {
+        guard currentIndex < cards.count else { return }
+
+        let playableCard  = cards[currentIndex]
+        let cardID        = playableCard.id
+        let timeSpent     = Date().timeIntervalSince(currentCardStartTime)
+        let difficulty: ReviewDifficulty = direction == .right ? .good : .again
+        let totalXP       = PlaySessionXP.awarded(for: difficulty, timeSpent: timeSpent)
+
+        // ── Phase 1: update lightweight in-memory state immediately ──────────
+        // These writes only touch Swift value types — zero SwiftData overhead.
+        // SwiftUI sees `currentIndex` change and renders the next card
+        // before any disk I/O has occurred.
+        sessionXP          += totalXP
+        totalSessionSwipes += 1
+        if direction == .right {
+            totalSessionCorrect += 1
+            correctCount        += 1
+        } else {
+            wrongCards.append(playableCard)
+        }
+
+        isFlipped            = settings.revealFlow == .answerFirst
+        currentIndex        += 1        // The next card appears here.
+        currentCardStartTime = Date()
+
+        if currentIndex >= cards.count {
+            cards = []                  // Release references before completion overlay.
+            isComplete = true
+        }
+
+        // ── Phase 2: persist to SwiftData on a background task ───────────────
+        // All SQLite work (model fetch, SRS update, gamification counters,
+        // context.save) runs after the UI has already moved to the next card.
+        // Using `Task.detached` with the container (captured from startSession)
+        // avoids creating a @ModelActor per swipe, which carries an iOS 17
+        // retain-cycle risk for short-lived actors.
+        // Only value types are passed into the closure — no ModelContext capture.
+        let reviewWrite = PlaySessionReviewWrite(
+            cardID: cardID,
+            difficulty: difficulty,
+            timeSpent: timeSpent,
+            xpAwarded: totalXP
+        )
+        let persistenceService = persistenceService
+
+        Task.detached(priority: .utility) {
+            await persistenceService?.persistReviews([reviewWrite])
+        }
+    }
+
+    /// Queues all previously incorrect cards for a retry round.
+    ///
+    /// Resets session counters so the retry is treated as a fresh sub-session
+    /// rather than accumulating on top of the original run.
+    func retryWrongCards() {
+        let retry = wrongCards
+        wrongCards = []
+
+        // Maintain study order for the retry batch.
+        cards = orderedCards(retry)
+        totalCardCount = cards.count
+
+        currentIndex = 0
+        correctCount = 0
+        isComplete   = false
+        isFlipped    = settings.revealFlow == .answerFirst
+        currentCardStartTime = Date()
+    }
+
+    /// Reloads a single lightweight snapshot after inline card editing so the
+    /// current play session can stay on the same index with fresh content.
+    func refreshCardSnapshot(for cardID: PersistentIdentifier) async {
+        guard let container else { return }
+
+        let repository = PlayModeCardRepository(container: container)
+        guard let refreshedCard = await repository.loadPlayableCard(for: cardID) else { return }
+
+        if let currentCardIndex = cards.firstIndex(where: { $0.id == cardID }) {
+            cards[currentCardIndex] = refreshedCard
+        }
+
+        if let wrongCardIndex = wrongCards.firstIndex(where: { $0.id == cardID }) {
+            wrongCards[wrongCardIndex] = refreshedCard
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func orderedCards(_ cards: [PlayableCard]) -> [PlayableCard] {
+        switch settings.order {
+        case .studyPriority:
+            return cards.sorted {
+                let i1 = $0.interval
+                let i2 = $1.interval
+                if i1 == 0 && i2 != 0 { return true }
+                if i1 != 0 && i2 == 0 { return false }
+                if i1 != i2 { return i1 < i2 }
+                return $0.cardNumber < $1.cardNumber
+            }
+        case .newestFirst:
+            return cards.sorted { lhs, rhs in
+                if lhs.cardNumber != rhs.cardNumber {
+                    return lhs.cardNumber > rhs.cardNumber
+                }
+                return lhs.interval < rhs.interval
+            }
+        case .oldestFirst:
+            return cards.sorted { lhs, rhs in
+                if lhs.cardNumber != rhs.cardNumber {
+                    return lhs.cardNumber < rhs.cardNumber
+                }
+                return lhs.interval < rhs.interval
+            }
+        case .shuffled:
+            return cards.shuffled()
+        }
+    }
+}

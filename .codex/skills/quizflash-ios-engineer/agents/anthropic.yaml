@@ -1,0 +1,4 @@
+interface:
+  display_name: "QuizFlash iOS Engineer"
+  short_description: "QuizFlash SwiftUI + SwiftData coding guide (iOS 17+)"
+  default_prompt: "Use $quizflash-ios-engineer as the canonical QuizFlash guide. Read references/task-routing.md first, start with the target file and paired owner file, and pull project-map or architecture only when the task crosses those boundaries. Make minimal, surgical changes consistent with the repo. Call out iOS 17 SwiftData pitfalls. Provide a patch plan (files + symbols) and a verification step (xcodebuild) if you can run it; otherwise ask for the build output."

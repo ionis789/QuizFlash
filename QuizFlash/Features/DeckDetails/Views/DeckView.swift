@@ -1,0 +1,284 @@
+//
+//  DeckView.swift
+//  QuizFlash
+//
+//  Deck detail screen showing the card grid, stats, and play-mode entry points.
+//  Business logic is fully delegated to `DeckViewModel`.
+//
+//  ## iOS 17 Retain Cycle Wrapper
+//  `DeckView` is a thin wrapper that lazily creates `DeckViewModel` on appear,
+//  preventing the retain cycle that arises when a `@Observable` ViewModel is
+//  strongly captured by its own SwiftUI View during `NavigationStack` push.
+//  The actual UI lives in `DeckContentView`.
+
+import SwiftUI
+import SwiftData
+import UIKit
+
+let kDeckScrollSpace = "DeckViewScrollSpace"
+let kDeckChromeSpace = "DeckViewChromeSpace"
+
+struct DeckContentView: View {
+    @Environment(\.modelContext) var context
+    @Environment(NavigationManager.self) var router
+    @Environment(AIWorkspaceCoordinator.self) var aiWorkspaceCoordinator
+    @Environment(\.dismiss) var dismiss
+    @Environment(ThemeManager.self) var themeManager
+    @Bindable var deck: DeckModel
+    let searchQuery: String?
+    let ownerTab: AppTabBar
+
+    // The back-button label frozen at push time via DeckNavigationValue.
+    // Never read from router state — immune to cross-tab mutation.
+    let backLabel: String
+
+    @State var isPresentingEdit = false
+    @State var selectedPlayMode: DeckPlayModeDestination? = nil
+    @State var selectedPlayModeSettings: DeckPlayModeDestination? = nil
+    @State var previewedCard: CardModel? = nil
+    @State var cardEditorDestination: CardEditorDestination? = nil
+    @State var unavailablePlayMode: DeckPlayModeDestination? = nil
+    @State var showAddCardTypeDialog = false
+    @State var pendingDeleteCardID: PersistentIdentifier? = nil
+    @State var activeActionMenuCardID: PersistentIdentifier? = nil
+    @State var playModeRecentUsageSnapshot: [DeckPlayModeDestination: Date] = [:]
+    @Bindable var viewModel: DeckViewModel
+    @State var hasLoadedInitialSnapshot = false
+    @State var navigationBarHeight: CGFloat =
+        UIConstants.Layout.deckNavigationTopPadding
+        + UIConstants.Size.capsuleHeight
+        + UIConstants.Spacing.small
+    @State var navigationBarBottomY: CGFloat = 0
+
+    /// Scroll-driven progress — updated by DeckScrollMonitor via KVO, never by SwiftUI state.
+    @State var scrollState = DeckScrollState()
+
+    var isSuspended: Bool {
+        router.activeTab != ownerTab
+    }
+
+    var conversionConfigurationSheetBinding: Binding<AIWorkspaceConversionSheetToken?> {
+        Binding(
+            get: { aiWorkspaceCoordinator.conversionSheetToken },
+            set: { newValue in
+                if newValue == nil {
+                    aiWorkspaceCoordinator.dismissConversionConfiguration()
+                } else {
+                    aiWorkspaceCoordinator.conversionSheetToken = newValue
+                }
+            }
+        )
+    }
+
+    /// Reserved top spacing that keeps the hero content below the floating chrome.
+    var topContentInset: CGFloat {
+        navigationBarHeight + UIConstants.Layout.deckHeroChromeClearance
+    }
+
+    /// Bottom scroll clearance reserved for floating chrome without creating a large dead zone.
+    var bottomContentInset: CGFloat {
+        let baseInset = UIConstants.Spacing.small
+        guard viewModel.isSelecting else { return baseInset }
+        return UIConstants.Size.selectionToolbarBarHeight
+            + UIConstants.Layout.bottomChromeBottomPadding
+            + UIConstants.Spacing.standard
+    }
+
+    /// Formats deck creation date and card count for display under the deck title.
+    ///
+    /// Uses a static `DateFormatter` to avoid allocating a new formatter on every render pass.
+    var subtitleText: String {
+        let count = deck.cardCount
+        return "\(Self.subtitleDateFormatter.string(from: deck.createdAt))  •  \(count) card\(count == 1 ? "" : "s")"
+    }
+
+    /// Static date formatter for `subtitleText`. Allocated once for the app session.
+    static let subtitleDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f
+    }()
+    let actionMenuTopClearance: CGFloat = 10
+    let actionMenuBottomClearance: CGFloat = 10
+    var activeActionMenuCard: GridCardInfo? {
+        guard let id = activeActionMenuCardID else { return nil }
+        for section in viewModel.cachedGroupedCards {
+            if let card = section.cards.first(where: { $0.id == id }) {
+                return card
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Body
+
+    var body: some View {
+        deckContent
+            /// Hides the native system navigation bar.
+            /// This stabilizes `safeAreaInsets` and prevents layout invalidation during scroll physics (rubber-banding).
+            .toolbar(.hidden, for: .navigationBar)
+            .customTabBarVisibility(viewModel.isSelecting ? .hidden : .implicit)
+            .onAppear {
+                guard !hasLoadedInitialSnapshot, !isSuspended else { return }
+                hasLoadedInitialSnapshot = true
+                refreshPlayModeRecentUsageSnapshot()
+                viewModel.configureGroupingMode(from: deck.cardGroupingMode)
+                viewModel.requestSnapshotLoad(
+                    deckID: deck.persistentModelID,
+                    container: context.container
+                )
+            }
+            .onDisappear {
+                guard !isPresentingEdit,
+                      selectedPlayMode == nil,
+                      selectedPlayModeSettings == nil,
+                      previewedCard == nil,
+                      cardEditorDestination == nil else { return }
+                viewModel.tearDown()
+                ImageCache.shared.clearCache()
+            }
+            .onChange(of: deck.cardCount) {
+                guard !isSuspended else { return }
+                viewModel.requestSnapshotLoad(
+                    deckID: deck.persistentModelID,
+                    container: context.container
+                )
+            }
+            .onChange(of: viewModel.sortOrder) {
+                guard !isSuspended else { return }
+                viewModel.requestSnapshotLoad(
+                    deckID: deck.persistentModelID,
+                    container: context.container
+                )
+            }
+            .onChange(of: viewModel.searchQuery) {
+                guard !isSuspended else { return }
+                viewModel.requestSnapshotLoad(
+                    deckID: deck.persistentModelID,
+                    container: context.container
+                )
+            }
+            .onChange(of: selectedPlayMode) { old, new in
+                if let completedMode = old, new == nil {
+                    recordCompletedPlayModeSession(completedMode)
+                    deck.lastOpenedAt = Date()
+                    try? context.save()
+                    guard !isSuspended else { return }
+                    viewModel.requestSnapshotLoad(
+                        deckID: deck.persistentModelID,
+                        container: context.container
+                    )
+                }
+            }
+            .onChange(of: isSuspended) { _, suspended in
+                if suspended {
+                    viewModel.suspendHeavyWork()
+                    CardPreviewCache.shared.flush()
+                } else {
+                    viewModel.configureGroupingMode(from: deck.cardGroupingMode)
+                    viewModel.requestSnapshotLoad(
+                        deckID: deck.persistentModelID,
+                        container: context.container
+                    )
+                }
+            }
+            .alert(
+                "Delete \(viewModel.selectedCards.count) card\(viewModel.selectedCards.count == 1 ? "" : "s")?",
+                isPresented: $viewModel.showDeleteConfirmation
+            ) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    withBottomChromeAnimation {
+                        viewModel.deleteSelectedCards(from: deck, context: context)
+                    }
+                }
+            } message: { Text("This action cannot be undone.") }
+            .alert(
+                "Delete this card?",
+                isPresented: Binding(
+                    get: { pendingDeleteCardID != nil },
+                    set: { if !$0 { pendingDeleteCardID = nil } }
+                )
+            ) {
+                Button("Cancel", role: .cancel) {
+                    pendingDeleteCardID = nil
+                }
+                Button("Delete", role: .destructive) {
+                    guard let id = pendingDeleteCardID else { return }
+                    pendingDeleteCardID = nil
+                    viewModel.deleteCard(withID: id, from: deck, context: context)
+                }
+            } message: {
+                Text("This action cannot be undone.")
+            }
+            .sheet(isPresented: $viewModel.showShareSheet) {
+                if let url = viewModel.exportedURL { ShareSheet(items: [url]) }
+            }
+            .fullScreenSheet(
+                ignoresSafeArea: true,
+                item: conversionConfigurationSheetBinding,
+                backgroundReceivesDragProgress: true
+            ) { _, safeArea in
+                DeckConversionSheetView(
+                    coordinator: aiWorkspaceCoordinator,
+                    safeAreaInsets: safeArea
+                ) {
+                    startDeckSeededConversion()
+                }
+            } background: {
+                CardPreviewModeBackground()
+            }
+            .alert("Export Error", isPresented: $viewModel.showExportError) {
+                Button("OK", role: .cancel) { }
+            } message: { Text(viewModel.exportErrorMessage) }
+            .confirmationDialog("Choose Card Type", isPresented: $showAddCardTypeDialog, titleVisibility: .visible) {
+                Button("Flashcard") { presentCardEditor(for: .flashcard) }
+                Button("Quiz") { presentCardEditor(for: .quiz) }
+                Button("Write") { presentCardEditor(for: .write) }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Pick the type of card you want to add to this deck.")
+            }
+            .overlay { exportingOverlay }
+    }
+}
+
+struct DeckView: View {
+    @Environment(ThemeManager.self) private var themeManager
+
+    let deck: DeckModel
+    let searchQuery: String?
+    let backLabel: String
+    let ownerTab: AppTabBar
+
+    @State private var viewModel: DeckViewModel? = nil
+
+    init(deck: DeckModel, searchQuery: String? = nil, backLabel: String, ownerTab: AppTabBar) {
+        self.deck = deck
+        self.searchQuery = searchQuery
+        self.backLabel = backLabel
+        self.ownerTab = ownerTab
+    }
+
+    var body: some View {
+        Group {
+            if let vm = viewModel {
+                DeckContentView(
+                    deck: deck,
+                    searchQuery: searchQuery,
+                    ownerTab: ownerTab,
+                    backLabel: backLabel,
+                    viewModel: vm
+                )
+            } else {
+                themeManager.groupedScreenBackground
+                    .onAppear {
+                        if self.viewModel == nil {
+                            self.viewModel = DeckViewModel(searchQuery: searchQuery)
+                        }
+                    }
+            }
+        }
+    }
+}

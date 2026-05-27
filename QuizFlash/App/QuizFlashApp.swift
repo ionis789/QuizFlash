@@ -7,17 +7,42 @@
 
 import SwiftUI
 import SwiftData
+
 @main
 struct QuizFlashApp: App {
-    
-    @StateObject var authManager = AuthManager()
-    
+
+    @State var authManager = AuthManager.shared
+    @State private var themeManager = ThemeManager.shared
+    @State private var aiProviderStore = AIProviderStore.shared
+    @State private var appPreferences = AppPreferences.shared
+
+    init() {
+        //
+        MathWebViewPool.shared.prewarm()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
-                .environmentObject(authManager)
+                .environment(authManager)
+                .environment(themeManager)
+                .environment(aiProviderStore)
+                .environment(appPreferences)
+                .tint(themeManager.accentColor.color)
                 .preferredColorScheme(.dark)
+                .onAppear {
+                    print(URL.documentsDirectory.path())
+                }
         }
-        .modelContainer(for: [DeckModel.self, CardModel.self])
+            .modelContainer(for: [
+                FolderModel.self,
+                DeckModel.self,
+                CardModel.self,
+                ReviewEvent.self,
+                UserProfile.self,
+                DailyActivityLog.self,
+                ExamGoalModel.self,
+                DeckPlayModeSettingsModel.self
+            ])
     }
 }

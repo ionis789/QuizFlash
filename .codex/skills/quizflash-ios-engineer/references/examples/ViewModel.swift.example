@@ -1,0 +1,122 @@
+//
+//  MyFeatureViewModel.swift
+//  QuizFlash
+//
+
+import Foundation
+import Observation
+import OSLog
+import SwiftData
+
+// MARK: - MyFeatureViewModel
+
+/// Owns business state, async orchestration, and persistence for a single QuizFlash feature screen.
+///
+/// Use this shape for new screen-owned view models:
+/// - `@Observable @MainActor final class`
+/// - replaceable `Task<Void, Never>?` values stored under `@ObservationIgnored`
+/// - explicit `context.save()` with logged + surfaced failures
+/// - views stay rendering-only and forward user actions into this type
+@Observable
+@MainActor
+final class MyFeatureViewModel {
+
+    // MARK: - Dependencies
+
+    private let context: ModelContext
+    private let logger = Logger(subsystem: "QuizFlash", category: "MyFeatureViewModel")
+
+    // MARK: - State
+
+    var items: [MyFeatureItem] = []
+    var searchText: String = ""
+    var isLoading = false
+    var showError = false
+    var errorMessage = ""
+    var activeSheet: SheetDestination?
+
+    @ObservationIgnored
+    private var loadTask: Task<Void, Never>?
+
+    // MARK: - Init
+
+    init(
+        context: ModelContext,
+        initialItems: [MyFeatureItem] = []
+    ) {
+        self.context = context
+        self.items = initialItems
+    }
+
+    deinit {
+        loadTask?.cancel()
+    }
+
+    // MARK: - Public
+
+    func load() {
+        loadTask?.cancel()
+        loadTask = Task { [weak self] in
+            guard let self else { return }
+
+            isLoading = true
+            defer { isLoading = false }
+
+            do {
+                let snapshot = try await fetchSnapshot()
+                guard !Task.isCancelled else { return }
+                applySnapshot(snapshot)
+            } catch is CancellationError {
+                logger.debug("Load cancelled.")
+            } catch {
+                logger.error("Load failed: \(error.localizedDescription, privacy: .public)")
+                presentError("Couldn't load this screen right now.")
+            }
+        }
+    }
+
+    func saveChanges() {
+        do {
+            try context.save()
+        } catch {
+            logger.error("Save failed: \(error.localizedDescription, privacy: .public)")
+            presentError("Your changes couldn't be saved.")
+        }
+    }
+
+    func openSheet(_ destination: SheetDestination) {
+        activeSheet = destination
+    }
+
+    // MARK: - Private
+
+    private func fetchSnapshot() async throws -> [MyFeatureItem] {
+        try await Task.sleep(for: .milliseconds(150))
+        return items
+    }
+
+    private func applySnapshot(_ snapshot: [MyFeatureItem]) {
+        items = snapshot
+    }
+
+    private func presentError(_ message: String) {
+        errorMessage = message
+        showError = true
+    }
+}
+
+// MARK: - Example Supporting Types
+
+/// Placeholder data shape used only by this example skeleton.
+struct MyFeatureItem: Identifiable, Sendable {
+    let id = UUID()
+    let title: String
+}
+
+/// Typical item-based full-screen destinations for QuizFlash immersive flows.
+enum SheetDestination: String, Identifiable {
+    case create
+    case edit
+
+    var id: String { rawValue }
+}
