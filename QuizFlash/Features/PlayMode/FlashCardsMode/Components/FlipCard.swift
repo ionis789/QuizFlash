@@ -470,6 +470,10 @@ struct FlipCard: View {
             } else {
                 emptyContent
                     .frame(width: available.size.width, height: available.size.height)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onTap?()
+                    }
             }
         }
     }

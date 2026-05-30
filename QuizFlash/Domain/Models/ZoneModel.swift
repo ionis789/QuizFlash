@@ -173,13 +173,13 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     /// `true` if this zone has no children (i.e., it is a leaf node).
     var isLeaf: Bool { children == nil || children?.isEmpty == true }
 
-    /// `true` if this zone (or any descendant) contains non-empty content.
+    /// `true` if this zone (or any descendant) contains author-provided content.
     var hasContent: Bool {
         if !isLeaf { return children?.contains { $0.hasContent } ?? false }
         switch contentType {
         case .empty: return false
         case .text, .code:
-            return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return !text.isEmpty
         case .image, .sketch: return imageData != nil
         }
     }

@@ -37,47 +37,21 @@ struct HomeView: View {
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(\.modelContext) private var modelContext
 
-    // MARK: - SwiftData Queries
-
-    @Query(sort: \FolderModel.createdAt) private var folders: [FolderModel]
-    @Query(sort: \DeckModel.title) private var allDecks: [DeckModel]
-    @Query private var userProfiles: [UserProfile]
-    @Query private var dailyLogs: [DailyActivityLog]
-    @Query(sort: \HomeDailyStudyAggregate.dayDate, order: .reverse) private var homeStudyAggregates: [HomeDailyStudyAggregate]
-
-    /// Sorted by `lastOpenedAt` descending so we can slice the top 5 without
-    /// sorting a second time in Swift — SwiftData handles this on the store side.
-    @Query(sort: \DeckModel.lastOpenedAt, order: .reverse) private var recentlyOpenedQuery: [DeckModel]
-
     // MARK: - View Models
 
     @State private var viewModel = HomeViewModel()
     @State private var calendarVM = CalendarViewModel()
     @State private var lastLoggedLayoutSignature = ""
+    @State private var cachedFolderModels: [FolderModel] = []
+    @State private var cachedFolderSnapshots: [HomeFolderSnapshot] = []
+    @State private var cachedRecentlyOpenedDeckSnapshots: [LibraryDeckRowSnapshot] = []
+    @State private var cachedAllDeckCount = 0
 
     private static let layoutLogger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
         category: "HomeLayout"
     )
-    private static let edgeShadowDebugScreenID = "home.calendar"
-
-    // MARK: - Derived Data
-
-    /// The first (and only expected) user profile record.
-    private var profile: UserProfile? {
-        userProfiles.first
-    }
-
-    /// The 5 most recently opened decks that have a recorded `lastOpenedAt`.
-    ///
-    /// Slicing here rather than in the query avoids faulting the full deck
-    /// list into memory on every tab switch.
-    private var recentlyOpenedDecks: [DeckModel] {
-        recentlyOpenedQuery
-            .filter { $0.lastOpenedAt != nil }
-            .prefix(5)
-            .map { $0 }
-    }
+    private static let edgeShadowDebugScreenID = EdgeShadowDebugScreenID.homeCalendar
 
     // MARK: - Body
 
@@ -92,6 +66,9 @@ struct HomeView: View {
                 mode: layoutContext.mode,
                 scaffold: layoutContext.headerScaffold
             )
+            let selectedDate = calendarVM.selectedDate
+            let weekStartDate = dashboardWeekStartDate
+
             ZStack(alignment: .bottomTrailing) {
                 themeManager.screenBackground
                     .ignoresSafeArea()
@@ -102,7 +79,8 @@ struct HomeView: View {
                             getOffset: { viewModel.savedScrollOffset },
                             onOffsetChange: { offset in
                                 viewModel.savedScrollOffset = offset
-                            }
+                            },
+                            disablesVerticalBounce: true
                         )
                         .frame(width: 0, height: 0)
 
@@ -113,11 +91,14 @@ struct HomeView: View {
 
                         HomeDashboardView(
                             viewModel: viewModel,
-                            folders: folders,
-                            recentDecks: recentlyOpenedDecks,
+                            folderSnapshots: cachedFolderSnapshots,
+                            recentDeckSnapshots: cachedRecentlyOpenedDeckSnapshots,
                             layoutContext: layoutContext,
-                            allDeckCount: allDecks.count,
-                            router: router
+                            allDeckCount: cachedAllDeckCount,
+                            onOpenDeck: openDeck,
+                            onOpenFolder: openFolder,
+                            onCreateFolder: presentCreateFolder,
+                            onCreateDeck: openCreateTab
                         )
                         .frame(minHeight: proxy.size.height - calendarLayout.compactHeight)
                         .zIndex(1)
@@ -163,24 +144,6 @@ struct HomeView: View {
                 .onChange(of: appPreferences.weekStartDay) { _, newValue in
                     calendarVM.applyWeekStartPreference(newValue)
                 }
-                .task(id: calendarInsightsTaskSignature) {
-                    viewModel.updateLogsCache(logs: dailyLogs)
-                    viewModel.refreshCalendarInsights(
-                        dailyLogs: dailyLogs,
-                        userProfile: profile
-                    )
-                }
-                .task(id: dashboardTaskSignature) {
-                    viewModel.updateLogsCache(logs: dailyLogs)
-                    await viewModel.refreshDashboardSnapshot(
-                        selectedDate: calendarVM.selectedDate,
-                        weekStart: dashboardWeekStartDate,
-                        userProfile: profile,
-                        container: modelContext.container,
-                        analyticsRevision: homeAnalyticsTaskFingerprint,
-                        deckRevision: decksTaskFingerprint
-                    )
-                }
                 .fullScreenSheet(
                     isPresented: $viewModel.showPerformanceDetailSheet,
                     configuration: .sheet(
@@ -199,60 +162,58 @@ struct HomeView: View {
                     CreateFolderSheet(viewModel: viewModel)
                 }
 
+                HomeDataCoordinator(
+                    viewModel: viewModel,
+                    selectedDate: selectedDate,
+                    weekStartDate: weekStartDate,
+                    container: modelContext.container,
+                    folderModels: $cachedFolderModels,
+                    folderSnapshots: $cachedFolderSnapshots,
+                    recentDeckSnapshots: $cachedRecentlyOpenedDeckSnapshots,
+                    allDeckCount: $cachedAllDeckCount
+                )
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+
                 debugShadowControls(safeAreaTop: safeAreaTop)
             }
         }
-    }
-
-    /// Stable signature used to refresh the daily-log cache when Home data changes.
-    private var dailyLogsTaskFingerprint: Int {
-        HomeViewModel.logsFingerprint(for: dailyLogs)
-    }
-
-    /// Stable signature used to refresh the Home dashboard when aggregate rows change.
-    private var homeAnalyticsTaskFingerprint: Int {
-        HomeViewModel.homeAnalyticsFingerprint(for: homeStudyAggregates)
-    }
-
-    /// Stable signature used to refresh selected-day deck snapshots when deck metadata changes.
-    private var decksTaskFingerprint: Int {
-        HomeViewModel.decksFingerprint(for: allDecks)
-    }
-
-    /// Stable signature used to refresh Home dashboard summaries when profile stats change.
-    private var userProfileDashboardSignature: String {
-        guard let profile else { return "no-profile" }
-        return [
-            "\(profile.totalXP)",
-            "\(profile.currentStreak)",
-            "\(profile.longestStreak)",
-            "\(profile.lastActiveDate?.timeIntervalSince1970 ?? 0)"
-        ].joined(separator: "|")
-    }
-
-    /// Combined signature for calendar insight refreshes.
-    private var calendarInsightsTaskSignature: String {
-        [
-            "\(dailyLogsTaskFingerprint)",
-            userProfileDashboardSignature
-        ].joined(separator: "||")
-    }
-
-    /// Combined signature for aggregate-backed Home dashboard reloads.
-    private var dashboardTaskSignature: String {
-        [
-            HomeViewModel.dateKeyFormatter.string(from: calendarVM.selectedDate),
-            "\(dailyLogsTaskFingerprint)",
-            userProfileDashboardSignature,
-            "\(homeAnalyticsTaskFingerprint)",
-            "\(decksTaskFingerprint)"
-        ].joined(separator: "||")
     }
 
     private var dashboardWeekStartDate: Date {
         let calendar = appPreferences.resolvedCalendar
         let selectedDay = calendar.startOfDay(for: calendarVM.selectedDate)
         return calendar.dateInterval(of: .weekOfYear, for: selectedDay)?.start ?? selectedDay
+    }
+
+    private func openDeck(_ deckID: PersistentIdentifier) {
+        router.append(
+            DeckNavigationValue(
+                deckID: deckID,
+                backLabel: router.activeTab.localizedTitle(locale: appPreferences.resolvedLocale)
+            )
+        )
+    }
+
+    private func openFolder(_ folderID: PersistentIdentifier) {
+        guard let folder = cachedFolderModels.first(where: { $0.persistentModelID == folderID }) else {
+            return
+        }
+
+        router.append(
+            AppRoute.folder(
+                folder,
+                backLabel: router.activeTab.localizedTitle(locale: appPreferences.resolvedLocale)
+            )
+        )
+    }
+
+    private func presentCreateFolder() {
+        viewModel.showCreateFolder = true
+    }
+
+    private func openCreateTab() {
+        router.activeTab = .create
     }
 
     private func calendarTransitionBand(horizontalInset: CGFloat) -> some View {
@@ -284,10 +245,10 @@ struct HomeView: View {
             calendarVM: calendarVM,
             layout: layout,
             calendarInsightsCache: viewModel.calendarInsightsCache,
-            calendarInsightsRevision: viewModel.calendarInsightsRevision,
             blurConfiguration: homeBlurConfiguration,
             blurHeightOffset: homeBlurHeightOffset,
-            blurColor: homeBlurColor
+            blurColor: homeBlurColor,
+            blurEnabled: homeBlurEnabled
         )
     }
 
@@ -303,6 +264,10 @@ struct HomeView: View {
         homeShadowDebugSettings.resolvedColor
     }
 
+    private var homeBlurEnabled: Bool {
+        homeShadowDebugSettings.topEnabled
+    }
+
     private var homeShadowDebugSettings: EdgeShadowDebugSettings {
         developmentPreferences.edgeShadowSettings(for: Self.edgeShadowDebugScreenID)
     }
@@ -313,6 +278,10 @@ struct HomeView: View {
         if developmentPreferences.edgeShadowTuningEnabled {
             EdgeShadowDebugFloatingPanel(
                 mode: .progressiveBlur,
+                supportsBottomEdge: false,
+                panelTitleOverride: "Header Blur",
+                showButtonTitleOverride: "Tune Header Blur",
+                hideButtonTitleOverride: "Hide Header Blur",
                 settings: Binding(
                     get: {
                         developmentPreferences.edgeShadowSettings(for: Self.edgeShadowDebugScreenID)
@@ -405,5 +374,192 @@ struct HomeView: View {
 
     private func roundedLayoutValue(_ value: CGFloat) -> String {
         String(format: "%.1f", Double(value))
+    }
+}
+
+// MARK: - Home Data Coordinator
+
+private struct HomeDataCoordinator: View {
+    @Query(sort: \FolderModel.createdAt) private var folders: [FolderModel]
+    @Query(sort: \DeckModel.title) private var allDecks: [DeckModel]
+    @Query private var userProfiles: [UserProfile]
+    @Query private var dailyLogs: [DailyActivityLog]
+    @Query(sort: \HomeDailyStudyAggregate.dayDate, order: .reverse) private var homeStudyAggregates: [HomeDailyStudyAggregate]
+    @Query(sort: \DeckModel.lastOpenedAt, order: .reverse) private var recentlyOpenedQuery: [DeckModel]
+
+    let viewModel: HomeViewModel
+    let selectedDate: Date
+    let weekStartDate: Date
+    let container: ModelContainer
+
+    @Binding var folderModels: [FolderModel]
+    @Binding var folderSnapshots: [HomeFolderSnapshot]
+    @Binding var recentDeckSnapshots: [LibraryDeckRowSnapshot]
+    @Binding var allDeckCount: Int
+
+    @State private var homeDataSignatures = HomeDataSignatures()
+    @State private var folderSignature = ""
+    @State private var recentDeckSignature = ""
+
+    private struct HomeDataSignatures: Equatable {
+        var logs: Int = 0
+        var analytics: Int = 0
+        var decks: Int = 0
+        var profile: String = "no-profile"
+
+        var calendarInsightsTaskSignature: String {
+            [
+                "\(logs)",
+                profile
+            ].joined(separator: "||")
+        }
+
+        func dashboardTaskSignature(selectedDateKey: String) -> String {
+            [
+                selectedDateKey,
+                "\(logs)",
+                profile,
+                "\(analytics)",
+                "\(decks)"
+            ].joined(separator: "||")
+        }
+    }
+
+    private var profile: UserProfile? {
+        userProfiles.first
+    }
+
+    private var selectedDateKey: String {
+        HomeViewModel.dateKeyFormatter.string(from: selectedDate)
+    }
+
+    private var calendarInsightsSignature: String {
+        homeDataSignatures.calendarInsightsTaskSignature
+    }
+
+    private var dashboardSignature: String {
+        homeDataSignatures.dashboardTaskSignature(selectedDateKey: selectedDateKey)
+    }
+
+    private var homeDataRefreshSignal: String {
+        [
+            "\(dailyLogs.count)",
+            "\(homeStudyAggregates.count)",
+            "\(allDecks.count)",
+            "\(folders.count)",
+            "\(recentlyOpenedQuery.count)",
+            recentDecksPreviewSignature,
+            userProfileDashboardSignature
+        ].joined(separator: "|")
+    }
+
+    private var recentDecksPreviewSignature: String {
+        recentlyOpenedQuery
+            .prefix(5)
+            .map { deck in
+                [
+                    "\(deck.persistentModelID.hashValue)",
+                    "\(deck.lastOpenedAt?.timeIntervalSince1970.bitPattern ?? 0)"
+                ].joined(separator: ":")
+            }
+            .joined(separator: ",")
+    }
+
+    private var userProfileDashboardSignature: String {
+        guard let profile else { return "no-profile" }
+        return [
+            "\(profile.totalXP)",
+            "\(profile.currentStreak)",
+            "\(profile.longestStreak)",
+            "\(profile.lastActiveDate?.timeIntervalSince1970 ?? 0)"
+        ].joined(separator: "|")
+    }
+
+    var body: some View {
+        Color.clear
+            .task(id: homeDataRefreshSignal) {
+                refreshCachedHomeInputs()
+            }
+            .task(id: calendarInsightsSignature) {
+                viewModel.updateLogsCache(logs: dailyLogs)
+                viewModel.refreshCalendarInsights(
+                    dailyLogs: dailyLogs,
+                    userProfile: profile
+                )
+            }
+            .task(id: dashboardSignature) {
+                viewModel.updateLogsCache(logs: dailyLogs)
+                await viewModel.refreshDashboardSnapshot(
+                    selectedDate: selectedDate,
+                    weekStart: weekStartDate,
+                    userProfile: profile,
+                    container: container,
+                    analyticsRevision: homeDataSignatures.analytics,
+                    deckRevision: homeDataSignatures.decks
+                )
+            }
+    }
+
+    private func refreshCachedHomeInputs() {
+        let nextSignatures = HomeDataSignatures(
+            logs: HomeViewModel.logsFingerprint(for: dailyLogs),
+            analytics: HomeViewModel.homeAnalyticsFingerprint(for: homeStudyAggregates),
+            decks: HomeViewModel.decksFingerprint(for: allDecks),
+            profile: userProfileDashboardSignature
+        )
+        if homeDataSignatures != nextSignatures {
+            homeDataSignatures = nextSignatures
+        }
+
+        refreshFolderCache()
+        refreshRecentDeckCache()
+
+        if allDeckCount != allDecks.count {
+            allDeckCount = allDecks.count
+        }
+    }
+
+    private func refreshFolderCache() {
+        let nextSignature = folders
+            .map { folder in
+                [
+                    "\(folder.persistentModelID.hashValue)",
+                    folder.title,
+                    folder.colorHex,
+                    "\(folder.deckCount)"
+                ].joined(separator: ":")
+            }
+            .joined(separator: "|")
+
+        guard folderSignature != nextSignature else { return }
+        folderSignature = nextSignature
+        folderModels = folders
+        folderSnapshots = folders.map { folder in
+            HomeFolderSnapshot(
+                id: folder.persistentModelID,
+                title: folder.title,
+                colorHex: folder.colorHex,
+                deckCount: folder.deckCount
+            )
+        }
+    }
+
+    private func refreshRecentDeckCache() {
+        let nextDecks = Array(recentlyOpenedQuery.lazy.filter { $0.lastOpenedAt != nil }.prefix(5))
+        let nextSignature = nextDecks
+            .map { deck in
+                [
+                    "\(deck.persistentModelID.hashValue)",
+                    deck.title,
+                    deck.colorHex,
+                    "\(deck.cardCount)",
+                    "\(deck.lastOpenedAt?.timeIntervalSince1970.bitPattern ?? 0)"
+                ].joined(separator: ":")
+            }
+            .joined(separator: "|")
+
+        guard recentDeckSignature != nextSignature else { return }
+        recentDeckSignature = nextSignature
+        recentDeckSnapshots = LibraryGrouping.makeDeckSnapshots(from: nextDecks)
     }
 }

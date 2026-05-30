@@ -68,4 +68,15 @@ final class MathTextSanitizerTests: XCTestCase {
             "ce urmează?"
         )
     }
+
+    func testStripTerminalZonePeriodPreservingWhitespaceKeepsAuthorSpacing() {
+        XCTAssertEqual(
+            MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace("\n\n  answer.  \n"),
+            "\n\n  answer  \n"
+        )
+        XCTAssertEqual(
+            MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace("\n\n  answer  \n"),
+            "\n\n  answer  \n"
+        )
+    }
 }

@@ -43,6 +43,10 @@ struct Day: Identifiable, Equatable {
     /// `true` when this day matches `CalendarViewModel.selectedDate`.
     var isSelected: Bool = false
 
+    /// `true` when this day is today. Precomputed with the grid so cells do
+    /// not call Calendar APIs during scroll-driven render passes.
+    var isToday: Bool = false
+
     /// Stable identity so calendar cells do not churn during scroll-only updates.
     var id: String { dateString }
 
@@ -100,9 +104,6 @@ final class CalendarViewModel {
     /// Setting this updates `isSelected` on all day cells via `calculateMonthData()`.
     private(set) var selectedDate: Date
 
-    /// Preserves the user's intended day-of-month while paging across shorter months.
-    private var preferredDayOfMonth: Int
-
     // MARK: - Cached Output (read-only outside this class)
 
     /// All weeks of the current month, each sub-array containing exactly 7 `Day` values.
@@ -114,13 +115,13 @@ final class CalendarViewModel {
     /// Four-digit year string for the current `selectedMonth` (e.g. `"2026"`).
     private(set) var yearString: String = ""
 
+    /// Localized weekday labels ordered by the active first weekday preference.
+    private(set) var orderedWeekdaySymbols: [String] = []
+
     /// Zero-based row index of the week containing the selected date.
     ///
     /// Used to drive the collapse animation offset in `HomeCalendarSectionView`.
     private(set) var monthProgress: CGFloat = 0.0
-
-    /// Cached previous/current/next month snapshots used by the expanded pager.
-    private(set) var visibleMonthSnapshots: [MonthSnapshot] = []
 
     /// Reusable per-month grid cache so month paging does not regenerate the full
     /// day matrix and date formatting payloads every time the visible month changes.
@@ -205,7 +206,7 @@ final class CalendarViewModel {
         let today = initialCalendar.startOfDay(for: Date())
         selectedDate = today
         selectedMonth = CalendarViewModel.monthStart(for: today, calendar: initialCalendar)
-        preferredDayOfMonth = initialCalendar.component(.day, from: today)
+        orderedWeekdaySymbols = CalendarViewModel.orderedWeekdaySymbols(for: initialCalendar)
     }
 
     // MARK: - Setup
@@ -222,7 +223,7 @@ final class CalendarViewModel {
 
     // MARK: - Public Actions
 
-    /// Advances or rewinds both `selectedMonth` and `selectedDate` by one calendar month.
+    /// Advances or rewinds the visible month without changing the selected day.
     ///
     /// - Parameter increment: `true` to advance forward, `false` to go back.
     func monthUpdate(increment: Bool) {
@@ -234,7 +235,6 @@ final class CalendarViewModel {
     /// - Parameter date: The newly selected calendar date.
     func selectDate(_ date: Date) {
         let normalizedDate = calendar.startOfDay(for: date)
-        preferredDayOfMonth = calendar.component(.day, from: normalizedDate)
         updateSelection(date: normalizedDate, visibleMonth: normalizedDate)
     }
 
@@ -246,39 +246,19 @@ final class CalendarViewModel {
         updatedCalendar.locale = AppPreferences.shared.resolvedLocale
         guard calendar.firstWeekday != updatedCalendar.firstWeekday else { return }
         calendar = updatedCalendar
+        orderedWeekdaySymbols = CalendarViewModel.orderedWeekdaySymbols(for: updatedCalendar)
         monthGridCache.removeAll(keepingCapacity: true)
         selectedDate = calendar.startOfDay(for: selectedDate)
         selectedMonth = CalendarViewModel.monthStart(for: selectedMonth, calendar: calendar)
-        preferredDayOfMonth = calendar.component(.day, from: selectedDate)
         calculateMonthData()
     }
 
     func applyMonthOffset(_ value: Int) {
         guard
-            let month = calendar.date(byAdding: .month, value: value, to: selectedMonth),
-            let date = clampedDate(
-                day: preferredDayOfMonth,
-                in: CalendarViewModel.monthStart(for: month, calendar: calendar)
-            )
+            let month = calendar.date(byAdding: .month, value: value, to: selectedMonth)
         else { return }
-        updateSelection(date: date, visibleMonth: month)
-    }
-
-    func monthSnapshot(offsetBy months: Int) -> MonthSnapshot {
-        let cacheIndex = months + 1
-        if (0..<visibleMonthSnapshots.count).contains(cacheIndex) {
-            return visibleMonthSnapshots[cacheIndex]
-        }
-
-        let visibleMonth: Date
-        if months == 0 {
-            visibleMonth = selectedMonth
-        } else {
-            visibleMonth = calendar.date(byAdding: .month, value: months, to: selectedMonth) ?? selectedMonth
-        }
-
-        let monthAnchor = CalendarViewModel.monthStart(for: visibleMonth, calendar: calendar)
-        return snapshot(for: monthAnchor, selectedDate: selectedDate)
+        selectedMonth = CalendarViewModel.monthStart(for: month, calendar: calendar)
+        calculateMonthData()
     }
 
     // MARK: - Private: Grid Calculation
@@ -298,20 +278,12 @@ final class CalendarViewModel {
         yearString = snapshot.yearString
         monthRows = snapshot.rows
         monthProgress = snapshot.monthProgress
-        rebuildVisibleMonthSnapshots()
     }
 
     private func updateSelection(date: Date, visibleMonth: Date) {
         selectedDate = calendar.startOfDay(for: date)
         selectedMonth = CalendarViewModel.monthStart(for: visibleMonth, calendar: calendar)
         calculateMonthData()
-    }
-
-    private func clampedDate(day: Int, in month: Date) -> Date? {
-        guard let range = calendar.range(of: .day, in: .month, for: month) else { return nil }
-        var components = calendar.dateComponents([.year, .month], from: month)
-        components.day = min(day, range.count)
-        return calendar.date(from: components)
     }
 
     private static func monthStart(for date: Date, calendar: Calendar) -> Date {
@@ -354,20 +326,6 @@ final class CalendarViewModel {
         return cacheEntry
     }
 
-    private func rebuildVisibleMonthSnapshots() {
-        visibleMonthSnapshots = [-1, 0, 1].map { offset in
-            let visibleMonth: Date
-            if offset == 0 {
-                visibleMonth = selectedMonth
-            } else {
-                visibleMonth = calendar.date(byAdding: .month, value: offset, to: selectedMonth) ?? selectedMonth
-            }
-
-            let monthAnchor = CalendarViewModel.monthStart(for: visibleMonth, calendar: calendar)
-            return snapshot(for: monthAnchor, selectedDate: selectedDate)
-        }
-    }
-
     private func snapshot(for visibleMonth: Date, selectedDate: Date) -> MonthSnapshot {
         let monthAnchor = CalendarViewModel.monthStart(for: visibleMonth, calendar: calendar)
         let cachedGrid = cachedMonthGrid(for: monthAnchor)
@@ -407,6 +365,7 @@ final class CalendarViewModel {
         let monthDates = range.compactMap { value -> Date? in
             calendar.date(byAdding: .day, value: value - 1, to: monthAnchor)
         }
+        let todayKey = Self.logFormatter.string(from: calendar.startOfDay(for: Date()))
 
         guard let firstDate = monthDates.first, let lastDate = monthDates.last else {
             return []
@@ -416,21 +375,25 @@ final class CalendarViewModel {
         let leadingPadding = (firstWeekday - calendar.firstWeekday + 7) % 7
         for index in Array(0..<leadingPadding).reversed() {
             if let date = calendar.date(byAdding: .day, value: -index - 1, to: firstDate) {
+                let dateString = Self.logFormatter.string(from: date)
                 days.append(Day(
                     shortSymbol: localizedDaySymbol(for: date),
                     date: date,
-                    dateString: Self.logFormatter.string(from: date),
-                    ignored: true
+                    dateString: dateString,
+                    ignored: true,
+                    isToday: dateString == todayKey
                 ))
             }
         }
 
         for date in monthDates {
+            let dateString = Self.logFormatter.string(from: date)
             days.append(Day(
                 shortSymbol: localizedDaySymbol(for: date),
                 date: date,
-                dateString: Self.logFormatter.string(from: date),
-                ignored: false
+                dateString: dateString,
+                ignored: false,
+                isToday: dateString == todayKey
             ))
         }
 
@@ -438,11 +401,13 @@ final class CalendarViewModel {
         if trailingPadding > 0 {
             for index in 0..<trailingPadding {
                 if let date = calendar.date(byAdding: .day, value: index + 1, to: lastDate) {
+                    let dateString = Self.logFormatter.string(from: date)
                     days.append(Day(
                         shortSymbol: localizedDaySymbol(for: date),
                         date: date,
-                        dateString: Self.logFormatter.string(from: date),
-                        ignored: true
+                        dateString: dateString,
+                        ignored: true,
+                        isToday: dateString == todayKey
                     ))
                 }
             }
@@ -459,6 +424,13 @@ final class CalendarViewModel {
         presentationLocaleIdentifier = localeIdentifier
         monthGridCache.removeAll(keepingCapacity: true)
         calendar.locale = resolvedLocale
+        orderedWeekdaySymbols = CalendarViewModel.orderedWeekdaySymbols(for: calendar)
+    }
+
+    private static func orderedWeekdaySymbols(for calendar: Calendar) -> [String] {
+        let symbols = calendar.shortWeekdaySymbols
+        let startIndex = max(calendar.firstWeekday - 1, 0)
+        return Array(symbols[startIndex...]) + Array(symbols[..<startIndex])
     }
 
     private func localizedMonthString(for date: Date) -> String {

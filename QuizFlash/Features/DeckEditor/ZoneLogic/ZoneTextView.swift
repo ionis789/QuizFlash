@@ -245,8 +245,8 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             if let zoneID = notification.object as? UUID,
                let self = self,
                self.zoneID == zoneID {
-                // Prevent glitch: only bring focus if not already here
                 if !(self.textView?.isFirstResponder ?? false) {
+                    self.postWillFocusNotification(for: zoneID)
                     let didFocus = self.textView?.becomeFirstResponder() ?? false
                     if !didFocus {
                         Task { @MainActor in
@@ -257,10 +257,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                     }
                     Task { @MainActor in
                         ZoneEditorDebugStore.shared.recordFocusEvent("focus notification becameFR", zoneID: zoneID)
+                        ZoneFocusManager.shared.completeFocus(for: zoneID)
                     }
                 } else {
                     Task { @MainActor in
                         ZoneEditorDebugStore.shared.recordFocusEvent("focus notification alreadyFR", zoneID: zoneID)
+                        ZoneFocusManager.shared.completeFocus(for: zoneID)
                     }
                 }
             }
@@ -308,6 +310,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     static let selectionCollapseTapRecognizerName = "ZoneTextViewSelectionCollapseTapRecognizer"
     static let doubleTapPassthroughRecognizerName = "ZoneTextViewDoubleTapPassthroughRecognizer"
 
+    func textViewShouldBeginEditing(_ textView: UITextView) -> Bool {
+        if let zoneID {
+            postWillFocusNotification(for: zoneID)
+        }
+        return true
+    }
+
     func textViewDidChange(_ textView: UITextView) {
         normalizePlaceholderIfNeeded(in: textView)
         guard let displayText = textView.text else { return }
@@ -343,6 +352,11 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     
     func textViewDidBeginEditing(_ textView: UITextView) {
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didBegin", zoneID: zoneID)
+        if let zoneID {
+            Task { @MainActor in
+                ZoneFocusManager.shared.completeFocus(for: zoneID)
+            }
+        }
         onFocusChange?(true)
         rememberAcceptedText(
             ZoneTextViewEmptyCaret.modelText(from: textView.text ?? ""),
@@ -355,6 +369,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     func textViewDidEndEditing(_ textView: UITextView) {
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didEnd", zoneID: zoneID)
         onFocusChange?(false)
+    }
+
+    private func postWillFocusNotification(for zoneID: UUID) {
+        NotificationCenter.default.post(
+            name: .zoneEditorWillFocusTextView,
+            object: zoneID
+        )
     }
     
     private func reportCursorPosition(
@@ -685,12 +706,30 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     }
     
     private func syncFocus(textView: UITextView, isFirstResponder: Bool, context: Context) {
-        // Removed glitch: Don't force "becomeFirstResponder" from SwiftUI to UIKit here.
-        // This is done asynchronously via Notification (see Coordinator init).
-        // We ONLY execute resignFirstResponder if no other zone intentionally took focus.
+        if isFirstResponder && !textView.isFirstResponder {
+            DispatchQueue.main.async {
+                let manager = ZoneFocusManager.shared
+                guard manager.focusedZoneID == self.zoneID || manager.pendingFocusZoneID == self.zoneID else {
+                    return
+                }
+                NotificationCenter.default.post(
+                    name: .zoneEditorWillFocusTextView,
+                    object: self.zoneID
+                )
+                _ = textView.becomeFirstResponder()
+            }
+            return
+        }
+
         if !isFirstResponder && textView.isFirstResponder {
             DispatchQueue.main.async {
-                if ZoneFocusManager.shared.focusedZoneID != self.zoneID {
+                let manager = ZoneFocusManager.shared
+                guard !manager.shouldRetainKeyboard,
+                      manager.focusedZoneID != self.zoneID,
+                      manager.pendingFocusZoneID != self.zoneID else {
+                    return
+                }
+                if manager.focusedZoneID != self.zoneID {
                     textView.resignFirstResponder()
                 }
             }

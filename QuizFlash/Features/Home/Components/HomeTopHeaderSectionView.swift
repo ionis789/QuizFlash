@@ -300,19 +300,10 @@ private struct HomeTopHeaderStatLine: View {
 
 /// Left-side calendar column used by the coordinated iPad Home header.
 private struct HomePadCalendarColumnView: View {
-    @Environment(AppPreferences.self) private var appPreferences
-
     let calendarVM: CalendarViewModel
     let layout: HomeCalendarAdaptiveLayout
     let calendarInsightsCache: [String: HomeCalendarDayInsight]
     let headerState: HomeTopHeaderLayoutState
-
-    private var weekdaySymbols: [String] {
-        let calendar = appPreferences.resolvedCalendar
-        let symbols = calendar.shortWeekdaySymbols
-        let startIndex = max(calendar.firstWeekday - 1, 0)
-        return Array(symbols[startIndex...]) + Array(symbols[..<startIndex])
-    }
 
     private var compactWeekPages: [[Day]] {
         calendarVM.monthRows
@@ -402,7 +393,7 @@ private struct HomePadCalendarColumnView: View {
 
     private var weekdayLabels: some View {
         HStack(spacing: 0) {
-            ForEach(weekdaySymbols, id: \.self) { symbol in
+            ForEach(calendarVM.orderedWeekdaySymbols, id: \.self) { symbol in
                 Text(symbol)
                     .font(.system(size: headerState.calendarState.weekdayFontSize, weight: .bold, design: .rounded))
                     .frame(width: headerState.calendarState.dayColumnWidth)

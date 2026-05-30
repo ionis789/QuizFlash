@@ -235,10 +235,10 @@ extension DeckWorkspaceView {
                     .foregroundStyle(accent)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(localized("Save to"))
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
+//                    Text(localized("Save to"))
+//                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+//                        .foregroundStyle(.secondary)
+//                        .textCase(.uppercase)
 
                     Text(destinationTitle)
                         .font(.system(size: 17, weight: .bold, design: .rounded))

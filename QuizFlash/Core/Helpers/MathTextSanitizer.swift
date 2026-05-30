@@ -168,6 +168,21 @@ struct MathTextSanitizer {
         )
     }
 
+    /// Removes a single terminal period without changing author-entered spacing.
+    nonisolated static func stripTerminalZonePeriodPreservingWhitespace(_ input: String) -> String {
+        guard
+            let regex = try? NSRegularExpression(pattern: #"(?<!\.)\.(?=\s*$)"#)
+        else {
+            return input
+        }
+
+        return regex.stringByReplacingMatches(
+            in: input,
+            range: NSRange(input.startIndex..., in: input),
+            withTemplate: ""
+        )
+    }
+
     /// Returns true if rich rendering would materially improve this string.
     nonisolated static func needsRichPreview(_ input: String) -> Bool {
         let healed = heal(input)
@@ -184,7 +199,7 @@ struct MathTextSanitizer {
     }
 
     nonisolated static func containsInlineCode(_ text: String) -> Bool {
-        let pattern = "`[^`\n]+`"
+        let pattern = "`[^`]+`"
         return (try? NSRegularExpression(pattern: pattern))
             .map { $0.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil }
             ?? false

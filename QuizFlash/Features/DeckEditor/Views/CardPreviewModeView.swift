@@ -135,6 +135,14 @@ struct CardPreviewModeView: View {
                     CardPreviewModeBackground().ignoresSafeArea()
                 }
 
+                if isFlashcardSheetPresentation {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            handleDone()
+                        }
+                }
+
                 previewSurface(
                     previewCardMaxWidth: previewCardMaxWidth,
                     previewCardHeight: previewCardHeight,

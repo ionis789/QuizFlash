@@ -19,11 +19,14 @@ struct HomeDashboardView: View {
     // MARK: - Dependencies
 
     let viewModel: HomeViewModel
-    let folders: [FolderModel]
-    let recentDecks: [DeckModel]
+    let folderSnapshots: [HomeFolderSnapshot]
+    let recentDeckSnapshots: [LibraryDeckRowSnapshot]
     let layoutContext: HomeAdaptiveLayoutContext
     let allDeckCount: Int
-    let router: NavigationManager
+    let onOpenDeck: (PersistentIdentifier) -> Void
+    let onOpenFolder: (PersistentIdentifier) -> Void
+    let onCreateFolder: () -> Void
+    let onCreateDeck: () -> Void
 
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
@@ -32,10 +35,6 @@ struct HomeDashboardView: View {
 
     private var dashboardSnapshot: HomeDashboardSnapshot {
         viewModel.dashboardSnapshot
-    }
-
-    private var recentDeckSnapshots: [LibraryDeckRowSnapshot] {
-        LibraryGrouping.makeDeckSnapshots(from: recentDecks)
     }
 
     private var accentColor: Color {
@@ -107,7 +106,7 @@ struct HomeDashboardView: View {
     }
 
     private var showsLibrarySection: Bool {
-        !recentDecks.isEmpty || !folders.isEmpty || (!showsWorkspaceOnboarding && allDeckCount > 0)
+        !recentDeckSnapshots.isEmpty || !folderSnapshots.isEmpty || (!showsWorkspaceOnboarding && allDeckCount > 0)
     }
 
     private var sectionSpacing: CGFloat {
@@ -162,15 +161,6 @@ struct HomeDashboardView: View {
         } else {
             content
         }
-    }
-
-    private func openDeck(_ deckID: PersistentIdentifier) {
-        router.append(
-            DeckNavigationValue(
-                deckID: deckID,
-                backLabel: router.activeTab.localizedTitle(locale: appPreferences.resolvedLocale)
-            )
-        )
     }
 
     // MARK: - Study
@@ -362,14 +352,14 @@ struct HomeDashboardView: View {
         Group {
             if usesDashboardColumns {
                 HStack(alignment: .top, spacing: 14) {
-                    if !recentDecks.isEmpty {
+                    if !recentDeckSnapshots.isEmpty {
                         recentDecksSection
                     }
                     foldersSection
                 }
             } else {
                 VStack(alignment: .leading, spacing: 18) {
-                    if !recentDecks.isEmpty {
+                    if !recentDeckSnapshots.isEmpty {
                         recentDecksSection
                     }
                     foldersSection
@@ -395,7 +385,7 @@ struct HomeDashboardView: View {
                     snapshot: deck,
                     usesRegularMetrics: usesRegularMetrics
                 ) {
-                    openDeck(deck.id)
+                    onOpenDeck(deck.id)
                 }
             }
         }
@@ -405,10 +395,10 @@ struct HomeDashboardView: View {
         VStack(alignment: .leading, spacing: 14) {
             HomeDashboardSectionHeader(
                 title: localized("Folders"),
-                count: folders.count,
+                count: folderSnapshots.count,
                 trailingAccessory: {
                     Button {
-                        viewModel.showCreateFolder = true
+                        onCreateFolder()
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: UIConstants.Size.iconStandard, weight: .bold))
@@ -424,7 +414,7 @@ struct HomeDashboardView: View {
 
     private var foldersSurface: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if folders.isEmpty {
+            if folderSnapshots.isEmpty {
                 HomeDashboardSurface(highlight: dangerColor, usesRegularMetrics: usesRegularMetrics) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(localized("No folders yet"))
@@ -437,14 +427,9 @@ struct HomeDashboardView: View {
                     }
                 }
             } else {
-                ForEach(folders, id: \.persistentModelID) { folder in
-                    HomeDashboardFolderCard(folder: folder, usesRegularMetrics: usesRegularMetrics) {
-                        router.append(
-                            AppRoute.folder(
-                                folder,
-                                backLabel: router.activeTab.localizedTitle(locale: appPreferences.resolvedLocale)
-                            )
-                        )
+                ForEach(folderSnapshots) { folder in
+                    HomeDashboardFolderCard(snapshot: folder, usesRegularMetrics: usesRegularMetrics) {
+                        onOpenFolder(folder.id)
                     }
                 }
             }
@@ -479,7 +464,7 @@ struct HomeDashboardView: View {
                     .foregroundStyle(.primary)
 
                 Button(localized("Open Create")) {
-                    router.activeTab = .create
+                    onCreateDeck()
                 }
                 .font(.subheadline.weight(.bold))
                 .quizFlashButtonStyle(.primary)
@@ -511,6 +496,15 @@ struct HomeDashboardView: View {
             }
         }
     }
+}
+
+// MARK: - Folder Snapshot
+
+struct HomeFolderSnapshot: Identifiable, Equatable {
+    let id: PersistentIdentifier
+    let title: String
+    let colorHex: String
+    let deckCount: Int
 }
 
 // MARK: - Section Header
@@ -1399,12 +1393,12 @@ private struct HomeDashboardFolderCard: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
-    let folder: FolderModel
+    let snapshot: HomeFolderSnapshot
     let usesRegularMetrics: Bool
     let action: () -> Void
 
     private var folderColor: Color {
-        Color(hex: folder.colorHex) ?? themeManager.brandPrimary
+        Color(hex: snapshot.colorHex) ?? themeManager.brandPrimary
     }
 
     var body: some View {
@@ -1420,14 +1414,14 @@ private struct HomeDashboardFolderCard: View {
                     }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(folder.title)
+                    Text(snapshot.title)
                         .font(.system(size: usesRegularMetrics ? 20 : 18, weight: .bold, design: .rounded))
                         .foregroundStyle(themeManager.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text(
                         AppLocalization.numbered(
-                            folder.deckCount,
+                            snapshot.deckCount,
                             singular: "%d deck",
                             plural: "%d decks",
                             locale: appPreferences.resolvedLocale

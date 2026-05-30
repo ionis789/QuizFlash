@@ -32,11 +32,14 @@ struct FlashcardEditorView: View {
     @State private var highlightContext: HighlightContext?
     @State private var frontZoneContent: ZoneCardContent
     @State private var backZoneContent: ZoneCardContent
+    @State private var initialFrontZone: ZoneModel
+    @State private var initialBackZone: ZoneModel
     @State private var activeSide = 0
-    @State private var selectedPath: ZonePath? = .root
-    @State private var focusSnapshot = FocusStateSnapshot()
+    @State private var frontSelectedPath: ZonePath? = .root
+    @State private var backSelectedPath: ZonePath? = .root
     @State private var showSketchModal = false
     @State private var showPreview = false
+    @State private var showUnsavedChangesDialog = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var isPhotoPickerPresented = false
     @State private var scheduledFocusTask: Task<Void, Never>?
@@ -49,19 +52,79 @@ struct FlashcardEditorView: View {
     @State private var floatingFormatBarPresentationTask: Task<Void, Never>?
     @State private var keyboardDebugRevision = 0
     @State private var toolbarVisibilityDebugRevision = 0
+    @State private var editorScrollOffsetY: CGFloat = 0
 
 
     // Visual-only ghost preview. The model changes only after the user commits.
     @State private var previewDirection: AddDirection? = nil
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
+    private var successAccent: Color { ThemeManager.shared.successPrimary }
+    private var topChromeUtilityFill: Color { Color(uiColor: .secondarySystemFill) }
+    private var topChromeUtilityBorder: Color { Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.10) }
+    private var topChromeUtilityForeground: Color { accent }
+    private var topChromeDisabledFill: Color { Color(uiColor: .tertiarySystemFill) }
     private var currentContent: ZoneCardContent { activeSide == 0 ? frontZoneContent : backZoneContent }
-    private var canSave: Bool { frontZoneContent.hasContent || backZoneContent.hasContent }
+    private var selectedPath: ZonePath? {
+        get { activeSide == 0 ? frontSelectedPath : backSelectedPath }
+        nonmutating set {
+            if activeSide == 0 {
+                frontSelectedPath = newValue
+            } else {
+                backSelectedPath = newValue
+            }
+        }
+    }
+    private var frontSelectedPathBinding: Binding<ZonePath?> {
+        Binding(
+            get: { frontSelectedPath },
+            set: { frontSelectedPath = $0 }
+        )
+    }
+    private var backSelectedPathBinding: Binding<ZonePath?> {
+        Binding(
+            get: { backSelectedPath },
+            set: { backSelectedPath = $0 }
+        )
+    }
+    private var selectedPathBinding: Binding<ZonePath?> {
+        activeSide == 0 ? frontSelectedPathBinding : backSelectedPathBinding
+    }
+    private var hasSavableContent: Bool { frontZoneContent.hasContent || backZoneContent.hasContent }
+    private var hasUnsavedChanges: Bool {
+        frontZoneContent.rootZone != initialFrontZone || backZoneContent.rootZone != initialBackZone
+    }
+    private var canSave: Bool { hasUnsavedChanges && hasSavableContent }
     private var locale: Locale { appPreferences.resolvedLocale }
     private var isCompact: Bool { horizontalSizeClass == .compact }
-    private var topChromeActionSize: CGFloat { isCompact ? 40 : 44 }
     private var topChromeHorizontalInset: CGFloat {
         isCompact ? UIConstants.Layout.compactScreenEdgeInset : UIConstants.Layout.screenEdgeInset
+    }
+    private var topChromeReservedHeight: CGFloat {
+        UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton
+    }
+    private func editorTopBlurHeight(safeTopInset: CGFloat) -> CGFloat {
+        safeTopInset + topChromeReservedHeight
+    }
+
+    private func editorBottomBlurHeight(safeBottomInset: CGFloat) -> CGFloat {
+        safeBottomInset
+    }
+
+    private func editorTopContentInset(safeTopInset: CGFloat) -> CGFloat {
+        safeTopInset + topChromeReservedHeight + UIConstants.Spacing.medium
+    }
+    private var sideSwitchWidth: CGFloat {
+        UIConstants.Size.actionButton * 2
+    }
+    private var sideSwitchSegmentWidth: CGFloat {
+        (sideSwitchWidth - UIConstants.Spacing.standard * 2 - UIConstants.Spacing.medium) / 2
+    }
+    private var sideSwitchIndicatorWidth: CGFloat { 16 }
+    private var sideSwitchIndicatorX: CGFloat {
+        let baseX = UIConstants.Spacing.standard + (sideSwitchSegmentWidth - sideSwitchIndicatorWidth) / 2
+        guard activeSide == 1 else { return baseX }
+        return baseX + sideSwitchSegmentWidth + UIConstants.Spacing.medium
     }
     private var editorTextScale: CGFloat {
         CGFloat(textSize.playModeScale) * appPreferences.cardContentFontScale
@@ -71,6 +134,23 @@ struct FlashcardEditorView: View {
     }
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
+    }
+
+    private static func initialSelectedPath(in zone: ZoneModel) -> ZonePath {
+        firstLeafPath(in: zone, currentPath: .root) ?? .root
+    }
+
+    private static func firstLeafPath(in zone: ZoneModel, currentPath: ZonePath) -> ZonePath? {
+        guard !zone.isLeaf else { return currentPath }
+        guard let children = zone.children else { return nil }
+
+        for (index, child) in children.enumerated() {
+            if let path = firstLeafPath(in: child, currentPath: currentPath.appending(index)) {
+                return path
+            }
+        }
+
+        return nil
     }
 
     private var focusManager = ZoneFocusManager.shared
@@ -92,8 +172,14 @@ struct FlashcardEditorView: View {
         self.onSaveZones = onSave
         self.contentAlignment = contentAlignment
         self.textSize = textSize
-        _frontZoneContent = State(initialValue: ZoneCardContent(rootZone: .text()))
-        _backZoneContent = State(initialValue: ZoneCardContent(rootZone: .text()))
+        let frontContent = ZoneCardContent(rootZone: .text(), stableAuthoringRoot: true)
+        let backContent = ZoneCardContent(rootZone: .text(), stableAuthoringRoot: true)
+        _frontZoneContent = State(initialValue: frontContent)
+        _backZoneContent = State(initialValue: backContent)
+        _initialFrontZone = State(initialValue: frontContent.rootZone)
+        _initialBackZone = State(initialValue: backContent.rootZone)
+        _frontSelectedPath = State(initialValue: Self.initialSelectedPath(in: frontContent.rootZone))
+        _backSelectedPath = State(initialValue: Self.initialSelectedPath(in: backContent.rootZone))
        
         if let query = searchQuery, !query.trimmingCharacters(in: .whitespaces).isEmpty {
             _highlightContext = State(initialValue: HighlightContext(query: query))
@@ -115,8 +201,14 @@ struct FlashcardEditorView: View {
         self.onSaveZones = onSave
         self.contentAlignment = contentAlignment
         self.textSize = textSize
-        _frontZoneContent = State(initialValue: ZoneCardContent(rootZone: frontZone))
-        _backZoneContent = State(initialValue: ZoneCardContent(rootZone: backZone))
+        let frontContent = ZoneCardContent(rootZone: frontZone, stableAuthoringRoot: true)
+        let backContent = ZoneCardContent(rootZone: backZone, stableAuthoringRoot: true)
+        _frontZoneContent = State(initialValue: frontContent)
+        _backZoneContent = State(initialValue: backContent)
+        _initialFrontZone = State(initialValue: frontContent.rootZone)
+        _initialBackZone = State(initialValue: backContent.rootZone)
+        _frontSelectedPath = State(initialValue: Self.initialSelectedPath(in: frontContent.rootZone))
+        _backSelectedPath = State(initialValue: Self.initialSelectedPath(in: backContent.rootZone))
 
         if let query = searchQuery, !query.trimmingCharacters(in: .whitespaces).isEmpty {
             _highlightContext = State(initialValue: HighlightContext(query: query))
@@ -129,17 +221,29 @@ struct FlashcardEditorView: View {
     // MARK: - Body
 
     var body: some View {
-        ZStack(alignment: .top) {
-            editorBackground.ignoresSafeArea()
+        GeometryReader { proxy in
+            let safeTopInset = proxy.safeAreaInsets.top
+            let safeBottomInset = proxy.safeAreaInsets.bottom
 
-            VStack(spacing: UIConstants.Spacing.small) {
+            ZStack(alignment: .top) {
+                editorBackground.ignoresSafeArea()
+
+                editorArea(safeTopInset: safeTopInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .ignoresSafeArea(.container, edges: .vertical)
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
+                    .screenEdgeShadow(
+                        topHeight: editorTopBlurHeight(safeTopInset: safeTopInset),
+                        bottomHeight: editorBottomBlurHeight(safeBottomInset: safeBottomInset),
+                        debugScreenID: "flashcard.editor",
+                        style: .progressiveBlur()
+                    )
+
                 topChrome
-                editorArea
+                    .zIndex(20)
+                floatingFormatBar
+                floatingFormatBarDebugOverlay
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-
-            floatingFormatBar
-            floatingFormatBarDebugOverlay
         }
         .toolbar(.hidden, for: .navigationBar)
         .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhoto, matching: .images)
@@ -178,9 +282,24 @@ struct FlashcardEditorView: View {
         } message: {
             Text(saveErrorMessage.isEmpty ? localized("Your card changes couldn't be saved right now.") : saveErrorMessage)
         }
+        .confirmationDialog(
+            localized("Save changes before leaving?"),
+            isPresented: $showUnsavedChangesDialog,
+            titleVisibility: .visible
+        ) {
+            if canSave {
+                Button(localized("Save Changes")) {
+                    saveCard()
+                }
+            }
+            Button(localized("Discard Changes"), role: .destructive) {
+                closeEditorDiscardingChanges()
+            }
+            Button(localized("Cancel"), role: .cancel) { }
+        }
         .onAppear {
             if selectedPath == nil {
-                selectedPath = .root
+                selectedPath = Self.initialSelectedPath(in: currentContent.rootZone)
             }
             focusManager.forceReleaseKeyboard()
         }
@@ -395,8 +514,24 @@ struct FlashcardEditorView: View {
             onSketch: {
                 showSketchModal = true
             },
-            canPreview: canSave,
+            onSetAutoSize: {
+                setSelectedZoneAutoSize(at: path)
+            },
+            onSetFillWidth: {
+                setSelectedZoneFillWidth(at: path)
+            },
+            onSetBlockAlignment: { alignment in
+                setSelectedZoneBlockAlignment(alignment, at: path)
+            },
+            onDuplicateZone: {
+                duplicateSelectedZone()
+            },
+            onDeleteZone: {
+                deleteSelectedZone(at: path)
+            },
+            canPreview: hasSavableContent,
             showsPrimaryActions: false,
+            showsZoneActions: true,
             onPreview: {
                 openPreview()
             },
@@ -407,22 +542,40 @@ struct FlashcardEditorView: View {
         )
     }
 
-    private var editorArea: some View {
+    private func editorArea(safeTopInset: CGFloat) -> some View {
         ZoneEditorCanvas(
             content: currentContent,
-            selectedPath: $selectedPath,
+            selectedPath: selectedPathBinding,
             previewDirection: $previewDirection,
             highlightContext: highlightContext,
             fontScale: editorTextScale,
             verticalAlignmentFallback: verticalAlignmentFallback,
+            topContentInset: editorTopContentInset(safeTopInset: safeTopInset),
             bottomAccessoryHeight: floatingToolbarAccessoryHeight,
             bottomAccessoryTopY: keyboardMonitor.isVisible ? floatingFormatBarRenderedTopY : nil,
+            scrollResetToken: activeSide,
+            onScrollOffsetChange: handleEditorScrollOffsetChange,
             onEmptySpaceTap: handleCanvasEmptySpaceTap
         )
     }
 
+    private func handleEditorScrollOffsetChange(_ offsetY: CGFloat) {
+        guard abs(editorScrollOffsetY - offsetY) > 1 else { return }
+        withTransaction(Transaction(animation: nil)) {
+            editorScrollOffsetY = offsetY
+        }
+    }
+
     private func handleCanvasEmptySpaceTap(_ context: ZoneEditorCanvasTapContext) {
         focusManager.prepareForZoneInsertion()
+
+        if !currentContent.rootZone.hasContent,
+           let emptyPath = firstEditableLeafPath(in: currentContent.rootZone),
+           let emptyZone = currentContent.zone(at: emptyPath) {
+            selectedPath = emptyPath
+            focusManager.requestFocus(for: emptyZone.id)
+            return
+        }
 
         if !currentContent.rootZone.hasContent, currentContent.rootZone.isLeaf {
             selectedPath = .root
@@ -432,10 +585,7 @@ struct FlashcardEditorView: View {
                 zone.blockAlignment = .auto
                 zone.textAlignment = .leading
             }
-            scheduleFocusAction(after: .milliseconds(80)) {
-                focusManager.requestFocus(for: currentContent.rootZone.id)
-                focusManager.releaseKeyboardRetention(afterDelay: 0.1)
-            }
+            focusManager.requestFocus(for: currentContent.rootZone.id)
             return
         }
 
@@ -447,10 +597,7 @@ struct FlashcardEditorView: View {
         ),
            let emptyZone = currentContent.zone(at: emptyPath) {
             selectedPath = emptyPath
-            scheduleFocusAction(after: .milliseconds(80)) {
-                focusManager.requestFocus(for: emptyZone.id)
-                focusManager.releaseKeyboardRetention(afterDelay: 0.1)
-            }
+            focusManager.requestFocus(for: emptyZone.id)
             return
         }
 
@@ -502,32 +649,37 @@ struct FlashcardEditorView: View {
             return false
         }
 
-        return zone.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return zone.text.isEmpty
     }
 
-    private func insertZoneFromToolbar(relativeTo path: ZonePath, direction: AddDirection) {
-        focusManager.prepareForZoneInsertion()
-
-        if let emptyPath = blockingEmptyTextZonePath(relativeTo: path, direction: direction),
-           let emptyZone = currentContent.zone(at: emptyPath) {
-            selectedPath = emptyPath
-            scheduleFocusAction(after: .milliseconds(80)) {
-                focusManager.requestFocus(for: emptyZone.id)
-                focusManager.releaseKeyboardRetention(afterDelay: 0.1)
+    private func firstEditableLeafPath(
+        in zone: ZoneModel,
+        currentPath: ZonePath = .root
+    ) -> ZonePath? {
+        if zone.isLeaf {
+            switch zone.contentType {
+            case .empty, .text, .code:
+                return currentPath
+            case .image, .sketch:
+                return nil
             }
-            return
         }
 
-        insertTextZoneWithFocus(relativeTo: path, direction: direction)
+        guard let children = zone.children else { return nil }
+        for (index, child) in children.enumerated() {
+            if let path = firstEditableLeafPath(in: child, currentPath: currentPath.appending(index)) {
+                return path
+            }
+        }
+
+        return nil
     }
 
     private func setSelectedZoneAutoSize(at path: ZonePath) {
         selectedPath = path
         currentContent.updateZone(at: path) {
             $0.sizeMode = .auto
-            if $0.blockAlignment == .center {
-                $0.blockAlignment = .auto
-            }
+            $0.blockAlignment = .auto
             $0.fixedWidth = nil
             $0.fixedHeight = nil
         }
@@ -560,12 +712,6 @@ struct FlashcardEditorView: View {
                 $0.fixedHeight = nil
             }
             $0.blockAlignment = alignment
-        }
-    }
-
-    private func setCardVerticalAlignment(_ alignment: ZoneVerticalAlignment) {
-        currentContent.updateZone(at: .root) {
-            $0.verticalAlignment = alignment
         }
     }
 
@@ -606,20 +752,19 @@ struct FlashcardEditorView: View {
     private func insertTextZoneWithFocus(relativeTo path: ZonePath?, direction: AddDirection) {
         var newZoneID: UUID?
 
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
             newZoneID = currentContent.addTextZone(relativeTo: path, direction: direction)
             if let newID = newZoneID, let newPath = findPath(for: newID, in: currentContent.rootZone) {
                 selectedPath = newPath
             }
         }
 
-        scheduleFocusAction(after: .milliseconds(150)) {
-            if let id = newZoneID {
-                focusManager.requestFocus(for: id)
-            }
-            focusManager.releaseKeyboardRetention(afterDelay: 0.1)
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        if let id = newZoneID {
+            focusManager.requestFocus(for: id)
         }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 
     private func scheduleFocusAction(after delay: Duration, _ action: @escaping @MainActor () -> Void) {
@@ -639,13 +784,8 @@ struct FlashcardEditorView: View {
     }
 
     private var topChrome: some View {
-        HStack(alignment: .center, spacing: 8) {
-            ChromeSoftCircleSymbolButton(
-                systemName: "xmark",
-                accessibilityLabel: localized("Cancel"),
-                action: closeEditor,
-                size: topChromeActionSize
-            )
+        HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
+            closeTopButton
 
             Spacer(minLength: 0)
 
@@ -653,29 +793,13 @@ struct FlashcardEditorView: View {
 
             Spacer(minLength: 0)
 
-            Button(action: openPreview) {
-                ChromeSoftCircleSymbol(
-                    systemName: "eye",
-                    size: topChromeActionSize,
-                    symbolSize: 18,
-                    tint: canSave ? nil : .secondary,
-                    backgroundTint: Color(uiColor: .tertiarySystemFill)
-                )
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSave)
-            .opacity(canSave ? 1 : 0.55)
-            .accessibilityLabel(localized("Preview"))
-
-            topOptionsMenu
-
             Button(action: saveCard) {
                 ChromeSoftCircleSymbol(
                     systemName: "checkmark",
-                    size: topChromeActionSize,
-                    symbolSize: 21,
-                    tint: canSave ? .white : .secondary,
-                    backgroundTint: canSave ? accent : Color(uiColor: .tertiarySystemFill)
+                    size: UIConstants.Size.actionButton,
+                    symbolSize: UIConstants.Size.navigationChromeIcon,
+                    tint: canSave ? Color.black.opacity(0.78) : .secondary,
+                    backgroundTint: canSave ? successAccent : topChromeDisabledFill
                 )
             }
             .buttonStyle(.plain)
@@ -686,245 +810,75 @@ struct FlashcardEditorView: View {
         .topNavigationChrome(horizontalInset: topChromeHorizontalInset)
     }
 
-    @ViewBuilder
-    private var topOptionsMenu: some View {
-        if let path = formatBarPath {
-            Menu {
-                Section {
-                    Button {
-                        setCardVerticalAlignment(.top)
-                    } label: {
-                        optionsMenuRow(
-                            title: localized("Align Top"),
-                            systemImage: "align.vertical.top",
-                            isSelected: resolvedVerticalAlignment == .top
-                        )
-                    }
-
-                    Button {
-                        setCardVerticalAlignment(.center)
-                    } label: {
-                        optionsMenuRow(
-                            title: localized("Align Middle"),
-                            systemImage: "align.vertical.center",
-                            isSelected: resolvedVerticalAlignment == .center
-                        )
-                    }
-
-                    Button {
-                        setCardVerticalAlignment(.bottom)
-                    } label: {
-                        optionsMenuRow(
-                            title: localized("Align Bottom"),
-                            systemImage: "align.vertical.bottom",
-                            isSelected: resolvedVerticalAlignment == .bottom
-                        )
-                    }
-                }
-
-                Section {
-                    Button {
-                        setSelectedZoneAutoSize(at: path)
-                    } label: {
-                        optionsMenuRow(
-                            title: localized("Auto Size"),
-                            systemImage: "arrow.up.left.and.down.right.magnifyingglass",
-                            isSelected: currentContent.zone(at: path)?.sizeMode == .auto
-                        )
-                    }
-
-                    Button {
-                        setSelectedZoneFillWidth(at: path)
-                    } label: {
-                        optionsMenuRow(
-                            title: localized("Fill Width"),
-                            systemImage: "arrow.left.and.right",
-                            isSelected: currentContent.zone(at: path)?.sizeMode == .fillWidth
-                        )
-                    }
-
-                    if currentContent.zone(at: path)?.sizeMode == .fixed {
-                        Button { } label: {
-                            optionsMenuRow(
-                                title: localized("Fixed Size"),
-                                systemImage: "rectangle.resize",
-                                isSelected: true
-                            )
-                        }
-                        .disabled(true)
-                    }
-                }
-
-                Section {
-                    Button {
-                        setSelectedZoneBlockAlignment(.auto, at: path)
-                    } label: {
-                        optionsMenuRow(
-                            title: localized("Auto Block"),
-                            systemImage: "sparkles",
-                            isSelected: isSelectedZoneAutoBlock(at: path)
-                        )
-                    }
-
-                    Button {
-                        setSelectedZoneBlockAlignment(.leading, at: path)
-                    } label: {
-                        optionsMenuRow(
-                            title: localized("Block Left"),
-                            systemImage: "rectangle.leadinghalf.inset.filled",
-                            isSelected: currentContent.zone(at: path)?.blockAlignment == .leading
-                        )
-                    }
-
-                    Button {
-                        setSelectedZoneBlockAlignment(.center, at: path)
-                    } label: {
-                        optionsMenuRow(
-                            title: localized("Block Center"),
-                            systemImage: "rectangle.center.inset.filled",
-                            isSelected: currentContent.zone(at: path)?.blockAlignment == .center
-                        )
-                    }
-
-                    Button {
-                        setSelectedZoneBlockAlignment(.trailing, at: path)
-                    } label: {
-                        optionsMenuRow(
-                            title: localized("Block Right"),
-                            systemImage: "rectangle.trailinghalf.inset.filled",
-                            isSelected: currentContent.zone(at: path)?.blockAlignment == .trailing
-                        )
-                    }
-                }
-
-                Section {
-                    Button {
-                        insertZoneFromToolbar(relativeTo: path, direction: .up)
-                    } label: {
-                        Label(localized("Add Zone Above"), systemImage: "plus.rectangle.on.rectangle")
-                    }
-
-                    Button {
-                        insertZoneFromToolbar(relativeTo: path, direction: .down)
-                    } label: {
-                        Label(localized("Add Zone Below"), systemImage: "rectangle.on.rectangle.badge.plus")
-                    }
-
-                    Button {
-                        duplicateSelectedZone()
-                    } label: {
-                        Label(localized("Duplicate"), systemImage: "doc.on.doc")
-                    }
-
-                    Button(role: .destructive) {
-                        deleteSelectedZone(at: path)
-                    } label: {
-                        Label(localized("Delete"), systemImage: "trash")
-                    }
-                }
-
-                Section {
-                    Button {
-                        isPhotoPickerPresented = true
-                    } label: {
-                        Label(localized("Choose Photos"), systemImage: "photo.on.rectangle")
-                    }
-
-                    Button {
-                        showSketchModal = true
-                    } label: {
-                        Label(localized("Sketch"), systemImage: "pencil.and.scribble")
-                    }
-                }
-            } label: {
-                ChromeSoftCircleSymbol(
-                    systemName: "ellipsis",
-                    size: topChromeActionSize,
-                    symbolSize: 19,
-                    backgroundTint: Color(uiColor: .tertiarySystemFill)
-                )
-            }
-            .accessibilityLabel(localized("More Options"))
-        }
-    }
-
-    private var resolvedVerticalAlignment: ZoneVerticalAlignment {
-        currentContent.rootZone.verticalAlignment.resolved(fallback: .center)
-    }
-
-    private func isSelectedZoneAutoBlock(at path: ZonePath) -> Bool {
-        guard let zone = currentContent.zone(at: path) else { return true }
-        return zone.blockAlignment == .auto
-    }
-
-    private func optionsMenuRow(title: String, systemImage: String, isSelected: Bool) -> some View {
-        HStack {
-            Label(title, systemImage: systemImage)
-            if isSelected {
-                Image(systemName: "checkmark")
-            }
-        }
+    private var closeTopButton: some View {
+        ChromeSoftCircleSymbolButton(
+            systemName: "xmark",
+            accessibilityLabel: localized("Close"),
+            action: closeEditor,
+            size: UIConstants.Size.actionButton,
+            symbolSize: UIConstants.Size.navigationChromeIcon,
+            tint: topChromeUtilityForeground,
+            backgroundTint: topChromeUtilityFill
+        )
     }
 
     private var sideSwitch: some View {
         Button {
             toggleActiveSide()
         } label: {
-            HStack(spacing: 8) {
-                Text(activeSideAbbreviation)
-                    .font(.system(size: 15, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-                    .frame(width: 30, height: 30)
-                    .background(accent, in: Circle())
-                    .contentTransition(.opacity)
+            ZStack(alignment: .bottomLeading) {
+                HStack(spacing: UIConstants.Spacing.medium) {
+                    sideSwitchSegment(title: "Q", isSelected: activeSide == 0)
+                    sideSwitchSegment(title: "A", isSelected: activeSide == 1)
+                }
+                .padding(.horizontal, UIConstants.Spacing.standard)
 
-//                Text(activeSideTitle)
-//                    .font(.system(size: 14, weight: .bold, design: .rounded))
-//                    .foregroundStyle(.primary)
-//                    .lineLimit(1)
-//                    .contentTransition(.opacity)
-
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 13, weight: .black))
-                    .foregroundStyle(accent)
-                    .rotationEffect(.degrees(activeSide == 0 ? 0 : 180))
-                    .symbolEffect(.bounce, value: activeSide)
+                Capsule(style: .continuous)
+                    .fill(accent)
+                    .frame(width: sideSwitchIndicatorWidth, height: 3)
+                    .offset(x: sideSwitchIndicatorX, y: -8)
+                    .animation(.tabItemSpring, value: activeSide)
             }
-            .padding(.horizontal, 12)
-            .frame(height: 30)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(colorScheme == .dark ? 0.10 : 0.76))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.10 : 0.45), lineWidth: 0.7)
-            )
+            .frame(width: sideSwitchWidth, height: UIConstants.Size.actionButton)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .animation(.easeInOut(duration: 0.18), value: activeSide)
+        .background(
+            Capsule(style: .continuous)
+                .fill(topChromeUtilityFill)
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(topChromeUtilityBorder, lineWidth: 0.75)
+        )
         .accessibilityLabel(activeSideTitle)
         .accessibilityAddTraits(.isButton)
+    }
+
+    private func sideSwitchSegment(title: String, isSelected: Bool) -> some View {
+        Text(title)
+            .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .black, design: .rounded))
+            .foregroundStyle(Color.primary)
+            .scaleEffect(isSelected ? 1.2 : 0.9)
+            .animation(.tabItemSpring, value: isSelected)
+            .frame(width: sideSwitchSegmentWidth, height: UIConstants.Size.actionButton)
     }
 
     private var activeSideTitle: String {
         activeSide == 0 ? localized("Question") : localized("Answer")
     }
 
-    private var activeSideAbbreviation: String {
-        activeSide == 0 ? "Q" : "A"
-    }
-
     private func toggleActiveSide() {
-        let oldSide = activeSide
         let newSide = activeSide == 0 ? 1 : 0
+        blurEditingBeforeSideSwitch()
         activeSide = newSide
-        handleSideChange(from: oldSide, to: newSide)
+        selectedPath = nil
+        zoneController.setActiveSide(newSide)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     private func openPreview() {
-        guard canSave else { return }
+        guard hasSavableContent else { return }
         focusManager.forceReleaseKeyboard()
         zoneController.forceReleaseKeyboard()
         zoneController.updateFocusedZone(nil)
@@ -934,45 +888,31 @@ struct FlashcardEditorView: View {
     }
 
     private func closeEditor() {
+        guard !hasUnsavedChanges else {
+            focusManager.forceReleaseKeyboard()
+            zoneController.forceReleaseKeyboard()
+            showUnsavedChangesDialog = true
+            return
+        }
+        closeEditorDiscardingChanges()
+    }
+
+    private func closeEditorDiscardingChanges() {
         focusManager.forceReleaseKeyboard()
+        zoneController.forceReleaseKeyboard()
+        lineTracker.clearAll()
+        zoneController.clearHeightCache()
         dismiss()
     }
 
-    // MARK: - Side Change Handling
-
-    private func handleSideChange(from oldSide: Int, to newSide: Int) {
-        if let path = selectedPath, let zone = currentContent.zone(at: path) {
-            focusSnapshot.saveForSide(oldSide, zoneID: zone.id, path: path)
-        }
-
-        focusManager.retainFocusForTransition()
-        zoneController.retainFocusDuringTransition()
-
-        if newSide == 0 {
-            backZoneContent.cleanup()
-        } else {
-            frontZoneContent.cleanup()
-        }
-
-        zoneController.setActiveSide(newSide)
-
-        scheduleFocusAction(after: .milliseconds(150)) {
-            let targetContent = newSide == 0 ? frontZoneContent : backZoneContent
-            let restored = focusSnapshot.restoreForSide(newSide)
-
-            if let zoneID = restored.zoneID,
-                let path = restored.path,
-                targetContent.zone(at: path) != nil {
-                selectedPath = path
-                focusManager.requestFocus(for: zoneID)
-            } else {
-                selectedPath = .root
-                focusManager.requestFocus(for: targetContent.rootZone.id)
-            }
-
-            focusManager.releaseFocusAfterTransition()
-            zoneController.releaseFocusAfterTransition()
-        }
+    private func blurEditingBeforeSideSwitch() {
+        scheduledFocusTask?.cancel()
+        scheduledFocusTask = nil
+        previewDirection = nil
+        selectedPath = nil
+        focusManager.forceReleaseKeyboard()
+        zoneController.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
     }
 
     // MARK: - Zone Operations
@@ -1107,7 +1047,7 @@ struct FlashcardEditorView: View {
     }
 
     private var editorBackground: Color {
-        colorScheme == .dark ? .black : Color(uiColor: .systemGray6)
+        .black
     }
 
 }

@@ -19,7 +19,7 @@ struct ZoneEditorCanvasTapContext {
 
 // MARK: - Zone Editor Canvas
 
-/// A reusable editing canvas that renders a zone tree on a real flashcard surface.
+/// A reusable editing canvas that renders a zone tree on the authoring surface.
 struct ZoneEditorCanvas: View {
     @Bindable var content: ZoneCardContent
     @Binding var selectedPath: ZonePath?
@@ -28,11 +28,13 @@ struct ZoneEditorCanvas: View {
     let highlightContext: HighlightContext?
     let fontScale: CGFloat
     let verticalAlignmentFallback: ZoneVerticalAlignment
+    let topContentInset: CGFloat
     let bottomAccessoryHeight: CGFloat
     let bottomAccessoryTopY: CGFloat?
+    let scrollResetToken: Int
+    let onScrollOffsetChange: (CGFloat) -> Void
     let onEmptySpaceTap: (ZoneEditorCanvasTapContext) -> Void
 
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(KeyboardMonitor.self) private var keyboardMonitor
@@ -49,10 +51,8 @@ struct ZoneEditorCanvas: View {
     private var focusManager: ZoneFocusManager { ZoneFocusManager.shared }
 
     private static let coordinateSpaceName = "ZoneEditorCanvasContent"
-    private static let playModeCardAspectRatio: CGFloat = 369.0 / 613.0
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
-    private var cardCornerRadius: CGFloat { isCompact ? 42 : 52 }
     private var editorCardHorizontalPadding: CGFloat { isCompact ? 20 : 28 }
     private var editorCardVerticalPadding: CGFloat { isCompact ? 20 : 24 }
 
@@ -62,13 +62,13 @@ struct ZoneEditorCanvas: View {
             let maxEditorWidth: CGFloat = isCompact ? .infinity : 620
             let proposedWidth = max(geometry.size.width - (horizontalInset * 2), 1)
             let cardWidth = min(proposedWidth, maxEditorWidth)
-            let cardHeight = cardWidth / Self.playModeCardAspectRatio
+            let editorViewportHeight = max(geometry.size.height - (UIConstants.Spacing.small * 2), 1)
             let contentWidth = max(cardWidth - (editorCardHorizontalPadding * 2), 1)
-            let contentHeight = max(cardHeight - (editorCardVerticalPadding * 2), 1)
+            let contentHeight = max(editorViewportHeight - (editorCardVerticalPadding * 2), 1)
             let contentFrameAlignment: Alignment = .top
             let scrollBottomAvoidanceInset = keyboardMonitor.isVisible
                 ? max(keyboardMonitor.visibleHeight + activeBottomChromeClearance, 160)
-                : activeBottomChromeClearance
+                : 0
 
             ScrollViewReader { _ in
                 ScrollView(.vertical, showsIndicators: false) {
@@ -78,25 +78,25 @@ struct ZoneEditorCanvas: View {
                         contentFrameAlignment: contentFrameAlignment
                     )
                     .padding(.horizontal, editorCardHorizontalPadding)
-                    .padding(.top, editorCardVerticalPadding)
+                    .padding(.top, editorCardVerticalPadding + topContentInset)
                     .padding(.bottom, editorCardVerticalPadding + scrollBottomAvoidanceInset)
                     .frame(width: cardWidth, alignment: .topLeading)
-                    .frame(minHeight: cardHeight + scrollBottomAvoidanceInset, alignment: .topLeading)
+                    .frame(minHeight: editorViewportHeight + topContentInset + scrollBottomAvoidanceInset, alignment: .topLeading)
                 }
                 .background {
                     ZoneEditorScrollViewLocator { scrollView in
                         scrollDriver.attach(scrollView)
+                        scrollDriver.setTopInset(0)
                         scrollDriver.resetBottomInset()
+                        scrollDriver.setScrollOffsetHandler(onScrollOffsetChange)
                     }
                 }
                 .scrollDismissesKeyboard(.never)
-                .frame(width: cardWidth, height: cardHeight, alignment: .topLeading)
-                .background(cardSurface)
-                .overlay(cardBorder)
-                .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+                .frame(width: cardWidth, height: editorViewportHeight, alignment: .topLeading)
                 .overlay(alignment: .topLeading) {
                     debugOverlay
-                        .padding(editorCardHorizontalPadding)
+                        .padding(.leading, editorCardHorizontalPadding)
+                        .padding(.top, topContentInset + 28)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .padding(.horizontal, horizontalInset)
@@ -106,20 +106,24 @@ struct ZoneEditorCanvas: View {
                     if newPath == nil {
                         cancelCaretAvoidanceScroll()
                         clearActiveCaretGeometry()
-                    } else if keyboardMonitor.isVisible {
-                        scheduleCaretAvoidanceScroll(delay: .milliseconds(16))
+                    } else {
+                        scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
+                        if keyboardMonitor.isVisible {
+                            scheduleCaretAvoidanceScroll(delay: .milliseconds(16))
+                        }
                     }
                     if activeCaretPathID != newPath?.id {
                         clearActiveCaretGeometry()
                     }
                     updateCanvasDebug(
-                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
                         contentSize: CGSize(width: contentWidth, height: contentHeight)
                     )
                 }
                 .onChange(of: keyboardMonitor.visibleHeight) { _, newHeight in
                     let oldHeight = lastKeyboardVisibleHeight
                     lastKeyboardVisibleHeight = newHeight
+                    scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
                     scrollDriver.resetBottomInset()
 
                     if newHeight <= 1, !keyboardMonitor.isVisible {
@@ -128,7 +132,7 @@ struct ZoneEditorCanvas: View {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     }
                     updateCanvasDebug(
-                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
                         contentSize: CGSize(width: contentWidth, height: contentHeight)
                     )
                 }
@@ -136,16 +140,23 @@ struct ZoneEditorCanvas: View {
                     lastKeyboardVisibleHeight = keyboardMonitor.visibleHeight
                     scrollDriver.resetBottomInset()
                     if isVisible {
+                        scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     } else {
                         cancelCaretAvoidanceScroll()
+                        if selectedPath == nil {
+                            scrollDriver.resetToTop()
+                        }
                     }
                     updateCanvasDebug(
-                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
                         contentSize: CGSize(width: contentWidth, height: contentHeight)
                     )
                 }
                 .onChange(of: focusManager.focusedZoneID) { _, focusedID in
+                    if focusedID != nil {
+                        scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
+                    }
                     if let focusedID,
                        let selectedPath,
                        content.zone(at: selectedPath)?.id == focusedID,
@@ -155,13 +166,14 @@ struct ZoneEditorCanvas: View {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     }
                     updateCanvasDebug(
-                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
                         contentSize: CGSize(width: contentWidth, height: contentHeight)
                     )
                 }
                 .onChange(of: focusManager.pendingFocusZoneID) { _, _ in
+                    scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
                     updateCanvasDebug(
-                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
                         contentSize: CGSize(width: contentWidth, height: contentHeight)
                     )
                 }
@@ -170,7 +182,7 @@ struct ZoneEditorCanvas: View {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(48))
                     }
                     updateCanvasDebug(
-                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
                         contentSize: CGSize(width: contentWidth, height: contentHeight)
                     )
                 }
@@ -186,10 +198,16 @@ struct ZoneEditorCanvas: View {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     }
                 }
+                .onChange(of: scrollResetToken) { _, _ in
+                    cancelCaretAvoidanceScroll()
+                    clearActiveCaretGeometry()
+                    scrollDriver.resetBottomInset()
+                    scrollDriver.resetToTop()
+                }
                 .onAppear {
                     scrollDriver.resetBottomInset()
                     updateCanvasDebug(
-                        cardSize: CGSize(width: cardWidth, height: cardHeight),
+                        cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
                         contentSize: CGSize(width: contentWidth, height: contentHeight)
                     )
                 }
@@ -222,6 +240,9 @@ struct ZoneEditorCanvas: View {
                     if keyboardMonitor.isVisible {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(16))
                     }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .zoneEditorWillFocusTextView)) { _ in
+                    scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
                 }
                 .onDisappear {
                     scheduledBottomChromeScrollTask?.cancel()
@@ -344,6 +365,7 @@ struct ZoneEditorCanvas: View {
         scheduledBottomChromeScrollTask = Task { @MainActor in
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled, shouldMaintainKeyboardAvoidance else { return }
+
             let didScroll = scrollFocusedEditingContentAboveBottomChromeIfNeeded()
             if !didScroll, hasActiveCaretGeometryForSelection {
                 try? await Task.sleep(for: .milliseconds(80))
@@ -407,16 +429,6 @@ struct ZoneEditorCanvas: View {
         return min(max(keyboardMonitor.animationDuration, 0.12), 0.28)
     }
 
-    private var cardSurface: some View {
-        RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-            .fill(cardBackground)
-            .shadow(color: shadowColor, radius: 12, y: 6)
-    }
-
-    private var cardBorder: some View {
-        RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-            .stroke(borderColor, lineWidth: 1)
-    }
 
     @ViewBuilder
     private var debugOverlay: some View {
@@ -510,19 +522,6 @@ struct ZoneEditorCanvas: View {
             && developmentPreferences.flashcardGridTextLayoutDebugEnabled
     }
 
-    private var cardBackground: some ShapeStyle {
-        colorScheme == .dark
-            ? AnyShapeStyle(Color(red: 0.068, green: 0.068, blue: 0.068))
-            : AnyShapeStyle(Color(red: 0.92, green: 0.92, blue: 0.91))
-    }
-
-    private var shadowColor: Color {
-        colorScheme == .dark ? Color.black.opacity(0.42) : Color.black.opacity(0.12)
-    }
-
-    private var borderColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.045) : Color.black.opacity(0.08)
-    }
 }
 
 // MARK: - Scroll Driver
@@ -530,17 +529,58 @@ struct ZoneEditorCanvas: View {
 @MainActor
 private final class ZoneEditorScrollDriver {
     private weak var scrollView: UIScrollView?
+    private var pendingTopInset: CGFloat = 0
     private var pendingBottomInset: CGFloat = 0
+    private var appliedTopInset: CGFloat = 0
     private var appliedBottomInset: CGFloat = 0
+    private var offsetObservation: NSKeyValueObservation?
+    private var lockedOffset: CGPoint?
+    private var offsetLockTask: Task<Void, Never>?
+    private var isRestoringLockedOffset = false
+    private var onScrollOffsetChange: ((CGFloat) -> Void)?
+    private var lastReportedScrollOffsetY: CGFloat?
 
     func attach(_ scrollView: UIScrollView?) {
         guard self.scrollView !== scrollView else { return }
+        offsetObservation?.invalidate()
         self.scrollView = scrollView
-        applyBottomInsetIfNeeded()
+        guard let scrollView else {
+            offsetObservation = nil
+            lockedOffset = nil
+            return
+        }
+        observeOffset(in: scrollView)
+        reportScrollOffset(in: scrollView, force: true)
+        applyContentInsetsIfNeeded()
     }
 
     func detach() {
+        offsetObservation?.invalidate()
+        offsetObservation = nil
+        offsetLockTask?.cancel()
+        offsetLockTask = nil
+        lockedOffset = nil
+        onScrollOffsetChange = nil
+        lastReportedScrollOffsetY = nil
         scrollView = nil
+    }
+
+    func setScrollOffsetHandler(_ handler: @escaping (CGFloat) -> Void) {
+        onScrollOffsetChange = handler
+        if let scrollView {
+            reportScrollOffset(in: scrollView, force: true)
+        }
+    }
+
+    func setTopInset(_ inset: CGFloat) {
+        let resolvedInset = max(inset, 0)
+        let currentInset = scrollView?.contentInset.top ?? 0
+        guard abs(pendingTopInset - resolvedInset) > 0.5
+                || abs(currentInset - resolvedInset) > 0.5
+        else { return }
+
+        pendingTopInset = resolvedInset
+        applyContentInsetsIfNeeded()
     }
 
     func resetBottomInset() {
@@ -549,7 +589,47 @@ private final class ZoneEditorScrollDriver {
         else { return }
 
         pendingBottomInset = 0
-        applyBottomInsetIfNeeded()
+        applyContentInsetsIfNeeded()
+    }
+
+    func resetToTop() {
+        guard let scrollView else { return }
+        lockedOffset = nil
+        scrollView.layer.removeAllAnimations()
+        let minOffsetY = -scrollView.adjustedContentInset.top
+        guard abs(scrollView.contentOffset.y - minOffsetY) > 0.5 else { return }
+        UIView.performWithoutAnimation {
+            scrollView.setContentOffset(
+                CGPoint(x: scrollView.contentOffset.x, y: minOffsetY),
+                animated: false
+            )
+            scrollView.layoutIfNeeded()
+        }
+        reportScrollOffset(in: scrollView, force: true)
+    }
+
+    func preserveCurrentOffsetDuringNonUserFocus(
+        duration: Duration = .milliseconds(850)
+    ) {
+        guard let scrollView else { return }
+
+        if scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating {
+            clearOffsetLock()
+            return
+        }
+
+        if lockedOffset == nil {
+            lockedOffset = scrollView.contentOffset
+        }
+
+        restoreLockedOffsetIfNeeded(in: scrollView)
+
+        offsetLockTask?.cancel()
+        offsetLockTask = Task { @MainActor in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            self.clearOffsetLock()
+        }
     }
 
     @discardableResult
@@ -586,6 +666,7 @@ private final class ZoneEditorScrollDriver {
         let targetY = clampedOffsetY(currentY + overlap, in: scrollView)
         guard abs(targetY - currentY) > 0.5 else { return false }
 
+        clearOffsetLock()
         setContentOffset(
             CGPoint(x: scrollView.contentOffset.x, y: targetY),
             in: scrollView,
@@ -621,22 +702,102 @@ private final class ZoneEditorScrollDriver {
         }
     }
 
-    private func applyBottomInsetIfNeeded() {
+    private func observeOffset(in scrollView: UIScrollView) {
+        offsetObservation = scrollView.observe(\.contentOffset, options: [.new]) { [weak self, weak scrollView] _, _ in
+            Task { @MainActor [weak self, weak scrollView] in
+                guard let self, let scrollView else { return }
+                self.handleObservedOffset(in: scrollView)
+            }
+        }
+    }
+
+    private func handleObservedOffset(in scrollView: UIScrollView) {
+        reportScrollOffset(in: scrollView)
+        guard !isRestoringLockedOffset else { return }
+
+        guard lockedOffset != nil else { return }
+
+        if scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating {
+            clearOffsetLock()
+            return
+        }
+
+        restoreLockedOffsetIfNeeded(in: scrollView)
+    }
+
+    private func reportScrollOffset(in scrollView: UIScrollView, force: Bool = false) {
+        guard let onScrollOffsetChange else { return }
+        let normalizedOffsetY = max(0, scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
+        if !force,
+           let lastReportedScrollOffsetY,
+           abs(lastReportedScrollOffsetY - normalizedOffsetY) < 2 {
+            return
+        }
+
+        lastReportedScrollOffsetY = normalizedOffsetY
+        onScrollOffsetChange(normalizedOffsetY)
+    }
+
+    private func restoreLockedOffsetIfNeeded(in scrollView: UIScrollView) {
+        guard let lockedOffset else { return }
+
+        let targetOffset = CGPoint(
+            x: lockedOffset.x,
+            y: clampedOffsetY(lockedOffset.y, in: scrollView)
+        )
+        guard abs(scrollView.contentOffset.x - targetOffset.x) > 0.5
+                || abs(scrollView.contentOffset.y - targetOffset.y) > 0.5 else {
+            return
+        }
+
+        isRestoringLockedOffset = true
+        UIView.performWithoutAnimation {
+            scrollView.layer.removeAllAnimations()
+            scrollView.setContentOffset(targetOffset, animated: false)
+            scrollView.layoutIfNeeded()
+        }
+        isRestoringLockedOffset = false
+    }
+
+    private func clearOffsetLock() {
+        lockedOffset = nil
+        offsetLockTask?.cancel()
+        offsetLockTask = nil
+    }
+
+    private func applyContentInsetsIfNeeded() {
         guard let scrollView else { return }
-        guard abs(appliedBottomInset - pendingBottomInset) > 0.5
+        guard abs(appliedTopInset - pendingTopInset) > 0.5
+                || abs(scrollView.contentInset.top - pendingTopInset) > 0.5
+                || abs(appliedBottomInset - pendingBottomInset) > 0.5
                 || abs(scrollView.contentInset.bottom - pendingBottomInset) > 0.5
         else { return }
 
+        let oldMinOffsetY = -scrollView.adjustedContentInset.top
+        let shouldKeepPinnedToTop = abs(scrollView.contentOffset.y - oldMinOffsetY) <= 1
+            || scrollView.contentOffset.y < oldMinOffsetY
+
+        appliedTopInset = pendingTopInset
         appliedBottomInset = pendingBottomInset
         var contentInset = scrollView.contentInset
+        contentInset.top = pendingTopInset
         contentInset.bottom = pendingBottomInset
         var verticalIndicatorInsets = scrollView.verticalScrollIndicatorInsets
+        verticalIndicatorInsets.top = pendingTopInset
         verticalIndicatorInsets.bottom = pendingBottomInset
 
         UIView.performWithoutAnimation {
             scrollView.contentInset = contentInset
             scrollView.verticalScrollIndicatorInsets = verticalIndicatorInsets
             scrollView.layoutIfNeeded()
+
+            let newMinOffsetY = -scrollView.adjustedContentInset.top
+            if shouldKeepPinnedToTop || scrollView.contentOffset.y < newMinOffsetY {
+                scrollView.setContentOffset(
+                    CGPoint(x: scrollView.contentOffset.x, y: newMinOffsetY),
+                    animated: false
+                )
+            }
         }
     }
 

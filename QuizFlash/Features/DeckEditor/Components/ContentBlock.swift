@@ -131,6 +131,30 @@ enum HighlightColor: String, Codable, Equatable, CaseIterable {
         }
     }
 
+    var zoneSurfaceTint: Color? {
+        switch self {
+        case .none:
+            return nil
+        case .yellow:
+            return Color(red: 1.0, green: 0.60, blue: 0.02)
+        case .green:
+            return Color(red: 0.10, green: 0.82, blue: 0.34)
+        case .pink:
+            return Color(red: 1.0, green: 0.18, blue: 0.70)
+        case .cyan:
+            return Color(red: 0.02, green: 0.80, blue: 1.0)
+        case .accent:
+            return ThemeManager.shared.accentColor.color
+        }
+    }
+
+    var zoneSurfaceFill: Color {
+        guard let tint = zoneSurfaceTint else {
+            return Color(red: 0.045, green: 0.045, blue: 0.048)
+        }
+        return tint.opacity(0.22)
+    }
+
     var name: String {
         switch self {
         case .none: return "None"

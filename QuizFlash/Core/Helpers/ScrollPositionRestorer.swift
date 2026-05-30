@@ -121,15 +121,18 @@ struct ScrollPositionRestorer: UIViewRepresentable {
 
     /// Optional explicit programmatic scroll request.
     let scrollRequest: ScrollPositionRequest?
+    let disablesVerticalBounce: Bool
 
     init(
         getOffset: @escaping () -> CGFloat,
         onOffsetChange: @escaping (CGFloat) -> Void,
-        scrollRequest: ScrollPositionRequest? = nil
+        scrollRequest: ScrollPositionRequest? = nil,
+        disablesVerticalBounce: Bool = false
     ) {
         self.getOffset = getOffset
         self.onOffsetChange = onOffsetChange
         self.scrollRequest = scrollRequest
+        self.disablesVerticalBounce = disablesVerticalBounce
     }
 
     // MARK: - Detection Thresholds
@@ -149,6 +152,7 @@ struct ScrollPositionRestorer: UIViewRepresentable {
             getOffset: getOffset,
             onOffsetChange: onOffsetChange,
             scrollRequest: scrollRequest,
+            disablesVerticalBounce: disablesVerticalBounce,
             resetDelta: ScrollPositionRestorer.kResetDeltaThreshold,
             resetTop: ScrollPositionRestorer.kResetTopThreshold
         )
@@ -159,6 +163,8 @@ struct ScrollPositionRestorer: UIViewRepresentable {
     func updateUIView(_ uiView: _ProbeView, context: Context) {
         uiView.getOffset = getOffset
         uiView.onOffsetChange = onOffsetChange
+        uiView.disablesVerticalBounce = disablesVerticalBounce
+        uiView.applyBounceConfiguration()
         uiView.applyScrollRequest(scrollRequest)
     }
 
@@ -170,6 +176,7 @@ struct ScrollPositionRestorer: UIViewRepresentable {
 
         var getOffset: () -> CGFloat
         var onOffsetChange: (CGFloat) -> Void
+        var disablesVerticalBounce: Bool
         private var latestScrollRequest: ScrollPositionRequest?
 
         // MARK: Configuration
@@ -202,6 +209,12 @@ struct ScrollPositionRestorer: UIViewRepresentable {
         private var contentSizeObservation: NSKeyValueObservation?
         private var activeProgrammaticScrollTarget: CGFloat?
         private var lastHandledScrollRequestID: Int?
+        private var originalBounceState: BounceState?
+
+        private struct BounceState {
+            let bounces: Bool
+            let alwaysBounceVertical: Bool
+        }
 
         // MARK: Init
 
@@ -209,12 +222,14 @@ struct ScrollPositionRestorer: UIViewRepresentable {
             getOffset: @escaping () -> CGFloat,
             onOffsetChange: @escaping (CGFloat) -> Void,
             scrollRequest: ScrollPositionRequest?,
+            disablesVerticalBounce: Bool,
             resetDelta: CGFloat,
             resetTop: CGFloat
         ) {
             self.getOffset = getOffset
             self.onOffsetChange = onOffsetChange
             self.latestScrollRequest = scrollRequest
+            self.disablesVerticalBounce = disablesVerticalBounce
             self.resetDelta = resetDelta
             self.resetTop = resetTop
             super.init(frame: .zero)
@@ -274,6 +289,7 @@ struct ScrollPositionRestorer: UIViewRepresentable {
             guard let sv = nearestScrollView() else { return }
             scrollView = sv
             lastKnownOffset = sv.contentOffset.y
+            applyBounceConfiguration()
 
             // ── ContentOffset Observer ───────────────────────────────────────────
             //
@@ -412,11 +428,36 @@ struct ScrollPositionRestorer: UIViewRepresentable {
         }
 
         private func detachObservations() {
+            restoreBounceConfiguration()
             offsetObservation?.invalidate()
             offsetObservation = nil
             contentSizeObservation?.invalidate()
             contentSizeObservation = nil
             scrollView = nil
+        }
+
+        func applyBounceConfiguration() {
+            guard let scrollView else { return }
+
+            if disablesVerticalBounce {
+                if originalBounceState == nil {
+                    originalBounceState = BounceState(
+                        bounces: scrollView.bounces,
+                        alwaysBounceVertical: scrollView.alwaysBounceVertical
+                    )
+                }
+                scrollView.bounces = false
+                scrollView.alwaysBounceVertical = false
+            } else {
+                restoreBounceConfiguration()
+            }
+        }
+
+        private func restoreBounceConfiguration() {
+            guard let scrollView, let originalBounceState else { return }
+            scrollView.bounces = originalBounceState.bounces
+            scrollView.alwaysBounceVertical = originalBounceState.alwaysBounceVertical
+            self.originalBounceState = nil
         }
 
         func applyScrollRequest(_ request: ScrollPositionRequest?) {

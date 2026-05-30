@@ -93,11 +93,12 @@ struct FlashcardGridContentLayout {
     }
 
     var contentBodyHeight: CGFloat {
+        let estimatedHeight = max(ceil(estimatedContentSize.height), 1)
         if measuredContentSize.height > 0 {
-            return ceil(measuredContentSize.height)
+            return max(ceil(measuredContentSize.height), estimatedHeight)
         }
 
-        return max(ceil(estimatedContentSize.height), 1)
+        return estimatedHeight
     }
 
     var contentFitsVertically: Bool {
@@ -169,6 +170,7 @@ struct FlashcardGridFaceView: View {
             fontScale: fontScale,
             availableWidth: max(availableWidth, 1),
             centersLeafBlocks: centersLeafBlocks,
+            alignLeafBlocksToGroupLeading: false,
             showsDebugGuides: showsDebugGuides,
             collectsDebugMetrics: collectsDebugMetrics,
             onTap: onTap
@@ -179,12 +181,23 @@ struct FlashcardGridFaceView: View {
 
 // MARK: - Flashcard Grid Zone Preview
 
+private enum FlashcardGridZoneRenderPolicy {
+    nonisolated static func shouldRender(_ zone: ZoneModel) -> Bool {
+        if zone.hasContent || zone.highlightColor != .none || zone.sizeMode == .fixed {
+            return true
+        }
+
+        return zone.children?.contains(where: shouldRender) ?? false
+    }
+}
+
 private struct FlashcardGridZonePreview: View {
     let zone: ZoneModel
     let path: String
     let fontScale: CGFloat
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
+    let alignLeafBlocksToGroupLeading: Bool
     let showsDebugGuides: Bool
     let collectsDebugMetrics: Bool
     var onTap: (() -> Void)?
@@ -197,6 +210,7 @@ private struct FlashcardGridZonePreview: View {
                 fontScale: fontScale,
                 availableWidth: availableWidth,
                 centersLeafBlocks: centersLeafBlocks,
+                alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
                 showsDebugGuides: showsDebugGuides,
                 collectsDebugMetrics: collectsDebugMetrics,
                 onTap: onTap
@@ -208,7 +222,7 @@ private struct FlashcardGridZonePreview: View {
 
     @ViewBuilder
     private var containerPreview: some View {
-        let children = zone.children?.filter(\.hasContent) ?? []
+        let children = zone.children?.filter(FlashcardGridZoneRenderPolicy.shouldRender) ?? []
 
         if children.isEmpty {
             Color.clear.frame(width: availableWidth, height: 1)
@@ -224,6 +238,7 @@ private struct FlashcardGridZonePreview: View {
                         fontScale: fontScale,
                         availableWidth: childWidth,
                         centersLeafBlocks: centersLeafBlocks,
+                        alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
                         showsDebugGuides: showsDebugGuides,
                         collectsDebugMetrics: collectsDebugMetrics,
                         onTap: onTap
@@ -233,23 +248,41 @@ private struct FlashcardGridZonePreview: View {
             }
             .frame(width: availableWidth, alignment: .topLeading)
         } else {
+            let groupWidth = verticalGroupWidth(for: children)
+
             VStack(alignment: .leading, spacing: FlashcardGridContentMetrics.childSpacing) {
                 ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
                     FlashcardGridZonePreview(
                         zone: child,
                         path: "\(path).\(index)",
                         fontScale: fontScale,
-                        availableWidth: availableWidth,
+                        availableWidth: groupWidth,
                         centersLeafBlocks: centersLeafBlocks,
+                        alignLeafBlocksToGroupLeading: true,
                         showsDebugGuides: showsDebugGuides,
                         collectsDebugMetrics: collectsDebugMetrics,
                         onTap: onTap
                     )
-                    .frame(width: availableWidth, alignment: .topLeading)
+                    .frame(width: groupWidth, alignment: .topLeading)
                 }
             }
-            .frame(width: availableWidth, alignment: .topLeading)
+            .frame(width: groupWidth, alignment: .topLeading)
+            .frame(width: availableWidth, alignment: .top)
         }
+    }
+
+    private func verticalGroupWidth(for children: [ZoneModel]) -> CGFloat {
+        let widestChild = children
+            .map {
+                FlashcardGridContentEstimator.estimatedBlockWidth(
+                    for: $0,
+                    fontScale: fontScale,
+                    availableWidth: availableWidth
+                )
+            }
+            .max() ?? availableWidth
+
+        return min(max(ceil(widestChild), 1), availableWidth)
     }
 }
 
@@ -261,6 +294,7 @@ private struct FlashcardGridLeafPreview: View {
     let fontScale: CGFloat
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
+    let alignLeafBlocksToGroupLeading: Bool
     let showsDebugGuides: Bool
     let collectsDebugMetrics: Bool
     var onTap: (() -> Void)?
@@ -268,8 +302,9 @@ private struct FlashcardGridLeafPreview: View {
     @State private var renderedContentSize: CGSize = .zero
 
     var body: some View {
+        let resolvedLayoutZone = layoutZone
         let layout = CardZoneLayoutEngine.leafLayout(
-            for: zone,
+            for: resolvedLayoutZone,
             spec: CardZoneLayoutSpec(
                 availableWidth: availableWidth,
                 fontScale: fontScale
@@ -278,6 +313,8 @@ private struct FlashcardGridLeafPreview: View {
         )
 
         ZStack(alignment: .topLeading) {
+            zoneBlockSurface(layout: layout)
+
             if showsDebugGuides {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(
@@ -321,6 +358,42 @@ private struct FlashcardGridLeafPreview: View {
             return layout.blockSize.height
         case .empty, .text, .code:
             return zone.sizeMode == .fixed ? layout.blockSize.height : nil
+        }
+    }
+
+    private var layoutZone: ZoneModel {
+        guard alignLeafBlocksToGroupLeading else { return zone }
+
+        var leadingZone = zone
+        leadingZone.blockAlignment = .leading
+        return leadingZone
+    }
+
+    @ViewBuilder
+    private func zoneBlockSurface(layout: CardZoneLayoutResult) -> some View {
+        switch zone.contentType {
+        case .empty, .text, .code:
+            let tint = zone.highlightColor.zoneSurfaceTint
+            RoundedRectangle(cornerRadius: FlashcardGridContentMetrics.zoneCornerRadius, style: .continuous)
+                .fill(zone.highlightColor.zoneSurfaceFill)
+                .overlay {
+                    if tint == nil {
+                        RoundedRectangle(cornerRadius: FlashcardGridContentMetrics.zoneCornerRadius, style: .continuous)
+                            .stroke(Color.white.opacity(0.10), lineWidth: 0.8)
+                    }
+                }
+                .overlay {
+                    if let tint {
+                        RoundedRectangle(cornerRadius: FlashcardGridContentMetrics.zoneCornerRadius, style: .continuous)
+                            .stroke(tint.opacity(0.86), lineWidth: 2)
+                    }
+                }
+                .shadow(color: tint?.opacity(0.34) ?? .clear, radius: tint == nil ? 0 : 10)
+                .frame(width: layout.blockSize.width, height: layout.blockSize.height)
+                .offset(x: layout.leadingInset)
+                .allowsHitTesting(false)
+        case .image, .sketch:
+            EmptyView()
         }
     }
 
@@ -371,13 +444,15 @@ private struct FlashcardGridLeafPreview: View {
         _ previewText: String,
         layout: CardZoneLayoutResult
     ) -> some View {
-        let healedText = MathTextSanitizer.heal(previewText)
-        let usesMathRenderer = MathTextSanitizer.containsMath(healedText)
-            || MathTextSanitizer.containsInlineCode(healedText)
+        let semanticText = MathTextSanitizer.heal(previewText)
+        let usesMathRenderer = MathTextSanitizer.containsMath(semanticText)
+            || MathTextSanitizer.containsInlineCode(semanticText)
         let textWidthLimit = layout.textWidthLimit ?? max(layout.contentLayoutWidth, 1)
+        let showsBullet = zone.hasBullet
+            && !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-        return HStack(alignment: .top, spacing: zone.hasBullet ? FlashcardGridContentMetrics.bulletSpacing : 0) {
-            if zone.hasBullet {
+        return HStack(alignment: .top, spacing: showsBullet ? FlashcardGridContentMetrics.bulletSpacing : 0) {
+            if showsBullet {
                 Circle()
                     .fill(zone.textColor.color)
                     .frame(
@@ -410,14 +485,9 @@ private struct FlashcardGridLeafPreview: View {
                 )
                 .padding(.vertical, FlashcardGridContentMetrics.textVerticalPadding / 2)
                 .padding(.horizontal, layout.textHorizontalInsets / 2)
-                .background(
-                    zone.highlightColor.color.map { color in
-                        RoundedRectangle(cornerRadius: 4).fill(color)
-                    }
-                )
             } else {
                 FlashcardPlainTextBlockView(
-                    text: healedText,
+                    text: previewText,
                     zone: zone,
                     fontScale: fontScale,
                     availableWidth: textWidthLimit,
@@ -434,11 +504,6 @@ private struct FlashcardGridLeafPreview: View {
                 )
                 .padding(.vertical, FlashcardGridContentMetrics.textVerticalPadding / 2)
                 .padding(.horizontal, layout.textHorizontalInsets / 2)
-                .background(
-                    zone.highlightColor.color.map { color in
-                        RoundedRectangle(cornerRadius: 4).fill(color)
-                    }
-                )
             }
         }
         .frame(width: layout.contentLayoutWidth, alignment: .topLeading)
@@ -483,7 +548,7 @@ private struct FlashcardGridLeafPreview: View {
             : []
         let renderedLineLayout = zone.contentType == .text && !containsMath && !containsInlineCode
             ? FlashcardPlainTextLayoutMeasurer.layout(
-                text: healedText,
+                text: displayText,
                 zone: zone,
                 fontScale: fontScale,
                 availableWidth: effectiveTextWidthLimit
@@ -542,7 +607,7 @@ private struct FlashcardGridLeafPreview: View {
     private func displayText(for zone: ZoneModel) -> String {
         switch zone.contentType {
         case .text:
-            return MathTextSanitizer.stripTerminalZonePeriod(zone.text)
+            return MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
         default:
             return zone.text
         }
@@ -562,8 +627,10 @@ private struct FlashcardGridLeafPreview: View {
 
 enum CardZoneContentMetrics {
     static let childSpacing: CGFloat = 12
-    static let textVerticalPadding: CGFloat = 8
-    static let highlightedHorizontalPadding: CGFloat = 12
+    static let textVerticalPadding: CGFloat = 32
+    static let textHorizontalPadding: CGFloat = 24
+    static let zoneCornerRadius: CGFloat = 18
+    static let highlightedHorizontalPadding: CGFloat = textHorizontalPadding
     static let bulletWidth: CGFloat = 6
     static let bulletSpacing: CGFloat = 8
 }
@@ -629,7 +696,7 @@ private enum FlashcardPlainTextLayoutMeasurer {
         fontScale: CGFloat,
         availableWidth: CGFloat
     ) -> FlashcardPlainTextLineLayout {
-        let text = MathTextSanitizer.heal(rawText.trimmingCharacters(in: .whitespacesAndNewlines))
+        let text = rawText.replacingOccurrences(of: "\r\n", with: "\n")
         let widthLimit = max(availableWidth, 1)
         let lineSpacing = max(floor(fontSize(for: zone) * fontScale * 0.26), 6)
 
@@ -653,9 +720,7 @@ private enum FlashcardPlainTextLayoutMeasurer {
                 var remainingToken = token
 
                 while !remainingToken.isEmpty {
-                    let nextToken = current.isEmpty
-                        ? remainingToken.trimmedLeadingWhitespace()
-                        : remainingToken
+                    let nextToken = remainingToken
 
                     guard !nextToken.isEmpty else { break }
 
@@ -760,19 +825,7 @@ private enum FlashcardPlainTextLayoutMeasurer {
     }
 
     private static func normalizedLineTokens(_ tokens: [FlashcardPlainTextToken]) -> [FlashcardPlainTextToken] {
-        guard let firstIndex = tokens.firstIndex(where: { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }) else {
-            return []
-        }
-
-        var normalized = Array(tokens[firstIndex...])
-        normalized[0] = normalized[0].trimmedLeadingWhitespace()
-
-        if let lastIndex = normalized.lastIndex(where: { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }) {
-            normalized = Array(normalized[...lastIndex])
-            normalized[normalized.count - 1] = normalized[normalized.count - 1].trimmedTrailingWhitespace()
-        }
-
-        return normalized.filter { !$0.text.isEmpty }
+        tokens.filter { !$0.text.isEmpty }
     }
 
     private static func splitOversizedToken(
@@ -1013,6 +1066,7 @@ private struct FlashcardPlainTextToken: Equatable {
 enum FlashcardGridContentEstimator {
     private static let childSpacing = FlashcardGridContentMetrics.childSpacing
     private static let textVerticalPadding = FlashcardGridContentMetrics.textVerticalPadding
+    private static let textHorizontalPadding = FlashcardGridContentMetrics.textHorizontalPadding
     private static let highlightedHorizontalPadding = FlashcardGridContentMetrics.highlightedHorizontalPadding
     private static let bulletWidth = FlashcardGridContentMetrics.bulletWidth
     private static let bulletSpacing = FlashcardGridContentMetrics.bulletSpacing
@@ -1024,7 +1078,7 @@ enum FlashcardGridContentEstimator {
     ) -> CGSize {
         let clampedWidth = max(availableWidth, 1)
 
-        guard zone.hasContent else {
+        guard FlashcardGridZoneRenderPolicy.shouldRender(zone) else {
             return CGSize(width: 1, height: 36)
         }
 
@@ -1036,7 +1090,7 @@ enum FlashcardGridContentEstimator {
             )
         }
 
-        let children = zone.children?.filter(\.hasContent) ?? []
+        let children = zone.children?.filter(FlashcardGridZoneRenderPolicy.shouldRender) ?? []
         guard !children.isEmpty else {
             return CGSize(width: 1, height: 36)
         }
@@ -1071,12 +1125,66 @@ enum FlashcardGridContentEstimator {
         }
     }
 
+    static func estimatedBlockWidth(
+        for zone: ZoneModel,
+        fontScale: CGFloat,
+        availableWidth: CGFloat
+    ) -> CGFloat {
+        let clampedWidth = max(availableWidth, 1)
+
+        guard FlashcardGridZoneRenderPolicy.shouldRender(zone) else {
+            return 1
+        }
+
+        if zone.isLeaf {
+            let measuredSize = estimatedLeafSize(
+                for: zone,
+                fontScale: fontScale,
+                availableWidth: clampedWidth
+            )
+            let layout = CardZoneLayoutEngine.leafLayout(
+                for: zone,
+                spec: CardZoneLayoutSpec(
+                    availableWidth: clampedWidth,
+                    fontScale: fontScale
+                ),
+                measuredContentSize: measuredSize
+            )
+
+            return min(max(ceil(layout.blockSize.width), 1), clampedWidth)
+        }
+
+        let children = zone.children?.filter(FlashcardGridZoneRenderPolicy.shouldRender) ?? []
+        guard !children.isEmpty else { return 1 }
+
+        switch zone.direction {
+        case .vertical:
+            return children
+                .map {
+                    estimatedBlockWidth(
+                        for: $0,
+                        fontScale: fontScale,
+                        availableWidth: clampedWidth
+                    )
+                }
+                .max() ?? 1
+
+        case .horizontal:
+            return estimatedSize(
+                for: zone,
+                fontScale: fontScale,
+                availableWidth: clampedWidth
+            )
+            .width
+        }
+    }
+
     static func debugLineWidths(
         for zone: ZoneModel,
         fontScale: CGFloat,
         availableWidth: CGFloat
     ) -> [CGFloat] {
-        let displayText = MathTextSanitizer.stripTerminalZonePeriod(zone.text)
+        let displayText = MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
         return measuredTextLayout(
             displayText,
             zone: zone,
@@ -1096,9 +1204,41 @@ enum FlashcardGridContentEstimator {
             return CGSize(width: 1, height: 36)
 
         case .text:
-            let displayText = MathTextSanitizer.stripTerminalZonePeriod(zone.text)
-            let horizontalInsets = zone.highlightColor != .none ? highlightedHorizontalPadding : 0
-            let bulletInset = zone.hasBullet ? bulletWidth + bulletSpacing : 0
+            let displayText = MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
+            let horizontalInsets = textHorizontalPadding
+            let bulletInset = zone.hasBullet && !displayText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? bulletWidth + bulletSpacing
+                : 0
+            if let codeLiteral = singleInlineCodeLiteral(in: displayText) {
+                let textWidth = max(availableWidth - horizontalInsets - bulletInset, 1)
+                let codeSize = measuredInlineCodeSize(
+                    codeLiteral,
+                    zone: zone,
+                    fontScale: fontScale,
+                    availableWidth: textWidth
+                )
+
+                return CGSize(
+                    width: min(ceil(codeSize.width + horizontalInsets + bulletInset), availableWidth),
+                    height: ceil(codeSize.height + textVerticalPadding)
+                )
+            }
+
+            if MathTextSanitizer.containsMath(displayText) {
+                let textWidth = max(availableWidth - horizontalInsets - bulletInset, 1)
+                let textSize = measuredTextSize(
+                    displayText,
+                    zone: zone,
+                    fontScale: fontScale,
+                    availableWidth: textWidth
+                )
+
+                return CGSize(
+                    width: availableWidth,
+                    height: ceil(textSize.height + textVerticalPadding)
+                )
+            }
+
             let textWidth = max(availableWidth - horizontalInsets - bulletInset, 1)
             let textSize = measuredTextSize(
                 displayText,
@@ -1155,7 +1295,7 @@ enum FlashcardGridContentEstimator {
         fontScale: CGFloat,
         availableWidth: CGFloat
     ) -> CGSize {
-        let text = MathTextSanitizer.heal(rawText.trimmingCharacters(in: .whitespacesAndNewlines))
+        let text = rawText.replacingOccurrences(of: "\r\n", with: "\n")
         guard !text.isEmpty else {
             let font = font(for: zone, fontScale: fontScale, emphasized: false, monospaced: false)
             return CGSize(width: 1, height: ceil(font.lineHeight))
@@ -1170,13 +1310,54 @@ enum FlashcardGridContentEstimator {
         .size
     }
 
+    private static func singleInlineCodeLiteral(in text: String) -> String? {
+        guard
+            let regex = try? NSRegularExpression(pattern: #"^`([^`]+)`$"#),
+            let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+            let range = Range(match.range(at: 1), in: text)
+        else {
+            return nil
+        }
+
+        return String(text[range]).replacingOccurrences(of: "\r\n", with: "\n")
+    }
+
+    private static func measuredInlineCodeSize(
+        _ value: String,
+        zone: ZoneModel,
+        fontScale: CGFloat,
+        availableWidth: CGFloat
+    ) -> CGSize {
+        let font = UIFont.monospacedSystemFont(
+            ofSize: fontSize(for: zone) * fontScale * 0.92,
+            weight: .semibold
+        )
+        let constrainedWidth = max(availableWidth, 1)
+        let lines = value.components(separatedBy: .newlines)
+        let lineRects = lines.map {
+            ($0 as NSString).boundingRect(
+                with: CGSize(width: constrainedWidth, height: CGFloat.greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: [.font: font],
+                context: nil
+            )
+        }
+        let widestLine = lineRects.map(\.width).max() ?? 1
+        let lineHeight = max(lineRects.map(\.height).max() ?? font.lineHeight, font.lineHeight * 1.5)
+
+        return CGSize(
+            width: min(ceil(widestLine), constrainedWidth),
+            height: ceil(lineRects.reduce(CGFloat(0)) { $0 + max(ceil($1.height), lineHeight) })
+        )
+    }
+
     private static func measuredTextLayout(
         _ rawText: String,
         zone: ZoneModel,
         fontScale: CGFloat,
         availableWidth: CGFloat
     ) -> TextLayoutMeasurement {
-        let text = MathTextSanitizer.heal(rawText.trimmingCharacters(in: .whitespacesAndNewlines))
+        let text = rawText.replacingOccurrences(of: "\r\n", with: "\n")
         guard !text.isEmpty else {
             let font = font(for: zone, fontScale: fontScale, emphasized: false, monospaced: false)
             return TextLayoutMeasurement(
@@ -1191,6 +1372,22 @@ enum FlashcardGridContentEstimator {
             fontScale: fontScale,
             availableWidth: availableWidth
         )
+        if MathTextSanitizer.containsInlineCode(text) {
+            let preferredWidth = measuredPreferredInlineMarkdownWidth(
+                text,
+                zone: zone,
+                fontScale: fontScale
+            )
+            let resolvedWidth = min(max(lineLayout.size.width, preferredWidth), max(availableWidth, 1))
+
+            return TextLayoutMeasurement(
+                size: CGSize(width: ceil(resolvedWidth), height: lineLayout.size.height),
+                lineWidths: preferredWidth <= availableWidth
+                    ? [ceil(preferredWidth)]
+                    : lineLayout.lines.map(\.width)
+            )
+        }
+
         return TextLayoutMeasurement(
             size: lineLayout.size,
             lineWidths: lineLayout.lines.map(\.width)
@@ -1200,6 +1397,109 @@ enum FlashcardGridContentEstimator {
     private struct TextLayoutMeasurement {
         let size: CGSize
         let lineWidths: [CGFloat]
+    }
+
+    private static func measuredPreferredInlineMarkdownWidth(
+        _ text: String,
+        zone: ZoneModel,
+        fontScale: CGFloat
+    ) -> CGFloat {
+        text.components(separatedBy: .newlines)
+            .map {
+                measuredPreferredInlineMarkdownLineWidth(
+                    $0,
+                    zone: zone,
+                    fontScale: fontScale
+                )
+            }
+            .max() ?? 1
+    }
+
+    private static func measuredPreferredInlineMarkdownLineWidth(
+        _ line: String,
+        zone: ZoneModel,
+        fontScale: CGFloat
+    ) -> CGFloat {
+        var width: CGFloat = 0
+        var plainBuffer = ""
+        var cursor = line.startIndex
+        var isEmphasized = false
+
+        func flushPlainBuffer() {
+            guard !plainBuffer.isEmpty else { return }
+            width += measuredPlainRunWidth(
+                plainBuffer,
+                zone: zone,
+                fontScale: fontScale,
+                emphasized: isEmphasized
+            )
+            plainBuffer.removeAll(keepingCapacity: true)
+        }
+
+        while cursor < line.endIndex {
+            if line[cursor...].hasPrefix("**") {
+                flushPlainBuffer()
+                isEmphasized.toggle()
+                cursor = line.index(cursor, offsetBy: 2)
+                continue
+            }
+
+            if line[cursor] == "`" {
+                let contentStart = line.index(after: cursor)
+                if let closing = line[contentStart...].firstIndex(of: "`") {
+                    flushPlainBuffer()
+                    width += measuredInlineCodeRunWidth(
+                        String(line[contentStart..<closing]),
+                        zone: zone,
+                        fontScale: fontScale,
+                        emphasized: isEmphasized
+                    )
+                    cursor = line.index(after: closing)
+                    continue
+                }
+            }
+
+            plainBuffer.append(line[cursor])
+            cursor = line.index(after: cursor)
+        }
+
+        flushPlainBuffer()
+        return max(ceil(width), 1)
+    }
+
+    private static func measuredPlainRunWidth(
+        _ value: String,
+        zone: ZoneModel,
+        fontScale: CGFloat,
+        emphasized: Bool
+    ) -> CGFloat {
+        measuredRunWidth(
+            value,
+            font: font(for: zone, fontScale: fontScale, emphasized: emphasized, monospaced: false)
+        )
+    }
+
+    private static func measuredInlineCodeRunWidth(
+        _ value: String,
+        zone: ZoneModel,
+        fontScale: CGFloat,
+        emphasized: Bool
+    ) -> CGFloat {
+        let font = UIFont.monospacedSystemFont(
+            ofSize: fontSize(for: zone) * fontScale * 0.88,
+            weight: fontWeight(for: zone, emphasized: emphasized)
+        )
+        return measuredRunWidth(value, font: font) + 14
+    }
+
+    private static func measuredRunWidth(_ value: String, font: UIFont) -> CGFloat {
+        guard !value.isEmpty else { return 0 }
+        return ceil((value as NSString).boundingRect(
+            with: CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font],
+            context: nil
+        ).width)
     }
 
     private static func attributedString(

@@ -23,7 +23,11 @@ Preserve layout stability on dynamic scroll surfaces. When selected dates, filte
 
 Treat animation smoothness as a first-class product requirement. For visible transitions, avoid mounting expensive SwiftUI subtrees, recomputing large layouts, observing per-frame geometry, or triggering persistence/async work on the same state edge that starts the animation. Prefer animating cheap layer-friendly properties such as opacity, scale, and transform on already-mounted views; keep keyboard, scroll, and toolbar animations isolated so they do not invalidate each other.
 
+Treat data-heavy render paths as a known QuizFlash failure mode. The Home performance incident showed that computed properties and `.task(id:)` signatures that walk SwiftData arrays can create severe CPU and allocation churn during scroll, even when there is no classic retain-cycle leak. On any screen with many decks, cards, zones, logs, aggregates, diagnostics, or summaries, do not calculate fingerprints, filters, sorts, grouped summaries, relationship counts, calendar/date formatting, or model projections inside `body` or other render-time computed properties. Cache snapshots or signatures in `@State`, a `@MainActor` view model, or a background actor, and invalidate them from cheap change signals only when source data actually changes.
+
 When animation or interaction lag survives an initial optimization, lead with an explicit debugging protocol instead of passively waiting for another symptom report. Add narrowly scoped DEBUG-only visual instrumentation when useful, tell the user exactly what gesture/video to capture, and explain which metrics will confirm or reject the current hypothesis.
+
+For serious lag, global scroll stutter, slider jank, memory growth, or suspected leaks, use Instruments instead of guessing. Ask for or analyze a `.trace` with Time Profiler + Allocations, inspect the TOC because one trace can contain multiple runs, prioritize app-inclusive stacks and allocation churn, then fix the hot render/data path. Read `references/performance-profiling.md` before giving profiling instructions or interpreting a trace.
 
 Do not route per-frame scroll offsets through observed SwiftUI state. Persist scroll restoration offsets in `@ObservationIgnored` view-model storage or other non-observed holders so scroll probes do not invalidate an entire screen on every drag tick.
 
@@ -157,6 +161,7 @@ For zone editor bugs, start with the route in `references/task-routing.md` befor
    - On iPad and other resizable environments, derive layout from the container geometry and available width instead of `UIScreen` assumptions. Expect split view, Stage Manager, and future resizable iPad windows to expose widths that differ materially from full-screen iPad.
    - On drag-heavy or scroll-heavy surfaces, do not leave expensive collection-wide work in view `computed` properties.
    - If a value walks many cards, zones, diagnostics, or summaries, cache it in local state or move it out of the hot render path, then recompute only when the source collection actually changes.
+   - When `.task(id:)` needs to react to large SwiftData query results, do not build the id by hashing every model property in `body`. Use a cached revision/snapshot updated from cheap count/id/profile signals, then run the heavy fingerprint only off the scroll render path.
    - Prefer `Equatable` row views and other diff-friendly techniques for large editor/deck lists so parent refreshes do not rebuild every row.
 5. Preserve the repo's file hygiene when generating or rewriting files.
    - Keep Apple-style file headers.
@@ -203,6 +208,7 @@ When repeated fixes do not change the user's observed behavior, stop guessing an
 - `references/task-routing.md`: Smallest safe starting points and escalation triggers for local tasks.
 - `references/project-map.md`: Real repo layout, important files, and common starting points.
 - `references/architecture.md`: Project rules for architecture, concurrency, SwiftData safety, navigation, design tokens, code style, and review checks.
+- `references/performance-profiling.md`: Instruments capture/export/interpretation protocol for Time Profiler, Allocations, hangs, and QuizFlash hot-path fixes.
 - `references/examples/ViewModel.swift.example`: Canonical QuizFlash-flavored view-model skeleton for new code.
 - `references/examples/View.swift.example`: Canonical QuizFlash-flavored root-view skeleton for new screens.
 - `references/component-catalog.md`: Reusable UI inventory; check this before creating a new component.

@@ -134,6 +134,7 @@
 "Auto Block" = "Bloc auto";
 "Auto keeps the full source covered, then balances density by text weight." = "Auto menține întreaga sursă acoperită, apoi echilibrează densitatea în funcție de greutatea textului.";
 "Auto Size" = "Dimensiune automată";
+"Background Color" = "Culoare fundal";
 "Background is rendered inside the shared sheet surface and clipped by the top corner radius." = "Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.";
 "Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request." = "Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.";
 "Blank" = "Gol";
@@ -143,6 +144,7 @@
 "Block Position" = "Poziție bloc";
 "Block Right" = "Bloc dreapta";
 "Blue" = "Albastru";
+"Bottom" = "Jos";
 "Blur Color" = "Culoare blur";
 "Blur Header Lab" = "Blur Header Lab";
 "Blur Tuner" = "Reglaj blur";
@@ -267,8 +269,10 @@
 "Edit the source text, then select the part you want learners to fill in." = "Editează textul sursă, apoi selectează partea pe care cursanții trebuie să o completeze.";
 "Edited" = "Editate";
 "Edited %@" = "Editat %@";
+"Edge" = "Margine";
 "Empty card" = "Card gol";
 "Empty choice" = "Variantă goală";
+"Enabled" = "Activ";
 "Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run." = "Activați urmărirea AI verbosă, generați sau convertiți carduri, apoi reveniți aici pentru a inspecta istoricul complet JSON pentru fiecare rulare.";
 "Endpoint: %@" = "Punct final: %@";
 "Example: Capital of France" = "Exemplu: Capitala Franței";
@@ -329,7 +333,9 @@
 "Headline" = "Subtitlu";
 "Hide" = "Ascunde";
 "Hide Blur" = "Ascunde blurul";
+"Hide Header Blur" = "Ascunde blurul antetului";
 "Hide Shadow" = "Ascunde umbra";
+"Hide Tab Blur" = "Ascunde blurul tabbarului";
 "Highlight" = "Evidențiere";
 "History" = "Istoric";
 "Home" = "Acasă";
@@ -344,6 +350,8 @@
 "Improving day by day" = "Se îmbunătățește zi de zi";
 "In %d days" = "Peste %d zile";
 "Include the net ATP yield for each stage and where in the cell each stage occurs." = "Includeți randamentul net de ATP pentru fiecare etapă și unde în celulă are loc fiecare etapă.";
+"Inherit" = "Moștenit";
+"Instant" = "Instant";
 "Interval" = "Interval";
 "Italic" = "Cursiv";
 "just now" = "chiar acum";
@@ -527,6 +535,7 @@
 "Save" = "Salvează";
 "Save Changes" = "Salvează modificările";
 "Save changes before leaving?" = "Salvezi modificările înainte de ieșire?";
+"Scroll" = "Scroll";
 "Save deck" = "Salvează deckul";
 "Save Error" = "Eroare la salvare";
 "Save to" = "Salvează în";
@@ -587,6 +596,7 @@
 "Swipe HUD" = "Glisați HUD";
 "Swipe review" = "Repetare prin glisare";
 "Tab Bar" = "Bara de file";
+"Tab Bar Blur" = "Blur tabbar";
 "Tap + to add a card, or generate cards with AI." = "Atinge + ca să adaugi un card sau generează carduri cu AI.";
 "Tap + to add your first card" = "Atinge + ca să adaugi primul card";
 "Tap another day in the chart or start a short review block to build this week with meaningful history." = "Atingeți o altă zi în diagramă sau începeți un bloc scurt de revizuire pentru a construi această săptămână cu un istoric semnificativ.";
@@ -639,7 +649,9 @@
 "Try a broader phrase, another deck title, or a different card keyword." = "Încearcă o expresie mai largă, alt titlu de deck sau un alt cuvânt-cheie de card.";
 "Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`." = "Încercați un nume de tip Swift, cum ar fi `LibraryDeckListRow`, un nume de slot precum `backgroundFill` sau un simbol precum `BrandPrimary`.";
 "Tune Blur" = "Ajustează blurul";
+"Tune Header Blur" = "Ajustează blurul antetului";
 "Tune Shadow" = "Ajustează umbra";
+"Tune Tab Blur" = "Ajustează blurul tabbarului";
 "Type" = "Tip";
 "Undo Changes" = "Anulează modificările";
 "Unique rate" = "Rată unice";

@@ -134,6 +134,7 @@
 "Auto Block" = "Автоблок";
 "Auto keeps the full source covered, then balances density by text weight." = "В режиме «Авто» сохраняется весь источник, а затем балансируется плотность по весу текста.";
 "Auto Size" = "Авторазмер";
+"Background Color" = "Цвет фона";
 "Background is rendered inside the shared sheet surface and clipped by the top corner radius." = "Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.";
 "Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request." = "Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.";
 "Blank" = "Пропуск";
@@ -143,6 +144,7 @@
 "Block Position" = "Позиция блока";
 "Block Right" = "Блок справа";
 "Blue" = "Синий";
+"Bottom" = "Снизу";
 "Blur Color" = "Цвет блюра";
 "Blur Header Lab" = "Лаборатория размытия заголовков";
 "Blur Tuner" = "Настройка блюра";
@@ -267,8 +269,10 @@
 "Edit the source text, then select the part you want learners to fill in." = "Отредактируйте исходный текст, затем выберите часть, которую нужно заполнить.";
 "Edited" = "Изменённые";
 "Edited %@" = "Отредактировано %@";
+"Edge" = "Край";
 "Empty card" = "Пустая карточка";
 "Empty choice" = "Пустой вариант";
+"Enabled" = "Включено";
 "Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run." = "Включите подробную отслеживание ИИ, создайте или преобразуйте карточки, а затем вернитесь сюда, чтобы просмотреть полную историю JSON для каждого запуска.";
 "Endpoint: %@" = "Конечная точка: %@";
 "Example: Capital of France" = "Пример: столица Франции";
@@ -329,7 +333,9 @@
 "Headline" = "Подзаголовок";
 "Hide" = "Скрыть";
 "Hide Blur" = "Скрыть блюр";
+"Hide Header Blur" = "Скрыть размытие заголовка";
 "Hide Shadow" = "Скрыть тень";
+"Hide Tab Blur" = "Скрыть размытие вкладок";
 "Highlight" = "Выделение";
 "History" = "История";
 "Home" = "Главная";
@@ -344,6 +350,8 @@
 "Improving day by day" = "Становится лучше день за днём";
 "In %d days" = "Через %d дн.";
 "Include the net ATP yield for each stage and where in the cell each stage occurs." = "Включите чистый выход АТФ для каждой стадии и место в клетке, где происходит каждая стадия.";
+"Inherit" = "Наследовать";
+"Instant" = "Сразу";
 "Interval" = "Интервал";
 "Italic" = "Курсив";
 "just now" = "только что";
@@ -527,6 +535,7 @@
 "Save" = "Сохранить";
 "Save Changes" = "Сохранить изменения";
 "Save changes before leaving?" = "Сохранить изменения перед выходом?";
+"Scroll" = "Прокрутка";
 "Save deck" = "Сохранить колоду";
 "Save Error" = "Ошибка сохранения";
 "Save to" = "Сохранить в";
@@ -587,6 +596,7 @@
 "Swipe HUD" = "Проведите по интерфейсу";
 "Swipe review" = "Повтор свайпом";
 "Tab Bar" = "Панель вкладок";
+"Tab Bar Blur" = "Размытие панели вкладок";
 "Tap + to add a card, or generate cards with AI." = "Нажмите +, чтобы добавить карточку, или сгенерируйте карточки с AI.";
 "Tap + to add your first card" = "Нажмите +, чтобы добавить первую карточку";
 "Tap another day in the chart or start a short review block to build this week with meaningful history." = "Коснитесь другого дня на графике или начните блок короткого обзора, чтобы создать на этой неделе содержательную историю.";
@@ -639,7 +649,9 @@
 "Try a broader phrase, another deck title, or a different card keyword." = "Попробуйте более широкую фразу, другое название колоды или другой ключ карточки.";
 "Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`." = "Попробуйте имя типа Swift, например «LibraryDeckListRow», имя слота, например «backgroundFill», или токен, например «BrandPrimary».";
 "Tune Blur" = "Настроить блюр";
+"Tune Header Blur" = "Настроить размытие заголовка";
 "Tune Shadow" = "Настроить тень";
+"Tune Tab Blur" = "Настроить размытие вкладок";
 "Type" = "Тип";
 "Undo Changes" = "Отменить изменения";
 "Unique rate" = "Доля уникальных";

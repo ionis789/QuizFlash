@@ -201,6 +201,8 @@ struct MyFeatureView: View {
 ## Feature checklist după implementare
 
 - [ ] View-ul root nu conține business logic, fetch-uri grele sau save direct în handler-ele de layout
+- [ ] `body` nu calculează filtre/sortări/fingerprint-uri/summaries peste `@Query` sau colecții mari
+- [ ] `.task(id:)` folosește id-uri/revisions cache-uite, nu hash-uri construite prin citirea tuturor modelelor în render path
 - [ ] Nu am introdus `.count` pe relații SwiftData
 - [ ] Task-urile înlocuibile sunt anulate înainte de restart
 - [ ] Dacă am un flow imersiv, folosesc `fullScreenSheet`
@@ -211,6 +213,8 @@ struct MyFeatureView: View {
 ## Checklist de review
 
 - [ ] No new code reads relationship arrays just to compute `.count`
+- [ ] No large SwiftData/model collection is walked from `body`, row computed properties, or scroll-driven geometry updates
+- [ ] Date/calendar/formatter work used by repeated cells is precomputed in a snapshot or view model
 - [ ] No new main-actor code loads heavy card blobs directly
 - [ ] Stored tasks are cancellable and cancelled on replacement
 - [ ] New `@Observable` view models are `@MainActor`
@@ -218,3 +222,4 @@ struct MyFeatureView: View {
 - [ ] New images go through `ImageCache` and new web views go through `MathWebViewPool`
 - [ ] Long scroll surfaces use lazy stacks and stable chrome spacing instead of hard-coded overlay compensation
 - [ ] Immersive modal flows reuse `fullScreenSheet` when they need QuizFlash drag-dismiss and backdrop behavior
+- [ ] If performance was the bug, I compared before/after using Time Profiler + Allocations or explained why a trace was unnecessary

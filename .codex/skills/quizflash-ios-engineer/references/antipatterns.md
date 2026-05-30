@@ -132,6 +132,74 @@ private static let createdAtFormatter: DateFormatter = {
 
 **De ce:** formatters sunt costisitori; în QuizFlash este preferată reutilizarea statică.
 
+## ❌ Fingerprint/filter/sort peste `@Query` direct în `body`
+
+Găsit în:
+- `QuizFlash/Features/Home/Views/HomeView.swift`
+
+**Nu face:**
+```swift
+private var dashboardTaskSignature: String {
+    [
+        "\(HomeViewModel.logsFingerprint(for: dailyLogs))",
+        "\(HomeViewModel.homeAnalyticsFingerprint(for: homeStudyAggregates))",
+        "\(HomeViewModel.decksFingerprint(for: allDecks))"
+    ].joined(separator: "|")
+}
+
+HomeDashboardView(recentDecks: recentlyOpenedQuery.filter { $0.lastOpenedAt != nil })
+    .task(id: dashboardTaskSignature) { ... }
+```
+
+**Fă:**
+```swift
+@State private var homeDataSignatures = HomeDataSignatures()
+@State private var cachedRecentDecks: [DeckModel] = []
+
+.task(id: cheapHomeDataRefreshSignal) {
+    homeDataSignatures = HomeDataSignatures(
+        logs: HomeViewModel.logsFingerprint(for: dailyLogs),
+        analytics: HomeViewModel.homeAnalyticsFingerprint(for: homeStudyAggregates),
+        decks: HomeViewModel.decksFingerprint(for: allDecks)
+    )
+    cachedRecentDecks = Array(recentlyOpenedQuery.lazy.filter { $0.lastOpenedAt != nil }.prefix(5))
+}
+```
+
+**De ce:** `body` și `.task(id:)` sunt hot paths pe scroll. În Home, această greșeală a produs churn masiv de CPU/alocări fără un leak clasic.
+
+## ❌ Calendar/date work repetat în fiecare celulă
+
+Găsit în:
+- `QuizFlash/Features/Home/Components/HomeCalendarSectionView.swift`
+
+**Nu face:**
+```swift
+private var isToday: Bool {
+    Calendar.current.isDateInToday(day.date)
+}
+
+private var weekdaySymbols: [String] {
+    appPreferences.resolvedCalendar.shortWeekdaySymbols
+}
+```
+
+**Fă:**
+```swift
+struct Day {
+    var dateString: String
+    var isToday: Bool
+}
+
+@Observable
+@MainActor
+final class CalendarViewModel {
+    private(set) var orderedWeekdaySymbols: [String] = []
+}
+```
+
+**De ce:** `Calendar`/`DateFormatter` pot intra în ICU/timezone work. Pe grid-uri scrollabile, aceste valori trebuie calculate când se reconstruiește snapshot-ul calendarului, nu la fiecare render.
+
 ## ❌ `sheet(isPresented:)` pentru flow-uri imersive QuizFlash
 
 Găsit în:

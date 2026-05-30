@@ -6,6 +6,7 @@
 - Layer boundaries
 - SwiftData and memory rules
 - Concurrency rules
+- Performance profiling rules
 - Design system rules
 - Navigation rules
 - Scroll and presentation rules
@@ -35,6 +36,7 @@
 
 ## SwiftData And Memory Rules
 
+- Keep SwiftData model walks out of SwiftUI render paths. The Home trace showed that `.task(id:)` signatures and computed properties that iterate `@Query` arrays can allocate heavily during scroll because each model-property read may fault or bridge persistent state. Cache derived signatures, filtered lists, and UI snapshots in `@State`, view models, repositories, or actors, then update them from cheap change signals.
 - Prefer denormalized counters like `deck.cardCount` and `folder.deckCount` instead of relationship `.count`.
 - Default to `ModelContext.safeModel(for:as:)` from `Core/Extensions/ModelContext+SafeFetch.swift` when resolving models by identifier in app code.
 - Keep each actor on its own `ModelContext(container)` with `autosaveEnabled = false`.
@@ -44,6 +46,7 @@
 - Wrap large per-card projection loops in `autoreleasepool` when decoding or flattening many cards in one pass. This reduces transient spikes for pathological decks on iOS 17.
 - Call `card.clearZoneCache()` after background zone reads.
 - Save explicitly with `do { try context.save() } catch { ... }`. Do not silently discard failures.
+- Prefer lightweight immutable snapshot structs for large list/grid rows. Pass only display-ready values into row views when the source model has heavy relationships, blob fields, or frequently-faulting properties.
 
 ## Concurrency Rules
 
@@ -53,6 +56,15 @@
 - Use `await MainActor.run { }` or `Task { @MainActor in ... }` for main-actor mutations from async work.
 - Avoid `DispatchQueue.main.async` in new code.
 - Prefer `AsyncStream` for progressive result delivery when large data sets would otherwise block responsiveness.
+
+## Performance Profiling Rules
+
+- For global lag, scroll stutter, slider jank, memory growth, or suspected leaks, prefer an Instruments `.trace` over code guessing after the first narrow fix.
+- Capture or request Time Profiler and Allocations together when possible; add Hangs only to confirm long main-thread stalls.
+- Inspect the trace TOC first because one `.trace` can contain multiple runs or combined instruments.
+- Treat heavy transient allocations as allocation churn until proven to be retained memory. A stable memory graph can still lag badly if render paths allocate and discard millions of objects during scroll.
+- Use app-inclusive Time Profiler stacks to identify root owners. Leaf samples from dyld/backtrace/PAC/Instruments overhead are less useful than app frames such as `SomeView.body.getter`, row bodies, computed properties, `.task(id:)` signatures, SwiftData model reads, and Calendar/ICU calls.
+- Use `references/performance-profiling.md` for exact capture instructions, `xctrace export` commands, interpretation order, and the Home incident pattern.
 
 ## Design System Rules
 
@@ -100,6 +112,8 @@
 - Use `Core/Helpers/ScrollPositionRestorer.swift` as the first child of the root scroll content when a screen must preserve pixel scroll offset across iOS 17 push/pop, sheet presentation, or other state-driven re-layouts.
 - Persist the real pixel offset in the view model. Never write sentinel offsets like `1` to force restoration.
 - Prefer `LazyVStack` or `LazyHStack` for large scroll surfaces. Do not build large eager `ForEach` trees inside a scroll view when deck or library data can grow significantly.
+- Treat `body` as a hot path on large scroll screens. Do not sort, filter, reduce, group, date-format, inspect relationship arrays, build full-model fingerprints, or produce large dictionaries from `@Query` results inside render-time computed properties. If the value is needed for `.task(id:)`, build a cached revision outside the scroll render path.
+- Precompute repeated date/calendar values used by cells, such as `isToday`, day keys, weekday symbols, and localized display strings. Avoid calling `Calendar`, `DateFormatter`, or ICU-backed formatting from every row/cell render.
 - Avoid `.scrollDisabled(...)` as a generic way to block interaction during menu overlays on iOS 17. Prefer hit-testing blockers when the goal is only to prevent taps while leaving the underlying scroll state untouched.
 - Canonical examples for stable floating-chrome scroll layouts are `QuizFlash/Features/Library/Components/LibraryLayout.swift` and `QuizFlash/Features/DeckDetails/Views/DeckView.swift`.
 

@@ -18,6 +18,7 @@ extension Notification.Name {
     static let focusZoneTextView = Notification.Name("focusZoneTextView")
     static let zoneEditorCaretMoved = Notification.Name("zoneEditorCaretMoved")
     static let zoneEditorZoneTapped = Notification.Name("zoneEditorZoneTapped")
+    static let zoneEditorWillFocusTextView = Notification.Name("zoneEditorWillFocusTextView")
 }
 
 enum ZoneEditorCaretScrollNotification {
@@ -56,6 +57,7 @@ final class ZoneFocusManager {
     /// Requests focus for a specific zone
     func requestFocus(for zoneID: UUID) {
         pendingFocusZoneID = zoneID
+        focusedZoneID = zoneID
         ZoneEditorDebugStore.shared.recordFocusEvent("manager requestFocus", zoneID: zoneID)
         reportDebugState()
         
@@ -68,13 +70,35 @@ final class ZoneFocusManager {
         // Also post focus notification
         focusNotificationTask?.cancel()
         focusNotificationTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(50))
-            guard !Task.isCancelled else { return }
-            NotificationCenter.default.post(
-                name: .focusZoneTextView,
-                object: zoneID
-            )
+            for delay in [0, 16, 48, 96] {
+                if delay > 0 {
+                    try? await Task.sleep(for: .milliseconds(delay))
+                }
+                guard !Task.isCancelled,
+                      self.pendingFocusZoneID == zoneID || self.focusedZoneID == zoneID else {
+                    return
+                }
+                NotificationCenter.default.post(
+                    name: .focusZoneTextView,
+                    object: zoneID
+                )
+            }
         }
+    }
+
+    /// Completes a pending focus request once UIKit confirms first-responder state.
+    func completeFocus(for zoneID: UUID) {
+        focusNotificationTask?.cancel()
+        focusNotificationTask = nil
+        if focusedZoneID != zoneID {
+            focusedZoneID = zoneID
+        }
+        if pendingFocusZoneID == zoneID {
+            pendingFocusZoneID = nil
+        }
+        releaseKeyboardRetention(afterDelay: 0.1)
+        ZoneEditorDebugStore.shared.recordFocusEvent("manager completeFocus", zoneID: zoneID)
+        reportDebugState()
     }
     
     /// Clears pending focus after successful focus

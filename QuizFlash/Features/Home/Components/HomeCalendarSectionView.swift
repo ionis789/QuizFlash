@@ -20,13 +20,7 @@ import UIKit
 /// - All colours are sourced from `ThemeManager` or semantic SwiftUI tokens — no
 ///   hardcoded values.
 struct HomeCalendarSectionView: View {
-    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
-
-    private enum CompactHeaderBlurConfig {
-        static let revealStart: CGFloat = 0.18
-        static let revealEnd: CGFloat = 0.98
-    }
 
     // MARK: - Dependencies
 
@@ -38,27 +32,27 @@ struct HomeCalendarSectionView: View {
 
     /// O(1) lookup dictionary providing per-day progress and marker insights.
     let calendarInsightsCache: [String: HomeCalendarDayInsight]
-    let calendarInsightsRevision: Int
     let blurConfiguration: ScreenTopProgressiveBlurConfiguration
     let blurHeightOffset: CGFloat
     let blurColor: Color
+    let blurEnabled: Bool
 
     init(
         calendarVM: CalendarViewModel,
         layout: HomeCalendarAdaptiveLayout,
         calendarInsightsCache: [String: HomeCalendarDayInsight],
-        calendarInsightsRevision: Int,
         blurConfiguration: ScreenTopProgressiveBlurConfiguration = .quizFlashDefault,
         blurHeightOffset: CGFloat = 0,
-        blurColor: Color = EdgeShadowDebugSettings.default.resolvedColor
+        blurColor: Color = EdgeShadowDebugSettings.default.resolvedColor,
+        blurEnabled: Bool = true
     ) {
         self.calendarVM = calendarVM
         self.layout = layout
         self.calendarInsightsCache = calendarInsightsCache
-        self.calendarInsightsRevision = calendarInsightsRevision
         self.blurConfiguration = blurConfiguration
         self.blurHeightOffset = blurHeightOffset
         self.blurColor = blurColor
+        self.blurEnabled = blurEnabled
     }
 
     // MARK: - Private Constants
@@ -75,7 +69,7 @@ struct HomeCalendarSectionView: View {
             let contentLeadingInset = layout.contentLeadingInset(for: progress)
 
             ZStack(alignment: .topLeading) {
-                compactHeaderBlur(progress: progress)
+                persistentHeaderBlur()
                     .offset(y: stickyOffset)
 
                 stickyHeaderContent(
@@ -175,36 +169,23 @@ struct HomeCalendarSectionView: View {
     }
 
     @ViewBuilder
-    private func compactHeaderBlur(progress: CGFloat) -> some View {
-        let normalizedProgress = max(
-            0,
-            min(
-                (progress - CompactHeaderBlurConfig.revealStart)
-                / (CompactHeaderBlurConfig.revealEnd - CompactHeaderBlurConfig.revealStart),
-                1.0
-            )
-        )
-        let blurProgress = compactShadowEase(normalizedProgress)
+    private func persistentHeaderBlur() -> some View {
         let baseBlurHeight = layout.safeAreaTop
             + layout.compactCapsuleHeight
             + 15
         let blurHeight = baseBlurHeight
             + blurHeightOffset
 
-        if blurProgress > 0.001 {
+        if blurEnabled {
             TopProgressiveBlurOverlay(
                 topHeight: blurHeight,
-                revealProgress: blurProgress,
+                revealProgress: 1,
                 tintColor: blurColor,
-                configuration: blurConfiguration
+                configuration: blurConfiguration,
+                revealAnimation: nil
             )
                 .allowsHitTesting(false)
         }
-    }
-
-    private func compactShadowEase(_ progress: CGFloat) -> CGFloat {
-        let x = min(max(progress, 0), 1)
-        return x * x * x * (x * ((x * 6) - 15) + 10)
     }
 
     /// Renders the weekday labels and the scrollable grid of days.
@@ -216,57 +197,28 @@ struct HomeCalendarSectionView: View {
         state: HomeCalendarAdaptiveLayout.State
     ) -> some View {
         let totalGridHeight = CGFloat(calendarVM.monthRows.count) * state.rowHeight
-        let isCompactStripActive = progress >= 0.999
-        let usesMonthPager = progress < 0.001
-        let pagerState = layout.expanded
-        let visibleGridWidth = (usesMonthPager ? pagerState.dayColumnWidth : state.dayColumnWidth) * 7
+        let usesMonthSwipe = progress < 0.001
+        let visibleGridWidth = state.dayColumnWidth * 7
         let capsuleWidth = layout.capsuleWidth(for: progress)
-        let calendarTrack = ZStack(alignment: .top) {
-            if !isCompactStripActive && usesMonthPager {
-                expandedMonthPager(progress: 0, state: pagerState)
-                    .frame(width: visibleGridWidth, alignment: .leading)
-            }
-
-            if !isCompactStripActive && !usesMonthPager {
-                dayGrid(
-                    totalGridHeight: totalGridHeight,
-                    progress: progress,
-                    state: state
-                )
-                    .frame(width: visibleGridWidth, alignment: .leading)
-            }
-
-            if isCompactStripActive && !compactWeekPages.isEmpty {
-                CompactCalendarWeekStrip(
-                    weeks: compactWeekPages,
-                    visibleWidth: visibleGridWidth,
-                    dayColumnWidth: state.dayColumnWidth,
-                    dayRowHeight: state.rowHeight,
-                    calendarInsightsCache: calendarInsightsCache,
-                    onSelectDay: { day in
-                        calendarVM.selectDate(day.date)
-                    }
-                )
-                    .transition(.identity)
-                    .transaction { $0.animation = nil }
-            }
-        }
+        let calendarTrack = dayGrid(
+            totalGridHeight: totalGridHeight,
+            progress: progress,
+            state: state
+        )
+        .frame(width: visibleGridWidth, alignment: .leading)
+        .simultaneousGesture(monthSwipeGesture(enabled: usesMonthSwipe))
             .frame(
             height: state.rowHeight + (totalGridHeight - state.rowHeight) * (1 - progress),
             alignment: .top
         )
+            .clipped()
             .transaction { $0.animation = nil }
 
         let gridContent = VStack(spacing: 0) {
             weekdayLabels(state: state)
                 .frame(width: visibleGridWidth, alignment: .leading)
 
-            if isCompactStripActive {
-                calendarTrack
-            } else {
-                calendarTrack
-                    .clipped()
-            }
+            calendarTrack
         }
             .padding(.horizontal, state.horizontalPadding)
             .padding(.vertical, state.verticalPadding)
@@ -274,32 +226,10 @@ struct HomeCalendarSectionView: View {
         gridContent
     }
 
-    @ViewBuilder
-    private func expandedMonthPager(
-        progress: CGFloat,
-        state: HomeCalendarAdaptiveLayout.State
-    ) -> some View {
-        ExpandedMonthPagerHost(
-            snapshots: calendarVM.visibleMonthSnapshots,
-            progress: 0,
-            state: state,
-            calendarInsightsCache: calendarInsightsCache,
-            insightsRevision: calendarInsightsRevision,
-            onSelectDay: { day in
-                calendarVM.selectDate(day.date)
-            },
-            onMonthOffset: { offset in
-                calendarVM.applyMonthOffset(offset)
-            }
-        )
-            .frame(width: state.dayColumnWidth * 7)
-            .clipped()
-    }
-
     /// A horizontal row displaying abbreviated weekday symbols (e.g., Sun, Mon).
     private func weekdayLabels(state: HomeCalendarAdaptiveLayout.State) -> some View {
         HStack(spacing: 0) {
-            ForEach(weekdaySymbols, id: \.self) { symbol in
+            ForEach(calendarVM.orderedWeekdaySymbols, id: \.self) { symbol in
                 Text(symbol)
                     .font(.system(size: state.weekdayFontSize, weight: .bold, design: .rounded))
                     .frame(width: state.dayColumnWidth)
@@ -307,13 +237,6 @@ struct HomeCalendarSectionView: View {
             }
         }
             .frame(height: state.weekLabelHeight, alignment: .center)
-    }
-
-    private var weekdaySymbols: [String] {
-        let calendar = appPreferences.resolvedCalendar
-        let symbols = calendar.shortWeekdaySymbols
-        let startIndex = max(calendar.firstWeekday - 1, 0)
-        return Array(symbols[startIndex...]) + Array(symbols[..<startIndex])
     }
 
     /// The full month grid.
@@ -407,8 +330,20 @@ struct HomeCalendarSectionView: View {
             .buttonStyle(.plain)
     }
 
-    private var compactWeekPages: [[Day]] {
-        calendarVM.monthRows
+    private func monthSwipeGesture(enabled: Bool) -> some Gesture {
+        DragGesture(minimumDistance: 28, coordinateSpace: .local)
+            .onEnded { value in
+                guard enabled else { return }
+                let horizontal = value.translation.width
+                let vertical = value.translation.height
+                guard abs(horizontal) > 56, abs(horizontal) > abs(vertical) * 1.35 else {
+                    return
+                }
+
+                withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+                    calendarVM.applyMonthOffset(horizontal < 0 ? 1 : -1)
+                }
+            }
     }
 
 }
@@ -432,7 +367,7 @@ struct CalendarDayCellView: View {
     // MARK: - Computed States
 
     private var isToday: Bool {
-        Calendar.current.isDateInToday(day.date)
+        day.isToday
     }
 
     private var usesCompactCapsulePresentation: Bool {

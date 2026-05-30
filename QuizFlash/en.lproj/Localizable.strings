@@ -134,6 +134,7 @@
 "Auto Block" = "Auto Block";
 "Auto keeps the full source covered, then balances density by text weight." = "Auto keeps the full source covered, then balances density by text weight.";
 "Auto Size" = "Auto Size";
+"Background Color" = "Background Color";
 "Background is rendered inside the shared sheet surface and clipped by the top corner radius." = "Background is rendered inside the shared sheet surface and clipped by the top corner radius.";
 "Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request." = "Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.";
 "Blank" = "Blank";
@@ -143,6 +144,7 @@
 "Block Position" = "Block Position";
 "Block Right" = "Block Right";
 "Blue" = "Blue";
+"Bottom" = "Bottom";
 "Blur Color" = "Blur Color";
 "Blur Header Lab" = "Blur Header Lab";
 "Blur Tuner" = "Blur Tuner";
@@ -267,8 +269,10 @@
 "Edit the source text, then select the part you want learners to fill in." = "Edit the source text, then select the part you want learners to fill in.";
 "Edited" = "Edited";
 "Edited %@" = "Edited %@";
+"Edge" = "Edge";
 "Empty card" = "Empty card";
 "Empty choice" = "Empty choice";
+"Enabled" = "Enabled";
 "Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run." = "Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run.";
 "Endpoint: %@" = "Endpoint: %@";
 "Example: Capital of France" = "Example: Capital of France";
@@ -329,7 +333,9 @@
 "Headline" = "Headline";
 "Hide" = "Hide";
 "Hide Blur" = "Hide Blur";
+"Hide Header Blur" = "Hide Header Blur";
 "Hide Shadow" = "Hide Shadow";
+"Hide Tab Blur" = "Hide Tab Blur";
 "Highlight" = "Highlight";
 "History" = "History";
 "Home" = "Home";
@@ -344,6 +350,8 @@
 "Improving day by day" = "Improving day by day";
 "In %d days" = "In %d days";
 "Include the net ATP yield for each stage and where in the cell each stage occurs." = "Include the net ATP yield for each stage and where in the cell each stage occurs.";
+"Inherit" = "Inherit";
+"Instant" = "Instant";
 "Interval" = "Interval";
 "Italic" = "Italic";
 "just now" = "just now";
@@ -527,6 +535,7 @@
 "Save" = "Save";
 "Save Changes" = "Save Changes";
 "Save changes before leaving?" = "Save changes before leaving?";
+"Scroll" = "Scroll";
 "Save deck" = "Save deck";
 "Save Error" = "Save Error";
 "Save to" = "Save to";
@@ -587,6 +596,7 @@
 "Swipe HUD" = "Swipe HUD";
 "Swipe review" = "Swipe review";
 "Tab Bar" = "Tab Bar";
+"Tab Bar Blur" = "Tab Bar Blur";
 "Tap + to add a card, or generate cards with AI." = "Tap + to add a card, or generate cards with AI.";
 "Tap + to add your first card" = "Tap + to add your first card";
 "Tap another day in the chart or start a short review block to build this week with meaningful history." = "Tap another day in the chart or start a short review block to build this week with meaningful history.";
@@ -639,7 +649,9 @@
 "Try a broader phrase, another deck title, or a different card keyword." = "Try a broader phrase, another deck title, or a different card keyword.";
 "Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`." = "Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`.";
 "Tune Blur" = "Tune Blur";
+"Tune Header Blur" = "Tune Header Blur";
 "Tune Shadow" = "Tune Shadow";
+"Tune Tab Blur" = "Tune Tab Blur";
 "Type" = "Type";
 "Undo Changes" = "Undo Changes";
 "Unique rate" = "Unique rate";

@@ -7,6 +7,11 @@ import XCTest
 @testable import QuizFlash
 
 final class ZoneModelLayoutMigrationTests: XCTestCase {
+    func testWhitespaceOnlyTextZoneCountsAsAuthorContent() {
+        XCTAssertTrue(ZoneModel.text("   \n  ").hasContent)
+        XCTAssertFalse(ZoneModel.text("").hasContent)
+    }
+
     func testLegacyLeadingAlignmentMigratesToAutoBlockLayout() throws {
         let zone = try decodeLegacyZone(textAlignment: "leading")
 

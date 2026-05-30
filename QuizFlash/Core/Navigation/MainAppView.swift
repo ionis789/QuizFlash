@@ -36,6 +36,7 @@ struct MainAppView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(DevelopmentPreferences.self) private var developmentPreferences
     @Environment(AppMigrationStore.self) private var appMigrationStore
     @Environment(ThemeManager.self) private var themeManager
 
@@ -59,6 +60,8 @@ struct MainAppView: View {
     @State private var sheetHiddenTabBarRequestIDs: Set<UUID> = []
     /// User-driven auto-hide state sourced from the active scroll surface.
     @State private var isTabBarAutoHiddenByScroll = false
+
+    private static let tabBarBlurDebugScreenID = EdgeShadowDebugScreenID.tabBarBlur
 
     // MARK: - Init
 
@@ -256,8 +259,11 @@ struct MainAppView: View {
                 // snaps to its final position — producing an asymmetric animation.
                 // Keeping the view alive and animating its properties avoids that
                 // race entirely.
-                tabBarView(in: proxy)
+                tabBarChrome(in: proxy)
                     .zIndex(1)
+
+                tabBarBlurDebugControls(in: proxy)
+                    .zIndex(3)
 
                 if let status = aiWorkspaceCoordinator.floatingStatus,
                    !keyboardMonitor.isVisible,
@@ -386,6 +392,106 @@ struct MainAppView: View {
     }
 
     @ViewBuilder
+    private func tabBarChrome(in proxy: GeometryProxy) -> some View {
+        let bottomScreenAnchorOffset = proxy.safeAreaInsets.bottom
+
+        ZStack(alignment: .bottom) {
+            tabBarBottomBlur(in: proxy)
+                .opacity(isFloatingTabBarVisible ? 1 : 0)
+                .offset(y: bottomScreenAnchorOffset + (isFloatingTabBarVisible ? 0 : 80))
+                .animation(.bottomChromeSpring, value: isFloatingTabBarVisible)
+                .allowsHitTesting(false)
+            tabBarView(in: proxy)
+                .bottomChromeVisibility(isFloatingTabBarVisible)
+                .accessibilityHidden(!isFloatingTabBarVisible)
+        }
+        .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottom)
+    }
+
+    @ViewBuilder
+    private func tabBarBottomBlur(in proxy: GeometryProxy) -> some View {
+        let height = tabBarBottomBlurHeight(safeBottomInset: proxy.safeAreaInsets.bottom)
+        let revealProgress = tabBarBottomBlurRevealProgress
+
+        if height > 0, revealProgress > 0.001 {
+            TabBarBottomTintOverlay(
+                height: height,
+                revealProgress: revealProgress,
+                tintColor: tabBarBottomBlurColor,
+                configuration: tabBarBottomBlurConfiguration
+            )
+            .ignoresSafeArea(.all, edges: .bottom)
+            .allowsHitTesting(false)
+        }
+    }
+
+    private func tabBarBottomBlurHeight(safeBottomInset: CGFloat) -> CGFloat {
+        tabBarBlurDebugSettings.resolvedBottomHeight(
+            from: tabBarBottomBlurBaseHeight(safeBottomInset: safeBottomInset)
+        )
+    }
+
+    private func tabBarBottomBlurBaseHeight(safeBottomInset: CGFloat) -> CGFloat {
+        safeBottomInset + UIConstants.Size.bottomChromeBarHeight
+    }
+
+    private var tabBarBottomBlurRevealProgress: CGFloat {
+        tabBarBlurDebugSettings.bottomEnabled ? 1 : 0
+    }
+
+    private var tabBarBottomBlurConfiguration: ScreenTopProgressiveBlurConfiguration {
+        tabBarBlurDebugSettings.bottomProgressiveBlurConfiguration
+    }
+
+    private var tabBarBottomBlurColor: Color {
+        tabBarBlurDebugSettings.resolvedBottomColor
+    }
+
+    private var tabBarBlurDebugSettings: EdgeShadowDebugSettings {
+        developmentPreferences.edgeShadowSettings(for: Self.tabBarBlurDebugScreenID)
+    }
+
+    @ViewBuilder
+    private func tabBarBlurDebugControls(in proxy: GeometryProxy) -> some View {
+#if DEBUG
+        if developmentPreferences.edgeShadowTuningEnabled, !keyboardMonitor.isVisible {
+            EdgeShadowDebugFloatingPanel(
+                mode: .progressiveBlur,
+                supportsTopEdge: false,
+                supportsBottomEdge: true,
+                initialSelectedEdge: .bottom,
+                bottomHeightBase: tabBarBottomBlurBaseHeight(safeBottomInset: proxy.safeAreaInsets.bottom),
+                heightRange: 0...260,
+                showsProgressiveBlurRadius: false,
+                panelTitleOverride: "Tab Bar Blur",
+                showButtonTitleOverride: "Tune Tab Blur",
+                hideButtonTitleOverride: "Hide Tab Blur",
+                settings: Binding(
+                    get: {
+                        developmentPreferences.edgeShadowSettings(for: Self.tabBarBlurDebugScreenID)
+                    },
+                    set: {
+                        developmentPreferences.setEdgeShadowSettings(
+                            $0,
+                            for: Self.tabBarBlurDebugScreenID
+                        )
+                    }
+                ),
+                onReset: {
+                    developmentPreferences.resetEdgeShadowSettings(for: Self.tabBarBlurDebugScreenID)
+                }
+            )
+            .padding(.trailing, UIConstants.Spacing.medium)
+            .padding(.bottom, UIConstants.Size.bottomChromeBarHeight + 104)
+            .opacity(isFloatingTabBarVisible ? 1 : 0)
+            .allowsHitTesting(isFloatingTabBarVisible)
+        }
+#else
+        EmptyView()
+#endif
+    }
+
+    @ViewBuilder
     private func tabBarView(in proxy: GeometryProxy) -> some View {
         let availableWidth = max(
             proxy.size.width - (UIConstants.Layout.bottomChromeSideInset * 2),
@@ -401,7 +507,6 @@ struct MainAppView: View {
             .frame(width: barWidth)
             .offset(y: UIConstants.Layout.bottomChromeVisualBottomOffset)
             .ignoresSafeArea(.container, edges: isPad ? .bottom : [.horizontal, .bottom])
-            .bottomChromeVisibility(isFloatingTabBarVisible)
 
         if usesDetachedPadTabBar {
             HStack(spacing: 0) {
@@ -539,5 +644,38 @@ struct MainAppView: View {
     private var createWorkspaceRootTransition: AnyTransition {
         .opacity
             .combined(with: .scale(scale: 0.985, anchor: .top))
+    }
+}
+
+private struct TabBarBottomTintOverlay: View {
+    let height: CGFloat
+    let revealProgress: CGFloat
+    let tintColor: Color
+    let configuration: ScreenTopProgressiveBlurConfiguration
+
+    private var clampedRevealProgress: CGFloat {
+        min(max(revealProgress, 0), 1)
+    }
+
+    var body: some View {
+        if height > 0, clampedRevealProgress > 0.001 {
+            let totalHeight = max(height, 1)
+            let overlayHeight = totalHeight + max(configuration.fadeExtension, 0)
+            let middleLocation = min(max(totalHeight / max(overlayHeight, 1), 0), 1)
+
+            LinearGradient(
+                stops: [
+                    .init(color: tintColor.opacity(configuration.tintOpacityTop), location: 0),
+                    .init(color: tintColor.opacity(configuration.tintOpacityMiddle), location: middleLocation),
+                    .init(color: tintColor.opacity(0), location: 1),
+                ],
+                startPoint: .bottom,
+                endPoint: .top
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: overlayHeight, alignment: .bottom)
+            .opacity(clampedRevealProgress)
+            .allowsHitTesting(false)
+        }
     }
 }

@@ -334,6 +334,7 @@ struct ZoneContentView: View {
             )
             .onAppear {
                 syncFocusState(with: focusManager.focusedZoneID)
+                activatePendingFocusIfNeeded(focusManager.pendingFocusZoneID)
                 reportDebugZoneState(zone: zone, layout: layout)
             }
             .onChange(of: zoneDebugSignature(zone: zone, layout: layout)) { _, _ in
@@ -351,15 +352,7 @@ struct ZoneContentView: View {
                 reportDebugZoneState(zone: zone, layout: layout)
             }
             .onChange(of: focusManager.pendingFocusZoneID) { _, pendingID in
-                if pendingID == currentZoneID {
-                    if zone.contentType == .text || zone.contentType == .empty || zone.contentType == .code {
-                        if !isSelected {
-                            onSelect()
-                        }
-                        isFocused = true
-                    }
-                    focusManager.clearPendingFocus()
-                }
+                activatePendingFocusIfNeeded(pendingID)
                 reportDebugZoneState(zone: zone, layout: layout)
             }
             .fullScreenCover(isPresented: $isCroppingImage) {
@@ -410,15 +403,19 @@ struct ZoneContentView: View {
 
     private func blockSurface(layout: CardZoneLayoutResult, zone: ZoneModel) -> some View {
         let outset = visualZoneOutset(for: zone)
+        let highlightTint = zone.highlightColor.zoneSurfaceTint
 
         return ZStack {
             RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
-                .fill(Color.gray.opacity(0.05))
+                .fill(editorZoneFill(for: zone))
                 .overlay(idleZoneStroke)
-            if let highlight = zone.highlightColor.color {
-                RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
-                    .fill(highlight)
-            }
+                .overlay {
+                    if let highlightTint {
+                        RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
+                            .stroke(highlightTint.opacity(0.86), lineWidth: 2)
+                    }
+                }
+                .shadow(color: highlightTint?.opacity(0.34) ?? .clear, radius: highlightTint == nil ? 0 : 10)
         }
         .frame(
             width: layout.blockSize.width + (outset.horizontal * 2),
@@ -573,7 +570,7 @@ struct ZoneContentView: View {
         width: CGFloat,
         preservesTrailingBlankLines: Bool = false
     ) -> CGSize {
-        let bulletOffset = zone.hasBullet
+        let bulletOffset = shouldShowBullet(for: zone)
             ? CardZoneContentMetrics.bulletWidth + CardZoneContentMetrics.bulletSpacing
             : 0
         let horizontalPadding = editorTextHorizontalPadding(for: zone) * 2
@@ -713,11 +710,11 @@ struct ZoneContentView: View {
             }
 
             HStack(alignment: .top, spacing: 8) {
-                if zone?.hasBullet == true {
+                if shouldShowBullet {
                     Circle()
                         .fill(zone?.textColor.color ?? .primary)
-                        .frame(width: 6, height: 6)
-                        .padding(.top, 10)
+                        .frame(width: editorBulletSize, height: editorBulletSize)
+                        .padding(.top, editorBulletTopPadding)
                 }
 
                 if shouldUseInteractiveTextSurface {
@@ -749,6 +746,15 @@ struct ZoneContentView: View {
         }
 
         return true
+    }
+
+    private var shouldShowBullet: Bool {
+        guard let zone else { return false }
+        return shouldShowBullet(for: zone)
+    }
+
+    private func shouldShowBullet(for zone: ZoneModel) -> Bool {
+        zone.hasBullet && !zone.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var emptyZonePreview: some View {
@@ -892,6 +898,21 @@ struct ZoneContentView: View {
             }
         } else if isFocused {
             isFocused = false
+        }
+    }
+
+    private func activatePendingFocusIfNeeded(_ pendingID: UUID?) {
+        guard pendingID == currentZoneID,
+              let zone,
+              zone.contentType == .text || zone.contentType == .empty || zone.contentType == .code else {
+            return
+        }
+
+        if !isSelected {
+            onSelect()
+        }
+        if !isFocused {
+            isFocused = true
         }
     }
 
@@ -1066,6 +1087,19 @@ struct ZoneContentView: View {
 
     private var zoneTextVerticalPadding: CGFloat { 16 }
 
+    private var editorBulletSize: CGFloat {
+        CardZoneContentMetrics.bulletWidth
+    }
+
+    private var editorBulletTopPadding: CGFloat {
+        let centeredInFirstLine = (textUIFont.lineHeight - editorBulletSize) / 2
+        return editorTextContentInsets.top + max(centeredInFirstLine, 0)
+    }
+
+    private func editorZoneFill(for zone: ZoneModel) -> Color {
+        zone.highlightColor.zoneSurfaceFill
+    }
+
     // MARK: - Image View
     @ViewBuilder
     private var imageView: some View {
@@ -1112,7 +1146,7 @@ struct ZoneContentView: View {
     private var idleZoneStroke: some View {
         if !isSelected {
             RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
-                .stroke(Color.gray.opacity(0.18), lineWidth: 0.8)
+                .stroke(Color.white.opacity(0.10), lineWidth: 0.8)
         }
     }
 
@@ -1162,8 +1196,11 @@ struct CardFaceView: View {
                         if zone.hasBullet {
                             Circle()
                                 .fill(zone.textColor.color)
-                                .frame(width: 6, height: 6)
-                                .padding(.top, 8)
+                                .frame(
+                                    width: CardZoneContentMetrics.bulletWidth,
+                                    height: CardZoneContentMetrics.bulletWidth
+                                )
+                                .padding(.top, previewBulletTopPadding(for: zone))
                         }
                         MixedMathTextView(
                             text: previewText,
@@ -1176,16 +1213,16 @@ struct CardFaceView: View {
                             allowsReadOnlyOverflowScrolling: true,
                             onTap: onTap
                         )
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, zone.highlightColor != HighlightColor.none ? 6 : 0)
-                            .background(
-                            zone.highlightColor.color.map { color in
-                                RoundedRectangle(cornerRadius: 4).fill(color)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, zone.highlightColor != HighlightColor.none ? 6 : 0)
+                        .background {
+                            if let color = zone.highlightColor.color {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(color)
                             }
-                               
-                        )
+                        }
                     }
-                        .frame(maxWidth: .infinity, alignment: alignmentFor(resolvedTextAlignment))
+                    .frame(maxWidth: .infinity, alignment: alignmentFor(resolvedTextAlignment))
                 }
             }
         case .image:
@@ -1198,7 +1235,7 @@ struct CardFaceView: View {
     private func displayText(for zone: ZoneModel) -> String {
         switch zone.contentType {
         case .text:
-            return MathTextSanitizer.stripTerminalZonePeriod(zone.text)
+            return MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
         default:
             return zone.text
         }
@@ -1211,6 +1248,13 @@ struct CardFaceView: View {
         case .headline: return 26 * fontScale
         case .title: return 32 * fontScale
         }
+    }
+
+    private func previewBulletTopPadding(for zone: ZoneModel) -> CGFloat {
+        let size = fontSizeFor(zone)
+        let weight: UIFont.Weight = zone.isBold ? .bold : (zone.textStyle == .title ? .bold : (zone.textStyle == .headline ? .semibold : .regular))
+        let lineHeight = zone.fontFamily.uiFont(size: size, weight: weight).lineHeight
+        return 4 + max((lineHeight - CardZoneContentMetrics.bulletWidth) / 2, 0)
     }
 
     @ViewBuilder

@@ -32,6 +32,7 @@ final class ZoneCardContent {
     /// Modifying this property triggers SwiftUI observation and re-renders all
     /// views that depend on this object.
     var rootZone: ZoneModel
+    private let stableAuthoringRoot: Bool
 
     /// `true` if the root zone or any descendant contains non-empty content.
     var hasContent: Bool { rootZone.hasContent }
@@ -40,9 +41,13 @@ final class ZoneCardContent {
 
     /// Creates a new `ZoneCardContent` with the given root zone.
     /// - Parameter rootZone: The initial zone tree. Defaults to a single empty text zone.
-    init(rootZone: ZoneModel = .text()) {
+    init(rootZone: ZoneModel = .text(), stableAuthoringRoot: Bool = false) {
+        self.stableAuthoringRoot = stableAuthoringRoot
         var normalizedRoot = rootZone
         normalizedRoot.normalizeAuthoringLayoutRecursively()
+        if stableAuthoringRoot {
+            normalizedRoot.wrapLeafInStableAuthoringRootIfNeeded()
+        }
         self.rootZone = normalizedRoot
     }
 
@@ -229,6 +234,7 @@ final class ZoneCardContent {
             let preservedVerticalAlignment = rootZone.verticalAlignment
             rootZone = .text()
             rootZone.verticalAlignment = preservedVerticalAlignment
+            restoreStableAuthoringRootIfNeeded()
             return
         }
         guard let parentPath = path.parent, let childIndex = path.lastIndex else { return }
@@ -239,6 +245,7 @@ final class ZoneCardContent {
             else if kids.isEmpty    { parent = .empty() }
             else                    { parent.children = kids }
         }
+        restoreStableAuthoringRootIfNeeded()
     }
 
     // MARK: - Cleanup
@@ -291,9 +298,22 @@ final class ZoneCardContent {
             }
         }
     }
+
+    private func restoreStableAuthoringRootIfNeeded() {
+        guard stableAuthoringRoot else { return }
+        rootZone.wrapLeafInStableAuthoringRootIfNeeded()
+    }
 }
 
 private extension ZoneModel {
+    mutating func wrapLeafInStableAuthoringRootIfNeeded() {
+        guard isLeaf else { return }
+        let child = self
+        let preservedVerticalAlignment = verticalAlignment
+        self = .container(direction: .vertical, children: [child])
+        verticalAlignment = preservedVerticalAlignment
+    }
+
     mutating func normalizeAuthoringLayoutRecursively() {
         guard var kids = children else { return }
         for index in kids.indices {

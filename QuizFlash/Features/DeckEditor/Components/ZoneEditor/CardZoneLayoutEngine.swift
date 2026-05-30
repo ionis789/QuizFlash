@@ -208,16 +208,21 @@ enum CardZoneLayoutEngine {
 
     private static func usesIntrinsicTextMeasurement(for zone: ZoneModel) -> Bool {
         guard zone.contentType == .text else { return false }
-        let previewText = MathTextSanitizer.stripTerminalZonePeriod(zone.text)
+        let previewText = MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
         return !previewText.isEmpty && !previewText.hasPrefix("```")
     }
 
     private static func horizontalTextInsets(for zone: ZoneModel) -> CGFloat {
-        zone.highlightColor != .none ? CardZoneContentMetrics.highlightedHorizontalPadding : 0
+        switch zone.contentType {
+        case .empty, .text, .code:
+            return CardZoneContentMetrics.textHorizontalPadding
+        case .image, .sketch:
+            return 0
+        }
     }
 
     private static func bulletInset(for zone: ZoneModel) -> CGFloat {
-        zone.hasBullet
+        zone.hasBullet && !zone.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? CardZoneContentMetrics.bulletWidth + CardZoneContentMetrics.bulletSpacing
             : 0
     }

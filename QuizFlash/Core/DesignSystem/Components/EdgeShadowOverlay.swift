@@ -34,6 +34,16 @@ private let kDefaultEdgeShadowColor = Color(ThemeColorToken.backgroundPrimary.as
 
 // MARK: - EdgeShadowOverlay
 
+enum ScreenEdgeShadowEdge: String, Codable, CaseIterable, Hashable {
+    case top
+    case bottom
+}
+
+enum EdgeShadowDebugScreenID {
+    static let homeCalendar = "home.calendar"
+    static let tabBarBlur = "global.tabBarBlur"
+}
+
 struct EdgeShadowTuning: Equatable {
     /// Scales only the feather band at the trailing edge, not the full shadow zone.
     var fadeLengthScale: CGFloat = 1.35
@@ -52,19 +62,79 @@ struct EdgeShadowTuning: Equatable {
 }
 
 struct EdgeShadowDebugSettings: Codable, Equatable {
+    var topEnabled: Bool = true
+    var bottomEnabled: Bool = true
     var maxAlpha: CGFloat = 1.0
+    var bottomMaxAlpha: CGFloat = 1.0
     var blurOpacityScale: CGFloat = EdgeShadowTuning.default.blurOpacityScale
     var tintOpacityScale: CGFloat = EdgeShadowTuning.default.tintOpacityScale
     var fadeLengthScale: CGFloat = EdgeShadowTuning.default.fadeLengthScale
     var curveExponentBase: CGFloat = EdgeShadowTuning.default.curveExponentBase
     var heightOffset: CGFloat = 0
+    var bottomHeightOffset: CGFloat = 0
     var colorOverride: EdgeShadowDebugColor?
+    var bottomColorOverride: EdgeShadowDebugColor?
     var progressiveBlurRadius: CGFloat = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.maxBlurRadius
     var progressiveFadeExtension: CGFloat = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.fadeExtension
     var progressiveTintOpacityTop: CGFloat = CGFloat(ScreenTopProgressiveBlurConfiguration.quizFlashDefault.tintOpacityTop)
     var progressiveTintOpacityMiddle: CGFloat = CGFloat(ScreenTopProgressiveBlurConfiguration.quizFlashDefault.tintOpacityMiddle)
+    var bottomProgressiveBlurRadius: CGFloat = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.maxBlurRadius
+    var bottomProgressiveFadeExtension: CGFloat = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.fadeExtension
+    var bottomProgressiveTintOpacityEdge: CGFloat = CGFloat(ScreenTopProgressiveBlurConfiguration.quizFlashDefault.tintOpacityTop)
+    var bottomProgressiveTintOpacityMiddle: CGFloat = CGFloat(ScreenTopProgressiveBlurConfiguration.quizFlashDefault.tintOpacityMiddle)
 
     static let `default` = EdgeShadowDebugSettings()
+    private static let minimumProgressiveBlurRadius = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.maxBlurRadius
+
+    enum CodingKeys: String, CodingKey {
+        case topEnabled
+        case bottomEnabled
+        case maxAlpha
+        case bottomMaxAlpha
+        case blurOpacityScale
+        case tintOpacityScale
+        case fadeLengthScale
+        case curveExponentBase
+        case heightOffset
+        case bottomHeightOffset
+        case colorOverride
+        case bottomColorOverride
+        case progressiveBlurRadius
+        case progressiveFadeExtension
+        case progressiveTintOpacityTop
+        case progressiveTintOpacityMiddle
+        case bottomProgressiveBlurRadius
+        case bottomProgressiveFadeExtension
+        case bottomProgressiveTintOpacityEdge
+        case bottomProgressiveTintOpacityMiddle
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let defaults = Self.default
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        topEnabled = try container.decodeIfPresent(Bool.self, forKey: .topEnabled) ?? defaults.topEnabled
+        bottomEnabled = try container.decodeIfPresent(Bool.self, forKey: .bottomEnabled) ?? defaults.bottomEnabled
+        maxAlpha = try container.decodeIfPresent(CGFloat.self, forKey: .maxAlpha) ?? defaults.maxAlpha
+        bottomMaxAlpha = try container.decodeIfPresent(CGFloat.self, forKey: .bottomMaxAlpha) ?? defaults.bottomMaxAlpha
+        blurOpacityScale = try container.decodeIfPresent(CGFloat.self, forKey: .blurOpacityScale) ?? defaults.blurOpacityScale
+        tintOpacityScale = try container.decodeIfPresent(CGFloat.self, forKey: .tintOpacityScale) ?? defaults.tintOpacityScale
+        fadeLengthScale = try container.decodeIfPresent(CGFloat.self, forKey: .fadeLengthScale) ?? defaults.fadeLengthScale
+        curveExponentBase = try container.decodeIfPresent(CGFloat.self, forKey: .curveExponentBase) ?? defaults.curveExponentBase
+        heightOffset = try container.decodeIfPresent(CGFloat.self, forKey: .heightOffset) ?? defaults.heightOffset
+        bottomHeightOffset = try container.decodeIfPresent(CGFloat.self, forKey: .bottomHeightOffset) ?? defaults.bottomHeightOffset
+        colorOverride = try container.decodeIfPresent(EdgeShadowDebugColor.self, forKey: .colorOverride)
+        bottomColorOverride = try container.decodeIfPresent(EdgeShadowDebugColor.self, forKey: .bottomColorOverride)
+        progressiveBlurRadius = try container.decodeIfPresent(CGFloat.self, forKey: .progressiveBlurRadius) ?? defaults.progressiveBlurRadius
+        progressiveFadeExtension = try container.decodeIfPresent(CGFloat.self, forKey: .progressiveFadeExtension) ?? defaults.progressiveFadeExtension
+        progressiveTintOpacityTop = try container.decodeIfPresent(CGFloat.self, forKey: .progressiveTintOpacityTop) ?? defaults.progressiveTintOpacityTop
+        progressiveTintOpacityMiddle = try container.decodeIfPresent(CGFloat.self, forKey: .progressiveTintOpacityMiddle) ?? defaults.progressiveTintOpacityMiddle
+        bottomProgressiveBlurRadius = try container.decodeIfPresent(CGFloat.self, forKey: .bottomProgressiveBlurRadius) ?? defaults.bottomProgressiveBlurRadius
+        bottomProgressiveFadeExtension = try container.decodeIfPresent(CGFloat.self, forKey: .bottomProgressiveFadeExtension) ?? defaults.bottomProgressiveFadeExtension
+        bottomProgressiveTintOpacityEdge = try container.decodeIfPresent(CGFloat.self, forKey: .bottomProgressiveTintOpacityEdge) ?? defaults.bottomProgressiveTintOpacityEdge
+        bottomProgressiveTintOpacityMiddle = try container.decodeIfPresent(CGFloat.self, forKey: .bottomProgressiveTintOpacityMiddle) ?? defaults.bottomProgressiveTintOpacityMiddle
+    }
 
     var tuning: EdgeShadowTuning {
         var tuning = EdgeShadowTuning.default
@@ -76,19 +146,38 @@ struct EdgeShadowDebugSettings: Codable, Equatable {
     }
 
     func resolvedTopHeight(from baseHeight: CGFloat) -> CGFloat {
-        max(0, baseHeight + heightOffset)
+        guard topEnabled else { return 0 }
+        return max(0, baseHeight + heightOffset)
+    }
+
+    func resolvedBottomHeight(from baseHeight: CGFloat) -> CGFloat {
+        guard bottomEnabled else { return 0 }
+        return max(0, baseHeight + bottomHeightOffset)
     }
 
     var resolvedColor: Color {
         colorOverride?.swiftUIColor ?? kDefaultEdgeShadowColor
     }
 
+    var resolvedBottomColor: Color {
+        bottomColorOverride?.swiftUIColor ?? resolvedColor
+    }
+
     var progressiveBlurConfiguration: ScreenTopProgressiveBlurConfiguration {
         ScreenTopProgressiveBlurConfiguration(
-            maxBlurRadius: progressiveBlurRadius,
+            maxBlurRadius: max(progressiveBlurRadius, Self.minimumProgressiveBlurRadius),
             fadeExtension: progressiveFadeExtension,
             tintOpacityTop: Double(progressiveTintOpacityTop),
             tintOpacityMiddle: Double(progressiveTintOpacityMiddle)
+        )
+    }
+
+    var bottomProgressiveBlurConfiguration: ScreenTopProgressiveBlurConfiguration {
+        ScreenTopProgressiveBlurConfiguration(
+            maxBlurRadius: max(bottomProgressiveBlurRadius, Self.minimumProgressiveBlurRadius),
+            fadeExtension: bottomProgressiveFadeExtension,
+            tintOpacityTop: Double(bottomProgressiveTintOpacityEdge),
+            tintOpacityMiddle: Double(bottomProgressiveTintOpacityMiddle)
         )
     }
 }
@@ -178,6 +267,9 @@ struct EdgeShadowOverlay: View {
     /// Opacity progress used to fade the top shadow in/out with compact-title chrome.
     var topRevealProgress: CGFloat = 1
 
+    /// Opacity progress used to fade the bottom shadow in/out independently.
+    var bottomRevealProgress: CGFloat = 1
+
     /// Extra fullscreen dim layer that grows downward from the top edge.
     /// Keeps the top vignette visually dominant while softly defocusing the
     /// rest of the screen during transient states such as frozen search browse.
@@ -199,6 +291,10 @@ struct EdgeShadowOverlay: View {
 
     private var clampedTopRevealProgress: CGFloat {
         min(max(topRevealProgress, 0), 1)
+    }
+
+    private var clampedBottomRevealProgress: CGFloat {
+        min(max(bottomRevealProgress, 0), 1)
     }
 
     // MARK: - Body
@@ -251,6 +347,7 @@ struct EdgeShadowOverlay: View {
                             tuning: tuning
                         )
                         .frame(height: bottomHeight)
+                        .opacity(clampedBottomRevealProgress)
                         .ignoresSafeArea(.all, edges: .bottom)
                         .allowsHitTesting(false)
                     }
@@ -260,6 +357,7 @@ struct EdgeShadowOverlay: View {
                 }
             }
             .animation(CollapsibleTitleChromeMetrics.shadowFadeAnimation, value: clampedTopRevealProgress)
+            .animation(CollapsibleTitleChromeMetrics.shadowFadeAnimation, value: clampedBottomRevealProgress)
             .animation(.easeInOut(duration: 0.22), value: clampedFullScreenFillProgress)
             .animation(.easeInOut(duration: 0.22), value: fullScreenDimOpacity)
         }

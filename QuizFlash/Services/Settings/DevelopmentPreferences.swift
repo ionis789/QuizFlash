@@ -28,6 +28,7 @@ final class DevelopmentPreferences {
     }
 
     private let userDefaults: UserDefaults
+    @ObservationIgnored private var edgeShadowDebugSettingsPersistenceTask: Task<Void, Never>?
 
     /// Enables verbose AI generation and conversion tracing for development builds.
     var aiDebugTracingEnabled: Bool {
@@ -118,7 +119,7 @@ final class DevelopmentPreferences {
 
     private var edgeShadowDebugSettingsByScreen: [String: EdgeShadowDebugSettings] {
         didSet {
-            persistEdgeShadowDebugSettings()
+            scheduleEdgeShadowDebugSettingsPersistence()
         }
     }
 
@@ -168,14 +169,26 @@ final class DevelopmentPreferences {
         edgeShadowDebugSettingsByScreen.removeValue(forKey: screenID)
     }
 
-    private func persistEdgeShadowDebugSettings() {
-        if edgeShadowDebugSettingsByScreen.isEmpty {
+    private func scheduleEdgeShadowDebugSettingsPersistence() {
+        let settingsByScreen = edgeShadowDebugSettingsByScreen
+        edgeShadowDebugSettingsPersistenceTask?.cancel()
+        edgeShadowDebugSettingsPersistenceTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            persistEdgeShadowDebugSettings(settingsByScreen)
+        }
+    }
+
+    private func persistEdgeShadowDebugSettings(
+        _ settingsByScreen: [String: EdgeShadowDebugSettings]
+    ) {
+        if settingsByScreen.isEmpty {
             userDefaults.removeObject(forKey: Keys.edgeShadowDebugSettingsByScreen)
             return
         }
 
         let encoder = JSONEncoder()
-        guard let data = try? encoder.encode(edgeShadowDebugSettingsByScreen) else { return }
+        guard let data = try? encoder.encode(settingsByScreen) else { return }
         userDefaults.set(data, forKey: Keys.edgeShadowDebugSettingsByScreen)
     }
 

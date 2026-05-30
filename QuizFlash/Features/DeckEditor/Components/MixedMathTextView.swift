@@ -130,6 +130,9 @@ struct MixedMathTextView: View {
             .onChange(of: webIntrinsicWidth) { _, _ in
                 reportIntrinsicContentSize()
             }
+            .onChange(of: horizontalOverflowState) { _, _ in
+                reportIntrinsicContentSize()
+            }
             .overlay {
                 if shouldShowHorizontalOverflowHint {
                     HorizontalOverflowIndicator(
@@ -173,9 +176,12 @@ struct MixedMathTextView: View {
 
     private func reportIntrinsicContentSize() {
         guard intrinsicWidthLimit != nil else { return }
-        let width = webIntrinsicWidth > 0
-            ? min(max(ceil(webIntrinsicWidth), 1), max(intrinsicWidthLimit ?? 1, 1))
-            : max(intrinsicWidthLimit ?? 1, 1)
+        let limit = max(intrinsicWidthLimit ?? 1, 1)
+        let width = horizontalOverflowState.hasOverflow
+            ? limit
+            : webIntrinsicWidth > 0
+                ? min(max(ceil(webIntrinsicWidth), 1), limit)
+                : limit
         let height = max(ceil(webHeight), 1)
         onIntrinsicContentSizeChange?(CGSize(width: width, height: height))
     }
@@ -768,9 +774,6 @@ struct MathWebView: UIViewRepresentable {
             code.inline-code {
                 font-family: ui-monospace, 'SF Mono', Menlo, monospace;
                 font-size: 0.88em;
-                max-width: 100%;
-                overflow-wrap: anywhere;
-                word-break: break-word;
             }
             code.inline-code--standard {
                 background: rgba(120, 120, 120, 0.15);
@@ -778,7 +781,6 @@ struct MathWebView: UIViewRepresentable {
                 border: 1px solid rgba(120, 120, 120, 0.2);
                 border-radius: 6px;
                 padding: 2px 6px;
-                white-space: pre-wrap;
             }
             code.inline-code--deck-card-preview {
                 background: transparent;
@@ -786,11 +788,28 @@ struct MathWebView: UIViewRepresentable {
                 border: none;
                 border-radius: 0;
                 padding: 0;
-                white-space: pre-wrap;
                 font-size: 0.92em;
                 font-weight: 600;
                 letter-spacing: -0.01em;
                 opacity: 0.94;
+            }
+            code.inline-code--atomic {
+                max-width: none;
+                overflow-wrap: normal;
+                word-break: normal;
+                white-space: pre;
+            }
+            code.inline-code--wrapping {
+                max-width: 100%;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+                white-space: break-spaces;
+            }
+            code.inline-code--breakable-token {
+                max-width: 100%;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+                white-space: normal;
             }
             strong, b { font-weight: bold; }
             em, i     { font-style: italic; }
@@ -1170,7 +1189,7 @@ struct MathWebView: UIViewRepresentable {
     }
 
     private func processInlineCode(_ text: String, renderStyle: MixedMathRenderStyle) -> String {
-        guard let regex = try? NSRegularExpression(pattern: "`([^`\\n]+)`") else { return text }
+        guard let regex = try? NSRegularExpression(pattern: "`([^`]+)`") else { return text }
         var result = text
         let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
         for match in matches.reversed() {
@@ -1179,10 +1198,18 @@ struct MathWebView: UIViewRepresentable {
             let inner = String(result[innerRange])
             result.replaceSubrange(
                 fullRange,
-                with: "<code class=\"inline-code \(renderStyle.inlineCodeClassName)\">\(inner)</code>"
+                with: "<code class=\"inline-code \(renderStyle.inlineCodeClassName) \(inlineCodeLayoutClass(for: inner))\">\(inner)</code>"
             )
         }
         return result
+    }
+
+    private func inlineCodeLayoutClass(for value: String) -> String {
+        if value.contains(where: \.isWhitespace) {
+            return "inline-code--wrapping"
+        }
+
+        return value.count > 18 ? "inline-code--breakable-token" : "inline-code--atomic"
     }
 
     class Coordinator: NSObject, WKScriptMessageHandler, UIGestureRecognizerDelegate {

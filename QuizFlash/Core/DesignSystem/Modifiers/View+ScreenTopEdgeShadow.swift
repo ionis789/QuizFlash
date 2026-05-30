@@ -16,7 +16,9 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
 
     let topHeight: CGFloat
+    let bottomHeight: CGFloat
     let topRevealProgress: CGFloat
+    let bottomRevealProgress: CGFloat
     let fullScreenFillProgress: CGFloat
     let fullScreenDimOpacity: CGFloat
     let fullScreenBlurRadius: CGFloat
@@ -28,7 +30,7 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
             .overlay {
                 ZStack(alignment: .bottomTrailing) {
                     fullScreenProgressiveBlurOverlay
-                    topEdgeOverlay
+                    edgeOverlays
 
                     if shouldRenderLegacyFullScreenFill {
                         EdgeShadowOverlay(
@@ -45,6 +47,7 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
                     if let debugScreenID, developmentPreferences.edgeShadowTuningEnabled {
                         EdgeShadowDebugFloatingPanel(
                             mode: debugPanelMode,
+                            supportsBottomEdge: false,
                             settings: debugSettingsBinding(for: debugScreenID),
                             onReset: {
                                 developmentPreferences.resetEdgeShadowSettings(for: debugScreenID)
@@ -69,9 +72,19 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
         return resolvedDebugSettings.resolvedTopHeight(from: topHeight)
     }
 
+    private var resolvedBottomHeight: CGFloat {
+        guard debugScreenID != nil else { return max(0, bottomHeight) }
+        return resolvedDebugSettings.resolvedBottomHeight(from: bottomHeight)
+    }
+
     private var resolvedMaxAlpha: CGFloat {
         guard debugScreenID != nil else { return 1.0 }
         return resolvedDebugSettings.maxAlpha
+    }
+
+    private var resolvedBottomMaxAlpha: CGFloat {
+        guard debugScreenID != nil else { return 1.0 }
+        return resolvedDebugSettings.bottomMaxAlpha
     }
 
     private var resolvedTuning: EdgeShadowTuning {
@@ -82,6 +95,23 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
     private var resolvedTopColor: Color {
         guard debugScreenID != nil else { return EdgeShadowDebugSettings.default.resolvedColor }
         return resolvedDebugSettings.resolvedColor
+    }
+
+    private var resolvedBottomColor: Color {
+        guard debugScreenID != nil else { return EdgeShadowDebugSettings.default.resolvedColor }
+        return resolvedDebugSettings.resolvedBottomColor
+    }
+
+    private var resolvedTopRevealProgress: CGFloat {
+        guard debugScreenID != nil else { return min(max(topRevealProgress, 0), 1) }
+        guard resolvedDebugSettings.topEnabled else { return 0 }
+        return min(max(topRevealProgress, 0), 1)
+    }
+
+    private var resolvedBottomRevealProgress: CGFloat {
+        guard debugScreenID != nil else { return min(max(bottomRevealProgress, 0), 1) }
+        guard resolvedDebugSettings.bottomEnabled else { return 0 }
+        return min(max(bottomRevealProgress, 0), 1)
     }
 
     private var clampedFullScreenFillProgress: CGFloat {
@@ -98,24 +128,36 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
     }
 
     @ViewBuilder
-    private var topEdgeOverlay: some View {
+    private var edgeOverlays: some View {
         switch style {
         case .shadow:
             EdgeShadowOverlay(
                 topHeight: resolvedTopHeight,
-                bottomHeight: 0,
+                bottomHeight: resolvedBottomHeight,
                 kMaxAlphaTop: resolvedMaxAlpha,
+                kMaxAlphaBottom: resolvedBottomMaxAlpha,
                 topColor: resolvedTopColor,
+                bottomColor: resolvedBottomColor,
                 topProfileHeight: max(0, topHeight),
+                bottomProfileHeight: max(0, bottomHeight),
                 tuning: resolvedTuning,
-                topRevealProgress: topRevealProgress
+                topRevealProgress: resolvedTopRevealProgress,
+                bottomRevealProgress: resolvedBottomRevealProgress
             )
         case .progressiveBlur(let configuration):
-            TopProgressiveBlurOverlay(
-                topHeight: resolvedTopHeight,
-                revealProgress: topRevealProgress,
+            ScreenEdgeProgressiveBlurOverlay(
+                edge: .top,
+                height: resolvedTopHeight,
+                revealProgress: resolvedTopRevealProgress,
                 tintColor: resolvedTopColor,
                 configuration: resolvedProgressiveBlurConfiguration(fallback: configuration)
+            )
+            ScreenEdgeProgressiveBlurOverlay(
+                edge: .bottom,
+                height: resolvedBottomHeight,
+                revealProgress: resolvedBottomRevealProgress,
+                tintColor: resolvedBottomColor,
+                configuration: resolvedBottomProgressiveBlurConfiguration(fallback: configuration)
             )
         }
     }
@@ -144,6 +186,13 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
     ) -> ScreenTopProgressiveBlurConfiguration {
         guard debugScreenID != nil else { return fallback }
         return resolvedDebugSettings.progressiveBlurConfiguration
+    }
+
+    private func resolvedBottomProgressiveBlurConfiguration(
+        fallback: ScreenTopProgressiveBlurConfiguration
+    ) -> ScreenTopProgressiveBlurConfiguration {
+        guard debugScreenID != nil else { return fallback }
+        return resolvedDebugSettings.bottomProgressiveBlurConfiguration
     }
 
 #if DEBUG
@@ -182,7 +231,36 @@ extension View {
         modifier(
             ScreenTopEdgeShadowModifier(
                 topHeight: topHeight,
+                bottomHeight: 0,
                 topRevealProgress: topRevealProgress,
+                bottomRevealProgress: 1,
+                fullScreenFillProgress: fullScreenFillProgress,
+                fullScreenDimOpacity: fullScreenDimOpacity,
+                fullScreenBlurRadius: fullScreenBlurRadius,
+                debugScreenID: debugScreenID,
+                style: style
+            )
+        )
+    }
+
+    /// Applies shared screen-level top and bottom edge blur/shadow treatments.
+    func screenEdgeShadow(
+        topHeight: CGFloat = 0,
+        bottomHeight: CGFloat = 0,
+        topRevealProgress: CGFloat = 1,
+        bottomRevealProgress: CGFloat = 1,
+        debugScreenID: String? = nil,
+        fullScreenFillProgress: CGFloat = 0,
+        fullScreenDimOpacity: CGFloat = 0,
+        fullScreenBlurRadius: CGFloat = 0,
+        style: ScreenTopEdgeStyle = .shadow
+    ) -> some View {
+        modifier(
+            ScreenTopEdgeShadowModifier(
+                topHeight: topHeight,
+                bottomHeight: bottomHeight,
+                topRevealProgress: topRevealProgress,
+                bottomRevealProgress: bottomRevealProgress,
                 fullScreenFillProgress: fullScreenFillProgress,
                 fullScreenDimOpacity: fullScreenDimOpacity,
                 fullScreenBlurRadius: fullScreenBlurRadius,
