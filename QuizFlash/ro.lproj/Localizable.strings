@@ -253,6 +253,7 @@
 "Delete %d selected deck" = "Șterge %d deck selectat";
 "Delete %d selected decks" = "Șterge %d deckuri selectate";
 "Delete Deck" = "Șterge deckul";
+"Delete?" = "Ștergi?";
 "Developer-only OpenAI-compatible profile" = "Profil compatibil cu OpenAI numai pentru dezvoltatori";
 "Discard Changes" = "Renunță la modificări";
 "Discard received cards" = "Renunță la cardurile primite";
@@ -385,6 +386,7 @@
 "Mark at least one correct answer." = "Marchează cel puțin un răspuns corect.";
 "Mark Blank" = "Marchează spațiul";
 "Mark Correct" = "Marchează corect";
+"Marked as correct" = "Marcat ca corect";
 "Mastered" = "Stăpânite";
 "Match" = "Potrivire";
 "Match Card" = "Card de potrivire";

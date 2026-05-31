@@ -253,6 +253,7 @@
 "Delete %d selected deck" = "Delete %d selected deck";
 "Delete %d selected decks" = "Delete %d selected decks";
 "Delete Deck" = "Delete Deck";
+"Delete?" = "Delete?";
 "Developer-only OpenAI-compatible profile" = "Developer-only OpenAI-compatible profile";
 "Discard Changes" = "Discard Changes";
 "Discard received cards" = "Discard received cards";
@@ -385,6 +386,7 @@
 "Mark at least one correct answer." = "Mark at least one correct answer.";
 "Mark Blank" = "Mark Blank";
 "Mark Correct" = "Mark Correct";
+"Marked as correct" = "Marked as correct";
 "Mastered" = "Mastered";
 "Match" = "Match";
 "Match Card" = "Match Card";

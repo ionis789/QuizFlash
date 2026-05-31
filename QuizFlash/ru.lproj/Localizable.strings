@@ -253,6 +253,7 @@
 "Delete %d selected deck" = "Удалить %d выбранную колоду";
 "Delete %d selected decks" = "Удалить %d выбранных колод";
 "Delete Deck" = "Удалить колоду";
+"Delete?" = "Удалить?";
 "Developer-only OpenAI-compatible profile" = "OpenAI-совместимый профиль только для разработчиков";
 "Discard Changes" = "Не сохранять изменения";
 "Discard received cards" = "Удалить полученные карточки";
@@ -385,6 +386,7 @@
 "Mark at least one correct answer." = "Отметьте минимум один правильный ответ.";
 "Mark Blank" = "Отметить пропуск";
 "Mark Correct" = "Отметить верным";
+"Marked as correct" = "Отмечено как верное";
 "Mastered" = "Освоенные";
 "Match" = "Сопоставление";
 "Match Card" = "Карточка сопоставления";

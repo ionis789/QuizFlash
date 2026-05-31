@@ -254,6 +254,7 @@ Delete %d selected cards	Delete %d selected cards	Șterge %d carduri selectate	�
 Delete %d selected deck	Delete %d selected deck	Șterge %d deck selectat	Удалить %d выбранную колоду
 Delete %d selected decks	Delete %d selected decks	Șterge %d deckuri selectate	Удалить %d выбранных колод
 Delete Deck	Delete Deck	Șterge deckul	Удалить колоду
+Delete?	Delete?	Ștergi?	Удалить?
 Developer-only OpenAI-compatible profile	Developer-only OpenAI-compatible profile	Profil compatibil cu OpenAI numai pentru dezvoltatori	OpenAI-совместимый профиль только для разработчиков
 Discard Changes	Discard Changes	Renunță la modificări	Не сохранять изменения
 Discard received cards	Discard received cards	Renunță la cardurile primite	Удалить полученные карточки
@@ -386,6 +387,7 @@ Manual input	Manual input	Introducere manuală	Ручной ввод
 Mark at least one correct answer.	Mark at least one correct answer.	Marchează cel puțin un răspuns corect.	Отметьте минимум один правильный ответ.
 Mark Blank	Mark Blank	Marchează spațiul	Отметить пропуск
 Mark Correct	Mark Correct	Marchează corect	Отметить верным
+Marked as correct	Marked as correct	Marcat ca corect	Отмечено как верное
 Mastered	Mastered	Stăpânite	Освоенные
 Match	Match	Potrivire	Сопоставление
 Match Card	Match Card	Card de potrivire	Карточка сопоставления

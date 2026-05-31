@@ -12,7 +12,9 @@ import PhotosUI
 struct QuizCardEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(KeyboardMonitor.self) private var keyboardMonitor
 
     @State private var highlightContext: HighlightContext?
     @State private var questionContent: ZoneCardContent
@@ -21,19 +23,38 @@ struct QuizCardEditorView: View {
     @State private var explanationContent: ZoneCardContent?
     @State private var explanationSelectedPath: ZonePath? = .root
     @State private var isExplanationExpanded: Bool
-    @State private var allowsMultipleCorrect: Bool
     @State private var activeEditor: QuizEditorTarget = .question
     @State private var previewDirection: AddDirection? = nil
     @State private var showSketchModal = false
+    @State private var showPreview = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var isPhotoPickerPresented = false
+    @State private var markedCorrectIndicatorChoiceID: UUID?
+    @State private var markedCorrectIndicatorTask: Task<Void, Never>?
+    @State private var pendingDeleteChoiceID: UUID?
+    @State private var pendingDeleteTask: Task<Void, Never>?
 
     private let onSave: (QuizCardContent) -> Void
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
+    private var successAccent: Color { ThemeManager.shared.successPrimary }
+    private var topChromeUtilityFill: Color { Color(uiColor: .secondarySystemFill) }
+    private var topChromeUtilityBorder: Color { Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.10) }
+    private var topChromeUtilityForeground: Color { accent }
+    private var topChromeDisabledFill: Color { Color(uiColor: .tertiarySystemFill) }
     private var focusManager = ZoneFocusManager.shared
     private var zoneController = ZoneController.shared
     private var locale: Locale { appPreferences.resolvedLocale }
+    private var isCompact: Bool { horizontalSizeClass == .compact }
+    private var topChromeHorizontalInset: CGFloat {
+        isCompact ? UIConstants.Layout.compactScreenEdgeInset : UIConstants.Layout.screenEdgeInset
+    }
+    private var isFormatBarVisible: Bool {
+        keyboardMonitor.isVisible && currentContent != nil && currentSelectedPath != nil
+    }
+    private var bottomContentPadding: CGFloat {
+        isFormatBarVisible ? 148 : 96
+    }
 
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
@@ -72,8 +93,6 @@ struct QuizCardEditorView: View {
             _explanationContent = State(initialValue: nil)
             _isExplanationExpanded = State(initialValue: false)
         }
-
-        _allowsMultipleCorrect = State(initialValue: initialContent.allowsMultipleCorrect)
 
         if let query = searchQuery, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             _highlightContext = State(initialValue: HighlightContext(query: query))
@@ -144,69 +163,114 @@ struct QuizCardEditorView: View {
     private var canUseInteractiveDismiss: Bool {
         !showSketchModal && !isPhotoPickerPresented
     }
+    private var currentQuizContent: QuizCardContent {
+        let cleanedExplanationZone: ZoneModel?
+        if let explanationContent, explanationContent.hasContent {
+            cleanedExplanationZone = explanationContent.rootZone
+        } else {
+            cleanedExplanationZone = nil
+        }
+
+        return QuizCardContent(
+            questionZone: questionContent.rootZone,
+            choices: choices.map {
+                QuizChoiceDraft(
+                    id: $0.id,
+                    contentZone: $0.content.rootZone,
+                    isCorrect: $0.isCorrect
+                )
+            },
+            explanationZone: cleanedExplanationZone,
+            allowsMultipleCorrect: choices.filter(\.isCorrect).count > 1
+        )
+    }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                    questionSection
-                    answersSection
-                    explanationSection
+        GeometryReader { proxy in
+            let safeTopInset = proxy.safeAreaInsets.top
 
-                    if let validationMessage {
-                        Label(validationMessage, systemImage: "exclamationmark.circle.fill")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.red)
-                    }
-                }
-                .padding(.horizontal, UIConstants.Spacing.large)
-                .padding(.top, UIConstants.Spacing.large)
-                .padding(.bottom, currentSelectedPath == nil ? 96 : 148)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .background(backgroundGradient.ignoresSafeArea())
-            .safeAreaInset(edge: .bottom) {
-                if let content = currentContent, let path = currentSelectedPath {
-                    VStack(alignment: .leading, spacing: 6) {
-                        if isFocusedSelection(content: content, path: path) {
-                            zoneManagementButton(content: content, path: path)
-                                .transition(.scale(scale: 0.88).combined(with: .opacity))
+            ZStack(alignment: .top) {
+                editorBackground.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+                        questionSection
+                        answersSection
+                        explanationSection
+
+                        if let validationMessage {
+                            Label(validationMessage, systemImage: "exclamationmark.circle.fill")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.red)
                         }
-
-                        formatBar(content: content, path: path)
                     }
-                        .padding(.horizontal, UIConstants.Spacing.standard)
-                        .padding(.bottom, UIConstants.Spacing.small)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .padding(.horizontal, UIConstants.Spacing.large)
+                        .padding(.top, UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + UIConstants.Spacing.large)
+                        .padding(.bottom, bottomContentPadding)
                 }
+                    .scrollDismissesKeyboard(.interactively)
+                    .screenEdgeShadow(
+                    topHeight: editorTopBlurHeight(safeTopInset: safeTopInset),
+                    debugScreenID: "quiz.editor",
+                    style: .progressiveBlur()
+                )
+
+                topChrome
+                    .zIndex(20)
             }
-            .navigationTitle(localized("Quiz Card"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbar { toolbarContent }
+        }
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .bottom) {
+            if isFormatBarVisible, let content = currentContent, let path = currentSelectedPath {
+                formatBar(content: content, path: path)
+                    .padding(.horizontal, UIConstants.Spacing.standard)
+                    .padding(.bottom, UIConstants.Spacing.small)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
             .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhoto, matching: .images)
             .onChange(of: selectedPhoto) { _, item in
-                addPhoto(item)
-            }
+            addPhoto(item)
+        }
             .fullScreenCover(isPresented: $showSketchModal) {
-                CanvasModalView { data in
-                    addSketch(data)
-                }
+            CanvasModalView { data in
+                addSketch(data)
             }
+        }
+            .fullScreenSheet(
+            isPresented: $showPreview,
+            configuration: .sheet(
+                heightMode: .fullScreen,
+                showsDefaultTopProgressiveBlur: false
+            )
+        ) { safeArea in
+            CardPreviewModeView(
+                content: .quiz(currentQuizContent),
+                safeAreaInsets: safeArea
+            )
+        } background: {
+            Color.clear
+        }
             .animation(.spring(response: 0.3, dampingFraction: 0.82), value: currentSelectedPath)
+            .animation(.spring(response: 0.3, dampingFraction: 0.82), value: keyboardMonitor.isVisible)
             .animation(.spring(response: 0.25, dampingFraction: 0.8), value: previewDirection)
             .swipeBack(enabled: canUseInteractiveDismiss) {
-                dismiss()
-            }
+            dismiss()
+        }
             .task {
-                if questionSelectedPath == nil {
-                    questionSelectedPath = .root
-                }
-
-                if highlightContext == nil || highlightContext?.isDismissed == true {
-                    requestFocus(for: questionContent.rootZone.id, delaySeconds: 0.35)
-                }
+            if questionSelectedPath == nil {
+                questionSelectedPath = .root
             }
+
+            if highlightContext == nil || highlightContext?.isDismissed == true {
+                requestFocus(for: questionContent.rootZone.id, delaySeconds: 0.35)
+            }
+        }
+            .onDisappear {
+            markedCorrectIndicatorTask?.cancel()
+            markedCorrectIndicatorTask = nil
+            pendingDeleteTask?.cancel()
+            pendingDeleteTask = nil
         }
     }
 
@@ -221,81 +285,78 @@ struct QuizCardEditorView: View {
             onSketch: {
                 showSketchModal = true
             },
-            canPreview: false,
-            onPreview: { },
+            canPreview: questionContent.hasContent || choices.contains { $0.content.hasContent },
+            showsPrimaryActions: false,
+            showsZoneActions: false,
+            showsPreviewAction: false,
+            showsMoreActions: false,
+            onPreview: {
+                openPreview()
+            },
             onClose: {
                 focusManager.forceReleaseKeyboard()
-                currentSelectedPath = nil
                 previewDirection = nil
             }
         )
     }
 
-    private func isFocusedSelection(content: ZoneCardContent, path: ZonePath) -> Bool {
-        guard let zone = content.zone(at: path) else { return false }
-        return focusManager.focusedZoneID == zone.id
-    }
+    private var topChrome: some View {
+        HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
+            closeTopButton
 
-    private func zoneManagementButton(content: ZoneCardContent, path: ZonePath) -> some View {
-        ZoneManagementFloatingButton(
-            content: content,
-            path: path,
-            onSplit: { splitZone() },
-            onDuplicate: { duplicateSelectedZone() },
-            onMoveUp: { moveSelectedZoneUp() },
-            onMoveDown: { moveSelectedZoneDown() },
-            onClose: {
-                focusManager.forceReleaseKeyboard()
-                currentSelectedPath = nil
-                previewDirection = nil
+            Spacer(minLength: 0)
+
+            previewTopButton
+
+            Spacer(minLength: 0)
+
+            Button(action: saveCard) {
+                ChromeSoftCircleSymbol(
+                    systemName: "checkmark",
+                    size: UIConstants.Size.actionButton,
+                    symbolSize: UIConstants.Size.navigationChromeIcon,
+                    tint: canSave ? Color.black.opacity(0.78) : .secondary,
+                    backgroundTint: canSave ? successAccent : topChromeDisabledFill
+                )
             }
-        )
-    }
-
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .cancellationAction) {
-            Button(localized("Cancel")) {
-                dismiss()
-            }
-            .tint(.secondary)
-        }
-
-        ToolbarItem(placement: .primaryAction) {
-            HStack(spacing: UIConstants.Spacing.medium) {
-                Button {
-                    isPhotoPickerPresented = true
-                } label: {
-                    Image(systemName: "photo.on.rectangle")
-                        .font(.body.weight(.medium))
-                }
-                .tint(accent)
-
-                Button {
-                    showSketchModal = true
-                } label: {
-                    Image(systemName: "pencil.and.scribble")
-                        .font(.body.weight(.medium))
-                }
-                .tint(accent)
-
-                Divider()
-                    .frame(height: 24)
-
-                Button(localized("Save")) {
-                    saveCard()
-                }
-                .fontWeight(.semibold)
+                .buttonStyle(.plain)
                 .disabled(!canSave)
-            }
+                .opacity(canSave ? 1 : 0.55)
+                .accessibilityLabel(localized("Save"))
         }
+            .topNavigationChrome(horizontalInset: topChromeHorizontalInset)
+    }
+
+    private var closeTopButton: some View {
+        ChromeSoftCircleSymbolButton(
+            systemName: "xmark",
+            accessibilityLabel: localized("Close"),
+            action: closeEditor,
+            size: UIConstants.Size.actionButton,
+            symbolSize: UIConstants.Size.navigationChromeIcon,
+            tint: topChromeUtilityForeground,
+            backgroundTint: topChromeUtilityFill
+        )
+    }
+
+    private var previewTopButton: some View {
+        Button(action: openPreview) {
+            ChromeSoftCircleSymbol(
+                systemName: "eye",
+                size: UIConstants.Size.actionButton,
+                symbolSize: UIConstants.Size.navigationChromeIcon,
+                tint: accent,
+                backgroundTint: topChromeUtilityFill
+            )
+        }
+            .buttonStyle(.plain)
+            .accessibilityLabel(localized("Preview"))
     }
 
     private var questionSection: some View {
         QuizZoneSectionCard(
             title: localized("QUESTION"),
             subtitle: localized("Prompt"),
-            isSelected: activeEditor == .question,
             content: questionContent,
             selectedPath: binding(for: .question),
             highlightContext: highlightContext,
@@ -307,58 +368,40 @@ struct QuizCardEditorView: View {
 
     private var answersSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-            HStack(alignment: .center, spacing: UIConstants.Spacing.standard) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(localized("ANSWERS"))
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-
-                    Text(
-                        AppLocalization.numbered(
-                            choices.count,
-                            singular: "%d answer",
-                            plural: "%d answers",
-                            locale: locale
-                        )
-                    )
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                }
-
-                Spacer()
-
-                Toggle(localized("Multiple"), isOn: allowsMultipleCorrectBinding)
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                Text(localized("Multiple Correct"))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
 
             ForEach(Array(choices.enumerated()), id: \.element.id) { index, choice in
-                QuizChoiceCard(
-                    index: index,
-                    canMoveDown: index < choices.count - 1,
-                    choice: choice,
-                    isSelected: activeEditor == .choice(choice.id),
-                    highlightContext: highlightContext,
-                    previewDirection: $previewDirection,
-                    onActivate: {
-                        activateEditor(.choice(choice.id))
-                    },
-                    onToggleCorrect: {
-                        toggleCorrect(for: choice.id)
-                    },
-                    onMoveUp: {
-                        moveChoice(choice.id, direction: -1)
-                    },
-                    onMoveDown: {
-                        moveChoice(choice.id, direction: 1)
-                    },
-                    onDelete: {
-                        deleteChoice(choice.id)
-                    }
-                )
+
+                VStack(spacing: UIConstants.Spacing.small) {
+                    choiceHeader(
+                        index: index,
+                        choiceID: choice.id,
+                        isCorrect: choice.isCorrect,
+                        isDeletePending: pendingDeleteChoiceID == choice.id,
+                        onToggleCorrect: {
+                            toggleCorrect(for: choice.id)
+                        },
+                        onDelete: {
+                            handleDeleteTap(for: choice.id)
+                        }
+                    )
+
+                    QuizChoiceCard(
+                        index: index,
+                        canMoveDown: index < choices.count - 1,
+                        choice: choice,
+                        highlightContext: highlightContext,
+                        previewDirection: $previewDirection,
+                        onActivate: {
+                            activateEditor(.choice(choice.id))
+                        },
+                        onMoveUp: {
+                            moveChoice(choice.id, direction: -1)
+                        },
+                        onMoveDown: {
+                            moveChoice(choice.id, direction: 1)
+                        }
+                    )
+                }
             }
 
             Button {
@@ -369,28 +412,109 @@ struct QuizCardEditorView: View {
                     .foregroundStyle(accent)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, UIConstants.Spacing.standard)
-                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
+                    .background(
+                    Color(uiColor: .secondarySystemBackground),
+                    in: RoundedRectangle(cornerRadius: QuizEditorStyle.buttonCornerRadius, style: .continuous)
+                )
                     .overlay {
-                        RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
-                            .stroke(accent.opacity(0.18), lineWidth: 1)
-                    }
+                    RoundedRectangle(cornerRadius: QuizEditorStyle.buttonCornerRadius, style: .continuous)
+                        .stroke(accent.opacity(0.18), lineWidth: 1)
+                }
             }
-            .buttonStyle(.plain)
+                .buttonStyle(.plain)
         }
+    }
+
+    private func choiceHeader(
+        index: Int,
+        choiceID: UUID,
+        isCorrect: Bool,
+        isDeletePending: Bool,
+        onToggleCorrect: @escaping () -> Void,
+        onDelete: @escaping () -> Void
+    ) -> some View {
+        HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
+            HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
+                Text(String(index + 1))
+                    .font(.caption.weight(.heavy))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 18, alignment: .trailing)
+
+                correctToggleButton(isCorrect: isCorrect, action: onToggleCorrect)
+
+                if markedCorrectIndicatorChoiceID == choiceID {
+                    Text(localized("Marked as correct"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(successAccent)
+                        .transition(.scale(scale: 0.86, anchor: .leading).combined(with: .opacity))
+                }
+            }
+
+            Spacer(minLength: UIConstants.Spacing.standard)
+
+            deleteConfirmationButton(isPending: isDeletePending, action: onDelete)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func deleteConfirmationButton(isPending: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "trash")
+                    .font(.caption.weight(.bold))
+
+                if isPending {
+                    Text(localized("Delete?"))
+                        .font(.caption.weight(.bold))
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+            }
+            .foregroundStyle(.red)
+            .frame(minWidth: 28, minHeight: 28)
+            .padding(.horizontal, isPending ? 10 : 0)
+            .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .animation(.spring(response: 0.24, dampingFraction: 0.84), value: isPending)
+        .accessibilityLabel(isPending ? localized("Delete?") : localized("Delete"))
+    }
+
+    private func correctToggleButton(isCorrect: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(successAccent.opacity(isCorrect ? 1 : 0.10))
+
+                Circle()
+                    .stroke(successAccent.opacity(isCorrect ? 0 : 0.85), lineWidth: 2.4)
+
+                if isCorrect {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 13, weight: .black))
+                        .foregroundStyle(Color.black.opacity(0.75))
+                }
+            }
+            .frame(width: 26, height: 26)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isCorrect ? localized("Correct") : localized("Mark Correct"))
     }
 
     @ViewBuilder
     private var explanationSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 2) {
                     Text(localized("EXPLANATION"))
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.secondary)
 
-                    Text(localized("Optional"))
+                    Text("(" + localized("optional") + ")")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
@@ -399,8 +523,8 @@ struct QuizCardEditorView: View {
                     Button(isExplanationExpanded ? localized("Collapse") : localized("Expand")) {
                         isExplanationExpanded.toggle()
                     }
-                    .font(.caption.weight(.semibold))
-                    .tint(accent)
+                        .font(.caption.weight(.semibold))
+                        .tint(accent)
                 }
             }
 
@@ -409,7 +533,6 @@ struct QuizCardEditorView: View {
                     QuizZoneSectionCard(
                         title: localized("EXPLANATION"),
                         subtitle: localized("Optional rationale"),
-                        isSelected: activeEditor == .explanation,
                         content: explanationContent,
                         selectedPath: binding(for: .explanation),
                         highlightContext: highlightContext,
@@ -424,7 +547,7 @@ struct QuizCardEditorView: View {
                                     .frame(width: 28, height: 28)
                                     .background(Color.red.opacity(0.08), in: Circle())
                             }
-                            .buttonStyle(.plain)
+                                .buttonStyle(.plain)
                         }
                     ) {
                         activateEditor(.explanation)
@@ -449,10 +572,10 @@ struct QuizCardEditorView: View {
                                 .font(.caption.weight(.bold))
                                 .foregroundStyle(.secondary)
                         }
-                        .padding(UIConstants.Spacing.standard)
-                        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
+                            .padding(UIConstants.Spacing.standard)
+                            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                        .buttonStyle(.plain)
                 }
             } else {
                 Button {
@@ -463,34 +586,18 @@ struct QuizCardEditorView: View {
                         .foregroundStyle(accent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, UIConstants.Spacing.standard)
-                        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
+                        .background(
+                        Color(uiColor: .secondarySystemBackground),
+                        in: RoundedRectangle(cornerRadius: QuizEditorStyle.buttonCornerRadius, style: .continuous)
+                    )
                         .overlay {
-                            RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
-                                .stroke(accent.opacity(0.18), lineWidth: 1)
-                        }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private var allowsMultipleCorrectBinding: Binding<Bool> {
-        Binding(
-            get: { allowsMultipleCorrect },
-            set: { newValue in
-                allowsMultipleCorrect = newValue
-                guard !newValue else { return }
-
-                var firstCorrectChoiceID: UUID?
-                for choice in choices where choice.isCorrect {
-                    if firstCorrectChoiceID == nil {
-                        firstCorrectChoiceID = choice.id
-                    } else {
-                        choice.isCorrect = false
+                        RoundedRectangle(cornerRadius: QuizEditorStyle.buttonCornerRadius, style: .continuous)
+                            .stroke(accent.opacity(0.18), lineWidth: 1)
                     }
                 }
+                    .buttonStyle(.plain)
             }
-        )
+        }
     }
 
     private func binding(for target: QuizEditorTarget) -> Binding<ZonePath?> {
@@ -540,17 +647,27 @@ struct QuizCardEditorView: View {
     private func addChoice() {
         let newChoice = QuizChoiceEditorItem()
 
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.84)) {
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
             choices.append(newChoice)
             activateEditor(.choice(newChoice.id))
         }
 
-        requestFocus(for: newChoice.content.rootZone.id)
+        requestFocus(for: newChoice.content.rootZone.id, delaySeconds: 0.12)
     }
 
     private func deleteChoice(_ choiceID: UUID) {
         guard let index = indexOfChoice(choiceID) else { return }
         let fallbackEditor: QuizEditorTarget
+
+        clearPendingDelete(animated: false)
+
+        if markedCorrectIndicatorChoiceID == choiceID {
+            markedCorrectIndicatorTask?.cancel()
+            markedCorrectIndicatorTask = nil
+            markedCorrectIndicatorChoiceID = nil
+        }
 
         if choices.indices.contains(index + 1) {
             fallbackEditor = .choice(choices[index + 1].id)
@@ -571,6 +688,46 @@ struct QuizCardEditorView: View {
         }
     }
 
+    private func handleDeleteTap(for choiceID: UUID) {
+        if pendingDeleteChoiceID == choiceID {
+            pendingDeleteTask?.cancel()
+            pendingDeleteTask = nil
+            deleteChoice(choiceID)
+            return
+        }
+
+        pendingDeleteTask?.cancel()
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.84)) {
+            pendingDeleteChoiceID = choiceID
+        }
+
+        pendingDeleteTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            guard !Task.isCancelled else { return }
+            clearPendingDelete(animated: true, choiceID: choiceID)
+        }
+    }
+
+    private func clearPendingDelete(animated: Bool, choiceID: UUID? = nil) {
+        pendingDeleteTask?.cancel()
+        pendingDeleteTask = nil
+
+        guard pendingDeleteChoiceID != nil,
+              choiceID == nil || pendingDeleteChoiceID == choiceID else { return }
+
+        let clear = {
+            pendingDeleteChoiceID = nil
+        }
+
+        if animated {
+            withAnimation(.spring(response: 0.24, dampingFraction: 0.84)) {
+                clear()
+            }
+        } else {
+            clear()
+        }
+    }
+
     private func moveChoice(_ choiceID: UUID, direction: Int) {
         guard let index = indexOfChoice(choiceID) else { return }
         let newIndex = index + direction
@@ -583,17 +740,32 @@ struct QuizCardEditorView: View {
 
     private func toggleCorrect(for choiceID: UUID) {
         guard let targetChoice = choice(for: choiceID) else { return }
+        let willMarkCorrect = !targetChoice.isCorrect
+        targetChoice.isCorrect.toggle()
 
-        if allowsMultipleCorrect {
-            targetChoice.isCorrect.toggle()
-            return
-        }
+        markedCorrectIndicatorTask?.cancel()
+        markedCorrectIndicatorTask = nil
 
-        let willBecomeCorrect = !targetChoice.isCorrect
-        for choice in choices {
-            choice.isCorrect = false
+        if willMarkCorrect {
+            withAnimation(.easeOut(duration: 0.16)) {
+                markedCorrectIndicatorChoiceID = choiceID
+            }
+
+            markedCorrectIndicatorTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if markedCorrectIndicatorChoiceID == choiceID {
+                        markedCorrectIndicatorChoiceID = nil
+                    }
+                }
+                markedCorrectIndicatorTask = nil
+            }
+        } else if markedCorrectIndicatorChoiceID == choiceID {
+            withAnimation(.easeInOut(duration: 0.14)) {
+                markedCorrectIndicatorChoiceID = nil
+            }
         }
-        targetChoice.isCorrect = willBecomeCorrect
     }
 
     private func addExplanation() {
@@ -617,90 +789,6 @@ struct QuizCardEditorView: View {
             if activeEditor == .explanation {
                 activateEditor(.question)
             }
-        }
-    }
-
-    private func duplicateSelectedZone() {
-        guard let content = currentContent, let path = currentSelectedPath else { return }
-
-        var newZoneID: UUID?
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-            newZoneID = content.duplicateZone(at: path)
-            if let newZoneID, let newPath = findPath(for: newZoneID, in: content.rootZone) {
-                currentSelectedPath = newPath
-            }
-        }
-
-        if let newZoneID {
-            requestFocus(for: newZoneID, delaySeconds: 0.12)
-        }
-    }
-
-    private func moveSelectedZoneUp() {
-        guard let content = currentContent, let path = currentSelectedPath else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            if let newPath = content.moveZoneUp(at: path) {
-                currentSelectedPath = newPath
-            }
-        }
-    }
-
-    private func moveSelectedZoneDown() {
-        guard let content = currentContent, let path = currentSelectedPath else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            if let newPath = content.moveZoneDown(at: path) {
-                currentSelectedPath = newPath
-            }
-        }
-    }
-
-    private func splitZone() {
-        guard let content = currentContent,
-              let path = currentSelectedPath,
-              let zone = content.zone(at: path),
-              zone.contentType == .text else { return }
-
-        let zoneID = zone.id
-        let lines = zone.text.components(separatedBy: "\n")
-        guard lines.count >= 2 else { return }
-
-        let focusedLineIndex = zoneController.zoneHeightInfo(for: zoneID)?.focusedLineIndex ?? 0
-        guard focusedLineIndex >= 0, focusedLineIndex < lines.count - 1 else { return }
-
-        let splitResult = zone.text.splitAtLine(focusedLineIndex)
-        focusManager.prepareForZoneInsertion()
-
-        var createdZoneID: UUID?
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-            content.updateZone(at: path) { currentZone in
-                currentZone.text = splitResult.before
-            }
-
-            createdZoneID = content.addZone(relativeTo: path, direction: .down)
-
-            if let createdZoneID, let createdPath = findPath(for: createdZoneID, in: content.rootZone) {
-                content.updateZone(at: createdPath) { currentZone in
-                    currentZone.text = splitResult.after
-                    currentZone.contentType = .text
-                    currentZone.textStyle = zone.textStyle
-                    currentZone.textAlignment = zone.textAlignment
-                    currentZone.sizeMode = zone.sizeMode
-                    currentZone.blockAlignment = zone.blockAlignment
-                    currentZone.fixedWidth = zone.fixedWidth
-                    currentZone.fixedHeight = zone.fixedHeight
-                    currentZone.textColor = zone.textColor
-                    currentZone.isBold = zone.isBold
-                    currentZone.isItalic = zone.isItalic
-                    currentZone.hasBullet = zone.hasBullet
-                    currentZone.fontFamily = zone.fontFamily
-                    currentZone.highlightColor = zone.highlightColor
-                }
-                currentSelectedPath = createdPath
-            }
-        }
-
-        if let createdZoneID {
-            requestFocus(for: createdZoneID, delaySeconds: 0.1)
         }
     }
 
@@ -737,32 +825,27 @@ struct QuizCardEditorView: View {
         }
     }
 
+    private func openPreview() {
+        guard questionContent.hasContent || choices.contains(where: { $0.content.hasContent }) else { return }
+        focusManager.forceReleaseKeyboard()
+        zoneController.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
+        currentSelectedPath = nil
+        previewDirection = nil
+        showPreview = true
+    }
+
+    private func closeEditor() {
+        focusManager.forceReleaseKeyboard()
+        zoneController.forceReleaseKeyboard()
+        dismiss()
+    }
+
     private func saveCard() {
         questionContent.cleanup()
         choices.forEach { $0.content.cleanup() }
         explanationContent?.cleanup()
-
-        let cleanedExplanationZone: ZoneModel?
-        if let explanationContent, explanationContent.hasContent {
-            cleanedExplanationZone = explanationContent.rootZone
-        } else {
-            cleanedExplanationZone = nil
-        }
-
-        let content = QuizCardContent(
-            questionZone: questionContent.rootZone,
-            choices: choices.map {
-                QuizChoiceDraft(
-                    id: $0.id,
-                    contentZone: $0.content.rootZone,
-                    isCorrect: $0.isCorrect
-                )
-            },
-            explanationZone: cleanedExplanationZone,
-            allowsMultipleCorrect: allowsMultipleCorrect
-        )
-
-        onSave(content)
+        onSave(currentQuizContent)
         focusManager.forceReleaseKeyboard()
         zoneController.clearHeightCache()
         dismiss()
@@ -783,28 +866,12 @@ struct QuizCardEditorView: View {
         }
     }
 
-    private func findPath(for id: UUID, in zone: ZoneModel, currentIndices: [Int] = []) -> ZonePath? {
-        if zone.id == id {
-            return ZonePath(indices: currentIndices)
-        }
-
-        guard let children = zone.children else { return nil }
-        for (index, child) in children.enumerated() {
-            if let foundPath = findPath(for: id, in: child, currentIndices: currentIndices + [index]) {
-                return foundPath
-            }
-        }
-        return nil
+    private var editorBackground: Color {
+            .black
     }
 
-    private var backgroundGradient: some View {
-        LinearGradient(
-            colors: colorScheme == .dark
-                ? [Color(uiColor: .systemBackground), Color(uiColor: .secondarySystemBackground)]
-                : [Color(uiColor: .systemGray6), Color(uiColor: .systemBackground)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
+    private func editorTopBlurHeight(safeTopInset: CGFloat) -> CGFloat {
+        safeTopInset + UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + UIConstants.Spacing.large
     }
 }
 
@@ -813,6 +880,11 @@ private enum QuizEditorTarget: Equatable {
     case question
     case choice(UUID)
     case explanation
+}
+
+private enum QuizEditorStyle {
+    static let sectionCornerRadius: CGFloat = 30
+    static let buttonCornerRadius: CGFloat = 22
 }
 
 /// One mutable answer editor state inside the quiz authoring surface.
@@ -840,7 +912,6 @@ private final class QuizChoiceEditorItem: Identifiable {
 private struct QuizZoneSectionCard<TrailingContent: View>: View {
     let title: String
     let subtitle: String
-    let isSelected: Bool
     let content: ZoneCardContent
     @Binding var selectedPath: ZonePath?
     var highlightContext: HighlightContext?
@@ -849,12 +920,10 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
     let onActivate: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
-    private var accent: Color { ThemeManager.shared.accentColor.color }
 
     init(
         title: String,
         subtitle: String,
-        isSelected: Bool,
         content: ZoneCardContent,
         selectedPath: Binding<ZonePath?>,
         highlightContext: HighlightContext?,
@@ -864,7 +933,6 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
     ) {
         self.title = title
         self.subtitle = subtitle
-        self.isSelected = isSelected
         self.content = content
         self._selectedPath = selectedPath
         self.highlightContext = highlightContext
@@ -897,86 +965,48 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
                 highlightContext: highlightContext,
                 previewDirection: $previewDirection
             )
-            .frame(minHeight: 88, alignment: .top)
+                .frame(minHeight: 88, alignment: .top)
         }
-        .padding(UIConstants.Spacing.standard)
-        .background(cardBackground, in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
-                .stroke(isSelected ? accent.opacity(0.35) : borderColor, lineWidth: 1)
-        }
-        .onTapGesture {
+            .padding(UIConstants.Spacing.standard)
+            .background(
+            cardBackground,
+            in: RoundedRectangle(cornerRadius: QuizEditorStyle.sectionCornerRadius, style: .continuous)
+        )
+            .onTapGesture {
             onActivate()
         }
     }
 
     private var cardBackground: some ShapeStyle {
         colorScheme == .dark
-            ? AnyShapeStyle(Color(uiColor: .secondarySystemBackground))
-            : AnyShapeStyle(Color.white)
+            ? AnyShapeStyle(Color.white.opacity(0.055))
+        : AnyShapeStyle(Color.white.opacity(0.94))
     }
 
-    private var borderColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.05)
-    }
 }
 
 /// One answer row with correctness controls and a mini zone editor.
 private struct QuizChoiceCard: View {
-    @Environment(AppPreferences.self) private var appPreferences
-
     let index: Int
     let canMoveDown: Bool
     @Bindable var choice: QuizChoiceEditorItem
-    let isSelected: Bool
     var highlightContext: HighlightContext?
     @Binding var previewDirection: AddDirection?
     let onActivate: () -> Void
-    let onToggleCorrect: () -> Void
     let onMoveUp: () -> Void
     let onMoveDown: () -> Void
-    let onDelete: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
-    private var accent: Color { ThemeManager.shared.accentColor.color }
-    private var locale: Locale { appPreferences.resolvedLocale }
-
-    private func localized(_ value: String.LocalizationValue) -> String {
-        AppLocalization.string(value, locale: locale)
-    }
-
-    private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
-        let format = AppLocalization.string(value, locale: locale)
-        return String(format: format, locale: locale, arguments: arguments)
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+
             HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(localizedFormat("ANSWER %@", String(index + 1)))
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-
-                    Button {
-                        onToggleCorrect()
-                    } label: {
-                        Label(choice.isCorrect ? localized("Correct") : localized("Mark Correct"), systemImage: choice.isCorrect ? "checkmark.circle.fill" : "circle")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(choice.isCorrect ? accent : .secondary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background((choice.isCorrect ? accent.opacity(0.12) : Color(uiColor: .tertiarySystemFill)), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-
                 Spacer()
 
                 HStack(spacing: UIConstants.Spacing.small) {
                     QuizChoiceActionButton(symbol: "arrow.up", isEnabled: index > 0, action: onMoveUp)
                     QuizChoiceActionButton(symbol: "arrow.down", isEnabled: canMoveDown, action: onMoveDown)
-                    QuizChoiceActionButton(symbol: "trash", tint: .red, action: onDelete)
                 }
             }
 
@@ -987,28 +1017,24 @@ private struct QuizChoiceCard: View {
                 highlightContext: highlightContext,
                 previewDirection: $previewDirection
             )
-            .frame(minHeight: 72, alignment: .top)
+                .frame(minHeight: 72, alignment: .top)
         }
-        .padding(UIConstants.Spacing.standard)
-        .background(cardBackground, in: RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: UIConstants.Radius.card, style: .continuous)
-                .stroke(isSelected ? accent.opacity(0.35) : borderColor, lineWidth: 1)
-        }
-        .onTapGesture {
+            .padding(UIConstants.Spacing.standard)
+            .background(
+            cardBackground,
+            in: RoundedRectangle(cornerRadius: QuizEditorStyle.sectionCornerRadius, style: .continuous)
+        )
+            .onTapGesture {
             onActivate()
         }
     }
 
     private var cardBackground: some ShapeStyle {
         colorScheme == .dark
-            ? AnyShapeStyle(Color(uiColor: .secondarySystemBackground))
-            : AnyShapeStyle(Color.white)
+            ? AnyShapeStyle(Color.white.opacity(0.055))
+        : AnyShapeStyle(Color.white.opacity(0.94))
     }
 
-    private var borderColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.05)
-    }
 }
 
 /// Small chrome button used for answer reordering and deletion.
@@ -1026,8 +1052,8 @@ private struct QuizChoiceActionButton: View {
                 .frame(width: 28, height: 28)
                 .background(Color(uiColor: .tertiarySystemFill), in: Circle())
         }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.35)
+            .buttonStyle(.plain)
+            .disabled(!isEnabled)
+            .opacity(isEnabled ? 1 : 0.35)
     }
 }

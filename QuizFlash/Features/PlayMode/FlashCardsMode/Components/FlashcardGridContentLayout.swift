@@ -74,6 +74,46 @@ struct FlashcardGridLeafDebugPreferenceKey: PreferenceKey {
     }
 }
 
+private struct FlashcardGridZoneWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] { [:] }
+
+    static func reduce(
+        value: inout [String: CGFloat],
+        nextValue: () -> [String: CGFloat]
+    ) {
+        for (path, width) in nextValue() {
+            value[path] = max(value[path] ?? 0, width)
+        }
+    }
+}
+
+private struct FlashcardGridLeafMeasurementIdentity: Equatable {
+    let id: UUID
+    let contentType: ZoneContentType
+    let text: String
+    let textStyle: TextBlockStyle
+    let textAlignment: TextBlockAlignment
+    let sizeMode: ZoneSizeMode
+    let blockAlignment: ZoneBlockAlignment
+    let fixedWidth: CGFloat?
+    let fixedHeight: CGFloat?
+    let isBold: Bool
+    let isItalic: Bool
+    let hasBullet: Bool
+    let fontFamily: FontFamily
+    let highlightColor: HighlightColor
+    let fontScale: CGFloat
+    let availableWidth: CGFloat
+}
+
+private struct FlashcardGridContainerMeasurementIdentity: Equatable {
+    let id: UUID
+    let direction: ZoneDirection
+    let childIdentities: [FlashcardGridLeafMeasurementIdentity]
+    let fontScale: CGFloat
+    let availableWidth: CGFloat
+}
+
 // MARK: - Flashcard Grid Content Layout
 
 struct FlashcardGridContentLayout {
@@ -202,6 +242,8 @@ private struct FlashcardGridZonePreview: View {
     let collectsDebugMetrics: Bool
     var onTap: (() -> Void)?
 
+    @State private var measuredDirectChildWidths: [String: CGFloat] = [:]
+
     var body: some View {
         if zone.isLeaf {
             FlashcardGridLeafPreview(
@@ -248,30 +290,79 @@ private struct FlashcardGridZonePreview: View {
             }
             .frame(width: availableWidth, alignment: .topLeading)
         } else {
-            let groupWidth = verticalGroupWidth(for: children)
+            let indexedChildren = Array(children.enumerated())
+            let childPaths = indexedChildren.map { "\(path).\($0.offset)" }
+            let containerIdentity = verticalContainerMeasurementIdentity(for: children)
+            let groupWidth = verticalGroupWidth(for: children, childPaths: childPaths)
+            let groupLeadingInset = max((availableWidth - groupWidth) / 2, 0)
 
             VStack(alignment: .leading, spacing: FlashcardGridContentMetrics.childSpacing) {
-                ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
+                ForEach(indexedChildren, id: \.element.id) { index, child in
                     FlashcardGridZonePreview(
                         zone: child,
                         path: "\(path).\(index)",
                         fontScale: fontScale,
-                        availableWidth: groupWidth,
+                        availableWidth: availableWidth,
                         centersLeafBlocks: centersLeafBlocks,
                         alignLeafBlocksToGroupLeading: true,
                         showsDebugGuides: showsDebugGuides,
                         collectsDebugMetrics: collectsDebugMetrics,
                         onTap: onTap
                     )
-                    .frame(width: groupWidth, alignment: .topLeading)
+                    .frame(width: availableWidth, alignment: .topLeading)
                 }
             }
-            .frame(width: groupWidth, alignment: .topLeading)
-            .frame(width: availableWidth, alignment: .top)
+            .frame(width: availableWidth, alignment: .topLeading)
+            .offset(x: groupLeadingInset)
+            .frame(width: availableWidth, alignment: .topLeading)
+            .onPreferenceChange(FlashcardGridZoneWidthPreferenceKey.self) { widths in
+                let directWidths: [String: CGFloat] = Dictionary(
+                    uniqueKeysWithValues: zip(childPaths, children).compactMap { childPath, child -> (String, CGFloat)? in
+                        guard let width = widths[childPath], width > 0 else {
+                            return nil
+                        }
+
+                        let resolvedWidth = ceil(width)
+                        guard isValidMeasuredWidth(resolvedWidth, for: child) else {
+                            return nil
+                        }
+
+                        return (childPath, resolvedWidth)
+                    }
+                )
+
+                guard directWidths.count == childPaths.count else {
+                    if !measuredDirectChildWidths.isEmpty {
+                        measuredDirectChildWidths = [:]
+                    }
+                    return
+                }
+
+                guard directWidths != measuredDirectChildWidths else {
+                    return
+                }
+
+                measuredDirectChildWidths = directWidths
+            }
+            .onChange(of: containerIdentity) { _, _ in
+                measuredDirectChildWidths = [:]
+            }
+            .preference(
+                key: FlashcardGridZoneWidthPreferenceKey.self,
+                value: [path: groupWidth]
+            )
         }
     }
 
-    private func verticalGroupWidth(for children: [ZoneModel]) -> CGFloat {
+    private func verticalGroupWidth(for children: [ZoneModel], childPaths: [String]) -> CGFloat {
+        if measuredDirectChildWidths.count == childPaths.count {
+            let measuredWidth = childPaths
+                .compactMap { measuredDirectChildWidths[$0] }
+                .max() ?? 1
+
+            return min(max(ceil(measuredWidth), 1), availableWidth)
+        }
+
         let widestChild = children
             .map {
                 FlashcardGridContentEstimator.estimatedBlockWidth(
@@ -283,6 +374,64 @@ private struct FlashcardGridZonePreview: View {
             .max() ?? availableWidth
 
         return min(max(ceil(widestChild), 1), availableWidth)
+    }
+
+    private func isValidMeasuredWidth(_ width: CGFloat, for child: ZoneModel) -> Bool {
+        width >= minimumValidMeasuredWidth(for: child)
+    }
+
+    private func minimumValidMeasuredWidth(for child: ZoneModel) -> CGFloat {
+        if child.isLeaf {
+            guard child.hasContent else { return 1 }
+
+            switch child.contentType {
+            case .text, .code, .empty:
+                return min(
+                    max(FlashcardGridContentMetrics.textHorizontalPadding + 8, 1),
+                    availableWidth
+                )
+            case .image, .sketch:
+                return 1
+            }
+        }
+
+        let childMinimum = child.children?
+            .filter(FlashcardGridZoneRenderPolicy.shouldRender)
+            .map(minimumValidMeasuredWidth(for:))
+            .max() ?? 1
+
+        return min(max(childMinimum, 1), availableWidth)
+    }
+
+    private func verticalContainerMeasurementIdentity(for children: [ZoneModel]) -> FlashcardGridContainerMeasurementIdentity {
+        FlashcardGridContainerMeasurementIdentity(
+            id: zone.id,
+            direction: zone.direction,
+            childIdentities: children.map { leafMeasurementIdentity(for: $0) },
+            fontScale: fontScale,
+            availableWidth: ceil(availableWidth)
+        )
+    }
+
+    private func leafMeasurementIdentity(for child: ZoneModel) -> FlashcardGridLeafMeasurementIdentity {
+        FlashcardGridLeafMeasurementIdentity(
+            id: child.id,
+            contentType: child.contentType,
+            text: child.text,
+            textStyle: child.textStyle,
+            textAlignment: child.textAlignment,
+            sizeMode: child.sizeMode,
+            blockAlignment: child.blockAlignment,
+            fixedWidth: child.fixedWidth.map(ceil),
+            fixedHeight: child.fixedHeight.map(ceil),
+            isBold: child.isBold,
+            isItalic: child.isItalic,
+            hasBullet: child.hasBullet,
+            fontFamily: child.fontFamily,
+            highlightColor: child.highlightColor,
+            fontScale: fontScale,
+            availableWidth: ceil(availableWidth)
+        )
     }
 }
 
@@ -350,6 +499,13 @@ private struct FlashcardGridLeafPreview: View {
                 ? [debugSnapshot(layout: layout)]
                 : []
         )
+        .preference(
+            key: FlashcardGridZoneWidthPreferenceKey.self,
+            value: [path: layout.blockSize.width]
+        )
+        .onChange(of: measurementIdentity) { _, _ in
+            renderedContentSize = .zero
+        }
     }
 
     private func contentFrameHeight(for layout: CardZoneLayoutResult) -> CGFloat? {
@@ -369,6 +525,27 @@ private struct FlashcardGridLeafPreview: View {
         return leadingZone
     }
 
+    private var measurementIdentity: FlashcardGridLeafMeasurementIdentity {
+        FlashcardGridLeafMeasurementIdentity(
+            id: zone.id,
+            contentType: zone.contentType,
+            text: zone.text,
+            textStyle: zone.textStyle,
+            textAlignment: zone.textAlignment,
+            sizeMode: zone.sizeMode,
+            blockAlignment: zone.blockAlignment,
+            fixedWidth: zone.fixedWidth.map(ceil),
+            fixedHeight: zone.fixedHeight.map(ceil),
+            isBold: zone.isBold,
+            isItalic: zone.isItalic,
+            hasBullet: zone.hasBullet,
+            fontFamily: zone.fontFamily,
+            highlightColor: zone.highlightColor,
+            fontScale: fontScale,
+            availableWidth: ceil(availableWidth)
+        )
+    }
+
     @ViewBuilder
     private func zoneBlockSurface(layout: CardZoneLayoutResult) -> some View {
         switch zone.contentType {
@@ -376,12 +553,6 @@ private struct FlashcardGridLeafPreview: View {
             let tint = zone.highlightColor.zoneSurfaceTint
             RoundedRectangle(cornerRadius: FlashcardGridContentMetrics.zoneCornerRadius, style: .continuous)
                 .fill(zone.highlightColor.zoneSurfaceFill)
-                .overlay {
-                    if tint == nil {
-                        RoundedRectangle(cornerRadius: FlashcardGridContentMetrics.zoneCornerRadius, style: .continuous)
-                            .stroke(Color.white.opacity(0.10), lineWidth: 0.8)
-                    }
-                }
                 .overlay {
                     if let tint {
                         RoundedRectangle(cornerRadius: FlashcardGridContentMetrics.zoneCornerRadius, style: .continuous)
@@ -511,6 +682,7 @@ private struct FlashcardGridLeafPreview: View {
 
     private func updateRenderedContentSize(_ newSize: CGSize) {
         guard newSize.width > 0, newSize.height > 0 else { return }
+        guard isValidRenderedMeasurement(newSize) else { return }
         let clampedSize = CGSize(
             width: min(max(ceil(newSize.width), 1), availableWidth),
             height: max(ceil(newSize.height), 1)
@@ -524,13 +696,47 @@ private struct FlashcardGridLeafPreview: View {
 
     private func updateRenderedContentHeight(_ newHeight: CGFloat) {
         guard newHeight > 0 else { return }
+        guard isValidRenderedHeight(newHeight) else { return }
         let clampedHeight = max(ceil(newHeight), 1)
         if abs(renderedContentSize.height - clampedHeight) > 0.5 {
             renderedContentSize = CGSize(
-                width: renderedContentSize.width,
+                width: isValidRenderedWidth(renderedContentSize.width) ? renderedContentSize.width : 0,
                 height: clampedHeight
             )
         }
+    }
+
+    private func isValidRenderedMeasurement(_ size: CGSize) -> Bool {
+        isValidRenderedWidth(size.width) && isValidRenderedHeight(size.height)
+    }
+
+    private func isValidRenderedWidth(_ width: CGFloat) -> Bool {
+        guard requiresStableTextMeasurement else { return width > 0 }
+        return width >= minimumValidRenderedWidth
+    }
+
+    private func isValidRenderedHeight(_ height: CGFloat) -> Bool {
+        guard requiresStableTextMeasurement else { return height > 0 }
+        return height >= minimumValidRenderedHeight
+    }
+
+    private var requiresStableTextMeasurement: Bool {
+        guard zone.contentType == .text else { return false }
+        return !displayText(for: zone).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var minimumValidRenderedWidth: CGFloat {
+        let bulletInset = zone.hasBullet
+            ? FlashcardGridContentMetrics.bulletWidth + FlashcardGridContentMetrics.bulletSpacing
+            : 0
+        return min(
+            max(FlashcardGridContentMetrics.textHorizontalPadding + bulletInset + 8, 1),
+            availableWidth
+        )
+    }
+
+    private var minimumValidRenderedHeight: CGFloat {
+        min(max(FlashcardGridContentMetrics.textVerticalPadding / 2, 8), 24)
     }
 
     private func debugSnapshot(layout: CardZoneLayoutResult) -> FlashcardGridLeafLayoutDebugSnapshot {
@@ -629,7 +835,7 @@ enum CardZoneContentMetrics {
     static let childSpacing: CGFloat = 12
     static let textVerticalPadding: CGFloat = 32
     static let textHorizontalPadding: CGFloat = 24
-    static let zoneCornerRadius: CGFloat = 18
+    static let zoneCornerRadius: CGFloat = 24
     static let highlightedHorizontalPadding: CGFloat = textHorizontalPadding
     static let bulletWidth: CGFloat = 6
     static let bulletSpacing: CGFloat = 8
@@ -1378,7 +1584,9 @@ enum FlashcardGridContentEstimator {
                 zone: zone,
                 fontScale: fontScale
             )
-            let resolvedWidth = min(max(lineLayout.size.width, preferredWidth), max(availableWidth, 1))
+            let resolvedWidth = preferredWidth <= availableWidth
+                ? max(lineLayout.size.width, preferredWidth)
+                : lineLayout.size.width
 
             return TextLayoutMeasurement(
                 size: CGSize(width: ceil(resolvedWidth), height: lineLayout.size.height),

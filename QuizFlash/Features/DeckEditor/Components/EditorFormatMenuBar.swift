@@ -26,6 +26,8 @@ struct EditorFormatMenuBar: View {
     var canPreview: Bool
     var showsPrimaryActions: Bool
     var showsZoneActions: Bool
+    var showsPreviewAction: Bool
+    var showsMoreActions: Bool
     var onPreview: () -> Void
     var onClose: () -> Void
 
@@ -47,6 +49,8 @@ struct EditorFormatMenuBar: View {
         canPreview: Bool,
         showsPrimaryActions: Bool = true,
         showsZoneActions: Bool = false,
+        showsPreviewAction: Bool = true,
+        showsMoreActions: Bool = true,
         onPreview: @escaping () -> Void,
         onClose: @escaping () -> Void
     ) {
@@ -62,6 +66,8 @@ struct EditorFormatMenuBar: View {
         self.canPreview = canPreview
         self.showsPrimaryActions = showsPrimaryActions
         self.showsZoneActions = showsZoneActions
+        self.showsPreviewAction = showsPreviewAction
+        self.showsMoreActions = showsMoreActions
         self.onPreview = onPreview
         self.onClose = onClose
     }
@@ -77,6 +83,9 @@ struct EditorFormatMenuBar: View {
         guard let zone, zone.isLeaf else { return false }
         return zone.contentType == .image || zone.contentType == .sketch
     }
+    private var showsTrailingZoneControls: Bool {
+        showsZoneActions && (showsPreviewAction || showsMoreActions)
+    }
 
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
@@ -90,12 +99,17 @@ struct EditorFormatMenuBar: View {
                 .padding(.trailing, 10)
             }
             
-            if showsZoneActions {
+            if showsTrailingZoneControls {
                 Divider()
                     .frame(height: 26)
 
-                previewButton
-                modeToggleButton
+                if showsPreviewAction {
+                    previewButton
+                }
+
+                if showsMoreActions {
+                    modeToggleButton
+                }
 
                 Divider()
                     .frame(height: 26)
@@ -133,7 +147,7 @@ struct EditorFormatMenuBar: View {
     @ViewBuilder
     private var activeTools: some View {
         HStack(spacing: 20) {
-            if toolMode == .zoneActions, showsZoneActions {
+            if toolMode == .zoneActions, showsZoneActions, showsMoreActions {
                 zoneActionTools
                     .transition(.opacity.combined(with: .move(edge: .trailing)))
             } else {
