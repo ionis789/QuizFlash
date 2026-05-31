@@ -130,6 +130,50 @@ final class ZoneModelLayoutMigrationTests: XCTestCase {
         XCTAssertEqual(layout.blockSize.height, 96)
     }
 
+    func testAutoMathZoneUsesRenderedContentWidthFromWebView() {
+        let zone = ZoneModel.text(#"$S' \cdot A_{\tilde{B},\tilde{B}'} = A_{B,B'} \cdot S$"#)
+
+        let layout = CardZoneLayoutEngine.leafLayout(
+            for: zone,
+            spec: CardZoneLayoutSpec(availableWidth: 329, fontScale: 1),
+            measuredContentSize: CGSize(width: 166, height: 113)
+        )
+
+        XCTAssertEqual(layout.blockSize.width, 166)
+        XCTAssertEqual(layout.textWidthLimit, 142)
+        XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
+    }
+
+    func testAutoMathZoneConstrainsTextToInnerWidth() {
+        let zone = ZoneModel.text(#"Cum se reprezintă un operator liniar $T: \mathbb{R}^n \to \mathbb{R}^m$ în bazele canonice?"#)
+
+        let layout = CardZoneLayoutEngine.leafLayout(
+            for: zone,
+            spec: CardZoneLayoutSpec(availableWidth: 329, fontScale: 1),
+            measuredContentSize: CGSize(width: 329, height: 140)
+        )
+
+        XCTAssertEqual(layout.blockSize.width, 329)
+        XCTAssertEqual(layout.contentLayoutWidth, 329)
+        XCTAssertEqual(layout.textHorizontalInsets, 24)
+        XCTAssertEqual(layout.textWidthLimit, 305)
+        XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
+    }
+
+    func testAutoMathZoneShrinksToStableRenderedContentWidth() {
+        let zone = ZoneModel.text("def(T − λ·1V) = dim(Ker(T − λ·1V))")
+
+        let layout = CardZoneLayoutEngine.leafLayout(
+            for: zone,
+            spec: CardZoneLayoutSpec(availableWidth: 329, fontScale: 1),
+            measuredContentSize: CGSize(width: 289, height: 107)
+        )
+
+        XCTAssertEqual(layout.blockSize.width, 289)
+        XCTAssertEqual(layout.textWidthLimit, 265)
+        XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
+    }
+
     private func decodeLegacyZone(textAlignment: String) throws -> ZoneModel {
         let payload = """
         {

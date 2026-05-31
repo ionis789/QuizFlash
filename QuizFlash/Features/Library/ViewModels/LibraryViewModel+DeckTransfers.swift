@@ -66,9 +66,12 @@ extension LibraryViewModel {
     func handleFileImport(_ result: Result<[URL], Error>, context: ModelContext) {
         switch result {
         case .success(let urls):
-            let qflashURLs = urls.filter { $0.pathExtension.lowercased() == "qflash" }
-            guard !qflashURLs.isEmpty else {
-                importErrorMessage = "Please select .qflash files"
+            let jsonURLs = urls.filter { $0.pathExtension.lowercased() == "json" }
+            guard !jsonURLs.isEmpty else {
+                importErrorMessage = AppLocalization.string(
+                    "Please select .json files",
+                    locale: AppPreferences.persistedResolvedLocale
+                )
                 showImportError = true
                 return
             }
@@ -79,7 +82,7 @@ extension LibraryViewModel {
                 var lastImportedName = ""
                 var errors: [String] = []
 
-                for url in qflashURLs {
+                for url in jsonURLs {
                     do {
                         let deck = try await DeckSharingManager.shared.importDeck(from: url, into: context)
                         importedCount += 1

@@ -5,130 +5,8 @@
 
 import Foundation
 import SwiftData
-import UniformTypeIdentifiers
 import Combine
-import Compression
 import OSLog
-
-// MARK: - Exportable Models (Codable versions for JSON)
-///  Professional Export/Import system for sharing decks between users.
-///  Uses .qflash file format (ZIP archive with metadata.json and /assets folder)
-
-/// Exportable version of ZoneModel (already Codable)
-typealias ExportableZone = ZoneModel
-
-/// Exportable card structure
-struct ExportableCard: Codable {
-    var id: UUID
-    var content: DraftCardContent
-    var creationSource: CardCreationSource
-    var createdAt: Date
-    var editedAt: Date
-
-    // Asset references (UUIDs of images stored in /assets folder)
-    var assetReferences: [UUID]
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case kind
-        case content
-        case creationSource
-        case frontZone
-        case backZone
-        case frontType
-        case backType
-        case createdAt
-        case editedAt
-        case assetReferences
-    }
-
-    init(
-        id: UUID,
-        content: DraftCardContent,
-        creationSource: CardCreationSource,
-        createdAt: Date,
-        editedAt: Date,
-        assetReferences: [UUID]
-    ) {
-        self.id = id
-        self.content = content
-        self.creationSource = creationSource
-        self.createdAt = createdAt
-        self.editedAt = editedAt
-        self.assetReferences = assetReferences
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        creationSource = try container.decodeIfPresent(CardCreationSource.self, forKey: .creationSource) ?? .manual
-        createdAt = try container.decode(Date.self, forKey: .createdAt)
-        editedAt = try container.decode(Date.self, forKey: .editedAt)
-        assetReferences = try container.decodeIfPresent([UUID].self, forKey: .assetReferences) ?? []
-
-        if let decodedContent = try container.decodeIfPresent(DraftCardContent.self, forKey: .content) {
-            content = decodedContent
-            return
-        }
-
-        let frontZone = try container.decodeIfPresent(ZoneModel.self, forKey: .frontZone) ?? .text()
-        let backZone = try container.decodeIfPresent(ZoneModel.self, forKey: .backZone) ?? .text()
-        let frontType = try container.decodeIfPresent(CardContentType.self, forKey: .frontType) ?? .text
-        let backType = try container.decodeIfPresent(CardContentType.self, forKey: .backType) ?? .text
-
-        content = .flashcard(
-            FlashcardCardContent(
-                frontZone: frontZone,
-                backZone: backZone,
-                frontType: frontType,
-                backType: backType
-            )
-        )
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-
-        try container.encode(id, forKey: .id)
-        try container.encode(content.kind, forKey: .kind)
-        try container.encode(content, forKey: .content)
-        try container.encode(creationSource, forKey: .creationSource)
-        try container.encode(createdAt, forKey: .createdAt)
-        try container.encode(editedAt, forKey: .editedAt)
-        try container.encode(assetReferences, forKey: .assetReferences)
-
-        if case .flashcard(let flashcardContent) = content {
-            try container.encode(flashcardContent.frontZone, forKey: .frontZone)
-            try container.encode(flashcardContent.backZone, forKey: .backZone)
-            try container.encode(flashcardContent.frontType, forKey: .frontType)
-            try container.encode(flashcardContent.backType, forKey: .backType)
-        }
-    }
-}
-
-/// Exportable deck structure
-struct ExportableDeck: Codable {
-    var id: UUID
-    var title: String
-    var colorHex: String
-    var createdAt: Date
-    var editedAt: Date
-    var cards: [ExportableCard]
-
-    // File format version for future compatibility
-    var formatVersion: Int = 2
-    var appVersion: String = "1.0"
-}
-
-// MARK: - Asset Reference
-
-/// Tracks image data and its reference UUID
-struct AssetReference: Identifiable {
-    let id: UUID
-    let data: Data
-    let originalZoneID: UUID
-}
 
 // MARK: - Export/Import Errors
 
@@ -136,7 +14,6 @@ enum DeckSharingError: LocalizedError {
     case exportFailed(String)
     case importFailed(String)
     case invalidFormat
-    case missingMetadata
     case corruptedData
     case versionMismatch(Int)
     case fileAccessDenied
@@ -148,13 +25,11 @@ enum DeckSharingError: LocalizedError {
         case .importFailed(let reason):
             return "Import failed: \(reason)"
         case .invalidFormat:
-            return "Invalid file format. Expected .qflash file."
-        case .missingMetadata:
-            return "File is missing metadata.json"
+            return "Invalid file format. Expected a QuizFlash JSON deck file."
         case .corruptedData:
             return "File data is corrupted"
         case .versionMismatch(let version):
-            return "Unsupported file version: \(version)"
+            return "Unsupported deck JSON schema version: \(version)"
         case .fileAccessDenied:
             return "Cannot access file. Please check permissions."
         }
@@ -163,11 +38,10 @@ enum DeckSharingError: LocalizedError {
 
 // MARK: - Deck Sharing Manager
 
-/// Manages export and import of decks using the `.qflash` file format.
+/// Manages export and import of decks using the canonical QuizFlash JSON format.
 ///
-/// The format is a single JSON file with Base64-encoded image assets embedded
-/// in `ZoneModel` values. This avoids ZIP-compression issues while keeping the
-/// file self-contained and easy to share.
+/// The format is a single `.json` document with Base64-encoded media embedded in
+/// zone values. SwiftData remains the local runtime store.
 ///
 /// All public methods are `async` and run on the `MainActor` so that `@Published`
 /// progress properties are always mutated on the correct thread.
@@ -180,22 +54,20 @@ final class DeckSharingManager: ObservableObject {
     @Published var progress: Double = 0
     @Published var currentOperation: String = ""
 
-    private let fileExtension = "qflash"
-    private let metadataFileName = "metadata.json"
-    private let assetsFolder = "assets"
+    private let fileExtension = "json"
     private let logger = QuizFlashLog.make("DeckSharingManager")
 
     private init() { }
 
     // MARK: - Export
 
-    /// Exports a deck to a `.qflash` file and returns its temporary URL.
+    /// Exports a deck to a `.json` file and returns its temporary URL.
     ///
     /// The returned URL points to a file inside `FileManager.temporaryDirectory`.
     /// Pass it directly to a `ShareLink` or `UIActivityViewController`.
     ///
     /// - Parameter deck: The `DeckModel` to export.
-    /// - Returns: The URL of the generated `.qflash` file.
+    /// - Returns: The URL of the generated `.json` file.
     /// - Throws: `DeckSharingError.exportFailed` if encoding or writing fails.
     func exportDeck(_ deck: DeckModel) async throws -> URL {
         isExporting = true
@@ -211,45 +83,24 @@ final class DeckSharingManager: ObservableObject {
         progress = 0.1
         currentOperation = "Processing cards..."
 
-        // Process cards - keep images as Base64 in zones
-        var exportableCards: [ExportableCard] = []
-
-        let totalCards = deck.cardCount
-        for (index, card) in deck.cards.enumerated() {
-            progress = 0.1 + (0.5 * Double(index) / Double(max(totalCards, 1)))
-
-            // Copy zones directly - imageData will be encoded as Base64 by JSONEncoder
-            let exportableCard = ExportableCard(
-                id: UUID(),
-                content: card.cardContent,
-                creationSource: card.creationSource,
-                createdAt: card.createdAt,
-                editedAt: card.editedAt,
-                assetReferences: []
-            )
-            exportableCards.append(exportableCard)
+        let sortedCards = deck.cards.sorted {
+            if $0.cardNumber == $1.cardNumber {
+                return $0.createdAt < $1.createdAt
+            }
+            return $0.cardNumber < $1.cardNumber
         }
 
         progress = 0.6
         currentOperation = "Creating file..."
 
-        // Create exportable deck
-        let exportableDeck = ExportableDeck(
-            id: UUID(),
-            title: deck.title,
-            colorHex: deck.colorHex,
-            createdAt: deck.createdAt,
-            editedAt: deck.editedAt,
-            cards: exportableCards
-        )
+        let exportDocument = DeckJSONDocument.from(deck: deck, cards: sortedCards)
 
         let exportData: Data
         do {
-            // Encode to JSON (imageData becomes Base64 automatically)
             let encoder = JSONEncoder()
-            encoder.outputFormatting = [.sortedKeys] // Remove prettyPrinted for smaller file
+            encoder.outputFormatting = [.sortedKeys]
             encoder.dateEncodingStrategy = .iso8601
-            exportData = try encoder.encode(exportableDeck)
+            exportData = try encoder.encode(exportDocument)
         } catch {
             logger.error("Failed to encode deck export payload: \(error.localizedDescription, privacy: .public)")
             throw DeckSharingError.exportFailed("The deck couldn't be prepared for export right now.")
@@ -258,19 +109,15 @@ final class DeckSharingManager: ObservableObject {
         progress = 0.8
         currentOperation = "Saving file..."
 
-        // Save as .qflash file
         let sanitizedTitle = deck.title.replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
             .replacingOccurrences(of: " ", with: "_")
-        let archiveName = "\(sanitizedTitle).\(fileExtension)"
-        let archiveURL = FileManager.default.temporaryDirectory.appendingPathComponent(archiveName)
+        let fileName = "\(sanitizedTitle).\(fileExtension)"
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
 
         do {
-            // Remove existing file if any
-            try? FileManager.default.removeItem(at: archiveURL)
-
-            // Write JSON data directly
-            try exportData.write(to: archiveURL)
+            try? FileManager.default.removeItem(at: fileURL)
+            try exportData.write(to: fileURL)
         } catch {
             logger.error("Failed to write deck export file: \(error.localizedDescription, privacy: .public)")
             throw DeckSharingError.exportFailed("The deck file couldn't be created right now.")
@@ -280,19 +127,19 @@ final class DeckSharingManager: ObservableObject {
         currentOperation = "Export complete!"
 
         logger.debug(
-            "Exported deck '\(deck.title, privacy: .public)' - \(exportData.count) bytes, \(exportableCards.count) cards"
+            "Exported deck '\(deck.title, privacy: .public)' - \(exportData.count) bytes, \(sortedCards.count) cards"
         )
 
-        return archiveURL
+        return fileURL
     }
 
 
     // MARK: - Import
 
-    /// Imports a deck from a `.qflash` file URL into the given `ModelContext`.
+    /// Imports a deck from a `.json` file URL into the given `ModelContext`.
     ///
     /// - Parameters:
-    ///   - url: The file URL of the `.qflash` archive (may be security-scoped).
+    ///   - url: The file URL of the deck JSON document (may be security-scoped).
     ///   - context: The `ModelContext` in which the imported `DeckModel` will be saved.
     /// - Returns: The newly created and persisted `DeckModel`.
     /// - Throws: `DeckSharingError` if the file cannot be read, decoded, or saved.
@@ -307,12 +154,10 @@ final class DeckSharingManager: ObservableObject {
             currentOperation = ""
         }
 
-        // 1. Verify file extension
         guard url.pathExtension.lowercased() == fileExtension else {
             throw DeckSharingError.invalidFormat
         }
 
-        // 2. Start accessing security-scoped resource if needed
         let didStartAccessing = url.startAccessingSecurityScopedResource()
         defer {
             if didStartAccessing {
@@ -323,57 +168,64 @@ final class DeckSharingManager: ObservableObject {
         progress = 0.2
         currentOperation = "Reading file..."
 
-        // 3. Read JSON data directly from file
         let jsonData = try Data(contentsOf: url)
         logger.debug("Read \(jsonData.count) bytes from import file")
 
         progress = 0.4
         currentOperation = "Parsing data..."
 
-        // 4. Decode JSON
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let exportedDeck = try decoder.decode(ExportableDeck.self, from: jsonData)
+        let document: DeckJSONDocument
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            document = try decoder.decode(DeckJSONDocument.self, from: jsonData)
+        } catch {
+            logger.error("Failed to decode deck JSON: \(error.localizedDescription, privacy: .public)")
+            throw DeckSharingError.corruptedData
+        }
 
         logger.debug(
-            "Decoded deck '\(exportedDeck.title, privacy: .public)' with \(exportedDeck.cards.count) cards"
+            "Decoded deck '\(document.deck.title, privacy: .public)' with \(document.cards.count) cards"
         )
 
-        // 5. Validate format version
-        if exportedDeck.formatVersion > 2 {
-            throw DeckSharingError.versionMismatch(exportedDeck.formatVersion)
+        guard document.schemaVersion == DeckJSONDocument.supportedSchemaVersion else {
+            throw DeckSharingError.versionMismatch(document.schemaVersion)
         }
 
         progress = 0.6
         currentOperation = "Creating deck..."
 
-        // 6. Create new DeckModel
         let newDeck = DeckModel(
-            title: exportedDeck.title,
-            colorHex: exportedDeck.colorHex
+            title: document.deck.title,
+            colorHex: document.deck.colorHex
         )
-        newDeck.createdAt = Date()
-        newDeck.editedAt = Date()
+        newDeck.createdAt = document.deck.createdAt
+        newDeck.editedAt = document.deck.editedAt
 
         context.insert(newDeck)
 
         progress = 0.7
         currentOperation = "Importing cards..."
 
-        // 7. Create cards – zones already contain imageData decoded from JSON
-        let totalCards = exportedDeck.cards.count
-        for (index, exportedCard) in exportedDeck.cards.enumerated() {
+        let totalCards = document.cards.count
+        for (index, cardRecord) in document.cards.enumerated() {
             progress = 0.7 + (0.25 * Double(index) / Double(max(totalCards, 1)))
 
-            // Updated initializer to prevent `backingData` binding errors
+            let content: DraftCardContent
+            do {
+                content = try cardRecord.card.draftCardContent()
+            } catch {
+                logger.error("Invalid card JSON payload: \(error.localizedDescription, privacy: .public)")
+                throw DeckSharingError.corruptedData
+            }
+
             let newCard = CardModel(
-                content: exportedCard.content,
-                creationSource: exportedCard.creationSource
+                content: content,
+                cardNumber: index + 1,
+                creationSource: cardRecord.creationSource
             )
-            
-            // Preserve original creation timestamps from the imported file
-            newCard.createdAt = exportedCard.createdAt
-            newCard.editedAt = exportedCard.editedAt
+            newCard.createdAt = cardRecord.createdAt
+            newCard.editedAt = cardRecord.editedAt
             newCard.deck = newDeck
 
             context.insert(newCard)
@@ -383,10 +235,9 @@ final class DeckSharingManager: ObservableObject {
         progress = 0.95
         currentOperation = "Saving..."
 
-        // 8. Update denormalized card count
         newDeck.cardCount = totalCards
+        newDeck.lastAssignedCardNumber = totalCards
 
-        // 9. Save context
         do {
             try context.save()
         } catch {
@@ -406,11 +257,8 @@ final class DeckSharingManager: ObservableObject {
 
     // MARK: - File Type Registration
 
-    /// The UTType identifier for .qflash files
-    static let qflashUTType = "com.quizflash.deck"
-
-    /// Check if a URL is a valid .qflash file
-    func isValidQFlashFile(_ url: URL) -> Bool {
+    /// Check if a URL is a valid QuizFlash JSON deck file.
+    func isValidDeckJSONFile(_ url: URL) -> Bool {
         return url.pathExtension.lowercased() == fileExtension
     }
 }
@@ -535,7 +383,7 @@ final class StorageManager: ObservableObject {
 ///
 /// Call `cleanupDeckData(_:context:)` before deleting a deck, and
 /// `runFullCleanup(context:)` periodically (e.g. on app launch) to purge
-/// temporary `.qflash` export files older than 24 hours.
+/// temporary JSON export files older than 24 hours.
 @MainActor
 final class GarbageCollector: ObservableObject {
     static let shared = GarbageCollector()
@@ -613,9 +461,7 @@ final class GarbageCollector: ObservableObject {
                     let creationDate = attributes[.creationDate] as? Date,
                     creationDate < cutoffDate {
 
-                    // Check if it's a QuizFlash temp file
-                    let filename = fileURL.lastPathComponent
-                    if filename.contains("qflash") || fileURL.pathExtension == "zip" {
+                    if fileURL.pathExtension == "json" {
                         if let size = attributes[.size] as? Int64 {
                             freedBytes += size
                         }
@@ -646,13 +492,5 @@ final class GarbageCollector: ObservableObject {
         // Clear image cache
         // Note: Make sure ImageCache exists in your project
         // ImageCache.shared.clearCache() // Re-enable this if ImageCache is available
-    }
-}
-
-// MARK: - UTType Extension for .qflash files
-
-extension UTType {
-    static var qflash: UTType {
-        UTType(exportedAs: "com.quizflash.deck", conformingTo: .data)
     }
 }

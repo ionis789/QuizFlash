@@ -451,6 +451,7 @@
 "Pick a deck for tonight" = "Pick a deck for tonight";
 "Pick a deck row above to inspect the cards that landed cleanly and the ones that still need another pass." = "Pick a deck row above to inspect the cards that landed cleanly and the ones that still need another pass.";
 "Pick the type of card you want to add to this deck." = "Pick the type of card you want to add to this deck.";
+"Please select .json files" = "Please select .json files";
 "Pin" = "Pin";
 "Pink" = "Pink";
 "Pinned" = "Pinned";

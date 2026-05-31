@@ -451,6 +451,7 @@
 "Pick a deck for tonight" = "Выберите колоду на вечер";
 "Pick a deck row above to inspect the cards that landed cleanly and the ones that still need another pass." = "Выберите ряд колоды выше, чтобы проверить карты, которые приземлились чисто, и те, которым еще нужен повторный проход.";
 "Pick the type of card you want to add to this deck." = "Выберите тип карточки, которую хотите добавить в эту колоду.";
+"Please select .json files" = "Выберите файлы .json";
 "Pin" = "Закрепить";
 "Pink" = "Розовый";
 "Pinned" = "Закреплена";

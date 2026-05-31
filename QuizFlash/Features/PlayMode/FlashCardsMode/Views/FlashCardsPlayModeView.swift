@@ -34,6 +34,12 @@ struct FlashCardsPlayModeView: View {
         case trailing
     }
 
+    private enum DebugCardCaptureState: Equatable {
+        case idle
+        case saved
+        case failed
+    }
+
     // MARK: - Environment
 
     @Environment(\.dismiss) private var dismiss
@@ -61,6 +67,7 @@ struct FlashCardsPlayModeView: View {
     @State private var currentLayoutDebugSnapshot: FlashcardGridLayoutDebugSnapshot?
     @State private var currentLayoutDebugCardID: PersistentIdentifier?
     @State private var didCopyFloatingLayoutDebug = false
+    @State private var debugCardCaptureState = DebugCardCaptureState.idle
     @State private var liveSwipeFeedbackSnapshot = SwipeProgressSnapshot.idle
     @State private var swipeFeedbackLiveDirection: SwipeDirection?
     @State private var swipeFeedbackLiveProgress: CGFloat = 0
@@ -79,6 +86,9 @@ struct FlashCardsPlayModeView: View {
 #if DEBUG
     @State private var startupDebugState = FlashcardsStartupDebugState()
 #endif
+
+    private static let renderDebugDeckTitle = "Math Render Debug"
+    private static let renderDebugDeckColorHex = "#7C3AED"
 
     // MARK: - Convenience
 
@@ -211,6 +221,7 @@ struct FlashCardsPlayModeView: View {
             liveSwipeFeedbackSnapshot = .idle
             currentLayoutDebugSnapshot = nil
             currentLayoutDebugCardID = nil
+            debugCardCaptureState = .idle
             resetLiveSwipeFeedback()
             developerSwipeDebugState.reset()
         }
@@ -760,6 +771,25 @@ struct FlashCardsPlayModeView: View {
                 }
 
                 if currentLayoutDebugReport != nil {
+                    Button(action: saveCurrentCardToRenderDebugDeck) {
+                        HStack(spacing: 8) {
+                            Image(systemName: debugCardCaptureIconName)
+                                .font(.system(size: 15, weight: .black))
+                            Text(debugCardCaptureTitle)
+                                .font(.system(size: 15, weight: .black, design: .rounded))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .frame(height: 44)
+                        .background(debugCardCaptureBackgroundColor, in: Capsule())
+                        .overlay {
+                            Capsule()
+                                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.scale(scale: 0.92).combined(with: .opacity))
+
                     Button(action: copyFloatingLayoutDebugReport) {
                         HStack(spacing: 8) {
                             Image(systemName: didCopyFloatingLayoutDebug ? "checkmark" : "doc.on.doc")
@@ -794,6 +824,112 @@ struct FlashCardsPlayModeView: View {
         }
         .frame(width: containerSize.width, height: containerSize.height, alignment: .bottomTrailing)
         .zIndex(1_200)
+    }
+
+    private var debugCardCaptureTitle: String {
+        switch debugCardCaptureState {
+        case .idle:
+            return "Save Card"
+        case .saved:
+            return "Saved"
+        case .failed:
+            return "Failed"
+        }
+    }
+
+    private var debugCardCaptureIconName: String {
+        switch debugCardCaptureState {
+        case .idle:
+            return "tray.and.arrow.down"
+        case .saved:
+            return "checkmark"
+        case .failed:
+            return "exclamationmark.triangle"
+        }
+    }
+
+    private var debugCardCaptureBackgroundColor: Color {
+        switch debugCardCaptureState {
+        case .idle:
+            return Color.purple.opacity(0.78)
+        case .saved:
+            return Color.green.opacity(0.78)
+        case .failed:
+            return Color.red.opacity(0.78)
+        }
+    }
+
+    private func saveCurrentCardToRenderDebugDeck() {
+        guard
+            let currentPlayableCard,
+            let sourceCard = modelContext.safeModel(for: currentPlayableCard.id, as: CardModel.self)
+        else {
+            showDebugCardCaptureState(.failed)
+            return
+        }
+
+        do {
+            let debugDeck = try fetchOrCreateRenderDebugDeck()
+            let existingMaxCardNumber = debugDeck.cards.map(\.cardNumber).max() ?? 0
+            let nextCardNumber = max(debugDeck.lastAssignedCardNumber, existingMaxCardNumber) + 1
+            let originalCardCount = max(debugDeck.cardCount, debugDeck.cards.count)
+            let now = Date()
+
+            let capturedCard = CardModel(
+                content: sourceCard.cardContent,
+                cardNumber: nextCardNumber,
+                isPinned: true,
+                creationSource: sourceCard.creationSource
+            )
+            capturedCard.createdAt = now
+            capturedCard.editedAt = now
+            capturedCard.dueDate = now
+            capturedCard.deck = debugDeck
+
+            debugDeck.cards.append(capturedCard)
+            debugDeck.cardCount = originalCardCount + 1
+            debugDeck.lastAssignedCardNumber = nextCardNumber
+            debugDeck.editedAt = now
+
+            modelContext.insert(capturedCard)
+            try modelContext.save()
+            showDebugCardCaptureState(.saved)
+        } catch {
+            modelContext.rollback()
+            showDebugCardCaptureState(.failed)
+        }
+    }
+
+    private func fetchOrCreateRenderDebugDeck() throws -> DeckModel {
+        let title = Self.renderDebugDeckTitle
+        var descriptor = FetchDescriptor<DeckModel>(
+            predicate: #Predicate { deck in
+                deck.title == title
+            },
+            sortBy: [SortDescriptor(\.createdAt)]
+        )
+        descriptor.fetchLimit = 1
+
+        if let existingDeck = try modelContext.fetch(descriptor).first {
+            return existingDeck
+        }
+
+        let debugDeck = DeckModel(
+            title: Self.renderDebugDeckTitle,
+            colorHex: Self.renderDebugDeckColorHex
+        )
+        modelContext.insert(debugDeck)
+        return debugDeck
+    }
+
+    private func showDebugCardCaptureState(_ state: DebugCardCaptureState) {
+        debugCardCaptureState = state
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            if debugCardCaptureState == state {
+                debugCardCaptureState = .idle
+            }
+        }
     }
 
     private func copyFloatingLayoutDebugReport() {

@@ -107,10 +107,10 @@ extension AIFlashcardService {
 
         if cardType == .flashcards {
             message += "\n- Build atomic active-recall cards with one crisp recall task per card."
-            message += "\n- Keep question_zones short and direct."
-            message += "\n- Keep answer_zones high-signal and sized to the selected depth."
+            message += "\n- Keep front zones short and direct."
+            message += "\n- Keep back zones high-signal and sized to the selected depth."
         } else {
-            message += "\n- Build multiple-choice quiz cards with plausible choices and clear correct indexes."
+            message += "\n- Build multiple-choice quiz cards with plausible choices and explicit isCorrect flags."
             message += "\n- Use explanations only when they clarify why the answer is correct."
         }
 
@@ -174,14 +174,19 @@ extension AIFlashcardService {
         let outputContract = options.cardType.outputContract
         var prompt = """
         You generate rigorous study content for QuizFlash.
-        Output STRICTLY valid JSON with EXACTLY \(targetCards) cards.
+        Your absolute priorities are technical accuracy, compact mobile readability, and faithful notation.
+        Output STRICTLY valid JSON using the canonical QuizFlash card DTO with EXACTLY \(targetCards) cards.
         Generate only the requested card type: \(options.cardType.title).
+        Do not generate deck metadata, ids, dates, image zones, or sketch zones.
 
         \(languageRulePrompt(for: options))
 
         LATEX IN JSON
-        Every LaTeX command that starts with one backslash must be written with exactly two backslashes in JSON.
-        Example: \\lambda in the final card must appear as \\\\lambda in JSON.
+        Every math symbol, variable, and inline equation MUST be inside a single balanced $...$ block.
+        Display equations MUST be inside a balanced $$...$$ block and must be placed in their own standalone text zone.
+        Never output raw math notation such as a_{i}, x^2, 0_W, \\cdot, \\lambda, \\mathbb{R}, ∀, ∈, ⇔, →, ≤, ≥, or ≠ outside math delimiters.
+        Every LaTeX command that starts with one backslash must be written with EXACTLY two backslashes in JSON.
+        Example final card text "$v \\in V$" must appear in JSON as "$v \\\\in V$".
         Never write four backslashes before a LaTeX command.
         """
 
@@ -209,31 +214,63 @@ extension AIFlashcardService {
 
             REQUIRED JSON SCHEMA
             {
+              "schemaVersion": 1,
               "cards": [
                 {
-                  "question_zones": ["string1", "string2"],
-                  "answer_zones": ["string1", "string2", "string3"]
+                  "type": "flashcard",
+                  "front": {
+                    "zones": [
+                      { "type": "text", "text": "short prompt" }
+                    ]
+                  },
+                  "back": {
+                    "zones": [
+                      { "type": "text", "text": "answer detail" }
+                    ]
+                  }
                 }
               ]
             }
-            Use exactly "question_zones" and "answer_zones" as arrays of strings.
+            Use only "text", "code", and "container" zone types. A container zone must include "children".
             """
         case .quiz:
             return """
 
             REQUIRED JSON SCHEMA
             {
+              "schemaVersion": 1,
               "cards": [
                 {
-                  "question_zones": ["string1", "string2"],
-                  "choices": ["choice 1", "choice 2", "choice 3", "choice 4"],
-                  "correct_indexes": [1],
-                  "explanation_zones": ["string1", "string2"]
+                  "type": "quiz",
+                  "question": {
+                    "zones": [
+                      { "type": "text", "text": "question" }
+                    ]
+                  },
+                  "choices": [
+                    {
+                      "zones": [
+                        { "type": "text", "text": "choice 1" }
+                      ],
+                      "isCorrect": true
+                    },
+                    {
+                      "zones": [
+                        { "type": "text", "text": "choice 2" }
+                      ],
+                      "isCorrect": false
+                    }
+                  ],
+                  "explanation": {
+                    "zones": [
+                      { "type": "text", "text": "why the answer is correct" }
+                    ]
+                  }
                 }
               ]
             }
-            "correct_indexes" must contain zero-based indexes into "choices".
-            "explanation_zones" is optional, but when present it must be an array of strings.
+            Use only "text", "code", and "container" zone types. Each quiz must have at least two choices and at least one choice with "isCorrect": true.
+            "explanation" is optional.
             """
         }
     }
@@ -249,6 +286,11 @@ extension AIFlashcardService {
             - Split long answers into small visual zones.
             - Use code blocks or display equations only when they materially teach the concept.
             - Avoid list dumps and repeated paraphrases.
+            - INLINE MATH: Wrap every math symbol, variable, and inline equation in single $.
+            - BLOCK MATH: Wrap display equations in double $$ only when the equation itself is important.
+            - Put long block equations in their own standalone text zone using $$...$$.
+            - Do not leave raw notation like a_{i}, x^2, 0_W, \\cdot, \\lambda, ∀, ∈, ⇔, →, or ℝ outside math delimiters.
+            - Keep ordinary Romanian/Russian/English prose outside math delimiters.
             """
         case .quiz:
             return """
@@ -259,6 +301,11 @@ extension AIFlashcardService {
             - Include one or more correct indexes when multiple answers are correct.
             - Keep distractors plausible but unambiguously wrong.
             - Add a concise explanation when it helps learning.
+            - INLINE MATH: Wrap every math symbol, variable, and inline equation in single $.
+            - BLOCK MATH: Wrap display equations in double $$. NEVER use ```math or ```latex fences for equations.
+            - Put long block equations in their own standalone text zone using $$...$$.
+            - Do not leave raw notation like a_{i}, x^2, 0_W, \\cdot, \\lambda, ∀, ∈, ⇔, →, or ℝ outside math delimiters.
+            - Keep ordinary Romanian/Russian/English prose outside math delimiters.
             """
         }
     }

@@ -69,7 +69,7 @@ struct LibraryModalsAndDialogs: ViewModifier {
             }
             .fileImporter(
                 isPresented: $viewModel.showFileImporter,
-                allowedContentTypes: [.data],
+                allowedContentTypes: [.json],
                 allowsMultipleSelection: true
             ) { result in
                 viewModel.handleFileImport(result, context: context)

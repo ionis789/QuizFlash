@@ -451,6 +451,7 @@
 "Pick a deck for tonight" = "Alege un deck pentru diseară";
 "Pick a deck row above to inspect the cards that landed cleanly and the ones that still need another pass." = "Alegeți un rând deck de mai sus pentru a inspecta carduri care au aterizat curat și pe cele care mai au nevoie de o altă trecere.";
 "Pick the type of card you want to add to this deck." = "Alegeți tipul de card pe care doriți să îl adăugați la acest deck.";
+"Please select .json files" = "Selectați fișiere .json";
 "Pin" = "Fixează";
 "Pink" = "Roz";
 "Pinned" = "Fixat";

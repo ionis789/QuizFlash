@@ -17,7 +17,7 @@ These tests verify data mutations and persistence behavior, not UI rendering.
 - `play`
   Covers play-mode settings persistence and review-session persistence.
 - `storage`
-  Covers `.qflash` import/export, storage accounting, and cleanup flows.
+  Covers JSON deck import/export, storage accounting, and cleanup flows.
 
 ## What These Tests Check
 
@@ -26,7 +26,7 @@ These tests verify data mutations and persistence behavior, not UI rendering.
 - Home dashboard and folder mutations
 - play-mode settings persistence
 - review history, daily log, and XP persistence
-- `.qflash` export/import round-trips
+- JSON deck export/import round-trips
 - storage accounting and deck cleanup
 - AI provider profile persistence and paused AI session persistence
 - unified AI job persistence and workspace resume state

@@ -90,6 +90,7 @@ Use this route for card-zone editing issues: caret placement, long-press selecti
 - Start with `Features/DeckEditor/ViewModels/DeckWorkspaceViewModel.swift`.
 - Add the narrowest AI files involved:
   - `Services/AI/AIFlashcardService.swift` for generation pipeline behavior
+  - `Services/Storage/DeckJSONDocument.swift` for the shared card DTO used by AI and deck JSON import/export
   - `Services/AI/AIWorkspaceCoordinator.swift` for workspace generation lifecycle and restore behavior
   - `Services/AI/AIGenerationState.swift` for state shape or diagnostics
 - Add `Features/DeckEditor/Views/DeckWorkspaceView.swift` only if the surfaced UI contract changes.

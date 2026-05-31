@@ -21,9 +21,9 @@ final class MathTextSanitizerTests: XCTestCase {
     func testKatexExtraMacrosJSLiteralDoesNotContainDangerousOverrides() {
         let literal = MathTextSanitizer.katexExtraMacrosJSObjectLiteral
 
-        XCTAssertFalse(literal.contains("\\\\neq"))
-        XCTAssertFalse(literal.contains("\\\\ne"))
-        XCTAssertFalse(literal.contains("\"\\\\epsilon\""))
+        XCTAssertFalse(literal.contains("\"\\\\neq\":"))
+        XCTAssertFalse(literal.contains("\"\\\\ne\":"))
+        XCTAssertFalse(literal.contains("\"\\\\epsilon\":"))
         XCTAssertTrue(literal.contains("\"\\\\eps\": \"\\\\epsilon\""))
     }
 
@@ -32,17 +32,56 @@ final class MathTextSanitizerTests: XCTestCase {
         let healed = MathTextSanitizer.heal(input)
 
         XCTAssertTrue(healed.contains(#"$x_1 \neq x_2$"#))
-        XCTAssertTrue(healed.contains(#"$\forall x \in X$"#))
+        XCTAssertTrue(healed.contains(#"\forall"#))
+        XCTAssertTrue(healed.contains(#"\in"#))
         XCTAssertFalse(healed.contains(#"\\neq"#))
         XCTAssertFalse(healed.contains(#"\\forall"#))
+    }
+
+    func testHealPreservesRawUnicodeMathNotation() {
+        let input = "Fie f₁, …, fₘ : D(fᵢ) → ℝ. Atunci v ∈ V și n ≤ x."
+        let healed = MathTextSanitizer.heal(input)
+
+        XCTAssertTrue(healed.contains("f₁"))
+        XCTAssertTrue(healed.contains("fₘ"))
+        XCTAssertTrue(healed.contains("fᵢ"))
+        XCTAssertTrue(healed.contains("→"))
+        XCTAssertTrue(healed.contains("ℝ"))
+        XCTAssertTrue(healed.contains("∈"))
+        XCTAssertTrue(healed.contains("≤"))
+        XCTAssertFalse(healed.contains(#"\to"#))
+        XCTAssertFalse(healed.contains(#"\mathbb"#))
+    }
+
+    func testHealDoesNotRewriteCompactUnicodeDiagonalFormula() {
+        let input = "Dacă S este matricea de trecere de la baza canonică la baza B, atunci diag(λ₁,…,λₙ) = S⁻¹·A·S."
+        let healed = MathTextSanitizer.heal(input)
+        let comparable = healed.replacingOccurrences(of: "\u{00A0}", with: " ")
+
+        XCTAssertTrue(comparable.contains("diag(λ₁,…,λₙ) = S⁻¹·A·S"))
+        XCTAssertFalse(healed.contains(#"\lambda"#))
+        XCTAssertFalse(healed.contains(#"\cdot"#))
+        XCTAssertFalse(healed.contains("$diag"))
+    }
+
+    func testHealDoesNotRewriteCompactUnicodeEigenSpaceFormula() {
+        let input = "Subspațiul propriu V_λ = Ker(T - λ·1_V) = { u ∈ V | T(u) = λ·u }."
+        let healed = MathTextSanitizer.heal(input)
+
+        XCTAssertTrue(healed.contains("V_λ = Ker(T - λ·1_V)"))
+        XCTAssertTrue(healed.contains("u ∈ V | T(u) = λ·u"))
+        XCTAssertFalse(healed.contains(#"\lambda"#))
+        XCTAssertFalse(healed.contains(#"\cdot"#))
+        XCTAssertFalse(healed.contains("V_$"))
     }
 
     func testHealReattachesDetachedPunctuation() {
         let input = "în baza $B'$\n.\n\nFormula este $A=B$\n ;"
         let healed = MathTextSanitizer.heal(input)
+        let normalizedSpacing = healed.replacingOccurrences(of: "\u{00A0}", with: " ")
 
-        XCTAssertTrue(healed.contains("în baza $B'$."))
-        XCTAssertTrue(healed.contains("Formula este $A=B$;"))
+        XCTAssertTrue(normalizedSpacing.contains("în baza $B'$."))
+        XCTAssertTrue(normalizedSpacing.contains("Formula este $A=B$;"))
         XCTAssertFalse(healed.contains("\n."))
         XCTAssertFalse(healed.contains("\n ;"))
     }

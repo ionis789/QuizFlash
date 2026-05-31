@@ -105,7 +105,7 @@ final class LibraryViewModelMutationTests: XCTestCase {
         XCTAssertFalse(viewModel.showMoveError)
     }
 
-    func testHandleFileImportRejectsNonQFlashFiles() throws {
+    func testHandleFileImportRejectsNonJSONFiles() throws {
         let context = try TestModelContainerFactory.makeContext()
         let invalidURL = FileManager.default.temporaryDirectory.appendingPathComponent("notes.txt")
         try Data("plain text".utf8).write(to: invalidURL)
@@ -115,7 +115,7 @@ final class LibraryViewModelMutationTests: XCTestCase {
         viewModel.handleFileImport(.success([invalidURL]), context: context)
 
         XCTAssertTrue(viewModel.showImportError)
-        XCTAssertEqual(viewModel.importErrorMessage, "Please select .qflash files")
+        XCTAssertEqual(viewModel.importErrorMessage, "Please select .json files")
         XCTAssertFalse(viewModel.isImporting)
     }
 

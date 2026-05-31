@@ -126,59 +126,11 @@ extension AIFlashcardService {
         )
 
         do {
-            let decodedCards: [AIFlashcard]
-
-            switch contract {
-            case .flashcard:
-                let dto = try JSONDecoder().decode(FlashcardResponseDTO.self, from: data)
-                let cards = dto.resolvedCards
-                guard !cards.isEmpty else { throw AIServiceError.parsingFailed }
-
-                let mappedCards = cards.map { card in
-                    let questionZones = sanitizedZoneStrings(card.resolvedQuestionZones)
-                    let answerZones = sanitizedZoneStrings(card.answer_zones)
-
-                    return AIFlashcard(
-                        id: UUID(),
-                        content: .flashcard(
-                            AIFlashcardContent(
-                                questionZones: questionZones.isEmpty ? card.resolvedQuestionZones : questionZones,
-                                answerZones: answerZones.isEmpty ? card.answer_zones : answerZones
-                            )
-                        )
-                    )
-                }
-                decodedCards = mappedCards
-            case .quiz:
-                let dto = try JSONDecoder().decode(QuizResponseDTO.self, from: data)
-                guard !dto.cards.isEmpty else { throw AIServiceError.parsingFailed }
-
-                let mappedCards = try dto.cards.map { card in
-                    let questionZones = sanitizedZoneStrings(card.question_zones)
-                    let choices = card.choices
-                        .map { AIZoneParser.sanitizeLatex($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-                        .filter { !$0.isEmpty }
-                    let correctIndexes = normalizedCorrectIndexes(card.correct_indexes, choiceCount: choices.count)
-                    let explanationZones = sanitizedZoneStrings(card.explanation_zones ?? [])
-
-                    guard !questionZones.isEmpty, choices.count >= 2, !correctIndexes.isEmpty else {
-                        throw AIServiceError.parsingFailed
-                    }
-
-                    return AIFlashcard(
-                        id: UUID(),
-                        content: .quiz(
-                            AIQuizCardContent(
-                                questionZones: questionZones,
-                                choices: choices,
-                                correctIndexes: correctIndexes,
-                                explanationZones: explanationZones.isEmpty ? nil : explanationZones
-                            )
-                        )
-                    )
-                }
-                decodedCards = mappedCards
+            let dto = try JSONDecoder().decode(DeckJSONCardBatchDTO.self, from: data)
+            guard dto.schemaVersion == DeckJSONDocument.supportedSchemaVersion, !dto.cards.isEmpty else {
+                throw AIServiceError.parsingFailed
             }
+            let decodedCards = try dto.cards.map { try aiFlashcard(from: $0, expectedContract: contract) }
 
             await trace(
                 .decodeSucceeded,
@@ -203,16 +155,85 @@ extension AIFlashcardService {
         }
     }
 
+    func aiFlashcard(
+        from card: DeckJSONCardDTO,
+        expectedContract: AIGeneratedCardContract
+    ) throws -> AIFlashcard {
+        switch (expectedContract, card) {
+        case (.flashcard, .flashcard(let payload)):
+            let questionZones = sanitizedZoneStrings(aiZoneStrings(from: payload.front))
+            let answerZones = sanitizedZoneStrings(aiZoneStrings(from: payload.back))
+            guard !questionZones.isEmpty, !answerZones.isEmpty else {
+                throw AIServiceError.parsingFailed
+            }
+
+            return AIFlashcard(
+                id: UUID(),
+                content: .flashcard(
+                    AIFlashcardContent(
+                        questionZones: questionZones,
+                        answerZones: answerZones
+                    )
+                )
+            )
+        case (.quiz, .quiz(let payload)):
+            let questionZones = sanitizedZoneStrings(aiZoneStrings(from: payload.question))
+            let normalizedChoices = payload.choices.compactMap { choice -> (text: String, isCorrect: Bool)? in
+                let text = sanitizedZoneStrings(aiZoneStrings(from: DeckJSONCardFaceDTO(zones: choice.zones)))
+                    .joined(separator: AIZoneParser.zoneDelimiter)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { return nil }
+                return (text, choice.isCorrect)
+            }
+            let choices = normalizedChoices.map(\.text)
+            let correctIndexes = normalizedChoices.enumerated().compactMap { index, choice in
+                choice.isCorrect ? index : nil
+            }
+            let explanationZones = payload.explanation.map { sanitizedZoneStrings(aiZoneStrings(from: $0)) } ?? []
+
+            guard !questionZones.isEmpty, choices.count >= 2, !correctIndexes.isEmpty else {
+                throw AIServiceError.parsingFailed
+            }
+
+            return AIFlashcard(
+                id: UUID(),
+                content: .quiz(
+                    AIQuizCardContent(
+                        questionZones: questionZones,
+                        choices: choices,
+                        correctIndexes: correctIndexes,
+                        explanationZones: explanationZones.isEmpty ? nil : explanationZones
+                    )
+                )
+            )
+        default:
+            throw AIServiceError.parsingFailed
+        }
+    }
+
+    func aiZoneStrings(from face: DeckJSONCardFaceDTO) -> [String] {
+        face.zones.flatMap(aiZoneStrings(from:))
+    }
+
+    func aiZoneStrings(from zone: DeckJSONZoneDTO) -> [String] {
+        if let children = zone.children, !children.isEmpty {
+            return children.flatMap(aiZoneStrings(from:))
+        }
+
+        switch zone.type {
+        case .text, .code:
+            return [zone.text ?? ""]
+        case .empty, .image, .sketch, .container:
+            return []
+        }
+    }
+
     func sanitizedZoneStrings(_ values: [String]) -> [String] {
         values
             .map { AIZoneParser.sanitizeLatex($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
 
-    func normalizedCorrectIndexes(_ indexes: [Int], choiceCount: Int) -> [Int] {
-        let validIndexes = indexes.filter { $0 >= 0 && $0 < choiceCount }
-        return Array(Set(validIndexes)).sorted()
-    }
     // -------------------------------------------------------------------------
     // MARK: - LaTeX JSON Escape Fixer  (runs on RAW JSON string, before JSONDecoder)
     // -------------------------------------------------------------------------

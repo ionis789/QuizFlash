@@ -27,44 +27,6 @@ public enum AIServiceError: LocalizedError {
     }
 }
 
-// =============================================================================
-// MARK: - Response DTO
-// =============================================================================
-
-/// The structured JSON contract between GPT and the app for flashcard output.
-nonisolated struct FlashcardResponseDTO: Codable {
-    struct CardDTO: Codable {
-        let question_zones: [String]?
-        let question: String? // Fallback if question_zones are intepreted as question by AI
-        let answer_zones: [String]
-        let answer: [String]? // Fallback
-
-        var resolvedQuestionZones: [String] {
-            if let qz = question_zones { return qz }
-            if let q = question { return [q] }
-            return ["?"]
-        }
-    }
-    let cards: [CardDTO]?
-    let flashcards: [CardDTO]?
-
-    var resolvedCards: [CardDTO] {
-        cards ?? flashcards ?? []
-    }
-}
-
-/// The structured JSON contract between GPT and the app for quiz output.
-nonisolated struct QuizResponseDTO: Codable {
-    struct CardDTO: Codable {
-        let question_zones: [String]
-        let choices: [String]
-        let correct_indexes: [Int]
-        let explanation_zones: [String]?
-    }
-
-    let cards: [CardDTO]
-}
-
 nonisolated struct DeckTitleResponseDTO: Codable {
     let deck_title: String?
 }
