@@ -4,7 +4,7 @@ import Foundation
 // MARK: - AIZoneParser
 // =============================================================================
 //
-// Converts AI text (|||ZONE|||-delimited) into a ZoneModel tree.
+// Maps AI text (|||ZONE|||-delimited) into a ZoneModel tree.
 // Each zone string maps directly to one leaf ZoneModel.
 // Heavy LaTeX repair is deferred to MathTextSanitizer.heal() at render time.
 //

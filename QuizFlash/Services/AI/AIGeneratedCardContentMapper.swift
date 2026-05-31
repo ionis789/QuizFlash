@@ -9,11 +9,11 @@ import Foundation
 
 // MARK: - AI Generated Card Mapping
 
-/// Converts structured AI responses into canonical `DraftCardContent` values.
+/// Maps structured AI responses into canonical `DraftCardContent` values.
 enum AIGeneratedCardContentMapper {
 
     /// Maps one AI-generated card into the heterogeneous draft payload used by
-    /// the editor, persistence, and conversion flows.
+    /// the editor and persistence flows.
     /// - Parameter generatedCard: The structured AI card to project.
     /// - Returns: A validated `DraftCardContent` value ready for persistence.
     /// - Throws: ``AIGeneratedCardContentMappingError`` when the payload is invalid.
@@ -26,20 +26,6 @@ enum AIGeneratedCardContentMapper {
                     backZone: aiZone(from: content.answerZones),
                     frontType: .text,
                     backType: .text
-                )
-            )
-        case .match(let content):
-            let prompt = content.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-            let answer = content.answer.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            guard !prompt.isEmpty, !answer.isEmpty else {
-                throw AIGeneratedCardContentMappingError.invalidMatchCard
-            }
-
-            return .match(
-                MatchCardContent(
-                    prompt: prompt,
-                    answer: answer
                 )
             )
         case .quiz(let content):
@@ -70,32 +56,6 @@ enum AIGeneratedCardContentMapper {
                     allowsMultipleCorrect: content.allowsMultipleCorrect
                 )
             )
-        case .write(let content):
-            let sourceText = content.sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
-            let omittedText = content.omittedText.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            guard !sourceText.isEmpty, !omittedText.isEmpty else {
-                throw AIGeneratedCardContentMappingError.invalidWriteCard
-            }
-
-            let sourceZone = ZoneModel.text(sourceText)
-            let nsSource = sourceText as NSString
-            let range = nsSource.range(of: omittedText)
-
-            guard range.location != NSNotFound, range.length > 0 else {
-                throw AIGeneratedCardContentMappingError.invalidWriteCard
-            }
-
-            return .write(
-                WriteCardContent(
-                    sourceZone: sourceZone,
-                    blankSelection: WriteBlankSelection(
-                        zoneID: sourceZone.id,
-                        utf16Range: range.location..<(range.location + range.length),
-                        omittedText: omittedText
-                    )
-                )
-            )
         }
     }
 
@@ -119,18 +79,12 @@ enum AIGeneratedCardContentMapper {
 /// Validation failures returned when the AI payload cannot be turned into a
 /// stable `DraftCardContent` value.
 enum AIGeneratedCardContentMappingError: LocalizedError {
-    case invalidMatchCard
     case invalidQuizCard
-    case invalidWriteCard
 
     var errorDescription: String? {
         switch self {
-        case .invalidMatchCard:
-            return "The AI returned a match card without a valid prompt and answer pair."
         case .invalidQuizCard:
             return "The AI returned a quiz card without valid choices and correct answers."
-        case .invalidWriteCard:
-            return "The AI returned a write card whose omitted text could not be anchored in the source text."
         }
     }
 }

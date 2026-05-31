@@ -83,8 +83,6 @@ struct PlayModeSettingsModeCard: View {
     let tintColor: Color
     @Binding var flashcardSettings: FlashcardModeSettings
     @Binding var quizSettings: QuizModeSettings
-    @Binding var matchSettings: MatchModeSettings
-    @Binding var writeSettings: WriteModeSettings
     @Binding var learnSettings: LearnModeSettings
 
     @ViewBuilder
@@ -226,91 +224,6 @@ struct PlayModeSettingsModeCard: View {
                 ) { option, locale in
                     option.localizedTitle(locale: locale)
                 }
-            }
-        case .match:
-            PlayModeSettingsSectionCard(
-                title: "Round Controls",
-                subtitle: "Control board size, fallback behavior, and retry pressure."
-            ) {
-                PlayModeSettingsToggleRow(
-                    title: "Allow Flashcard Fallback",
-                    detail: "Match currently builds prompt-and-answer pairs from flashcard previews when dedicated match cards are unavailable.",
-                    isOn: $matchSettings.allowsFlashcardFallback,
-                    tint: tintColor
-                )
-
-                PlayModeSettingsSegmentedRow(
-                    title: "Round Size",
-                    detail: "Choose how many pairs appear in each match board.",
-                    selection: $matchSettings.roundSize,
-                    options: MatchRoundSize.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                PlayModeSettingsSegmentedRow(
-                    title: "Density",
-                    detail: "Compact tiles fit more text on smaller screens. Standard uses roomier cards.",
-                    selection: $matchSettings.contentDensity,
-                    options: MatchContentDensity.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                PlayModeSettingsSegmentedRow(
-                    title: "Feedback",
-                    detail: "Subtle feedback clears mismatch highlights faster. Standard lingers longer.",
-                    selection: $matchSettings.feedbackIntensity,
-                    options: MatchFeedbackIntensity.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                PlayModeSettingsToggleRow(
-                    title: "Retry Missed Pairs",
-                    detail: "Replay only the pairs you missed before moving into the next chunk.",
-                    isOn: $matchSettings.retryMissedPairs,
-                    tint: tintColor
-                )
-            }
-        case .write:
-            PlayModeSettingsSectionCard(
-                title: "Recall Controls",
-                subtitle: "Control how answers are entered, matched, revealed, and replayed."
-            ) {
-                PlayModeSettingsSegmentedRow(
-                    title: "Input Mode",
-                    detail: "Auto switches formula-heavy answers into the assisted builder.",
-                    selection: $writeSettings.inputMode,
-                    options: WriteAnswerInputMode.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                PlayModeSettingsSegmentedRow(
-                    title: "Strictness",
-                    detail: "Normalized matching ignores punctuation and spacing variance. Exact keeps the canonical text intact.",
-                    selection: $writeSettings.strictness,
-                    options: WriteAnswerStrictness.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                PlayModeSettingsSegmentedRow(
-                    title: "Reveal",
-                    detail: "Show the stored answer immediately after checking or require a manual reveal.",
-                    selection: $writeSettings.revealTiming,
-                    options: WriteRevealTiming.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                PlayModeSettingsToggleRow(
-                    title: "Retry Wrong Prompts",
-                    detail: "Run one dedicated retry pass for prompts missed in the first pass.",
-                    isOn: $writeSettings.retryIncorrectPrompts,
-                    tint: tintColor
-                )
             }
         }
     }

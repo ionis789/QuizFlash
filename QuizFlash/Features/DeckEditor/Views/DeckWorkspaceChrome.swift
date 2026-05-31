@@ -11,22 +11,18 @@ extension DeckWorkspaceView {
 
     // MARK: 1. Header Chrome
     func heroHeader(topPadding: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: isShowingWorkspaceConvert ? UIConstants.Spacing.medium : UIConstants.Spacing.large) {
-            if isShowingWorkspaceConvert {
-                workspaceConvertHero
-            } else {
-                TextField(localized("Untitled Deck"), text: $viewModel.deckTitle, axis: .vertical)
-                    .font(.system(size: 42, weight: .heavy, design: .rounded))
-                    .textFieldStyle(.plain)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1...2)
-                    .layoutPriority(1)
-                    .focused($isTitleFocused)
-                    .submitLabel(.done)
-                    .onSubmit { isTitleFocused = false }
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+            TextField(localized("Untitled Deck"), text: $viewModel.deckTitle, axis: .vertical)
+                .font(.system(size: 42, weight: .heavy, design: .rounded))
+                .textFieldStyle(.plain)
+                .foregroundStyle(.primary)
+                .lineLimit(1...2)
+                .layoutPriority(1)
+                .focused($isTitleFocused)
+                .submitLabel(.done)
+                .onSubmit { isTitleFocused = false }
 
-                headerMetadataRow
-            }
+            headerMetadataRow
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
@@ -57,93 +53,27 @@ extension DeckWorkspaceView {
         ) {
             workspaceLeadingControl
         } center: { maxTitleWidth in
-            if isShowingWorkspaceConvert {
-                EmptyView()
-            } else {
-                CreateDeckCollapsedTitlePill(
-                    title: collapsedDeckTitle,
-                    maxWidth: maxTitleWidth,
-                    isVisible: shouldShowCollapsedTitle,
-                    fallbackTitle: localized("Untitled Deck")
-                )
-            }
+            CreateDeckCollapsedTitlePill(
+                title: collapsedDeckTitle,
+                maxWidth: maxTitleWidth,
+                isVisible: shouldShowCollapsedTitle,
+                fallbackTitle: localized("Untitled Deck")
+            )
         } trailing: {
-            if isShowingWorkspaceConvert {
-                headerConvertActionControl
-            } else {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    addCardButton
-                    moreActionsButton
-                }
+            HStack(spacing: UIConstants.Spacing.small) {
+                addCardButton
+                moreActionsButton
             }
         }
     }
 
     @ViewBuilder
     private var workspaceLeadingControl: some View {
-        if isShowingWorkspaceConvert {
-            cancelConversionButton
-        } else if viewModel.isEditingExistingDeck && !viewModel.hasUnsavedChanges {
+        if viewModel.isEditingExistingDeck && !viewModel.hasUnsavedChanges {
             dismissWorkspaceButton
         } else {
             doneButton
         }
-    }
-
-    private var workspaceConvertHero: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            Text(localized("Convert Cards"))
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
-                .foregroundStyle(.primary)
-
-            Text(localized("Choose one source type, convert into another, and save the result with minimal setup."))
-                .font(.system(size: 15, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private var headerConvertActionControl: some View {
-        let request = aiWorkspaceCoordinator.conversionSeed?.request
-        let canStart = request?.canStart ?? false
-
-        CreateDeckCapsuleButton(
-            action: startWorkspaceConversion,
-            isEnabled: canStart,
-            accessibilityLabel: localized("Start conversion")
-        ) {
-            HStack(spacing: UIConstants.Spacing.small) {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-
-                Text(localized("Convert"))
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .lineLimit(1)
-
-                if let request {
-                    Text("\(request.sourceCount)")
-                        .font(.system(size: 11, weight: .bold, design: .rounded).monospacedDigit())
-                        .padding(.horizontal, 7)
-                        .frame(height: 22)
-                        .background(Color.white.opacity(0.16), in: Capsule())
-                }
-            }
-            .foregroundStyle(.orange)
-        }
-    }
-
-    private var cancelConversionButton: some View {
-        ChromeSoftCircleSymbolButton(
-            systemName: "xmark",
-            accessibilityLabel: localized("Cancel conversion"),
-            action: {
-                isTitleFocused = false
-                aiWorkspaceCoordinator.dismissConversionConfiguration()
-            },
-            size: UIConstants.Size.actionButton
-        )
     }
 
     private var dismissWorkspaceButton: some View {
@@ -191,16 +121,14 @@ extension DeckWorkspaceView {
     }
 
     var shouldShowMockAIHeaderAction: Bool {
-        !isShowingWorkspaceConvert
-            && developmentPreferences.deckWorkspaceMockAIEnabled
+        developmentPreferences.deckWorkspaceMockAIEnabled
             && !hasUnifiedAISession
             && !viewModel.isSelectingCards
             && !shouldShowFloatingGenerate
     }
 
     var shouldShowPrimaryGenerateAction: Bool {
-        !isShowingWorkspaceConvert
-            && !hasUnifiedAISession
+        !hasUnifiedAISession
             && !viewModel.isSelectingCards
             && !shouldShowFloatingGenerate
     }
@@ -267,7 +195,6 @@ extension DeckWorkspaceView {
 
     var headerStatsStrip: some View {
         let summary = draftDeckContentSummary
-        let readinessSummary = draftDeckReadinessSummary
 
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: UIConstants.Spacing.small) {
@@ -276,27 +203,14 @@ extension DeckWorkspaceView {
                 if summary.flashcardCount > 0 {
                     CreateDeckHeaderStatChip(symbol: "rectangle.on.rectangle", text: localizedFormat("%d flashcards", summary.flashcardCount))
                 }
-                if summary.matchCount > 0 {
-                    CreateDeckHeaderStatChip(symbol: "square.grid.2x2.fill", text: localizedFormat("%d match", summary.matchCount))
-                }
                 if summary.quizCount > 0 {
                     CreateDeckHeaderStatChip(symbol: "checklist", text: localizedFormat("%d quiz", summary.quizCount))
-                }
-                if summary.writeCount > 0 {
-                    CreateDeckHeaderStatChip(symbol: "pencil.line", text: localizedFormat("%d write", summary.writeCount))
                 }
                 CreateDeckHeaderStatChip(symbol: "textformat", text: localizedFormat("%d chars", summary.characterCount))
                 CreateDeckHeaderStatChip(symbol: "photo", text: localizedFormat("%d photos", summary.photoCount))
                 CreateDeckHeaderStatChip(symbol: "pencil.and.outline", text: localizedFormat("%d sketches", summary.sketchCount))
                 CreateDeckHeaderStatChip(symbol: "hand.tap", text: localizedFormat("%d manual", summary.manualCardCount))
                 CreateDeckHeaderStatChip(symbol: "sparkles", text: localizedFormat("%d AI", summary.aiCardCount), tint: accent)
-                ForEach(readinessSummary.items) { item in
-                    CreateDeckHeaderStatChip(
-                        symbol: item.kind.symbol,
-                        text: item.title,
-                        tint: item.kind.tint
-                    )
-                }
             }
             .padding(.vertical, 2)
         }
@@ -541,17 +455,6 @@ extension DeckWorkspaceView {
                 Label(localized("Quiz"), systemImage: "checklist")
             }
 
-            Button {
-                openCardEditor(for: .match)
-            } label: {
-                Label(localized("Match"), systemImage: "square.grid.2x2.fill")
-            }
-
-            Button {
-                openCardEditor(for: .write)
-            } label: {
-                Label(localized("Write"), systemImage: "pencil.line")
-            }
         }
     }
 

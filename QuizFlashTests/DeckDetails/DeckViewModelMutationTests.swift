@@ -31,7 +31,7 @@ final class DeckViewModelMutationTests: XCTestCase {
 
         let viewModel = DeckViewModel()
         viewModel.addCard(
-            content: TestMutationFactory.match(prompt: "Na", answer: "Sodium"),
+            content: TestMutationFactory.quiz(question: "Na", correctAnswers: ["Sodium"]),
             to: deck,
             context: context
         )
@@ -40,7 +40,7 @@ final class DeckViewModelMutationTests: XCTestCase {
         XCTAssertEqual(deck.cardCount, 1)
         XCTAssertEqual(deck.lastAssignedCardNumber, 1)
         XCTAssertEqual(deck.cards.count, 1)
-        XCTAssertEqual(deck.cards.first?.cardContent.kind, .match)
+        XCTAssertEqual(deck.cards.first?.cardContent.kind, .quiz)
     }
 
     func testTogglePinnedStatePersistsCardPinning() throws {

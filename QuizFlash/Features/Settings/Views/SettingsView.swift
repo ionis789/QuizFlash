@@ -268,35 +268,6 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
 
-            SettingsCardDivider()
-
-            NavigationLink {
-                PlayModeDefaultsSettingsView(mode: .match)
-            } label: {
-                SettingsNavigationRow(
-                    icon: SettingsStudyModeKind.match.systemImage,
-                    tint: SettingsStudyModeKind.match.tint,
-                    title: "Match",
-                    detail: nil,
-                    value: matchSummary
-                )
-            }
-            .buttonStyle(.plain)
-
-            SettingsCardDivider()
-
-            NavigationLink {
-                PlayModeDefaultsSettingsView(mode: .write)
-            } label: {
-                SettingsNavigationRow(
-                    icon: SettingsStudyModeKind.write.systemImage,
-                    tint: SettingsStudyModeKind.write.tint,
-                    title: "Write",
-                    detail: nil,
-                    value: writeSummary
-                )
-            }
-            .buttonStyle(.plain)
         }
     }
 
@@ -463,18 +434,6 @@ struct SettingsView: View {
         appPreferences.quizAutoAdvanceCorrectAnswers
             ? AppLocalization.string("Auto Advance", locale: appPreferences.resolvedLocale)
             : AppLocalization.string("Manual Pace", locale: appPreferences.resolvedLocale)
-    }
-
-    private var matchSummary: String {
-        appPreferences.matchShowsRoundCountdown
-            ? AppLocalization.string("Countdown On", locale: appPreferences.resolvedLocale)
-            : AppLocalization.string("Countdown Off", locale: appPreferences.resolvedLocale)
-    }
-
-    private var writeSummary: String {
-        appPreferences.writeAutoFocusesAnswerField
-            ? AppLocalization.string("Auto Focus", locale: appPreferences.resolvedLocale)
-            : AppLocalization.string("Manual Focus", locale: appPreferences.resolvedLocale)
     }
 
     private var textSizeSummary: String {

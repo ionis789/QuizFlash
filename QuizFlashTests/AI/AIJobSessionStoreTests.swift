@@ -2,11 +2,10 @@
 //  AIJobSessionStoreTests.swift
 //  QuizFlashTests
 //
-//  Covers unified AI job persistence for generation and conversion sessions.
+//  Covers AI generation job persistence.
 //
 
 import Foundation
-import SwiftData
 import UIKit
 import XCTest
 @testable import QuizFlash
@@ -45,23 +44,6 @@ final class AIJobSessionStoreTests: XCTestCase {
         let loadedSession = await store.loadSession()
 
         XCTAssertEqual(loadedSession, .generation(legacySession))
-    }
-
-    func testSaveAndLoadConversionSessionRoundTrip() async throws {
-        let directoryURL = try TestFileSystemFactory.makeTemporaryDirectory(prefix: "AIJobSessionStoreTests")
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let store = AIJobSessionStore(
-            fileManager: .default,
-            rootDirectoryURL: directoryURL,
-            currentDate: { Date(timeIntervalSince1970: 900) }
-        )
-        let session = try makeConversionSession(timestamp: Date(timeIntervalSince1970: 300))
-
-        try await store.saveSession(.conversion(session))
-        let loadedSession = await store.loadSession()
-
-        XCTAssertEqual(loadedSession, .conversion(session))
     }
 
     func testSavingSessionDoesNotDeleteStoredGenerationImages() async throws {
@@ -105,7 +87,7 @@ final class AIJobSessionStoreTests: XCTestCase {
             generatedCardCount: 4,
             baseCardCount: 2,
             options: AIGenerationOptions(
-                cardType: .match,
+                cardType: .quiz,
                 cardLevel: .advanced,
                 cardsPerBatch: 5,
                 sourceDistributionMode: .manual
@@ -127,74 +109,6 @@ final class AIJobSessionStoreTests: XCTestCase {
                 )
             ],
             providerProfileID: UUID(),
-            timestamp: timestamp
-        )
-    }
-
-    private func makeConversionSession(timestamp: Date = Date()) throws -> AIPausedConversionSession {
-        let context = try TestModelContainerFactory.makeContext()
-        let sourceDeck = DeckModel(title: "Algorithms", colorHex: "#112233")
-        let flashCard = TestMutationFactory.makePersistedCard(
-            content: TestMutationFactory.flashcard(front: "BFS", back: "Breadth-first search"),
-            cardNumber: 1
-        )
-        let matchCard = TestMutationFactory.makePersistedCard(
-            content: TestMutationFactory.match(prompt: "DFS", answer: "Depth-first search"),
-            cardNumber: 2
-        )
-
-        context.insert(sourceDeck)
-        context.insert(flashCard)
-        context.insert(matchCard)
-        sourceDeck.cards = [flashCard, matchCard]
-        sourceDeck.cardCount = 2
-        sourceDeck.lastAssignedCardNumber = 2
-        try context.save()
-
-        let descriptors = [
-            DeckCardConversionSourceDescriptor(id: flashCard.persistentModelID, kind: .flashcard),
-            DeckCardConversionSourceDescriptor(id: matchCard.persistentModelID, kind: .match)
-        ]
-        let request = DeckCardConversionRequest(
-            availableScopes: [.wholeDeck],
-            wholeDeckSources: descriptors,
-            recommendedSources: [],
-            selectedSources: [],
-            singleSources: [],
-            scope: .wholeDeck,
-            sourceKind: .flashcard,
-            targetKind: .write,
-            destination: .newDeck,
-            newDeckTitle: "Algorithms Write"
-        )
-
-        return AIPausedConversionSession(
-            sourceDeckID: sourceDeck.persistentModelID,
-            sourceDeckTitle: sourceDeck.title,
-            request: request,
-            destinationBaseCardIDs: [],
-            remainingSources: [
-                CardConversionSourceSnapshot(
-                    id: flashCard.persistentModelID,
-                    kind: .flashcard,
-                    content: flashCard.cardContent
-                ),
-                CardConversionSourceSnapshot(
-                    id: matchCard.persistentModelID,
-                    kind: .match,
-                    content: matchCard.cardContent
-                )
-            ],
-            totalCount: 2,
-            completedCount: 1,
-            createdCount: 1,
-            skippedCount: 0,
-            failedCount: 0,
-            statusMessage: "Converting Match to Write",
-            destinationDeckID: nil,
-            providerProfileID: UUID(),
-            batchID: UUID(),
-            convertedAt: Date(timeIntervalSince1970: 200),
             timestamp: timestamp
         )
     }

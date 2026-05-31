@@ -209,7 +209,6 @@ struct LearnModeView: View {
             HStack(spacing: UIConstants.Spacing.small) {
                 kindChip(title: "Flash", count: max(report.flashcardCards, availability.flashcardCards), tint: accentColor)
                 kindChip(title: "Quiz", count: max(report.quizCards, availability.quizCards), tint: deckColor)
-                kindChip(title: "Write", count: max(report.writeCards, availability.writeCards), tint: .indigo)
             }
         }
         .padding(UIConstants.Spacing.large)
@@ -330,7 +329,7 @@ struct LearnModeView: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             sectionTitle(
                 "Deck Coverage",
-                subtitle: "A quick read on how this deck distributes concepts across flashcards, quizzes, and write prompts."
+                subtitle: "A quick read on how this deck distributes concepts across flashcards and quizzes."
             )
 
             if report.coverageGroups.isEmpty {
@@ -541,15 +540,9 @@ struct LearnModeView: View {
         case .flashcard:
             tint = accentColor
             label = "FLASH"
-        case .match:
-            tint = .teal
-            label = "MATCH"
         case .quiz:
             tint = deckColor
             label = "QUIZ"
-        case .write:
-            tint = .indigo
-            label = "WRITE"
         }
 
         return Text(label)

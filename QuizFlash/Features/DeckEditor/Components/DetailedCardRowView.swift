@@ -16,7 +16,6 @@ struct DetailedCardRowView: View, Equatable {
     var isSelected: Bool = false
 
     var onPrimaryTap: (() -> Void)? = nil
-    var onOpenRecommendedConversion: ((CardKind) -> Void)? = nil
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var isCompactPreview: Bool { fixedHeight != nil }
@@ -129,9 +128,7 @@ struct DetailedCardRowView: View, Equatable {
     }
 
     private func metricsStrip(summary: DraftCardContentSummary) -> some View {
-        let readinessDiagnostics = CardReadinessDiagnostics.diagnostics(for: card.content)
-
-        return ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 chip(text: card.kind.editorDisplayTitle, symbol: card.kind.editorSymbol, tint: accent)
                 ForEach(summary.sections) { section in
@@ -145,17 +142,11 @@ struct DetailedCardRowView: View, Equatable {
                 chip(text: localizedFormat("%d chars", summary.total.textCharacterCount), symbol: "textformat")
                 chip(text: localizedFormat("%d photos", summary.total.imageCount), symbol: "photo")
                 chip(text: localizedFormat("%d sketches", summary.total.sketchCount), symbol: "pencil.and.outline")
-                if card.isConverted {
-                    chip(text: localized("Converted"), symbol: "arrow.triangle.branch", tint: .teal)
-                }
                 chip(
                     text: card.creationSource == .ai ? localized("AI") : localized("Manual"),
                     symbol: card.creationSource == .ai ? "sparkles" : "hand.tap",
                     tint: card.creationSource == .ai ? accent : .secondary
                 )
-                ForEach(readinessDiagnostics) { diagnostic in
-                    readinessChip(for: diagnostic)
-                }
             }
         }
     }
@@ -274,33 +265,6 @@ struct DetailedCardRowView: View, Equatable {
         .background(Color.white.opacity(0.05), in: Capsule())
     }
 
-    @ViewBuilder
-    private func readinessChip(for diagnostic: CardReadinessDiagnostic) -> some View {
-        if let targetKind = diagnostic.recommendedConversionTargetKind,
-           let onOpenRecommendedConversion {
-            Button {
-                onOpenRecommendedConversion(targetKind)
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: targetKind.conversionSystemImage)
-                    Text(localizedFormat("To %@", targetKind.localizedDisplayTitle(locale: locale)))
-                }
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(targetKind == .match ? .orange : diagnostic.kind.tint)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(Color.white.opacity(0.07), in: Capsule())
-            }
-            .buttonStyle(.plain)
-        } else {
-            chip(
-                text: diagnostic.kind.shortTitle,
-                symbol: diagnostic.kind.symbol,
-                tint: diagnostic.kind.tint
-            )
-        }
-    }
-
     private var shouldShowEditedDate: Bool {
         guard let createdAt = card.createdAt, let editedAt = card.editedAt else { return false }
         return abs(editedAt.timeIntervalSince(createdAt)) > 1
@@ -323,23 +287,6 @@ struct DetailedCardRowView: View, Equatable {
                     text: previewText(for: content.backZone, maxLength: isCompactPreview ? 220 : 460),
                     hasContent: summary.sections[safe: 1]?.metrics.hasContent ?? false,
                     lineLimit: isCompactPreview ? 4 : 7
-                )
-            ]
-        case .match(let content):
-            return [
-                PreviewPanel(
-                    title: localized("Prompt"),
-                    symbol: "arrow.left.and.right.text.vertical",
-                    text: normalizedSingleLine(content.prompt, fallback: localized("No prompt added")),
-                    hasContent: !content.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                    lineLimit: isCompactPreview ? 2 : 4
-                ),
-                PreviewPanel(
-                    title: localized("Answer"),
-                    symbol: "rectangle.2.swap",
-                    text: normalizedSingleLine(content.answer, fallback: localized("No answer added")),
-                    hasContent: !content.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                    lineLimit: isCompactPreview ? 2 : 4
                 )
             ]
         case .quiz(let content):
@@ -373,23 +320,6 @@ struct DetailedCardRowView: View, Equatable {
             }
 
             return panels
-        case .write(let content):
-            return [
-                PreviewPanel(
-                    title: localized("Prompt"),
-                    symbol: "pencil.line",
-                    text: blankedPromptPreview(for: content, maxLength: isCompactPreview ? 170 : 340),
-                    hasContent: summary.sections.first?.metrics.hasContent ?? false,
-                    lineLimit: isCompactPreview ? 3 : 6
-                ),
-                PreviewPanel(
-                    title: localized("Blank"),
-                    symbol: "rectangle.and.pencil.and.ellipsis",
-                    text: content.blankSelection.omittedText.isEmpty ? localized("No blank selected") : content.blankSelection.omittedText,
-                    hasContent: !content.blankSelection.omittedText.isEmpty,
-                    lineLimit: isCompactPreview ? 2 : 3
-                )
-            ]
         }
     }
 
@@ -401,19 +331,6 @@ struct DetailedCardRowView: View, Equatable {
 
         let joined = choices.joined(separator: isCompactPreview ? " • " : "\n")
         return joined.isEmpty ? localized("No choices added") : joined
-    }
-
-    private func blankedPromptPreview(for content: WriteCardContent, maxLength: Int) -> String {
-        let sourcePreview = previewText(for: content.sourceZone, maxLength: maxLength)
-        let omittedText = content.blankSelection.omittedText
-
-        guard !omittedText.isEmpty else { return sourcePreview }
-
-        if let range = sourcePreview.range(of: omittedText) {
-            return sourcePreview.replacingCharacters(in: range, with: "____")
-        }
-
-        return sourcePreview
     }
 
     private func previewText(for zone: ZoneModel, maxLength: Int) -> String {
@@ -488,12 +405,8 @@ private extension CardKind {
         switch self {
         case .flashcard:
             return AppLocalization.string("Flashcard", locale: locale)
-        case .match:
-            return AppLocalization.string("Match", locale: locale)
         case .quiz:
             return AppLocalization.string("Quiz", locale: locale)
-        case .write:
-            return AppLocalization.string("Write", locale: locale)
         }
     }
 
@@ -501,12 +414,8 @@ private extension CardKind {
         switch self {
         case .flashcard:
             return AppLocalization.string("Flashcard", locale: locale)
-        case .match:
-            return AppLocalization.string("Match", locale: locale)
         case .quiz:
             return AppLocalization.string("Quiz", locale: locale)
-        case .write:
-            return AppLocalization.string("Write", locale: locale)
         }
     }
 
@@ -514,12 +423,8 @@ private extension CardKind {
         switch self {
         case .flashcard:
             return "rectangle.on.rectangle"
-        case .match:
-            return "square.grid.2x2.fill"
         case .quiz:
             return "checklist"
-        case .write:
-            return "pencil.line"
         }
     }
 }

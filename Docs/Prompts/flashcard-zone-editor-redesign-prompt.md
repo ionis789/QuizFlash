@@ -3,7 +3,7 @@
 Use this prompt when implementing the next major redesign of the QuizFlash
 flashcard editor. The goal is not a small visual tweak. The goal is to turn the
 current flashcard editor into a reusable, zone-based rich text editor that can
-later power Flashcards, Quiz, Match, and Write authoring surfaces.
+power Flashcards and Quiz authoring surfaces.
 
 ## Role
 
@@ -382,11 +382,9 @@ Do not silently reinterpret user-authored cards in a surprising way.
 The new editor must be designed for reuse.
 
 Flashcards are the first implementation, but the editor layer should be usable
-later by:
+by:
 
 - Quiz question/explanation zones
-- Match prompt/answer zones
-- Write prompt/source zones
 - future rich study card surfaces
 
 Do not bake flashcard-only assumptions into the reusable canvas.
@@ -560,4 +558,3 @@ When finished, report briefly:
 - migration behavior for old cards
 - iOS 17.5 build result
 - any known limitations
-

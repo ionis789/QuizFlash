@@ -278,16 +278,8 @@ struct MainAppView: View {
                         onOpenWorkspace: {
                             aiWorkspaceCoordinator.openWorkspace(router: router)
                         },
-                        onPauseResume: status.kind == .conversion && (status.phase == .running || status.phase == .paused) ? {
-                            if aiWorkspaceCoordinator.canResumeConversion {
-                                aiWorkspaceCoordinator.resumeConversion(context: modelContext)
-                            } else {
-                                aiWorkspaceCoordinator.pauseConversion()
-                            }
-                        } : nil,
-                        onCancel: status.kind == .conversion && aiWorkspaceCoordinator.canCancelConversion ? {
-                            aiWorkspaceCoordinator.requestConversionCancel()
-                        } : nil
+                        onPauseResume: nil,
+                        onCancel: nil
                     )
                     .zIndex(2)
                 }
@@ -303,42 +295,6 @@ struct MainAppView: View {
         .environment(router)
         .environment(aiWorkspaceCoordinator)
         .environment(libraryViewModel)
-        .confirmationDialog(
-            "Stop AI conversion?",
-            isPresented: $aiWorkspaceCoordinator.showConversionCancelDialog,
-            titleVisibility: .visible
-        ) {
-            if aiWorkspaceCoordinator.convertedCardCountInVisibleSession > 0 {
-                Button("Keep converted cards") {
-                    aiWorkspaceCoordinator.cancelConversion(
-                        context: modelContext,
-                        keepingCreatedCards: true
-                    )
-                }
-                Button("Discard converted cards", role: .destructive) {
-                    aiWorkspaceCoordinator.cancelConversion(
-                        context: modelContext,
-                        keepingCreatedCards: false
-                    )
-                }
-            } else {
-                Button("Stop conversion", role: .destructive) {
-                    aiWorkspaceCoordinator.cancelConversion(
-                        context: modelContext,
-                        keepingCreatedCards: true
-                    )
-                }
-            }
-            Button("Continue", role: .cancel) {
-                aiWorkspaceCoordinator.dismissConversionCancelRequest()
-            }
-        } message: {
-            if aiWorkspaceCoordinator.convertedCardCountInVisibleSession > 0 {
-                Text("You can stop now and keep the converted cards already received, or discard this AI conversion batch completely.")
-            } else {
-                Text("The current AI conversion will stop immediately.")
-            }
-        }
         .task {
             router.sanitizeForFeatures(appFeatures)
             await aiWorkspaceCoordinator.restorePersistedJobIfNeeded(context: modelContext)

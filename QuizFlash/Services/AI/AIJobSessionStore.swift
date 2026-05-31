@@ -2,11 +2,10 @@
 //  AIJobSessionStore.swift
 //  QuizFlash
 //
-//  Unified disk persistence for resumable AI generation and conversion jobs.
+//  Disk persistence for resumable AI generation jobs.
 //
 
 import Foundation
-import SwiftData
 import UIKit
 
 // MARK: - Persisted AI Job Types
@@ -14,24 +13,19 @@ import UIKit
 /// One persisted AI workspace job stored on disk.
 nonisolated enum AIJobSession: Codable, Equatable, Sendable {
     case generation(AIPausedSession)
-    case conversion(AIPausedConversionSession)
 
     private enum CodingKeys: String, CodingKey {
         case kind
         case generation
-        case conversion
     }
 
     private enum Kind: String, Codable {
         case generation
-        case conversion
     }
 
     var timestamp: Date {
         switch self {
         case .generation(let session):
-            return session.timestamp
-        case .conversion(let session):
             return session.timestamp
         }
     }
@@ -43,8 +37,6 @@ nonisolated enum AIJobSession: Codable, Equatable, Sendable {
         switch kind {
         case .generation:
             self = .generation(try container.decode(AIPausedSession.self, forKey: .generation))
-        case .conversion:
-            self = .conversion(try container.decode(AIPausedConversionSession.self, forKey: .conversion))
         }
     }
 
@@ -55,107 +47,7 @@ nonisolated enum AIJobSession: Codable, Equatable, Sendable {
         case .generation(let session):
             try container.encode(Kind.generation, forKey: .kind)
             try container.encode(session, forKey: .generation)
-        case .conversion(let session):
-            try container.encode(Kind.conversion, forKey: .kind)
-            try container.encode(session, forKey: .conversion)
         }
-    }
-}
-
-/// Persisted state for an interrupted or resumable deck conversion run.
-nonisolated struct AIPausedConversionSession: Codable, Equatable, Sendable {
-    let sourceDeckID: PersistentIdentifier
-    let sourceDeckTitle: String
-    let request: DeckCardConversionRequest
-    let destinationBaseCardIDs: [PersistentIdentifier]
-    let remainingSources: [CardConversionSourceSnapshot]
-    let totalCount: Int
-    let completedCount: Int
-    let createdCount: Int
-    let skippedCount: Int
-    let failedCount: Int
-    let statusMessage: String
-    let destinationDeckID: PersistentIdentifier?
-    let providerProfileID: UUID?
-    let batchID: UUID
-    let convertedAt: Date
-    let timestamp: Date
-
-    init(
-        sourceDeckID: PersistentIdentifier,
-        sourceDeckTitle: String,
-        request: DeckCardConversionRequest,
-        destinationBaseCardIDs: [PersistentIdentifier],
-        remainingSources: [CardConversionSourceSnapshot],
-        totalCount: Int,
-        completedCount: Int,
-        createdCount: Int,
-        skippedCount: Int,
-        failedCount: Int,
-        statusMessage: String,
-        destinationDeckID: PersistentIdentifier?,
-        providerProfileID: UUID?,
-        batchID: UUID,
-        convertedAt: Date,
-        timestamp: Date = Date()
-    ) {
-        self.sourceDeckID = sourceDeckID
-        self.sourceDeckTitle = sourceDeckTitle
-        self.request = request
-        self.destinationBaseCardIDs = destinationBaseCardIDs
-        self.remainingSources = remainingSources
-        self.totalCount = totalCount
-        self.completedCount = completedCount
-        self.createdCount = createdCount
-        self.skippedCount = skippedCount
-        self.failedCount = failedCount
-        self.statusMessage = statusMessage
-        self.destinationDeckID = destinationDeckID
-        self.providerProfileID = providerProfileID
-        self.batchID = batchID
-        self.convertedAt = convertedAt
-        self.timestamp = timestamp
-    }
-
-    var progress: DeckCardConversionProgress {
-        DeckCardConversionProgress(
-            totalCount: totalCount,
-            completedCount: completedCount,
-            createdCount: createdCount,
-            skippedCount: skippedCount,
-            failedCount: failedCount,
-            statusMessage: statusMessage
-        )
-    }
-
-    func updating(
-        removedSourceIDs: Set<PersistentIdentifier>,
-        completedDelta: Int,
-        createdDelta: Int,
-        skippedDelta: Int,
-        failedDelta: Int,
-        statusMessage: String,
-        destinationDeckID: PersistentIdentifier? = nil,
-        timestamp: Date = Date()
-    ) -> AIPausedConversionSession {
-        AIPausedConversionSession(
-            sourceDeckID: sourceDeckID,
-            sourceDeckTitle: sourceDeckTitle,
-            request: request,
-            destinationBaseCardIDs: destinationBaseCardIDs,
-            remainingSources: remainingSources.filter { !removedSourceIDs.contains($0.id) },
-            totalCount: totalCount,
-            completedCount: completedCount + completedDelta,
-            createdCount: createdCount + createdDelta,
-            skippedCount: skippedCount + skippedDelta,
-            failedCount: failedCount + failedDelta,
-            statusMessage: statusMessage,
-            destinationDeckID: destinationDeckID ?? self.destinationDeckID,
-            providerProfileID: providerProfileID,
-            batchID: batchID,
-            convertedAt: convertedAt,
-            timestamp: timestamp
-        )
     }
 }
 

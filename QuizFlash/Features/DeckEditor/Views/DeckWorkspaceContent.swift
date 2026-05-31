@@ -28,7 +28,7 @@ extension DeckWorkspaceView {
 
     @ViewBuilder
     var draftSelectionBottomBar: some View {
-        if !isShowingWorkspaceConvert && viewModel.isSelectingCards && !viewModel.draftCards.isEmpty {
+        if viewModel.isSelectingCards && !viewModel.draftCards.isEmpty {
             BottomChromeContainer(
                 kind: .selection,
                 bottomPadding: BottomChromeInsets.selectionInEditor(
@@ -83,9 +83,7 @@ extension DeckWorkspaceView {
     @ViewBuilder
     func mainCardsListContent(using scrollProxy: ScrollViewProxy) -> some View {
         if viewModel.draftCards.isEmpty
-            && !hasActiveGenerationRuntime
-            && activeEditorConversionProgress == nil
-            && activeEditorPausedConversionProgress == nil {
+            && !hasActiveGenerationRuntime {
             emptyStateView.transition(.opacity)
         } else {
             unifiedRuntimeCard
@@ -113,45 +111,7 @@ extension DeckWorkspaceView {
 
     @ViewBuilder
     var unifiedRuntimeCard: some View {
-        if aiWorkspaceCoordinator.canResumeConversion,
-          let pausedConversionProgress = activeEditorPausedConversionProgress {
-            let remainingCount = max(
-                pausedConversionProgress.totalCount - pausedConversionProgress.completedCount,
-                0
-            )
-            AIPausedResumeCard(
-                foundCount: pausedConversionProgress.createdCount,
-                targetCount: max(pausedConversionProgress.totalCount, 1),
-                remainingCount: remainingCount,
-                progress: pausedConversionProgress.fractionCompleted,
-                title: localized("Conversion paused"),
-                subtitle: localized("Continue from the last completed batch when you're ready."),
-                accentColor: .orange,
-                onResume: {
-                    aiWorkspaceCoordinator.resumeConversion(context: context)
-                }
-            )
-            .transition(runtimeCardTransition)
-        } else if let conversionProgress = activeEditorConversionProgress {
-            AIStreamingProgressCard(
-                foundCount: conversionProgress.createdCount,
-                targetCount: max(conversionProgress.totalCount, 1),
-                progress: conversionProgress.fractionCompleted,
-                title: "Converting cards",
-                subtitleOverride: conversionProgress.statusMessage,
-                accentColor: .orange,
-                footnote: showsInlineConversionSessionCards
-                    ? "Cards appear in place as each converted batch finishes"
-                    : "AI converts the selected cards and saves the result as it goes",
-                onCancel: aiWorkspaceCoordinator.canCancelConversion ? {
-                    aiWorkspaceCoordinator.requestConversionCancel()
-                } : nil,
-                onPause: aiWorkspaceCoordinator.canPauseConversion ? {
-                    aiWorkspaceCoordinator.pauseConversion()
-                } : nil
-            )
-            .transition(runtimeCardTransition)
-        } else if case .extractingText = viewModel.aiState {
+        if case .extractingText = viewModel.aiState {
             AIExtractingLoadingView(
                 elapsedStartDate: viewModel.aiGenerationStartedAt,
                 elapsedAccumulatedDuration: viewModel.aiAccumulatedGenerationDuration
@@ -193,22 +153,7 @@ extension DeckWorkspaceView {
     var aiPendingSlots: some View {
         let createdCount = sortedAISessionDraftCards.count
 
-        if showsInlineConversionSessionCards,
-           let conversionProgress = activeEditorConversionProgress ?? activeEditorPausedConversionProgress {
-            let leadingRowCount = displayedDraftRowsBeforeAISlots.count
-
-            if createdCount == 0 {
-                streamingPendingMessage(
-                    title: localized("First converted cards are on the way"),
-                    subtitle: conversionProgress.statusMessage
-                )
-            } else {
-                draftCardRows(
-                    sortedAISessionDraftCards,
-                    startingIndex: leadingRowCount
-                )
-            }
-        } else if viewModel.isGenerating || viewModel.hasPausedAIGeneration {
+        if viewModel.isGenerating || viewModel.hasPausedAIGeneration {
             let leadingRowCount = displayedDraftRowsBeforeAISlots.count
 
             if createdCount == 0 {
@@ -324,7 +269,6 @@ extension DeckWorkspaceView {
                     viewModel.presentCardEditor(for: card)
                 }
             },
-            onOpenRecommendedConversion: nil
         )
         .equatable()
             .transition(
@@ -454,15 +398,8 @@ extension DeckWorkspaceView {
         if !didStartDismissFlow {
             allowDismissWithoutConfirmation = false
         } else {
-            aiWorkspaceCoordinator.dismissConversionOutcome()
             refreshSessionPresentationState()
         }
-    }
-
-    func startWorkspaceConversion() {
-        isTitleFocused = false
-        exitDraftSelectionModeForExternalAction()
-        aiWorkspaceCoordinator.startConversion(context: context)
     }
 
     func handleDeleteDeck() {
@@ -512,10 +449,6 @@ extension DeckWorkspaceView {
     }
 
     func dismissPresentation() {
-        if isShowingWorkspaceConvert {
-            aiWorkspaceCoordinator.dismissConversionConfiguration()
-        }
-
         let shouldResetCreateWorkspace =
             router.activeTab == .create
             && router.createPath.isEmpty
@@ -540,26 +473,6 @@ extension DeckWorkspaceView {
             targetCardCount: viewModel.aiTargetCardCount,
             deckTitle: collapsedDeckTitle
         )
-    }
-
-    func syncActiveConversionEditorState() {
-        guard hostsSourceDeckConversionRuntime,
-              let sourceDeckID = aiWorkspaceCoordinator.workspaceDeckContext?.sourceDeckID,
-              let deck = context.safeModel(for: sourceDeckID, as: DeckModel.self) else { return }
-
-        let keepsInlineConversionSession =
-            aiWorkspaceCoordinator.conversionProgress != nil
-            || aiWorkspaceCoordinator.pausedConversionSession != nil
-        let isSameDeckConversion = aiWorkspaceCoordinator.workspaceDeckContext?.destination == .sameDeck
-
-        viewModel.mergePersistedDeckState(
-            deck,
-            markNewCardsAsAISession: isSameDeckConversion && keepsInlineConversionSession
-        )
-
-        if isSameDeckConversion && !keepsInlineConversionSession {
-            viewModel.integrateAllDraftCardsIntoBaseline()
-        }
     }
 
     func refreshDerivedDeckState() {
@@ -615,7 +528,6 @@ extension DeckWorkspaceView {
             try? await Task.sleep(for: .milliseconds(200))
             guard !viewModel.hasPausedAIGeneration,
                   viewModel.aiSheetDestination == nil,
-                  !aiWorkspaceCoordinator.hasVisibleConversionWorkspaceState,
                   !viewModel.showAIPickerOptions,
                   !viewModel.hasPendingAISource else { return }
             viewModel.showAIPickerOptions = true
@@ -625,26 +537,11 @@ extension DeckWorkspaceView {
 
  struct DeckWorkspaceDerivedState: Equatable {
     let contentSummary: DraftDeckContentSummary
-    let readinessSummary: DeckReadinessSummary
-    let recommendedCards: [CardKind: [DraftCard]]
 
     static let empty = DeckWorkspaceDerivedState(cards: [])
 
     init(cards: [DraftCard]) {
         contentSummary = DraftDeckContentSummary(cards: cards)
-        readinessSummary = CardReadinessDiagnostics.summary(for: cards)
-
-        var recommendedCards: [CardKind: [DraftCard]] = [:]
-        for card in cards {
-            let targets = Set(
-                CardReadinessDiagnostics.diagnostics(for: card.content)
-                    .compactMap(\.recommendedConversionTargetKind)
-            )
-            for targetKind in targets {
-                recommendedCards[targetKind, default: []].append(card)
-            }
-        }
-        self.recommendedCards = recommendedCards
     }
 }
 

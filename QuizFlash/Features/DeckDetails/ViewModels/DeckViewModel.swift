@@ -30,7 +30,6 @@ struct GridCardInfo: Identifiable, Equatable, Hashable, Sendable {
     let id: PersistentIdentifier
     let kind: CardKind
     let creationSource: CardCreationSource
-    let conversionMetadata: CardConversionMetadata?
     let cardNumber: Int
     let interval: Int
     let reviewHistoryIsEmpty: Bool
@@ -42,8 +41,6 @@ struct GridCardInfo: Identifiable, Equatable, Hashable, Sendable {
     let searchDocumentText: String
     let createdAt: Date
     let editedAt: Date
-
-    var isConverted: Bool { conversionMetadata != nil }
 }
 
 // MARK: - Deck Progress Stats
@@ -198,9 +195,6 @@ final class DeckViewModel {
 
     /// Lightweight compatibility counts used by deck play-mode surfaces.
     var playModeAvailability: PlayModeCardAvailability = .empty
-
-    /// Cached deck-level readiness diagnostics for the current card snapshot.
-    var readinessSummary: DeckReadinessSummary = .empty
 
     /// Controls the custom-sheet presentation for deck activity history.
     var activitySheetPresentation: DeckActivitySheetPresentation?
@@ -523,7 +517,6 @@ extension GridCardInfo {
             id: id,
             kind: kind,
             creationSource: creationSource,
-            conversionMetadata: conversionMetadata,
             cardNumber: cardNumber,
             interval: interval,
             reviewHistoryIsEmpty: reviewHistoryIsEmpty,
@@ -545,12 +538,8 @@ private extension CardKind {
         switch self {
         case .flashcard:
             return AppLocalization.string("Flashcards", locale: locale)
-        case .match:
-            return AppLocalization.string("Match Cards", locale: locale)
         case .quiz:
             return AppLocalization.string("Quiz Cards", locale: locale)
-        case .write:
-            return AppLocalization.string("Write Cards", locale: locale)
         }
     }
 }

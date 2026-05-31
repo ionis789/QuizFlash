@@ -210,59 +210,6 @@ struct DeckPlayModesView: View {
     }
 }
 
-// MARK: - DeckReadinessDiagnosticsView
-
-/// Compact deck-level readiness summary for Match and Write authoring quality.
-struct DeckReadinessDiagnosticsView: View {
-    @Environment(AppPreferences.self) private var appPreferences
-    let summary: DeckReadinessSummary
-
-    var body: some View {
-        guard summary.hasContent else { return AnyView(EmptyView()) }
-
-        return AnyView(
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                Text(AppLocalization.string("READINESS", locale: appPreferences.resolvedLocale))
-                    .font(.caption.weight(.heavy))
-                    .foregroundStyle(.tertiary)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: UIConstants.Spacing.small) {
-                        ForEach(summary.items) { item in
-                            readinessChip(for: item)
-                        }
-                    }
-                        .padding(.vertical, 2)
-                }
-                    .scrollIndicators(.hidden)
-
-                Text(
-                    AppLocalization.string(
-                        "These notes stay subtle and only flag cards that may need gentler answer entry or cleanup before practice.",
-                        locale: appPreferences.resolvedLocale
-                    )
-                )
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-                .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
-        )
-    }
-
-    private func readinessChip(for item: DeckReadinessSummaryItem) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: item.kind.symbol)
-            Text(item.title)
-        }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(item.kind.tint)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(item.kind.tint.opacity(0.12), in: Capsule())
-    }
-
-}
-
 // MARK: - PlayModeCard (private)
 
 /// A single play-mode tile inside `DeckPlayModesView`.
@@ -411,8 +358,6 @@ struct DeckActionOverlay: View {
     let onAdd: () -> Void
     /// Called when the user taps "Select Cards" in the menu.
     let onStartSelection: () -> Void
-    /// Called when the user opens the conversion flow from the deck menu.
-    let onConvert: () -> Void
     /// Called when the user taps "Export Deck" in the menu.
     let onExport: () -> Void
 
@@ -463,13 +408,6 @@ struct DeckActionOverlay: View {
                 Label(localized("Select Cards"), systemImage: "checkmark.circle")
             }
                 .disabled(isSelecting)
-
-            Button {
-                onConvert()
-            } label: {
-                Label(localized("Convert Cards"), systemImage: "arrow.triangle.2.circlepath")
-            }
-                .disabled(deck.cardCount == 0)
 
             Button {
                 onExport()
@@ -531,8 +469,6 @@ struct DeckSelectionBottomBar: View {
     var onDone: () -> Void
     /// Called when the user clears the current selection without leaving selection mode.
     var onClearSelection: () -> Void
-    /// Called when the user opens the conversion flow for the current selection.
-    var onConvert: () -> Void
     /// Called when the user taps the delete button to confirm batch deletion.
     var onDelete: () -> Void
 
@@ -571,14 +507,6 @@ struct DeckSelectionBottomBar: View {
                 .frame(width: 118, alignment: .leading)
 
             if selectedCount > 0 {
-                SelectionToolbarTextButton(
-                    title: AppLocalization.string("Convert", locale: appPreferences.resolvedLocale),
-                    accessibilityLabel: AppLocalization.string("Convert selected cards", locale: appPreferences.resolvedLocale),
-                    tint: themeManager.accentColor.color
-                ) {
-                    onConvert()
-                }
-
                 SelectionToolbarTextButton(
                     title: AppLocalization.string("Clear", locale: appPreferences.resolvedLocale),
                     accessibilityLabel: AppLocalization.string("Clear selected cards", locale: appPreferences.resolvedLocale)

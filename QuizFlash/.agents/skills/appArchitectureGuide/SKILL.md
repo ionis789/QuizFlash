@@ -11,7 +11,7 @@ description: Project-specific engineering guide for QuizFlash, a SwiftUI flashca
 
 ## Overview
 
-Write and review code for QuizFlash using the repository's architecture rules instead of generic SwiftUI defaults. Treat the standards in `references/architecture.md` as the target for new code even when older files still contain legacy patterns.
+Create and review code for QuizFlash using the repository's architecture rules instead of generic SwiftUI defaults. Treat the standards in `references/architecture.md` as the target for new code even when older files still contain legacy patterns.
 
 ## Quick Start
 
@@ -38,7 +38,7 @@ Write and review code for QuizFlash using the repository's architecture rules in
    - Prefer denormalized counters over relationship `.count`.
    - Route heavy card-content reads through `CardFetchActor`.
    - Save mutations explicitly and surface failures.
-3. Match the project's UI system before changing presentation code.
+3. Follow the project's UI system before changing presentation code.
    - Use `UIConstants` tokens instead of magic numbers.
    - Prefer semantic colors and existing theme plumbing.
    - Keep navigation programmatic through `NavigationManager`.

@@ -39,8 +39,6 @@ struct DeckCustomNavigationBar: View {
     let onAdd: () -> Void
     /// Called when the user taps "Select Cards" in the menu.
     let onStartSelection: () -> Void
-    /// Called when the user opens the conversion flow from the deck menu.
-    let onConvert: () -> Void
     /// Called when the user taps "Export Deck" in the menu.
     let onExport: () -> Void
     /// Reports the resolved navigation bar height.
@@ -87,7 +85,6 @@ struct DeckCustomNavigationBar: View {
                 groupingMode: $groupingMode,
                 onAdd: onAdd,
                 onStartSelection: onStartSelection,
-                onConvert: onConvert,
                 onExport: onExport
             )
         }

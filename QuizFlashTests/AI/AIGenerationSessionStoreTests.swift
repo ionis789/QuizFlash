@@ -101,7 +101,10 @@ final class AIGenerationSessionStoreTests: XCTestCase {
             ),
             DraftCard(
                 cardNumber: 2,
-                content: TestMutationFactory.match(prompt: "ATP", answer: "Energy"),
+                content: TestMutationFactory.quiz(
+                    question: "What does ATP store?",
+                    correctAnswers: ["Energy"]
+                ),
                 creationSource: .manual
             )
         ]
@@ -115,7 +118,7 @@ final class AIGenerationSessionStoreTests: XCTestCase {
             generatedCardCount: 4,
             baseCardCount: 2,
             options: AIGenerationOptions(
-                cardType: .match,
+                cardType: .quiz,
                 cardLevel: .advanced,
                 cardsPerBatch: 5,
                 sourceDistributionMode: .manual

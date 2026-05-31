@@ -22,7 +22,6 @@ struct ExportableCard: Codable {
     var id: UUID
     var content: DraftCardContent
     var creationSource: CardCreationSource
-    var conversionMetadata: CardConversionMetadata?
     var createdAt: Date
     var editedAt: Date
 
@@ -34,7 +33,6 @@ struct ExportableCard: Codable {
         case kind
         case content
         case creationSource
-        case conversionMetadata
         case frontZone
         case backZone
         case frontType
@@ -48,7 +46,6 @@ struct ExportableCard: Codable {
         id: UUID,
         content: DraftCardContent,
         creationSource: CardCreationSource,
-        conversionMetadata: CardConversionMetadata? = nil,
         createdAt: Date,
         editedAt: Date,
         assetReferences: [UUID]
@@ -56,7 +53,6 @@ struct ExportableCard: Codable {
         self.id = id
         self.content = content
         self.creationSource = creationSource
-        self.conversionMetadata = conversionMetadata
         self.createdAt = createdAt
         self.editedAt = editedAt
         self.assetReferences = assetReferences
@@ -67,7 +63,6 @@ struct ExportableCard: Codable {
 
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         creationSource = try container.decodeIfPresent(CardCreationSource.self, forKey: .creationSource) ?? .manual
-        conversionMetadata = try container.decodeIfPresent(CardConversionMetadata.self, forKey: .conversionMetadata)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         editedAt = try container.decode(Date.self, forKey: .editedAt)
         assetReferences = try container.decodeIfPresent([UUID].self, forKey: .assetReferences) ?? []
@@ -99,7 +94,6 @@ struct ExportableCard: Codable {
         try container.encode(content.kind, forKey: .kind)
         try container.encode(content, forKey: .content)
         try container.encode(creationSource, forKey: .creationSource)
-        try container.encodeIfPresent(conversionMetadata, forKey: .conversionMetadata)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(editedAt, forKey: .editedAt)
         try container.encode(assetReferences, forKey: .assetReferences)
@@ -229,7 +223,6 @@ final class DeckSharingManager: ObservableObject {
                 id: UUID(),
                 content: card.cardContent,
                 creationSource: card.creationSource,
-                conversionMetadata: card.conversionMetadata,
                 createdAt: card.createdAt,
                 editedAt: card.editedAt,
                 assetReferences: []
@@ -375,8 +368,7 @@ final class DeckSharingManager: ObservableObject {
             // Updated initializer to prevent `backingData` binding errors
             let newCard = CardModel(
                 content: exportedCard.content,
-                creationSource: exportedCard.creationSource,
-                conversionMetadata: exportedCard.conversionMetadata
+                creationSource: exportedCard.creationSource
             )
             
             // Preserve original creation timestamps from the imported file

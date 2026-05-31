@@ -374,8 +374,6 @@ private struct QuizModeSessionView: View {
                 return "\(count) card\(count == 1 ? "" : "s") had no correct choice."
             case .multipleCorrectChoicesDisallowed:
                 return "\(count) single-answer card\(count == 1 ? "" : "s") had multiple correct choices."
-            default:
-                return nil
             }
         }
 

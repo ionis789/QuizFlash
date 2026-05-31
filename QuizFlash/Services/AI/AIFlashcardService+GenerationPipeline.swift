@@ -1,6 +1,5 @@
 import Foundation
 import UIKit
-import SwiftData
 
 extension AIFlashcardService {
     // MARK: - Public Entry Points
@@ -86,83 +85,6 @@ extension AIFlashcardService {
                 messages: self.buildDeckTitleMessages(fromText: trimmedText),
                 model: self.textModel
             )
-        }
-    }
-
-    /// Converts existing persisted cards into a new target card kind while
-    /// preserving one output mapping per source card.
-    func convertCards(
-        _ sourceCards: [AICardConversionSource],
-        to targetType: AICardGenerationType,
-        level: AICardGenerationLevel = .balanced
-    ) async throws -> [AICardConversionOutput] {
-        let stream = convertCardsStream(
-            sourceCards,
-            to: targetType,
-            level: level
-        )
-
-        var allOutputs: [AICardConversionOutput] = []
-        for try await chunk in stream {
-            allOutputs.append(contentsOf: chunk.outputs)
-        }
-        return allOutputs
-    }
-
-    /// Streams converted card batches using the same adaptive planner used by
-    /// AI generation so conversions no longer stall behind a fixed serial loop.
-    func convertCardsStream(
-        _ sourceCards: [AICardConversionSource],
-        to targetType: AICardGenerationType,
-        level: AICardGenerationLevel = .balanced
-    ) -> AsyncThrowingStream<AIConversionBatchChunk, Error> {
-        let trimmedCards = sourceCards.filter {
-            !$0.content.searchDocumentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
-
-        let options = AIGenerationOptions(
-            cardType: targetType,
-            cardLevel: level
-        )
-        let plans = buildConversionBatchPlans(
-            sourceCards: trimmedCards,
-            options: options
-        )
-
-        return AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    try await withDebugRun(
-                        kind: .conversion,
-                        targetType: targetType.rawValue,
-                        sourceKind: "cards",
-                        targetCount: trimmedCards.count,
-                        sourceCount: trimmedCards.count,
-                        metadata: [
-                            "source_count": String(trimmedCards.count),
-                            "level": level.rawValue
-                        ]
-                    ) { [self] in
-                        try await self.performConversionPlanQueue(
-                            plans: plans,
-                            targetType: targetType,
-                            level: level
-                        ) { chunk in
-                            continuation.yield(chunk)
-                            await Task.yield()
-                        }
-                    }
-                    continuation.finish()
-                } catch is CancellationError {
-                    continuation.finish(throwing: CancellationError())
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-
-            continuation.onTermination = { @Sendable _ in
-                task.cancel()
-            }
         }
     }
 
@@ -663,6 +585,31 @@ extension AIFlashcardService {
         try await performVisionRequests(images, targetCards: targetCards, options: resolvedOptions) { cards in
             continuation.yield(cards)
             await Task.yield()
+        }
+    }
+
+    private func resolvedGenerationOptions(
+        for text: String,
+        needsOCRCorrection: Bool,
+        base options: AIGenerationOptions
+    ) -> AIGenerationOptions {
+        var resolved = options
+        resolved.sourceLanguageHint = resolvedOutputLanguage(from: options)
+        return resolved
+    }
+
+    private func resolvedVisionGenerationOptions(base options: AIGenerationOptions) -> AIGenerationOptions {
+        var resolved = options
+        resolved.sourceLanguageHint = resolvedOutputLanguage(from: options)
+        return resolved
+    }
+
+    private func resolvedOutputLanguage(from options: AIGenerationOptions) -> AIGenerationLanguageHint? {
+        switch options.outputLanguageMode {
+        case .auto:
+            return nil
+        case .manual:
+            return options.manualOutputLanguage
         }
     }
 }

@@ -85,10 +85,6 @@ struct DeckWorkspaceView: View {
     var draftDeckContentSummary: DraftDeckContentSummary {
         derivedDeckState.contentSummary
     }
-
-    var draftDeckReadinessSummary: DeckReadinessSummary {
-        derivedDeckState.readinessSummary
-    }
     var aiToolbarStatusText: String? {
         switch viewModel.aiState {
         case .extractingText:
@@ -156,8 +152,7 @@ struct DeckWorkspaceView: View {
         !hasUnifiedAISession
     }
     var shouldShowFloatingGenerate: Bool {
-        !isShowingWorkspaceConvert
-            && scrollState.pillVisible
+        scrollState.pillVisible
             && !viewModel.draftCards.isEmpty
             && !viewModel.isSelectingCards
             && !isTitleFocused
@@ -184,9 +179,6 @@ struct DeckWorkspaceView: View {
     /// reveal the bar in sync with the sheet animation instead of waiting for the
     /// presentation binding to be cleared.
     var tabRule: TabBarVisibilityRule {
-        if isShowingWorkspaceConvert {
-            return .implicit
-        }
         if isTitleFocused || viewModel.isSelectingCards {
             return .hidden
         }
@@ -199,43 +191,13 @@ struct DeckWorkspaceView: View {
         return viewModel.hasPausedAIGeneration
     }
 
-    var activeEditorConversionProgress: DeckCardConversionProgress? {
-        guard hostsSourceDeckConversionRuntime else { return nil }
-        return aiWorkspaceCoordinator.conversionProgress
-    }
-
-    var activeEditorPausedConversionProgress: DeckCardConversionProgress? {
-        guard hostsSourceDeckConversionRuntime else { return nil }
-        return aiWorkspaceCoordinator.pausedConversionSession?.progress
-    }
-
-    var showsInlineConversionSessionCards: Bool {
-        hostsSourceDeckConversionRuntime
-            && aiWorkspaceCoordinator.workspaceDeckContext?.destination == .sameDeck
-            && (activeEditorConversionProgress != nil || activeEditorPausedConversionProgress != nil)
-    }
-
     var hasUnifiedAISession: Bool {
         hasActiveGenerationRuntime
-            || showsInlineConversionSessionCards
             || viewModel.hasAISessionDraftCards
-    }
-
-    var hostsSourceDeckConversionRuntime: Bool {
-        guard aiWorkspaceCoordinator.hasVisibleConversionWorkspaceState else { return false }
-        return viewModel.resolvedEditingDeckID == aiWorkspaceCoordinator.workspaceDeckContext?.sourceDeckID
     }
 
     var tracksWorkspaceGenerationStatus: Bool {
         router.activeTab == .create
-    }
-
-    var isShowingWorkspaceConvert: Bool {
-        guard viewModel.isEditingExistingDeck,
-              let sourceDeckID = aiWorkspaceCoordinator.conversionSeed?.sourceDeckID else {
-            return false
-        }
-        return sourceDeckID == viewModel.resolvedEditingDeckID
     }
 
     var displayedDraftCards: [DraftCard] {
@@ -249,7 +211,7 @@ struct DeckWorkspaceView: View {
         guard hasUnifiedAISession else {
             return displayedDraftCards
         }
-        guard hasActiveGenerationRuntime || showsInlineConversionSessionCards else {
+        guard hasActiveGenerationRuntime else {
             return displayedDraftCards
         }
         return displayedDraftCards.filter { !viewModel.aiSessionDraftCardIDs.contains($0.id) }
@@ -281,19 +243,7 @@ struct DeckWorkspaceView: View {
         if !viewModel.baseDraftCards.isEmpty {
             return viewModel.baseDraftCards
         }
-
-        guard showsInlineConversionSessionCards,
-              let destinationBaseCardIDs = aiWorkspaceCoordinator.workspaceDeckContext?.destinationBaseCardIDs,
-              !destinationBaseCardIDs.isEmpty else {
-            return []
-        }
-
-        let baselineOriginalIDs = Set(destinationBaseCardIDs)
-        return viewModel.draftCards.filter { draft in
-            guard let originalCardID = draft.originalCardID else { return false }
-            return baselineOriginalIDs.contains(originalCardID)
-                && !viewModel.sessionDraftCardIDs.contains(draft.id)
-        }
+        return []
     }
 
     // MARK: - Initialization
@@ -345,15 +295,6 @@ struct DeckWorkspaceView: View {
                     isHistoricalCardsCollapsed = false
                 }
             }
-            .onChange(of: aiWorkspaceCoordinator.conversionProgress) { _, _ in
-                syncActiveConversionEditorState()
-            }
-            .onChange(of: aiWorkspaceCoordinator.conversionSummary) { _, _ in
-                syncActiveConversionEditorState()
-            }
-            .onChange(of: aiWorkspaceCoordinator.workspaceDeckContext) { _, _ in
-                syncActiveConversionEditorState()
-            }
     }
 
     var appearanceBoundContent: some View {
@@ -373,16 +314,12 @@ struct DeckWorkspaceView: View {
                 refreshDerivedDeckState()
                 refreshSessionPresentationState()
                 syncAIWorkspaceGenerationState()
-                syncActiveConversionEditorState()
                 performLaunchActionIfNeeded()
             }
             .onChange(of: viewModel.draftCards) { _, _ in
                 refreshDerivedDeckState()
             }
             .onDisappear {
-                if isShowingWorkspaceConvert {
-                    aiWorkspaceCoordinator.dismissConversionConfiguration()
-                }
                 guard viewModel.aiSheetDestination == nil,
                       viewModel.cardEditorDestination == nil else { return }
                 ImageCache.shared.clearCache()
@@ -475,21 +412,9 @@ struct DeckWorkspaceView: View {
                             VStack(spacing: 0) {
                                 heroHeader(topPadding: heroTopPadding)
 
-                                if isShowingWorkspaceConvert {
-                                    DeckConversionEditor(
-                                        sourceDecks: sourceDecks,
-                                        managesSeedFromDeckList: false,
-                                        showsDeckPicker: false,
-                                        showsRuntimeSummary: false
-                                    )
-                                    .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
-                                    .padding(.top, UIConstants.Spacing.small)
+                                cardsListContent(using: scrollProxy)
+                                    .padding(.top, UIConstants.Spacing.large)
                                     .padding(.bottom, 132)
-                                } else {
-                                    cardsListContent(using: scrollProxy)
-                                        .padding(.top, UIConstants.Spacing.large)
-                                        .padding(.bottom, 132)
-                                }
                             }
                             .tabBarAutoHideOnScroll(enabled: tabRule != .hidden)
                             .frame(minHeight: outer.size.height, alignment: .top)
@@ -517,16 +442,10 @@ struct DeckWorkspaceView: View {
                     )
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    if !isShowingWorkspaceConvert {
-                        floatingGenerateAction(bottomInset: resolvedSafeBottomInset)
-                    }
+                    floatingGenerateAction(bottomInset: resolvedSafeBottomInset)
                 }
                 .overlay(alignment: .bottom) {
-                    if isShowingWorkspaceConvert {
-                        EmptyView()
-                    } else {
-                        draftSelectionBottomBar
-                    }
+                    draftSelectionBottomBar
                 }
                 .coordinateSpace(name: kDeckWorkspaceChromeSpace)
             }

@@ -5,8 +5,8 @@
 //  Floating status, failure, and runtime surfaces for the AI workspace.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 // MARK: - Floating Status
 
@@ -31,7 +31,7 @@ struct FloatingAIWorkspaceStatusMenu: View {
         case .paused:
             return .orange
         case .preparing, .running:
-            return status.kind == .conversion ? .orange : accent
+            return accent
         }
     }
 
@@ -108,7 +108,7 @@ struct FloatingAIWorkspaceStatusMenu: View {
         case .failed:
             return "Error"
         case .preparing, .running, .paused:
-            return status.kind == .conversion ? "Convert" : "Generate"
+            return "Generate"
         }
     }
 
@@ -223,7 +223,6 @@ struct AIWorkspaceFailureCard: View {
 // MARK: - Runtime Card
 
 struct AIWorkspaceRuntimeCard: View {
-    @Environment(\.modelContext) private var context
     @Environment(ThemeManager.self) private var themeManager
 
     @Bindable var coordinator: AIWorkspaceCoordinator
@@ -234,178 +233,6 @@ struct AIWorkspaceRuntimeCard: View {
     }
 
     var body: some View {
-        Group {
-            if let errorMessage = coordinator.conversionErrorMessage {
-                errorCard(errorMessage)
-            } else if let progress = coordinator.conversionProgress {
-                progressCard(progress)
-            } else if let summary = coordinator.conversionSummary {
-                summaryCard(summary)
-            }
-        }
-    }
-
-    private func progressCard(_ progress: DeckCardConversionProgress) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Conversion")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-                .tracking(0.45)
-
-            HStack(alignment: .firstTextBaseline, spacing: UIConstants.Spacing.small) {
-                Text(coordinator.canResumeConversion ? "Conversion paused" : "Converting cards")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-
-                Spacer(minLength: 0)
-
-                Text("\(progress.completedCount)/\(progress.totalCount)")
-                    .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-
-            Text(progress.statusMessage)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            ProgressView(value: progress.fractionCompleted)
-                .tint(.orange)
-
-            HStack(spacing: UIConstants.Spacing.small) {
-                runtimeChip("\(progress.createdCount) created", tint: accent)
-                runtimeChip("\(progress.skippedCount) skipped", tint: .secondary)
-                if progress.failedCount > 0 {
-                    runtimeChip("\(progress.failedCount) failed", tint: .red)
-                }
-            }
-
-            if coordinator.canResumeConversion {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    Button("Resume") {
-                        coordinator.resumeConversion(context: context)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 14)
-                    .frame(height: 42)
-                    .background(Color.white.opacity(0.06), in: Capsule())
-
-                    Button("Dismiss") {
-                        coordinator.dismissConversionOutcome()
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 14)
-                    .frame(height: 42)
-                    .background(Color.white.opacity(0.04), in: Capsule())
-                }
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-            }
-        }
-        .padding(18)
-        .background(sectionBackground)
-    }
-
-    private func summaryCard(_ summary: DeckCardConversionSummary) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Conversion")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-                .tracking(0.45)
-
-            Text(summary.createdCount == 1
-                 ? "1 \(summary.targetKind.displayTitle) card created"
-                 : "\(summary.createdCount) \(summary.targetKind.displayTitle) cards created")
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(summary.destinationDeckTitle)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: UIConstants.Spacing.small) {
-                runtimeChip("\(summary.skippedCount) skipped", tint: .secondary)
-                if summary.failedCount > 0 {
-                    runtimeChip("\(summary.failedCount) failed", tint: .red)
-                }
-            }
-
-            HStack(spacing: UIConstants.Spacing.small) {
-                if let destinationDeckID = summary.destinationDeckID,
-                   summary.destination == .newDeck {
-                    Button("Open Deck") {
-                        onOpenDestinationDeck?(destinationDeckID)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 14)
-                    .frame(height: 42)
-                    .background(Color.white.opacity(0.06), in: Capsule())
-                }
-
-                Button("Dismiss") {
-                    coordinator.dismissConversionOutcome()
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 14)
-                .frame(height: 42)
-                .background(Color.white.opacity(0.04), in: Capsule())
-            }
-            .font(.system(size: 14, weight: .bold, design: .rounded))
-        }
-        .padding(18)
-        .background(sectionBackground)
-    }
-
-    private func errorCard(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Conversion")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-                .tracking(0.45)
-
-            Text("Conversion stopped")
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-
-            Text(message)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: UIConstants.Spacing.small) {
-                if coordinator.canResumeConversion {
-                    Button("Resume") {
-                        coordinator.resumeConversion(context: context)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 14)
-                    .frame(height: 42)
-                    .background(Color.white.opacity(0.06), in: Capsule())
-                }
-
-                Button("Dismiss") {
-                    coordinator.dismissConversionOutcome()
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 14)
-                .frame(height: 42)
-                .background(Color.white.opacity(0.04), in: Capsule())
-            }
-            .font(.system(size: 14, weight: .bold, design: .rounded))
-        }
-        .padding(18)
-        .background(sectionBackground)
-    }
-
-    private func runtimeChip(_ text: String, tint: Color) -> some View {
-        Text(text)
-            .font(.system(size: 12, weight: .bold, design: .rounded))
-            .foregroundStyle(tint)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(Color.white.opacity(0.05), in: Capsule())
+        EmptyView()
     }
 }

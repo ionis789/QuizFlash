@@ -21,15 +21,10 @@ struct ValidatedPlayModeLoadResult<Payload: Sendable>: Sendable {
 
 /// Explicit runtime validation buckets for mode-specific invalid cards.
 enum PlayModeValidationReason: String, CaseIterable, Hashable, Sendable {
-    case missingPromptPreview
-    case missingAnswerPreview
     case missingQuestion
     case insufficientChoices
     case missingCorrectChoice
     case multipleCorrectChoicesDisallowed
-    case missingSourceText
-    case missingOmittedText
-    case invalidBlankAnchor
 }
 
 /// Deck-level diagnostics emitted alongside validated runtime payloads.

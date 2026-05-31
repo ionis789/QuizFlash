@@ -198,35 +198,6 @@ extension AIFlashcardService {
         return indexed(plans)
     }
 
-    func buildConversionBatchPlans(
-        sourceCards: [AICardConversionSource],
-        options: AIGenerationOptions
-    ) -> [ConversionBatchPlan] {
-        guard !sourceCards.isEmpty else { return [] }
-
-        let batchSizes = makeCardBatchSizes(
-            totalCards: sourceCards.count,
-            batchSize: options.resolvedCardsPerBatch(for: sourceCards.count)
-        )
-        guard !batchSizes.isEmpty else { return [] }
-
-        var cursor = 0
-        return batchSizes.enumerated().compactMap { index, batchSize in
-            guard cursor < sourceCards.count else { return nil }
-            let end = min(cursor + batchSize, sourceCards.count)
-            let batchSources = Array(sourceCards[cursor..<end])
-            cursor = end
-
-            return ConversionBatchPlan(
-                sourceCards: batchSources,
-                sourceLabel: "Cards \(index == 0 ? 1 : max(1, end - batchSources.count + 1))-\(end)",
-                targetCards: batchSources.count,
-                batchIndex: index + 1,
-                totalBatches: batchSizes.count
-            )
-        }
-    }
-
     func makeTextUnits(from text: String) -> [TextSourceUnit] {
         let pages = text.components(separatedBy: DocumentTextExtractor.pageSeparator)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }

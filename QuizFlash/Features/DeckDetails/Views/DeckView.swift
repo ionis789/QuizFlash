@@ -254,7 +254,6 @@ struct DeckContentView: View {
             .confirmationDialog(localized("Choose Card Type"), isPresented: $showAddCardTypeDialog, titleVisibility: .visible) {
                 Button(localized("Flashcard")) { presentCardEditor(for: .flashcard) }
                 Button(localized("Quiz")) { presentCardEditor(for: .quiz) }
-                Button(localized("Write")) { presentCardEditor(for: .write) }
                 Button(localized("Cancel"), role: .cancel) { }
             } message: {
                 Text(localized("Pick the type of card you want to add to this deck."))

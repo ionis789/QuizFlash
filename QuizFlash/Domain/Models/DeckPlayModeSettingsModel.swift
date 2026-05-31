@@ -318,162 +318,6 @@ nonisolated struct QuizModeSettings: Codable, Equatable, Sendable {
     var retryIncorrectQuestions: Bool = true
 }
 
-// MARK: - Match Settings
-
-/// Controls the number of pairs that appear in a single match round.
-nonisolated enum MatchRoundSize: Int, Codable, CaseIterable, Identifiable, Sendable {
-    case four = 4
-    case six = 6
-    case eight = 8
-
-    var id: Int { rawValue }
-
-    /// Human-readable option label shown in the settings UI.
-    var title: String { "\(rawValue) Pairs" }
-
-    func localizedTitle(locale: Locale) -> String {
-        let format = AppLocalization.string("%d Pairs", locale: locale)
-        return String.localizedStringWithFormat(format, rawValue)
-    }
-}
-
-/// Controls how dense the match tiles look on screen.
-nonisolated enum MatchContentDensity: String, Codable, CaseIterable, Identifiable, Sendable {
-    case compact
-    case standard
-
-    var id: String { rawValue }
-
-    /// Human-readable option label shown in the settings UI.
-    var title: String {
-        switch self {
-        case .compact:  return "Compact"
-        case .standard: return "Standard"
-        }
-    }
-
-    func localizedTitle(locale: Locale) -> String {
-        switch self {
-        case .compact:  return AppLocalization.string("Compact", locale: locale)
-        case .standard: return AppLocalization.string("Standard", locale: locale)
-        }
-    }
-}
-
-/// Controls how aggressive mismatch feedback feels during a round.
-nonisolated enum MatchFeedbackIntensity: String, Codable, CaseIterable, Identifiable, Sendable {
-    case subtle
-    case standard
-
-    var id: String { rawValue }
-
-    /// Human-readable option label shown in the settings UI.
-    var title: String {
-        switch self {
-        case .subtle:   return "Subtle"
-        case .standard: return "Standard"
-        }
-    }
-
-    func localizedTitle(locale: Locale) -> String {
-        switch self {
-        case .subtle:   return AppLocalization.string("Subtle", locale: locale)
-        case .standard: return AppLocalization.string("Standard", locale: locale)
-        }
-    }
-}
-
-/// Match runtime preferences persisted per deck.
-nonisolated struct MatchModeSettings: Codable, Equatable, Sendable {
-    var allowsFlashcardFallback: Bool = true
-    var roundSize: MatchRoundSize = .six
-    var contentDensity: MatchContentDensity = .compact
-    var retryMissedPairs: Bool = true
-    var feedbackIntensity: MatchFeedbackIntensity = .standard
-}
-
-// MARK: - Write Settings
-
-/// Controls which answer-entry surface Write mode uses.
-nonisolated enum WriteAnswerInputMode: String, Codable, CaseIterable, Identifiable, Sendable {
-    case auto
-    case freeText
-    case assistedBuilder
-
-    var id: String { rawValue }
-
-    /// Human-readable option label shown in the settings UI.
-    var title: String {
-        switch self {
-        case .auto:            return "Auto"
-        case .freeText:        return "Free Text"
-        case .assistedBuilder: return "Builder"
-        }
-    }
-
-    func localizedTitle(locale: Locale) -> String {
-        switch self {
-        case .auto:            return AppLocalization.string("Auto", locale: locale)
-        case .freeText:        return AppLocalization.string("Free Text", locale: locale)
-        case .assistedBuilder: return AppLocalization.string("Builder", locale: locale)
-        }
-    }
-}
-
-/// Controls how strictly the typed answer is matched against the canonical blank.
-nonisolated enum WriteAnswerStrictness: String, Codable, CaseIterable, Identifiable, Sendable {
-    case normalized
-    case exact
-
-    var id: String { rawValue }
-
-    /// Human-readable option label shown in the settings UI.
-    var title: String {
-        switch self {
-        case .normalized: return "Normalized"
-        case .exact:      return "Exact"
-        }
-    }
-
-    func localizedTitle(locale: Locale) -> String {
-        switch self {
-        case .normalized: return AppLocalization.string("Normalized", locale: locale)
-        case .exact:      return AppLocalization.string("Exact", locale: locale)
-        }
-    }
-}
-
-/// Controls when the canonical answer becomes visible after checking.
-nonisolated enum WriteRevealTiming: String, Codable, CaseIterable, Identifiable, Sendable {
-    case afterCheck
-    case manualReveal
-
-    var id: String { rawValue }
-
-    /// Human-readable option label shown in the settings UI.
-    var title: String {
-        switch self {
-        case .afterCheck:   return "After Check"
-        case .manualReveal: return "Manual Reveal"
-        }
-    }
-
-    func localizedTitle(locale: Locale) -> String {
-        switch self {
-        case .afterCheck:   return AppLocalization.string("After Check", locale: locale)
-        case .manualReveal: return AppLocalization.string("Manual Reveal", locale: locale)
-        }
-    }
-}
-
-/// Write runtime preferences persisted per deck.
-nonisolated struct WriteModeSettings: Codable, Equatable, Sendable {
-    var inputMode: WriteAnswerInputMode = .auto
-    var strictness: WriteAnswerStrictness = .normalized
-    var revealTiming: WriteRevealTiming = .afterCheck
-    var retryIncorrectPrompts: Bool = true
-}
-
 // MARK: - Learn Settings
 
 /// Controls how the Learn report groups its sections.
@@ -552,12 +396,6 @@ final class DeckPlayModeSettingsModel {
     private var quizSettingsData: Data
 
     @Attribute(.externalStorage)
-    private var matchSettingsData: Data
-
-    @Attribute(.externalStorage)
-    private var writeSettingsData: Data
-
-    @Attribute(.externalStorage)
     private var learnSettingsData: Data
 
     /// The date these settings were last changed.
@@ -571,12 +409,6 @@ final class DeckPlayModeSettingsModel {
 
     /// The most recent time this deck launched Learn.
     var learnLastUsedAt: Date?
-
-    /// The most recent time this deck launched Match.
-    var matchLastUsedAt: Date?
-
-    /// The most recent time this deck launched Write.
-    var writeLastUsedAt: Date?
 
     // MARK: - Relationships
 
@@ -615,36 +447,6 @@ final class DeckPlayModeSettingsModel {
         }
     }
 
-    /// Match settings decoded from the persistent payload blob.
-    var matchSettings: MatchModeSettings {
-        get {
-            Self.decode(
-                MatchModeSettings.self,
-                from: matchSettingsData,
-                defaultValue: MatchModeSettings()
-            )
-        }
-        set {
-            matchSettingsData = Self.encode(newValue)
-            updatedAt = Date()
-        }
-    }
-
-    /// Write settings decoded from the persistent payload blob.
-    var writeSettings: WriteModeSettings {
-        get {
-            Self.decode(
-                WriteModeSettings.self,
-                from: writeSettingsData,
-                defaultValue: WriteModeSettings()
-            )
-        }
-        set {
-            writeSettingsData = Self.encode(newValue)
-            updatedAt = Date()
-        }
-    }
-
     /// Learn settings decoded from the persistent payload blob.
     var learnSettings: LearnModeSettings {
         get {
@@ -665,15 +467,11 @@ final class DeckPlayModeSettingsModel {
     init(deck: DeckModel? = nil) {
         self.flashcardSettingsData = Self.encode(FlashcardModeSettings())
         self.quizSettingsData = Self.encode(QuizModeSettings())
-        self.matchSettingsData = Self.encode(MatchModeSettings())
-        self.writeSettingsData = Self.encode(WriteModeSettings())
         self.learnSettingsData = Self.encode(LearnModeSettings())
         self.updatedAt = Date()
         self.flashcardsLastUsedAt = nil
         self.quizLastUsedAt = nil
         self.learnLastUsedAt = nil
-        self.matchLastUsedAt = nil
-        self.writeLastUsedAt = nil
         self.deck = deck
     }
 

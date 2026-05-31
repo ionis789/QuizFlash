@@ -75,13 +75,6 @@ struct CardDataSnapshot: Sendable {
     let activityHistory: DeckActivityHistorySummary
 }
 
-/// A sendable conversion-ready projection of a persisted card.
-nonisolated struct CardConversionSourceSnapshot: Codable, Equatable, Sendable {
-    let id: PersistentIdentifier
-    let kind: CardKind
-    let content: DraftCardContent
-}
-
 // MARK: - CardFetchActor
 
 /// A Swift actor that performs all card-related data fetches on a dedicated background context.
@@ -199,7 +192,6 @@ actor CardFetchActor {
                     id:                   card.persistentModelID,
                     kind:                 card.kind,
                     creationSource:       card.creationSource,
-                    conversionMetadata:   card.conversionMetadata,
                     cardNumber:           entry.cardNumber,
                     interval:             card.interval,
                     reviewHistoryIsEmpty: card.reviewHistory.isEmpty,
@@ -239,46 +231,6 @@ actor CardFetchActor {
         )
     }
 
-    /// Fetches full heterogeneous card payloads for a conversion run without
-    /// exposing live `CardModel` instances to the main actor.
-    func fetchConversionSources(
-        deckID: PersistentIdentifier,
-        cardIDs: [PersistentIdentifier]? = nil
-    ) -> [CardConversionSourceSnapshot] {
-        guard let deck = activeContext.model(for: deckID) as? DeckModel else {
-            return []
-        }
-
-        let deckCards = resolvedCards(for: deck, deckID: deckID)
-        let filteredCards: [CardModel]
-        if let cardIDs, !cardIDs.isEmpty {
-            let allowedIDs = Set(cardIDs)
-            filteredCards = deckCards.filter { allowedIDs.contains($0.persistentModelID) }
-        } else {
-            filteredCards = deckCards
-        }
-
-        let orderedCards = filteredCards
-            .map(CardConversionSortEntry.init(card:))
-            .sorted { lhs, rhs in
-                if lhs.cardNumber != rhs.cardNumber {
-                    return lhs.cardNumber < rhs.cardNumber
-                }
-                return lhs.createdAt < rhs.createdAt
-            }
-
-        let projected = orderedCards.map { entry in
-            let card = entry.card
-            return CardConversionSourceSnapshot(
-                id: card.persistentModelID,
-                kind: card.kind,
-                content: card.cardContent
-            )
-        }
-
-        flushContext()
-        return projected
-    }
 
     /// Resolves cards for the deck using the direct relationship first, then
     /// falls back to a whole-store scan when SwiftData returns an empty
@@ -343,18 +295,6 @@ actor CardFetchActor {
         init(card: CardModel) {
             self.card = card
             self.isPinned = card.isPinned
-            self.cardNumber = card.cardNumber
-            self.createdAt = card.createdAt
-        }
-    }
-
-    private struct CardConversionSortEntry {
-        let card: CardModel
-        let cardNumber: Int
-        let createdAt: Date
-
-        init(card: CardModel) {
-            self.card = card
             self.cardNumber = card.cardNumber
             self.createdAt = card.createdAt
         }

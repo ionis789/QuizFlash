@@ -90,7 +90,7 @@ Use this route for card-zone editing issues: caret placement, long-press selecti
 - Start with `Features/DeckEditor/ViewModels/DeckWorkspaceViewModel.swift`.
 - Add the narrowest AI files involved:
   - `Services/AI/AIFlashcardService.swift` for generation pipeline behavior
-  - `Services/AI/AIWorkspaceCoordinator.swift` for workspace conversion flows
+  - `Services/AI/AIWorkspaceCoordinator.swift` for workspace generation lifecycle and restore behavior
   - `Services/AI/AIGenerationState.swift` for state shape or diagnostics
 - Add `Features/DeckEditor/Views/DeckWorkspaceView.swift` only if the surfaced UI contract changes.
 - Read concurrency and SwiftData sections in `architecture.md` for task lifecycle or persistence changes.
@@ -98,7 +98,7 @@ Use this route for card-zone editing issues: caret placement, long-press selecti
 ### DeckView chrome or grid tweak
 
 - Start with `Features/DeckDetails/Views/DeckView.swift`, `Features/DeckDetails/Views/DeckCardGridView.swift`, or the touched component under `Features/DeckDetails/Components/`.
-- Add `Features/DeckDetails/ViewModels/DeckViewModel.swift` only if the change touches selection state, actions, mutations, conversion, or snapshot loading.
+- Add `Features/DeckDetails/ViewModels/DeckViewModel.swift` only if the change touches selection state, actions, mutations, or snapshot loading.
 - Read `architecture.md` only for `fullScreenSheet`, sticky chrome, long-scroll surfaces, or performance-sensitive grid behavior.
 
 ### DeckView mutation or behavior change

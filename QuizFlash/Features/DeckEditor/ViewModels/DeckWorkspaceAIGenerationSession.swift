@@ -110,7 +110,7 @@ extension DeckWorkspaceViewModel {
             try Task.checkCancellation()
             if aiGeneratedShortfallCount > 0 {
                 throw AIServiceError.unknown(
-                    "Generated \(aiGeneratedCardCount) Match card\(aiGeneratedCardCount == 1 ? "" : "s"). \(aiGeneratedShortfallCount) requested card\(aiGeneratedShortfallCount == 1 ? "" : "s") could not be completed from the available candidates."
+                    "Generated \(aiGeneratedCardCount) card\(aiGeneratedCardCount == 1 ? "" : "s"). \(aiGeneratedShortfallCount) requested card\(aiGeneratedShortfallCount == 1 ? "" : "s") could not be completed from the available candidates."
                 )
             }
             completeAIGeneration()
@@ -820,12 +820,6 @@ extension DeckWorkspaceViewModel {
                     """
                 )
             ]
-        case .match:
-            return [
-                AIFlashcard(matchPrompt: "Autorul separarii puterilor", matchAnswer: "Montesquieu"),
-                AIFlashcard(matchPrompt: "Lucrare-cheie a Iluminismului", matchAnswer: "Enciclopedia"),
-                AIFlashcard(matchPrompt: "Clasa sociala a Iluminismului", matchAnswer: "Burghezia")
-            ]
         case .quiz:
             return [
                 AIFlashcard(
@@ -857,17 +851,6 @@ extension DeckWorkspaceViewModel {
                     explanationZones: [
                         "Iluminismul valorizeaza ratiunea, stiinta si reforma sociala, nu conservarea oarba a vechilor structuri."
                     ]
-                )
-            ]
-        case .write:
-            return [
-                AIFlashcard(
-                    sourceText: "Iluminismul exprima increderea filozofilor secolului al XVIII-lea in ratiune si in puterea de a lumina omenirea prin stiinta si cultura.",
-                    omittedText: "ratiune"
-                ),
-                AIFlashcard(
-                    sourceText: "Montesquieu a sustinut principiul separarii puterilor in stat.",
-                    omittedText: "separarii puterilor"
                 )
             ]
         }

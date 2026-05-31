@@ -67,7 +67,7 @@ struct SettingsTextSizeView: View {
 
                         SettingsSectionCard(
                             title: "Card Content",
-                            subtitle: "Scales authored card text in the flashcard editor, preview, Flashcards, Match, Quiz, and Write modes without changing saved card data."
+                            subtitle: "Scales authored card text in the flashcard editor, preview, Flashcards, and Quiz without changing saved card data."
                         ) {
                             TextSizeScaleSliderPanel(
                                 icon: "rectangle.on.rectangle",
@@ -84,7 +84,7 @@ struct SettingsTextSizeView: View {
                         SettingsInfoCard(
                             icon: "slider.horizontal.3",
                             tint: .teal,
-                            text: "Deck-specific play mode settings still apply on top where they exist. For example, Match can keep its Small, Standard, Large, or Custom setting while this slider acts as the global content scale."
+                            text: "Deck-specific play mode settings still apply on top where they exist, while this slider acts as the global content scale."
                         )
                     }
                     .padding(.horizontal, UIConstants.Spacing.large)

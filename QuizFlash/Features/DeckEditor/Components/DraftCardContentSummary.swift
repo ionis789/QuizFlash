@@ -66,19 +66,6 @@ nonisolated struct DraftCardContentSummary: Equatable {
                 Self.section(title: Self.localized("Question"), symbol: "q.circle", zones: [content.frontZone]),
                 Self.section(title: Self.localized("Answer"), symbol: "a.circle", zones: [content.backZone])
             ]
-        case .match(let content):
-            sections = [
-                Self.section(
-                    title: Self.localized("Prompt"),
-                    symbol: "arrow.left.and.right.text.vertical",
-                    metrics: Self.metrics(for: content.prompt)
-                ),
-                Self.section(
-                    title: Self.localized("Answer"),
-                    symbol: "rectangle.2.swap",
-                    metrics: Self.metrics(for: content.answer)
-                )
-            ]
         case .quiz(let content):
             var resolvedSections = [
                 Self.section(title: Self.localized("Question"), symbol: "questionmark.bubble", zones: [content.questionZone]),
@@ -92,15 +79,6 @@ nonisolated struct DraftCardContentSummary: Equatable {
             }
 
             sections = resolvedSections
-        case .write(let content):
-            sections = [
-                Self.section(title: Self.localized("Prompt"), symbol: "pencil.line", zones: [content.sourceZone]),
-                Self.section(
-                    title: Self.localized("Blank"),
-                    symbol: "rectangle.and.pencil.and.ellipsis",
-                    metrics: Self.metrics(for: content.blankSelection.omittedText)
-                )
-            ]
         }
     }
 
@@ -167,9 +145,7 @@ nonisolated struct DraftCardContentSummary: Equatable {
 nonisolated struct DraftDeckContentSummary: Equatable {
     let cardCount: Int
     let flashcardCount: Int
-    let matchCount: Int
     let quizCount: Int
-    let writeCount: Int
     let filledContentBlockCount: Int
     let characterCount: Int
     let photoCount: Int
@@ -179,9 +155,7 @@ nonisolated struct DraftDeckContentSummary: Equatable {
 
     init(cards: [DraftCard]) {
         var flashcardCount = 0
-        var matchCount = 0
         var quizCount = 0
-        var writeCount = 0
         var filledContentBlockCount = 0
         var characterCount = 0
         var photoCount = 0
@@ -199,12 +173,8 @@ nonisolated struct DraftDeckContentSummary: Equatable {
             switch card.kind {
             case .flashcard:
                 flashcardCount += 1
-            case .match:
-                matchCount += 1
             case .quiz:
                 quizCount += 1
-            case .write:
-                writeCount += 1
             }
 
             switch card.creationSource {
@@ -217,9 +187,7 @@ nonisolated struct DraftDeckContentSummary: Equatable {
 
         self.cardCount = cards.count
         self.flashcardCount = flashcardCount
-        self.matchCount = matchCount
         self.quizCount = quizCount
-        self.writeCount = writeCount
         self.filledContentBlockCount = filledContentBlockCount
         self.characterCount = characterCount
         self.photoCount = photoCount

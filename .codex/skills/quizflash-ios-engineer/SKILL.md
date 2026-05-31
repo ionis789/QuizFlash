@@ -7,7 +7,7 @@ description: Project-specific engineering guide for QuizFlash, a SwiftUI flashca
 
 ## Overview
 
-Write and review code for QuizFlash using the repository's architecture rules instead of generic SwiftUI defaults. Optimize for the smallest safe context: start from the target file, load the paired owner file next, and pull longer references only when the task actually crosses those boundaries. Treat the standards in `references/architecture.md` as the target for new code even when older files still contain legacy patterns.
+Create and review code for QuizFlash using the repository's architecture rules instead of generic SwiftUI defaults. Optimize for the smallest safe context: start from the target file, load the paired owner file next, and pull longer references only when the task actually crosses those boundaries. Treat the standards in `references/architecture.md` as the target for new code even when older files still contain legacy patterns.
 
 QuizFlash no longer ships an exam-goals feature on Home. Treat `Home` as a study dashboard focused on calendar activity, recent decks, folders, and performance summaries. Do not introduce or preserve `ExamGoalModel`, exam-goal sheets, exam readiness widgets, or calendar exam markers unless the user explicitly asks to reintroduce that product area.
 
@@ -35,7 +35,7 @@ On iOS 17, do not reconfigure live blur/filter layers during scroll-driven updat
 
 Treat iOS 17.5 as the strict compatibility baseline for SwiftUI/UIKit presentation behavior. Do not assume behavior that works on iOS 18, iOS 26, or a physical newer-OS device is valid on iOS 17. Be especially conservative around `UIViewRepresentable` / `UIViewControllerRepresentable` hosted inside SwiftUI containers, custom sheets, masks/clips, `.compositingGroup()`, material/blur surfaces, gesture recognizers, and overlays. On iOS 17 these combinations can render correctly while hit-testing, scroll interaction, or gesture delivery is broken. When masking interactive hosted content, prefer UIKit-level clipping on the hosted view/controller or clip only non-interactive visual layers; avoid wrapping the whole interactive host in SwiftUI compositing + clip unless it has been verified on iOS 17.5.
 
-Use the current DeckEditor naming. `CardEditorView` is the router from `CardEditorDestination` into concrete editor surfaces. `FlashcardEditorView` owns the zone-based front/back flashcard editor. `QuizCardEditorView`, `MatchCardEditorView`, and `WriteCardEditorView` own their respective typed card authoring flows. Do not reintroduce pre-refactor create/add-card sheet aliases in new code, docs, logs, or comments.
+Use the current DeckEditor naming. `CardEditorView` is the router from `CardEditorDestination` into concrete editor surfaces. `FlashcardEditorView` owns the zone-based front/back flashcard editor, and `QuizCardEditorView` owns quiz authoring. Supported card creation and generation flows are limited to flashcards and quizzes unless the user explicitly asks to restore archived product areas.
 
 Default QuizFlash custom sheets to full-surface drag-dismiss. Do not restrict drag activation to a top strip unless the sheet contains interaction-heavy full-screen content that would become error-prone with full-height dismissal. For standard detail/configuration sheets, the user should be able to drag down from anywhere on the sheet.
 
@@ -152,7 +152,7 @@ For zone editor bugs, start with the route in `references/task-routing.md` befor
    - Prefer denormalized counters over relationship `.count`.
    - Route heavy card-content reads through `CardFetchActor`.
    - Save mutations explicitly and surface failures.
-4. Match the project's UI system before changing presentation code.
+4. Follow the project's UI system before changing presentation code.
    - Use `UIConstants` tokens instead of magic numbers.
    - Prefer semantic colors and existing theme plumbing.
    - Prefer shared design-system modifiers and components such as `widgetStyle`, `glassButton`, shared rings, and existing chrome containers over ad-hoc overlays, borders, shadows, or custom surface treatments.

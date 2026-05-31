@@ -16,7 +16,7 @@ Optimize every generated field for:
 
 ## Shared Mobile Rules
 
-These rules apply to Flash Cards, Match Cards, Quiz Cards, and Write Cards.
+These rules apply to Flash Cards and Quiz Cards.
 
 - Put one idea on each card. Split overloaded material into more cards instead of one dense card.
 - Prefer short sentences and clean semantic zones over long paragraphs.
@@ -38,16 +38,6 @@ Use this budget for classic question/answer cards:
 - Code should be 1-4 short lines. Avoid full programs.
 - Formulas should be short and readable on a narrow card. Split wide formulas or multi-step derivations.
 
-## Match Cards
-
-Use this budget for two-column matching cards:
-
-- `prompt` and `answer` must each fit as a compact tile label.
-- Target one short line when possible; two short lines is acceptable for exact terms or notation.
-- No markdown emphasis unless it is part of essential code/math notation.
-- No lists, explanations, semicolon chains, examples, or sentence-length definitions.
-- Prefer exact term -> counterpart pairs that can be recognized in about one second.
-
 ## Quiz Cards
 
 Use this budget for multiple-choice cards:
@@ -57,16 +47,6 @@ Use this budget for multiple-choice cards:
 - Avoid choices that wrap into very uneven multi-line blocks unless exact terminology requires it.
 - `explanation_zones` should be 1-2 brief zones that justify the answer without restating the whole question.
 - If a quiz item needs a long setup, split the source into simpler quiz cards.
-
-## Write Cards
-
-Use this budget for single-blank recall cards:
-
-- `source_text` should be one compact prompt sentence or a short formula/code line with one blank target.
-- `omitted_text` should be the shortest exact span that still tests meaningful recall.
-- Avoid blanking a long clause, full paragraph, or multiple unrelated terms.
-- The learner should be able to understand the prompt at phone size before typing.
-- For formulas/code, omit one meaningful symbol, term, operator, identifier, or short expression.
 
 ## JSON Safety
 
@@ -83,6 +63,6 @@ Before returning final JSON, review every card:
 1. Would this fit on an iPhone card at large font size?
 2. Is the front/stem/source prompt short enough to scan quickly?
 3. Is the answer/explanation split if it teaches too many ideas?
-4. Are choices or Match labels compact and comparable?
+4. Are choices compact and comparable?
 5. Are code/math/special symbols preserved safely?
 6. Is the output valid app-compatible JSON with no unsupported layout fields?

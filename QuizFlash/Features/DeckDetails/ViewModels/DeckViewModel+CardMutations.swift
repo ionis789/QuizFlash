@@ -62,7 +62,6 @@ extension DeckViewModel {
                     isPinned: newPinnedState,
                     editedAt: now
                 )
-                readinessSummary = CardReadinessDiagnostics.deckSurfaceSummary(for: allCardInfos)
                 performGrouping(on: allCardInfos)
             }
 
@@ -97,7 +96,6 @@ extension DeckViewModel {
 
             allCardInfos.removeAll { $0.id == id }
             progressStats = computeProgressStats(from: allCardInfos, deckCardCount: nil)
-            readinessSummary = CardReadinessDiagnostics.deckSurfaceSummary(for: allCardInfos)
             performGrouping(on: allCardInfos)
             selectedCards.remove(id)
 
@@ -218,7 +216,6 @@ extension DeckViewModel {
 
             allCardInfos.removeAll { idsToDelete.contains($0.id) }
             progressStats = computeProgressStats(from: allCardInfos, deckCardCount: nil)
-            readinessSummary = CardReadinessDiagnostics.deckSurfaceSummary(for: allCardInfos)
             performGrouping(on: allCardInfos)
 
             let deckID = deck.persistentModelID

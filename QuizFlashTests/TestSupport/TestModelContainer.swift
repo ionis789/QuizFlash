@@ -72,37 +72,17 @@ enum TestMutationFactory {
         )
     }
 
-    static func write(prompt: String, answer: String) -> DraftCardContent {
-        let zone = ZoneModel.text(prompt)
-        return .write(
-            WriteCardContent(
-                sourceZone: zone,
-                blankSelection: .init(
-                    zoneID: zone.id,
-                    utf16Range: 0..<max(answer.utf16.count, 1),
-                    omittedText: answer
-                )
-            )
-        )
-    }
-
-    static func match(prompt: String, answer: String) -> DraftCardContent {
-        .match(MatchCardContent(prompt: prompt, answer: answer))
-    }
-
     static func makePersistedCard(
         content: DraftCardContent,
         cardNumber: Int,
         isPinned: Bool = false,
-        creationSource: CardCreationSource = .manual,
-        conversionMetadata: CardConversionMetadata? = nil
+        creationSource: CardCreationSource = .manual
     ) -> CardModel {
         CardModel(
             content: content,
             cardNumber: cardNumber,
             isPinned: isPinned,
-            creationSource: creationSource,
-            conversionMetadata: conversionMetadata
+            creationSource: creationSource
         )
     }
 }

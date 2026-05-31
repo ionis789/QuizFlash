@@ -17,15 +17,10 @@ typeset -a ALL_SUITES=(
   "AIJobSessionStoreTests"
   "AIGenerationSessionStoreTests"
   "AIWorkspaceCoordinatorTests"
-  "MatchConversionPipelineTests"
-  "MatchPromptingTests"
   "DeckWorkspaceViewModelTests"
-  "MatchQualityAndReadinessTests"
   "HomeViewModelTests"
   "LibraryViewModelMutationTests"
   "DeckViewModelMutationTests"
-  "DeckCardConversionRequestTests"
-  "DeckConversionPersistenceTests"
   "DeckPlayModeSettingsStoreTests"
   "PlaySessionPersistenceServiceTests"
   "DeckSharingManagerTests"
@@ -37,19 +32,14 @@ typeset -a CATEGORY_AI_SUITES=(
   "AIJobSessionStoreTests"
   "AIGenerationSessionStoreTests"
   "AIWorkspaceCoordinatorTests"
-  "MatchConversionPipelineTests"
-  "MatchPromptingTests"
 )
 
 typeset -a CATEGORY_AUTHORING_SUITES=(
   "DeckWorkspaceViewModelTests"
-  "MatchQualityAndReadinessTests"
 )
 
 typeset -a CATEGORY_DECKS_SUITES=(
   "DeckViewModelMutationTests"
-  "DeckCardConversionRequestTests"
-  "DeckConversionPersistenceTests"
 )
 
 typeset -a CATEGORY_HOME_SUITES=(
@@ -126,9 +116,9 @@ print_suites() {
 
 print_categories() {
   cat <<'EOF'
-ai: AIProviderStoreTests, AIJobSessionStoreTests, AIGenerationSessionStoreTests, AIWorkspaceCoordinatorTests, MatchConversionPipelineTests, MatchPromptingTests
-authoring: DeckWorkspaceViewModelTests, MatchQualityAndReadinessTests
-decks: DeckViewModelMutationTests, DeckCardConversionRequestTests, DeckConversionPersistenceTests
+ai: AIProviderStoreTests, AIJobSessionStoreTests, AIGenerationSessionStoreTests, AIWorkspaceCoordinatorTests
+authoring: DeckWorkspaceViewModelTests
+decks: DeckViewModelMutationTests
 home: HomeViewModelTests
 library: LibraryViewModelMutationTests
 play: DeckPlayModeSettingsStoreTests, PlaySessionPersistenceServiceTests

@@ -134,7 +134,7 @@ actor AIGenerationSessionStore {
         try await jobStore.saveImagesToDisk(images)
     }
 
-    /// Helper to convert saved image URLs back into `UIImage` instances.
+    /// Helper to load saved image URLs back into `UIImage` instances.
     func loadImagesFromDisk(at urls: [URL]) async -> [UIImage] {
         await jobStore.loadImagesFromDisk(at: urls)
     }

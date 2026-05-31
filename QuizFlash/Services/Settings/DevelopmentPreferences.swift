@@ -30,7 +30,7 @@ final class DevelopmentPreferences {
     private let userDefaults: UserDefaults
     @ObservationIgnored private var edgeShadowDebugSettingsPersistenceTask: Task<Void, Never>?
 
-    /// Enables verbose AI generation and conversion tracing for development builds.
+    /// Enables verbose AI generation tracing for development builds.
     var aiDebugTracingEnabled: Bool {
         didSet {
             userDefaults.set(

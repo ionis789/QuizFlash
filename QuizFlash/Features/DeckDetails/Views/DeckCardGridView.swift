@@ -175,7 +175,6 @@ struct DeckCardGridView: View {
     var onToggleSelection: (GridCardInfo) -> Void
     var onTapCard: (GridCardInfo) -> Void
     var onEditCard: (GridCardInfo) -> Void
-    var onConvertCard: (GridCardInfo) -> Void
     var onTogglePinned: (GridCardInfo) -> Void
     var onDeleteCard: (GridCardInfo) -> Void
 
@@ -235,7 +234,6 @@ struct DeckCardGridView: View {
             onToggleSelection: onToggleSelection,
             onTapCard: onTapCard,
             onEditCard: onEditCard,
-            onConvertCard: onConvertCard,
             onTogglePinned: onTogglePinned,
             onDeleteCard: onDeleteCard
         )
@@ -328,7 +326,6 @@ private struct DeckGridCardCell: View {
     let onToggleSelection: (GridCardInfo) -> Void
     let onTapCard: (GridCardInfo) -> Void
     let onEditCard: (GridCardInfo) -> Void
-    let onConvertCard: (GridCardInfo) -> Void
     let onTogglePinned: (GridCardInfo) -> Void
     let onDeleteCard: (GridCardInfo) -> Void
     @State private var cardSize: CGSize = .zero
@@ -379,10 +376,6 @@ private struct DeckGridCardCell: View {
             rows.append(.init(label: localized("Pinned"), value: localized("Yes")))
         }
 
-        if card.isConverted {
-            rows.append(.init(label: localized("Converted"), value: localized("Yes")))
-        }
-
         if isSuspended {
             rows.append(.init(label: localized("Status"), value: localized("Suspended")))
         }
@@ -405,13 +398,6 @@ private struct DeckGridCardCell: View {
                 role: .normal
             ) {
                 onEditCard(card)
-            },
-            CustomContextMenuAction(
-                title: localized("Convert"),
-                systemImage: "arrow.triangle.2.circlepath",
-                role: .normal
-            ) {
-                onConvertCard(card)
             },
             CustomContextMenuAction(
                 title: localized("Delete"),
@@ -689,12 +675,8 @@ extension GridCardInfo {
         switch kind {
         case .flashcard:
             return "FLASH"
-        case .match:
-            return "MATCH"
         case .quiz:
             return "QUIZ"
-        case .write:
-            return "WRITE"
         }
     }
 
@@ -702,12 +684,8 @@ extension GridCardInfo {
         switch kind {
         case .flashcard:
             return .blue
-        case .match:
-            return .teal
         case .quiz:
             return .orange
-        case .write:
-            return .green
         }
     }
 
@@ -724,12 +702,8 @@ extension GridCardInfo {
         switch kind {
         case .flashcard:
             return localized("Flashcard")
-        case .match:
-            return localized("Match")
         case .quiz:
             return localized("Quiz")
-        case .write:
-            return localized("Write")
         }
     }
 
@@ -754,13 +728,6 @@ extension GridCardInfo {
         return "\(interval)d"
     }
 
-    var conversionDisplayTitle: String {
-        localized("Converted").uppercased(with: localizationLocale)
-    }
-
-    var conversionAccentColor: Color {
-        .teal
-    }
 }
 
 // =============================================================================

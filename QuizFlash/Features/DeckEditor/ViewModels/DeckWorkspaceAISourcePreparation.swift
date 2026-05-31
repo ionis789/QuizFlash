@@ -12,7 +12,7 @@ extension DeckWorkspaceViewModel {
     // MARK: - Workspace Seeding
 
     /// Re-seeds the editor so the Create tab can behave like a normal deck
-    /// editor even when the flow was entered from conversion workspace routing.
+    /// editor when the flow is restored from workspace routing.
     func seedEditorState(
         editingDeckID: PersistentIdentifier?,
         title: String,

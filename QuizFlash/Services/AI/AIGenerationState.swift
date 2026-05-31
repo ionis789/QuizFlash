@@ -4,7 +4,6 @@
 //
 
 import Foundation
-import SwiftData
 import SwiftUI
 
 // MARK: - AI Generation State
@@ -105,36 +104,28 @@ enum ExtractionMode: String, Sendable {
 /// Card-shape profile requested by the user for AI generation.
 public enum AICardGenerationType: String, CaseIterable, Identifiable, Codable, Sendable {
     case flashcards
-    case match
     case quiz
-    case write
 
     public var id: String { rawValue }
 
     nonisolated var title: String {
         switch self {
         case .flashcards: return "Flash Cards"
-        case .match: return "Match Cards"
         case .quiz: return "Quiz Cards"
-        case .write: return "Write Cards"
         }
     }
 
     nonisolated func localizedTitle(locale: Locale) -> String {
         switch self {
         case .flashcards: return AppLocalization.string("Flash Cards", locale: locale)
-        case .match: return AppLocalization.string("Match Cards", locale: locale)
         case .quiz: return AppLocalization.string("Quiz Cards", locale: locale)
-        case .write: return AppLocalization.string("Write Cards", locale: locale)
         }
     }
 
     nonisolated var subtitle: String {
         switch self {
         case .flashcards: return "Balanced active-recall question and answer cards."
-        case .match: return "Short, pairable prompts and crisp matching answers."
         case .quiz: return "Multiple-choice prompts with one or more correct answers."
-        case .write: return "Single-blank recall prompts with exact omitted answers."
         }
     }
 
@@ -142,21 +133,15 @@ public enum AICardGenerationType: String, CaseIterable, Identifiable, Codable, S
         switch self {
         case .flashcards:
             return AppLocalization.string("Balanced active-recall question and answer cards.", locale: locale)
-        case .match:
-            return AppLocalization.string("Short, pairable prompts and crisp matching answers.", locale: locale)
         case .quiz:
             return AppLocalization.string("Multiple-choice prompts with one or more correct answers.", locale: locale)
-        case .write:
-            return AppLocalization.string("Single-blank recall prompts with exact omitted answers.", locale: locale)
         }
     }
 
     nonisolated var systemImage: String {
         switch self {
         case .flashcards: return "rectangle.stack.fill"
-        case .match: return "square.grid.2x2.fill"
         case .quiz: return "questionmark.square.dashed"
-        case .write: return "pencil.and.scribble"
         }
     }
 
@@ -165,12 +150,8 @@ public enum AICardGenerationType: String, CaseIterable, Identifiable, Codable, S
         switch self {
         case .flashcards:
             return .flashcard
-        case .match:
-            return .match
         case .quiz:
             return .quiz
-        case .write:
-            return .write
         }
     }
 }
@@ -506,9 +487,7 @@ public nonisolated struct AIGenerationOptions: Equatable, Codable, Sendable {
 /// The concrete response schema requested from the AI service.
 public enum AIGeneratedCardContract: String, Codable, Sendable {
     case flashcard
-    case match
     case quiz
-    case write
 }
 
 /// AI payload for a classic flashcard response.
@@ -546,43 +525,17 @@ public struct AIQuizCardContent: Codable, Equatable, Sendable {
     }
 }
 
-/// AI payload for one compact prompt-answer pair in match mode.
-public struct AIMatchCardContent: Codable, Equatable, Sendable {
-    public let prompt: String
-    public let answer: String
-
-    public init(prompt: String, answer: String) {
-        self.prompt = prompt
-        self.answer = answer
-    }
-}
-
-/// AI payload for a single-blank write response.
-public struct AIWriteCardContent: Codable, Equatable, Sendable {
-    public let sourceText: String
-    public let omittedText: String
-
-    public init(sourceText: String, omittedText: String) {
-        self.sourceText = sourceText
-        self.omittedText = omittedText
-    }
-}
-
 /// Heterogeneous AI card payload mirroring the manual editor content families.
 public enum AIGeneratedCardContent: Equatable, Sendable {
     case flashcard(AIFlashcardContent)
-    case match(AIMatchCardContent)
     case quiz(AIQuizCardContent)
-    case write(AIWriteCardContent)
 }
 
 extension AIGeneratedCardContent: Codable {
     enum CodingKeys: String, CodingKey {
         case contract
         case flashcard
-        case match
         case quiz
-        case write
     }
 
     public init(from decoder: Decoder) throws {
@@ -592,12 +545,8 @@ extension AIGeneratedCardContent: Codable {
         switch contract {
         case .flashcard:
             self = .flashcard(try container.decode(AIFlashcardContent.self, forKey: .flashcard))
-        case .match:
-            self = .match(try container.decode(AIMatchCardContent.self, forKey: .match))
         case .quiz:
             self = .quiz(try container.decode(AIQuizCardContent.self, forKey: .quiz))
-        case .write:
-            self = .write(try container.decode(AIWriteCardContent.self, forKey: .write))
         }
     }
 
@@ -608,12 +557,8 @@ extension AIGeneratedCardContent: Codable {
         switch self {
         case .flashcard(let content):
             try container.encode(content, forKey: .flashcard)
-        case .match(let content):
-            try container.encode(content, forKey: .match)
         case .quiz(let content):
             try container.encode(content, forKey: .quiz)
-        case .write(let content):
-            try container.encode(content, forKey: .write)
         }
     }
 }
@@ -624,12 +569,8 @@ extension AIGeneratedCardContent {
         switch self {
         case .flashcard:
             return .flashcard
-        case .match:
-            return .match
         case .quiz:
             return .quiz
-        case .write:
-            return .write
         }
     }
 
@@ -638,12 +579,8 @@ extension AIGeneratedCardContent {
         switch self {
         case .flashcard(let content):
             return content.questionZones.joined(separator: " / ")
-        case .match(let content):
-            return content.prompt
         case .quiz(let content):
             return content.questionZones.joined(separator: " / ")
-        case .write(let content):
-            return content.sourceText
         }
     }
 }
@@ -692,26 +629,6 @@ public struct AIFlashcard: Identifiable, Codable, Sendable {
         )
     }
 
-    /// Convenience initializer for dedicated match outputs.
-    public init(id: UUID = UUID(), matchPrompt: String, matchAnswer: String) {
-        self.init(
-            id: id,
-            content: .match(
-                AIMatchCardContent(prompt: matchPrompt, answer: matchAnswer)
-            )
-        )
-    }
-
-    /// Convenience initializer for write outputs.
-    public init(id: UUID = UUID(), sourceText: String, omittedText: String) {
-        self.init(
-            id: id,
-            content: .write(
-                AIWriteCardContent(sourceText: sourceText, omittedText: omittedText)
-            )
-        )
-    }
-
     /// The concrete AI contract carried by this generated card.
     public var outputContract: AIGeneratedCardContract {
         content.contract
@@ -743,49 +660,19 @@ public struct AIFlashcardBatchChunk: Sendable {
     public let plannedCardCount: Int
     public let shortfallCount: Int
     public let sourceLabel: String
-    let matchDiagnostics: AIFlashcardService.MatchAIBatchDiagnostics?
 
     init(
         cards: [AIFlashcard],
         allocationID: UUID?,
         plannedCardCount: Int,
         shortfallCount: Int = 0,
-        sourceLabel: String,
-        matchDiagnostics: AIFlashcardService.MatchAIBatchDiagnostics? = nil
+        sourceLabel: String
     ) {
         self.cards = cards
         self.allocationID = allocationID
         self.plannedCardCount = plannedCardCount
         self.shortfallCount = shortfallCount
         self.sourceLabel = sourceLabel
-        self.matchDiagnostics = matchDiagnostics
-    }
-}
-
-/// One emitted AI conversion batch with enough metadata to persist results
-/// progressively while still reporting shortfalls precisely.
-nonisolated struct AIConversionBatchChunk: Sendable {
-    let outputs: [AICardConversionOutput]
-    let plannedSourceIDs: [PersistentIdentifier]
-    let plannedCardCount: Int
-    let shortfallCount: Int
-    let sourceLabel: String
-    let matchDiagnostics: AIFlashcardService.MatchAIBatchDiagnostics?
-
-    init(
-        outputs: [AICardConversionOutput],
-        plannedSourceIDs: [PersistentIdentifier],
-        plannedCardCount: Int,
-        shortfallCount: Int = 0,
-        sourceLabel: String,
-        matchDiagnostics: AIFlashcardService.MatchAIBatchDiagnostics? = nil
-    ) {
-        self.outputs = outputs
-        self.plannedSourceIDs = plannedSourceIDs
-        self.plannedCardCount = plannedCardCount
-        self.shortfallCount = shortfallCount
-        self.sourceLabel = sourceLabel
-        self.matchDiagnostics = matchDiagnostics
     }
 }
 

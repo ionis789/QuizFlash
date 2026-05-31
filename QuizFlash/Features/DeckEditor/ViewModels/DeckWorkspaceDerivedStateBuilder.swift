@@ -129,7 +129,6 @@ extension DeckWorkspaceViewModel {
             content: card.cardContent,
             isPinned: card.isPinned,
             creationSource: card.creationSource,
-            conversionMetadata: card.conversionMetadata,
             createdAt: card.createdAt,
             editedAt: card.editedAt
         )

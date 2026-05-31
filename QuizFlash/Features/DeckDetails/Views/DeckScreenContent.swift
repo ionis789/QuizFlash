@@ -30,9 +30,6 @@ extension DeckContentView {
                                 viewModel.clearSelection()
                             }
                         },
-                        onConvert: {
-                            presentSelectionConversion()
-                        },
                         onDelete: { viewModel.showDeleteConfirmation = true }
                     )
                 }
@@ -118,10 +115,7 @@ extension DeckContentView {
             DeckCardPreviewSheetView(
                 card: card,
                 flashcardSettings: deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings(),
-                safeAreaInsets: safeArea,
-                onOpenRecommendedConversion: { targetKind in
-                    handlePreviewRecommendedConversion(for: card, targetKind: targetKind)
-                }
+                safeAreaInsets: safeArea
             )
         } background: {
             if case .flashcard = previewedCard?.cardContent {
@@ -201,7 +195,6 @@ extension DeckContentView {
                     viewModel.enterSelectionMode()
                 }
             },
-            onConvert: { presentDeckConversion() },
             onExport: {
                 exitSelectionModeForExternalAction()
                 viewModel.exportDeck(deck)
@@ -340,9 +333,6 @@ extension DeckContentView {
                                 viewModel.presentActivityHistorySheet()
                             }
                         )
-                        DeckReadinessDiagnosticsView(
-                            summary: viewModel.readinessSummary
-                        )
                         DeckPlayModesView(
                             deck: deck,
                             availability: viewModel.playModeAvailability,
@@ -385,7 +375,6 @@ extension DeckContentView {
                         }
                     },
                     onEditCard: handleEditCard(_:),
-                    onConvertCard: handleConvertCard(_:),
                     onTogglePinned: handleTogglePinned(_:),
                     onDeleteCard: handleDeleteCard(_:)
                 )

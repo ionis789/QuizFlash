@@ -184,7 +184,6 @@ struct SharedUICatalogView: View {
                 onToggleSelection: { _ in },
                 onTapCard: { _ in },
                 onEditCard: { _ in },
-                onConvertCard: { _ in },
                 onTogglePinned: { _ in },
                 onDeleteCard: { _ in }
             )

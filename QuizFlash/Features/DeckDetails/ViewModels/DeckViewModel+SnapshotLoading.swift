@@ -72,7 +72,6 @@ extension DeckViewModel {
         todayActivitySummary = snapshot.todayActivity
         activityHistorySummary = snapshot.activityHistory
         playModeAvailability = buildPlayModeAvailability(from: snapshot.gridCards)
-        readinessSummary = CardReadinessDiagnostics.deckSurfaceSummary(for: snapshot.gridCards)
         performGrouping(on: snapshot.gridCards)
     }
 
@@ -81,9 +80,7 @@ extension DeckViewModel {
         PlayModeCardAvailability(
             totalCards: cards.count,
             flashcardCards: cards.filter { $0.kind == .flashcard }.count,
-            matchCards: cards.filter { $0.kind == .match }.count,
-            quizCards: cards.filter { $0.kind == .quiz }.count,
-            writeCards: cards.filter { $0.kind == .write }.count
+            quizCards: cards.filter { $0.kind == .quiz }.count
         )
     }
 

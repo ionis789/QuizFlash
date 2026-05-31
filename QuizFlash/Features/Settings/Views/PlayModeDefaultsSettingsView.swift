@@ -2,7 +2,7 @@
 //  PlayModeDefaultsSettingsView.swift
 //  QuizFlash
 //
-//  App-wide defaults for the four interactive play modes.
+//  App-wide defaults for the supported play modes.
 //
 
 import SwiftUI
@@ -14,8 +14,6 @@ private let kPlayModeDefaultsChromeSpace = "PlayModeDefaultsChromeSpace"
 enum SettingsStudyModeKind: String, CaseIterable, Identifiable {
     case flashcards
     case quiz
-    case match
-    case write
 
     var id: String { rawValue }
 
@@ -25,10 +23,6 @@ enum SettingsStudyModeKind: String, CaseIterable, Identifiable {
             return "Flashcards"
         case .quiz:
             return "Quiz"
-        case .match:
-            return "Match"
-        case .write:
-            return "Write"
         }
     }
 
@@ -38,10 +32,6 @@ enum SettingsStudyModeKind: String, CaseIterable, Identifiable {
             return "rectangle.on.rectangle"
         case .quiz:
             return "checklist"
-        case .match:
-            return "square.grid.2x2.fill"
-        case .write:
-            return "square.and.pencil"
         }
     }
 
@@ -51,10 +41,6 @@ enum SettingsStudyModeKind: String, CaseIterable, Identifiable {
             return .cyan
         case .quiz:
             return .orange
-        case .match:
-            return .pink
-        case .write:
-            return .green
         }
     }
 
@@ -64,10 +50,6 @@ enum SettingsStudyModeKind: String, CaseIterable, Identifiable {
             return "Control flashcard session chrome, swipe feedback, and long-review comfort."
         case .quiz:
             return "Tune quiz pacing, progress visibility, and answer target size across decks."
-        case .match:
-            return "Set the global feel for round starts, feedback intensity, and motion in board play."
-        case .write:
-            return "Shape how answer fields behave so write sessions stay fast and keyboard-friendly."
         }
     }
 
@@ -77,10 +59,6 @@ enum SettingsStudyModeKind: String, CaseIterable, Identifiable {
             return AppLocalization.string("Flashcards", locale: locale)
         case .quiz:
             return AppLocalization.string("Quiz", locale: locale)
-        case .match:
-            return AppLocalization.string("Match", locale: locale)
-        case .write:
-            return AppLocalization.string("Write", locale: locale)
         }
     }
 
@@ -92,14 +70,6 @@ enum SettingsStudyModeKind: String, CaseIterable, Identifiable {
             )
         case .quiz:
             return AppLocalization.string("Tune quiz pacing, progress visibility, and answer target size across decks.",
-                locale: locale
-            )
-        case .match:
-            return AppLocalization.string("Set the global feel for round starts, feedback intensity, and motion in board play.",
-                locale: locale
-            )
-        case .write:
-            return AppLocalization.string("Shape how answer fields behave so write sessions stay fast and keyboard-friendly.",
                 locale: locale
             )
         }
@@ -148,10 +118,6 @@ struct PlayModeDefaultsSettingsView: View {
                             flashcardsContent
                         case .quiz:
                             quizContent
-                        case .match:
-                            matchContent
-                        case .write:
-                            writeContent
                         }
 
                         SettingsInfoCard(
@@ -275,117 +241,6 @@ struct PlayModeDefaultsSettingsView: View {
         }
     }
 
-    private var matchContent: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-            SettingsSectionCard(
-                title: "Round Starts",
-                subtitle: "These defaults shape how Match sessions prepare users before the board becomes active."
-            ) {
-                SettingsToggleRow(
-                    icon: "timer",
-                    tint: .pink,
-                    title: "Show Round Countdown",
-                    detail: "Display a short ready-set-go countdown before each board so starts feel deliberate instead of abrupt.",
-                    isOn: matchShowsRoundCountdownBinding
-                )
-            }
-
-            SettingsSectionCard(
-                title: "Feedback & Motion",
-                subtitle: "These defaults govern the sensory intensity of Match mode so players can choose speed or calmness."
-            ) {
-                SettingsMenuPickerRow(
-                    icon: "textformat.size",
-                    tint: .pink,
-                    title: "Card Font Size",
-                    detail: "Change how large Match cards render their preview content on the board.",
-                    selection: matchCardFontSizeBinding,
-                    options: AppMatchCardFontSizePreference.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                if appPreferences.matchCardFontSize == .custom {
-                    SettingsCardDivider()
-
-                    SettingsSliderRow(
-                        icon: "slider.horizontal.3",
-                        tint: .pink,
-                        title: "Custom Size",
-                        detail: "Set the base text size in pixels for Match card content.",
-                        valueSuffix: "px",
-                        range: 14...34,
-                        step: 1,
-                        value: matchCustomCardFontSizePixelsBinding
-                    )
-                }
-
-                SettingsCardDivider()
-
-                SettingsMenuPickerRow(
-                    icon: "waveform.path",
-                    tint: .orange,
-                    title: "Match Haptics",
-                    detail: "Set the default tactile strength for correct pairs, misses, and round transitions.",
-                    selection: matchHapticsBinding,
-                    options: AppStudyHapticsPreference.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                SettingsCardDivider()
-
-                SettingsToggleRow(
-                    icon: "figure.walk.motion",
-                    tint: .teal,
-                    title: "Reduce Board Motion",
-                    detail: "Prefer calmer board transitions and less visual travel when Match mode animates swaps and resets.",
-                    isOn: matchUsesReducedMotionBinding
-                )
-            }
-        }
-    }
-
-    private var writeContent: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-            SettingsSectionCard(
-                title: "Input Flow",
-                subtitle: "These defaults keep Write mode efficient when users move between prompts on phones and iPads."
-            ) {
-                SettingsToggleRow(
-                    icon: "cursorarrow.rays",
-                    tint: .green,
-                    title: "Auto-focus Answer Field",
-                    detail: "Place the cursor into the answer field as soon as a new write prompt loads.",
-                    isOn: writeAutoFocusBinding
-                )
-
-                SettingsCardDivider()
-
-                SettingsToggleRow(
-                    icon: "keyboard",
-                    tint: .mint,
-                    title: "Keep Keyboard Visible",
-                    detail: "Hold the keyboard between prompts so repeated recall feels continuous instead of stop-start.",
-                    isOn: writeKeepsKeyboardVisibleBinding
-                )
-            }
-
-            SettingsSectionCard(
-                title: "Hinting",
-                subtitle: "These defaults control how much structural support Write mode gives before the answer is revealed."
-            ) {
-                SettingsToggleRow(
-                    icon: "textformat.abc",
-                    tint: .yellow,
-                    title: "Show Answer-length Hint",
-                    detail: "Expose the expected answer length or shape in supported write layouts when users need a little orientation.",
-                    isOn: writeShowsAnswerLengthHintBinding
-                )
-            }
-        }
-    }
-
     private var flashcardsProgressStyleBinding: Binding<AppStudySessionProgressStyle> {
         Binding(
             get: { appPreferences.flashcardsProgressStyle },
@@ -425,62 +280,6 @@ struct PlayModeDefaultsSettingsView: View {
         Binding(
             get: { appPreferences.quizUsesLargeChoiceButtons },
             set: { appPreferences.quizUsesLargeChoiceButtons = $0 }
-        )
-    }
-
-    private var matchShowsRoundCountdownBinding: Binding<Bool> {
-        Binding(
-            get: { appPreferences.matchShowsRoundCountdown },
-            set: { appPreferences.matchShowsRoundCountdown = $0 }
-        )
-    }
-
-    private var matchHapticsBinding: Binding<AppStudyHapticsPreference> {
-        Binding(
-            get: { appPreferences.matchHapticsPreference },
-            set: { appPreferences.matchHapticsPreference = $0 }
-        )
-    }
-
-    private var matchUsesReducedMotionBinding: Binding<Bool> {
-        Binding(
-            get: { appPreferences.matchUsesReducedMotion },
-            set: { appPreferences.matchUsesReducedMotion = $0 }
-        )
-    }
-
-    private var matchCardFontSizeBinding: Binding<AppMatchCardFontSizePreference> {
-        Binding(
-            get: { appPreferences.matchCardFontSize },
-            set: { appPreferences.matchCardFontSize = $0 }
-        )
-    }
-
-    private var matchCustomCardFontSizePixelsBinding: Binding<Double> {
-        Binding(
-            get: { appPreferences.matchCustomCardFontSizePixels },
-            set: { appPreferences.matchCustomCardFontSizePixels = $0 }
-        )
-    }
-
-    private var writeAutoFocusBinding: Binding<Bool> {
-        Binding(
-            get: { appPreferences.writeAutoFocusesAnswerField },
-            set: { appPreferences.writeAutoFocusesAnswerField = $0 }
-        )
-    }
-
-    private var writeKeepsKeyboardVisibleBinding: Binding<Bool> {
-        Binding(
-            get: { appPreferences.writeKeepsKeyboardVisibleBetweenPrompts },
-            set: { appPreferences.writeKeepsKeyboardVisibleBetweenPrompts = $0 }
-        )
-    }
-
-    private var writeShowsAnswerLengthHintBinding: Binding<Bool> {
-        Binding(
-            get: { appPreferences.writeShowsAnswerLengthHint },
-            set: { appPreferences.writeShowsAnswerLengthHint = $0 }
         )
     }
 

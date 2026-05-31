@@ -21,7 +21,7 @@ final class DeckWorkspaceViewModelTests: XCTestCase {
         viewModel.deckTitle = "  Biology  "
         viewModel.selectedFolder = folder
         viewModel.addCard(content: TestMutationFactory.flashcard(front: "Cell", back: "Basic unit"))
-        viewModel.addCard(content: TestMutationFactory.match(prompt: "ATP", answer: "Energy"))
+        viewModel.addCard(content: TestMutationFactory.quiz(question: "ATP stores?", correctAnswers: ["Energy"]))
 
         let didSave = viewModel.saveDeck(context: context)
 
@@ -40,7 +40,7 @@ final class DeckWorkspaceViewModelTests: XCTestCase {
         XCTAssertEqual(deck.cards.map(\.cardNumber).sorted(), [1, 2])
         XCTAssertEqual(
             deck.cards.map(\.cardContent.kind).sorted { $0.rawValue < $1.rawValue },
-            [.flashcard, .match].sorted { $0.rawValue < $1.rawValue }
+            [.flashcard, .quiz].sorted { $0.rawValue < $1.rawValue }
         )
     }
 
@@ -92,7 +92,7 @@ final class DeckWorkspaceViewModelTests: XCTestCase {
             content: TestMutationFactory.flashcard(front: "Edited Question", back: "Edited Answer")
         )
         viewModel.draftCards.removeAll { $0.cardNumber == 2 }
-        viewModel.addCard(content: TestMutationFactory.write(prompt: "Water formula", answer: "H2O"))
+        viewModel.addCard(content: TestMutationFactory.quiz(question: "Water formula?", correctAnswers: ["H2O"]))
 
         let didSave = viewModel.saveDeck(context: context)
         XCTAssertTrue(didSave)
@@ -108,7 +108,7 @@ final class DeckWorkspaceViewModelTests: XCTestCase {
         XCTAssertEqual(persistedCards.count, 2)
         XCTAssertEqual(persistedCards.map(\.cardNumber), [1, 3])
         XCTAssertEqual(persistedCards[0].cardContent.previewCache.front, "Edited Question")
-        XCTAssertEqual(persistedCards[1].cardContent.kind, .write)
+        XCTAssertEqual(persistedCards[1].cardContent.kind, .quiz)
     }
 
     func testDeleteDeckRemovesPersistedDeckAndUpdatesFolderCount() throws {
@@ -139,7 +139,7 @@ final class DeckWorkspaceViewModelTests: XCTestCase {
         let viewModel = DeckWorkspaceViewModel(deckToEdit: nil)
         viewModel.addCard(content: TestMutationFactory.flashcard(front: "One", back: "1"))
         viewModel.addCard(content: TestMutationFactory.flashcard(front: "Two", back: "2"))
-        viewModel.addCard(content: TestMutationFactory.write(prompt: "Three", answer: "3"))
+        viewModel.addCard(content: TestMutationFactory.quiz(question: "Three", correctAnswers: ["3"]))
 
         let selectedIDs = Set(viewModel.draftCards.prefix(2).map(\.id))
         viewModel.enterCardSelectionMode()
@@ -148,7 +148,7 @@ final class DeckWorkspaceViewModelTests: XCTestCase {
         viewModel.deleteSelectedCards()
 
         XCTAssertEqual(viewModel.draftCards.count, 1)
-        XCTAssertEqual(viewModel.draftCards.first?.content.kind, .write)
+        XCTAssertEqual(viewModel.draftCards.first?.content.kind, .quiz)
         XCTAssertFalse(viewModel.isSelectingCards)
         XCTAssertTrue(viewModel.selectedDraftCardIDs.isEmpty)
         XCTAssertFalse(viewModel.showDeleteSelectedCardsConfirmation)
@@ -178,7 +178,7 @@ final class DeckWorkspaceViewModelTests: XCTestCase {
 
         viewModel.deckTitle = "Changed"
         viewModel.selectedFolder = nil
-        viewModel.addCard(content: TestMutationFactory.match(prompt: "ATP", answer: "Energy"))
+        viewModel.addCard(content: TestMutationFactory.quiz(question: "ATP stores?", correctAnswers: ["Energy"]))
         viewModel.enterCardSelectionMode()
         viewModel.selectedDraftCardIDs = [originalDraftID]
         viewModel.requestDeleteSelectedCards()

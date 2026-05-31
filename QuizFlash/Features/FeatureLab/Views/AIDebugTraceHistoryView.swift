@@ -2,7 +2,7 @@
 //  AIDebugTraceHistoryView.swift
 //  QuizFlash
 //
-//  Development-only history browser for persisted AI generation and conversion traces.
+//  Development-only history browser for persisted AI generation traces.
 //
 
 import SwiftUI
@@ -38,7 +38,7 @@ struct AIDebugTraceHistoryView: View {
                         SettingsInfoCard(
                             icon: "waveform.and.magnifyingglass",
                             tint: .orange,
-                            text: "Open any run to inspect the full JSON trace for generation or conversion, including requests, raw responses, retries, malformed payloads, and decode steps."
+                            text: "Open any run to inspect the full JSON trace for generation, including requests, raw responses, retries, malformed payloads, and decode steps."
                         )
 
                         if isLoading {
@@ -54,7 +54,7 @@ struct AIDebugTraceHistoryView: View {
                                 title: "Runs",
                                 subtitle: "No trace runs have been recorded yet."
                             ) {
-                                Text("Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run.")
+                                Text("Enable verbose AI tracing, generate cards, then come back here to inspect the complete JSON history for each run.")
                                     .font(.subheadline.weight(.medium))
                                     .foregroundStyle(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -154,8 +154,6 @@ struct AIDebugTraceHistoryView: View {
         switch kind {
         case .generation:
             return "sparkles.rectangle.stack.fill"
-        case .conversion:
-            return "arrow.triangle.2.circlepath"
         case .utility:
             return "wrench.and.screwdriver.fill"
         }
@@ -165,8 +163,6 @@ struct AIDebugTraceHistoryView: View {
         switch kind {
         case .generation:
             return .orange
-        case .conversion:
-            return .blue
         case .utility:
             return .gray
         }

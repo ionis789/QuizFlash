@@ -41,11 +41,6 @@ extension DeckWorkspaceViewModel {
         cardEditorDestination = .create(kind: kind)
     }
 
-    /// Opens the editor in create mode prefilled from an existing draft card.
-    func presentCardConversionEditor(for draftCard: DraftCard, targetKind: CardKind) {
-        cardEditorDestination = .createFromDraft(kind: targetKind, sourceCard: draftCard)
-    }
-
     /// Opens the editor in edit mode for the selected draft card.
     func presentCardEditor(for draftCard: DraftCard) {
         cardEditorDestination = .edit(draftCard)
@@ -196,13 +191,11 @@ extension DeckWorkspaceViewModel {
                     let numberChanged = existing.cardNumber != draft.cardNumber
                     let pinChanged = existing.isPinned != draft.isPinned
                     let sourceChanged = existing.creationSource != draft.creationSource
-                    let conversionChanged = existing.conversionMetadata != draft.conversionMetadata
-                    if contentChanged || numberChanged || pinChanged || sourceChanged || conversionChanged {
+                    if contentChanged || numberChanged || pinChanged || sourceChanged {
                         existing.cardContent = draft.content
                         existing.cardNumber = draft.cardNumber
                         existing.isPinned = draft.isPinned
                         existing.creationSource = draft.creationSource
-                        existing.conversionMetadata = draft.conversionMetadata
                         existing.editedAt = Date()
                         cardsChanged = true
                     }
@@ -211,8 +204,7 @@ extension DeckWorkspaceViewModel {
                         content: draft.content,
                         cardNumber: draft.cardNumber,
                         isPinned: draft.isPinned,
-                        creationSource: draft.creationSource,
-                        conversionMetadata: draft.conversionMetadata
+                        creationSource: draft.creationSource
                     )
                     if let createdAt = draft.createdAt {
                         newCard.createdAt = createdAt
@@ -245,8 +237,7 @@ extension DeckWorkspaceViewModel {
                     content: draft.content,
                     cardNumber: draft.cardNumber,
                     isPinned: draft.isPinned,
-                    creationSource: draft.creationSource,
-                    conversionMetadata: draft.conversionMetadata
+                    creationSource: draft.creationSource
                 )
                 if let createdAt = draft.createdAt {
                     newCard.createdAt = createdAt

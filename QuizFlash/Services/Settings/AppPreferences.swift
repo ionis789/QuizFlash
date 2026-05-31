@@ -224,44 +224,6 @@ nonisolated enum AppStudyHapticsPreference: String, CaseIterable, Identifiable, 
     }
 }
 
-// MARK: - Match Card Font Size
-
-/// Controls how large Match board cards render their mini preview content.
-nonisolated enum AppMatchCardFontSizePreference: String, CaseIterable, Identifiable, Codable, Sendable {
-    case small
-    case standard
-    case large
-    case custom
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .small:
-            return "Small"
-        case .standard:
-            return "Standard"
-        case .large:
-            return "Large"
-        case .custom:
-            return "Custom"
-        }
-    }
-
-    func localizedTitle(locale: Locale) -> String {
-        switch self {
-        case .small:
-            return AppLocalization.string("Small", locale: locale)
-        case .standard:
-            return AppLocalization.string("Standard", locale: locale)
-        case .large:
-            return AppLocalization.string("Large", locale: locale)
-        case .custom:
-            return AppLocalization.string("Custom", locale: locale)
-        }
-    }
-}
-
 // MARK: - App Preferences Store
 
 /// Shared app preferences consumed by Home, Create Deck, and Settings surfaces.
@@ -286,14 +248,6 @@ final class AppPreferences {
         static let quizAutoAdvanceCorrectAnswers = "preferences.playMode.quiz.autoAdvanceCorrectAnswers"
         static let quizShowsQuestionProgress = "preferences.playMode.quiz.showsQuestionProgress"
         static let quizUsesLargeChoiceButtons = "preferences.playMode.quiz.usesLargeChoiceButtons"
-        static let matchShowsRoundCountdown = "preferences.playMode.match.showsRoundCountdown"
-        static let matchHapticsPreference = "preferences.playMode.match.hapticsPreference"
-        static let matchCardFontSize = "preferences.playMode.match.cardFontSize"
-        static let matchCustomCardFontSizePixels = "preferences.playMode.match.customCardFontSizePixels"
-        static let matchUsesReducedMotion = "preferences.playMode.match.usesReducedMotion"
-        static let writeAutoFocusesAnswerField = "preferences.playMode.write.autoFocusesAnswerField"
-        static let writeKeepsKeyboardVisibleBetweenPrompts = "preferences.playMode.write.keepsKeyboardVisibleBetweenPrompts"
-        static let writeShowsAnswerLengthHint = "preferences.playMode.write.showsAnswerLengthHint"
     }
 
     private let userDefaults: UserDefaults
@@ -457,92 +411,6 @@ final class AppPreferences {
         }
     }
 
-    /// Shows a short countdown before each match round when supported.
-    var matchShowsRoundCountdown: Bool {
-        didSet {
-            userDefaults.set(
-                matchShowsRoundCountdown,
-                forKey: Keys.matchShowsRoundCountdown
-            )
-        }
-    }
-
-    /// Preferred haptics level for match interactions.
-    var matchHapticsPreference: AppStudyHapticsPreference {
-        didSet {
-            userDefaults.set(
-                matchHapticsPreference.rawValue,
-                forKey: Keys.matchHapticsPreference
-            )
-        }
-    }
-
-    /// Preferred text scale for Match board cards.
-    var matchCardFontSize: AppMatchCardFontSizePreference {
-        didSet {
-            userDefaults.set(
-                matchCardFontSize.rawValue,
-                forKey: Keys.matchCardFontSize
-            )
-        }
-    }
-
-    /// Custom body-sized font in pixels used when Match card font size is set to Custom.
-    var matchCustomCardFontSizePixels: Double {
-        didSet {
-            let clamped = Self.clampedMatchCardFontSize(matchCustomCardFontSizePixels)
-            if abs(clamped - matchCustomCardFontSizePixels) > .ulpOfOne {
-                matchCustomCardFontSizePixels = clamped
-                return
-            }
-
-            userDefaults.set(
-                clamped,
-                forKey: Keys.matchCustomCardFontSizePixels
-            )
-        }
-    }
-
-    /// Reduces board motion in match mode when supported.
-    var matchUsesReducedMotion: Bool {
-        didSet {
-            userDefaults.set(
-                matchUsesReducedMotion,
-                forKey: Keys.matchUsesReducedMotion
-            )
-        }
-    }
-
-    /// Focuses the answer field automatically in write sessions when supported.
-    var writeAutoFocusesAnswerField: Bool {
-        didSet {
-            userDefaults.set(
-                writeAutoFocusesAnswerField,
-                forKey: Keys.writeAutoFocusesAnswerField
-            )
-        }
-    }
-
-    /// Keeps the keyboard visible between write prompts when supported.
-    var writeKeepsKeyboardVisibleBetweenPrompts: Bool {
-        didSet {
-            userDefaults.set(
-                writeKeepsKeyboardVisibleBetweenPrompts,
-                forKey: Keys.writeKeepsKeyboardVisibleBetweenPrompts
-            )
-        }
-    }
-
-    /// Shows answer-length hints in write mode when supported.
-    var writeShowsAnswerLengthHint: Bool {
-        didSet {
-            userDefaults.set(
-                writeShowsAnswerLengthHint,
-                forKey: Keys.writeShowsAnswerLengthHint
-            )
-        }
-    }
-
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.appLanguage = AppLanguagePreference(
@@ -587,30 +455,6 @@ final class AppPreferences {
         self.quizUsesLargeChoiceButtons = userDefaults.object(
             forKey: Keys.quizUsesLargeChoiceButtons
         ) as? Bool ?? false
-        self.matchShowsRoundCountdown = userDefaults.object(
-            forKey: Keys.matchShowsRoundCountdown
-        ) as? Bool ?? true
-        self.matchHapticsPreference = AppStudyHapticsPreference(
-            rawValue: userDefaults.string(forKey: Keys.matchHapticsPreference) ?? ""
-        ) ?? .standard
-        self.matchCardFontSize = AppMatchCardFontSizePreference(
-            rawValue: userDefaults.string(forKey: Keys.matchCardFontSize) ?? ""
-        ) ?? .standard
-        self.matchCustomCardFontSizePixels = Self.clampedMatchCardFontSize(
-            userDefaults.object(forKey: Keys.matchCustomCardFontSizePixels) as? Double ?? 22
-        )
-        self.matchUsesReducedMotion = userDefaults.object(
-            forKey: Keys.matchUsesReducedMotion
-        ) as? Bool ?? false
-        self.writeAutoFocusesAnswerField = userDefaults.object(
-            forKey: Keys.writeAutoFocusesAnswerField
-        ) as? Bool ?? true
-        self.writeKeepsKeyboardVisibleBetweenPrompts = userDefaults.object(
-            forKey: Keys.writeKeepsKeyboardVisibleBetweenPrompts
-        ) as? Bool ?? true
-        self.writeShowsAnswerLengthHint = userDefaults.object(
-            forKey: Keys.writeShowsAnswerLengthHint
-        ) as? Bool ?? true
         AppLocalization.applyLanguageOverride(appLanguage)
     }
 
@@ -639,27 +483,6 @@ final class AppPreferences {
     /// Stable multiplier for authored card content.
     var cardContentFontScale: CGFloat {
         CGFloat(Self.clampedCardContentTextScale(cardContentTextScale))
-    }
-
-    /// Resolved scale applied to Match mini card typography.
-    var matchCardFontScale: CGFloat {
-        let matchScale: Double
-        switch matchCardFontSize {
-        case .small:
-            matchScale = 0.84
-        case .standard:
-            matchScale = 1.0
-        case .large:
-            matchScale = 1.12
-        case .custom:
-            matchScale = Self.clampedMatchCardFontSize(matchCustomCardFontSizePixels) / 22.0
-        }
-
-        return CGFloat(matchScale * Self.clampedCardContentTextScale(cardContentTextScale))
-    }
-
-    private static func clampedMatchCardFontSize(_ value: Double) -> Double {
-        min(max(value.rounded(), 14), 34)
     }
 
     private static func clampedAppInterfaceTextScale(_ value: Double) -> Double {

@@ -69,7 +69,6 @@ key	en	ro	ru
 %d sketches	%d sketches	%d schițe	%d эскизов
 %d still need another pass.	%d still need another pass.	%d încă au nevoie de o trecere.	%d ещё нужны повторные проходы.
 %d unique cards are locked in for today.	%d unique cards are locked in for today.	%d carduri unice sunt deja bifate azi.	%d уникальных карточек уже закрыты на сегодня.
-%d write	%d write	%d scriere	%d письмо
 %d/%d active	%d/%d active	%d/%d zile active	%d/%d активных дней
 %dd ago	%dd ago	acum %dz	%dд назад
 %dh ago	%dh ago	acum %dore	%dч назад
@@ -157,7 +156,6 @@ Bullet List	Bullet List	Listă cu marcatori	Маркированный спис�
 By Deck	By Deck	De Deck	По колоде
 Cancel	Cancel	Anulează	Отмена
 Cancel AI generation	Cancel AI generation	Anulează generarea AI	Отменить AI генерацию
-Cancel conversion	Cancel conversion	Anulează conversia	Отменить конвертацию
 Cancel editing deck	Cancel editing deck	Anulează editarea deckului	Отменить редактирование колоды
 Caption	Caption	Legendă	Подпись
 Card	Card	Card	Карта
@@ -185,7 +183,6 @@ Choose card type	Choose card type	Alege tipul cardului	Выбрать тип к�
 Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
-Choose one source type, convert into another, and save the result with minimal setup.	Choose one source type, convert into another, and save the result with minimal setup.	Alegeți un tip de sursă, convertiți-l în altul și salvați rezultatul cu o configurare minimă.	Выберите один тип источника, преобразуйте в другой и сохраните результат с минимальной настройкой.
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
 Choose Photos	Choose Photos	Alege poze	Выбрать фото
 Choose where the selected decks should go.	Choose where the selected decks should go.	Alege unde să meargă deckurile selectate.	Выберите, куда переместить выбранные колоды.
@@ -207,19 +204,6 @@ Continue	Continue	Continuă	Продолжить
 Continue from the last completed batch when you're ready.	Continue from the last completed batch when you're ready.	Continuă de la ultimul lot finalizat când ești gata.	Продолжите с последнего завершённого пакета, когда будете готовы.
 Continue where you left off.	Continue where you left off.	Continuă de unde ai rămas.	Продолжайте с того места, где остановились.
 Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported.	Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned UI where Dynamic Type is supported.	Controlează chrome-ul QuizFlash, rândurile de setări, etichetele de navigare și alte elemente UI ale aplicației unde Dynamic Type este suportat.	Управляет оболочкой QuizFlash, строками настроек, навигационными подписями и другими элементами интерфейса приложения там, где поддерживается Dynamic Type.
-Conversion	Conversion	Conversie	Конверсия
-Conversion paused	Conversion paused	Conversie pauzată	Конвертация приостановлена
-Conversion stopped	Conversion stopped	Conversia a fost oprită	Преобразование остановлено
-Convert	Convert	Convertește	Конвертировать
-Convert %d card to %@	Convert %d card to %@	Convertește %d card în %@	Преобразовать %d карточку в %@
-Convert %d cards to %@	Convert %d cards to %@	Convertește %d carduri în %@	Преобразовать %d карточки в %@
-Convert Cards	Convert Cards	Convertiți Carduri	Конвертировать карточки
-Convert the current cards to Flashcards to use this mode.	Convert the current cards to Flashcards to use this mode.	Convertește cardurile curente în fișe ca să folosești acest mod.	Преобразуйте текущие карточки в карточки, чтобы использовать этот режим.
-Convert the current cards to Match to use this mode.	Convert the current cards to Match to use this mode.	Convertește cardurile curente în potrivire ca să folosești acest mod.	Преобразуйте текущие карточки в сопоставление, чтобы использовать этот режим.
-Convert the current cards to Quiz to use this mode.	Convert the current cards to Quiz to use this mode.	Convertește cardurile curente în quiz ca să folosești acest mod.	Преобразуйте текущие карточки в викторину, чтобы использовать этот режим.
-Convert the current cards to Write to use this mode.	Convert the current cards to Write to use this mode.	Convertește cardurile curente în scriere ca să folosești acest mod.	Преобразуйте текущие карточки в письмо, чтобы использовать этот режим.
-Convert this card to %@	Convert this card to %@	Convertiți acest card în %@	Преобразуйте эту карту в %@
-Converted	Converted	Convertit	Преобразовано
 Copied!	Copied!	Copiat!	Скопировано!
 Copy and share with Codex	Copy and share with Codex	Copiați și partajați cu Codex	Скопируйте и поделитесь с Кодексом
 Correct	Correct	Corect	Верно
@@ -242,7 +226,6 @@ Daily Workload	Daily Workload	Volumul de lucru zilnic	Ежедневная на�
 Deck Health	Deck Health	Deck Sănătate	Здоровье колоды
 Deck Title	Deck Title	Deck Titlu	Название колоды
 DECK-SCOPED SETTINGS	DECK-SCOPED SETTINGS	SETĂRI PENTRU PUNTE	НАСТРОЙКИ ПАЛУБЫ
-Deck-specific play mode settings still apply on top where they exist. For example, Match can keep its Small, Standard, Large, or Custom setting while this slider acts as the global content scale.	Deck-specific play mode settings still apply on top where they exist. For example, Match can keep its Small, Standard, Large, or Custom setting while this slider acts as the global content scale.	Setările specifice modurilor de joc rămân aplicate deasupra acolo unde există. De exemplu, Potrivire poate păstra setarea Mic, Standard, Mare sau Personalizat, iar acest slider acționează ca scală globală pentru conținut.	Настройки режимов обучения для конкретной колоды по-прежнему применяются поверх, где они есть. Например, режим «Сопоставление» может сохранить размер Small, Standard, Large или Custom, а этот ползунок работает как глобальный масштаб контента.
 Default	Default	Implicit	По умолчанию
 Default %@	Default %@	%@ implicit	По умолчанию %@
 Delete	Delete	Șterge	Удалить
@@ -274,7 +257,6 @@ Edited	Edited	Editate	Изменённые
 Edited %@	Edited %@	Editat %@	Отредактировано %@
 Empty card	Empty card	Card gol	Пустая карточка
 Empty choice	Empty choice	Variantă goală	Пустой вариант
-Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run.	Enable verbose AI tracing, generate or convert cards, then come back here to inspect the complete JSON history for each run.	Activați urmărirea AI verbosă, generați sau convertiți carduri, apoi reveniți aici pentru a inspecta istoricul complet JSON pentru fiecare rulare.	Включите подробную отслеживание ИИ, создайте или преобразуйте карточки, а затем вернитесь сюда, чтобы просмотреть полную историю JSON для каждого запуска.
 Enabled	Enabled	Activ	Включено
 Endpoint: %@	Endpoint: %@	Punct final: %@	Конечная точка: %@
 Example: Capital of France	Example: Capital of France	Exemplu: Capitala Franței	Пример: столица Франции
@@ -294,7 +276,6 @@ Fill in every answer before saving.	Fill in every answer before saving.	Complete
 Fill Width	Fill Width	Umple lățimea	По ширине
 "Filtered by ""**%@**"""	"Filtered by ""**%@**"""	Filtrată după „**%@**”	"Отфильтровано по ""**%@**"""
 First cards are on the way	First cards are on the way	Primele carduri sunt pe drum	Первые карточки уже создаются
-First converted cards are on the way	First converted cards are on the way	Primele carduri convertite sunt pe drum	Первые конвертированные карточки уже создаются
 Fixed Size	Fixed Size	Dimensiune fixă	Фиксированный размер
 Flashcard	Flashcard	Flashcard	Флэшкарточка
 Flashcard Border Radius	Flashcard Border Radius	Raza chenarului cardului	Радиус границы карточки
@@ -326,7 +307,6 @@ Good morning	Good morning	Bună dimineața	Доброе утро
 Good night	Good night	Noapte bună	Доброй ночи
 Good rate	Good rate	Rată bune	Доля хороших
 Green	Green	Verde	Зелёный
-Grid matching	Grid matching	Potrivire în grilă	Сопоставление по сетке
 Group By	Group By	Grupează după	Группировать по
 Group by Card Type	Group by Card Type	Grupează după tipul cardului	Группировать по типу карточки
 GUIDED BRIEFING	GUIDED BRIEFING	BRIEFING DIRIGAT	БРИФИНГ С УПРАВЛЕНИЕМ
@@ -389,15 +369,6 @@ Mark Blank	Mark Blank	Marchează spațiul	Отметить пропуск
 Mark Correct	Mark Correct	Marchează corect	Отметить верным
 Marked as correct	Marked as correct	Marcat ca corect	Отмечено как верное
 Mastered	Mastered	Stăpânite	Освоенные
-Match	Match	Potrivire	Сопоставление
-Match Card	Match Card	Card de potrivire	Карточка сопоставления
-Match Cards	Match Cards	Carduri de potrivire	Карточки сопоставления
-Match Isn't Ready	Match Isn't Ready	Potrivirea nu este pregătită	Режим сопоставления ещё не готов
-MATCH PREVIEW	MATCH PREVIEW	PREVIZUALIZARE POTRIVIRE	ПРЕДПРОСМОТР СОПОСТАВЛЕНИЯ
-Match-ready	Match-ready	Pregătit pentru potrivire	Готово для сопоставления
-match-ready	match-ready	pregătite pentru potrivire	готовые для сопоставления
-match-weak	match-weak	potriviri slabe	слабые для сопоставления
-Match-weak	Match-weak	Potrivire slabă	Слабое сопоставление
 Medium	Medium	Mediu	Средний
 Mock AI	Mock AI	Simulare AI	Мок ИИ
 Mode	Mode	Modul	Режим
@@ -459,7 +430,6 @@ Oldest	Oldest	Cele mai vechi	Сначала старые
 Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.	Once you add a deck, this area will turn into a live study snapshot with progress and calendar cues.	Odată ce adăugați un deck, această zonă se va transforma într-un instantaneu de studiu live, cu indicații de progres și calendar.	Как только вы добавите колоду, эта область превратится в снимок живого исследования с указанием прогресса и календаря.
 Open a play mode to generate live activity in this deck.	Open a play mode to generate live activity in this deck.	Deschide un mod de joc pentru a genera activitate în acest deck.	Откройте режим игры, чтобы в этой колоде появилась активность.
 Open activity history	Open activity history	Deschide istoricul activității	Открыть историю активности
-Open AI conversion with only the cards flagged by readiness diagnostics.	Open AI conversion with only the cards flagged by readiness diagnostics.	Deschide conversia AI doar cu cardurile marcate de diagnosticul de pregătire.	Откройте AI-конверсию только для карточек, отмеченных диагностикой готовности.
 Open Create	Open Create	Deschide Creare	Открыть создание
 Open Deck	Open Deck	Deschide deckul	Открыть колоду
 Open Focus Deck	Open Focus Deck	Deschide deckul principal	Открыть главную колоду
@@ -508,7 +478,6 @@ QuizFlash	QuizFlash	QuizFlash	__ВИКТОРИНА__
 QuizFlash User	QuizFlash User	QuizFlash Utilizator	QuizFlash Пользователь
 Radius %.1f	Radius %.1f	Raza %.1f	Радиус %.1f
 readiness	readiness	pregătire	готовность
-READINESS	READINESS	PREGĂTIREA	ГОТОВНОСТЬ
 Readiness and workload.	Readiness and workload.	Pregătire și volum.	Готовность и нагрузка.
 Reading	Reading	Citire	Чтение
 Reading Docs...	Reading Docs...	Se citesc documentele...	Чтение документов...
@@ -516,7 +485,6 @@ Reading the source and setting up the generation pipeline.	Reading the source an
 Ready	Ready	Pregătit	Готовность
 Recent decks and folders.	Recent decks and folders.	Pachete și foldere recente.	Недавние колоды и папки.
 Recents	Recents	Recente	Недавние
-Recommended conversion	Recommended conversion	Conversie recomandată	Рекомендуемое преобразование
 Red	Red	Roșu	Красный
 Relearning	Relearning	Reînvățare	Переобучение
 Remap	Remap	Remapează	Переназначить
@@ -543,7 +511,6 @@ Save Error	Save Error	Eroare la salvare	Ошибка сохранения
 Save to	Save to	Salvează în	Сохранить в
 Saved	Saved	Salvat	Сохранено
 Saved Configurations	Saved Configurations	Configurații salvate	Сохраненные конфигурации
-Scales authored card text in the flashcard editor, preview, Flashcards, Match, Quiz, and Write modes without changing saved card data.	Scales authored card text in the flashcard editor, preview, Flashcards, Match, Quiz, and Write modes without changing saved card data.	Scalează textul cardurilor create în editorul de flashcarduri, previzualizare și modurile Flashcards, Potrivire, Quiz și Scriere, fără să modifice datele salvate ale cardului.	Масштабирует созданный текст карточек в редакторе, предпросмотре и режимах Flashcards, Match, Quiz и Write, не изменяя сохраненные данные карточек.
 Score signals	Score signals	Semnale scor	Сигналы счёта
 Scroll	Scroll	Scroll	Прокрутка
 Scroll this surface and watch the rows pass behind the sticky header blur.	Scroll this surface and watch the rows pass behind the sticky header blur.	Derulați această suprafață și urmăriți cum trec rândurile în spatele neclarității antetului lipicios.	Прокрутите эту поверхность и наблюдайте, как строки проходят за размытым липким заголовком.
@@ -584,7 +551,6 @@ Split Zone	Split Zone	Împarte zona	Разделить зону
 Stable this week	Stable this week	Stabil săptămâna asta	Стабильно на этой неделе
 Start	Start	Începe	Старт
 Start a study session to unlock this view.	Start a study session to unlock this view.	Începeți o sesiune de studiu pentru a debloca această vizualizare.	Начните учебный сеанс, чтобы разблокировать этот вид.
-Start conversion	Start conversion	Pornește conversia	Запустить конвертацию
 Start today's goal from this deck.	Start today's goal from this deck.	Începe obiectivul de azi din acest deck.	Начните сегодняшнюю цель с этой колоды.
 Start with one focused block and let the ring fill with you.	Start with one focused block and let the ring fill with you.	Începe cu un bloc scurt și umple inelul.	Начни с короткого блока и заполни кольцо.
 State	State	Stare	Состояние
@@ -618,26 +584,21 @@ Text Lines	Text Lines	Linii text	Строки текста
 Text Size	Text Size	Dimensiune text	Размер текста
 Text size: %@.	Text size: %@.	Dimensiune text: %@.	Размер текста: %@.
 Text: %@	Text: %@	Text: %@	Текст: %@
-The current AI conversion will stop immediately.	The current AI conversion will stop immediately.	Conversia actuală AI se va opri imediat.	Текущее преобразование ИИ будет немедленно остановлено.
 The current AI generation will stop immediately.	The current AI generation will stop immediately.	Generația actuală de AI se va opri imediat.	Нынешнее поколение ИИ немедленно остановится.
 The first AI results will appear here in a moment.	The first AI results will appear here in a moment.	Primele rezultate AI vor apărea aici în curând.	Первые результаты AI скоро появятся здесь.
 The interface stays readable while authored card content can be tuned separately for review comfort.	The interface stays readable while authored card content can be tuned separately for review comfort.	Interfața rămâne lizibilă, iar conținutul cardurilor poate fi ajustat separat pentru confort la recapitulare.	Интерфейс остается читаемым, а содержимое карточек можно отдельно настроить для удобного повторения.
 The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	The omitted answer is symbol-dense enough that assisted builder input will usually feel better than free text.	Răspunsul omis are destule simboluri încât introducerea asistată va fi, de obicei, mai potrivită decât textul liber.	В пропущенном ответе много символов, поэтому ввод с помощником обычно подходит лучше, чем свободный текст.
 The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	The persisted JSON trace could not be loaded. It may have been deleted or corrupted.	Urma JSON persistentă nu a putut fi încărcată. Este posibil să fi fost șters sau corupt.	Не удалось загрузить сохраненную трассировку JSON. Возможно, он был удален или поврежден.
-These notes stay subtle and only flag cards that may need gentler answer entry or cleanup before practice.	These notes stay subtle and only flag cards that may need gentler answer entry or cleanup before practice.	Aceste note rămân subtile și doar semnalează carduri care ar putea necesita o introducere mai blândă a răspunsului sau o curățare înainte de antrenament.	Эти примечания остаются тонкими и помечают только карточки, которые могут потребовать более аккуратного ввода ответов или очистки перед практикой.
 This action cannot be undone.	This action cannot be undone.	Această acțiune nu poate fi anulată.	Это действие нельзя отменить.
 This deck and all its cards will be deleted.	This deck and all its cards will be deleted.	Acest deck și toate cardurile lui vor fi șterse.	Эта колода и все ее карточки будут удалены.
-This dedicated prompt-answer pair is compact enough for Match on smaller screens.	This dedicated prompt-answer pair is compact enough for Match on smaller screens.	Această pereche enunț-răspuns este suficient de compactă pentru Potrivire pe ecrane mici.	Эта пара подсказка-ответ достаточно компактна для режима сопоставления на небольших экранах.
 This is the prompt learners will see.	This is the prompt learners will see.	Acesta este enunțul văzut de cursanți.	Так учащиеся увидят задание.
 This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	This lab is intentionally close to the package README: one sticky header, one scrolling stack, and live controls for the public parameters.	Acest laborator este în mod intenționat aproape de pachetul README: un antet lipicios, o stivă de defilare și controale live pentru parametrii publici.	Эта лабораторная работа намеренно близка к README пакета: один прикрепленный заголовок, один стек прокрутки и живые элементы управления для общедоступных параметров.
-This match card is still too verbose for fast rounds. Tighten the prompt or answer.	This match card is still too verbose for fast rounds. Tighten the prompt or answer.	Acest card de potrivire este încă prea lung pentru runde rapide. Scurtează enunțul sau răspunsul.	Эта карточка сопоставления всё ещё слишком многословна для быстрых раундов. Сократите подсказку или ответ.
 This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	This migration slice only enables the shared routing foundation. Flashcard editing remains fully available.	Această secțiune de migrare activează numai baza de rutare partajată. Editarea flashcard-ului rămâne complet disponibilă.	Этот срез миграции включает только общую основу маршрутизации. Редактирование карточек остается полностью доступным.
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
 This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
 This Week	This Week	Săptămâna asta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
-This write card looks formula-heavy and is a good candidate for assisted builder input.	This write card looks formula-heavy and is a good candidate for assisted builder input.	Acest card de scriere pare încărcat de formule și este un bun candidat pentru introducerea asistată.	Эта карточка на письмо перегружена формулами и хорошо подходит для ввода с помощником.
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
 To goal	To goal	Până la obiectiv	До цели
@@ -678,20 +639,12 @@ Week of %@	Week of %@	Săptămâna din %@	Неделя от %@
 Weekly Momentum	Weekly Momentum	Momentum săptămânal	Еженедельный импульс
 What is eventual consistency?	What is eventual consistency?	Ce este consistenta eventuala?	Что такое конечная согласованность?
 Widget Border Radius	Widget Border Radius	Raza chenarului widgetului	Радиус границы виджета
-Write	Write	Scriere	Письмо
-Write Card	Write Card	Card de scriere	Карточка письма
-Write Cards	Write Cards	Carduri de scriere	Карточки письма
-Write Isn't Ready	Write Isn't Ready	Modul Scriere nu este pregătit	Режим письма ещё не готов
-write math-heavy	write math-heavy	scrieri cu formulă	письменные с формулами
-Write math-heavy	Write math-heavy	Scriere cu formulă	Письмо с формулами
-WRITE PREVIEW	WRITE PREVIEW	PREVIZUALIZARE SCRIERE	ПРЕДПРОСМОТР ПИСЬМА
 XP	XP	XP	XP
 Yellow	Yellow	Galben	Жёлтый
 Yes	Yes	Da	Да
 Yesterday	Yesterday	Ieri	Вчера
 You can enter either a base URL like https://openrouter.ai/api/v1 or a full endpoint like https://api.x.ai/v1/chat/completions. QuizFlash resolves the final chat completions path automatically.	You can enter either a base URL like https://openrouter.ai/api/v1 or a full endpoint like https://api.x.ai/v1/chat/completions. QuizFlash resolves the final chat completions path automatically.	Puteți introduce fie o adresă URL de bază, cum ar fi https://openrouter.ai/api/v1, fie un punct final complet precum https://api.x.ai/v1/chat/completions. QuizFlash rezolvă automat calea finală de finalizare a chat-ului.	Вы можете ввести либо базовый URL-адрес, например https://openrouter.ai/api/v1, либо полную конечную точку, например https://api.x.ai/v1/chat/completions.. QuizFlash автоматически определяет окончательный путь завершения чата.
 You can stop now and keep the cards already received, or discard this AI batch completely.	You can stop now and keep the cards already received, or discard this AI batch completely.	Puteți să vă opriți acum și să păstrați carduri deja primite sau să renunțați complet la acest lot AI.	Вы можете остановиться сейчас и оставить уже полученные карты или полностью отказаться от этой партии ИИ.
-You can stop now and keep the converted cards already received, or discard this AI conversion batch completely.	You can stop now and keep the converted cards already received, or discard this AI conversion batch completely.	Puteți să vă opriți acum și să păstrați carduri convertite deja primite sau să renunțați complet la acest lot de conversii AI.	Вы можете остановиться сейчас и сохранить уже полученные конвертированные карты или полностью отказаться от этой партии конвертации ИИ.
 You have unsaved changes in this deck.	You have unsaved changes in this deck.	Aveți modificări nesalvate în acest deck.	У вас есть несохраненные изменения в этой колоде.
 Your card changes couldn't be saved right now.	Your card changes couldn't be saved right now.	Modificările cardului nu au putut fi salvate acum.	Изменения карточки сейчас не удалось сохранить.
 Zone Size	Zone Size	Dimensiune zonă	Размер зоны

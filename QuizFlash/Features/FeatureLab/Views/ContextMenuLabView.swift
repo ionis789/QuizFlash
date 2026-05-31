@@ -160,7 +160,6 @@ private struct ContextMenuLabSurface: Identifiable {
                 payload: .draftCard(runtime.draftCard),
                 actions: [
                     .init(title: "Edit", systemImage: "pencil", role: .normal),
-                    .init(title: "Convert", systemImage: "arrow.triangle.2.circlepath", role: .normal),
                     .init(title: "Duplicate", systemImage: "plus.square.on.square", role: .normal),
                     .init(title: "Delete", systemImage: "trash", role: .destructive)
                 ]
@@ -256,7 +255,6 @@ private struct ContextMenuLabSection: View {
                 onToggleSelection: { card in onAction("Toggle Selection #\(card.cardNumber)") },
                 onTapCard: { card in onAction("Open Card #\(card.cardNumber)") },
                 onEditCard: { card in onAction("Edit Card #\(card.cardNumber)") },
-                onConvertCard: { card in onAction("Convert Card #\(card.cardNumber)") },
                 onTogglePinned: { card in
                     onAction(card.isPinned ? "Unpin Card #\(card.cardNumber)" : "Pin Card #\(card.cardNumber)")
                 },

@@ -2,7 +2,7 @@
 //  AIDebugTraceStore.swift
 //  QuizFlash
 //
-//  Structured tracing for AI generation/conversion runs.
+//  Structured tracing for AI generation runs.
 //
 
 import Foundation
@@ -14,7 +14,6 @@ nonisolated enum AIDebugTracePreferenceKeys {
 
 nonisolated enum AIDebugRunKind: String, Codable, Sendable {
     case generation
-    case conversion
     case utility
 }
 
@@ -747,7 +746,7 @@ extension AIFlashcardService {
             targetCount: targetCount,
             sourceCount: sourceCount,
             providerName: provider.trimmedName,
-            modelName: kind == .conversion ? textModel : nil,
+            modelName: nil,
             metadata: metadata
         )
 

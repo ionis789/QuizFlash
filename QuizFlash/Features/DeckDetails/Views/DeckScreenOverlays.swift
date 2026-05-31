@@ -18,26 +18,6 @@ extension DeckContentView {
         viewModel.togglePinnedState(for: gridCard.id, in: deck, context: context)
     }
 
-    func handleConvertCard(_ gridCard: GridCardInfo) {
-        presentConversionConfiguration(
-            viewModel.presentSingleCardConversion(for: gridCard.id, in: deck)
-        )
-    }
-
-    func handlePreviewRecommendedConversion(
-        for card: CardModel,
-        targetKind: CardKind
-    ) {
-        previewedCard = nil
-        presentConversionConfiguration(
-            viewModel.presentSingleCardConversion(
-                for: card.persistentModelID,
-                in: deck,
-                preferredTargetKind: targetKind
-            )
-        )
-    }
-
     func openPlayMode(_ mode: DeckPlayModeDestination) {
         dismissUnavailablePlayMode()
         guard mode == .flashcards else {
@@ -111,14 +91,6 @@ extension DeckContentView {
         }
     }
 
-    func convertUnavailablePlayMode(_ mode: DeckPlayModeDestination) {
-        dismissUnavailablePlayMode()
-        guard let targetKind = mode.unavailableConversionTargetKind else { return }
-        presentConversionConfiguration(
-            viewModel.presentDeckConversion(for: deck, preferredTargetKind: targetKind)
-        )
-    }
-
     func recordCompletedPlayModeSession(_ mode: DeckPlayModeDestination) {
         let settings = DeckPlayModeSettingsStore.resolve(for: deck, in: context)
         settings.markRecentlyUsed(mode)
@@ -178,40 +150,6 @@ extension DeckContentView {
         }
     }
 
-    func presentDeckConversion() {
-        exitSelectionModeForExternalAction()
-        presentConversionConfiguration(
-            viewModel.presentDeckConversion(for: deck)
-        )
-    }
-
-    func presentSelectionConversion() {
-        presentConversionConfiguration(
-            viewModel.presentSelectionConversion(for: deck)
-        )
-    }
-
-    @discardableResult
-    func presentConversionConfiguration(
-        _ request: DeckCardConversionRequest?
-    ) -> Bool {
-        guard let request else { return false }
-        let didSeed = aiWorkspaceCoordinator.seedConversion(
-            request: request,
-            sourceDeck: deck,
-            ownerTab: ownerTab,
-            backLabel: backLabel,
-            showsConfiguration: false,
-            activatesWorkspaceContext: true
-        )
-        guard didSeed else { return false }
-        Task { @MainActor in
-            await Task.yield()
-            router.showDeckWorkspace(for: deck.persistentModelID)
-        }
-        return true
-    }
-
     @ViewBuilder
     var unavailablePlayModeOverlay: some View {
         if let unavailablePlayMode {
@@ -237,9 +175,6 @@ extension DeckContentView {
                         deckColor: Color(hex: deck.colorHex) ?? themeManager.accentColor.color,
                         accentColor: themeManager.accentColor.color
                     ),
-                    onConvert: prompt.actionTitle == nil
-                        ? nil
-                        : { convertUnavailablePlayMode(unavailablePlayMode) },
                     onDismiss: dismissUnavailablePlayMode
                 )
                 .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
@@ -262,7 +197,6 @@ extension DeckContentView {
         let mode: DeckPlayModeDestination
         let prompt: PlayModeUnavailablePrompt
         let tintColor: Color
-        let onConvert: (() -> Void)?
         let onDismiss: () -> Void
 
         var body: some View {
@@ -298,12 +232,6 @@ extension DeckContentView {
                         .frame(maxWidth: .infinity)
                         .quizFlashButtonStyle(.surface)
 
-                    if let onConvert, let actionTitle = prompt.actionTitle {
-                        Button(actionTitle, action: onConvert)
-                            .font(.subheadline.weight(.bold))
-                            .frame(maxWidth: .infinity)
-                            .quizFlashButtonStyle(.accentAlt)
-                    }
                 }
             }
             .padding(UIConstants.Spacing.large)
@@ -315,7 +243,6 @@ extension DeckContentView {
         let card: CardModel
         let flashcardSettings: FlashcardModeSettings
         let safeAreaInsets: UIEdgeInsets
-        let onOpenRecommendedConversion: (CardKind) -> Void
 
         @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -342,8 +269,7 @@ extension DeckContentView {
                         showsLeadingAccessory: true,
                         leadingAccessory: AnyView(statsButton),
                         contentAlignment: flashcardSettings.contentAlignment,
-                        textSize: flashcardSettings.textSize,
-                        onOpenRecommendedConversion: onOpenRecommendedConversion
+                        textSize: flashcardSettings.textSize
                     )
 
                     if showStats {

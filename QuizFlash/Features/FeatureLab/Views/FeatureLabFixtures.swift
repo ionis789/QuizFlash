@@ -58,38 +58,6 @@ enum FeatureLabFixtures {
         quizCard.interval = 3
         quizCard.consecutiveCorrectAnswers = 1
 
-        let writeSource = ZoneModel.text("HTTP status 429 means too many ____.")
-        let writeCard = CardModel(
-            content: .write(
-                WriteCardContent(
-                    sourceZone: writeSource,
-                    blankSelection: .init(
-                        zoneID: writeSource.id,
-                        utf16Range: 27..<35,
-                        omittedText: "requests"
-                    )
-                )
-            ),
-            cardNumber: 3,
-            isPinned: false,
-            creationSource: .manual
-        )
-        writeCard.interval = 0
-
-        let matchCard = CardModel(
-            content: .match(
-                MatchCardContent(
-                    prompt: "TCP handshake",
-                    answer: "SYN, SYN-ACK, ACK"
-                )
-            ),
-            cardNumber: 4,
-            isPinned: false,
-            creationSource: .manual
-        )
-        matchCard.interval = 8
-        matchCard.consecutiveCorrectAnswers = 2
-
         let recentDeck = DeckModel(title: "Discrete Math Sprint", colorHex: "#FF6B4A")
         recentDeck.cardCount = 48
         recentDeck.lastOpenedAt = .now.addingTimeInterval(-60 * 42)
@@ -191,9 +159,7 @@ enum FeatureLabFixtures {
 
         let pinnedCard = makeGridCardInfo(flashcard, reviewHistoryIsEmpty: false)
         let gridCards = [
-            makeGridCardInfo(quizCard, reviewHistoryIsEmpty: false),
-            makeGridCardInfo(writeCard, reviewHistoryIsEmpty: true),
-            makeGridCardInfo(matchCard, reviewHistoryIsEmpty: false)
+            makeGridCardInfo(quizCard, reviewHistoryIsEmpty: false)
         ]
 
         let deckGridSections = [
@@ -229,12 +195,12 @@ enum FeatureLabFixtures {
         let todayActivity = DeckTodayActivitySummary(
             activityDate: .now,
             activityLabel: "Today",
-            uniqueCardsReviewed: 4,
-            rawReviewCount: 7,
-            landedCount: 3,
+            uniqueCardsReviewed: 2,
+            rawReviewCount: 3,
+            landedCount: 1,
             retryCount: 1,
-            headline: "4 cards moved today",
-            detailLine: "7 passes folded into 4 cards. 1 still needs another pass.",
+            headline: "2 cards moved today",
+            detailLine: "3 passes folded into 2 cards. 1 still needs another pass.",
             cards: [
                 DeckTodayReviewedCardSummary(
                     id: flashcard.persistentModelID,
@@ -249,20 +215,6 @@ enum FeatureLabFixtures {
                     finalDifficulty: .again,
                     reviewCount: 1,
                     lastReviewedAt: .now.addingTimeInterval(-60 * 11)
-                ),
-                DeckTodayReviewedCardSummary(
-                    id: writeCard.persistentModelID,
-                    title: "HTTP status 429 means too many ____.",
-                    finalDifficulty: .hard,
-                    reviewCount: 3,
-                    lastReviewedAt: .now.addingTimeInterval(-60 * 18)
-                ),
-                DeckTodayReviewedCardSummary(
-                    id: matchCard.persistentModelID,
-                    title: "TCP handshake",
-                    finalDifficulty: .easy,
-                    reviewCount: 1,
-                    lastReviewedAt: .now.addingTimeInterval(-60 * 27)
                 )
             ]
         )
@@ -289,7 +241,6 @@ enum FeatureLabFixtures {
             id: card.persistentModelID,
             kind: card.kind,
             creationSource: card.creationSource,
-            conversionMetadata: card.conversionMetadata,
             cardNumber: card.cardNumber,
             interval: card.interval,
             reviewHistoryIsEmpty: reviewHistoryIsEmpty,

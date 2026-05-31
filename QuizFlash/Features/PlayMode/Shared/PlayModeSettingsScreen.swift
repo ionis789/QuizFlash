@@ -41,8 +41,6 @@ struct PlayModeSettingsScreen: View {
     @State private var settingsModel: DeckPlayModeSettingsModel?
     @State private var flashcardSettings = FlashcardModeSettings()
     @State private var quizSettings = QuizModeSettings()
-    @State private var matchSettings = MatchModeSettings()
-    @State private var writeSettings = WriteModeSettings()
     @State private var learnSettings = LearnModeSettings()
     @State private var showSaveErrorAlert = false
     @State private var saveErrorMessage = ""
@@ -100,20 +98,6 @@ struct PlayModeSettingsScreen: View {
                 AppLocalization.string("Density: %@", locale: locale).replacingOccurrences(of: "%@", with: learnSettings.density.localizedTitle(locale: locale)),
                 AppLocalization.string("Learn stays report-only and never mutates review history.", locale: locale)
             ]
-        case .match:
-            return [
-                matchSettings.allowsFlashcardFallback ? AppLocalization.string("Flashcard fallback is allowed.", locale: locale) : AppLocalization.string("Flashcard fallback is disabled.", locale: locale),
-                AppLocalization.string("Round size: %@", locale: locale).replacingOccurrences(of: "%@", with: matchSettings.roundSize.localizedTitle(locale: locale)),
-                AppLocalization.string("Density: %@", locale: locale).replacingOccurrences(of: "%@", with: matchSettings.contentDensity.localizedTitle(locale: locale)),
-                matchSettings.retryMissedPairs ? AppLocalization.string("Missed pairs replay before the next chunk.", locale: locale) : AppLocalization.string("Missed pairs do not trigger retry rounds.", locale: locale)
-            ]
-        case .write:
-            return [
-                AppLocalization.string("Input: %@", locale: locale).replacingOccurrences(of: "%@", with: writeSettings.inputMode.localizedTitle(locale: locale)),
-                AppLocalization.string("Strictness: %@", locale: locale).replacingOccurrences(of: "%@", with: writeSettings.strictness.localizedTitle(locale: locale)),
-                AppLocalization.string("Reveal: %@", locale: locale).replacingOccurrences(of: "%@", with: writeSettings.revealTiming.localizedTitle(locale: locale)),
-                writeSettings.retryIncorrectPrompts ? AppLocalization.string("Wrong prompts queue for one retry pass.", locale: locale) : AppLocalization.string("Wrong prompts do not replay automatically.", locale: locale)
-            ]
         }
     }
 
@@ -151,12 +135,6 @@ struct PlayModeSettingsScreen: View {
             persistSettingsIfNeeded()
         }
         .onChange(of: quizSettings) { _, _ in
-            persistSettingsIfNeeded()
-        }
-        .onChange(of: matchSettings) { _, _ in
-            persistSettingsIfNeeded()
-        }
-        .onChange(of: writeSettings) { _, _ in
             persistSettingsIfNeeded()
         }
         .onChange(of: learnSettings) { _, _ in
@@ -240,8 +218,6 @@ struct PlayModeSettingsScreen: View {
             tintColor: tintColor,
             flashcardSettings: $flashcardSettings,
             quizSettings: $quizSettings,
-            matchSettings: $matchSettings,
-            writeSettings: $writeSettings,
             learnSettings: $learnSettings
         )
     }
@@ -263,8 +239,6 @@ struct PlayModeSettingsScreen: View {
         hasLoadedSettings = false
         flashcardSettings = model.flashcardSettings
         quizSettings = model.quizSettings
-        matchSettings = model.matchSettings
-        writeSettings = model.writeSettings
         learnSettings = model.learnSettings
         hasLoadedSettings = true
 
@@ -278,8 +252,6 @@ struct PlayModeSettingsScreen: View {
 
         settingsModel.flashcardSettings = flashcardSettings
         settingsModel.quizSettings = quizSettings
-        settingsModel.matchSettings = matchSettings
-        settingsModel.writeSettings = writeSettings
         settingsModel.learnSettings = learnSettings
         deck.editedAt = Date()
 

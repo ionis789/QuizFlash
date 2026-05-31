@@ -1,6 +1,5 @@
 import Foundation
 import UIKit // Required for UIImage – image pipeline only, no UI components used
-import SwiftData
 
 // =============================================================================
 // MARK: - AI Service Errors
@@ -66,72 +65,6 @@ nonisolated struct QuizResponseDTO: Codable {
     let cards: [CardDTO]
 }
 
-/// The structured JSON contract between GPT and the app for dedicated match output.
-nonisolated struct MatchResponseDTO: Codable {
-    struct CardDTO: Codable {
-        let prompt: String
-        let answer: String
-    }
-
-    let cards: [CardDTO]
-}
-
-/// The structured JSON contract between GPT and the app for write output.
-nonisolated struct WriteResponseDTO: Codable {
-    struct CardDTO: Codable {
-        let source_text: String
-        let omitted_text: String
-    }
-
-    let cards: [CardDTO]
-}
-
-/// Structured conversion result for flashcard targets, keyed by source index.
-nonisolated struct FlashcardConversionResponseDTO: Codable {
-    struct ResultDTO: Codable {
-        let source_index: Int
-        let question_zones: [String]
-        let answer_zones: [String]
-    }
-
-    let results: [ResultDTO]
-}
-
-/// Structured conversion result for dedicated match targets, keyed by source index.
-nonisolated struct MatchConversionResponseDTO: Codable {
-    struct ResultDTO: Codable {
-        let source_index: Int
-        let prompt: String
-        let answer: String
-    }
-
-    let results: [ResultDTO]
-}
-
-/// Structured conversion result for quiz targets, keyed by source index.
-nonisolated struct QuizConversionResponseDTO: Codable {
-    struct ResultDTO: Codable {
-        let source_index: Int
-        let question_zones: [String]
-        let choices: [String]
-        let correct_indexes: [Int]
-        let explanation_zones: [String]?
-    }
-
-    let results: [ResultDTO]
-}
-
-/// Structured conversion result for write targets, keyed by source index.
-nonisolated struct WriteConversionResponseDTO: Codable {
-    struct ResultDTO: Codable {
-        let source_index: Int
-        let source_text: String
-        let omitted_text: String
-    }
-
-    let results: [ResultDTO]
-}
-
 nonisolated struct DeckTitleResponseDTO: Codable {
     let deck_title: String?
 }
@@ -163,14 +96,9 @@ public final class AIFlashcardService: @unchecked Sendable {
     let maxCharsPerChunk = 12_000
     let maxConcurrentTextPlanRequests = 6
     let maxConcurrentVisionPlanRequests = 4
-    let maxConcurrentConversionRequests = 6
-    let maxConcurrentMatchGenerationRequests = 3
-    let maxConcurrentMatchConversionRequests = 3
     let timeoutIntervalForRequest: TimeInterval = 360
     let timeoutIntervalForResource: TimeInterval = 1_800
-    let conversionBatchExecutionTimeoutNanoseconds: UInt64 = 120_000_000_000
     let maxRequestRetryCount = 4
-    let maxMatchQualityAttempts = 2
     let baseRetryDelayNanoseconds: UInt64 = 1_200_000_000
     let maxRetryDelayNanoseconds: UInt64 = 12_000_000_000
 
@@ -250,111 +178,9 @@ public final class AIFlashcardService: @unchecked Sendable {
         }
     }
 
-    struct ConversionBatchPlan: RecoverableBatchPlan {
-        let sourceCards: [AICardConversionSource]
-        let sourceLabel: String
-        let targetCards: Int
-        let batchIndex: Int
-        let totalBatches: Int
-
-        func splitForRecovery() -> [ConversionBatchPlan]? {
-            guard sourceCards.count > 1 else { return nil }
-
-            let midpoint = max(1, sourceCards.count / 2)
-            let leftCards = Array(sourceCards[..<midpoint])
-            let rightCards = Array(sourceCards[midpoint...])
-
-            return [
-                ConversionBatchPlan(
-                    sourceCards: leftCards,
-                    sourceLabel: "\(sourceLabel) A",
-                    targetCards: leftCards.count,
-                    batchIndex: batchIndex,
-                    totalBatches: totalBatches
-                ),
-                ConversionBatchPlan(
-                    sourceCards: rightCards,
-                    sourceLabel: "\(sourceLabel) B",
-                    targetCards: rightCards.count,
-                    batchIndex: batchIndex,
-                    totalBatches: totalBatches
-                )
-            ]
-            .filter { !$0.sourceCards.isEmpty }
-        }
-    }
-
-    struct MatchGenerationQualityResult {
-        let cards: [AIFlashcard]
-        let shortfallCount: Int
-        let diagnostics: MatchAIBatchDiagnostics
-    }
-
-    struct MatchConversionQualityResult {
-        let outputs: [AICardConversionOutput]
-        let shortfallCount: Int
-        let diagnostics: MatchAIBatchDiagnostics
-    }
-
-    struct WriteConversionQualityResult {
-        let outputs: [AICardConversionOutput]
-        let shortfallCount: Int
-    }
-
-    struct MatchConversionFilterResult {
-        let outputs: [AICardConversionOutput]
-        let rejectedSourceIDs: Set<PersistentIdentifier>
-        let retryHints: [String]
-        let diagnostics: MatchAIBatchDiagnostics
-        let feedbackLines: [String]
-    }
-
-    struct WriteConversionFilterResult {
-        let outputs: [AICardConversionOutput]
-        let rejectedSourceIDs: Set<PersistentIdentifier>
-        let retryHints: [String]
-    }
-
     struct GeneratedBatchExecutionResult {
         let cards: [AIFlashcard]
         let shortfallCount: Int
-        let matchDiagnostics: MatchAIBatchDiagnostics?
-    }
-
-    enum MatchAIShortfallReason: String, Codable, Sendable, Hashable {
-        case structurallyRejected
-        case duplicatePair
-        case invalidSourceMapping
-        case providerUnderfilled
-        case exhaustedCandidates
-    }
-
-    struct MatchAIBatchDiagnostics: Sendable, Equatable {
-        var lowQualityAcceptedCount: Int
-        var shortfallReasonCounts: [MatchAIShortfallReason: Int]
-
-        init(
-            lowQualityAcceptedCount: Int = 0,
-            shortfallReasonCounts: [MatchAIShortfallReason: Int] = [:]
-        ) {
-            self.lowQualityAcceptedCount = lowQualityAcceptedCount
-            self.shortfallReasonCounts = shortfallReasonCounts
-        }
-
-        mutating func increment(
-            _ reason: MatchAIShortfallReason,
-            by count: Int = 1
-        ) {
-            guard count > 0 else { return }
-            shortfallReasonCounts[reason, default: 0] += count
-        }
-
-        mutating func merge(_ other: MatchAIBatchDiagnostics) {
-            lowQualityAcceptedCount += other.lowQualityAcceptedCount
-            for (reason, count) in other.shortfallReasonCounts {
-                shortfallReasonCounts[reason, default: 0] += count
-            }
-        }
     }
 
     // -------------------------------------------------------------------------
