@@ -202,12 +202,39 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertTrue(prompt.contains(#""type": "flashcard""#))
         XCTAssertTrue(prompt.contains(#""front""#))
         XCTAssertTrue(prompt.contains(#""back""#))
+        XCTAssertTrue(prompt.contains("CONTENT DESIGN"))
+        XCTAssertTrue(prompt.contains("small semantic zones"))
+        XCTAssertTrue(prompt.contains("formula-first answers"))
+        XCTAssertTrue(prompt.contains("DEPTH: PRO"))
         XCTAssertTrue(prompt.contains("Every math symbol, variable, and inline equation MUST be inside"))
         XCTAssertTrue(prompt.contains("Never output raw math notation"))
         XCTAssertTrue(prompt.contains("INLINE MATH: Wrap every math symbol"))
         XCTAssertFalse(prompt.contains("question" + "_zones"))
         XCTAssertFalse(prompt.contains("answer" + "_zones"))
         XCTAssertFalse(prompt.contains("correct" + "_indexes"))
+    }
+
+    func testPromptSupportsSimpleDepthProfile() {
+        let service = makeService()
+        let prompt = service.systemPrompt(
+            targetCards: 2,
+            isOCR: false,
+            options: AIGenerationOptions(cardType: .flashcards, cardLevel: .simple)
+        )
+
+        XCTAssertTrue(prompt.contains("DEPTH: SIMPLE"))
+        XCTAssertTrue(prompt.contains("Do not dumb down the content"))
+        XCTAssertTrue(prompt.contains("For Simple, back zones should usually be 1-2 compact zones."))
+    }
+
+    func testCardGenerationLevelUsesSimpleAndProOnlyAndMigratesLegacyValues() throws {
+        XCTAssertEqual(AICardGenerationLevel.allCases, [.simple, .pro])
+
+        let decoder = JSONDecoder()
+        XCTAssertEqual(try decoder.decode(AICardGenerationLevel.self, from: Data(#""simple""#.utf8)), .simple)
+        XCTAssertEqual(try decoder.decode(AICardGenerationLevel.self, from: Data(#""pro""#.utf8)), .pro)
+        XCTAssertEqual(try decoder.decode(AICardGenerationLevel.self, from: Data(#""balanced""#.utf8)), .pro)
+        XCTAssertEqual(try decoder.decode(AICardGenerationLevel.self, from: Data(#""advanced""#.utf8)), .pro)
     }
 
     private func makeService() -> AIFlashcardService {

@@ -88,7 +88,7 @@ final class AIJobSessionStoreTests: XCTestCase {
             baseCardCount: 2,
             options: AIGenerationOptions(
                 cardType: .quiz,
-                cardLevel: .advanced,
+                cardLevel: .pro,
                 cardsPerBatch: 5,
                 sourceDistributionMode: .manual
             ),

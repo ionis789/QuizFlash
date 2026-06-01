@@ -96,6 +96,7 @@
 "Active" = "Activ";
 "Active Configuration" = "Configurație activă";
 "Active days" = "Zile active";
+"Active-recall question and answer cards." = "Carduri de întrebare și răspuns pentru memorare activă.";
 "Activity" = "Activitate";
 "Add a question before saving." = "Adaugă întrebarea înainte de salvare.";
 "Add Above" = "Adaugă deasupra";
@@ -227,6 +228,7 @@
 "DECK-SCOPED SETTINGS" = "SETĂRI PENTRU PUNTE";
 "Default" = "Implicit";
 "Default %@" = "%@ implicit";
+"Deeper cards with structure, context, and key nuance." = "Carduri mai profunde, cu structură, context și nuanțe-cheie.";
 "Delete" = "Șterge";
 "Delete \"%@\"?" = "Ștergi „%@”?";
 "Delete %d card?" = "Ștergi %d card?";
@@ -463,6 +465,7 @@
 "Preview" = "Previzualizare";
 "PREVIEW" = "PREVIZUALIZARE";
 "Preview Mode" = "Modul de previzualizare";
+"Pro" = "Pro";
 "Progress and pace." = "Progres și ritm.";
 "Prompt" = "Enunț";
 "PROMPT" = "ENUNȚ";
@@ -536,8 +539,10 @@
 "Shared Sheet Playground" = "Loc de joacă comun cu foi";
 "Show" = "Arată";
 "Showing all" = "Se afișează toate";
+"Short, useful cards focused on the essential idea." = "Carduri scurte și utile, axate pe ideea esențială.";
 "Side" = "Parte";
 "Sign in with Google" = "Conectați-vă cu Google";
+"Simple" = "Simplu";
 "Sign out of the current QuizFlash session on this device." = "Deconectați-vă de la sesiunea curentă QuizFlash pe acest dispozitiv.";
 "Single correct answer" = "Un singur răspuns corect";
 "Sketch" = "Schiță";

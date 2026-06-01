@@ -181,10 +181,17 @@ extension AIFlashcardService {
 
         \(languageRulePrompt(for: options))
 
+        CONTENT DESIGN
+        Adapt the card shape to the source domain instead of using one generic paragraph style.
+        Math, logic, programming, physics, and other formal material should preserve formulas, symbols, definitions, and short rule statements as the main learning surface. Use compact explanatory text only to name or interpret the formula.
+        History, literature, biology, law, medicine, and other prose-heavy material should use clear natural-language explanations, but split dense information into small semantic zones instead of one large paragraph.
+        Never pack several unrelated facts into one answer zone. Prefer 2-4 short zones over one overloaded paragraph when the answer has multiple parts.
+        Every zone must earn its place: definition, formula, condition, consequence, example, exception, or contrast.
+
         LATEX IN JSON
         Every math symbol, variable, and inline equation MUST be inside a single balanced $...$ block.
         Display equations MUST be inside a balanced $$...$$ block and must be placed in their own standalone text zone.
-        Never output raw math notation such as a_{i}, x^2, 0_W, \\cdot, \\lambda, \\mathbb{R}, ∀, ∈, ⇔, →, ≤, ≥, or ≠ outside math delimiters.
+        Never output raw math notation such as a_{i}, x^2, 0_W, \\cdot, \\lambda, \\mathbb{R}, ∀, ∈, ⇔, →, ≤, ≥, ≠ etc..., outside math delimiters.
         Every LaTeX command that starts with one backslash must be written with EXACTLY two backslashes in JSON.
         Example final card text "$v \\in V$" must appear in JSON as "$v \\\\in V$".
         Never write four backslashes before a LaTeX command.
@@ -283,9 +290,12 @@ extension AIFlashcardService {
             FLASHCARD RULES
             - Prefer one atomic recall target per card.
             - Keep prompts concise and direct.
-            - Split long answers into small visual zones.
+            - Split long answers into small semantic zones; do not return one dense paragraph.
             - Use code blocks or display equations only when they materially teach the concept.
             - Avoid list dumps and repeated paraphrases.
+            - For formal/math sources, prefer formula-first answers: formula zone, then a short interpretation or condition zone when needed.
+            - For prose-heavy sources, prefer compact explanation zones: definition, cause/effect, key detail, exception/contrast.
+            - Use bullets only when the source naturally has conditions, steps, properties, or parts.
             - INLINE MATH: Wrap every math symbol, variable, and inline equation in single $.
             - BLOCK MATH: Wrap display equations in double $$ only when the equation itself is important.
             - Put long block equations in their own standalone text zone using $$...$$.
@@ -301,6 +311,9 @@ extension AIFlashcardService {
             - Include one or more correct indexes when multiple answers are correct.
             - Keep distractors plausible but unambiguously wrong.
             - Add a concise explanation when it helps learning.
+            - Keep choices compact and parallel; avoid paragraph-length choices.
+            - For formal/math quiz cards, choices may be formulas or symbolic statements when that tests the concept best.
+            - For prose-heavy quiz cards, choices should test meaning, cause, chronology, definition, exception, or classification.
             - INLINE MATH: Wrap every math symbol, variable, and inline equation in single $.
             - BLOCK MATH: Wrap display equations in double $$. NEVER use ```math or ```latex fences for equations.
             - Put long block equations in their own standalone text zone using $$...$$.
@@ -317,12 +330,18 @@ extension AIFlashcardService {
 
             MOBILE LAYOUT
             Keep each question readable on a phone card. Keep answer zones scannable and avoid dense paragraphs.
+            Prefer 1 short front zone. Use 2 front zones only for a short context line plus the actual prompt.
+            For Simple, back zones should usually be 1-2 compact zones.
+            For Pro, back zones should usually be 2-5 compact zones, each with a distinct role.
+            If a source section is broad, create multiple cards instead of one overloaded card.
             """
         case .quiz:
             return """
 
             MOBILE LAYOUT
             Keep the question and choices compact enough for a phone screen. Avoid choices that differ only by tiny wording.
+            Use a short question stem, compact choices, and at most 1-2 explanation zones.
+            If the concept requires a long setup, generate a flashcard-style explanation only in the explanation zone, not inside choices.
             """
         }
     }
@@ -400,11 +419,26 @@ extension AIFlashcardService {
     nonisolated func cardLevelPromptAddition(for level: AICardGenerationLevel) -> String {
         switch level {
         case .simple:
-            return "\nDEPTH: Simple. Focus on core facts and definitions. Keep answers terse."
-        case .balanced:
-            return "\nDEPTH: Balanced. Cover core ideas with normal study depth."
-        case .advanced:
-            return "\nDEPTH: Advanced. Prefer nuanced, technical, higher-order understanding when the source supports it."
+            return """
+
+            DEPTH: SIMPLE
+            Make cards short, clear, and immediately useful.
+            Preserve the essential definition, formula, rule, date, term, classification, or cause-effect relation.
+            Do not dumb down the content: keep the card correct and testable, but remove secondary nuance, long examples, and proof details.
+            For flashcards, use 1 concise front zone and usually 1-2-3... back zones.
+            For quiz cards, test one direct idea with compact choices.
+            """
+        case .pro:
+            return """
+
+            DEPTH: PRO
+            Make cards deeper and more complete without becoming essays.
+            Include structure: definition plus condition, formula plus interpretation, rule plus exception, event plus consequence, concept plus contrast, or term plus context.
+            For complex math/formal material, show the important formula or symbolic statement clearly, then add the minimal explanatory context needed to understand it.
+            For history, literature, biology, law, and other prose-heavy material, use richer but segmented explanations with precise terminology.
+            For flashcards, use 2-5 focused back zones when the source supports real depth.
+            For quiz cards, use stronger distractors and a concise explanation that teaches the key distinction.
+            """
         }
     }
 }

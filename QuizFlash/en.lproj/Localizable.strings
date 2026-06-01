@@ -96,6 +96,7 @@
 "Active" = "Active";
 "Active Configuration" = "Active Configuration";
 "Active days" = "Active days";
+"Active-recall question and answer cards." = "Active-recall question and answer cards.";
 "Activity" = "Activity";
 "Add a question before saving." = "Add a question before saving.";
 "Add Above" = "Add Above";
@@ -227,6 +228,7 @@
 "DECK-SCOPED SETTINGS" = "DECK-SCOPED SETTINGS";
 "Default" = "Default";
 "Default %@" = "Default %@";
+"Deeper cards with structure, context, and key nuance." = "Deeper cards with structure, context, and key nuance.";
 "Delete" = "Delete";
 "Delete \"%@\"?" = "Delete \"%@\"?";
 "Delete %d card?" = "Delete %d card?";
@@ -463,6 +465,7 @@
 "Preview" = "Preview";
 "PREVIEW" = "PREVIEW";
 "Preview Mode" = "Preview Mode";
+"Pro" = "Pro";
 "Progress and pace." = "Progress and pace.";
 "Prompt" = "Prompt";
 "PROMPT" = "PROMPT";
@@ -536,8 +539,10 @@
 "Shared Sheet Playground" = "Shared Sheet Playground";
 "Show" = "Show";
 "Showing all" = "Showing all";
+"Short, useful cards focused on the essential idea." = "Short, useful cards focused on the essential idea.";
 "Side" = "Side";
 "Sign in with Google" = "Sign in with Google";
+"Simple" = "Simple";
 "Sign out of the current QuizFlash session on this device." = "Sign out of the current QuizFlash session on this device.";
 "Single correct answer" = "Single correct answer";
 "Sketch" = "Sketch";

@@ -96,6 +96,7 @@
 "Active" = "Активный";
 "Active Configuration" = "Активная конфигурация";
 "Active days" = "Активные дни";
+"Active-recall question and answer cards." = "Карточки вопрос-ответ для активного запоминания.";
 "Activity" = "Активность";
 "Add a question before saving." = "Добавьте вопрос перед сохранением.";
 "Add Above" = "Добавить выше";
@@ -227,6 +228,7 @@
 "DECK-SCOPED SETTINGS" = "НАСТРОЙКИ ПАЛУБЫ";
 "Default" = "По умолчанию";
 "Default %@" = "По умолчанию %@";
+"Deeper cards with structure, context, and key nuance." = "Более глубокие карточки со структурой, контекстом и ключевыми нюансами.";
 "Delete" = "Удалить";
 "Delete \"%@\"?" = "Удалить \"%@\"?";
 "Delete %d card?" = "Удалить %d карточку?";
@@ -463,6 +465,7 @@
 "Preview" = "Предварительный просмотр";
 "PREVIEW" = "ПРЕДПРОСМОТР";
 "Preview Mode" = "Режим предварительного просмотра";
+"Pro" = "Pro";
 "Progress and pace." = "Прогресс и темп.";
 "Prompt" = "Задание";
 "PROMPT" = "ЗАДАНИЕ";
@@ -536,8 +539,10 @@
 "Shared Sheet Playground" = "Общая игровая площадка на листе";
 "Show" = "Показать";
 "Showing all" = "Показаны все";
+"Short, useful cards focused on the essential idea." = "Короткие полезные карточки, сфокусированные на главной идее.";
 "Side" = "Сторона";
 "Sign in with Google" = "Войти через Google";
+"Simple" = "Простой";
 "Sign out of the current QuizFlash session on this device." = "Выйдите из текущего сеанса QuizFlash на этом устройстве.";
 "Single correct answer" = "Один правильный ответ";
 "Sketch" = "Набросок";

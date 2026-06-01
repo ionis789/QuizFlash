@@ -85,12 +85,14 @@ struct MixedMathTextView: View {
         let usesWebRendering = intrinsicWidthLimit != nil
             || MathTextSanitizer.containsMath(clean)
             || MathTextSanitizer.containsInlineCode(clean)
-        let wantsReadOnlyOverflowScrolling = (
+        let canSupportReadOnlyOverflowScrolling = (
             !isInteractive
             && allowsReadOnlyOverflowScrolling
             && MathTextSanitizer.containsMath(clean)
         )
-        let shouldAllowWebInteraction = isInteractive || wantsReadOnlyOverflowScrolling
+        let shouldAllowReadOnlyOverflowInteraction = canSupportReadOnlyOverflowScrolling
+            && horizontalOverflowState.hasOverflow
+        let shouldAllowWebInteraction = isInteractive || shouldAllowReadOnlyOverflowInteraction
         let shouldShowHorizontalOverflowHint = (
             !isInteractive
             && allowsReadOnlyOverflowScrolling
@@ -113,7 +115,7 @@ struct MixedMathTextView: View {
                 reportsIntrinsicContentWidth: intrinsicWidthLimit != nil,
                 horizontalOverflowState: $horizontalOverflowState,
                 isInteractive: isInteractive,
-                allowsReadOnlyOverflowScrolling: wantsReadOnlyOverflowScrolling,
+                allowsReadOnlyOverflowScrolling: canSupportReadOnlyOverflowScrolling,
                 onTap: onTap
             )
             .frame(
@@ -121,8 +123,9 @@ struct MixedMathTextView: View {
                 height: webHeight
             )
             .frame(maxWidth: intrinsicWidthLimit == nil ? .infinity : nil)
-            // Keep hit-testing disabled for standard read-only previews, but
-            // allow block-math overflow areas to receive horizontal pans.
+            // Keep hit-testing disabled for normal read-only math so card taps
+            // reach the parent instantly. Enable WebView touch only for actual
+            // horizontal overflow that needs local panning.
             .allowsHitTesting(shouldAllowWebInteraction)
             .onChange(of: webHeight) { _, _ in
                 reportIntrinsicContentSize()
@@ -180,7 +183,7 @@ struct MixedMathTextView: View {
         let width = horizontalOverflowState.hasOverflow
             ? limit
             : webIntrinsicWidth > 0
-                ? min(max(ceil(webIntrinsicWidth), 1), limit)
+                ? max(ceil(webIntrinsicWidth), 1)
                 : limit
         let height = max(ceil(webHeight), 1)
         onIntrinsicContentSizeChange?(CGSize(width: width, height: height))
@@ -1090,23 +1093,45 @@ struct MathWebView: UIViewRepresentable {
                 };
             }
 
+            const fontSize = parseFloat(document.body.style.fontSize || '16') || 16;
+            const lineMergeTolerance = Math.max(8, fontSize * 0.55);
             const lines = [];
             let minTop = Number.POSITIVE_INFINITY;
             let maxBottom = Number.NEGATIVE_INFINITY;
-            rects.forEach(rect => {
-                const midY = rect.top + (rect.height / 2);
-                let line = lines.find(candidate => Math.abs(candidate.midY - midY) < 4);
-                if (!line) {
-                    line = { midY: midY, left: rect.left, right: rect.right };
-                    lines.push(line);
-                } else {
-                    line.left = Math.min(line.left, rect.left);
-                    line.right = Math.max(line.right, rect.right);
-                    line.midY = (line.midY + midY) / 2;
-                }
-                minTop = Math.min(minTop, rect.top);
-                maxBottom = Math.max(maxBottom, rect.bottom);
-            });
+
+            function belongsToLine(line, rect) {
+                const rectMidY = rect.top + (rect.height / 2);
+                const overlap = Math.min(line.bottom, rect.bottom) - Math.max(line.top, rect.top);
+                const minHeight = Math.min(line.bottom - line.top, rect.height);
+
+                return overlap >= Math.min(minHeight * 0.35, 8)
+                    || Math.abs(line.midY - rectMidY) <= lineMergeTolerance;
+            }
+
+            rects
+                .sort((a, b) => (a.top - b.top) || (a.left - b.left))
+                .forEach(rect => {
+                    const midY = rect.top + (rect.height / 2);
+                    let line = lines.find(candidate => belongsToLine(candidate, rect));
+                    if (!line) {
+                        line = {
+                            top: rect.top,
+                            bottom: rect.bottom,
+                            midY: midY,
+                            left: rect.left,
+                            right: rect.right
+                        };
+                        lines.push(line);
+                    } else {
+                        line.top = Math.min(line.top, rect.top);
+                        line.bottom = Math.max(line.bottom, rect.bottom);
+                        line.left = Math.min(line.left, rect.left);
+                        line.right = Math.max(line.right, rect.right);
+                        line.midY = line.top + ((line.bottom - line.top) / 2);
+                    }
+                    minTop = Math.min(minTop, rect.top);
+                    maxBottom = Math.max(maxBottom, rect.bottom);
+                });
 
             const widestLine = lines.reduce((width, line) => {
                 return Math.max(width, line.right - line.left);
@@ -1114,11 +1139,35 @@ struct MathWebView: UIViewRepresentable {
             const paddedMathWrapper = el.querySelector('.katex-display, .katex-inline-scroll') !== null;
             const verticalPadding = paddedMathWrapper ? 12 : 4;
             const visualHeight = Math.max(maxBottom - minTop + verticalPadding, 1);
+            const preferredUnwrappedWidth = measuredPreferredUnwrappedWidth(el);
+            const reportedWidth = preferredUnwrappedWidth > 0
+                ? Math.max(preferredUnwrappedWidth, widestLine)
+                : widestLine;
 
             return {
-                width: Math.min(Math.ceil(widestLine), Math.ceil(maxWidth)),
+                width: Math.ceil(reportedWidth),
                 height: Math.ceil(visualHeight)
             };
+        }
+
+        function measuredPreferredUnwrappedWidth(source) {
+            const clone = source.cloneNode(true);
+            clone.style.position = 'absolute';
+            clone.style.visibility = 'hidden';
+            clone.style.pointerEvents = 'none';
+            clone.style.left = '-10000px';
+            clone.style.top = '0';
+            clone.style.width = 'max-content';
+            clone.style.maxWidth = 'none';
+            clone.style.whiteSpace = 'pre';
+            clone.style.overflow = 'visible';
+
+            document.body.appendChild(clone);
+            const bounds = clone.getBoundingClientRect();
+            const width = Math.max(bounds.width, clone.scrollWidth, 1);
+            clone.remove();
+
+            return Math.ceil(width);
         }
 
         function reportOverflow() {

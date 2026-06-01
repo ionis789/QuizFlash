@@ -124,7 +124,7 @@ public enum AICardGenerationType: String, CaseIterable, Identifiable, Codable, S
 
     nonisolated var subtitle: String {
         switch self {
-        case .flashcards: return "Balanced active-recall question and answer cards."
+        case .flashcards: return "Active-recall question and answer cards."
         case .quiz: return "Multiple-choice prompts with one or more correct answers."
         }
     }
@@ -132,7 +132,7 @@ public enum AICardGenerationType: String, CaseIterable, Identifiable, Codable, S
     nonisolated func localizedSubtitle(locale: Locale) -> String {
         switch self {
         case .flashcards:
-            return AppLocalization.string("Balanced active-recall question and answer cards.", locale: locale)
+            return AppLocalization.string("Active-recall question and answer cards.", locale: locale)
         case .quiz:
             return AppLocalization.string("Multiple-choice prompts with one or more correct answers.", locale: locale)
         }
@@ -159,44 +159,56 @@ public enum AICardGenerationType: String, CaseIterable, Identifiable, Codable, S
 /// Depth and density profile requested by the user for generated cards.
 public enum AICardGenerationLevel: String, CaseIterable, Identifiable, Codable, Sendable {
     case simple
-    case balanced
-    case advanced
+    case pro
 
     public var id: String { rawValue }
 
     var title: String {
         switch self {
         case .simple: return "Simple"
-        case .balanced: return "Balanced"
-        case .advanced: return "Advanced"
+        case .pro: return "Pro"
         }
     }
 
     func localizedTitle(locale: Locale) -> String {
         switch self {
         case .simple: return AppLocalization.string("Simple", locale: locale)
-        case .balanced: return AppLocalization.string("Balanced", locale: locale)
-        case .advanced: return AppLocalization.string("Advanced", locale: locale)
+        case .pro: return AppLocalization.string("Pro", locale: locale)
         }
     }
 
     var subtitle: String {
         switch self {
-        case .simple: return "Focus on the clearest core facts and definitions."
-        case .balanced: return "Keep the current prompt style with normal depth."
-        case .advanced: return "Prefer nuanced, technical, higher-order understanding."
+        case .simple: return "Short, useful cards focused on the essential idea."
+        case .pro: return "Deeper cards with structure, context, and key nuance."
         }
     }
 
     func localizedSubtitle(locale: Locale) -> String {
         switch self {
         case .simple:
-            return AppLocalization.string("Focus on the clearest core facts and definitions.", locale: locale)
-        case .balanced:
-            return AppLocalization.string("Keep the current prompt style with normal depth.", locale: locale)
-        case .advanced:
-            return AppLocalization.string("Prefer nuanced, technical, higher-order understanding.", locale: locale)
+            return AppLocalization.string("Short, useful cards focused on the essential idea.", locale: locale)
+        case .pro:
+            return AppLocalization.string("Deeper cards with structure, context, and key nuance.", locale: locale)
         }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        switch rawValue {
+        case Self.simple.rawValue:
+            self = .simple
+        case Self.pro.rawValue, "balanced", "advanced":
+            self = .pro
+        default:
+            self = .pro
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 
@@ -375,7 +387,7 @@ extension AIGenerationLanguageHint {
 
 public nonisolated struct AIGenerationOptions: Equatable, Codable, Sendable {
     public var cardType: AICardGenerationType = .flashcards
-    public var cardLevel: AICardGenerationLevel = .balanced
+    public var cardLevel: AICardGenerationLevel = .pro
     /// Legacy persisted field kept for backward compatibility. Delivery is
     /// adaptive now and no longer uses a user-visible fixed batch size.
     public var cardsPerBatch: Int = 3
@@ -386,7 +398,7 @@ public nonisolated struct AIGenerationOptions: Equatable, Codable, Sendable {
 
     public init(
         cardType: AICardGenerationType = .flashcards,
-        cardLevel: AICardGenerationLevel = .balanced,
+        cardLevel: AICardGenerationLevel = .pro,
         cardsPerBatch: Int = 3,
         sourceDistributionMode: AISourceDistributionMode = .auto,
         outputLanguageMode: AIGenerationOutputLanguageMode = .auto,
@@ -434,7 +446,7 @@ public nonisolated struct AIGenerationOptions: Equatable, Codable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         cardType = try container.decodeIfPresent(AICardGenerationType.self, forKey: .cardType) ?? .flashcards
-        cardLevel = try container.decodeIfPresent(AICardGenerationLevel.self, forKey: .cardLevel) ?? .balanced
+        cardLevel = try container.decodeIfPresent(AICardGenerationLevel.self, forKey: .cardLevel) ?? .pro
         cardsPerBatch = try container.decodeIfPresent(Int.self, forKey: .cardsPerBatch) ?? 3
         sourceDistributionMode = try container.decodeIfPresent(AISourceDistributionMode.self, forKey: .sourceDistributionMode) ?? .auto
         outputLanguageMode = try container.decodeIfPresent(AIGenerationOutputLanguageMode.self, forKey: .outputLanguageMode) ?? .auto

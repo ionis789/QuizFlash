@@ -97,6 +97,7 @@ Accuracy	Accuracy	Acuratețe	Точность
 Active	Active	Activ	Активный
 Active Configuration	Active Configuration	Configurație activă	Активная конфигурация
 Active days	Active days	Zile active	Активные дни
+Active-recall question and answer cards.	Active-recall question and answer cards.	Carduri de întrebare și răspuns pentru memorare activă.	Карточки вопрос-ответ для активного запоминания.
 Activity	Activity	Activitate	Активность
 Add a question before saving.	Add a question before saving.	Adaugă întrebarea înainte de salvare.	Добавьте вопрос перед сохранением.
 Add Above	Add Above	Adaugă deasupra	Добавить выше
@@ -137,8 +138,8 @@ Auto Size	Auto Size	Dimensiune automată	Авторазмер
 Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
-Blank	Blank	Gol	Пропуск
 BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
+Blank	Blank	Gol	Пропуск
 Block Center	Block Center	Bloc centru	Блок по центру
 Block Left	Block Left	Bloc stânga	Блок слева
 Block Position	Block Position	Poziție bloc	Позиция блока
@@ -179,8 +180,8 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
+Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -226,6 +227,7 @@ Daily Workload	Daily Workload	Volumul de lucru zilnic	Ежедневная на�
 Deck Health	Deck Health	Deck Sănătate	Здоровье колоды
 Deck Title	Deck Title	Deck Titlu	Название колоды
 DECK-SCOPED SETTINGS	DECK-SCOPED SETTINGS	SETĂRI PENTRU PUNTE	НАСТРОЙКИ ПАЛУБЫ
+Deeper cards with structure, context, and key nuance.	Deeper cards with structure, context, and key nuance.	Carduri mai profunde, cu structură, context și nuanțe-cheie.	Более глубокие карточки со структурой, контекстом и ключевыми нюансами.
 Default	Default	Implicit	По умолчанию
 Default %@	Default %@	%@ implicit	По умолчанию %@
 Delete	Delete	Șterge	Удалить
@@ -291,8 +293,8 @@ Freed	Freed	Eliberat	Фрид
 Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
-Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generating	Generating	Generare	Генерация
 Generating AI...	Generating AI...	Se generează cu AI...	Генерация AI...
 Get started	Get started	Începe	Начать
@@ -452,18 +454,19 @@ Pick a deck for today	Pick a deck for today	Alege un deck pentru azi	Выбер�
 Pick a deck for tonight	Pick a deck for tonight	Alege un deck pentru diseară	Выберите колоду на вечер
 Pick a deck row above to inspect the cards that landed cleanly and the ones that still need another pass.	Pick a deck row above to inspect the cards that landed cleanly and the ones that still need another pass.	Alegeți un rând deck de mai sus pentru a inspecta carduri care au aterizat curat și pe cele care mai au nevoie de o altă trecere.	Выберите ряд колоды выше, чтобы проверить карты, которые приземлились чисто, и те, которым еще нужен повторный проход.
 Pick the type of card you want to add to this deck.	Pick the type of card you want to add to this deck.	Alegeți tipul de card pe care doriți să îl adăugați la acest deck.	Выберите тип карточки, которую хотите добавить в эту колоду.
-Please select .json files	Please select .json files	Selectați fișiere .json	Выберите файлы .json
 Pin	Pin	Fixează	Закрепить
 Pink	Pink	Roz	Розовый
 Pinned	Pinned	Fixat	Закреплена
 Play Debug	Play Debug	Joacă Debug	Играть в отладку
 PLAY MODES	PLAY MODES	MODURI DE JOCARE	РЕЖИМЫ ИГРЫ
 Play Simulation	Play Simulation	Jucați Simulare	Играть в симуляторы
+Please select .json files	Please select .json files	Selectați fișiere .json	Выберите файлы .json
 Preparing source	Preparing source	Se pregătește sursa	Подготовка источника
 Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
-Preview	Preview	Previzualizare	Предварительный просмотр
 PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
+Preview	Preview	Previzualizare	Предварительный просмотр
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
+Pro	Pro	Pro	Pro
 Progress and pace.	Progress and pace.	Progres și ritm.	Прогресс и темп.
 PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
 Prompt	Prompt	Enunț	Задание
@@ -535,11 +538,13 @@ Shadow Tuner	Shadow Tuner	Reglaj umbră	Настройка тени
 Shape	Shape	Formă	Форма
 Shared Consumers	Shared Consumers	Consumatori partajați	Общие потребители
 Shared Sheet Playground	Shared Sheet Playground	Loc de joacă comun cu foi	Общая игровая площадка на листе
+Short, useful cards focused on the essential idea.	Short, useful cards focused on the essential idea.	Carduri scurte și utile, axate pe ideea esențială.	Короткие полезные карточки, сфокусированные на главной идее.
 Show	Show	Arată	Показать
 Showing all	Showing all	Se afișează toate	Показаны все
 Side	Side	Parte	Сторона
 Sign in with Google	Sign in with Google	Conectați-vă cu Google	Войти через Google
 Sign out of the current QuizFlash session on this device.	Sign out of the current QuizFlash session on this device.	Deconectați-vă de la sesiunea curentă QuizFlash pe acest dispozitiv.	Выйдите из текущего сеанса QuizFlash на этом устройстве.
+Simple	Simple	Simplu	Простой
 Single correct answer	Single correct answer	Un singur răspuns corect	Один правильный ответ
 Sketch	Sketch	Schiță	Набросок
 Small	Small	Mic	Маленький
@@ -598,8 +603,8 @@ This migration slice only enables the shared routing foundation. Flashcard editi
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
 This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-This Week	This Week	Săptămâna asta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
+This Week	This Week	Săptămâna asta	Эта неделя
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
 To goal	To goal	Până la obiectiv	До цели

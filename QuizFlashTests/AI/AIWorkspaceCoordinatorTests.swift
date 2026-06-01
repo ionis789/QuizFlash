@@ -62,7 +62,7 @@ final class AIWorkspaceCoordinatorTests: XCTestCase {
             targetCardCount: 8,
             generatedCardCount: 3,
             baseCardCount: 0,
-            options: AIGenerationOptions(cardType: .quiz, cardLevel: .balanced),
+            options: AIGenerationOptions(cardType: .quiz, cardLevel: .pro),
             remainingAllocations: [
                 AISourceRangeAllocation(startIndex: 0, endIndex: 2, cardCount: 5)
             ],

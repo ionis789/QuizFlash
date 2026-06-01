@@ -174,6 +174,54 @@ final class ZoneModelLayoutMigrationTests: XCTestCase {
         XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
     }
 
+    func testAutoMathListItemUsesStableRenderedContentWidth() {
+        let zone = ZoneModel.text(#"a) $T$ este injectivă;"#)
+
+        let layout = CardZoneLayoutEngine.leafLayout(
+            for: zone,
+            spec: CardZoneLayoutSpec(availableWidth: 329, fontScale: 1),
+            measuredContentSize: CGSize(width: 220, height: 70)
+        )
+
+        XCTAssertEqual(layout.blockSize.width, 220)
+        XCTAssertEqual(layout.contentLayoutWidth, 220)
+        XCTAssertEqual(layout.textWidthLimit, 196)
+        XCTAssertEqual(layout.leadingInset, 55)
+        XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
+    }
+
+    func testLongMixedMathQuestionUsesRenderedContentWidth() {
+        let zone = ZoneModel.text(#"Definiți condițiile pe care trebuie să le satisfacă o submulțime $f \subseteq X \times Y$ pentru a fi o funcție $f: X \to Y$."#)
+
+        let layout = CardZoneLayoutEngine.leafLayout(
+            for: zone,
+            spec: CardZoneLayoutSpec(availableWidth: 329, fontScale: 1),
+            measuredContentSize: CGSize(width: 236, height: 254)
+        )
+
+        XCTAssertEqual(layout.blockSize.width, 236)
+        XCTAssertEqual(layout.contentLayoutWidth, 236)
+        XCTAssertEqual(layout.textWidthLimit, 212)
+        XCTAssertEqual(layout.leadingInset, 47)
+        XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
+    }
+
+    func testShortMathListItemUsesRendererMeasuredWidth() {
+        let zone = ZoneModel.text(#"b) $\operatorname{def}(T) = 0$;"#)
+
+        let layout = CardZoneLayoutEngine.leafLayout(
+            for: zone,
+            spec: CardZoneLayoutSpec(availableWidth: 329, fontScale: 1),
+            measuredContentSize: CGSize(width: 191, height: 70)
+        )
+
+        XCTAssertEqual(layout.blockSize.width, 191)
+        XCTAssertEqual(layout.contentLayoutWidth, 191)
+        XCTAssertEqual(layout.textWidthLimit, 167)
+        XCTAssertEqual(layout.leadingInset, 69)
+        XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
+    }
+
     private func decodeLegacyZone(textAlignment: String) throws -> ZoneModel {
         let payload = """
         {
