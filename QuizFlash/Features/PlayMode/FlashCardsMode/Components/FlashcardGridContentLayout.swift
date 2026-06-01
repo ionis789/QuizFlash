@@ -619,6 +619,10 @@ private struct FlashcardGridLeafPreview: View {
         let usesMathRenderer = MathTextSanitizer.containsMath(semanticText)
             || MathTextSanitizer.containsInlineCode(semanticText)
         let textWidthLimit = layout.textWidthLimit ?? max(layout.contentLayoutWidth, 1)
+        let measurementTextWidthLimit = max(
+            availableWidth - layout.textHorizontalInsets - layout.bulletHorizontalInset,
+            1
+        )
         let showsBullet = zone.hasBullet
             && !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
@@ -644,6 +648,7 @@ private struct FlashcardGridLeafPreview: View {
                     isInteractive: false,
                     allowsReadOnlyOverflowScrolling: true,
                     intrinsicWidthLimit: textWidthLimit,
+                    measurementWidthLimit: measurementTextWidthLimit,
                     onIntrinsicContentSizeChange: { size in
                         updateRenderedContentSize(
                             CGSize(

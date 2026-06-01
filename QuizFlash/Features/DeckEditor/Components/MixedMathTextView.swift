@@ -71,6 +71,7 @@ struct MixedMathTextView: View {
     var lineLimit: Int? = nil
     var renderStyle: MixedMathRenderStyle = .standard
     var intrinsicWidthLimit: CGFloat? = nil
+    var measurementWidthLimit: CGFloat? = nil
     var onIntrinsicContentSizeChange: ((CGSize) -> Void)? = nil
     var onTap: (() -> Void)? = nil
 
@@ -113,6 +114,7 @@ struct MixedMathTextView: View {
                 contentHeight: $webHeight,
                 intrinsicContentWidth: $webIntrinsicWidth,
                 reportsIntrinsicContentWidth: intrinsicWidthLimit != nil,
+                measurementWidthLimit: measurementWidthLimit,
                 horizontalOverflowState: $horizontalOverflowState,
                 isInteractive: isInteractive,
                 allowsReadOnlyOverflowScrolling: canSupportReadOnlyOverflowScrolling,
@@ -180,11 +182,14 @@ struct MixedMathTextView: View {
     private func reportIntrinsicContentSize() {
         guard intrinsicWidthLimit != nil else { return }
         let limit = max(intrinsicWidthLimit ?? 1, 1)
-        let width = horizontalOverflowState.hasOverflow
+        let measurementLimit = measurementWidthLimit.map { max($0, 1) }
+        let widthLimit = measurementLimit ?? limit
+        let measuredWidth = webIntrinsicWidth > 0
+            ? max(ceil(webIntrinsicWidth), 1)
+            : widthLimit
+        let width = measurementLimit == nil && horizontalOverflowState.hasOverflow
             ? limit
-            : webIntrinsicWidth > 0
-                ? max(ceil(webIntrinsicWidth), 1)
-                : limit
+            : min(measuredWidth, widthLimit)
         let height = max(ceil(webHeight), 1)
         onIntrinsicContentSizeChange?(CGSize(width: width, height: height))
     }
@@ -295,7 +300,8 @@ struct MixedMathTextView: View {
             alignmentSignature,
             isBold ? "1" : "0",
             isItalic ? "1" : "0",
-            renderStyle.rawValue
+            renderStyle.rawValue,
+            String(format: "%.3f", measurementWidthLimit ?? -1)
         ].joined(separator: "|")
     }
 
@@ -553,6 +559,7 @@ struct MathWebView: UIViewRepresentable {
     @Binding var contentHeight: CGFloat
     @Binding var intrinsicContentWidth: CGFloat
     let reportsIntrinsicContentWidth: Bool
+    let measurementWidthLimit: CGFloat?
     @Binding var horizontalOverflowState: HorizontalOverflowState
     /// When `false`, the WKWebView becomes non-interactive so taps and drags
     /// continue to the parent SwiftUI surface unobstructed.
@@ -682,7 +689,8 @@ struct MathWebView: UIViewRepresentable {
         guard let b64 = finalText.data(using: .utf8)?.base64EncodedString() else { return }
         
         let allowDisplayMathOverflowScrolling = allowsReadOnlyOverflowScrolling ? "true" : "false"
-        let js = "updateMathContent('\(b64)', '\(cssColor)', \(fontSize), '\(cssAlign)', '\(weight)', '\(fontStyle)', \(allowDisplayMathOverflowScrolling));"
+        let measurementWidth = max(ceil(measurementWidthLimit ?? 0), 0)
+        let js = "updateMathContent('\(b64)', '\(cssColor)', \(fontSize), '\(cssAlign)', '\(weight)', '\(fontStyle)', \(allowDisplayMathOverflowScrolling), \(measurementWidth));"
         context.coordinator.applyUpdate(js: js)
     }
 
@@ -836,13 +844,14 @@ struct MathWebView: UIViewRepresentable {
             isInstalled: false
         };
 
-        function updateMathContent(b64, color, fontSize, align, weight, fontStyle, allowDisplayMathOverflowScrolling) {
+        function updateMathContent(b64, color, fontSize, align, weight, fontStyle, allowDisplayMathOverflowScrolling, measurementWidthLimit) {
             document.body.style.color = color;
             document.body.style.fontSize = fontSize + 'px';
             document.body.style.textAlign = align;
             document.body.style.fontWeight = weight;
             document.body.style.fontStyle = fontStyle;
             document.body.dataset.allowDisplayMathOverflowScrolling = allowDisplayMathOverflowScrolling ? '1' : '0';
+            document.body.dataset.measurementWidthLimit = measurementWidthLimit > 0 ? measurementWidthLimit : '';
 
             let bin = window.atob(b64);
             let bytes = new Uint8Array(bin.length);
@@ -1013,13 +1022,35 @@ struct MathWebView: UIViewRepresentable {
 
         function reportLayoutMetrics() {
             const el = document.getElementById('content');
-            const bounds = measuredVisualContentBounds(el);
+            const measurementWidthLimit = parseFloat(document.body.dataset.measurementWidthLimit || '0') || 0;
+            const bounds = measurementWidthLimit > 0
+                ? measuredVisualContentBoundsAtWidth(el, measurementWidthLimit)
+                : measuredVisualContentBounds(el);
             if (bounds.height > 0 && window.webkit && window.webkit.messageHandlers.heightUpdate) {
                 window.webkit.messageHandlers.heightUpdate.postMessage(Math.ceil(bounds.height));
             }
             if (bounds.width > 0 && window.webkit && window.webkit.messageHandlers.widthUpdate) {
                 window.webkit.messageHandlers.widthUpdate.postMessage(Math.ceil(bounds.width));
             }
+        }
+
+        function measuredVisualContentBoundsAtWidth(source, width) {
+            const clone = source.cloneNode(true);
+            clone.style.position = 'absolute';
+            clone.style.visibility = 'hidden';
+            clone.style.pointerEvents = 'none';
+            clone.style.left = '-10000px';
+            clone.style.top = '0';
+            clone.style.width = Math.max(width, 1) + 'px';
+            clone.style.maxWidth = 'none';
+            clone.style.height = 'auto';
+            clone.style.overflow = 'visible';
+
+            document.body.appendChild(clone);
+            const bounds = measuredVisualContentBounds(clone);
+            clone.remove();
+
+            return bounds;
         }
 
         function measuredVisualContentBounds(el) {
@@ -1139,35 +1170,10 @@ struct MathWebView: UIViewRepresentable {
             const paddedMathWrapper = el.querySelector('.katex-display, .katex-inline-scroll') !== null;
             const verticalPadding = paddedMathWrapper ? 12 : 4;
             const visualHeight = Math.max(maxBottom - minTop + verticalPadding, 1);
-            const preferredUnwrappedWidth = measuredPreferredUnwrappedWidth(el);
-            const reportedWidth = preferredUnwrappedWidth > 0
-                ? Math.max(preferredUnwrappedWidth, widestLine)
-                : widestLine;
-
             return {
-                width: Math.ceil(reportedWidth),
+                width: Math.ceil(widestLine + 2),
                 height: Math.ceil(visualHeight)
             };
-        }
-
-        function measuredPreferredUnwrappedWidth(source) {
-            const clone = source.cloneNode(true);
-            clone.style.position = 'absolute';
-            clone.style.visibility = 'hidden';
-            clone.style.pointerEvents = 'none';
-            clone.style.left = '-10000px';
-            clone.style.top = '0';
-            clone.style.width = 'max-content';
-            clone.style.maxWidth = 'none';
-            clone.style.whiteSpace = 'pre';
-            clone.style.overflow = 'visible';
-
-            document.body.appendChild(clone);
-            const bounds = clone.getBoundingClientRect();
-            const width = Math.max(bounds.width, clone.scrollWidth, 1);
-            clone.remove();
-
-            return Math.ceil(width);
         }
 
         function reportOverflow() {
