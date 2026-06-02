@@ -720,9 +720,9 @@ struct FlashCardsPlayModeView: View {
         containerSize: CGSize
     ) -> some View {
         let horizontalInset = UIConstants.Layout.compactScreenEdgeInset
-        let panelWidth = min(containerSize.width - (horizontalInset * 2), 360)
+        let panelWidth = min(containerSize.width - (horizontalInset * 2), 320)
         let availablePanelHeight = containerSize.height - safeBottomInset - bottomChromeHeight - 128
-        let panelMaxHeight = min(max(availablePanelHeight, 280), 540)
+        let panelMaxHeight = min(max(availablePanelHeight, 160), 220)
 
         return ZStack(alignment: .bottomTrailing) {
             if developerSwipeDebugState.showsLiveSwipeOverlay {
@@ -744,32 +744,35 @@ struct FlashCardsPlayModeView: View {
                 .allowsHitTesting(true)
             }
 
-            VStack(alignment: .trailing, spacing: UIConstants.Spacing.medium) {
-                if showsDeveloperPanel {
+            if showsDeveloperPanel {
 #if DEBUG
-                    let performanceContent = AnyView(
-                        flashcardsStartupDebugPanel(
-                            safeTopInset: 0,
-                            safeBottomInset: safeBottomInset,
-                            cardBottomPadding: bottomChromeHeight + max(safeBottomInset - 6, 10)
-                        )
+                let performanceContent = AnyView(
+                    flashcardsStartupDebugPanel(
+                        safeTopInset: 0,
+                        safeBottomInset: safeBottomInset,
+                        cardBottomPadding: bottomChromeHeight + max(safeBottomInset - 6, 10)
                     )
+                )
 #else
-                    let performanceContent: AnyView? = nil
+                let performanceContent: AnyView? = nil
 #endif
 
-                    PlayModeDeveloperSwipePanel(
-                        state: developerSwipeDebugState,
-                        maxHeight: panelMaxHeight,
-                        performanceContent: performanceContent,
-                        layoutDebugSnapshot: currentLayoutDebugSnapshot,
-                        layoutDebugReport: currentLayoutDebugReport,
-                        onClose: closeDeveloperPanel
-                    )
-                        .frame(width: panelWidth)
-                        .transition(playModeDeveloperPanelTransition)
-                }
+                PlayModeDeveloperSwipePanel(
+                    state: developerSwipeDebugState,
+                    maxHeight: panelMaxHeight,
+                    performanceContent: performanceContent,
+                    layoutDebugSnapshot: currentLayoutDebugSnapshot,
+                    layoutDebugReport: currentLayoutDebugReport,
+                    onClose: closeDeveloperPanel
+                )
+                .frame(width: panelWidth)
+                .padding(.leading, horizontalInset)
+                .padding(.bottom, safeBottomInset + 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .transition(playModeDeveloperPanelTransition)
+            }
 
+            VStack(alignment: .trailing, spacing: UIConstants.Spacing.medium) {
                 if currentLayoutDebugReport != nil {
                     Button(action: saveCurrentCardToRenderDebugDeck) {
                         HStack(spacing: 8) {
@@ -1395,6 +1398,7 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
             .joined(separator: "\n")
         let renderedTokenLines = tokenDebugLines(for: leaf.renderedTokenLines)
         let renderedScrollableMath = scrollableMathDebugLines(for: leaf.renderedScrollableMath)
+        let mathGestureDebug = gestureDebugLine(for: leaf.mathGestureDebug)
 
         return [
             "- \(leaf.path) id=\(leaf.zoneID.uuidString)",
@@ -1413,6 +1417,8 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
             renderedTokenLines.isEmpty ? "    <none>" : renderedTokenLines,
             "  renderedScrollableMath:",
             renderedScrollableMath.isEmpty ? "    <none>" : renderedScrollableMath,
+            "  mathGestureDebug:",
+            mathGestureDebug,
             "  preview=\"\(leaf.textPreview)\"",
             "  fullText:",
             leaf.fullText.isEmpty ? "  <empty>" : indentMultiline(leaf.fullText, prefix: "  | ")
@@ -1454,6 +1460,12 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
                 "    \(index + 1). kind=\(row.kind) wrapperHeight=\(metric(row.wrapperHeight)) clientHeight=\(metric(row.clientHeight)) scrollHeight=\(metric(row.scrollHeight)) visualHeight=\(metric(row.visualHeight)) visualTop=\(metric(row.visualTop)) visualBottom=\(metric(row.visualBottom)) paddingTop=\(metric(row.paddingTop)) paddingBottom=\(metric(row.paddingBottom)) topAdjustment=\(metric(row.topAdjustment))"
             }
             .joined(separator: "\n")
+    }
+
+    private static func gestureDebugLine(for snapshot: MixedMathGestureDebugSnapshot?) -> String {
+        guard let snapshot else { return "    <none>" }
+
+        return "    decision=\(snapshot.decision) reason=\"\(snapshot.reason)\" direction=\"\(snapshot.direction)\" location=(x:\(metric(snapshot.location.x)), y:\(metric(snapshot.location.y))) h=\(metric(snapshot.horizontalMagnitude)) v=\(metric(snapshot.verticalMagnitude)) canLeft=\(snapshot.canScrollLeft) canRight=\(snapshot.canScrollRight) regions=\(snapshot.regionCount)"
     }
 
     private static func singleLinePreview(_ value: String, limit: Int) -> String {
@@ -1506,6 +1518,10 @@ private struct PlayModeDeveloperSwipePanel: View {
 
                     debugSection("Card Layout") {
                         layoutDebugSection
+                    }
+
+                    debugSection("Math Scroll Gesture") {
+                        mathGestureDebugSection
                     }
 
                     debugSection("Live Swipe") {
@@ -1657,6 +1673,38 @@ private struct PlayModeDeveloperSwipePanel: View {
         .padding(.horizontal, UIConstants.Spacing.medium)
         .padding(.vertical, UIConstants.Spacing.small)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var mathGestureDebugSection: some View {
+        if let snapshot = latestMathGestureDebug {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    debugChip(snapshot.decision, tint: snapshot.decision == "WEB" ? .cyan : .green)
+                    debugChip(snapshot.reason.uppercased(), tint: snapshot.decision == "WEB" ? .cyan : .orange)
+                }
+
+                debugLayoutLine("direction", snapshot.direction)
+                debugLayoutLine("touch", "x=\(metricText(snapshot.location.x)) y=\(metricText(snapshot.location.y))")
+                debugLayoutLine("motion", "h=\(metricText(snapshot.horizontalMagnitude)) v=\(metricText(snapshot.verticalMagnitude))")
+                debugLayoutLine("formula", "left=\(snapshot.canScrollLeft) right=\(snapshot.canScrollRight)")
+                debugLayoutLine("regions", "\(snapshot.regionCount)")
+            }
+        } else {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                debugChip("WAITING", tint: .secondary)
+                Text("Drag a scrollable formula; this shows whether the gesture stays in math or is handed to the card.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var latestMathGestureDebug: MixedMathGestureDebugSnapshot? {
+        layoutDebugSnapshot?
+            .leafSnapshots
+            .compactMap(\.mathGestureDebug)
+            .max(by: { $0.timestamp < $1.timestamp })
     }
 
     @ViewBuilder

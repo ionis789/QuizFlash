@@ -60,18 +60,44 @@ struct MixedMathScrollableDebug: Equatable {
     let topAdjustment: CGFloat
 }
 
+struct MixedMathGestureDebugSnapshot: Equatable {
+    let timestamp: Date
+    let decision: String
+    let reason: String
+    let direction: String
+    let location: CGPoint
+    let horizontalMagnitude: CGFloat
+    let verticalMagnitude: CGFloat
+    let canScrollLeft: Bool
+    let canScrollRight: Bool
+    let regionCount: Int
+}
+
 private var quizFlashHorizontalOverflowAssociationKey: UInt8 = 0
+private var quizFlashScrollableMathInteractionRegionsAssociationKey: UInt8 = 0
+
+struct ScrollableMathInteractionRegion: Equatable {
+    let rect: CGRect
+    let canScrollLeft: Bool
+    let canScrollRight: Bool
+}
 
 private final class MathWKWebView: WKWebView {
     var allowsFullQuizFlashInteraction = true
-    var scrollableInteractionRects: [CGRect] = []
+    var scrollableInteractionRegions: [ScrollableMathInteractionRegion] = []
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         guard super.point(inside: point, with: event) else { return false }
         guard !allowsFullQuizFlashInteraction else { return true }
 
-        return scrollableInteractionRects.contains { rect in
-            rect.insetBy(dx: -UIConstants.Spacing.small, dy: -UIConstants.Spacing.small).contains(point)
+        return scrollableInteractionRegion(containing: point) != nil
+    }
+
+    func scrollableInteractionRegion(containing point: CGPoint) -> ScrollableMathInteractionRegion? {
+        scrollableInteractionRegions.first { region in
+            region.rect
+                .insetBy(dx: -UIConstants.Spacing.small, dy: -UIConstants.Spacing.small)
+                .contains(point)
         }
     }
 }
@@ -94,6 +120,23 @@ extension WKWebView {
                 self,
                 &quizFlashHorizontalOverflowAssociationKey,
                 NSNumber(value: newValue),
+                .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+            )
+        }
+    }
+
+    var quizflashScrollableMathInteractionRegions: [ScrollableMathInteractionRegion] {
+        get {
+            objc_getAssociatedObject(
+                self,
+                &quizFlashScrollableMathInteractionRegionsAssociationKey
+            ) as? [ScrollableMathInteractionRegion] ?? []
+        }
+        set {
+            objc_setAssociatedObject(
+                self,
+                &quizFlashScrollableMathInteractionRegionsAssociationKey,
+                newValue,
                 .OBJC_ASSOCIATION_RETAIN_NONATOMIC
             )
         }
@@ -125,6 +168,7 @@ struct MixedMathTextView: View {
     var onIntrinsicContentSizeChange: ((CGSize) -> Void)? = nil
     var onRenderedLineDebugChange: (([MixedMathRenderedLineDebug]) -> Void)? = nil
     var onScrollableDebugChange: (([MixedMathScrollableDebug]) -> Void)? = nil
+    var onGestureDebugChange: ((MixedMathGestureDebugSnapshot) -> Void)? = nil
     var showsRenderDebugBounds: Bool = false
     var onTap: (() -> Void)? = nil
 
@@ -134,6 +178,7 @@ struct MixedMathTextView: View {
     @State private var horizontalOverflowState = HorizontalOverflowState()
     @State private var renderedLineDebug: [MixedMathRenderedLineDebug] = []
     @State private var scrollableDebug: [MixedMathScrollableDebug] = []
+    @State private var gestureDebug: MixedMathGestureDebugSnapshot?
 
     var body: some View {
         let clean = MathTextSanitizer.heal(text)
@@ -172,6 +217,7 @@ struct MixedMathTextView: View {
                 intrinsicContentWidth: $webIntrinsicWidth,
                 renderedLineDebug: $renderedLineDebug,
                 scrollableDebug: $scrollableDebug,
+                gestureDebug: $gestureDebug,
                 reportsIntrinsicContentWidth: intrinsicWidthLimit != nil,
                 reportsRenderedLineDebug: reportsRenderedLineDebug,
                 reportsScrollableDebug: reportsScrollableDebug,
@@ -205,6 +251,10 @@ struct MixedMathTextView: View {
             }
             .onChange(of: scrollableDebug) { _, newValue in
                 onScrollableDebugChange?(newValue)
+            }
+            .onChange(of: gestureDebug) { _, newValue in
+                guard let newValue else { return }
+                onGestureDebugChange?(newValue)
             }
             .overlay {
                 if shouldShowHorizontalOverflowHint {
@@ -630,6 +680,7 @@ struct MathWebView: UIViewRepresentable {
     @Binding var intrinsicContentWidth: CGFloat
     @Binding var renderedLineDebug: [MixedMathRenderedLineDebug]
     @Binding var scrollableDebug: [MixedMathScrollableDebug]
+    @Binding var gestureDebug: MixedMathGestureDebugSnapshot?
     let reportsIntrinsicContentWidth: Bool
     let reportsRenderedLineDebug: Bool
     let reportsScrollableDebug: Bool
@@ -649,6 +700,7 @@ struct MathWebView: UIViewRepresentable {
             intrinsicContentWidth: $intrinsicContentWidth,
             renderedLineDebug: $renderedLineDebug,
             scrollableDebug: $scrollableDebug,
+            gestureDebug: $gestureDebug,
             reportsIntrinsicContentWidth: reportsIntrinsicContentWidth,
             reportsRenderedLineDebug: reportsRenderedLineDebug,
             reportsScrollableDebug: reportsScrollableDebug,
@@ -701,6 +753,7 @@ struct MathWebView: UIViewRepresentable {
         context.coordinator.lastRenderedSignature = renderSignature
         context.coordinator.onTap = onTap
         webView.quizflashHasHorizontalOverflow = false
+        webView.quizflashScrollableMathInteractionRegions = []
 
         // In read-only contexts (playback, preview), disable UIKit interaction
         // unless this view contains display math that needs local horizontal panning.
@@ -734,10 +787,13 @@ struct MathWebView: UIViewRepresentable {
         webView.scrollView.isUserInteractionEnabled = shouldAllowWebInteraction
         if let mathWebView = webView as? MathWKWebView {
             mathWebView.allowsFullQuizFlashInteraction = isInteractive
-            mathWebView.scrollableInteractionRects = isInteractive
+            mathWebView.scrollableInteractionRegions = isInteractive
                 ? []
-                : horizontalOverflowState.scrollableInteractionRects
+                : horizontalOverflowState.scrollableInteractionRegions
         }
+        webView.quizflashScrollableMathInteractionRegions = isInteractive
+            ? []
+            : horizontalOverflowState.scrollableInteractionRegions
         // Keep the page itself locked; overflowing math uses the DOM container's
         // own horizontal overflow instead of scrolling the WKWebView page.
         webView.scrollView.isScrollEnabled = false
@@ -1174,8 +1230,58 @@ struct MathWebView: UIViewRepresentable {
             }
 
             overflowTargets.forEach(block => {
+                bindScrollableMathEdgeGuard(block);
                 block.onscroll = reportOverflow;
             });
+        }
+
+        function bindScrollableMathEdgeGuard(block) {
+            if (!block || block.dataset.qfEdgeGuardBound === '1') { return; }
+            block.dataset.qfEdgeGuardBound = '1';
+
+            let startX = 0;
+            let startY = 0;
+            let tracking = false;
+
+            block.addEventListener('touchstart', event => {
+                if (event.touches.length !== 1) {
+                    tracking = false;
+                    return;
+                }
+
+                const touch = event.touches[0];
+                startX = touch.clientX;
+                startY = touch.clientY;
+                tracking = true;
+            }, { passive: true });
+
+            block.addEventListener('touchmove', event => {
+                if (!tracking || event.touches.length !== 1) { return; }
+
+                const touch = event.touches[0];
+                const dx = touch.clientX - startX;
+                const dy = touch.clientY - startY;
+                const horizontal = Math.abs(dx);
+                const vertical = Math.abs(dy);
+                if (horizontal <= vertical * 1.15) { return; }
+
+                const maxScrollLeft = Math.max(0, block.scrollWidth - block.clientWidth);
+                const atLeftEdge = block.scrollLeft <= 1;
+                const atRightEdge = block.scrollLeft >= maxScrollLeft - 1;
+                const wantsPastLeftEdge = dx > 0 && atLeftEdge;
+                const wantsPastRightEdge = dx < 0 && atRightEdge;
+
+                if ((wantsPastLeftEdge || wantsPastRightEdge) && event.cancelable) {
+                    event.preventDefault();
+                    block.scrollLeft = wantsPastLeftEdge ? 0 : maxScrollLeft;
+                }
+            }, { passive: false });
+
+            const reset = () => {
+                tracking = false;
+            };
+            block.addEventListener('touchend', reset, { passive: true });
+            block.addEventListener('touchcancel', reset, { passive: true });
         }
 
         function inlineMathNeedsOverflowContainer(node, contentRect, maxInlineWidth) {
@@ -1761,7 +1867,9 @@ struct MathWebView: UIViewRepresentable {
                         left: blockRect.left - contentRect.left,
                         top: blockRect.top - contentRect.top,
                         width: blockRect.width,
-                        height: blockRect.height
+                        height: blockRect.height,
+                        canScrollLeft: canScrollBlockLeft,
+                        canScrollRight: canScrollBlockRight
                     });
                     if (canScrollBlockLeft) {
                         state.canScrollLeft = true;
@@ -1846,6 +1954,7 @@ struct MathWebView: UIViewRepresentable {
         @Binding var intrinsicContentWidth: CGFloat
         @Binding var renderedLineDebug: [MixedMathRenderedLineDebug]
         @Binding var scrollableDebug: [MixedMathScrollableDebug]
+        @Binding var gestureDebug: MixedMathGestureDebugSnapshot?
         var reportsIntrinsicContentWidth: Bool
         private var reportsRenderedLineDebug: Bool
         private var reportsScrollableDebug: Bool
@@ -1861,6 +1970,7 @@ struct MathWebView: UIViewRepresentable {
             intrinsicContentWidth: Binding<CGFloat>,
             renderedLineDebug: Binding<[MixedMathRenderedLineDebug]>,
             scrollableDebug: Binding<[MixedMathScrollableDebug]>,
+            gestureDebug: Binding<MixedMathGestureDebugSnapshot?>,
             reportsIntrinsicContentWidth: Bool,
             reportsRenderedLineDebug: Bool,
             reportsScrollableDebug: Bool,
@@ -1871,6 +1981,7 @@ struct MathWebView: UIViewRepresentable {
             _intrinsicContentWidth = intrinsicContentWidth
             _renderedLineDebug = renderedLineDebug
             _scrollableDebug = scrollableDebug
+            _gestureDebug = gestureDebug
             self.reportsIntrinsicContentWidth = reportsIntrinsicContentWidth
             self.reportsRenderedLineDebug = reportsRenderedLineDebug
             self.reportsScrollableDebug = reportsScrollableDebug
@@ -1919,15 +2030,16 @@ struct MathWebView: UIViewRepresentable {
                     let canScrollLeft = overflowPayload["canScrollLeft"] as? Bool ?? false
                     let canScrollRight = overflowPayload["canScrollRight"] as? Bool ?? false
                     let indicatorCenterY = Self.cgFloatValue(overflowPayload["indicatorCenterY"])
-                    let interactionRects = Self.dictionaryArray(from: overflowPayload["interactionRects"] ?? [])
-                        .map(Self.cgRect(from:))
+                    let interactionRegions = Self.dictionaryArray(from: overflowPayload["interactionRects"] ?? [])
+                        .map(Self.scrollableInteractionRegion(from:))
                     Task { @MainActor in
                         self.webView?.quizflashHasHorizontalOverflow = canScrollLeft || canScrollRight
+                        self.webView?.quizflashScrollableMathInteractionRegions = interactionRegions
                         self.horizontalOverflowState = HorizontalOverflowState(
                             canScrollLeft: canScrollLeft,
                             canScrollRight: canScrollRight,
                             indicatorCenterY: indicatorCenterY > 0 ? indicatorCenterY : nil,
-                            scrollableInteractionRects: interactionRects
+                            scrollableInteractionRegions: interactionRegions
                         )
                     }
                     return
@@ -1936,6 +2048,7 @@ struct MathWebView: UIViewRepresentable {
                 guard let hasOverflow = message.body as? Bool else { return }
                 Task { @MainActor in
                     self.webView?.quizflashHasHorizontalOverflow = hasOverflow
+                    self.webView?.quizflashScrollableMathInteractionRegions = []
                     self.horizontalOverflowState = hasOverflow
                         ? HorizontalOverflowState(canScrollLeft: false, canScrollRight: true)
                         : .init()
@@ -2016,12 +2129,18 @@ struct MathWebView: UIViewRepresentable {
             return []
         }
 
-        nonisolated private static func cgRect(from payload: [String: Any]) -> CGRect {
-            CGRect(
-                x: cgFloatValue(payload["left"]),
-                y: cgFloatValue(payload["top"]),
-                width: cgFloatValue(payload["width"]),
-                height: cgFloatValue(payload["height"])
+        nonisolated private static func scrollableInteractionRegion(
+            from payload: [String: Any]
+        ) -> ScrollableMathInteractionRegion {
+            ScrollableMathInteractionRegion(
+                rect: CGRect(
+                    x: cgFloatValue(payload["left"]),
+                    y: cgFloatValue(payload["top"]),
+                    width: cgFloatValue(payload["width"]),
+                    height: cgFloatValue(payload["height"])
+                ),
+                canScrollLeft: payload["canScrollLeft"] as? Bool ?? false,
+                canScrollRight: payload["canScrollRight"] as? Bool ?? false
             )
         }
 
@@ -2132,16 +2251,111 @@ struct MathWebView: UIViewRepresentable {
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
             if let mathWebView = webView as? MathWKWebView, !mathWebView.allowsFullQuizFlashInteraction {
-                let view = pan.view ?? webView
-                let translation = pan.translation(in: view)
-                let velocity = pan.velocity(in: view)
-                let horizontal = max(abs(translation.x), abs(velocity.x))
-                let vertical = max(abs(translation.y), abs(velocity.y))
-
-                guard horizontal > vertical * 1.15 else { return false }
+                return shouldBeginReadOnlyScrollablePan(pan, in: mathWebView)
             }
             guard shouldHandOffHorizontalPanToParent(pan) else { return true }
             return false
+        }
+
+        private func shouldBeginReadOnlyScrollablePan(
+            _ pan: UIPanGestureRecognizer,
+            in mathWebView: MathWKWebView
+        ) -> Bool {
+            let location = pan.location(in: mathWebView)
+            let region = mathWebView.scrollableInteractionRegion(containing: location)
+
+            let view = pan.view ?? mathWebView
+            let translation = pan.translation(in: view)
+            let velocity = pan.velocity(in: view)
+            let horizontal = max(abs(translation.x), abs(velocity.x))
+            let vertical = max(abs(translation.y), abs(velocity.y))
+
+            guard let region else {
+                publishGestureDebug(
+                    decision: "CARD",
+                    reason: "no scroll region",
+                    direction: "none",
+                    location: location,
+                    horizontal: horizontal,
+                    vertical: vertical,
+                    canScrollLeft: false,
+                    canScrollRight: false,
+                    regionCount: mathWebView.scrollableInteractionRegions.count
+                )
+                return false
+            }
+
+            guard horizontal > vertical * 1.15 else {
+                publishGestureDebug(
+                    decision: "CARD",
+                    reason: "not horizontal",
+                    direction: "none",
+                    location: location,
+                    horizontal: horizontal,
+                    vertical: vertical,
+                    canScrollLeft: region.canScrollLeft,
+                    canScrollRight: region.canScrollRight,
+                    regionCount: mathWebView.scrollableInteractionRegions.count
+                )
+                return false
+            }
+
+            let direction = abs(translation.x) > 0 ? translation.x : velocity.x
+            guard direction != 0 else {
+                publishGestureDebug(
+                    decision: "CARD",
+                    reason: "zero direction",
+                    direction: "none",
+                    location: location,
+                    horizontal: horizontal,
+                    vertical: vertical,
+                    canScrollLeft: region.canScrollLeft,
+                    canScrollRight: region.canScrollRight,
+                    regionCount: mathWebView.scrollableInteractionRegions.count
+                )
+                return false
+            }
+
+            let wantsLeftScroll = direction > 0
+            let canScrollRequestedDirection = wantsLeftScroll ? region.canScrollLeft : region.canScrollRight
+            publishGestureDebug(
+                decision: canScrollRequestedDirection ? "WEB" : "CARD",
+                reason: canScrollRequestedDirection ? "scroll available" : "edge handoff",
+                direction: wantsLeftScroll ? "finger right" : "finger left",
+                location: location,
+                horizontal: horizontal,
+                vertical: vertical,
+                canScrollLeft: region.canScrollLeft,
+                canScrollRight: region.canScrollRight,
+                regionCount: mathWebView.scrollableInteractionRegions.count
+            )
+
+            return canScrollRequestedDirection
+        }
+
+        private func publishGestureDebug(
+            decision: String,
+            reason: String,
+            direction: String,
+            location: CGPoint,
+            horizontal: CGFloat,
+            vertical: CGFloat,
+            canScrollLeft: Bool,
+            canScrollRight: Bool,
+            regionCount: Int
+        ) {
+            gestureDebug = MixedMathGestureDebugSnapshot(
+                timestamp: Date(),
+                decision: decision,
+                reason: reason,
+                direction: direction,
+                location: location,
+                horizontalMagnitude: horizontal,
+                verticalMagnitude: vertical,
+                canScrollLeft: canScrollLeft,
+                canScrollRight: canScrollRight,
+                regionCount: regionCount
+            )
         }
 
         private func shouldHandOffHorizontalPanToParent(_ pan: UIPanGestureRecognizer) -> Bool {
@@ -2175,7 +2389,7 @@ struct HorizontalOverflowState: Equatable {
     var canScrollLeft: Bool = false
     var canScrollRight: Bool = false
     var indicatorCenterY: CGFloat?
-    var scrollableInteractionRects: [CGRect] = []
+    var scrollableInteractionRegions: [ScrollableMathInteractionRegion] = []
 
     var hasOverflow: Bool {
         canScrollLeft || canScrollRight

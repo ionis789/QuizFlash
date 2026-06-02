@@ -61,6 +61,7 @@ struct FlashcardGridLeafLayoutDebugSnapshot: Equatable {
     let renderedLineWidths: [CGFloat]
     let renderedTokenLines: [MixedMathRenderedLineDebug]
     let renderedScrollableMath: [MixedMathScrollableDebug]
+    let mathGestureDebug: MixedMathGestureDebugSnapshot?
     let textPreview: String
     let fullText: String
 }
@@ -453,6 +454,7 @@ private struct FlashcardGridLeafPreview: View {
     @State private var renderedContentSize: CGSize = .zero
     @State private var renderedTokenLines: [MixedMathRenderedLineDebug] = []
     @State private var renderedScrollableMath: [MixedMathScrollableDebug] = []
+    @State private var mathGestureDebug: MixedMathGestureDebugSnapshot?
 
     var body: some View {
         let resolvedLayoutZone = layoutZone
@@ -511,6 +513,7 @@ private struct FlashcardGridLeafPreview: View {
             renderedContentSize = .zero
             renderedTokenLines = []
             renderedScrollableMath = []
+            mathGestureDebug = nil
         }
     }
 
@@ -646,6 +649,11 @@ private struct FlashcardGridLeafPreview: View {
                 renderedScrollableMath = rows
             }
             : nil
+        let gestureDebugHandler: ((MixedMathGestureDebugSnapshot) -> Void)? = collectsDebugMetrics
+            ? { snapshot in
+                mathGestureDebug = snapshot
+            }
+            : nil
         let showsBullet = zone.hasBullet
             && !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
@@ -682,6 +690,7 @@ private struct FlashcardGridLeafPreview: View {
                     },
                     onRenderedLineDebugChange: renderedLineDebugHandler,
                     onScrollableDebugChange: scrollableDebugHandler,
+                    onGestureDebugChange: gestureDebugHandler,
                     showsRenderDebugBounds: showsDebugGuides || collectsDebugMetrics,
                     onTap: onTap
                 )
@@ -826,6 +835,7 @@ private struct FlashcardGridLeafPreview: View {
             renderedLineWidths: renderedLineLayout.lines.map { ceil($0.width) },
             renderedTokenLines: containsMath || containsInlineCode ? renderedTokenLines : [],
             renderedScrollableMath: containsMath || containsInlineCode ? renderedScrollableMath : [],
+            mathGestureDebug: containsMath || containsInlineCode ? mathGestureDebug : nil,
             textPreview: Self.preview(displayText),
             fullText: displayText
         )
