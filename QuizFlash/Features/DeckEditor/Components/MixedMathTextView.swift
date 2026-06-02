@@ -24,6 +24,42 @@ enum MixedMathRenderStyle: String, Sendable {
     }
 }
 
+struct MixedMathRenderedTokenDebug: Equatable {
+    let text: String
+    let kind: String
+    let left: CGFloat
+    let top: CGFloat
+    let width: CGFloat
+    let height: CGFloat
+    let right: CGFloat
+    let bottom: CGFloat
+}
+
+struct MixedMathRenderedLineDebug: Equatable {
+    let index: Int
+    let widthLimit: CGFloat
+    let left: CGFloat
+    let top: CGFloat
+    let width: CGFloat
+    let height: CGFloat
+    let right: CGFloat
+    let bottom: CGFloat
+    let tokens: [MixedMathRenderedTokenDebug]
+}
+
+struct MixedMathScrollableDebug: Equatable {
+    let kind: String
+    let wrapperHeight: CGFloat
+    let scrollHeight: CGFloat
+    let clientHeight: CGFloat
+    let visualHeight: CGFloat
+    let visualTop: CGFloat
+    let visualBottom: CGFloat
+    let paddingTop: CGFloat
+    let paddingBottom: CGFloat
+    let topAdjustment: CGFloat
+}
+
 private var quizFlashHorizontalOverflowAssociationKey: UInt8 = 0
 
 #if DEBUG
@@ -71,14 +107,19 @@ struct MixedMathTextView: View {
     var lineLimit: Int? = nil
     var renderStyle: MixedMathRenderStyle = .standard
     var intrinsicWidthLimit: CGFloat? = nil
-    var measurementWidthLimit: CGFloat? = nil
+    var intrinsicMeasurementWidthLimit: CGFloat? = nil
     var onIntrinsicContentSizeChange: ((CGSize) -> Void)? = nil
+    var onRenderedLineDebugChange: (([MixedMathRenderedLineDebug]) -> Void)? = nil
+    var onScrollableDebugChange: (([MixedMathScrollableDebug]) -> Void)? = nil
+    var showsRenderDebugBounds: Bool = false
     var onTap: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var webHeight: CGFloat = 50
     @State private var webIntrinsicWidth: CGFloat = 0
     @State private var horizontalOverflowState = HorizontalOverflowState()
+    @State private var renderedLineDebug: [MixedMathRenderedLineDebug] = []
+    @State private var scrollableDebug: [MixedMathScrollableDebug] = []
 
     var body: some View {
         let clean = MathTextSanitizer.heal(text)
@@ -99,6 +140,8 @@ struct MixedMathTextView: View {
             && allowsReadOnlyOverflowScrolling
             && horizontalOverflowState.hasOverflow
         )
+        let reportsRenderedLineDebug = onRenderedLineDebugChange != nil
+        let reportsScrollableDebug = onScrollableDebugChange != nil
 
         if usesWebRendering {
             MathWebView(
@@ -113,8 +156,13 @@ struct MixedMathTextView: View {
                 renderSignature: signature,
                 contentHeight: $webHeight,
                 intrinsicContentWidth: $webIntrinsicWidth,
+                renderedLineDebug: $renderedLineDebug,
+                scrollableDebug: $scrollableDebug,
                 reportsIntrinsicContentWidth: intrinsicWidthLimit != nil,
-                measurementWidthLimit: measurementWidthLimit,
+                reportsRenderedLineDebug: reportsRenderedLineDebug,
+                reportsScrollableDebug: reportsScrollableDebug,
+                intrinsicMeasurementWidthLimit: intrinsicMeasurementWidthLimit,
+                showsRenderDebugBounds: showsRenderDebugBounds,
                 horizontalOverflowState: $horizontalOverflowState,
                 isInteractive: isInteractive,
                 allowsReadOnlyOverflowScrolling: canSupportReadOnlyOverflowScrolling,
@@ -137,6 +185,12 @@ struct MixedMathTextView: View {
             }
             .onChange(of: horizontalOverflowState) { _, _ in
                 reportIntrinsicContentSize()
+            }
+            .onChange(of: renderedLineDebug) { _, newValue in
+                onRenderedLineDebugChange?(newValue)
+            }
+            .onChange(of: scrollableDebug) { _, newValue in
+                onScrollableDebugChange?(newValue)
             }
             .overlay {
                 if shouldShowHorizontalOverflowHint {
@@ -182,7 +236,7 @@ struct MixedMathTextView: View {
     private func reportIntrinsicContentSize() {
         guard intrinsicWidthLimit != nil else { return }
         let limit = max(intrinsicWidthLimit ?? 1, 1)
-        let measurementLimit = measurementWidthLimit.map { max($0, 1) }
+        let measurementLimit = intrinsicMeasurementWidthLimit.map { max($0, 1) }
         let widthLimit = measurementLimit ?? limit
         let measuredWidth = webIntrinsicWidth > 0
             ? max(ceil(webIntrinsicWidth), 1)
@@ -301,7 +355,8 @@ struct MixedMathTextView: View {
             isBold ? "1" : "0",
             isItalic ? "1" : "0",
             renderStyle.rawValue,
-            String(format: "%.3f", measurementWidthLimit ?? -1)
+            String(format: "%.3f", intrinsicMeasurementWidthLimit ?? -1),
+            showsRenderDebugBounds ? "debug-bounds" : "normal-bounds"
         ].joined(separator: "|")
     }
 
@@ -558,8 +613,13 @@ struct MathWebView: UIViewRepresentable {
     let renderSignature: String
     @Binding var contentHeight: CGFloat
     @Binding var intrinsicContentWidth: CGFloat
+    @Binding var renderedLineDebug: [MixedMathRenderedLineDebug]
+    @Binding var scrollableDebug: [MixedMathScrollableDebug]
     let reportsIntrinsicContentWidth: Bool
-    let measurementWidthLimit: CGFloat?
+    let reportsRenderedLineDebug: Bool
+    let reportsScrollableDebug: Bool
+    let intrinsicMeasurementWidthLimit: CGFloat?
+    let showsRenderDebugBounds: Bool
     @Binding var horizontalOverflowState: HorizontalOverflowState
     /// When `false`, the WKWebView becomes non-interactive so taps and drags
     /// continue to the parent SwiftUI surface unobstructed.
@@ -572,7 +632,11 @@ struct MathWebView: UIViewRepresentable {
         Coordinator(
             contentHeight: $contentHeight,
             intrinsicContentWidth: $intrinsicContentWidth,
+            renderedLineDebug: $renderedLineDebug,
+            scrollableDebug: $scrollableDebug,
             reportsIntrinsicContentWidth: reportsIntrinsicContentWidth,
+            reportsRenderedLineDebug: reportsRenderedLineDebug,
+            reportsScrollableDebug: reportsScrollableDebug,
             horizontalOverflowState: $horizontalOverflowState,
             onTap: onTap
         )
@@ -588,6 +652,8 @@ struct MathWebView: UIViewRepresentable {
         // 2. Remove the script message handler to break the JS context retain cycle
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "widthUpdate")
+        uiView.configuration.userContentController.removeScriptMessageHandler(forName: "lineDebugUpdate")
+        uiView.configuration.userContentController.removeScriptMessageHandler(forName: "scrollableDebugUpdate")
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "overflowUpdate")
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "tapUpdate")
 
@@ -600,11 +666,19 @@ struct MathWebView: UIViewRepresentable {
 
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "widthUpdate")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "lineDebugUpdate")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "scrollableDebugUpdate")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "overflowUpdate")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "tapUpdate")
         let scriptHandlerWrapper = WeakScriptMessageHandler(delegate: context.coordinator)
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "heightUpdate")
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "widthUpdate")
+        if reportsRenderedLineDebug {
+            webView.configuration.userContentController.add(scriptHandlerWrapper, name: "lineDebugUpdate")
+        }
+        if reportsScrollableDebug {
+            webView.configuration.userContentController.add(scriptHandlerWrapper, name: "scrollableDebugUpdate")
+        }
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "overflowUpdate")
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "tapUpdate")
 
@@ -626,8 +700,11 @@ struct MathWebView: UIViewRepresentable {
         // Re-apply interaction state in case isInteractive changed between renders.
         context.coordinator.onTap = onTap
         context.coordinator.reportsIntrinsicContentWidth = reportsIntrinsicContentWidth
+        context.coordinator.configureLineDebugHandler(on: webView, enabled: reportsRenderedLineDebug)
+        context.coordinator.configureScrollableDebugHandler(on: webView, enabled: reportsScrollableDebug)
         webView.quizflashHasHorizontalOverflow = horizontalOverflowState.hasOverflow
         applyInteractivity(to: webView)
+        configurePanRecognizers(on: webView, coordinator: context.coordinator)
         configureTapRecognizer(on: webView, coordinator: context.coordinator)
         guard context.coordinator.lastRenderedSignature != renderSignature else { return }
         context.coordinator.lastRenderedSignature = renderSignature
@@ -643,6 +720,14 @@ struct MathWebView: UIViewRepresentable {
         // Keep the page itself locked; overflowing math uses the DOM container's
         // own horizontal overflow instead of scrolling the WKWebView page.
         webView.scrollView.isScrollEnabled = false
+    }
+
+    private func configurePanRecognizers(on webView: WKWebView, coordinator: Coordinator) {
+        let recognizers = (webView.gestureRecognizers ?? []) + (webView.scrollView.gestureRecognizers ?? [])
+        recognizers
+            .compactMap { $0 as? UIPanGestureRecognizer }
+            .filter { $0 !== webView.scrollView.panGestureRecognizer }
+            .forEach { $0.delegate = coordinator }
     }
 
     private func configureTapRecognizer(on webView: WKWebView, coordinator: Coordinator) {
@@ -689,8 +774,9 @@ struct MathWebView: UIViewRepresentable {
         guard let b64 = finalText.data(using: .utf8)?.base64EncodedString() else { return }
         
         let allowDisplayMathOverflowScrolling = allowsReadOnlyOverflowScrolling ? "true" : "false"
-        let measurementWidth = max(ceil(measurementWidthLimit ?? 0), 0)
-        let js = "updateMathContent('\(b64)', '\(cssColor)', \(fontSize), '\(cssAlign)', '\(weight)', '\(fontStyle)', \(allowDisplayMathOverflowScrolling), \(measurementWidth));"
+        let measurementWidth = max(ceil(intrinsicMeasurementWidthLimit ?? 0), 0)
+        let debugBounds = showsRenderDebugBounds ? "true" : "false"
+        let js = "updateMathContent('\(b64)', '\(cssColor)', \(fontSize), '\(cssAlign)', '\(weight)', '\(fontStyle)', \(allowDisplayMathOverflowScrolling), \(measurementWidth), \(debugBounds));"
         context.coordinator.applyUpdate(js: js)
     }
 
@@ -724,32 +810,56 @@ struct MathWebView: UIViewRepresentable {
                 background: transparent;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
                 overflow: hidden;
-                word-break: break-word;
+                overflow-wrap: normal;
+                word-break: normal;
+                hyphens: none;
+                -webkit-hyphens: none;
                 margin: 0;
                 padding: 0;
             }
             #content {
                 width: 100%;
-                white-space: pre-wrap;
+                white-space: normal;
+                overflow-wrap: normal;
+                word-break: normal;
+                hyphens: none;
+                -webkit-hyphens: none;
                 padding: 2px 0px;
                 line-height: 1.5;
-                overflow-x: auto;
+                overflow-x: visible;
                 overflow-y: visible;
-                -webkit-overflow-scrolling: touch;
                 scrollbar-width: none;
-                touch-action: pan-x;
-                overscroll-behavior-x: contain;
             }
-            #content::-webkit-scrollbar { display: none; }
-            #content.has-complex-inline-math {
+            #content.qf-token-flow {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: baseline;
+                column-gap: 0.18em;
+                row-gap: 0;
+                align-content: flex-start;
+            }
+            #content.qf-token-flow br {
+                flex-basis: 100%;
+                width: 100%;
+                height: 0;
+            }
+            #content.qf-token-flow .mixed-text-token,
+            #content.qf-token-flow code.inline-code,
+            #content.qf-token-flow .katex:not(.katex-display .katex) {
+                flex: 0 0 auto;
+            }
+            .mixed-text-token {
+                display: inline-block;
                 white-space: nowrap;
             }
-
+            #content::-webkit-scrollbar { display: none; }
             .katex-display {
-                margin: 0.6em 0;
+                flex: 0 0 100%;
+                margin: 0;
                 overflow-x: auto;
                 overflow-y: visible !important;
-                padding: 6px 0;
+                padding: 0;
+                line-height: normal;
                 -webkit-overflow-scrolling: touch;
                 scrollbar-width: none;
                 touch-action: pan-x;
@@ -762,11 +872,17 @@ struct MathWebView: UIViewRepresentable {
                 max-width: 100%;
                 overflow-x: auto;
                 overflow-y: visible;
-                padding: 6px 0;
+                padding: 0;
+                line-height: 1.5;
                 -webkit-overflow-scrolling: touch;
                 scrollbar-width: none;
                 touch-action: pan-x;
                 overscroll-behavior-x: contain;
+            }
+            #content.qf-token-flow .katex-inline-scroll {
+                flex: 0 0 100%;
+                width: 100%;
+                min-height: 1.5em;
             }
             .katex-inline-scroll::-webkit-scrollbar { display: none; }
             .katex-inline-scroll > .katex {
@@ -775,6 +891,39 @@ struct MathWebView: UIViewRepresentable {
             }
             .katex-inline-boundary {
                 white-space: nowrap;
+            }
+            .katex-inline-atomic {
+                display: inline-block;
+                max-width: none;
+                white-space: nowrap;
+                vertical-align: baseline;
+            }
+            .katex-inline-atomic > .katex-html {
+                display: inline-block;
+                white-space: nowrap;
+            }
+            .nonbreaking-hyphen-token {
+                white-space: nowrap;
+            }
+            body[data-render-debug-bounds="1"] .mixed-text-token {
+                background: rgba(255, 214, 10, 0.22);
+                box-shadow: inset 0 0 0 1px rgba(255, 214, 10, 0.72);
+                border-radius: 3px;
+            }
+            body[data-render-debug-bounds="1"] code.inline-code {
+                background: rgba(52, 199, 89, 0.24) !important;
+                box-shadow: inset 0 0 0 1px rgba(52, 199, 89, 0.78);
+                border-radius: 3px;
+            }
+            body[data-render-debug-bounds="1"] .katex {
+                background: rgba(0, 122, 255, 0.22);
+                box-shadow: inset 0 0 0 1px rgba(0, 122, 255, 0.78);
+                border-radius: 3px;
+            }
+            body[data-render-debug-bounds="1"] .katex .base,
+            body[data-render-debug-bounds="1"] .katex .tag {
+                background: rgba(255, 45, 85, 0.18);
+                box-shadow: inset 0 0 0 1px rgba(255, 45, 85, 0.66);
             }
             .katex { font-size: 1.08em !important; }
             .katex-error {
@@ -812,8 +961,8 @@ struct MathWebView: UIViewRepresentable {
             }
             code.inline-code--wrapping {
                 max-width: 100%;
-                overflow-wrap: anywhere;
-                word-break: break-word;
+                overflow-wrap: normal;
+                word-break: normal;
                 white-space: break-spaces;
             }
             code.inline-code--breakable-token {
@@ -844,14 +993,15 @@ struct MathWebView: UIViewRepresentable {
             isInstalled: false
         };
 
-        function updateMathContent(b64, color, fontSize, align, weight, fontStyle, allowDisplayMathOverflowScrolling, measurementWidthLimit) {
+        function updateMathContent(b64, color, fontSize, align, weight, fontStyle, allowDisplayMathOverflowScrolling, intrinsicMeasurementWidthLimit, showsRenderDebugBounds) {
             document.body.style.color = color;
             document.body.style.fontSize = fontSize + 'px';
             document.body.style.textAlign = align;
             document.body.style.fontWeight = weight;
             document.body.style.fontStyle = fontStyle;
             document.body.dataset.allowDisplayMathOverflowScrolling = allowDisplayMathOverflowScrolling ? '1' : '0';
-            document.body.dataset.measurementWidthLimit = measurementWidthLimit > 0 ? measurementWidthLimit : '';
+            document.body.dataset.intrinsicMeasurementWidthLimit = intrinsicMeasurementWidthLimit > 0 ? intrinsicMeasurementWidthLimit : '';
+            document.body.dataset.renderDebugBounds = showsRenderDebugBounds ? '1' : '0';
 
             let bin = window.atob(b64);
             let bytes = new Uint8Array(bin.length);
@@ -862,7 +1012,6 @@ struct MathWebView: UIViewRepresentable {
 
             const contentDiv = document.getElementById('content');
             installTapBridge(contentDiv);
-            contentDiv.classList.toggle('has-complex-inline-math', containsComplexInlineMath(text));
             contentDiv.innerHTML = text;
             
             try {
@@ -880,11 +1029,18 @@ struct MathWebView: UIViewRepresentable {
                 });
             } catch(e) { console.error(e); }
 
+            preserveAuthorLineBreaks(contentDiv);
+            wrapInlineFlowTokens(contentDiv);
+            classifyInlineMathFlow(contentDiv);
+            bindNonBreakingHyphenatedWords(contentDiv);
             clearTimeout(updateTimeout);
             prepareOverflowContainers();
+            stabilizeScrollableMathBounds(contentDiv);
             reportLayoutMetrics();
+            reportLineDebug();
             reportOverflow();
             updateTimeout = setTimeout(reportLayoutMetrics, 50);
+            setTimeout(reportLineDebug, 50);
             setTimeout(reportOverflow, 50);
         }
 
@@ -933,10 +1089,105 @@ struct MathWebView: UIViewRepresentable {
             }
         }
 
-        function containsComplexInlineMath(text) {
-            const hasComplexMathEnvironment = /\\\\begin\\{(?:[a-zA-Z]*matrix|cases|aligned|array)\\}/.test(text);
-            const hasInlineDelimiter = /\\$[^$]+\\$|\\\\\\([^]+?\\\\\\)/.test(text);
-            return hasComplexMathEnvironment && hasInlineDelimiter;
+        function classifyInlineMathFlow(contentDiv) {
+            if (!contentDiv) { return; }
+
+            const inlineKatex = Array.from(contentDiv.querySelectorAll('.katex')).filter(node => !node.closest('.katex-display'));
+
+            inlineKatex.forEach(node => {
+                node.classList.add('katex-inline-atomic');
+            });
+        }
+
+        function preserveAuthorLineBreaks(contentDiv) {
+            if (!contentDiv) { return; }
+
+            const textNodes = [];
+            const walker = document.createTreeWalker(
+                contentDiv,
+                NodeFilter.SHOW_TEXT,
+                {
+                    acceptNode(node) {
+                        const parent = node.parentElement;
+                        if (!parent || parent.closest('code, .katex, script, style')) {
+                            return NodeFilter.FILTER_REJECT;
+                        }
+
+                        return (node.textContent || '').includes('\\n')
+                            ? NodeFilter.FILTER_ACCEPT
+                            : NodeFilter.FILTER_REJECT;
+                    }
+                }
+            );
+
+            let node;
+            while ((node = walker.nextNode())) {
+                textNodes.push(node);
+            }
+
+            textNodes.forEach(textNode => {
+                const parts = (textNode.textContent || '').split('\\n');
+                const fragment = document.createDocumentFragment();
+
+                parts.forEach((part, index) => {
+                    if (index > 0) {
+                        fragment.appendChild(document.createElement('br'));
+                    }
+                    if (part.length > 0) {
+                        fragment.appendChild(document.createTextNode(part));
+                    }
+                });
+
+                textNode.parentNode.replaceChild(fragment, textNode);
+            });
+        }
+
+        function wrapInlineFlowTokens(contentDiv) {
+            if (!contentDiv) { return; }
+
+            contentDiv.classList.add('qf-token-flow');
+
+            const textNodes = [];
+            const walker = document.createTreeWalker(
+                contentDiv,
+                NodeFilter.SHOW_TEXT,
+                {
+                    acceptNode(node) {
+                        const parent = node.parentElement;
+                        if (!parent || parent.closest('code, .katex, script, style, .mixed-text-token')) {
+                            return NodeFilter.FILTER_REJECT;
+                        }
+
+                        return NodeFilter.FILTER_ACCEPT;
+                    }
+                }
+            );
+
+            let node;
+            while ((node = walker.nextNode())) {
+                textNodes.push(node);
+            }
+
+            textNodes.forEach(textNode => {
+                const value = textNode.textContent || '';
+                if (!/\\S/.test(value)) {
+                    textNode.parentNode.removeChild(textNode);
+                    return;
+                }
+
+                const fragment = document.createDocumentFragment();
+                const tokenPattern = /\\S+/g;
+                let match;
+
+                while ((match = tokenPattern.exec(value)) !== null) {
+                    const wrapper = document.createElement('span');
+                    wrapper.className = 'mixed-text-token';
+                    wrapper.textContent = match[0];
+                    fragment.appendChild(wrapper);
+                }
+
+                textNode.parentNode.replaceChild(fragment, textNode);
+            });
         }
 
         function prepareOverflowContainers() {
@@ -945,19 +1196,17 @@ struct MathWebView: UIViewRepresentable {
             unwrapInlineOverflowContainers(contentDiv);
             bindInlineTrailingPunctuation(contentDiv);
 
-            const overflowTargets = [
-                contentDiv,
-                ...Array.from(contentDiv.querySelectorAll('.katex-display'))
-            ];
+            const overflowTargets = Array.from(contentDiv.querySelectorAll('.katex-display'));
 
             const allowOverflow = document.body.dataset.allowDisplayMathOverflowScrolling === '1';
             if (allowOverflow) {
-                const maxInlineWidth = contentDiv.getBoundingClientRect().width;
+                const contentRect = contentDiv.getBoundingClientRect();
+                const maxInlineWidth = contentRect.width;
                 const inlineKatex = Array.from(contentDiv.querySelectorAll('.katex')).filter(node => !node.closest('.katex-display'));
 
                 inlineKatex.forEach(node => {
                     const inlineWidth = node.getBoundingClientRect().width;
-                    if (inlineWidth <= maxInlineWidth + 1) { return; }
+                    if (!inlineMathNeedsOverflowContainer(node, contentRect, maxInlineWidth)) { return; }
 
                     const wrapper = document.createElement('span');
                     wrapper.className = 'katex-inline-scroll';
@@ -970,6 +1219,18 @@ struct MathWebView: UIViewRepresentable {
             overflowTargets.forEach(block => {
                 block.onscroll = reportOverflow;
             });
+        }
+
+        function inlineMathNeedsOverflowContainer(node, contentRect, maxInlineWidth) {
+            const rect = visualBoundsForElement(node) || node.getBoundingClientRect();
+            const tolerance = 1;
+            const visualWidth = rect.right - rect.left;
+
+            if (visualWidth > maxInlineWidth + tolerance) { return true; }
+            if (rect.left < contentRect.left - tolerance) { return true; }
+            if (rect.right > contentRect.right + tolerance) { return true; }
+
+            return false;
         }
 
         function bindInlineTrailingPunctuation(contentDiv) {
@@ -1000,6 +1261,61 @@ struct MathWebView: UIViewRepresentable {
             });
         }
 
+        function bindNonBreakingHyphenatedWords(contentDiv) {
+            if (!contentDiv) { return; }
+
+            const pattern = /[\\p{L}\\p{N}]+(?:-[\\p{L}\\p{N}]+)+/gu;
+            const textNodes = [];
+            const walker = document.createTreeWalker(
+                contentDiv,
+                NodeFilter.SHOW_TEXT,
+                {
+                    acceptNode(node) {
+                        const parent = node.parentElement;
+                        if (!parent || parent.closest('code, .katex, script, style')) {
+                            return NodeFilter.FILTER_REJECT;
+                        }
+
+                        pattern.lastIndex = 0;
+                        return pattern.test(node.textContent || '')
+                            ? NodeFilter.FILTER_ACCEPT
+                            : NodeFilter.FILTER_REJECT;
+                    }
+                }
+            );
+
+            let node;
+            while ((node = walker.nextNode())) {
+                textNodes.push(node);
+            }
+
+            textNodes.forEach(textNode => {
+                const value = textNode.textContent || '';
+                const fragment = document.createDocumentFragment();
+                let lastIndex = 0;
+
+                pattern.lastIndex = 0;
+                for (const match of value.matchAll(pattern)) {
+                    const index = match.index || 0;
+                    if (index > lastIndex) {
+                        fragment.appendChild(document.createTextNode(value.slice(lastIndex, index)));
+                    }
+
+                    const wrapper = document.createElement('span');
+                    wrapper.className = 'nonbreaking-hyphen-token';
+                    wrapper.textContent = match[0];
+                    fragment.appendChild(wrapper);
+                    lastIndex = index + match[0].length;
+                }
+
+                if (lastIndex < value.length) {
+                    fragment.appendChild(document.createTextNode(value.slice(lastIndex)));
+                }
+
+                textNode.parentNode.replaceChild(fragment, textNode);
+            });
+        }
+
         function unwrapInlineOverflowContainers(contentDiv) {
             Array.from(contentDiv.querySelectorAll('.katex-inline-scroll')).forEach(wrapper => {
                 const parent = wrapper.parentNode;
@@ -1020,11 +1336,144 @@ struct MathWebView: UIViewRepresentable {
             });
         }
 
+        function stabilizeScrollableMathBounds(contentDiv) {
+            if (!contentDiv) { return; }
+
+            const debugRows = [];
+
+            Array.from(contentDiv.querySelectorAll('.katex-display, .katex-inline-scroll')).forEach(wrapper => {
+                const math = wrapper.querySelector('.katex');
+                if (!math) { return; }
+
+                wrapper.style.height = '';
+                wrapper.style.minHeight = '';
+                math.style.position = '';
+                math.style.top = '';
+
+                const wrapperRect = wrapper.getBoundingClientRect();
+                const visualBounds = visualBoundsForElement(math);
+                if (!visualBounds) { return; }
+
+                const style = window.getComputedStyle(wrapper);
+                const paddingTop = parseFloat(style.paddingTop || '0') || 0;
+                const paddingBottom = parseFloat(style.paddingBottom || '0') || 0;
+                const visualTop = visualBounds.top - wrapperRect.top;
+                const visualBottom = visualBounds.bottom - wrapperRect.top;
+                const topAdjustment = Math.max(paddingTop - visualTop, 0);
+                const requiredHeight = Math.ceil(Math.max(
+                    wrapperRect.height,
+                    wrapper.scrollHeight,
+                    visualBottom + topAdjustment + paddingBottom
+                ));
+
+                if (requiredHeight > Math.ceil(wrapperRect.height)) {
+                    wrapper.style.height = requiredHeight + 'px';
+                    wrapper.style.minHeight = requiredHeight + 'px';
+                }
+
+                if (topAdjustment > 0.5) {
+                    math.style.position = 'relative';
+                    math.style.top = topAdjustment + 'px';
+                }
+
+                const adjustedRect = wrapper.getBoundingClientRect();
+                debugRows.push({
+                    kind: wrapper.classList.contains('katex-display') ? 'display' : 'inline',
+                    wrapperHeight: Math.ceil(adjustedRect.height),
+                    scrollHeight: Math.ceil(wrapper.scrollHeight),
+                    clientHeight: Math.ceil(wrapper.clientHeight),
+                    visualHeight: Math.ceil(Math.max(visualBounds.bottom - visualBounds.top, 1)),
+                    visualTop: Math.round(visualTop),
+                    visualBottom: Math.round(visualBottom),
+                    paddingTop: Math.round(paddingTop),
+                    paddingBottom: Math.round(paddingBottom),
+                    topAdjustment: Math.round(topAdjustment)
+                });
+            });
+
+            if (window.webkit && window.webkit.messageHandlers.scrollableDebugUpdate) {
+                window.webkit.messageHandlers.scrollableDebugUpdate.postMessage(debugRows);
+            }
+        }
+
+        function visualBoundsForElement(element, includeRoot = true) {
+            const rects = [];
+            const append = list => {
+                Array.from(list).forEach(rect => {
+                    if (rect.width > 0.5 && rect.height > 0.5) {
+                        rects.push(rect);
+                    }
+                });
+            };
+
+            if (element.classList && element.classList.contains('katex')) {
+                appendKatexVisualRects(element, includeRoot, append);
+            } else {
+                if (includeRoot) {
+                    append(element.getClientRects());
+                }
+                Array.from(element.querySelectorAll('*')).forEach(child => {
+                    if (child.closest('.katex-mathml')) { return; }
+                    if (child.tagName === 'ANNOTATION') { return; }
+                    const style = window.getComputedStyle(child);
+                    if (style.display === 'none' || style.visibility === 'hidden') { return; }
+                    append(child.getClientRects());
+                });
+            }
+
+            if (rects.length === 0) { return null; }
+
+            return rects.reduce(
+                (bounds, rect) => ({
+                    left: Math.min(bounds.left, rect.left),
+                    right: Math.max(bounds.right, rect.right),
+                    top: Math.min(bounds.top, rect.top),
+                    bottom: Math.max(bounds.bottom, rect.bottom)
+                }),
+                {
+                    left: Number.POSITIVE_INFINITY,
+                    right: Number.NEGATIVE_INFINITY,
+                    top: Number.POSITIVE_INFINITY,
+                    bottom: Number.NEGATIVE_INFINITY
+                }
+            );
+        }
+
+        function appendKatexVisualRects(node, includeRoot, appendRects) {
+            const isDisplayMath = !!node.closest('.katex-display');
+
+            if (!isDisplayMath && includeRoot) {
+                appendRects(node.getClientRects());
+                return;
+            }
+
+            const html = node.querySelector('.katex-html');
+            const bases = html ? Array.from(html.children).filter(child => {
+                return child.classList.contains('base') || child.classList.contains('tag');
+            }) : [];
+
+            if (bases.length > 0) {
+                bases.forEach(child => appendRects(child.getClientRects()));
+                return;
+            }
+
+            if (includeRoot) {
+                appendRects(node.getClientRects());
+            }
+            Array.from(node.querySelectorAll('*')).forEach(child => {
+                if (child.closest('.katex-mathml')) { return; }
+                if (child.tagName === 'ANNOTATION') { return; }
+                const style = window.getComputedStyle(child);
+                if (style.display === 'none' || style.visibility === 'hidden') { return; }
+                appendRects(child.getClientRects());
+            });
+        }
+
         function reportLayoutMetrics() {
             const el = document.getElementById('content');
-            const measurementWidthLimit = parseFloat(document.body.dataset.measurementWidthLimit || '0') || 0;
-            const bounds = measurementWidthLimit > 0
-                ? measuredVisualContentBoundsAtWidth(el, measurementWidthLimit)
+            const intrinsicMeasurementWidthLimit = parseFloat(document.body.dataset.intrinsicMeasurementWidthLimit || '0') || 0;
+            const bounds = intrinsicMeasurementWidthLimit > 0
+                ? measuredVisualContentBoundsAtWidth(el, intrinsicMeasurementWidthLimit)
                 : measuredVisualContentBounds(el);
             if (bounds.height > 0 && window.webkit && window.webkit.messageHandlers.heightUpdate) {
                 window.webkit.messageHandlers.heightUpdate.postMessage(Math.ceil(bounds.height));
@@ -1032,6 +1481,145 @@ struct MathWebView: UIViewRepresentable {
             if (bounds.width > 0 && window.webkit && window.webkit.messageHandlers.widthUpdate) {
                 window.webkit.messageHandlers.widthUpdate.postMessage(Math.ceil(bounds.width));
             }
+        }
+
+        function reportLineDebug() {
+            if (!window.webkit || !window.webkit.messageHandlers.lineDebugUpdate) { return; }
+            const el = document.getElementById('content');
+            if (!el) { return; }
+
+            const contentRect = el.getBoundingClientRect();
+            const widthLimit = Math.max(contentRect.width, 1);
+            const range = document.createRange();
+            const tokenRects = [];
+
+            function appendToken(text, kind, rect) {
+                if (!text || rect.width <= 0.5 || rect.height <= 0.5) { return; }
+                tokenRects.push({
+                    text: text,
+                    kind: kind,
+                    top: rect.top,
+                    bottom: rect.bottom,
+                    midY: rect.top + (rect.height / 2),
+                    left: rect.left - contentRect.left,
+                    right: rect.right - contentRect.left,
+                    width: rect.width,
+                    height: rect.height
+                });
+            }
+
+            function collect(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    collectTextNode(node);
+                    return;
+                }
+
+                if (node.nodeType !== Node.ELEMENT_NODE) { return; }
+
+                if (node.classList.contains('inline-code')) {
+                    Array.from(node.getClientRects()).forEach(rect => {
+                        appendToken(node.textContent || '', 'inlineCode', rect);
+                    });
+                    return;
+                }
+
+                if (node.classList.contains('katex')) {
+                    const visualBounds = visualBoundsForElement(node, !node.closest('.katex-display'));
+                    if (visualBounds) {
+                        appendToken(node.textContent || 'math', 'math', {
+                            top: visualBounds.top,
+                            bottom: visualBounds.bottom,
+                            left: visualBounds.left,
+                            right: visualBounds.right,
+                            width: visualBounds.right - visualBounds.left,
+                            height: visualBounds.bottom - visualBounds.top
+                        });
+                    }
+                    return;
+                }
+
+                Array.from(node.childNodes).forEach(collect);
+            }
+
+            function collectTextNode(node) {
+                const value = node.textContent || '';
+                const tokenPattern = /\\S+/g;
+                let match;
+
+                while ((match = tokenPattern.exec(value)) !== null) {
+                    range.setStart(node, match.index);
+                    range.setEnd(node, match.index + match[0].length);
+                    Array.from(range.getClientRects()).forEach(rect => {
+                        appendToken(match[0], 'text', rect);
+                    });
+                }
+            }
+
+            collect(el);
+            range.detach();
+
+            const fontSize = parseFloat(document.body.style.fontSize || '16') || 16;
+            const lineMergeTolerance = Math.max(8, fontSize * 0.55);
+            const lines = [];
+
+            function belongsToLine(line, token) {
+                const overlap = Math.min(line.bottom, token.bottom) - Math.max(line.top, token.top);
+                const minHeight = Math.min(line.bottom - line.top, token.bottom - token.top);
+
+                return overlap >= Math.min(minHeight * 0.35, 8)
+                    || Math.abs(line.midY - token.midY) <= lineMergeTolerance;
+            }
+
+            tokenRects
+                .sort((a, b) => (a.top - b.top) || (a.left - b.left))
+                .forEach(token => {
+                    let line = lines.find(candidate => belongsToLine(candidate, token));
+                    if (!line) {
+                        line = {
+                            top: token.top,
+                            bottom: token.bottom,
+                            midY: token.midY,
+                            left: token.left,
+                            right: token.right,
+                            tokens: []
+                        };
+                        lines.push(line);
+                    } else {
+                        line.top = Math.min(line.top, token.top);
+                        line.bottom = Math.max(line.bottom, token.bottom);
+                        line.left = Math.min(line.left, token.left);
+                        line.right = Math.max(line.right, token.right);
+                        line.midY = line.top + ((line.bottom - line.top) / 2);
+                    }
+                    line.tokens.push(token);
+                });
+
+            const payload = lines
+                .sort((a, b) => (a.top - b.top) || (a.left - b.left))
+                .map((line, index) => ({
+                    index: index + 1,
+                    widthLimit: Math.ceil(widthLimit),
+                    left: Math.round(line.left),
+                    top: Math.round(line.top - contentRect.top),
+                    width: Math.ceil(Math.max(line.right - line.left, 1)),
+                    height: Math.ceil(Math.max(line.bottom - line.top, 1)),
+                    right: Math.round(line.right),
+                    bottom: Math.round(line.bottom - contentRect.top),
+                    tokens: line.tokens
+                        .sort((a, b) => a.left - b.left)
+                        .map(token => ({
+                            text: token.text,
+                            kind: token.kind,
+                            left: Math.round(token.left),
+                            top: Math.round(token.top - contentRect.top),
+                            width: Math.ceil(token.width),
+                            height: Math.ceil(token.height),
+                            right: Math.round(token.right),
+                            bottom: Math.round(token.bottom - contentRect.top)
+                        }))
+                }));
+
+            window.webkit.messageHandlers.lineDebugUpdate.postMessage(payload);
         }
 
         function measuredVisualContentBoundsAtWidth(source, width) {
@@ -1089,17 +1677,7 @@ struct MathWebView: UIViewRepresentable {
             }
 
             function collectKatexVisualRects(node) {
-                appendRects(node.getClientRects());
-
-                const visualNodes = Array.from(node.querySelectorAll('*')).filter(child => {
-                    if (child.closest('.katex-mathml')) { return false; }
-                    if (child.tagName === 'ANNOTATION') { return false; }
-                    const style = window.getComputedStyle(child);
-                    if (style.display === 'none' || style.visibility === 'hidden') { return false; }
-                    return true;
-                });
-
-                visualNodes.forEach(child => appendRects(child.getClientRects()));
+                appendKatexVisualRects(node, !node.closest('.katex-display'), appendRects);
             }
 
             function collectTextTokenRects(node) {
@@ -1167,9 +1745,14 @@ struct MathWebView: UIViewRepresentable {
             const widestLine = lines.reduce((width, line) => {
                 return Math.max(width, line.right - line.left);
             }, 1);
-            const paddedMathWrapper = el.querySelector('.katex-display, .katex-inline-scroll') !== null;
-            const verticalPadding = paddedMathWrapper ? 12 : 4;
-            const visualHeight = Math.max(maxBottom - minTop + verticalPadding, 1);
+            const topOverflow = Math.max(contentRect.top - minTop, 0);
+            const visualBottomFromContentTop = Math.max(maxBottom - contentRect.top, 1);
+            const visualHeight = Math.max(
+                topOverflow + visualBottomFromContentTop,
+                el.scrollHeight,
+                contentRect.height,
+                1
+            );
             return {
                 width: Math.ceil(widestLine + 2),
                 height: Math.ceil(visualHeight)
@@ -1184,7 +1767,7 @@ struct MathWebView: UIViewRepresentable {
                 return;
             }
 
-            const displays = Array.from(document.querySelectorAll('#content, .katex-display, .katex-inline-scroll'));
+            const displays = Array.from(document.querySelectorAll('.katex-display, .katex-inline-scroll'));
             const overflowState = displays.reduce(
                 (state, block) => {
                     const hasOverflow = (block.scrollWidth - block.clientWidth) > 1;
@@ -1207,7 +1790,9 @@ struct MathWebView: UIViewRepresentable {
         if (window.ResizeObserver) {
             new ResizeObserver(() => {
                 prepareOverflowContainers();
+                stabilizeScrollableMathBounds(document.getElementById('content'));
                 reportLayoutMetrics();
+                reportLineDebug();
                 reportOverflow();
             }).observe(document.getElementById('content'));
         }
@@ -1270,7 +1855,11 @@ struct MathWebView: UIViewRepresentable {
     class Coordinator: NSObject, WKScriptMessageHandler, UIGestureRecognizerDelegate {
         @Binding var contentHeight: CGFloat
         @Binding var intrinsicContentWidth: CGFloat
+        @Binding var renderedLineDebug: [MixedMathRenderedLineDebug]
+        @Binding var scrollableDebug: [MixedMathScrollableDebug]
         var reportsIntrinsicContentWidth: Bool
+        private var reportsRenderedLineDebug: Bool
+        private var reportsScrollableDebug: Bool
         @Binding var horizontalOverflowState: HorizontalOverflowState
         weak var webView: WKWebView? // WEAK reference to break the retain cycle
         var lastRenderedSignature: String = ""
@@ -1281,13 +1870,21 @@ struct MathWebView: UIViewRepresentable {
         init(
             contentHeight: Binding<CGFloat>,
             intrinsicContentWidth: Binding<CGFloat>,
+            renderedLineDebug: Binding<[MixedMathRenderedLineDebug]>,
+            scrollableDebug: Binding<[MixedMathScrollableDebug]>,
             reportsIntrinsicContentWidth: Bool,
+            reportsRenderedLineDebug: Bool,
+            reportsScrollableDebug: Bool,
             horizontalOverflowState: Binding<HorizontalOverflowState>,
             onTap: (() -> Void)?
         ) {
             _contentHeight = contentHeight
             _intrinsicContentWidth = intrinsicContentWidth
+            _renderedLineDebug = renderedLineDebug
+            _scrollableDebug = scrollableDebug
             self.reportsIntrinsicContentWidth = reportsIntrinsicContentWidth
+            self.reportsRenderedLineDebug = reportsRenderedLineDebug
+            self.reportsScrollableDebug = reportsScrollableDebug
             _horizontalOverflowState = horizontalOverflowState
             self.onTap = onTap
         }
@@ -1312,6 +1909,20 @@ struct MathWebView: UIViewRepresentable {
                 guard let w = message.body as? Double, w > 0 else { return }
                 Task { @MainActor in
                     self.intrinsicContentWidth = CGFloat(w)
+                }
+
+            case "lineDebugUpdate":
+                let payload = Self.dictionaryArray(from: message.body)
+                let lines = payload.compactMap(Self.renderedLineDebug(from:))
+                Task { @MainActor in
+                    self.renderedLineDebug = lines
+                }
+
+            case "scrollableDebugUpdate":
+                let payload = Self.dictionaryArray(from: message.body)
+                let rows = payload.compactMap(Self.scrollableDebug(from:))
+                Task { @MainActor in
+                    self.scrollableDebug = rows
                 }
 
             case "overflowUpdate":
@@ -1344,6 +1955,124 @@ struct MathWebView: UIViewRepresentable {
             default:
                 return
             }
+        }
+
+        nonisolated private static func renderedLineDebug(from payload: [String: Any]) -> MixedMathRenderedLineDebug? {
+            let tokensPayload = dictionaryArray(from: payload["tokens"] ?? [])
+            let index = payload["index"] as? Int ?? 0
+            let widthLimit = cgFloatValue(payload["widthLimit"])
+            let left = cgFloatValue(payload["left"])
+            let top = cgFloatValue(payload["top"])
+            let width = cgFloatValue(payload["width"])
+            let height = cgFloatValue(payload["height"])
+            let right = cgFloatValue(payload["right"])
+            let bottom = cgFloatValue(payload["bottom"])
+            let tokens = tokensPayload.compactMap(renderedTokenDebug(from:))
+            return MixedMathRenderedLineDebug(
+                index: index,
+                widthLimit: widthLimit,
+                left: left,
+                top: top,
+                width: width,
+                height: height,
+                right: right,
+                bottom: bottom,
+                tokens: tokens
+            )
+        }
+
+        nonisolated private static func renderedTokenDebug(from payload: [String: Any]) -> MixedMathRenderedTokenDebug? {
+            guard let text = payload["text"] as? String,
+                  let kind = payload["kind"] as? String
+            else { return nil }
+
+            return MixedMathRenderedTokenDebug(
+                text: text,
+                kind: kind,
+                left: cgFloatValue(payload["left"]),
+                top: cgFloatValue(payload["top"]),
+                width: cgFloatValue(payload["width"]),
+                height: cgFloatValue(payload["height"]),
+                right: cgFloatValue(payload["right"]),
+                bottom: cgFloatValue(payload["bottom"])
+            )
+        }
+
+        nonisolated private static func dictionaryArray(from body: Any) -> [[String: Any]] {
+            if let payload = body as? [[String: Any]] {
+                return payload
+            }
+
+            if let payload = body as? [NSDictionary] {
+                return payload.compactMap { $0 as? [String: Any] }
+            }
+
+            if let payload = body as? NSArray {
+                return payload.compactMap { item in
+                    if let dictionary = item as? [String: Any] {
+                        return dictionary
+                    }
+                    if let dictionary = item as? NSDictionary {
+                        return dictionary as? [String: Any]
+                    }
+                    return nil
+                }
+            }
+
+            return []
+        }
+
+        nonisolated private static func scrollableDebug(from payload: [String: Any]) -> MixedMathScrollableDebug? {
+            guard let kind = payload["kind"] as? String else { return nil }
+
+            return MixedMathScrollableDebug(
+                kind: kind,
+                wrapperHeight: cgFloatValue(payload["wrapperHeight"]),
+                scrollHeight: cgFloatValue(payload["scrollHeight"]),
+                clientHeight: cgFloatValue(payload["clientHeight"]),
+                visualHeight: cgFloatValue(payload["visualHeight"]),
+                visualTop: cgFloatValue(payload["visualTop"]),
+                visualBottom: cgFloatValue(payload["visualBottom"]),
+                paddingTop: cgFloatValue(payload["paddingTop"]),
+                paddingBottom: cgFloatValue(payload["paddingBottom"]),
+                topAdjustment: cgFloatValue(payload["topAdjustment"])
+            )
+        }
+
+        nonisolated private static func cgFloatValue(_ value: Any?) -> CGFloat {
+            if let value = value as? CGFloat { return value }
+            if let value = value as? Double { return CGFloat(value) }
+            if let value = value as? Int { return CGFloat(value) }
+            if let value = value as? NSNumber { return CGFloat(truncating: value) }
+            return 0
+        }
+
+        func configureLineDebugHandler(on webView: WKWebView, enabled: Bool) {
+            guard reportsRenderedLineDebug != enabled else { return }
+            reportsRenderedLineDebug = enabled
+            webView.configuration.userContentController.removeScriptMessageHandler(forName: "lineDebugUpdate")
+
+            guard enabled else {
+                renderedLineDebug = []
+                return
+            }
+
+            let scriptHandlerWrapper = WeakScriptMessageHandler(delegate: self)
+            webView.configuration.userContentController.add(scriptHandlerWrapper, name: "lineDebugUpdate")
+        }
+
+        func configureScrollableDebugHandler(on webView: WKWebView, enabled: Bool) {
+            guard reportsScrollableDebug != enabled else { return }
+            reportsScrollableDebug = enabled
+            webView.configuration.userContentController.removeScriptMessageHandler(forName: "scrollableDebugUpdate")
+
+            guard enabled else {
+                scrollableDebug = []
+                return
+            }
+
+            let scriptHandlerWrapper = WeakScriptMessageHandler(delegate: self)
+            webView.configuration.userContentController.add(scriptHandlerWrapper, name: "scrollableDebugUpdate")
         }
 
         /// Safely evaluates JS once the `updateMathContent` function exists.
@@ -1395,6 +2124,33 @@ struct MathWebView: UIViewRepresentable {
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
             true
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+            guard shouldHandOffHorizontalPanToParent(pan) else { return true }
+            return false
+        }
+
+        private func shouldHandOffHorizontalPanToParent(_ pan: UIPanGestureRecognizer) -> Bool {
+            guard horizontalOverflowState.hasOverflow else { return true }
+
+            let view = pan.view ?? webView
+            let translation = pan.translation(in: view)
+            let velocity = pan.velocity(in: view)
+            let horizontal = max(abs(translation.x), abs(velocity.x))
+            let vertical = max(abs(translation.y), abs(velocity.y))
+
+            guard horizontal > vertical * 1.15 else { return false }
+
+            let direction = abs(translation.x) > 0 ? translation.x : velocity.x
+            guard direction != 0 else { return false }
+
+            if direction > 0 {
+                return !horizontalOverflowState.canScrollLeft
+            }
+
+            return !horizontalOverflowState.canScrollRight
         }
     }
 }

@@ -221,8 +221,10 @@ extension AIFlashcardService {
         }
 
         switch zone.type {
-        case .text, .code:
+        case .text:
             return [zone.text ?? ""]
+        case .code:
+            return [codeZoneString(from: zone)]
         case .empty, .image, .sketch, .container:
             return []
         }
@@ -230,8 +232,22 @@ extension AIFlashcardService {
 
     func sanitizedZoneStrings(_ values: [String]) -> [String] {
         values
-            .map { AIZoneParser.sanitizeLatex($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { value in
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return isFencedCodeBlock(trimmed) ? trimmed : AIZoneParser.sanitizeLatex(trimmed)
+            }
             .filter { !$0.isEmpty }
+    }
+
+    func codeZoneString(from zone: DeckJSONZoneDTO) -> String {
+        let text = zone.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !isFencedCodeBlock(text) else { return text }
+
+        return "```\n\(text)\n```"
+    }
+
+    func isFencedCodeBlock(_ value: String) -> Bool {
+        value.hasPrefix("```") && value.hasSuffix("```")
     }
 
     // -------------------------------------------------------------------------

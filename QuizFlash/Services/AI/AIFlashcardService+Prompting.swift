@@ -31,7 +31,7 @@ extension AIFlashcardService {
                 totalBatches: totalBatches,
                 passIndex: passIndex,
                 coveredPrompts: coveredPrompts
-            )]
+            )],
         ]
     }
 
@@ -55,25 +55,25 @@ extension AIFlashcardService {
                 totalBatches: totalBatches,
                 passIndex: passIndex,
                 coveredPrompts: coveredPrompts
-            )]
+            )],
         ]
         for image in images {
             guard let data = image.jpegData(compressionQuality: 0.7) else { continue }
             userContent.append([
                 "type": "image_url",
-                "image_url": ["url": "data:image/jpeg;base64,\(data.base64EncodedString())", "detail": "auto"]
+                "image_url": ["url": "data:image/jpeg;base64,\(data.base64EncodedString())", "detail": "auto"],
             ])
         }
         return [
             ["role": "system", "content": systemPrompt(targetCards: targetCards, isOCR: false, options: options)],
-            ["role": "user", "content": userContent]
+            ["role": "user", "content": userContent],
         ]
     }
 
     nonisolated func buildDeckTitleMessages(fromText text: String) -> [[String: Any]] {
         [
             ["role": "system", "content": deckTitleSystemPrompt()],
-            ["role": "user", "content": deckTitleUserMessage(fromText: text)]
+            ["role": "user", "content": deckTitleUserMessage(fromText: text)],
         ]
     }
 
@@ -152,8 +152,11 @@ extension AIFlashcardService {
 
         if cardType == .flashcards {
             message += "\nBuild atomic active-recall cards, not mini essays."
+            message += "\nPreserve the source's natural form: formal notation should stay renderable as math, executable syntax should stay code, and narrative content should stay clear prose."
+            message += "\nUse semantic zones only when they make the recall task clearer."
         } else {
-            message += "\nBuild multiple-choice quiz cards with plausible distractors and valid zero-based correct indexes."
+            message += "\nBuild multiple-choice quiz cards with plausible distractors and explicit isCorrect flags."
+            message += "\nPreserve formal notation, executable syntax, or prose according to the source's actual form."
         }
 
         if !coveredPrompts.isEmpty {
@@ -182,19 +185,47 @@ extension AIFlashcardService {
         \(languageRulePrompt(for: options))
 
         CONTENT DESIGN
-        Adapt the card shape to the source domain instead of using one generic paragraph style.
-        Math, logic, programming, physics, and other formal material should preserve formulas, symbols, definitions, and short rule statements as the main learning surface. Use compact explanatory text only to name or interpret the formula.
-        History, literature, biology, law, medicine, and other prose-heavy material should use clear natural-language explanations, but split dense information into small semantic zones instead of one large paragraph.
-        Never pack several unrelated facts into one answer zone. Prefer 2-4 short zones over one overloaded paragraph when the answer has multiple parts.
-        Every zone must earn its place: definition, formula, condition, consequence, example, exception, or contrast.
+        Read the source and infer the nature of each idea from its actual form, not from topic labels or keywords.
+        Choose the card structure that best preserves how the source teaches the idea.
+        If an idea is expressed through formal structure, keep that structure visible: definitions, symbolic statements, formulas, relations, sets, variables, quantified conditions, schemas, derivations, equivalences, implications, closures, grammars, rules, or other compact notation should remain formal instead of being rewritten as loose prose.
+        If an idea is expressed as executable or operational syntax, preserve the exact syntax: source code, APIs, commands, flags, query syntax, language keywords, signatures, exceptions, operators, and concrete input/output examples should be represented as code or inline code.
+        If an idea is predominantly explanatory or narrative, write clear natural language. Do not invent formulas, symbols, or code when the source does not teach the idea that way.
+        Use semantic zones. A zone should represent one meaningful unit: prompt, definition, formula, condition, consequence, contrast, example, exception, snippet, or explanation.
+        Do not force a fixed number of zones. Simple cards may have one short zone per side. Complex cards may use several zones when the parts are genuinely distinct.
+        Prefer preserving precise source structure over making every answer sound like a paragraph.
+
+        FORMAL / MATHEMATICAL NOTATION
+        Formal notation is any source content whose meaning depends on symbols, variables, relations, set notation, arrows, subscripts, superscripts, conditions, equations, inference-like statements, or compact domain notation.
+        Treat formal notation as math-rendered text, not as code, unless it is actual executable syntax.
+        Preserve formal expressions in renderable LaTeX.
+        Use $...$ for inline formal notation.
+        Use $$...$$ for display notation when the expression is central or too long for inline text.
+        Put display notation in its own text zone.
+        Keep short explanatory prose outside math delimiters.
+        Do not replace precise notation with vague prose when the notation is the learning target.
+        Do not invent notation that is not supported by the source.
+
+        FORMAL NOTATION IS NOT CODE
+        Do not use a "code" zone merely because notation contains brackets, braces, uppercase identifiers, arrows, equality signs, commas, or parentheses.
+        Use "code" only for actual programming, executable queries, commands, configuration, or syntax that would be typed/run in a technical environment.
+
+        PROGRAMMING / CODE
+        Programming syntax is not math. Do not wrap programming identifiers, APIs, commands, file names, flags, operators, exception names, method calls, signatures, or language keywords in $...$.
+        Use inline backticks for short executable or language-specific surfaces: identifiers, APIs, commands, flags, operators, keywords, filenames, exceptions, signatures, short SQL fragments, or one-line syntax.
+        Use a standalone "code" zone for real snippets or multi-line executable examples.
+        A "code" zone must contain raw code text only: no markdown fences, no language label, and no extra explanation inside the code zone.
+        Programming cards should usually test exact construct -> behavior, syntax -> meaning, command -> effect, API -> constraint, snippet -> output, or error -> cause/fix.
+        Do not turn concrete syntax into generic prose when the exact syntax is what the learner must remember.
 
         LATEX IN JSON
-        Every math symbol, variable, and inline equation MUST be inside a single balanced $...$ block.
-        Display equations MUST be inside a balanced $$...$$ block and must be placed in their own standalone text zone.
-        Never output raw math notation such as a_{i}, x^2, 0_W, \\cdot, \\lambda, \\mathbb{R}, ∀, ∈, ⇔, →, ≤, ≥, ≠ etc..., outside math delimiters.
-        Every LaTeX command that starts with one backslash must be written with EXACTLY two backslashes in JSON.
-        Example final card text "$v \\in V$" must appear in JSON as "$v \\\\in V$".
-        Never write four backslashes before a LaTeX command.
+        All LaTeX must be inside JSON strings.
+        Write the final intended card text first, then JSON-escape only what JSON requires.
+        A LaTeX command that is one backslash in final rendered text must appear as two backslashes in JSON.
+        Example final rendered text: `$X \\subseteq U$`
+        Correct JSON string value: "$X \\\\subseteq U$"
+        Do not over-escape LaTeX commands.
+        Do not use markdown code fences for math.
+        Use $...$ or $$...$$, not ```math or ```latex.
         """
 
         prompt += requiredJSONSchemaPrompt(for: outputContract)
@@ -238,7 +269,14 @@ extension AIFlashcardService {
                 }
               ]
             }
-            Use only "text", "code", and "container" zone types. A container zone must include "children".
+            Return strictly one valid JSON object and nothing else.
+            Use only "flashcard" cards in this response.
+            For AI-generated cards, use only "text" and "code" zone types.
+            Do not emit deck metadata, ids, dates, creation source, counters, "container", "image", "sketch", "empty", "mediaBase64", or "codeLanguage".
+            Use multiple flat zones only when it improves readability, but vary the count naturally by card content.
+            Formal notation belongs in "text" zones with $...$ or $$...$$ delimiters.
+            For a real executable snippet, use a standalone code zone with raw code text, no markdown fences, and no language label:
+            { "type": "code", "text": "let total = items.count" }
             """
         case .quiz:
             return """
@@ -266,6 +304,12 @@ extension AIFlashcardService {
                         { "type": "text", "text": "choice 2" }
                       ],
                       "isCorrect": false
+                    },
+                    {
+                      "zones": [
+                        { "type": "text", "text": "choice 3" }
+                      ],
+                      "isCorrect": false
                     }
                   ],
                   "explanation": {
@@ -276,8 +320,16 @@ extension AIFlashcardService {
                 }
               ]
             }
-            Use only "text", "code", and "container" zone types. Each quiz must have at least two choices and at least one choice with "isCorrect": true.
+            Return strictly one valid JSON object and nothing else.
+            Use only "quiz" cards in this response.
+            For AI-generated quiz cards, use only "text" and "code" zone types.
+            Do not emit deck metadata, ids, dates, creation source, counters, "container", "image", "sketch", "empty", "mediaBase64", or "codeLanguage".
+            Each quiz must have at least two choices and at least one choice with "isCorrect": true. Prefer 3-4 choices when the source supports plausible distractors.
             "explanation" is optional.
+            Each choice must contain exactly one compact zone: either one "text" zone or one "code" zone.
+            Formal notation belongs in "text" zones with $...$ or $$...$$ delimiters.
+            For a real executable snippet, use a standalone code zone with raw code text, no markdown fences, and no language label:
+            { "type": "code", "text": "let total = items.count" }
             """
         }
     }
@@ -291,15 +343,20 @@ extension AIFlashcardService {
             - Prefer one atomic recall target per card.
             - Keep prompts concise and direct.
             - Split long answers into small semantic zones; do not return one dense paragraph.
-            - Use code blocks or display equations only when they materially teach the concept.
+            - Vary zone count naturally. A tiny answer can be one zone; a layered answer can use several focused zones.
+            - Use code zones or display equations only when they materially teach the concept.
             - Avoid list dumps and repeated paraphrases.
-            - For formal/math sources, prefer formula-first answers: formula zone, then a short interpretation or condition zone when needed.
-            - For prose-heavy sources, prefer compact explanation zones: definition, cause/effect, key detail, exception/contrast.
+            - For formal content, prefer formula-first or statement-first answers: formal text zone, then a short interpretation or condition zone when needed.
+            - For narrative content, prefer compact explanation zones: definition, cause/effect, key detail, exception, or contrast.
+            - For code content, prefer exact syntax/API/exception/operator -> behavior, effect, constraint, or failure mode.
             - Use bullets only when the source naturally has conditions, steps, properties, or parts.
-            - INLINE MATH: Wrap every math symbol, variable, and inline equation in single $.
+            - INLINE CODE: Use single backticks (`) for short executable syntax, identifiers, APIs, commands, flags, operators, exception names, or language terms.
+            - CODE ZONE: Put real code snippets in their own standalone "code" zone with raw code text and no language label. Keep snippets 1-4 short lines.
+            - Do not wrap programming syntax in math delimiters unless it is actual mathematics.
+            - INLINE MATH: Wrap formal notation and inline equations in single $.
             - BLOCK MATH: Wrap display equations in double $$ only when the equation itself is important.
             - Put long block equations in their own standalone text zone using $$...$$.
-            - Do not leave raw notation like a_{i}, x^2, 0_W, \\cdot, \\lambda, ∀, ∈, ⇔, →, or ℝ outside math delimiters.
+            - Do not leave raw formal notation like a_{i}, x^2, X+, ∅, \\cdot, \\lambda, ∀, ∈, ⇔, →, or ℝ outside math delimiters.
             - Keep ordinary Romanian/Russian/English prose outside math delimiters.
             """
         case .quiz:
@@ -308,16 +365,21 @@ extension AIFlashcardService {
             QUIZ RULES
             - Ask one clear question per card.
             - Provide at least 3 plausible choices when the source supports them.
-            - Include one or more correct indexes when multiple answers are correct.
+            - Mark every choice with an explicit isCorrect flag.
             - Keep distractors plausible but unambiguously wrong.
             - Add a concise explanation when it helps learning.
             - Keep choices compact and parallel; avoid paragraph-length choices.
-            - For formal/math quiz cards, choices may be formulas or symbolic statements when that tests the concept best.
-            - For prose-heavy quiz cards, choices should test meaning, cause, chronology, definition, exception, or classification.
-            - INLINE MATH: Wrap every math symbol, variable, and inline equation in single $.
+            - Each choice should contain exactly one compact text or code zone.
+            - Formal choices may be formulas or symbolic statements when that tests the concept best.
+            - Narrative choices should test meaning, cause, chronology, definition, exception, or classification.
+            - Code choices should preserve exact identifiers, syntax, APIs, exceptions, flags, operators, commands, and signatures.
+            - INLINE CODE: Use single backticks (`) for short executable syntax, identifiers, APIs, commands, flags, operators, exception names, or language terms.
+            - CODE ZONE: Put real code snippets in their own standalone "code" zone with raw code text and no language label. Keep snippets 1-4 short lines.
+            - Do not wrap programming syntax in math delimiters unless it is actual mathematics.
+            - INLINE MATH: Wrap formal notation and inline equations in single $.
             - BLOCK MATH: Wrap display equations in double $$. NEVER use ```math or ```latex fences for equations.
             - Put long block equations in their own standalone text zone using $$...$$.
-            - Do not leave raw notation like a_{i}, x^2, 0_W, \\cdot, \\lambda, ∀, ∈, ⇔, →, or ℝ outside math delimiters.
+            - Do not leave raw formal notation like a_{i}, x^2, X+, ∅, \\cdot, \\lambda, ∀, ∈, ⇔, →, or ℝ outside math delimiters.
             - Keep ordinary Romanian/Russian/English prose outside math delimiters.
             """
         }
@@ -331,9 +393,10 @@ extension AIFlashcardService {
             MOBILE LAYOUT
             Keep each question readable on a phone card. Keep answer zones scannable and avoid dense paragraphs.
             Prefer 1 short front zone. Use 2 front zones only for a short context line plus the actual prompt.
-            For Simple, back zones should usually be 1-2 compact zones.
-            For Pro, back zones should usually be 2-5 compact zones, each with a distinct role.
+            Simple answers should stay compact. Pro answers may use more segmentation when the concept needs structure.
+            Do not force the same number of zones across cards; choose the smallest natural structure that stays readable.
             If a source section is broad, create multiple cards instead of one overloaded card.
+            Code snippets should usually be 1-4 short lines and only appear when the snippet itself teaches the concept.
             """
         case .quiz:
             return """
@@ -342,6 +405,7 @@ extension AIFlashcardService {
             Keep the question and choices compact enough for a phone screen. Avoid choices that differ only by tiny wording.
             Use a short question stem, compact choices, and at most 1-2 explanation zones.
             If the concept requires a long setup, generate a flashcard-style explanation only in the explanation zone, not inside choices.
+            Code snippets should usually be 1-4 short lines and only appear when needed to test exact behavior or syntax.
             """
         }
     }
@@ -423,9 +487,11 @@ extension AIFlashcardService {
 
             DEPTH: SIMPLE
             Make cards short, clear, and immediately useful.
-            Preserve the essential definition, formula, rule, date, term, classification, or cause-effect relation.
+            Preserve the essential recall target: definition, rule, formal statement, condition, relation, syntax, date, cause/effect, or distinction.
+            Do not remove notation or exact syntax when that is the core idea.
             Do not dumb down the content: keep the card correct and testable, but remove secondary nuance, long examples, and proof details.
-            For flashcards, use 1 concise front zone and usually 1-2-3... back zones.
+            Use fewer zones unless the answer would become ambiguous without separation.
+            For flashcards, keep the front concise and let the back use only as many zones as the core answer needs.
             For quiz cards, test one direct idea with compact choices.
             """
         case .pro:
@@ -433,11 +499,13 @@ extension AIFlashcardService {
 
             DEPTH: PRO
             Make cards deeper and more complete without becoming essays.
-            Include structure: definition plus condition, formula plus interpretation, rule plus exception, event plus consequence, concept plus contrast, or term plus context.
-            For complex math/formal material, show the important formula or symbolic statement clearly, then add the minimal explanatory context needed to understand it.
-            For history, literature, biology, law, and other prose-heavy material, use richer but segmented explanations with precise terminology.
-            For flashcards, use 2-5 focused back zones when the source supports real depth.
+            Include useful structure when the source supports it: statement plus condition, formula plus interpretation, rule plus exception, concept plus contrast, snippet plus behavior, or cause plus consequence.
+            For formal content, preserve the important symbolic statement and add only the minimal explanation needed.
+            For code content, preserve exact syntax and add the relevant behavior, constraint, output, or failure mode.
+            For narrative content, use precise terminology and segmented explanation.
+            For flashcards, use focused back zones when the source supports real depth, but avoid padding the answer with filler zones.
             For quiz cards, use stronger distractors and a concise explanation that teaches the key distinction.
+            Use more zones only when each zone carries a distinct semantic role.
             """
         }
     }

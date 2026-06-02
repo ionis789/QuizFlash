@@ -1,0 +1,36 @@
+# QuizFlash SwiftFormat standard.
+# Keep this formatter focused on stable style, not source refactors.
+
+--min-version 0.61.1
+--swift-version 5.0
+--language-mode 5
+--exclude .git,.codex,.codex-temp
+
+--indent 4
+--tab-width 4
+--smart-tabs disabled
+--linebreaks lf
+--trim-whitespace always
+--header ignore
+--import-grouping testable-first,alpha
+--semicolons never
+--self remove
+--empty-braces no-space
+--else-position same-line
+--guard-else auto
+--ifdef indent
+--trailing-commas collections-only
+
+--closing-paren balanced
+--call-site-paren balanced
+--wrap-arguments preserve
+--wrap-parameters preserve
+--wrap-collections preserve
+--wrap-conditions preserve
+--wrap-effects preserve
+--wrap-return-type preserve
+--wrap-type-aliases preserve
+--wrap-enum-cases with-values
+
+--disable all
+--enable blankLineAfterImports,blankLinesAtEndOfScope,blankLinesAtStartOfScope,blankLinesBetweenImports,braces,consecutiveBlankLines,consecutiveSpaces,consistentSwitchCaseSpacing,duplicateImports,elseOnSameLine,emptyBraces,indent,linebreakAtEndOfFile,linebreaks,modifierOrder,semicolons,spaceAroundBraces,spaceAroundBrackets,spaceAroundComments,spaceAroundGenerics,spaceAroundOperators,spaceAroundParens,spaceInsideBraces,spaceInsideBrackets,spaceInsideComments,spaceInsideGenerics,spaceInsideParens,trailingCommas,trailingSpace

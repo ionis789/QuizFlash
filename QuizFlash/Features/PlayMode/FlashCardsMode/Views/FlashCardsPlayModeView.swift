@@ -1393,6 +1393,8 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
                 return "    \(index + 1). [\(metric(lineWidth))] \"\(lineText)\""
             }
             .joined(separator: "\n")
+        let renderedTokenLines = tokenDebugLines(for: leaf.renderedTokenLines)
+        let renderedScrollableMath = scrollableMathDebugLines(for: leaf.renderedScrollableMath)
 
         return [
             "- \(leaf.path) id=\(leaf.zoneID.uuidString)",
@@ -1407,10 +1409,51 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
             "  renderedLineWidths=[\(renderedLineWidths)]",
             "  renderedLines:",
             renderedLines.isEmpty ? "    <none>" : renderedLines,
+            "  renderedTokenLines:",
+            renderedTokenLines.isEmpty ? "    <none>" : renderedTokenLines,
+            "  renderedScrollableMath:",
+            renderedScrollableMath.isEmpty ? "    <none>" : renderedScrollableMath,
             "  preview=\"\(leaf.textPreview)\"",
             "  fullText:",
             leaf.fullText.isEmpty ? "  <empty>" : indentMultiline(leaf.fullText, prefix: "  | ")
         ]
+    }
+
+    private static func tokenDebugLines(for lines: [MixedMathRenderedLineDebug]) -> String {
+        guard !lines.isEmpty else { return "" }
+
+        return lines.enumerated()
+            .map { offset, line in
+                let remaining = max(line.widthLimit - line.width, 0)
+                let nextFirstToken = offset + 1 < lines.count ? lines[offset + 1].tokens.first : nil
+                let nextFitText: String
+                if let nextFirstToken {
+                    let fitsAlone = nextFirstToken.width <= remaining
+                    nextFitText = " nextFirst=\"\(singleLinePreview(nextFirstToken.text, limit: 40))\" width=\(metric(nextFirstToken.width)) fitsRemainingWithoutSpace=\(fitsAlone)"
+                } else {
+                    nextFitText = ""
+                }
+
+                let tokens = line.tokens
+                    .map { token in
+                        "      - \(token.kind) \"\(singleLinePreview(token.text, limit: 80))\" frame=(x:\(metric(token.left)), y:\(metric(token.top)), w:\(metric(token.width)), h:\(metric(token.height)), r:\(metric(token.right)), b:\(metric(token.bottom)))"
+                    }
+                    .joined(separator: "\n")
+
+                let header = "    \(line.index). frame=(x:\(metric(line.left)), y:\(metric(line.top)), w:\(metric(line.width)), h:\(metric(line.height)), r:\(metric(line.right)), b:\(metric(line.bottom))) limit=\(metric(line.widthLimit)) remaining=\(metric(remaining))\(nextFitText)"
+                return tokens.isEmpty ? header : "\(header)\n\(tokens)"
+            }
+            .joined(separator: "\n")
+    }
+
+    private static func scrollableMathDebugLines(for rows: [MixedMathScrollableDebug]) -> String {
+        guard !rows.isEmpty else { return "" }
+
+        return rows.enumerated()
+            .map { index, row in
+                "    \(index + 1). kind=\(row.kind) wrapperHeight=\(metric(row.wrapperHeight)) clientHeight=\(metric(row.clientHeight)) scrollHeight=\(metric(row.scrollHeight)) visualHeight=\(metric(row.visualHeight)) visualTop=\(metric(row.visualTop)) visualBottom=\(metric(row.visualBottom)) paddingTop=\(metric(row.paddingTop)) paddingBottom=\(metric(row.paddingBottom)) topAdjustment=\(metric(row.topAdjustment))"
+            }
+            .joined(separator: "\n")
     }
 
     private static func singleLinePreview(_ value: String, limit: Int) -> String {

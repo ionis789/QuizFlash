@@ -1186,9 +1186,11 @@ struct CardFaceView: View {
             if !zone.text.isEmpty {
                 let previewText = displayText(for: zone)
                 let resolvedTextAlignment = displayTextAlignment ?? zone.textAlignment
-                // Route to CodeSnippetView for fenced code blocks.
                 if zone.contentType == .code || previewText.hasPrefix("```") {
-                    CodeSnippetView(rawText: previewText)
+                    CodeSnippetView(
+                        rawText: previewText,
+                        fontSize: fontSizeFor(zone) * CodeSnippetMetrics.relativeFontScale
+                    )
                         .padding(.vertical, 4)
                 }
                 else {

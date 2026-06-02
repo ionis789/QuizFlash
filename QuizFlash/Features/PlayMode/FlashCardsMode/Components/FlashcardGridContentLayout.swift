@@ -59,6 +59,8 @@ struct FlashcardGridLeafLayoutDebugSnapshot: Equatable {
     let estimatedLineWidths: [CGFloat]
     let renderedLineTexts: [String]
     let renderedLineWidths: [CGFloat]
+    let renderedTokenLines: [MixedMathRenderedLineDebug]
+    let renderedScrollableMath: [MixedMathScrollableDebug]
     let textPreview: String
     let fullText: String
 }
@@ -135,7 +137,7 @@ struct FlashcardGridContentLayout {
     var contentBodyHeight: CGFloat {
         let estimatedHeight = max(ceil(estimatedContentSize.height), 1)
         if measuredContentSize.height > 0 {
-            return max(ceil(measuredContentSize.height), estimatedHeight)
+            return max(ceil(measuredContentSize.height), 1)
         }
 
         return estimatedHeight
@@ -449,6 +451,8 @@ private struct FlashcardGridLeafPreview: View {
     var onTap: (() -> Void)?
 
     @State private var renderedContentSize: CGSize = .zero
+    @State private var renderedTokenLines: [MixedMathRenderedLineDebug] = []
+    @State private var renderedScrollableMath: [MixedMathScrollableDebug] = []
 
     var body: some View {
         let resolvedLayoutZone = layoutZone
@@ -505,6 +509,8 @@ private struct FlashcardGridLeafPreview: View {
         )
         .onChange(of: measurementIdentity) { _, _ in
             renderedContentSize = .zero
+            renderedTokenLines = []
+            renderedScrollableMath = []
         }
     }
 
@@ -550,19 +556,23 @@ private struct FlashcardGridLeafPreview: View {
     private func zoneBlockSurface(layout: CardZoneLayoutResult) -> some View {
         switch zone.contentType {
         case .empty, .text, .code:
-            let tint = zone.highlightColor.zoneSurfaceTint
-            RoundedRectangle(cornerRadius: FlashcardGridContentMetrics.zoneCornerRadius, style: .continuous)
-                .fill(zone.highlightColor.zoneSurfaceFill)
-                .overlay {
-                    if let tint {
-                        RoundedRectangle(cornerRadius: FlashcardGridContentMetrics.zoneCornerRadius, style: .continuous)
-                            .stroke(tint.opacity(0.86), lineWidth: 2)
+            if rendersCodeBlock {
+                EmptyView()
+            } else {
+                let tint = zone.highlightColor.zoneSurfaceTint
+                RoundedRectangle(cornerRadius: FlashcardGridContentMetrics.zoneCornerRadius, style: .continuous)
+                    .fill(zone.highlightColor.zoneSurfaceFill)
+                    .overlay {
+                        if let tint {
+                            RoundedRectangle(cornerRadius: FlashcardGridContentMetrics.zoneCornerRadius, style: .continuous)
+                                .stroke(tint.opacity(0.86), lineWidth: 2)
+                        }
                     }
-                }
-                .shadow(color: tint?.opacity(0.34) ?? .clear, radius: tint == nil ? 0 : 10)
-                .frame(width: layout.blockSize.width, height: layout.blockSize.height)
-                .offset(x: layout.leadingInset)
-                .allowsHitTesting(false)
+                    .shadow(color: tint?.opacity(0.34) ?? .clear, radius: tint == nil ? 0 : 10)
+                    .frame(width: layout.blockSize.width, height: layout.blockSize.height)
+                    .offset(x: layout.leadingInset)
+                    .allowsHitTesting(false)
+            }
         case .image, .sketch:
             EmptyView()
         }
@@ -578,7 +588,10 @@ private struct FlashcardGridLeafPreview: View {
             let previewText = displayText(for: zone)
             if !previewText.isEmpty {
                 if zone.contentType == .code || previewText.hasPrefix("```") {
-                    CodeSnippetView(rawText: previewText)
+                    CodeSnippetView(
+                        rawText: previewText,
+                        fontSize: codeBlockFontSize(for: zone)
+                    )
                         .padding(.vertical, 4)
                 } else {
                     textLeafContent(
@@ -619,10 +632,20 @@ private struct FlashcardGridLeafPreview: View {
         let usesMathRenderer = MathTextSanitizer.containsMath(semanticText)
             || MathTextSanitizer.containsInlineCode(semanticText)
         let textWidthLimit = layout.textWidthLimit ?? max(layout.contentLayoutWidth, 1)
-        let measurementTextWidthLimit = max(
+        let intrinsicMeasurementTextWidthLimit = max(
             availableWidth - layout.textHorizontalInsets - layout.bulletHorizontalInset,
             1
         )
+        let renderedLineDebugHandler: (([MixedMathRenderedLineDebug]) -> Void)? = collectsDebugMetrics
+            ? { lines in
+                renderedTokenLines = lines
+            }
+            : nil
+        let scrollableDebugHandler: (([MixedMathScrollableDebug]) -> Void)? = collectsDebugMetrics
+            ? { rows in
+                renderedScrollableMath = rows
+            }
+            : nil
         let showsBullet = zone.hasBullet
             && !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
@@ -648,7 +671,7 @@ private struct FlashcardGridLeafPreview: View {
                     isInteractive: false,
                     allowsReadOnlyOverflowScrolling: true,
                     intrinsicWidthLimit: textWidthLimit,
-                    measurementWidthLimit: measurementTextWidthLimit,
+                    intrinsicMeasurementWidthLimit: intrinsicMeasurementTextWidthLimit,
                     onIntrinsicContentSizeChange: { size in
                         updateRenderedContentSize(
                             CGSize(
@@ -657,6 +680,9 @@ private struct FlashcardGridLeafPreview: View {
                             )
                         )
                     },
+                    onRenderedLineDebugChange: renderedLineDebugHandler,
+                    onScrollableDebugChange: scrollableDebugHandler,
+                    showsRenderDebugBounds: showsDebugGuides || collectsDebugMetrics,
                     onTap: onTap
                 )
                 .padding(.vertical, FlashcardGridContentMetrics.textVerticalPadding / 2)
@@ -798,6 +824,8 @@ private struct FlashcardGridLeafPreview: View {
             estimatedLineWidths: estimatedLineWidths.map(ceil),
             renderedLineTexts: renderedLineLayout.lines.map(\.plainText),
             renderedLineWidths: renderedLineLayout.lines.map { ceil($0.width) },
+            renderedTokenLines: containsMath || containsInlineCode ? renderedTokenLines : [],
+            renderedScrollableMath: containsMath || containsInlineCode ? renderedScrollableMath : [],
             textPreview: Self.preview(displayText),
             fullText: displayText
         )
@@ -831,6 +859,14 @@ private struct FlashcardGridLeafPreview: View {
         case .headline: return 26 * fontScale
         case .title: return 32 * fontScale
         }
+    }
+
+    private func codeBlockFontSize(for zone: ZoneModel) -> CGFloat {
+        fontSizeFor(zone) * CodeSnippetMetrics.relativeFontScale
+    }
+
+    private var rendersCodeBlock: Bool {
+        zone.contentType == .code || displayText(for: zone).hasPrefix("```")
     }
 }
 
@@ -1464,7 +1500,7 @@ enum FlashcardGridContentEstimator {
             )
 
         case .code:
-            let codeSize = measuredTextSize(
+            let codeSize = measuredCodeBlockSize(
                 strippedCodeText(zone.text),
                 zone: zone,
                 fontScale: fontScale,
@@ -1472,8 +1508,8 @@ enum FlashcardGridContentEstimator {
             )
 
             return CGSize(
-                width: availableWidth,
-                height: ceil(codeSize.height + 32)
+                width: codeSize.width,
+                height: codeSize.height
             )
 
         case .image, .sketch:
@@ -1559,6 +1595,33 @@ enum FlashcardGridContentEstimator {
         return CGSize(
             width: min(ceil(widestLine), constrainedWidth),
             height: ceil(lineRects.reduce(CGFloat(0)) { $0 + max(ceil($1.height), lineHeight) })
+        )
+    }
+
+    private static func measuredCodeBlockSize(
+        _ value: String,
+        zone: ZoneModel,
+        fontScale: CGFloat,
+        availableWidth: CGFloat
+    ) -> CGSize {
+        let text = value.replacingOccurrences(of: "\r\n", with: "\n")
+        let measuredText = text.isEmpty ? " " : text
+        let font = UIFont.monospacedSystemFont(
+            ofSize: codeBlockFontSize(for: zone, fontScale: fontScale),
+            weight: .regular
+        )
+        let textRect = (measuredText as NSString).boundingRect(
+            with: CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font],
+            context: nil
+        )
+        let horizontalPadding = CodeSnippetMetrics.contentPadding * 2
+        let verticalPadding = CodeSnippetMetrics.contentPadding * 2 + 8
+
+        return CGSize(
+            width: min(ceil(textRect.width + horizontalPadding), availableWidth),
+            height: ceil(textRect.height + verticalPadding)
         )
     }
 
@@ -1837,6 +1900,10 @@ enum FlashcardGridContentEstimator {
         case .headline: return 26
         case .title: return 32
         }
+    }
+
+    private static func codeBlockFontSize(for zone: ZoneModel, fontScale: CGFloat) -> CGFloat {
+        fontSize(for: zone) * fontScale * CodeSnippetMetrics.relativeFontScale
     }
 
     private static func strippedCodeText(_ text: String) -> String {

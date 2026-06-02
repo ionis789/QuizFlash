@@ -97,6 +97,48 @@ final class AICardJSONDecodingTests: XCTestCase {
         }
     }
 
+    func testDecodeCodeZoneDTOCreatesFencedCodeForMapper() async throws {
+        let service = makeService()
+        let json = #"""
+        {
+          "schemaVersion": 1,
+          "cards": [
+            {
+              "type": "flashcard",
+              "front": {
+                "zones": [
+                  { "type": "text", "text": "Ce face `map`?" }
+                ]
+              },
+              "back": {
+                "zones": [
+                  {
+                    "type": "code",
+                    "text": "let names = users.map(\\.name)"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+        """#
+
+        let cards = try await service.decodeGeneratedCards(from: json, contract: .flashcard)
+
+        guard case .flashcard(let content) = cards[0].content else {
+            return XCTFail("Expected flashcard payload")
+        }
+        XCTAssertEqual(content.answerZones, ["```\nlet names = users.map(\\.name)\n```"])
+
+        let draft = try AIGeneratedCardContentMapper.map(cards[0])
+        guard case .flashcard(let flashcard) = draft else {
+            return XCTFail("Expected flashcard draft")
+        }
+        XCTAssertEqual(flashcard.backZone.contentType, .code)
+        XCTAssertEqual(flashcard.backZone.text, "let names = users.map(\\.name)")
+        XCTAssertNil(flashcard.backZone.codeLanguage)
+    }
+
     func testDecodeRejectsInvalidCardDTOBatch() async {
         let service = makeService()
         let json = """
@@ -190,6 +232,48 @@ final class AICardJSONDecodingTests: XCTestCase {
         }
     }
 
+    func testDecodePreservesRenderableFormalNotationAsText() async throws {
+        let service = makeService()
+        let json = #"""
+        {
+          "schemaVersion": 1,
+          "cards": [
+            {
+              "type": "flashcard",
+              "front": {
+                "zones": [
+                  { "type": "text", "text": "Ce reprezintă închiderea $X^+$?" }
+                ]
+              },
+              "back": {
+                "zones": [
+                  { "type": "text", "text": "$R[U]$ este o schemă relațională." },
+                  { "type": "text", "text": "$\\Sigma = \\{AB \\to C, C \\to A\\}$" },
+                  { "type": "text", "text": "Dacă nu se poate deduce nimic nou, rezultatul poate fi $\\emptyset$." }
+                ]
+              }
+            }
+          ]
+        }
+        """#
+
+        let cards = try await service.decodeGeneratedCards(from: json, contract: .flashcard)
+
+        if case .flashcard(let content) = cards[0].content {
+            XCTAssertEqual(content.questionZones, [#"Ce reprezintă închiderea $X^+$?"#])
+            XCTAssertEqual(
+                content.answerZones,
+                [
+                    #"$R[U]$ este o schemă relațională."#,
+                    #"$\Sigma = \{AB \to C, C \to A\}$"#,
+                    #"Dacă nu se poate deduce nimic nou, rezultatul poate fi $\emptyset$."#
+                ]
+            )
+        } else {
+            XCTFail("Expected flashcard payload")
+        }
+    }
+
     func testPromptUsesCanonicalCardDTOSchema() {
         let service = makeService()
         let prompt = service.systemPrompt(
@@ -204,11 +288,26 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertTrue(prompt.contains(#""back""#))
         XCTAssertTrue(prompt.contains("CONTENT DESIGN"))
         XCTAssertTrue(prompt.contains("small semantic zones"))
-        XCTAssertTrue(prompt.contains("formula-first answers"))
+        XCTAssertTrue(prompt.contains("not from topic labels or keywords"))
+        XCTAssertTrue(prompt.contains("Do not force a fixed number of zones"))
+        XCTAssertTrue(prompt.contains("FORMAL / MATHEMATICAL NOTATION"))
+        XCTAssertTrue(prompt.contains("FORMAL NOTATION IS NOT CODE"))
+        XCTAssertTrue(prompt.contains("PROGRAMMING / CODE"))
+        XCTAssertTrue(prompt.contains("Programming syntax is not math"))
+        XCTAssertTrue(prompt.contains("no markdown fences"))
+        XCTAssertTrue(prompt.contains("INLINE CODE: Use single backticks"))
+        XCTAssertTrue(prompt.contains("standalone \"code\" zone"))
+        XCTAssertTrue(prompt.contains("Do not use a \"code\" zone merely because notation contains brackets"))
+        XCTAssertTrue(prompt.contains("Do not emit deck metadata"))
+        XCTAssertTrue(prompt.contains(#""container""#))
+        XCTAssertTrue(prompt.contains(#""codeLanguage""#))
         XCTAssertTrue(prompt.contains("DEPTH: PRO"))
-        XCTAssertTrue(prompt.contains("Every math symbol, variable, and inline equation MUST be inside"))
-        XCTAssertTrue(prompt.contains("Never output raw math notation"))
-        XCTAssertTrue(prompt.contains("INLINE MATH: Wrap every math symbol"))
+        XCTAssertTrue(prompt.contains("All LaTeX must be inside JSON strings"))
+        XCTAssertTrue(prompt.contains("JSON-escape only what JSON requires"))
+        XCTAssertTrue(prompt.contains("INLINE MATH: Wrap formal notation"))
+        XCTAssertFalse(prompt.contains("Math, logic, programming, physics"))
+        XCTAssertFalse(prompt.contains("History, literature"))
+        XCTAssertFalse(prompt.contains("Infer the subject domain from the source itself"))
         XCTAssertFalse(prompt.contains("question" + "_zones"))
         XCTAssertFalse(prompt.contains("answer" + "_zones"))
         XCTAssertFalse(prompt.contains("correct" + "_indexes"))
@@ -224,7 +323,34 @@ final class AICardJSONDecodingTests: XCTestCase {
 
         XCTAssertTrue(prompt.contains("DEPTH: SIMPLE"))
         XCTAssertTrue(prompt.contains("Do not dumb down the content"))
-        XCTAssertTrue(prompt.contains("For Simple, back zones should usually be 1-2 compact zones."))
+        XCTAssertTrue(prompt.contains("Do not remove notation or exact syntax"))
+        XCTAssertTrue(prompt.contains("Use fewer zones unless the answer would become ambiguous"))
+        XCTAssertTrue(prompt.contains("let the back use only as many zones as the core answer needs"))
+        XCTAssertTrue(prompt.contains("Do not force a fixed number of zones"))
+        XCTAssertFalse(prompt.contains("For programming sources"))
+    }
+
+    func testTextPromptDoesNotInjectKeywordBasedProgrammingProfile() {
+        let service = makeService()
+        let prompt = service.buildTextUserMessage(
+            text: """
+            public class UserService {
+                public User findById(String id) throws IOException {
+                    return repository.load(id);
+                }
+            }
+            """,
+            targetCards: 3,
+            options: AIGenerationOptions(cardType: .flashcards),
+            cardType: .flashcards,
+            sourceLabel: "test",
+            batchIndex: 1,
+            totalBatches: 1,
+            passIndex: 1,
+            coveredPrompts: []
+        )
+
+        XCTAssertFalse(prompt.contains("PROGRAMMING SOURCE PROFILE"))
     }
 
     func testCardGenerationLevelUsesSimpleAndProOnlyAndMigratesLegacyValues() throws {
