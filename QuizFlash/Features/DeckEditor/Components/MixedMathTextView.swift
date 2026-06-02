@@ -196,7 +196,8 @@ struct MixedMathTextView: View {
                 if shouldShowHorizontalOverflowHint {
                     HorizontalOverflowIndicator(
                         canScrollLeft: horizontalOverflowState.canScrollLeft,
-                        canScrollRight: horizontalOverflowState.canScrollRight
+                        canScrollRight: horizontalOverflowState.canScrollRight,
+                        verticalCenterY: horizontalOverflowState.indicatorCenterY
                     )
                         .transition(.opacity.combined(with: .scale(scale: 0.92)))
                         .allowsHitTesting(false)
@@ -830,31 +831,8 @@ struct MathWebView: UIViewRepresentable {
                 overflow-y: visible;
                 scrollbar-width: none;
             }
-            #content.qf-token-flow {
-                display: flex;
-                flex-wrap: wrap;
-                align-items: baseline;
-                column-gap: 0.18em;
-                row-gap: 0;
-                align-content: flex-start;
-            }
-            #content.qf-token-flow br {
-                flex-basis: 100%;
-                width: 100%;
-                height: 0;
-            }
-            #content.qf-token-flow .mixed-text-token,
-            #content.qf-token-flow code.inline-code,
-            #content.qf-token-flow .katex:not(.katex-display .katex) {
-                flex: 0 0 auto;
-            }
-            .mixed-text-token {
-                display: inline-block;
-                white-space: nowrap;
-            }
             #content::-webkit-scrollbar { display: none; }
             .katex-display {
-                flex: 0 0 100%;
                 margin: 0;
                 overflow-x: auto;
                 overflow-y: visible !important;
@@ -867,8 +845,8 @@ struct MathWebView: UIViewRepresentable {
             }
             .katex-display::-webkit-scrollbar { display: none; }
             .katex-inline-scroll {
-                display: inline-block;
-                vertical-align: middle;
+                display: block;
+                width: 100%;
                 max-width: 100%;
                 overflow-x: auto;
                 overflow-y: visible;
@@ -879,15 +857,19 @@ struct MathWebView: UIViewRepresentable {
                 touch-action: pan-x;
                 overscroll-behavior-x: contain;
             }
-            #content.qf-token-flow .katex-inline-scroll {
-                flex: 0 0 100%;
-                width: 100%;
-                min-height: 1.5em;
-            }
             .katex-inline-scroll::-webkit-scrollbar { display: none; }
-            .katex-inline-scroll > .katex {
+            .katex-inline-scroll .katex {
                 display: inline-block;
                 min-width: max-content;
+                max-width: none;
+                white-space: nowrap;
+            }
+            .katex-inline-scroll .katex > .katex-html,
+            .katex-display > .katex > .katex-html {
+                display: inline-block;
+                min-width: max-content;
+                width: max-content;
+                white-space: nowrap;
             }
             .katex-inline-boundary {
                 white-space: nowrap;
@@ -904,11 +886,6 @@ struct MathWebView: UIViewRepresentable {
             }
             .nonbreaking-hyphen-token {
                 white-space: nowrap;
-            }
-            body[data-render-debug-bounds="1"] .mixed-text-token {
-                background: rgba(255, 214, 10, 0.22);
-                box-shadow: inset 0 0 0 1px rgba(255, 214, 10, 0.72);
-                border-radius: 3px;
             }
             body[data-render-debug-bounds="1"] code.inline-code {
                 background: rgba(52, 199, 89, 0.24) !important;
@@ -1030,18 +1007,10 @@ struct MathWebView: UIViewRepresentable {
             } catch(e) { console.error(e); }
 
             preserveAuthorLineBreaks(contentDiv);
-            wrapInlineFlowTokens(contentDiv);
             classifyInlineMathFlow(contentDiv);
             bindNonBreakingHyphenatedWords(contentDiv);
             clearTimeout(updateTimeout);
-            prepareOverflowContainers();
-            stabilizeScrollableMathBounds(contentDiv);
-            reportLayoutMetrics();
-            reportLineDebug();
-            reportOverflow();
-            updateTimeout = setTimeout(reportLayoutMetrics, 50);
-            setTimeout(reportLineDebug, 50);
-            setTimeout(reportOverflow, 50);
+            schedulePostRenderLayoutPass(contentDiv);
         }
 
         function installTapBridge(contentDiv) {
@@ -1142,52 +1111,20 @@ struct MathWebView: UIViewRepresentable {
             });
         }
 
-        function wrapInlineFlowTokens(contentDiv) {
-            if (!contentDiv) { return; }
+        function schedulePostRenderLayoutPass(contentDiv) {
+            const run = () => {
+                prepareOverflowContainers();
+                stabilizeScrollableMathBounds(contentDiv);
+                reportLayoutMetrics();
+                reportLineDebug();
+                reportOverflow();
+            };
 
-            contentDiv.classList.add('qf-token-flow');
-
-            const textNodes = [];
-            const walker = document.createTreeWalker(
-                contentDiv,
-                NodeFilter.SHOW_TEXT,
-                {
-                    acceptNode(node) {
-                        const parent = node.parentElement;
-                        if (!parent || parent.closest('code, .katex, script, style, .mixed-text-token')) {
-                            return NodeFilter.FILTER_REJECT;
-                        }
-
-                        return NodeFilter.FILTER_ACCEPT;
-                    }
-                }
-            );
-
-            let node;
-            while ((node = walker.nextNode())) {
-                textNodes.push(node);
-            }
-
-            textNodes.forEach(textNode => {
-                const value = textNode.textContent || '';
-                if (!/\\S/.test(value)) {
-                    textNode.parentNode.removeChild(textNode);
-                    return;
-                }
-
-                const fragment = document.createDocumentFragment();
-                const tokenPattern = /\\S+/g;
-                let match;
-
-                while ((match = tokenPattern.exec(value)) !== null) {
-                    const wrapper = document.createElement('span');
-                    wrapper.className = 'mixed-text-token';
-                    wrapper.textContent = match[0];
-                    fragment.appendChild(wrapper);
-                }
-
-                textNode.parentNode.replaceChild(fragment, textNode);
+            requestAnimationFrame(() => {
+                requestAnimationFrame(run);
             });
+
+            updateTimeout = setTimeout(run, 80);
         }
 
         function prepareOverflowContainers() {
@@ -1205,13 +1142,13 @@ struct MathWebView: UIViewRepresentable {
                 const inlineKatex = Array.from(contentDiv.querySelectorAll('.katex')).filter(node => !node.closest('.katex-display'));
 
                 inlineKatex.forEach(node => {
-                    const inlineWidth = node.getBoundingClientRect().width;
                     if (!inlineMathNeedsOverflowContainer(node, contentRect, maxInlineWidth)) { return; }
 
+                    const scrollSubject = node.closest('.katex-inline-boundary') || node;
                     const wrapper = document.createElement('span');
                     wrapper.className = 'katex-inline-scroll';
-                    node.parentNode.insertBefore(wrapper, node);
-                    wrapper.appendChild(node);
+                    scrollSubject.parentNode.insertBefore(wrapper, scrollSubject);
+                    wrapper.appendChild(scrollSubject);
                     overflowTargets.push(wrapper);
                 });
             }
@@ -1225,12 +1162,34 @@ struct MathWebView: UIViewRepresentable {
             const rect = visualBoundsForElement(node) || node.getBoundingClientRect();
             const tolerance = 1;
             const visualWidth = rect.right - rect.left;
+            const intrinsicWidth = intrinsicKatexVisualWidth(node);
 
+            if (intrinsicWidth > maxInlineWidth + tolerance) { return true; }
             if (visualWidth > maxInlineWidth + tolerance) { return true; }
             if (rect.left < contentRect.left - tolerance) { return true; }
             if (rect.right > contentRect.right + tolerance) { return true; }
 
             return false;
+        }
+
+        function intrinsicKatexVisualWidth(node) {
+            if (!node) { return 0; }
+
+            const html = node.querySelector('.katex-html');
+            const candidates = html
+                ? [html, ...Array.from(html.children).filter(child => {
+                    return child.classList.contains('base') || child.classList.contains('tag');
+                })]
+                : [node];
+
+            return candidates.reduce((width, element) => {
+                const rectWidth = Array.from(element.getClientRects()).reduce((maxWidth, rect) => {
+                    return Math.max(maxWidth, rect.width || 0);
+                }, 0);
+                const scrollWidth = element.scrollWidth || 0;
+                const offsetWidth = element.offsetWidth || 0;
+                return Math.max(width, rectWidth, scrollWidth, offsetWidth);
+            }, 0);
         }
 
         function bindInlineTrailingPunctuation(contentDiv) {
@@ -1440,13 +1399,6 @@ struct MathWebView: UIViewRepresentable {
         }
 
         function appendKatexVisualRects(node, includeRoot, appendRects) {
-            const isDisplayMath = !!node.closest('.katex-display');
-
-            if (!isDisplayMath && includeRoot) {
-                appendRects(node.getClientRects());
-                return;
-            }
-
             const html = node.querySelector('.katex-html');
             const bases = html ? Array.from(html.children).filter(child => {
                 return child.classList.contains('base') || child.classList.contains('tag');
@@ -1457,6 +1409,9 @@ struct MathWebView: UIViewRepresentable {
                 return;
             }
 
+            if (html) {
+                appendRects(html.getClientRects());
+            }
             if (includeRoot) {
                 appendRects(node.getClientRects());
             }
@@ -1767,6 +1722,8 @@ struct MathWebView: UIViewRepresentable {
                 return;
             }
 
+            const contentDiv = document.getElementById('content');
+            const contentRect = contentDiv ? contentDiv.getBoundingClientRect() : document.body.getBoundingClientRect();
             const displays = Array.from(document.querySelectorAll('.katex-display, .katex-inline-scroll'));
             const overflowState = displays.reduce(
                 (state, block) => {
@@ -1774,15 +1731,21 @@ struct MathWebView: UIViewRepresentable {
                     if (!hasOverflow) { return state; }
 
                     const maxScrollLeft = Math.max(0, block.scrollWidth - block.clientWidth);
-                    if (block.scrollLeft > 1) {
+                    const canScrollBlockLeft = block.scrollLeft > 1;
+                    const canScrollBlockRight = block.scrollLeft < maxScrollLeft - 1;
+                    if (state.indicatorCenterY === null && (canScrollBlockLeft || canScrollBlockRight)) {
+                        const blockRect = block.getBoundingClientRect();
+                        state.indicatorCenterY = (blockRect.top - contentRect.top) + (blockRect.height / 2);
+                    }
+                    if (canScrollBlockLeft) {
                         state.canScrollLeft = true;
                     }
-                    if (block.scrollLeft < maxScrollLeft - 1) {
+                    if (canScrollBlockRight) {
                         state.canScrollRight = true;
                     }
                     return state;
                 },
-                { canScrollLeft: false, canScrollRight: false }
+                { canScrollLeft: false, canScrollRight: false, indicatorCenterY: null }
             );
             window.webkit.messageHandlers.overflowUpdate.postMessage(overflowState);
         }
@@ -1929,11 +1892,13 @@ struct MathWebView: UIViewRepresentable {
                 if let overflowPayload = message.body as? [String: Any] {
                     let canScrollLeft = overflowPayload["canScrollLeft"] as? Bool ?? false
                     let canScrollRight = overflowPayload["canScrollRight"] as? Bool ?? false
+                    let indicatorCenterY = Self.cgFloatValue(overflowPayload["indicatorCenterY"])
                     Task { @MainActor in
                         self.webView?.quizflashHasHorizontalOverflow = canScrollLeft || canScrollRight
                         self.horizontalOverflowState = HorizontalOverflowState(
                             canScrollLeft: canScrollLeft,
-                            canScrollRight: canScrollRight
+                            canScrollRight: canScrollRight,
+                            indicatorCenterY: indicatorCenterY > 0 ? indicatorCenterY : nil
                         )
                     }
                     return
@@ -2162,6 +2127,7 @@ struct MathWebView: UIViewRepresentable {
 struct HorizontalOverflowState: Equatable {
     var canScrollLeft: Bool = false
     var canScrollRight: Bool = false
+    var indicatorCenterY: CGFloat?
 
     var hasOverflow: Bool {
         canScrollLeft || canScrollRight
@@ -2171,23 +2137,37 @@ struct HorizontalOverflowState: Equatable {
 private struct HorizontalOverflowIndicator: View {
     let canScrollLeft: Bool
     let canScrollRight: Bool
+    let verticalCenterY: CGFloat?
     private let horizontalOffset: CGFloat = 14
 
     var body: some View {
-        ZStack {
-            if canScrollLeft {
-                edgeCue(direction: .leading)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                    .offset(x: -horizontalOffset)
+        GeometryReader { proxy in
+            let centerY = clampedCenterY(in: proxy.size.height)
+
+            ZStack {
+                if canScrollLeft {
+                    edgeCue(direction: .leading)
+                        .position(x: 0, y: centerY)
+                        .offset(x: -horizontalOffset)
+                }
+                if canScrollRight {
+                    edgeCue(direction: .trailing)
+                        .position(x: proxy.size.width, y: centerY)
+                        .offset(x: horizontalOffset)
+                }
             }
-            if canScrollRight {
-                edgeCue(direction: .trailing)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-                    .offset(x: horizontalOffset)
-            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .padding(.vertical, UIConstants.Spacing.medium)
         .accessibilityHidden(true)
+    }
+
+    private func clampedCenterY(in height: CGFloat) -> CGFloat {
+        guard let verticalCenterY else {
+            return max(height / 2, 0)
+        }
+
+        let inset = UIConstants.Spacing.small
+        return min(max(verticalCenterY, inset), max(height - inset, inset))
     }
 
     private func edgeCue(direction: OverflowEdgeDirection) -> some View {
