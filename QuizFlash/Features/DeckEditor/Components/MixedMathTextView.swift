@@ -62,6 +62,20 @@ struct MixedMathScrollableDebug: Equatable {
 
 private var quizFlashHorizontalOverflowAssociationKey: UInt8 = 0
 
+private final class MathWKWebView: WKWebView {
+    var allowsFullQuizFlashInteraction = true
+    var scrollableInteractionRects: [CGRect] = []
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        guard super.point(inside: point, with: event) else { return false }
+        guard !allowsFullQuizFlashInteraction else { return true }
+
+        return scrollableInteractionRects.contains { rect in
+            rect.insetBy(dx: -UIConstants.Spacing.small, dy: -UIConstants.Spacing.small).contains(point)
+        }
+    }
+}
+
 #if DEBUG
 struct MathWebViewPoolDebugSnapshot: Equatable {
     let idleCount: Int
@@ -583,7 +597,7 @@ class MathWebViewPool {
     private func create() -> WKWebView {
         let config = WKWebViewConfiguration()
 
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = MathWKWebView(frame: .zero, configuration: config)
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.isScrollEnabled = false
@@ -718,6 +732,12 @@ struct MathWebView: UIViewRepresentable {
         let shouldAllowWebInteraction = isInteractive || allowsReadOnlyOverflowScrolling
         webView.isUserInteractionEnabled = shouldAllowWebInteraction
         webView.scrollView.isUserInteractionEnabled = shouldAllowWebInteraction
+        if let mathWebView = webView as? MathWKWebView {
+            mathWebView.allowsFullQuizFlashInteraction = isInteractive
+            mathWebView.scrollableInteractionRects = isInteractive
+                ? []
+                : horizontalOverflowState.scrollableInteractionRects
+        }
         // Keep the page itself locked; overflowing math uses the DOM container's
         // own horizontal overflow instead of scrolling the WKWebView page.
         webView.scrollView.isScrollEnabled = false
@@ -1733,10 +1753,16 @@ struct MathWebView: UIViewRepresentable {
                     const maxScrollLeft = Math.max(0, block.scrollWidth - block.clientWidth);
                     const canScrollBlockLeft = block.scrollLeft > 1;
                     const canScrollBlockRight = block.scrollLeft < maxScrollLeft - 1;
+                    const blockRect = block.getBoundingClientRect();
                     if (state.indicatorCenterY === null && (canScrollBlockLeft || canScrollBlockRight)) {
-                        const blockRect = block.getBoundingClientRect();
                         state.indicatorCenterY = (blockRect.top - contentRect.top) + (blockRect.height / 2);
                     }
+                    state.interactionRects.push({
+                        left: blockRect.left - contentRect.left,
+                        top: blockRect.top - contentRect.top,
+                        width: blockRect.width,
+                        height: blockRect.height
+                    });
                     if (canScrollBlockLeft) {
                         state.canScrollLeft = true;
                     }
@@ -1745,7 +1771,7 @@ struct MathWebView: UIViewRepresentable {
                     }
                     return state;
                 },
-                { canScrollLeft: false, canScrollRight: false, indicatorCenterY: null }
+                { canScrollLeft: false, canScrollRight: false, indicatorCenterY: null, interactionRects: [] }
             );
             window.webkit.messageHandlers.overflowUpdate.postMessage(overflowState);
         }
@@ -1893,12 +1919,15 @@ struct MathWebView: UIViewRepresentable {
                     let canScrollLeft = overflowPayload["canScrollLeft"] as? Bool ?? false
                     let canScrollRight = overflowPayload["canScrollRight"] as? Bool ?? false
                     let indicatorCenterY = Self.cgFloatValue(overflowPayload["indicatorCenterY"])
+                    let interactionRects = Self.dictionaryArray(from: overflowPayload["interactionRects"] ?? [])
+                        .map(Self.cgRect(from:))
                     Task { @MainActor in
                         self.webView?.quizflashHasHorizontalOverflow = canScrollLeft || canScrollRight
                         self.horizontalOverflowState = HorizontalOverflowState(
                             canScrollLeft: canScrollLeft,
                             canScrollRight: canScrollRight,
-                            indicatorCenterY: indicatorCenterY > 0 ? indicatorCenterY : nil
+                            indicatorCenterY: indicatorCenterY > 0 ? indicatorCenterY : nil,
+                            scrollableInteractionRects: interactionRects
                         )
                     }
                     return
@@ -1985,6 +2014,15 @@ struct MathWebView: UIViewRepresentable {
             }
 
             return []
+        }
+
+        nonisolated private static func cgRect(from payload: [String: Any]) -> CGRect {
+            CGRect(
+                x: cgFloatValue(payload["left"]),
+                y: cgFloatValue(payload["top"]),
+                width: cgFloatValue(payload["width"]),
+                height: cgFloatValue(payload["height"])
+            )
         }
 
         nonisolated private static func scrollableDebug(from payload: [String: Any]) -> MixedMathScrollableDebug? {
@@ -2093,6 +2131,15 @@ struct MathWebView: UIViewRepresentable {
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+            if let mathWebView = webView as? MathWKWebView, !mathWebView.allowsFullQuizFlashInteraction {
+                let view = pan.view ?? webView
+                let translation = pan.translation(in: view)
+                let velocity = pan.velocity(in: view)
+                let horizontal = max(abs(translation.x), abs(velocity.x))
+                let vertical = max(abs(translation.y), abs(velocity.y))
+
+                guard horizontal > vertical * 1.15 else { return false }
+            }
             guard shouldHandOffHorizontalPanToParent(pan) else { return true }
             return false
         }
@@ -2128,6 +2175,7 @@ struct HorizontalOverflowState: Equatable {
     var canScrollLeft: Bool = false
     var canScrollRight: Bool = false
     var indicatorCenterY: CGFloat?
+    var scrollableInteractionRects: [CGRect] = []
 
     var hasOverflow: Bool {
         canScrollLeft || canScrollRight
