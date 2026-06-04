@@ -313,6 +313,66 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertFalse(prompt.contains("correct" + "_indexes"))
     }
 
+    func testQuizPromptPrefersCompactChoicesForNamedTechnicalAnswers() {
+        let service = makeService()
+        let prompt = service.systemPrompt(
+            targetCards: 3,
+            isOCR: false,
+            options: AIGenerationOptions(cardType: .quiz)
+        )
+
+        XCTAssertTrue(prompt.contains("named concept, keyword, convention, API, signature, formula, date, actor, work title, or other short recall surface"))
+        XCTAssertTrue(prompt.contains("make all choices compact answers of that same kind"))
+        XCTAssertTrue(prompt.contains("Do not wrap a simple term or construct in a full explanatory sentence"))
+        XCTAssertTrue(prompt.contains("keep the choices compact instead of turning every choice into a paragraph"))
+        XCTAssertTrue(prompt.contains("split setup prose, central formulas, and the actual question into separate question zones"))
+        XCTAssertTrue(prompt.contains("long formulas in their own question zone"))
+    }
+
+    func testAllocatedTextBatchesSplitLargeSourceRangeAcrossRequests() {
+        let service = makeService()
+        let segments = (1...10).map { index in
+            AITextSourceSegment(
+                index: index,
+                label: "Page \(index)",
+                text: "Page \(index) content"
+            )
+        }
+
+        let plans = service.buildTextBatchPlans(
+            segments: segments,
+            allocations: [
+                AISourceRangeAllocation(startIndex: 1, endIndex: 10, cardCount: 15)
+            ],
+            options: AIGenerationOptions(cardType: .quiz)
+        )
+
+        XCTAssertEqual(plans.map(\.targetCards), [3, 6, 6])
+        XCTAssertEqual(plans.map(\.sourceLabel), ["Page 1 - Page 4", "Page 5 - Page 7", "Page 8 - Page 10"])
+        XCTAssertTrue(plans[0].text.contains("Page 1 content"))
+        XCTAssertFalse(plans[0].text.contains("Page 10 content"))
+        XCTAssertTrue(plans[2].text.contains("Page 10 content"))
+    }
+
+    func testRepeatedSourceBatchesRunSequentiallySoCoveredPromptsCanUpdate() {
+        let service = makeService()
+        let plans = service.buildTextBatchPlans(
+            segments: [
+                AITextSourceSegment(index: 1, label: "Page 1", text: "Only page")
+            ],
+            allocations: [
+                AISourceRangeAllocation(startIndex: 1, endIndex: 1, cardCount: 15)
+            ],
+            options: AIGenerationOptions(cardType: .quiz)
+        )
+
+        XCTAssertEqual(plans.map(\.sourceLabel), ["Page 1", "Page 1", "Page 1"])
+        XCTAssertEqual(
+            service.effectiveMaxConcurrentRequestCount(for: plans, requestedMaxConcurrent: 6),
+            1
+        )
+    }
+
     func testPromptSupportsSimpleDepthProfile() {
         let service = makeService()
         let prompt = service.systemPrompt(
@@ -324,7 +384,7 @@ final class AICardJSONDecodingTests: XCTestCase {
         XCTAssertTrue(prompt.contains("DEPTH: SIMPLE"))
         XCTAssertTrue(prompt.contains("Do not dumb down the content"))
         XCTAssertTrue(prompt.contains("Do not remove notation or exact syntax"))
-        XCTAssertTrue(prompt.contains("Use fewer zones unless the answer would become ambiguous"))
+        XCTAssertTrue(prompt.contains("Use fewer zones when the idea is truly simple"))
         XCTAssertTrue(prompt.contains("let the back use only as many zones as the core answer needs"))
         XCTAssertTrue(prompt.contains("Do not force a fixed number of zones"))
         XCTAssertFalse(prompt.contains("For programming sources"))

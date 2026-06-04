@@ -25,8 +25,10 @@ final class QuizModeViewModel {
     var currentIndex = 0
     var isRetryPass = false
     var selectedChoiceIDs: Set<UUID> = []
+    var incorrectChoiceIDs: Set<UUID> = []
     var isEvaluated = false
     var lastEvaluationWasCorrect: Bool?
+    var currentQuestionHasWrongAttempt = false
     var wrongCards: [QuizPlayableCard] = []
     var firstPassFailedIDs: Set<PersistentIdentifier> = []
     var sessionXP = 0
@@ -174,7 +176,14 @@ final class QuizModeViewModel {
 
     /// Handles a tap on one answer choice, including immediate evaluation for single-answer cards.
     func selectChoice(_ choiceID: UUID) {
-        guard let currentCard, !isEvaluated else { return }
+        guard let currentCard else { return }
+
+        if isEvaluated {
+            guard lastEvaluationWasCorrect == false, !currentCard.allowsMultipleCorrect else { return }
+            isEvaluated = false
+            lastEvaluationWasCorrect = nil
+            isExplanationRevealed = false
+        }
 
         if currentCard.allowsMultipleCorrect {
             if selectedChoiceIDs.contains(choiceID) {
@@ -207,8 +216,10 @@ final class QuizModeViewModel {
         guard isEvaluated else { return }
 
         selectedChoiceIDs = []
+        incorrectChoiceIDs = []
         isEvaluated = false
         lastEvaluationWasCorrect = nil
+        currentQuestionHasWrongAttempt = false
         isExplanationRevealed = false
         currentIndex += 1
 
@@ -219,6 +230,39 @@ final class QuizModeViewModel {
                 finishSession()
             }
         } else {
+            currentQuestionStartTime = Date()
+        }
+    }
+
+    /// Refreshes the visible quiz snapshot after editing the persisted current card.
+    func refreshCurrentCard(from card: CardModel) {
+        guard let refreshedCard = Self.playableCard(from: card),
+              let index = cards.firstIndex(where: { $0.id == refreshedCard.id }) else {
+            return
+        }
+
+        let existingChoices = cards[index].choices
+        let choices = settings.shuffleChoices
+            ? Self.choices(refreshedCard.choices, preservingOrderFrom: existingChoices)
+            : refreshedCard.choices
+
+        cards[index] = QuizPlayableCard(
+            id: refreshedCard.id,
+            cardNumber: refreshedCard.cardNumber,
+            interval: refreshedCard.interval,
+            questionZone: refreshedCard.questionZone,
+            choices: choices,
+            explanationZone: refreshedCard.explanationZone,
+            allowsMultipleCorrect: refreshedCard.allowsMultipleCorrect
+        )
+
+        if index == currentIndex {
+            selectedChoiceIDs = []
+            incorrectChoiceIDs = []
+            isEvaluated = false
+            lastEvaluationWasCorrect = nil
+            currentQuestionHasWrongAttempt = false
+            isExplanationRevealed = false
             currentQuestionStartTime = Date()
         }
     }
@@ -258,13 +302,17 @@ final class QuizModeViewModel {
             return
         }
 
-        wrongCount += 1
+        incorrectChoiceIDs.formUnion(selectedChoiceIDs)
         missedCardIDs.insert(currentCard.id)
 
-        guard !isRetryPass else { return }
+        guard !currentQuestionHasWrongAttempt else { return }
 
-        firstPassFailedIDs.insert(currentCard.id)
-        wrongCards.append(currentCard)
+        currentQuestionHasWrongAttempt = true
+        wrongCount += 1
+
+        if !isRetryPass, firstPassFailedIDs.insert(currentCard.id).inserted {
+            wrongCards.append(currentCard)
+        }
 
         let xp = PlaySessionXP.awarded(for: .again, timeSpent: timeSpent)
         sessionXP += xp
@@ -288,7 +336,9 @@ final class QuizModeViewModel {
         isShowingRetryPrompt = false
         isEvaluated = false
         selectedChoiceIDs = []
+        incorrectChoiceIDs = []
         lastEvaluationWasCorrect = nil
+        currentQuestionHasWrongAttempt = false
         isExplanationRevealed = false
         currentQuestionStartTime = Date()
     }
@@ -333,6 +383,45 @@ final class QuizModeViewModel {
             if lhs.interval != rhs.interval { return lhs.interval < rhs.interval }
             return lhs.cardNumber < rhs.cardNumber
         }
+    }
+
+    private static func playableCard(from card: CardModel) -> QuizPlayableCard? {
+        guard case .quiz(let content) = card.cardContent,
+              content.questionZone.hasContent else {
+            return nil
+        }
+
+        let choices = content.choices.filter { $0.contentZone.hasContent }
+        let correctChoices = choices.filter(\.isCorrect)
+
+        guard choices.count >= 2, !correctChoices.isEmpty else {
+            return nil
+        }
+
+        guard content.allowsMultipleCorrect || correctChoices.count == 1 else {
+            return nil
+        }
+
+        return QuizPlayableCard(
+            id: card.persistentModelID,
+            cardNumber: card.cardNumber,
+            interval: card.interval,
+            questionZone: content.questionZone,
+            choices: choices,
+            explanationZone: content.explanationZone?.hasContent == true ? content.explanationZone : nil,
+            allowsMultipleCorrect: content.allowsMultipleCorrect
+        )
+    }
+
+    private static func choices(
+        _ refreshedChoices: [QuizChoiceDraft],
+        preservingOrderFrom existingChoices: [QuizChoiceDraft]
+    ) -> [QuizChoiceDraft] {
+        let refreshedByID = Dictionary(uniqueKeysWithValues: refreshedChoices.map { ($0.id, $0) })
+        let preserved = existingChoices.compactMap { refreshedByID[$0.id] }
+        let preservedIDs = Set(preserved.map(\.id))
+        let inserted = refreshedChoices.filter { !preservedIDs.contains($0.id) }
+        return preserved + inserted
     }
 
     private func shuffledChoices(in cards: [QuizPlayableCard]) -> [QuizPlayableCard] {

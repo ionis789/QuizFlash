@@ -189,7 +189,7 @@ struct MixedMathTextView: View {
         let canSupportReadOnlyOverflowScrolling = (
             !isInteractive
             && allowsReadOnlyOverflowScrolling
-            && MathTextSanitizer.containsMath(clean)
+            && (MathTextSanitizer.containsMath(clean) || MathTextSanitizer.containsInlineCode(clean))
         )
         let shouldAllowReadOnlyOverflowInteraction = canSupportReadOnlyOverflowScrolling
             && horizontalOverflowState.hasOverflow
@@ -261,7 +261,8 @@ struct MixedMathTextView: View {
                     HorizontalOverflowIndicator(
                         canScrollLeft: horizontalOverflowState.canScrollLeft,
                         canScrollRight: horizontalOverflowState.canScrollRight,
-                        verticalCenterY: horizontalOverflowState.indicatorCenterY
+                        verticalCenterY: horizontalOverflowState.indicatorCenterY,
+                        regions: horizontalOverflowState.scrollableInteractionRegions
                     )
                         .transition(.opacity.combined(with: .scale(scale: 0.92)))
                         .allowsHitTesting(false)
@@ -714,6 +715,7 @@ struct MathWebView: UIViewRepresentable {
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
         // 1. Unlink coordinator to break any lingering weak/unowned chains
         coordinator.cancelPendingUpdate()
+        coordinator.invalidateRender()
         coordinator.webView = nil
 
         // 2. Remove the script message handler to break the JS context retain cycle
@@ -853,8 +855,9 @@ struct MathWebView: UIViewRepresentable {
         let allowDisplayMathOverflowScrolling = allowsReadOnlyOverflowScrolling ? "true" : "false"
         let measurementWidth = max(ceil(intrinsicMeasurementWidthLimit ?? 0), 0)
         let debugBounds = showsRenderDebugBounds ? "true" : "false"
-        let js = "updateMathContent('\(b64)', '\(cssColor)', \(fontSize), '\(cssAlign)', '\(weight)', '\(fontStyle)', \(allowDisplayMathOverflowScrolling), \(measurementWidth), \(debugBounds));"
-        context.coordinator.applyUpdate(js: js)
+        let renderToken = context.coordinator.beginRender()
+        let js = "updateMathContent('\(b64)', '\(cssColor)', \(fontSize), '\(cssAlign)', '\(weight)', '\(fontStyle)', \(allowDisplayMathOverflowScrolling), \(measurementWidth), \(debugBounds), '\(renderToken)');"
+        context.coordinator.applyUpdate(js: js, renderToken: renderToken)
     }
 
     // -------------------------------------------------------------------------
@@ -891,6 +894,9 @@ struct MathWebView: UIViewRepresentable {
                 word-break: normal;
                 hyphens: none;
                 -webkit-hyphens: none;
+                -webkit-touch-callout: none;
+                -webkit-user-select: none;
+                user-select: none;
                 margin: 0;
                 padding: 0;
             }
@@ -960,6 +966,26 @@ struct MathWebView: UIViewRepresentable {
                 display: inline-block;
                 white-space: nowrap;
             }
+            .inline-code-scroll {
+                display: block;
+                width: 100%;
+                max-width: 100%;
+                overflow-x: auto;
+                overflow-y: visible;
+                padding: 0;
+                line-height: 1.5;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                touch-action: pan-x;
+                overscroll-behavior-x: contain;
+            }
+            .inline-code-scroll::-webkit-scrollbar { display: none; }
+            .inline-code-scroll code.inline-code {
+                display: inline-block;
+                min-width: max-content;
+                max-width: none;
+                white-space: pre;
+            }
             .nonbreaking-hyphen-token {
                 white-space: nowrap;
             }
@@ -987,13 +1013,20 @@ struct MathWebView: UIViewRepresentable {
             code.inline-code {
                 font-family: ui-monospace, 'SF Mono', Menlo, monospace;
                 font-size: 0.88em;
+                display: inline-block;
+                max-width: none;
+                line-height: 1.35;
+                overflow-wrap: normal;
+                word-break: normal;
+                white-space: pre;
+                vertical-align: middle;
             }
             code.inline-code--standard {
                 background: rgba(120, 120, 120, 0.15);
                 color: inherit;
                 border: 1px solid rgba(120, 120, 120, 0.2);
                 border-radius: 6px;
-                padding: 2px 6px;
+                padding: 1px 6px 2px;
             }
             code.inline-code--deck-card-preview {
                 background: transparent;
@@ -1013,16 +1046,16 @@ struct MathWebView: UIViewRepresentable {
                 white-space: pre;
             }
             code.inline-code--wrapping {
-                max-width: 100%;
+                max-width: none;
                 overflow-wrap: normal;
                 word-break: normal;
-                white-space: break-spaces;
+                white-space: pre;
             }
             code.inline-code--breakable-token {
-                max-width: 100%;
-                overflow-wrap: anywhere;
-                word-break: break-word;
-                white-space: normal;
+                max-width: none;
+                overflow-wrap: normal;
+                word-break: normal;
+                white-space: pre;
             }
             strong, b { font-weight: bold; }
             em, i     { font-style: italic; }
@@ -1046,7 +1079,7 @@ struct MathWebView: UIViewRepresentable {
             isInstalled: false
         };
 
-        function updateMathContent(b64, color, fontSize, align, weight, fontStyle, allowDisplayMathOverflowScrolling, intrinsicMeasurementWidthLimit, showsRenderDebugBounds) {
+        function updateMathContent(b64, color, fontSize, align, weight, fontStyle, allowDisplayMathOverflowScrolling, intrinsicMeasurementWidthLimit, showsRenderDebugBounds, renderToken) {
             document.body.style.color = color;
             document.body.style.fontSize = fontSize + 'px';
             document.body.style.textAlign = align;
@@ -1055,6 +1088,7 @@ struct MathWebView: UIViewRepresentable {
             document.body.dataset.allowDisplayMathOverflowScrolling = allowDisplayMathOverflowScrolling ? '1' : '0';
             document.body.dataset.intrinsicMeasurementWidthLimit = intrinsicMeasurementWidthLimit > 0 ? intrinsicMeasurementWidthLimit : '';
             document.body.dataset.renderDebugBounds = showsRenderDebugBounds ? '1' : '0';
+            document.body.dataset.renderToken = renderToken || '';
 
             let bin = window.atob(b64);
             let bytes = new Uint8Array(bin.length);
@@ -1086,7 +1120,23 @@ struct MathWebView: UIViewRepresentable {
             classifyInlineMathFlow(contentDiv);
             bindNonBreakingHyphenatedWords(contentDiv);
             clearTimeout(updateTimeout);
-            schedulePostRenderLayoutPass(contentDiv);
+            schedulePostRenderLayoutPass(contentDiv, renderToken);
+        }
+
+        function currentRenderToken() {
+            return document.body.dataset.renderToken || '';
+        }
+
+        function isActiveRender(renderToken) {
+            return !!renderToken && renderToken === currentRenderToken();
+        }
+
+        function payloadWithRenderToken(payload) {
+            const token = currentRenderToken();
+            if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+                return Object.assign({ renderToken: token }, payload);
+            }
+            return { renderToken: token, value: payload };
         }
 
         function installTapBridge(contentDiv) {
@@ -1187,8 +1237,9 @@ struct MathWebView: UIViewRepresentable {
             });
         }
 
-        function schedulePostRenderLayoutPass(contentDiv) {
+        function schedulePostRenderLayoutPass(contentDiv, renderToken) {
             const run = () => {
+                if (!isActiveRender(renderToken)) { return; }
                 prepareOverflowContainers();
                 stabilizeScrollableMathBounds(contentDiv);
                 reportLayoutMetrics();
@@ -1207,6 +1258,7 @@ struct MathWebView: UIViewRepresentable {
             const contentDiv = document.getElementById('content');
             unwrapInlineBoundaryContainers(contentDiv);
             unwrapInlineOverflowContainers(contentDiv);
+            unwrapInlineCodeOverflowContainers(contentDiv);
             bindInlineTrailingPunctuation(contentDiv);
 
             const overflowTargets = Array.from(contentDiv.querySelectorAll('.katex-display'));
@@ -1218,13 +1270,27 @@ struct MathWebView: UIViewRepresentable {
                 const inlineKatex = Array.from(contentDiv.querySelectorAll('.katex')).filter(node => !node.closest('.katex-display'));
 
                 inlineKatex.forEach(node => {
-                    if (!inlineMathNeedsOverflowContainer(node, contentRect, maxInlineWidth)) { return; }
+                    if (
+                        !inlineMathNeedsOverflowContainer(node, contentRect, maxInlineWidth)
+                        && !inlineMathNeedsOwnLine(node, contentDiv, maxInlineWidth)
+                    ) { return; }
 
                     const scrollSubject = node.closest('.katex-inline-boundary') || node;
                     const wrapper = document.createElement('span');
                     wrapper.className = 'katex-inline-scroll';
                     scrollSubject.parentNode.insertBefore(wrapper, scrollSubject);
                     wrapper.appendChild(scrollSubject);
+                    overflowTargets.push(wrapper);
+                });
+
+                const inlineCode = Array.from(contentDiv.querySelectorAll('code.inline-code'));
+                inlineCode.forEach(node => {
+                    if (!inlineCodeNeedsOverflowContainer(node, contentRect, maxInlineWidth)) { return; }
+
+                    const wrapper = document.createElement('span');
+                    wrapper.className = 'inline-code-scroll';
+                    node.parentNode.insertBefore(wrapper, node);
+                    wrapper.appendChild(node);
                     overflowTargets.push(wrapper);
                 });
             }
@@ -1298,6 +1364,64 @@ struct MathWebView: UIViewRepresentable {
             return false;
         }
 
+        function inlineMathNeedsOwnLine(node, contentDiv, maxInlineWidth) {
+            const mathBounds = visualBoundsForElement(node) || node.getBoundingClientRect();
+            const intrinsicWidth = intrinsicKatexVisualWidth(node);
+            if (!mathBounds || intrinsicWidth <= 0 || maxInlineWidth <= 0) { return false; }
+
+            const sameLineTextWidth = nonMathTextWidthOnSameLine(contentDiv, mathBounds);
+            if (sameLineTextWidth <= 0) { return false; }
+
+            return intrinsicWidth + sameLineTextWidth > maxInlineWidth + 1;
+        }
+
+        function nonMathTextWidthOnSameLine(contentDiv, lineBounds) {
+            if (!contentDiv || !lineBounds) { return 0; }
+
+            const range = document.createRange();
+            let width = 0;
+            const walker = document.createTreeWalker(
+                contentDiv,
+                NodeFilter.SHOW_TEXT,
+                {
+                    acceptNode(node) {
+                        const parent = node.parentElement;
+                        if (!parent || parent.closest('code, .katex, script, style')) {
+                            return NodeFilter.FILTER_REJECT;
+                        }
+
+                        return (node.textContent || '').trim().length > 0
+                            ? NodeFilter.FILTER_ACCEPT
+                            : NodeFilter.FILTER_REJECT;
+                    }
+                }
+            );
+
+            let node;
+            while ((node = walker.nextNode())) {
+                const value = node.textContent || '';
+                const tokenPattern = /\\S+/g;
+                let match;
+
+                while ((match = tokenPattern.exec(value)) !== null) {
+                    range.setStart(node, match.index);
+                    range.setEnd(node, match.index + match[0].length);
+
+                    Array.from(range.getClientRects()).forEach(rect => {
+                        if (rect.width <= 0.5 || rect.height <= 0.5) { return; }
+                        const overlap = Math.min(rect.bottom, lineBounds.bottom) - Math.max(rect.top, lineBounds.top);
+                        const requiredOverlap = Math.min(rect.height, lineBounds.bottom - lineBounds.top) * 0.45;
+                        if (overlap >= requiredOverlap) {
+                            width += rect.width;
+                        }
+                    });
+                }
+            }
+
+            range.detach();
+            return width;
+        }
+
         function intrinsicKatexVisualWidth(node) {
             if (!node) { return 0; }
 
@@ -1316,6 +1440,31 @@ struct MathWebView: UIViewRepresentable {
                 const offsetWidth = element.offsetWidth || 0;
                 return Math.max(width, rectWidth, scrollWidth, offsetWidth);
             }, 0);
+        }
+
+        function inlineCodeNeedsOverflowContainer(node, contentRect, maxInlineWidth) {
+            const rect = visualBoundsForElement(node) || node.getBoundingClientRect();
+            const tolerance = 1;
+            const visualWidth = rect.right - rect.left;
+            const intrinsicWidth = intrinsicElementVisualWidth(node);
+
+            if (intrinsicWidth > maxInlineWidth + tolerance) { return true; }
+            if (visualWidth > maxInlineWidth + tolerance) { return true; }
+            if (rect.left < contentRect.left - tolerance) { return true; }
+            if (rect.right > contentRect.right + tolerance) { return true; }
+
+            return false;
+        }
+
+        function intrinsicElementVisualWidth(node) {
+            if (!node) { return 0; }
+
+            const rectWidth = Array.from(node.getClientRects()).reduce((maxWidth, rect) => {
+                return Math.max(maxWidth, rect.width || 0);
+            }, 0);
+            const scrollWidth = node.scrollWidth || 0;
+            const offsetWidth = node.offsetWidth || 0;
+            return Math.max(rectWidth, scrollWidth, offsetWidth);
         }
 
         function bindInlineTrailingPunctuation(contentDiv) {
@@ -1411,6 +1560,16 @@ struct MathWebView: UIViewRepresentable {
             });
         }
 
+        function unwrapInlineCodeOverflowContainers(contentDiv) {
+            Array.from(contentDiv.querySelectorAll('.inline-code-scroll')).forEach(wrapper => {
+                const parent = wrapper.parentNode;
+                while (wrapper.firstChild) {
+                    parent.insertBefore(wrapper.firstChild, wrapper);
+                }
+                parent.removeChild(wrapper);
+            });
+        }
+
         function unwrapInlineBoundaryContainers(contentDiv) {
             Array.from(contentDiv.querySelectorAll('.katex-inline-boundary')).forEach(wrapper => {
                 const parent = wrapper.parentNode;
@@ -1426,17 +1585,19 @@ struct MathWebView: UIViewRepresentable {
 
             const debugRows = [];
 
-            Array.from(contentDiv.querySelectorAll('.katex-display, .katex-inline-scroll')).forEach(wrapper => {
+            Array.from(contentDiv.querySelectorAll('.katex-display, .katex-inline-scroll, .inline-code-scroll')).forEach(wrapper => {
                 const math = wrapper.querySelector('.katex');
-                if (!math) { return; }
+                const code = wrapper.querySelector('code.inline-code');
+                const subject = math || code;
+                if (!subject) { return; }
 
                 wrapper.style.height = '';
                 wrapper.style.minHeight = '';
-                math.style.position = '';
-                math.style.top = '';
+                subject.style.position = '';
+                subject.style.top = '';
 
                 const wrapperRect = wrapper.getBoundingClientRect();
-                const visualBounds = visualBoundsForElement(math);
+                const visualBounds = visualBoundsForElement(subject);
                 if (!visualBounds) { return; }
 
                 const style = window.getComputedStyle(wrapper);
@@ -1457,13 +1618,15 @@ struct MathWebView: UIViewRepresentable {
                 }
 
                 if (topAdjustment > 0.5) {
-                    math.style.position = 'relative';
-                    math.style.top = topAdjustment + 'px';
+                    subject.style.position = 'relative';
+                    subject.style.top = topAdjustment + 'px';
                 }
 
                 const adjustedRect = wrapper.getBoundingClientRect();
                 debugRows.push({
-                    kind: wrapper.classList.contains('katex-display') ? 'display' : 'inline',
+                    kind: wrapper.classList.contains('katex-display')
+                        ? 'display'
+                        : (wrapper.classList.contains('inline-code-scroll') ? 'code' : 'inline'),
                     wrapperHeight: Math.ceil(adjustedRect.height),
                     scrollHeight: Math.ceil(wrapper.scrollHeight),
                     clientHeight: Math.ceil(wrapper.clientHeight),
@@ -1477,7 +1640,7 @@ struct MathWebView: UIViewRepresentable {
             });
 
             if (window.webkit && window.webkit.messageHandlers.scrollableDebugUpdate) {
-                window.webkit.messageHandlers.scrollableDebugUpdate.postMessage(debugRows);
+                window.webkit.messageHandlers.scrollableDebugUpdate.postMessage(payloadWithRenderToken(debugRows));
             }
         }
 
@@ -1557,10 +1720,10 @@ struct MathWebView: UIViewRepresentable {
                 ? measuredVisualContentBoundsAtWidth(el, intrinsicMeasurementWidthLimit)
                 : measuredVisualContentBounds(el);
             if (bounds.height > 0 && window.webkit && window.webkit.messageHandlers.heightUpdate) {
-                window.webkit.messageHandlers.heightUpdate.postMessage(Math.ceil(bounds.height));
+                window.webkit.messageHandlers.heightUpdate.postMessage(payloadWithRenderToken(Math.ceil(bounds.height)));
             }
             if (bounds.width > 0 && window.webkit && window.webkit.messageHandlers.widthUpdate) {
-                window.webkit.messageHandlers.widthUpdate.postMessage(Math.ceil(bounds.width));
+                window.webkit.messageHandlers.widthUpdate.postMessage(payloadWithRenderToken(Math.ceil(bounds.width)));
             }
         }
 
@@ -1700,7 +1863,7 @@ struct MathWebView: UIViewRepresentable {
                         }))
                 }));
 
-            window.webkit.messageHandlers.lineDebugUpdate.postMessage(payload);
+            window.webkit.messageHandlers.lineDebugUpdate.postMessage(payloadWithRenderToken(payload));
         }
 
         function measuredVisualContentBoundsAtWidth(source, width) {
@@ -1844,13 +2007,18 @@ struct MathWebView: UIViewRepresentable {
             const allowOverflow = document.body.dataset.allowDisplayMathOverflowScrolling === '1';
             if (!window.webkit || !window.webkit.messageHandlers.overflowUpdate) { return; }
             if (!allowOverflow) {
-                window.webkit.messageHandlers.overflowUpdate.postMessage(false);
+                window.webkit.messageHandlers.overflowUpdate.postMessage(payloadWithRenderToken({
+                    canScrollLeft: false,
+                    canScrollRight: false,
+                    indicatorCenterY: null,
+                    interactionRects: []
+                }));
                 return;
             }
 
             const contentDiv = document.getElementById('content');
             const contentRect = contentDiv ? contentDiv.getBoundingClientRect() : document.body.getBoundingClientRect();
-            const displays = Array.from(document.querySelectorAll('.katex-display, .katex-inline-scroll'));
+            const displays = Array.from(document.querySelectorAll('.katex-display, .katex-inline-scroll, .inline-code-scroll'));
             const overflowState = displays.reduce(
                 (state, block) => {
                     const hasOverflow = (block.scrollWidth - block.clientWidth) > 1;
@@ -1881,7 +2049,7 @@ struct MathWebView: UIViewRepresentable {
                 },
                 { canScrollLeft: false, canScrollRight: false, indicatorCenterY: null, interactionRects: [] }
             );
-            window.webkit.messageHandlers.overflowUpdate.postMessage(overflowState);
+            window.webkit.messageHandlers.overflowUpdate.postMessage(payloadWithRenderToken(overflowState));
         }
 
         if (window.ResizeObserver) {
@@ -1964,6 +2132,7 @@ struct MathWebView: UIViewRepresentable {
         var onTap: (() -> Void)?
         private var updateRetryTask: Task<Void, Never>?
         private var lastTapEmissionTime: TimeInterval = 0
+        private var activeRenderToken = UUID().uuidString
 
         init(
             contentHeight: Binding<CGFloat>,
@@ -1993,65 +2162,64 @@ struct MathWebView: UIViewRepresentable {
             updateRetryTask?.cancel()
         }
 
+        func beginRender() -> String {
+            let token = UUID().uuidString
+            activeRenderToken = token
+            return token
+        }
+
+        func invalidateRender() {
+            activeRenderToken = UUID().uuidString
+        }
+
         func userContentController(
             _ userContentController: WKUserContentController,
             didReceive message: WKScriptMessage
         ) {
             switch message.name {
             case "heightUpdate":
-                guard let h = message.body as? Double, h > 0 else { return }
+                guard let h = renderCGFloat(from: message.body), h > 0 else { return }
                 Task { @MainActor in
-                    self.contentHeight = CGFloat(h)
+                    self.contentHeight = h
                 }
 
             case "widthUpdate":
                 guard reportsIntrinsicContentWidth else { return }
-                guard let w = message.body as? Double, w > 0 else { return }
+                guard let w = renderCGFloat(from: message.body), w > 0 else { return }
                 Task { @MainActor in
-                    self.intrinsicContentWidth = CGFloat(w)
+                    self.intrinsicContentWidth = w
                 }
 
             case "lineDebugUpdate":
-                let payload = Self.dictionaryArray(from: message.body)
+                let payload = renderDictionaryArray(from: message.body)
                 let lines = payload.compactMap(Self.renderedLineDebug(from:))
                 Task { @MainActor in
                     self.renderedLineDebug = lines
                 }
 
             case "scrollableDebugUpdate":
-                let payload = Self.dictionaryArray(from: message.body)
+                let payload = renderDictionaryArray(from: message.body)
                 let rows = payload.compactMap(Self.scrollableDebug(from:))
                 Task { @MainActor in
                     self.scrollableDebug = rows
                 }
 
             case "overflowUpdate":
-                if let overflowPayload = message.body as? [String: Any] {
-                    let canScrollLeft = overflowPayload["canScrollLeft"] as? Bool ?? false
-                    let canScrollRight = overflowPayload["canScrollRight"] as? Bool ?? false
-                    let indicatorCenterY = Self.cgFloatValue(overflowPayload["indicatorCenterY"])
-                    let interactionRegions = Self.dictionaryArray(from: overflowPayload["interactionRects"] ?? [])
-                        .map(Self.scrollableInteractionRegion(from:))
-                    Task { @MainActor in
-                        self.webView?.quizflashHasHorizontalOverflow = canScrollLeft || canScrollRight
-                        self.webView?.quizflashScrollableMathInteractionRegions = interactionRegions
-                        self.horizontalOverflowState = HorizontalOverflowState(
-                            canScrollLeft: canScrollLeft,
-                            canScrollRight: canScrollRight,
-                            indicatorCenterY: indicatorCenterY > 0 ? indicatorCenterY : nil,
-                            scrollableInteractionRegions: interactionRegions
-                        )
-                    }
-                    return
-                }
-
-                guard let hasOverflow = message.body as? Bool else { return }
+                guard let overflowPayload = renderDictionary(from: message.body) else { return }
+                let canScrollLeft = overflowPayload["canScrollLeft"] as? Bool ?? false
+                let canScrollRight = overflowPayload["canScrollRight"] as? Bool ?? false
+                let indicatorCenterY = Self.cgFloatValue(overflowPayload["indicatorCenterY"])
+                let interactionRegions = Self.dictionaryArray(from: overflowPayload["interactionRects"] ?? [])
+                    .map(Self.scrollableInteractionRegion(from:))
                 Task { @MainActor in
-                    self.webView?.quizflashHasHorizontalOverflow = hasOverflow
-                    self.webView?.quizflashScrollableMathInteractionRegions = []
-                    self.horizontalOverflowState = hasOverflow
-                        ? HorizontalOverflowState(canScrollLeft: false, canScrollRight: true)
-                        : .init()
+                    self.webView?.quizflashHasHorizontalOverflow = canScrollLeft || canScrollRight
+                    self.webView?.quizflashScrollableMathInteractionRegions = interactionRegions
+                    self.horizontalOverflowState = HorizontalOverflowState(
+                        canScrollLeft: canScrollLeft,
+                        canScrollRight: canScrollRight,
+                        indicatorCenterY: indicatorCenterY > 0 ? indicatorCenterY : nil,
+                        scrollableInteractionRegions: interactionRegions
+                    )
                 }
 
             case "tapUpdate":
@@ -2062,6 +2230,34 @@ struct MathWebView: UIViewRepresentable {
             default:
                 return
             }
+        }
+
+        private func renderCGFloat(from body: Any) -> CGFloat? {
+            guard let value = renderPayloadValue(from: body) else { return nil }
+            return Self.cgFloatValue(value)
+        }
+
+        private func renderDictionary(from body: Any) -> [String: Any]? {
+            guard let payload = body as? [String: Any],
+                  payloadRenderTokenMatches(payload)
+            else { return nil }
+            return payload
+        }
+
+        private func renderDictionaryArray(from body: Any) -> [[String: Any]] {
+            guard let value = renderPayloadValue(from: body) else { return [] }
+            return Self.dictionaryArray(from: value)
+        }
+
+        private func renderPayloadValue(from body: Any) -> Any? {
+            guard let payload = body as? [String: Any],
+                  payloadRenderTokenMatches(payload)
+            else { return nil }
+            return payload["value"]
+        }
+
+        private func payloadRenderTokenMatches(_ payload: [String: Any]) -> Bool {
+            payload["renderToken"] as? String == activeRenderToken
         }
 
         nonisolated private static func renderedLineDebug(from payload: [String: Any]) -> MixedMathRenderedLineDebug? {
@@ -2175,7 +2371,9 @@ struct MathWebView: UIViewRepresentable {
             webView.configuration.userContentController.removeScriptMessageHandler(forName: "lineDebugUpdate")
 
             guard enabled else {
-                renderedLineDebug = []
+                DispatchQueue.main.async { [weak self] in
+                    self?.renderedLineDebug = []
+                }
                 return
             }
 
@@ -2189,7 +2387,9 @@ struct MathWebView: UIViewRepresentable {
             webView.configuration.userContentController.removeScriptMessageHandler(forName: "scrollableDebugUpdate")
 
             guard enabled else {
-                scrollableDebug = []
+                DispatchQueue.main.async { [weak self] in
+                    self?.scrollableDebug = []
+                }
                 return
             }
 
@@ -2199,9 +2399,9 @@ struct MathWebView: UIViewRepresentable {
 
         /// Safely evaluates JS once the `updateMathContent` function exists.
         /// This fixes the race condition where `evaluateJavaScript` fires before baseHTMLTemplate is fully loaded in new pooled webviews.
-        func applyUpdate(js: String, retries: Int = 15) {
+        func applyUpdate(js: String, renderToken: String, retries: Int = 15) {
             updateRetryTask?.cancel()
-            attemptUpdate(js: js, retries: retries)
+            attemptUpdate(js: js, renderToken: renderToken, retries: retries)
         }
 
         func cancelPendingUpdate() {
@@ -2209,10 +2409,12 @@ struct MathWebView: UIViewRepresentable {
             updateRetryTask = nil
         }
 
-        private func attemptUpdate(js: String, retries: Int) {
+        private func attemptUpdate(js: String, renderToken: String, retries: Int) {
+            guard renderToken == activeRenderToken else { return }
             guard let webView = webView else { return }
             webView.evaluateJavaScript("typeof updateMathContent") { [weak self] result, _ in
                 guard let self else { return }
+                guard renderToken == self.activeRenderToken else { return }
                 if let str = result as? String, str == "function" {
                     webView.evaluateJavaScript(js)
                 } else if retries > 0 {
@@ -2220,7 +2422,7 @@ struct MathWebView: UIViewRepresentable {
                     self.updateRetryTask = Task { @MainActor [weak self] in
                         try? await Task.sleep(for: .milliseconds(50))
                         guard let self, !Task.isCancelled else { return }
-                        self.attemptUpdate(js: js, retries: retries - 1)
+                        self.attemptUpdate(js: js, renderToken: renderToken, retries: retries - 1)
                     }
                 }
             }
@@ -2400,22 +2602,19 @@ private struct HorizontalOverflowIndicator: View {
     let canScrollLeft: Bool
     let canScrollRight: Bool
     let verticalCenterY: CGFloat?
-    private let horizontalOffset: CGFloat = 14
+    let regions: [ScrollableMathInteractionRegion]
+    private let horizontalOffset: CGFloat = 6
 
     var body: some View {
         GeometryReader { proxy in
-            let centerY = clampedCenterY(in: proxy.size.height)
-
             ZStack {
-                if canScrollLeft {
-                    edgeCue(direction: .leading)
-                        .position(x: 0, y: centerY)
-                        .offset(x: -horizontalOffset)
-                }
-                if canScrollRight {
-                    edgeCue(direction: .trailing)
-                        .position(x: proxy.size.width, y: centerY)
-                        .offset(x: horizontalOffset)
+                let visibleRegions = regions.filter { $0.canScrollLeft || $0.canScrollRight }
+                if visibleRegions.isEmpty {
+                    fallbackCues(in: proxy.size)
+                } else {
+                    ForEach(Array(visibleRegions.enumerated()), id: \.offset) { _, region in
+                        regionCues(region, in: proxy.size)
+                    }
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
@@ -2423,13 +2622,55 @@ private struct HorizontalOverflowIndicator: View {
         .accessibilityHidden(true)
     }
 
+    @ViewBuilder
+    private func fallbackCues(in size: CGSize) -> some View {
+        let centerY = clampedCenterY(verticalCenterY, in: size.height)
+
+        if canScrollLeft {
+            edgeCue(direction: .leading)
+                .position(x: 0, y: centerY)
+                .offset(x: -horizontalOffset)
+        }
+        if canScrollRight {
+            edgeCue(direction: .trailing)
+                .position(x: size.width, y: centerY)
+                .offset(x: horizontalOffset)
+        }
+    }
+
+    @ViewBuilder
+    private func regionCues(_ region: ScrollableMathInteractionRegion, in size: CGSize) -> some View {
+        let centerY = clampedCenterY(region.rect.midY, in: size.height)
+        let leadingX = clampedX(region.rect.minX, in: size.width)
+        let trailingX = clampedX(region.rect.maxX, in: size.width)
+
+        if region.canScrollLeft {
+            edgeCue(direction: .leading)
+                .position(x: leadingX, y: centerY)
+                .offset(x: -horizontalOffset)
+        }
+        if region.canScrollRight {
+            edgeCue(direction: .trailing)
+                .position(x: trailingX, y: centerY)
+                .offset(x: horizontalOffset)
+        }
+    }
+
     private func clampedCenterY(in height: CGFloat) -> CGFloat {
-        guard let verticalCenterY else {
+        clampedCenterY(verticalCenterY, in: height)
+    }
+
+    private func clampedCenterY(_ centerY: CGFloat?, in height: CGFloat) -> CGFloat {
+        guard let centerY else {
             return max(height / 2, 0)
         }
 
         let inset = UIConstants.Spacing.small
-        return min(max(verticalCenterY, inset), max(height - inset, inset))
+        return min(max(centerY, inset), max(height - inset, inset))
+    }
+
+    private func clampedX(_ value: CGFloat, in width: CGFloat) -> CGFloat {
+        min(max(value, 0), max(width, 0))
     }
 
     private func edgeCue(direction: OverflowEdgeDirection) -> some View {

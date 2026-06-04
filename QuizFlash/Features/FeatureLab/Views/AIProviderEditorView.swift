@@ -7,8 +7,6 @@
 
 import SwiftUI
 
-private let kAIProviderEditorChromeSpace = "AIProviderEditorChromeSpace"
-
 // MARK: - AI Provider Editor
 
 struct AIProviderEditorView: View {
@@ -20,10 +18,6 @@ struct AIProviderEditorView: View {
     @State private var draft: AIProviderProfile
     @State private var makesProfileActive: Bool
     @State private var revealsAPIKey = false
-    @State private var isCollapsedTitleVisible = false
-    @State private var navigationBarHeight: CGFloat =
-        UIConstants.Size.capsuleHeight + UIConstants.Layout.deckNavigationTopPadding
-    @State private var navigationBarBottomY: CGFloat = 0
 
     private let isNewProfile: Bool
 
@@ -34,51 +28,42 @@ struct AIProviderEditorView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            ZStack {
+        NavigationStack {
+            ScrollView(showsIndicators: true) {
+                VStack(alignment: .leading, spacing: UIConstants.Spacing.huge) {
+                    identitySection
+                    endpointSection
+                    securitySection
+                    transportSection
+                    syntaxSection
+
+                    if !isNewProfile {
+                        deleteSection
+                    }
+                }
+                .padding(.horizontal, UIConstants.Spacing.large)
+                .padding(.top, UIConstants.Spacing.large)
+                .padding(.bottom, UIConstants.Spacing.huge)
+            }
+            .background {
                 themeManager.groupedScreenBackground
                     .ignoresSafeArea()
-
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: UIConstants.Spacing.huge) {
-                        LargeScreenTitle(title: navigationTitle)
-                            .collapsibleTitleRevealAnchor(
-                                in: kAIProviderEditorChromeSpace,
-                                navigationBarBottomY: navigationBarBottomY,
-                                revealClearance: SettingsChromeMetrics.pillRevealClearance,
-                                isVisible: $isCollapsedTitleVisible
-                            )
-
-                        identitySection
-                        endpointSection
-                        securitySection
-                        transportSection
-                        syntaxSection
-
-                        if !isNewProfile {
-                            deleteSection
-                        }
+            }
+            .navigationTitle(isNewProfile ? "New AI Config" : "Edit AI Config")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
                     }
-                    .padding(.horizontal, UIConstants.Spacing.large)
-                    .padding(.top, UIConstants.Spacing.large)
-                    .padding(.bottom, UIConstants.Spacing.huge)
                 }
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", action: saveProfile)
+                        .disabled(!canSave)
                 }
             }
-            .screenTopEdgeShadow(
-                topHeight: structuralTopEdgeShadowHeight,
-                topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
-                debugScreenID: "featurelab.ai-provider-editor",
-                style: .progressiveBlur()
-            )
-
-            navigationBar
         }
-        .coordinateSpace(name: kAIProviderEditorChromeSpace)
-        .toolbar(.hidden, for: .navigationBar)
-        .swipeBack { dismiss() }
         .alert("Save Error", isPresented: aiProviderPersistenceErrorBinding) {
             Button("OK", role: .cancel) {
                 aiProviderStore.dismissPersistenceError()
@@ -90,47 +75,6 @@ struct AIProviderEditorView: View {
                     : aiProviderStore.persistenceErrorMessage
             )
         }
-    }
-
-    private var structuralTopEdgeShadowHeight: CGFloat {
-        if navigationBarBottomY > 0 {
-            return navigationBarBottomY
-        }
-        return UIConstants.Layout.topEdgeShadowHeight
-    }
-
-    private var navigationBar: some View {
-        CollapsibleTitleNavigationBar(
-            coordinateSpaceName: kAIProviderEditorChromeSpace,
-            onHeightChange: { navigationBarHeight = $0 },
-            onBottomChange: { navigationBarBottomY = $0 }
-        ) {
-            ChromeCircleIconButton(systemName: "chevron.left") {
-                dismiss()
-            }
-        } center: { maxWidth in
-            CollapsibleTitlePill(
-                title: navigationTitle,
-                maxWidth: maxWidth,
-                isVisible: isCollapsedTitleVisible
-            )
-        } trailing: {
-            Button(action: saveProfile) {
-                Text("Save")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(canSave ? Color.accentColor : .secondary)
-                    .padding(.horizontal, UIConstants.Spacing.standard)
-                    .frame(height: UIConstants.Size.actionButton)
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSave)
-        }
-    }
-
-    private var navigationTitle: AppTextValue {
-        isNewProfile
-            ? .localized("New AI Config")
-            : .localized("Edit AI Config")
     }
 
     private var canSave: Bool {

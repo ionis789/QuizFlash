@@ -142,14 +142,21 @@ extension AIFlashcardService {
             "Prepared generation plan queue.",
             metadata: [
                 "plan_count": String(plans.count),
-                "max_concurrent": String(maxConcurrent)
+                "max_concurrent": String(effectiveMaxConcurrentRequestCount(
+                    for: plans,
+                    requestedMaxConcurrent: maxConcurrent
+                ))
             ]
         )
 
         var pendingPlans = plans
         var coveredPrompts: [String] = []
         var activeTaskCount = 0
-        var activeConcurrency = min(max(maxConcurrent, 1), plans.count)
+        let effectiveMaxConcurrent = effectiveMaxConcurrentRequestCount(
+            for: plans,
+            requestedMaxConcurrent: maxConcurrent
+        )
+        var activeConcurrency = effectiveMaxConcurrent
         var consecutiveSuccesses = 0
         var terminalFailures: [String] = []
 
@@ -225,7 +232,7 @@ extension AIFlashcardService {
                         ]
                     )
 
-                    if consecutiveSuccesses >= max(activeConcurrency, 1), activeConcurrency < maxConcurrent {
+                    if consecutiveSuccesses >= max(activeConcurrency, 1), activeConcurrency < effectiveMaxConcurrent {
                         activeConcurrency += 1
                         consecutiveSuccesses = 0
                     }
@@ -264,6 +271,24 @@ extension AIFlashcardService {
                 """
             )
         }
+    }
+
+    func effectiveMaxConcurrentRequestCount<Plan: RecoverableBatchPlan>(
+        for plans: [Plan],
+        requestedMaxConcurrent: Int
+    ) -> Int {
+        guard !plans.isEmpty else { return 0 }
+        let boundedMaxConcurrent = min(max(requestedMaxConcurrent, 1), plans.count)
+        guard boundedMaxConcurrent > 1 else { return boundedMaxConcurrent }
+
+        var seenSourceLabels = Set<String>()
+        for plan in plans {
+            if !seenSourceLabels.insert(plan.sourceLabel).inserted {
+                return 1
+            }
+        }
+
+        return boundedMaxConcurrent
     }
 
     nonisolated func traceScope<Plan: RecoverableBatchPlan>(

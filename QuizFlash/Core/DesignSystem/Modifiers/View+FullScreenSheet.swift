@@ -111,6 +111,7 @@ enum FullScreenSheetHeightMode: Sendable {
     case medium
     case small
     case custom(CGFloat)
+    case absolute(CGFloat)
 
     fileprivate func resolvedHeight(in containerHeight: CGFloat) -> CGFloat {
         let fraction: CGFloat
@@ -123,6 +124,8 @@ enum FullScreenSheetHeightMode: Sendable {
             fraction = 0.5
         case .custom(let value):
             fraction = min(max(value, 0.2), 1)
+        case .absolute(let value):
+            return min(max(value, containerHeight * 0.22), containerHeight * 0.82)
         }
 
         return max(containerHeight * fraction, 1)

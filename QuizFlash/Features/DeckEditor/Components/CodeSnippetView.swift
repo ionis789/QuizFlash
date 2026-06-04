@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import ObjectiveC.runtime
 import SwiftUI
 import UIKit
 
@@ -16,11 +17,51 @@ enum CodeSnippetMetrics {
     static let relativeFontScale: CGFloat = 0.86
 }
 
+private var quizFlashCodeScrollCardHandoffAssociationKey: UInt8 = 0
+
+extension UIScrollView {
+    var quizflashAllowsCardSwipeEdgeHandoff: Bool {
+        get {
+            (objc_getAssociatedObject(
+                self,
+                &quizFlashCodeScrollCardHandoffAssociationKey
+            ) as? NSNumber)?.boolValue ?? false
+        }
+        set {
+            objc_setAssociatedObject(
+                self,
+                &quizFlashCodeScrollCardHandoffAssociationKey,
+                NSNumber(value: newValue),
+                .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+            )
+        }
+    }
+
+    func quizflashCanScrollHorizontally(fingerDirection direction: CGFloat) -> Bool {
+        guard direction != 0 else { return false }
+        layoutIfNeeded()
+
+        let leadingOffset = -adjustedContentInset.left
+        let trailingOffset = max(
+            contentSize.width - bounds.width + adjustedContentInset.right,
+            leadingOffset
+        )
+        let tolerance: CGFloat = 0.5
+
+        guard trailingOffset > leadingOffset + tolerance else { return false }
+        if direction > 0 {
+            return contentOffset.x > leadingOffset + tolerance
+        }
+        return contentOffset.x < trailingOffset - tolerance
+    }
+}
+
 // MARK: - Code Snippet View (Block Code)
 struct CodeSnippetView: View {
     let rawText: String
     let fontSize: CGFloat
     let cornerRadius: CGFloat
+    @State private var overflowState = CodeOverflowState()
 
     init(
         rawText: String,
@@ -38,10 +79,18 @@ struct CodeSnippetView: View {
         EdgeAwareCodeScrollView(
             code: code,
             fontSize: fontSize,
-            cornerRadius: cornerRadius
+            cornerRadius: cornerRadius,
+            overflowState: $overflowState
         )
         .frame(height: codeBlockHeight(for: code))
         .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay {
+            CodeOverflowIndicator(
+                canScrollLeft: overflowState.canScrollLeft,
+                canScrollRight: overflowState.canScrollRight
+            )
+            .allowsHitTesting(false)
+        }
     }
 
     private func parseCode(_ input: String) -> String {
@@ -75,26 +124,78 @@ struct CodeSnippetView: View {
     }
 }
 
+private struct CodeOverflowState: Equatable {
+    var canScrollLeft = false
+    var canScrollRight = false
+}
+
+private struct CodeOverflowIndicator: View {
+    let canScrollLeft: Bool
+    let canScrollRight: Bool
+    private let horizontalOffset: CGFloat = 6
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                if canScrollLeft {
+                    edgeCue(direction: .leading)
+                        .position(x: 0, y: proxy.size.height / 2)
+                        .offset(x: -horizontalOffset)
+                }
+                if canScrollRight {
+                    edgeCue(direction: .trailing)
+                        .position(x: proxy.size.width, y: proxy.size.height / 2)
+                        .offset(x: horizontalOffset)
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func edgeCue(direction: OverflowEdgeDirection) -> some View {
+        Image(systemName: direction == .leading ? "chevron.compact.left" : "chevron.compact.right")
+            .font(.system(size: 18, weight: .bold, design: .rounded))
+            .foregroundStyle(Color.white.opacity(0.38))
+    }
+}
+
+private enum OverflowEdgeDirection {
+    case leading
+    case trailing
+}
+
 // MARK: - Edge-Aware Code Scroll View
 
 private struct EdgeAwareCodeScrollView: UIViewRepresentable {
     let code: String
     let fontSize: CGFloat
     let cornerRadius: CGFloat
+    @Binding var overflowState: CodeOverflowState
 
     func makeUIView(context _: Context) -> EdgeAwareCodeUIScrollView {
         let scrollView = EdgeAwareCodeUIScrollView()
+        scrollView.onOverflowStateChange = { overflowState = $0 }
         scrollView.configure(code: code, fontSize: fontSize, cornerRadius: cornerRadius)
         return scrollView
     }
 
     func updateUIView(_ scrollView: EdgeAwareCodeUIScrollView, context _: Context) {
+        scrollView.onOverflowStateChange = { overflowState = $0 }
         scrollView.configure(code: code, fontSize: fontSize, cornerRadius: cornerRadius)
     }
 }
 
 private final class EdgeAwareCodeUIScrollView: UIScrollView {
     private let codeLabel = UILabel()
+    var onOverflowStateChange: ((CodeOverflowState) -> Void)?
+    private var lastOverflowState = CodeOverflowState()
+
+    override var contentOffset: CGPoint {
+        didSet {
+            reportOverflowStateIfNeeded()
+        }
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -113,6 +214,12 @@ private final class EdgeAwareCodeUIScrollView: UIScrollView {
 
         codeLabel.text = code
         codeLabel.font = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        setNeedsLayout()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        reportOverflowStateIfNeeded()
     }
 
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
@@ -129,9 +236,10 @@ private final class EdgeAwareCodeUIScrollView: UIScrollView {
     }
 
     private func setUp() {
+        quizflashAllowsCardSwipeEdgeHandoff = true
         backgroundColor = CodeSnippetMetrics.backgroundUIColor
         clipsToBounds = true
-        bounces = false
+        bounces = true
         alwaysBounceHorizontal = false
         alwaysBounceVertical = false
         showsHorizontalScrollIndicator = false
@@ -185,5 +293,23 @@ private final class EdgeAwareCodeUIScrollView: UIScrollView {
         }
 
         return false
+    }
+
+    private func reportOverflowStateIfNeeded() {
+        let leadingOffset = -adjustedContentInset.left
+        let trailingOffset = max(
+            contentSize.width - bounds.width + adjustedContentInset.right,
+            leadingOffset
+        )
+        let tolerance: CGFloat = 0.5
+        let hasOverflow = trailingOffset > leadingOffset + tolerance
+        let state = CodeOverflowState(
+            canScrollLeft: hasOverflow && contentOffset.x > leadingOffset + tolerance,
+            canScrollRight: hasOverflow && contentOffset.x < trailingOffset - tolerance
+        )
+
+        guard state != lastOverflowState else { return }
+        lastOverflowState = state
+        onOverflowStateChange?(state)
     }
 }

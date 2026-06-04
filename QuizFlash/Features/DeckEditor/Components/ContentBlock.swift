@@ -118,13 +118,14 @@ enum FontFamily: String, Codable, Equatable, CaseIterable {
 
 // MARK: - Highlight Color (Marker)
 enum HighlightColor: String, Codable, Equatable, CaseIterable {
-    case none, yellow, green, pink, cyan, accent
+    case none, yellow, green, red, pink, cyan, accent
 
     var color: Color? {
         switch self {
         case .none: return nil
         case .yellow: return Color.yellow.opacity(0.4)
         case .green: return Color.green.opacity(0.35)
+        case .red: return Color.red.opacity(0.35)
         case .pink: return Color.pink.opacity(0.35)
         case .cyan: return Color.cyan.opacity(0.35)
         case .accent: return ThemeManager.shared.accentColor.color
@@ -139,6 +140,8 @@ enum HighlightColor: String, Codable, Equatable, CaseIterable {
             return Color(red: 1.0, green: 0.60, blue: 0.02)
         case .green:
             return Color(red: 0.10, green: 0.82, blue: 0.34)
+        case .red:
+            return Color(red: 1.0, green: 0.22, blue: 0.18)
         case .pink:
             return Color(red: 1.0, green: 0.18, blue: 0.70)
         case .cyan:
@@ -150,7 +153,7 @@ enum HighlightColor: String, Codable, Equatable, CaseIterable {
 
     var zoneSurfaceFill: Color {
         guard let tint = zoneSurfaceTint else {
-            return Color(red: 0.045, green: 0.045, blue: 0.048)
+            return Color(red: 0.075, green: 0.075, blue: 0.082)
         }
         return tint.opacity(0.22)
     }
@@ -160,6 +163,7 @@ enum HighlightColor: String, Codable, Equatable, CaseIterable {
         case .none: return "None"
         case .yellow: return "Yellow"
         case .green: return "Green"
+        case .red: return "Red"
         case .pink: return "Pink"
         case .cyan: return "Cyan"
         case .accent: return "Accent"
@@ -174,6 +178,8 @@ enum HighlightColor: String, Codable, Equatable, CaseIterable {
             return AppLocalization.string("Yellow", locale: locale)
         case .green:
             return AppLocalization.string("Green", locale: locale)
+        case .red:
+            return AppLocalization.string("Red", locale: locale)
         case .pink:
             return AppLocalization.string("Pink", locale: locale)
         case .cyan:

@@ -13,6 +13,7 @@ struct AIProviderRowView: View {
     let profile: AIProviderProfile
     let isActive: Bool
     let onUse: () -> Void
+    let onEdit: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
@@ -62,9 +63,7 @@ struct AIProviderRowView: View {
                 .buttonStyle(.plain)
                 .disabled(isActive)
 
-                NavigationLink {
-                    AIProviderEditorView(initialProfile: profile, isNewProfile: false)
-                } label: {
+                Button(action: onEdit) {
                     Text("Edit")
                         .font(.caption.weight(.semibold))
                         .frame(maxWidth: .infinity)

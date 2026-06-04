@@ -15,15 +15,18 @@ struct CardZoneLayoutSpec: Equatable {
     let availableWidth: CGFloat
     let fontScale: CGFloat
     let minimumAutoWidth: CGFloat
+    let textVerticalPadding: CGFloat
 
     init(
         availableWidth: CGFloat,
         fontScale: CGFloat,
-        minimumAutoWidth: CGFloat = 1
+        minimumAutoWidth: CGFloat = 1,
+        textVerticalPadding: CGFloat = CardZoneContentMetrics.textVerticalPadding
     ) {
         self.availableWidth = max(availableWidth, 1)
         self.fontScale = fontScale
         self.minimumAutoWidth = max(minimumAutoWidth, 1)
+        self.textVerticalPadding = max(textVerticalPadding, 0)
     }
 }
 
@@ -65,7 +68,8 @@ enum CardZoneLayoutEngine {
         let estimatedSize = FlashcardGridContentEstimator.estimatedSize(
             for: zone,
             fontScale: spec.fontScale,
-            availableWidth: spec.availableWidth
+            availableWidth: spec.availableWidth,
+            textVerticalPadding: spec.textVerticalPadding
         )
         let textHorizontalInsets = horizontalTextInsets(for: zone)
         let bulletHorizontalInset = bulletInset(for: zone)

@@ -210,6 +210,7 @@ extension _SwipeHost {
         private var latestGestureVelocityX: CGFloat = 0
         private weak var cardPanInitialWebView: WKWebView?
         private var cardPanInitialLocationInWebView: CGPoint?
+        private weak var cardPanInitialEdgeHandoffScrollView: UIScrollView?
 
         private var hostedScrollLocks: [HostedScrollLock] = []
 
@@ -322,6 +323,10 @@ extension _SwipeHost {
                shouldMathWebViewHandlePan(pan) {
                 return false
             }
+            if gestureRecognizer === cardPanGesture,
+               shouldEdgeHandoffScrollViewHandlePan(pan) {
+                return false
+            }
             return true
         }
 
@@ -339,10 +344,11 @@ extension _SwipeHost {
                     cardPanInitialWebView = nil
                     cardPanInitialLocationInWebView = nil
                 }
+                cardPanInitialEdgeHandoffScrollView = touch.view.flatMap(nearestEdgeHandoffScrollView(from:))
                 return true
             }
             if gestureRecognizer === cardTapGesture {
-                return !isTouchInsideHostedWebView(touch.view)
+                return true
             }
             return true
         }
@@ -434,6 +440,7 @@ extension _SwipeHost {
             case .ended, .cancelled, .failed:
                 cardPanInitialWebView = nil
                 cardPanInitialLocationInWebView = nil
+                cardPanInitialEdgeHandoffScrollView = nil
                 restoreHostedScrollViewsAfterSwipe()
                 isGestureActive = false
                 isDragging = false
@@ -847,6 +854,17 @@ extension _SwipeHost {
 
         // MARK: WebView gesture helpers
 
+        private func shouldEdgeHandoffScrollViewHandlePan(_ pan: UIPanGestureRecognizer) -> Bool {
+            guard let scrollView = cardPanInitialEdgeHandoffScrollView else { return false }
+
+            let translation = pan.translation(in: pan.view)
+            let velocity = pan.velocity(in: pan.view)
+            let direction = abs(translation.x) > 0 ? translation.x : velocity.x
+            guard direction != 0 else { return false }
+
+            return scrollView.quizflashCanScrollHorizontally(fingerDirection: direction)
+        }
+
         private func shouldMathWebViewHandlePan(_ pan: UIPanGestureRecognizer) -> Bool {
             guard let webView = cardPanInitialWebView,
                   let location = cardPanInitialLocationInWebView else {
@@ -866,6 +884,19 @@ extension _SwipeHost {
             guard direction != 0 else { return false }
 
             return direction > 0 ? region.canScrollLeft : region.canScrollRight
+        }
+
+        private func nearestEdgeHandoffScrollView(from view: UIView) -> UIScrollView? {
+            var currentView: UIView? = view
+            while let view = currentView {
+                if view === draggable { return nil }
+                if let scrollView = view as? UIScrollView,
+                   scrollView.quizflashAllowsCardSwipeEdgeHandoff {
+                    return scrollView
+                }
+                currentView = view.superview
+            }
+            return nil
         }
 
         private func isHostedScrollViewGesture(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
@@ -916,16 +947,6 @@ extension _SwipeHost {
                 scrollView.isScrollEnabled = lock.wasScrollEnabled
             }
             hostedScrollLocks.removeAll()
-        }
-
-        private func isTouchInsideHostedWebView(_ touchedView: UIView?) -> Bool {
-            var currentView = touchedView
-            while let view = currentView {
-                if view is WKWebView { return true }
-                if NSStringFromClass(type(of: view)).contains("WK") { return true }
-                currentView = view.superview
-            }
-            return false
         }
 
         private func nearestHostedWebView(from view: UIView) -> WKWebView? {

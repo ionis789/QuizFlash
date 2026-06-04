@@ -11,6 +11,13 @@ private let kAIProviderSettingsChromeSpace = "AIProviderSettingsChromeSpace"
 
 // MARK: - AI Provider Settings View
 
+private struct AIProviderEditorRoute: Identifiable {
+    let profile: AIProviderProfile
+    let isNewProfile: Bool
+
+    var id: UUID { profile.id }
+}
+
 struct AIProviderSettingsView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(\.dismiss) private var dismiss
@@ -20,6 +27,7 @@ struct AIProviderSettingsView: View {
     @State private var navigationBarHeight: CGFloat =
         UIConstants.Size.capsuleHeight + UIConstants.Layout.deckNavigationTopPadding
     @State private var navigationBarBottomY: CGFloat = 0
+    @State private var editorRoute: AIProviderEditorRoute?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -61,6 +69,12 @@ struct AIProviderSettingsView: View {
         .coordinateSpace(name: kAIProviderSettingsChromeSpace)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBack { dismiss() }
+        .sheet(item: $editorRoute) { route in
+            AIProviderEditorView(
+                initialProfile: route.profile,
+                isNewProfile: route.isNewProfile
+            )
+        }
         .alert("Save Error", isPresented: aiProviderPersistenceErrorBinding) {
             Button("OK", role: .cancel) {
                 aiProviderStore.dismissPersistenceError()
@@ -97,8 +111,8 @@ struct AIProviderSettingsView: View {
                 isVisible: isCollapsedTitleVisible
             )
         } trailing: {
-            NavigationLink {
-                AIProviderEditorView(initialProfile: .preset(.custom), isNewProfile: true)
+            Button {
+                editorRoute = AIProviderEditorRoute(profile: .preset(.custom), isNewProfile: true)
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: UIConstants.Size.actionIcon, weight: .bold))
@@ -209,12 +223,13 @@ struct AIProviderSettingsView: View {
 
                 Spacer()
 
-                NavigationLink {
-                    AIProviderEditorView(initialProfile: .preset(.custom), isNewProfile: true)
+                Button {
+                    editorRoute = AIProviderEditorRoute(profile: .preset(.custom), isNewProfile: true)
                 } label: {
                     Label("Add Config", systemImage: "plus.circle.fill")
                         .font(.caption.weight(.semibold))
                 }
+                .buttonStyle(.plain)
             }
 
             VStack(spacing: UIConstants.Spacing.medium) {
@@ -224,6 +239,9 @@ struct AIProviderSettingsView: View {
                         isActive: aiProviderStore.activeProfile?.id == profile.id,
                         onUse: {
                             aiProviderStore.setActiveProfile(id: profile.id)
+                        },
+                        onEdit: {
+                            editorRoute = AIProviderEditorRoute(profile: profile, isNewProfile: false)
                         }
                     )
                 }

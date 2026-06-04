@@ -118,29 +118,34 @@ extension AIFlashcardService {
 
         for allocation in normalizedAllocations(allocations, segmentCount: segments.count) {
             let selectedSegments = Array(segments[(allocation.startIndex - 1)..<allocation.endIndex])
-            let text = selectedSegments
-                .map(\.text)
-                .joined(separator: DocumentTextExtractor.pageSeparator)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-
-            guard !text.isEmpty else { continue }
-
             let batchSizes = makeCardBatchSizes(
                 totalCards: allocation.cardCount,
                 batchSize: min(deliveryBatchSize, allocation.cardCount)
             )
-            let sourceLabel = sourceLabel(for: selectedSegments.map(\.label))
+            let groupedSegments = groupedSourceSegments(
+                selectedSegments,
+                batchCount: batchSizes.count
+            )
+            guard !groupedSegments.isEmpty else { continue }
 
-            for (passIndex, batchSize) in batchSizes.enumerated() {
+            for (index, batchSize) in batchSizes.enumerated() {
+                let groupIndex = index % groupedSegments.count
+                let segmentGroup = groupedSegments[groupIndex]
+                let text = segmentGroup
+                    .map(\.text)
+                    .joined(separator: DocumentTextExtractor.pageSeparator)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { continue }
+
                 plans.append(
                     TextBatchPlan(
                         text: text,
-                        sourceLabel: sourceLabel,
+                        sourceLabel: sourceLabel(for: segmentGroup.map(\.label)),
                         allocationID: allocation.id,
                         targetCards: batchSize,
                         batchIndex: 0,
                         totalBatches: 0,
-                        passIndex: passIndex + 1
+                        passIndex: (index / groupedSegments.count) + 1
                     )
                 )
             }
@@ -171,25 +176,34 @@ extension AIFlashcardService {
 
         for allocation in normalizedAllocations(allocations, segmentCount: images.count) {
             let range = (allocation.startIndex - 1)..<allocation.endIndex
-            let selectedImages = Array(images[range])
-            guard !selectedImages.isEmpty else { continue }
+            guard !range.isEmpty else { continue }
 
-            let sourceLabel = sourceLabel(for: Array(resolvedLabels[range]))
             let batchSizes = makeCardBatchSizes(
                 totalCards: allocation.cardCount,
                 batchSize: min(deliveryBatchSize, allocation.cardCount)
             )
+            let groupedImageIndexes = groupedSourceIndexes(
+                Array(range),
+                batchCount: batchSizes.count
+            )
+            guard !groupedImageIndexes.isEmpty else { continue }
 
-            for (passIndex, batchSize) in batchSizes.enumerated() {
+            for (index, batchSize) in batchSizes.enumerated() {
+                let groupIndex = index % groupedImageIndexes.count
+                let imageIndexes = groupedImageIndexes[groupIndex]
+                let imagesForBatch = imageIndexes.map { images[$0] }
+                let labelsForBatch = imageIndexes.map { resolvedLabels[$0] }
+                guard !imagesForBatch.isEmpty else { continue }
+
                 plans.append(
                     VisionBatchPlan(
-                        images: selectedImages,
-                        sourceLabel: sourceLabel,
+                        images: imagesForBatch,
+                        sourceLabel: sourceLabel(for: labelsForBatch),
                         allocationID: allocation.id,
                         targetCards: batchSize,
                         batchIndex: 0,
                         totalBatches: 0,
-                        passIndex: passIndex + 1
+                        passIndex: (index / groupedImageIndexes.count) + 1
                     )
                 )
             }
@@ -384,6 +398,24 @@ extension AIFlashcardService {
             cursor = end
             return slice
         }
+    }
+
+    func groupedSourceSegments(
+        _ segments: [AITextSourceSegment],
+        batchCount: Int
+    ) -> [[AITextSourceSegment]] {
+        guard !segments.isEmpty, batchCount > 0 else { return [] }
+        let groupCount = min(segments.count, batchCount)
+        return distributeElementsEvenly(segments, into: groupCount)
+    }
+
+    func groupedSourceIndexes(
+        _ indexes: [Int],
+        batchCount: Int
+    ) -> [[Int]] {
+        guard !indexes.isEmpty, batchCount > 0 else { return [] }
+        let groupCount = min(indexes.count, batchCount)
+        return distributeElementsEvenly(indexes, into: groupCount)
     }
 
     func normalizedAllocations(

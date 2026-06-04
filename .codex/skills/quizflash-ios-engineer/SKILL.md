@@ -39,7 +39,7 @@ Use the current DeckEditor naming. `CardEditorView` is the router from `CardEdit
 
 QuizFlash uses SwiftData as the local runtime store and a canonical `.json` deck document as the external contract for export/import, backend sync, and AI card payloads. Keep those layers separate: do not make SwiftData models conform to API shape directly, and do not let AI generate deck metadata, IDs, dates, counters, or persistence state. AI generation should return only the shared card DTO for supported Flashcard/Quiz content; the app validates that DTO, maps it to `DraftCardContent`, then creates or updates `CardModel` instances.
 
-QuizFlash AI generation exposes only two depth profiles: Simple and Pro. Keep Simple concise but still useful and testable; keep Pro deeper and more structured without turning cards into essays. Prompting should adapt to the source domain: math/formal subjects should be formula-first with concise interpretation, while history, literature, biology, law, and other prose-heavy subjects should use segmented natural-language explanation. Prefer several small semantic zones over dense answer paragraphs.
+QuizFlash AI generation exposes only two depth profiles: Simple and Pro. Keep Simple concise but still useful and testable; keep Pro deeper and more structured without turning cards into essays. Prompting should adapt to the source domain: math/formal subjects should be formula-first with concise interpretation, while history, literature, biology, law, and other prose-heavy subjects should use segmented natural-language explanation. Prefer several small semantic zones over dense answer paragraphs. When editing generation prompts, avoid hardcoding supported UI languages or arbitrary numeric layout thresholds. Phrase guidance in terms of the source/output language, semantic content, and the actual JSON/schema constraints; use fixed numbers only when the product contract truly requires them.
 
 Default QuizFlash custom sheets to full-surface drag-dismiss. Do not restrict drag activation to a top strip unless the sheet contains interaction-heavy full-screen content that would become error-prone with full-height dismissal. For standard detail/configuration sheets, the user should be able to drag down from anywhere on the sheet.
 
@@ -141,6 +141,17 @@ The flashcard zone editor is interaction-sensitive and can regress from small Sw
 - Do not switch between rendered math/rich preview and raw editor metrics inside the editor unless the task explicitly reintroduces compiled preview behavior.
 
 For zone editor bugs, start with the route in `references/task-routing.md` before opening broader DeckEditor files.
+
+## Flashcard Rich Content Overflow
+
+QuizFlash flashcards and quiz cards use the same rich content renderer for mixed text, KaTeX math, inline code, and code blocks. Preserve the current local-overflow model when changing these surfaces:
+
+- `MUST` make only the overflowing atomic content scroll horizontally: `.katex-display`, inline KaTeX wrappers, inline code wrappers, or code-block scroll views. Do not make the whole text block, card, or `#content` globally horizontally scrollable.
+- `MUST` base overflow decisions on real post-render layout measurements, including child visual bounds when parent bounds underreport KaTeX/code width. Hardcoded formulas, words, domains, or text patterns are not acceptable.
+- `MUST` keep normal prose wrapping normally around scrollable atomic content. Long inline formulas/code may move into their own full-width scroll wrapper when needed, but nearby text must not become part of that scroll region.
+- `MUST` preserve smart gesture handoff in Play Mode and quiz play surfaces: local horizontal scroll handles the pan while it can move; at the horizontal edge in the drag direction, the card swipe gets the gesture. Taps outside an active scroll region must still flip/select as the parent card expects.
+- `MUST NOT` set a delegate on `UIScrollView.panGestureRecognizer`; UIKit requires the built-in pan recognizer's delegate to remain its scroll view.
+- `SHOULD` keep DEBUG diagnostics reporting the concrete scrollable regions, indicator state, and gesture handoff decision when changing this behavior.
 
 ## Workflow
 
