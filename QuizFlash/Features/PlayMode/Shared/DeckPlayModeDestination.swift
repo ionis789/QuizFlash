@@ -30,7 +30,6 @@ enum PlayModeImplementationStatus {
 enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
     case flashcards
     case quiz
-    case learn
 
     var id: String { rawValue }
 
@@ -38,7 +37,6 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         switch self {
         case .flashcards: return "Flashcards"
         case .quiz: return "Quiz"
-        case .learn: return "Learn"
         }
     }
 
@@ -50,7 +48,6 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         switch self {
         case .flashcards: return "Swipe review"
         case .quiz: return "Multiple choice"
-        case .learn: return "Summary report"
         }
     }
 
@@ -62,7 +59,6 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         switch self {
         case .flashcards: return "rectangle.stack.fill"
         case .quiz: return "questionmark.square.dashed"
-        case .learn: return "book.pages"
         }
     }
 
@@ -70,7 +66,6 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         switch self {
         case .flashcards: return accentColor
         case .quiz: return deckColor
-        case .learn: return .teal
         }
     }
 
@@ -89,8 +84,6 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
             return availability.flashcardCards
         case .quiz:
             return availability.quizCards
-        case .learn:
-            return availability.totalCards
         }
     }
 
@@ -122,12 +115,6 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
                 detail: "Add quiz cards to this deck first.",
                 actionTitle: nil
             )
-        case .learn:
-            return PlayModeUnavailablePrompt(
-                title: "Learn Isn't Ready",
-                detail: "Add cards to this deck first.",
-                actionTitle: nil
-            )
         }
     }
 
@@ -145,10 +132,6 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
     }
 
     func statusText(in availability: PlayModeCardAvailability, deck: DeckModel) -> String {
-        if self == .learn {
-            return availability.totalCards > 0 ? "Deck summary ready" : "Add cards to unlock"
-        }
-
         let count = compatibleCardCount(in: availability, deck: deck)
         if count > 0 {
             return "\(count) \(compatibilityRequirementLabel) ready"
@@ -161,12 +144,6 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
         in availability: PlayModeCardAvailability,
         deck: DeckModel
     ) -> String {
-        if self == .learn {
-            return availability.totalCards > 0
-                ? AppLocalization.string("Deck summary ready", locale: locale)
-                : AppLocalization.string("Add cards to unlock", locale: locale)
-        }
-
         let count = compatibleCardCount(in: availability, deck: deck)
         if count > 0 {
             let format = AppLocalization.string(count == 1 ? "%d %@ ready" : "%d %@ ready", locale: locale)
@@ -185,8 +162,6 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
             return "flashcards"
         case .quiz:
             return "quiz cards"
-        case .learn:
-            return "cards"
         }
     }
 
@@ -200,8 +175,6 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
             return "Set up how this deck should behave before the session begins."
         case .quiz:
             return "Tune how quiz checks, explanations, and retry passes should behave."
-        case .learn:
-            return "Tune how the guided deck briefing should read for this deck."
         }
     }
 
@@ -215,8 +188,6 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
             return "These controls are stored per deck, so one deck can launch a tighter flashcard flow while another keeps a more forgiving session."
         case .quiz:
             return "Shuffle choices when the deck needs pressure, switch between instant checks and submit flow, and decide when explanations become visible."
-        case .learn:
-            return "Learn stays report-only, but the grouping and density can be tailored to the deck you are reviewing."
         }
     }
 
@@ -237,12 +208,6 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
                 .init(icon: "list.bullet.rectangle", title: "Choice Layout", detail: "Tune answer order and shuffling."),
                 .init(icon: "timer", title: "Round Pace", detail: "Add timed pressure or keep the flow relaxed."),
                 .init(icon: "checkmark.seal", title: "Scoring Rules", detail: "Define how quiz answers are graded.")
-            ]
-        case .learn:
-            return [
-                .init(icon: "text.alignleft", title: "Reading Layout", detail: "Control how cards become a readable study summary."),
-                .init(icon: "square.split.2x1", title: "Grouping", detail: "Choose how content is chunked into sections."),
-                .init(icon: "character.book.closed", title: "Density", detail: "Set how detailed or compact the report should feel.")
             ]
         }
     }
@@ -268,8 +233,6 @@ enum DeckPlayModeDestination: String, CaseIterable, Hashable, Identifiable {
             DefaultModePlay(deck: deck, safeAreaInsets: safeAreaInsets)
         case .quiz:
             QuizModeView(deck: deck, safeAreaInsets: safeAreaInsets, availability: availability)
-        case .learn:
-            LearnModeView(deck: deck, safeAreaInsets: safeAreaInsets, availability: availability)
         }
     }
 
@@ -295,8 +258,6 @@ extension DeckPlayModeSettingsModel {
             return flashcardsLastUsedAt
         case .quiz:
             return quizLastUsedAt
-        case .learn:
-            return learnLastUsedAt
         }
     }
 
@@ -306,8 +267,6 @@ extension DeckPlayModeSettingsModel {
             flashcardsLastUsedAt = date
         case .quiz:
             quizLastUsedAt = date
-        case .learn:
-            learnLastUsedAt = date
         }
     }
 }

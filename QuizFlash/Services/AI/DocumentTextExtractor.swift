@@ -36,8 +36,9 @@ enum ExtractionMethod {
 
 /// Represents the final output of the document extraction pipeline.
 ///
-/// The result contains either extracted text or raw images,
-/// depending on the extraction strategy that succeeded.
+/// The result contains extracted text when local extraction succeeds. The raw
+/// image fallback is kept only for future flows that explicitly opt into cloud
+/// vision processing.
 struct ExtractionResult {
     
     /// Extracted textual content.
@@ -98,6 +99,10 @@ actor DocumentTextExtractor {
     
     /// Minimum average characters per page required to consider OCR acceptable.
     private static let minimumOCRCharsPerPage = 30
+
+    /// Minimum total text needed before the source can reasonably drive card
+    /// generation.
+    private static let minimumUsableTextLength = 100
 
     /// Stable page delimiter reused by the AI chunking layer.
     static let pageSeparator = "\n\n--- Next Page ---\n\n"
@@ -275,6 +280,14 @@ actor DocumentTextExtractor {
         let averageChars = totalCharacters / max(texts.count, 1)
         return averageChars >= minimumOCRCharsPerPage
     }
+
+    /// Returns `true` when a page-preserving extraction produced enough text
+    /// to continue with text-only AI generation.
+    static func isUsableExtractedText(_ texts: [String]) -> Bool {
+        let trimmedTexts = texts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let totalCharacters = trimmedTexts.reduce(0) { $0 + $1.count }
+        return totalCharacters >= minimumUsableTextLength
+    }
     
     private static func ocrPage(cgImage: CGImage) async -> String {
         await withCheckedContinuation { continuation in
@@ -375,6 +388,58 @@ actor DocumentTextExtractor {
                 .sorted { $0.0 < $1.0 }
                 .map { $0.1 }
         }
+    }
+
+    /// Runs local OCR on PDF pages without retaining all rendered page images
+    /// in memory at the same time.
+    static func extractVisionTextsFromPDFPages(
+        from url: URL,
+        dpi: CGFloat = 150
+    ) async -> [String] {
+        guard let pdf = PDFDocument(url: url) else { return [] }
+
+        var texts: [String] = []
+        texts.reserveCapacity(pdf.pageCount)
+
+        for index in 0..<pdf.pageCount {
+            guard !Task.isCancelled else { return texts }
+
+            let cgImage: CGImage? = autoreleasepool {
+                guard let page = pdf.page(at: index),
+                      let image = renderPage(page, dpi: dpi),
+                      let cgImage = image.cgImage else {
+                    return nil
+                }
+
+                return cgImage
+            }
+
+            let text = if let cgImage {
+                await ocrPage(cgImage: cgImage)
+            } else {
+                ""
+            }
+            texts.append(text)
+            await Task.yield()
+        }
+
+        return texts
+    }
+
+    /// Renders a single PDF page at inspection quality for full-screen preview.
+    static func renderPDFPage(
+        from url: URL,
+        pageIndex: Int,
+        dpi: CGFloat = 200
+    ) async -> UIImage? {
+        guard let pdf = PDFDocument(url: url),
+              pageIndex >= 0,
+              pageIndex < pdf.pageCount,
+              let page = pdf.page(at: pageIndex) else {
+            return nil
+        }
+
+        return renderPage(page, dpi: dpi)
     }
     
     private static func renderPage(_ page: PDFPage, dpi: CGFloat) -> UIImage? {

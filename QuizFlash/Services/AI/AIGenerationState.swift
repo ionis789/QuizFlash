@@ -54,11 +54,6 @@ nonisolated struct PDFAnalysisInfo: Equatable, Sendable {
     /// Total number of characters extracted from the text layer.
     let extractedChars: Int
 
-    /// The recommended extraction strategy based on quality.
-    var recommendation: ExtractionMode {
-        quality >= 0.8 ? .fast : .quality
-    }
-
     /// A human-readable label describing the extraction quality.
     var qualityLabel: String {
         switch quality {
@@ -89,14 +84,6 @@ nonisolated struct PDFAnalysisInfo: Equatable, Sendable {
 
     /// `true` when PDFKit direct extraction is reliable enough to skip OCR.
     var isGoodForFast: Bool { quality >= 0.8 }
-}
-
-/// The extraction strategy to use for a given document.
-enum ExtractionMode: String, Sendable {
-    /// Direct PDFKit text extraction – fast and free.
-    case fast = "fast"
-    /// On-device Vision OCR or GPT Vision – higher quality, higher cost.
-    case quality = "quality(Premium)"
 }
 
 // MARK: - AI Generation Options

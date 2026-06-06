@@ -41,7 +41,6 @@ struct PlayModeSettingsScreen: View {
     @State private var settingsModel: DeckPlayModeSettingsModel?
     @State private var flashcardSettings = FlashcardModeSettings()
     @State private var quizSettings = QuizModeSettings()
-    @State private var learnSettings = LearnModeSettings()
     @State private var showSaveErrorAlert = false
     @State private var saveErrorMessage = ""
 
@@ -72,13 +71,7 @@ struct PlayModeSettingsScreen: View {
             return [
                 AppLocalization.string("Order: %@", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.order.localizedTitle(locale: locale)),
                 flashcardSettings.retryWrongCards ? AppLocalization.string("Retry run enabled for missed cards.", locale: locale) : AppLocalization.string("Session ends after the first pass.", locale: locale),
-                flashcardSettings.revealFlow == .questionFirst ? AppLocalization.string("Cards open on the question side.", locale: locale) : AppLocalization.string("Cards open on the answer side.", locale: locale),
-                flashcardSettings.flipBehavior == .tapToFlip
-                    ? AppLocalization.string("Tap reveal stays available in-session.", locale: locale)
-                    : AppLocalization.string("Cards stay locked on the opening face.", locale: locale),
-                flashcardSettings.flipBehavior == .tapToFlip
-                    ? AppLocalization.string("Tap animation: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.tapAnimationStyle.localizedTitle(locale: locale))
-                    : AppLocalization.string("Tap animation is saved but inactive while the face is locked.", locale: locale),
+                AppLocalization.string("Tap animation: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.tapAnimationStyle.localizedTitle(locale: locale)),
                 flashcardSettings.tapAnimationStyle == .staticSwap
                     ? AppLocalization.string("Static text motion: %@.", locale: locale).replacingOccurrences(of: "%@", with: flashcardSettings.staticSwapTextMotion.localizedTitle(locale: locale))
                     : AppLocalization.string("Static text motion applies only when Static Swap is selected.", locale: locale),
@@ -92,12 +85,6 @@ struct PlayModeSettingsScreen: View {
                 AppLocalization.string("Explanation: %@", locale: locale).replacingOccurrences(of: "%@", with: quizSettings.explanationTiming.localizedTitle(locale: locale)),
                 quizSettings.retryIncorrectQuestions ? AppLocalization.string("Wrong questions queue for one retry pass.", locale: locale) : AppLocalization.string("Wrong questions do not replay automatically.", locale: locale)
             ]
-        case .learn:
-            return [
-                AppLocalization.string("Grouping: %@", locale: locale).replacingOccurrences(of: "%@", with: learnSettings.grouping.localizedTitle(locale: locale)),
-                AppLocalization.string("Density: %@", locale: locale).replacingOccurrences(of: "%@", with: learnSettings.density.localizedTitle(locale: locale)),
-                AppLocalization.string("Learn stays report-only and never mutates review history.", locale: locale)
-            ]
         }
     }
 
@@ -105,6 +92,13 @@ struct PlayModeSettingsScreen: View {
         GeometryReader { geo in
             let resolvedSafeTopInset = max(safeAreaInsets.top, geo.safeAreaInsets.top)
             let resolvedSafeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
+            let resolvedHeaderClearance = max(
+                headerHeight + UIConstants.Spacing.standard,
+                resolvedSafeTopInset
+                    + UIConstants.Spacing.standard
+                    + UIConstants.Size.capsuleHeight
+                    + UIConstants.Spacing.medium
+            )
 
             ZStack(alignment: .top) {
                 if fullScreenSheetDismiss == nil {
@@ -112,20 +106,16 @@ struct PlayModeSettingsScreen: View {
                         .ignoresSafeArea()
                 }
 
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                        overviewCard
-                        settingsCard
-                        readinessCard
-                    }
-                    .padding(.horizontal, horizontalInset)
-                    .padding(.top, headerHeight + UIConstants.Spacing.large)
-                    .padding(.bottom, resolvedSafeBottomInset + UIConstants.Spacing.huge)
+                VStack(alignment: .leading, spacing: 0) {
+                    settingsCard
                 }
+                .padding(.horizontal, horizontalInset)
+                .padding(.top, resolvedHeaderClearance)
+                .padding(.bottom, resolvedSafeBottomInset + UIConstants.Spacing.large)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
                 header(safeTopInset: resolvedSafeTopInset)
             }
-            .fullScreenSheetDragActivationHeight(headerHeight)
         }
         .toolbar(.hidden, for: .navigationBar)
         .task(id: deck.persistentModelID) {
@@ -135,9 +125,6 @@ struct PlayModeSettingsScreen: View {
             persistSettingsIfNeeded()
         }
         .onChange(of: quizSettings) { _, _ in
-            persistSettingsIfNeeded()
-        }
-        .onChange(of: learnSettings) { _, _ in
             persistSettingsIfNeeded()
         }
         .alert(AppLocalization.string("Save Error", locale: appPreferences.resolvedLocale), isPresented: $showSaveErrorAlert) {
@@ -155,11 +142,6 @@ struct PlayModeSettingsScreen: View {
 
     private func header(safeTopInset: CGFloat) -> some View {
         VStack(spacing: UIConstants.Spacing.small) {
-            Capsule()
-                .fill(Color.white.opacity(0.2))
-                .frame(width: 56, height: 5)
-                .accessibilityHidden(true)
-
             ZStack {
                 VStack(spacing: 2) {
                     Text("\(mode.localizedTitle(locale: appPreferences.resolvedLocale)) \(AppLocalization.string("Settings", locale: appPreferences.resolvedLocale))")
@@ -181,7 +163,7 @@ struct PlayModeSettingsScreen: View {
             }
             .frame(height: UIConstants.Size.capsuleHeight)
         }
-        .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
+        .padding(.top, safeTopInset + UIConstants.Spacing.standard)
         .padding(.horizontal, horizontalInset)
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.size.height
@@ -217,8 +199,7 @@ struct PlayModeSettingsScreen: View {
             mode: mode,
             tintColor: tintColor,
             flashcardSettings: $flashcardSettings,
-            quizSettings: $quizSettings,
-            learnSettings: $learnSettings
+            quizSettings: $quizSettings
         )
     }
 
@@ -239,7 +220,6 @@ struct PlayModeSettingsScreen: View {
         hasLoadedSettings = false
         flashcardSettings = model.flashcardSettings
         quizSettings = model.quizSettings
-        learnSettings = model.learnSettings
         hasLoadedSettings = true
 
         if isNewlyCreated {
@@ -252,7 +232,6 @@ struct PlayModeSettingsScreen: View {
 
         settingsModel.flashcardSettings = flashcardSettings
         settingsModel.quizSettings = quizSettings
-        settingsModel.learnSettings = learnSettings
         deck.editedAt = Date()
 
         do {

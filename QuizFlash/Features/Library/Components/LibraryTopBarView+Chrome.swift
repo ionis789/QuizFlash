@@ -6,30 +6,27 @@
 //
 
 import SwiftUI
+import UIKit
 
 extension LibraryTopBarView {
     var chromeRow: some View {
         GeometryReader { proxy in
-            let isSearchChromeVisible = viewModel.isSearching || searchProgress > 0.001
-            let availableWidth = max(
-                0,
-                proxy.size.width - (UIConstants.Layout.compactScreenEdgeInset * 2)
-            )
+            let availableWidth = max(0, proxy.size.width)
             let resolvedTrailingWidth = max(
                 trailingControlWidth,
                 LibraryTopBarChromeMetrics.expandedHitTargetSize
             )
-            let searchTrailingVisualOverlap = isSearchChromeVisible
-                ? ((LibraryTopBarChromeMetrics.expandedHitTargetSize - UIConstants.Size.actionButton) / 2)
-                : 0
             let maxLeadingSearchWidth = max(
                 UIConstants.Size.actionButton,
-                availableWidth - resolvedTrailingWidth + searchTrailingVisualOverlap
+                availableWidth - resolvedTrailingWidth
             )
             let sideReserve = max(leadingControlWidth, resolvedTrailingWidth)
+            let titleSideReserve = searchProgress > 0.001 || viewModel.isSearching
+                ? resolvedTrailingWidth
+                : sideReserve
             let maxCenterWidth = max(
                 UIConstants.Size.capsuleHeight,
-                availableWidth - (sideReserve * 2) - (UIConstants.Spacing.medium * 2)
+                availableWidth - (titleSideReserve * 2) - (UIConstants.Spacing.medium * 2)
             )
 
             ZStack(alignment: .center) {
@@ -37,8 +34,7 @@ extension LibraryTopBarView {
                     title: title,
                     maxWidth: maxCenterWidth,
                     isVisible: shouldShowCollapsedTitlePill,
-                    animateVisibility: animateCollapsedTitleVisibility
-                        && !(viewModel.isSearching || searchProgress > 0.001),
+                    animateVisibility: animateCollapsedTitleVisibility,
                     fallbackTitle: titleFallback,
                     visibilityAnimation: compactChromeVisibilityAnimation,
                     coordinateSpaceName: coordinateSpaceName,
@@ -76,8 +72,6 @@ extension LibraryTopBarView {
     var shouldShowCollapsedTitlePill: Bool {
         isCollapsedTitleVisible
             && isCompactChromeRecoveryVisible
-            && !viewModel.isSearching
-            && searchProgress <= 0.001
     }
 
     @ViewBuilder
@@ -96,20 +90,74 @@ extension LibraryTopBarView {
 
     @ViewBuilder
     var trailingControl: some View {
-        if viewModel.isSearching || searchProgress > 0.001 {
-            dismissSearchButton
-        } else {
+        ZStack {
             moreSettingsButton
+                .opacity(1 - searchProgress)
+                .scaleEffect(1 - (0.14 * searchProgress))
+                .allowsHitTesting(!viewModel.isSearching && searchProgress <= 0.001)
+
+            dismissSearchButton
+                .opacity(searchProgress)
+                .scaleEffect(0.86 + (0.14 * searchProgress))
+                .allowsHitTesting(viewModel.isSearching || searchProgress > 0.999)
         }
+        .animation(searchChromeTransition, value: searchProgress)
     }
 
     var moreSettingsButton: some View {
-        LibraryTopBarMoreSettingsButton {
-            LibraryTopBarMenuContent(viewModel: viewModel) {
+        LibraryTopBarMoreSettingsButton(
+            isSelecting: viewModel.isSelecting,
+            onDoneSelecting: {
                 withBottomChromeAnimation {
-                    viewModel.enterSelectionMode()
+                    viewModel.exitSelectionMode()
+                }
+            },
+            menu: { prepareSelectionVisual, finishMenuInteraction in
+                UIMenu(children: [
+                    SelectionModeMenuElement.action(
+                        title: AppLocalization.string("Select", locale: locale),
+                        systemImage: "checkmark.circle",
+                        isEnabled: !viewModel.isSelecting && !viewModel.isSearching
+                    ) {
+                        prepareSelectionVisual()
+                        withBottomChromeAnimation {
+                            viewModel.enterSelectionMode()
+                        }
+                    },
+                    SelectionModeMenuElement.action(
+                        title: AppLocalization.string("Import Deck", locale: locale),
+                        systemImage: "square.and.arrow.down"
+                    ) {
+                        finishMenuInteraction()
+                        viewModel.showFileImporter = true
+                    },
+                    librarySortMenu(finishMenuInteraction: finishMenuInteraction),
+                    UIMenu(
+                        title: AppLocalization.string("Group By", locale: locale),
+                        image: UIImage(systemName: "arrow.up.arrow.down"),
+                        children: []
+                    )
+                ])
+            }
+        )
+    }
+
+    private func librarySortMenu(finishMenuInteraction: @escaping () -> Void) -> UIMenu {
+        UIMenu(
+            title: AppLocalization.string("Sort By", locale: locale),
+            image: UIImage(systemName: "arrow.up.arrow.down"),
+            children: SortOrder.allCases.map { order in
+                SelectionModeMenuElement.action(
+                    title: order.localizedTitle(locale: locale),
+                    systemImage: viewModel.sortOrder == order ? "checkmark" : order.icon,
+                    state: viewModel.sortOrder == order ? .on : .off
+                ) {
+                    finishMenuInteraction()
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                        viewModel.sortOrder = order
+                    }
                 }
             }
-        }
+        )
     }
 }

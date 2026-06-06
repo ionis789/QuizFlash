@@ -699,7 +699,7 @@ extension HomeViewModel {
 
     func buildDeckHealthSummary(
         for deck: DeckModel,
-        report: LearnModeReport,
+        report: DeckHealthReport,
         isRecentlyOpened: Bool,
         referenceDate: Date
     ) -> HomeDeckHealthSummary {

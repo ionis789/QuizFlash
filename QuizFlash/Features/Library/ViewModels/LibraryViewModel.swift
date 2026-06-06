@@ -105,6 +105,9 @@ final class LibraryViewModel {
     /// Indicates if an active search query is still being computed.
     var isSearchLoading: Bool = false
 
+    /// Indicates if the empty search result state can be shown for the current query.
+    var isNoMatchReady: Bool = false
+
     /// Decks expanded in the search results view.
     var expandedSearchDecks: Set<PersistentIdentifier> = []
 
@@ -112,6 +115,8 @@ final class LibraryViewModel {
     var searchTask: Task<Void, Never>?
     @ObservationIgnored
     var inputDebounceTask: Task<Void, Never>?
+    @ObservationIgnored
+    var noMatchPresentationTask: Task<Void, Never>?
     @ObservationIgnored
     var cacheTask: Task<Void, Never>?
     @ObservationIgnored
@@ -206,11 +211,14 @@ final class LibraryViewModel {
         searchTask = nil
         inputDebounceTask?.cancel()
         inputDebounceTask = nil
+        noMatchPresentationTask?.cancel()
+        noMatchPresentationTask = nil
         groupingTask?.cancel()
         groupingTask = nil
         cachedSearchPayloads = []
         cachedDeckIDs = []
         searchResults = []
+        isNoMatchReady = false
         expandedSearchDecks = []
         let searchActor = sharedSearchActor
         Task {

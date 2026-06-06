@@ -149,7 +149,10 @@ extension DeckWorkspaceViewModel {
     /// - Otherwise, creates a brand-new `DeckModel` and inserts all draft cards.
     ///
     /// Shows a brief success overlay before navigating away.
-    func saveDeck(context: ModelContext) -> Bool {
+    func saveDeck(
+        context: ModelContext,
+        onSuccessfulSave: (() -> Void)? = nil
+    ) -> Bool {
         saveOverlayTask?.cancel()
         showSuccessOverlay = false
 
@@ -273,7 +276,11 @@ extension DeckWorkspaceViewModel {
             withAnimation(.easeInOut(duration: UIConstants.Animation.medium)) {
                 self.showSuccessOverlay = false
             }
-            self.resetWorkshopAfterSuccessfulSave()
+            if let onSuccessfulSave {
+                onSuccessfulSave()
+            } else {
+                self.resetWorkshopAfterSuccessfulSave()
+            }
         }
 
         return true

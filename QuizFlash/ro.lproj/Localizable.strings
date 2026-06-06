@@ -68,16 +68,15 @@
 "%d sketches" = "%d schițe";
 "%d still need another pass." = "%d încă au nevoie de o trecere.";
 "%d unique cards are locked in for today." = "%d carduri unice sunt deja bifate azi.";
+"%d more match" = "%d potrivire în plus";
+"%d more matches" = "%d potriviri în plus";
 "%d/%d active" = "%d/%d zile active";
 "%dd ago" = "acum %dz";
 "%dh ago" = "acum %dore";
 "%dm ago" = "acum %dmin";
 "%dmo ago" = "acum %dl";
 "+%@ more card%@" = "+%1$@ mai mult card%2$@";
-"+%@ more match%@ in this deck" = "+%1$@ mai multe potriviri%2$@ în acest deck";
 "+%@ XP" = "+%@ XP";
-"+%d more match in this deck" = "+%d potrivire în plus în acest deck";
-"+%d more matches in this deck" = "+%d potriviri în plus în acest deck";
 "+12%" = "+12%";
 "/%@" = "/%@";
 "1" = "1";
@@ -244,7 +243,9 @@
 "Discard received cards" = "Renunță la cardurile primite";
 "Done" = "Gata";
 "Done Selecting" = "Terminată selecția";
+"Done selecting cards" = "Finalizează selectarea cardurilor";
 "Done selecting decks" = "Finalizează selectarea deckurilor";
+"Done selecting draft cards" = "Finalizează selectarea cardurilor draft";
 "Due" = "Scadent";
 "Due Today" = "Datorită azi";
 "Duplicate" = "Duplică";
@@ -267,6 +268,7 @@
 "Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated." = "Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.";
 "Explanation" = "Explicație";
 "EXPLANATION" = "EXPLICAŢIE";
+"Export" = "Exportă";
 "Export Deck" = "Exportă deckul";
 "Export Error" = "Eroare la export";
 "Export selected decks" = "Exportă deckurile selectate";
@@ -285,6 +287,7 @@
 "FLICK" = "SCUTURA";
 "Focus deck" = "Deck principal";
 "Focus Streak" = "Seria de focalizare";
+"Folder" = "Folder";
 "Folders" = "Foldere";
 "Follow the text size selected in iOS Settings." = "Urmează dimensiunea textului aleasă în Setările iOS.";
 "Font" = "Font";
@@ -348,9 +351,7 @@
 "Last opened %@." = "Deschis ultima dată %@.";
 "Last week" = "Săptămâna trecută";
 "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time." = "Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.";
-"Learn" = "Învățare";
 "Learn fast and effectively." = "Învață rapid și eficient.";
-"Learn Isn't Ready" = "Modul Învață nu este pregătit";
 "Learning" = "În învățare";
 "LEARNING PROGRESS" = "PROGRESUL DE ÎNVĂȚARE";
 "Left" = "Stânga";
@@ -409,7 +410,6 @@
 "No choices added" = "Nicio variantă adăugată";
 "No content" = "Fără conținut";
 "No content added" = "Niciun conținut adăugat";
-"No coverage blocks yet. Once the deck has cards, Learn mode will group them here." = "Încă nu există blocuri de acoperire. După ce deck are carduri, modul Învățare le va grupa aici.";
 "No deck data" = "Nu există date deck";
 "No deck yet" = "Niciun deck încă";
 "No Decks" = "Niciun deck";
@@ -519,10 +519,14 @@
 "Scroll this surface and watch the rows pass behind the sticky header blur." = "Derulați această suprafață și urmăriți cum trec rândurile în spatele neclarității antetului lipicios.";
 "Search" = "Căutare";
 "Search decks, cards, answers" = "Caută deckuri, carduri, răspunsuri";
+"Search for decks" = "Caută deckuri";
 "Searching…" = "Se caută…";
 "See which decks need intervention before they slow down your progress." = "Vedeți care deckuri au nevoie de intervenție înainte ca acestea să vă încetinească progresul.";
 "Select" = "Selectează";
 "Select a non-empty substring to turn into the blank." = "Selectează un fragment nevid pentru spațiul liber.";
+"Select All" = "Selectează toate";
+"Select all cards" = "Selectează toate cardurile";
+"Select all decks" = "Selectează toate deckurile";
 "Select Cards" = "Selectează carduri";
 "Select text in the editor to define the blank." = "Selectează text în editor pentru a defini spațiul liber.";
 "Selected day" = "Ziua selectată";
@@ -565,7 +569,6 @@
 "Storage" = "Depozitare";
 "Stored Answer" = "Răspuns salvat";
 "Streak" = "Serie";
-"Summary report" = "Raport sumar";
 "Suspended" = "Suspendat";
 "Swipe HUD" = "Glisați HUD";
 "Swipe review" = "Repetare prin glisare";
@@ -615,7 +618,6 @@
 "Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block." = "Sus fixează conținutul scurt în partea de sus. Centru folosește ghidajul de grilă pentru un bloc de text centrat natural.";
 "Total cards for auto distribution." = "Total carduri pentru distribuirea automată.";
 "Trace JSON" = "Urmăriți JSON";
-"Try a broader phrase, another deck title, or a different card keyword." = "Încearcă o expresie mai largă, alt titlu de deck sau un alt cuvânt-cheie de card.";
 "Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`." = "Încercați un nume de tip Swift, cum ar fi `LibraryDeckListRow`, un nume de slot precum `backgroundFill` sau un simbol precum `BrandPrimary`.";
 "Tune Blur" = "Ajustează blurul";
 "Tune Header Blur" = "Ajustează blurul antetului";
@@ -650,6 +652,7 @@
 "Your card changes couldn't be saved right now." = "Modificările cardului nu au putut fi salvate acum.";
 "Zone Size" = "Dimensiune zonă";
 "zones(%d)" = "zone(%d)";
+"Could not extract text from this source. Try another source." = "Nu s-a putut extrage textul din această sursă. Încearcă altă sursă.";
 "|" = "|";
 "â¢" = "â¢";
 "â¢ %@" = "â¢ %@";

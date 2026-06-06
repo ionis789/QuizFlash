@@ -103,9 +103,19 @@ private struct ScreenTopEdgeShadowModifier: ViewModifier {
     }
 
     private var resolvedTopRevealProgress: CGFloat {
-        guard debugScreenID != nil else { return min(max(topRevealProgress, 0), 1) }
+        let defaultProgress = defaultTopRevealProgress
+        guard debugScreenID != nil else { return defaultProgress }
         guard resolvedDebugSettings.topEnabled else { return 0 }
-        return min(max(topRevealProgress, 0), 1)
+        return defaultProgress
+    }
+
+    private var defaultTopRevealProgress: CGFloat {
+        switch style {
+        case .progressiveBlur:
+            return 1
+        case .shadow:
+            return min(max(topRevealProgress, 0), 1)
+        }
     }
 
     private var resolvedBottomRevealProgress: CGFloat {

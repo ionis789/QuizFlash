@@ -47,8 +47,8 @@ key	en	ro	ru
 %d day	%d day	%d zi	%d день
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
-%d Deck	%d Deck	%d deck	%d колода
 %d deck	%d deck	%d pachet	%d колода
+%d Deck	%d Deck	%d deck	%d колода
 %d Decks	%d Decks	%d deckuri	%d колод
 %d decks	%d decks	%d pachete	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
@@ -69,16 +69,15 @@ key	en	ro	ru
 %d sketches	%d sketches	%d schițe	%d эскизов
 %d still need another pass.	%d still need another pass.	%d încă au nevoie de o trecere.	%d ещё нужны повторные проходы.
 %d unique cards are locked in for today.	%d unique cards are locked in for today.	%d carduri unice sunt deja bifate azi.	%d уникальных карточек уже закрыты на сегодня.
+%d more match	%d more match	%d potrivire în plus	%d совпадение
+%d more matches	%d more matches	%d potriviri în plus	%d совпадений
 %d/%d active	%d/%d active	%d/%d zile active	%d/%d активных дней
 %dd ago	%dd ago	acum %dz	%dд назад
 %dh ago	%dh ago	acum %dore	%dч назад
 %dm ago	%dm ago	acum %dmin	%dм назад
 %dmo ago	%dmo ago	acum %dl	%dмес назад
 +%@ more card%@	+%1$@ more card%2$@	+%1$@ mai mult card%2$@	+%1$@ еще карточка%2$@
-+%@ more match%@ in this deck	+%1$@ more match%2$@ in this deck	+%1$@ mai multe potriviri%2$@ în acest deck	+%1$@ больше совпадений %2$@ в этой колоде
 +%@ XP	+%@ XP	+%@ XP	+%@ опыта
-+%d more match in this deck	+%d more match in this deck	+%d potrivire în plus în acest deck	+%d совпадение в этой колоде
-+%d more matches in this deck	+%d more matches in this deck	+%d potriviri în plus în acest deck	+%d совпадений в этой колоде
 +12%	+12%	+12%	+12%
 /%@	/%@	/%@	/%@
 1	1	1	1
@@ -138,8 +137,8 @@ Auto Size	Auto Size	Dimensiune automată	Авторазмер
 Background Color	Background Color	Culoare fundal	Цвет фона
 Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Background is rendered inside the shared sheet surface and clipped by the top corner radius.	Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.	Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.
 Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.	Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.	Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.
-BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
 Blank	Blank	Gol	Пропуск
+BLANK	BLANK	SPAȚIU LIBER	ПРОПУСК
 Block Center	Block Center	Bloc centru	Блок по центру
 Block Left	Block Left	Bloc stânga	Блок слева
 Block Position	Block Position	Poziție bloc	Позиция блока
@@ -165,8 +164,8 @@ Card %d	Card %d	Card %d	Карта %d
 Card Content	Card Content	Conținut card	Содержимое карточки
 card moved	card moved	card mutat	карточка пройдена
 Card Text	Card Text	Text card	Текст карточки
-cards	cards	carduri	карточки
 Cards	Cards	Carduri	Карточки
+cards	cards	carduri	карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 cards moved	cards moved	carduri mutate	карточек пройдено
 CARDS(%@)	CARDS(%@)	CARDURI(%@)	КАРТОЧКИ(%@)
@@ -180,8 +179,8 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
+Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -208,6 +207,7 @@ Controls QuizFlash chrome, settings rows, navigation labels, and other app-owned
 Copied!	Copied!	Copiat!	Скопировано!
 Copy and share with Codex	Copy and share with Codex	Copiați și partajați cu Codex	Скопируйте и поделитесь с Кодексом
 Correct	Correct	Corect	Верно
+Could not extract text from this source. Try another source.	Could not extract text from this source. Try another source.	Nu s-a putut extrage textul din această sursă. Încearcă altă sursă.	Не удалось извлечь текст из этого источника. Попробуйте другой источник.
 Covers %@ %@	Covers %1$@ %2$@	Acoperă %1$@ %2$@	Обложки %1$@ %2$@
 Create	Create	Creează	Создать
 Create a deck	Create a deck	Creați un deck	Создать колоду
@@ -245,7 +245,9 @@ Discard Changes	Discard Changes	Renunță la modificări	Не сохранять
 Discard received cards	Discard received cards	Renunță la cardurile primite	Удалить полученные карточки
 Done	Done	Gata	Готово
 Done Selecting	Done Selecting	Terminată selecția	Завершить выбор
+Done selecting cards	Done selecting cards	Finalizează selectarea cardurilor	Завершить выбор карточек
 Done selecting decks	Done selecting decks	Finalizează selectarea deckurilor	Завершить выбор колод
+Done selecting draft cards	Done selecting draft cards	Finalizează selectarea cardurilor draft	Завершить выбор черновиков карточек
 Due	Due	Scadent	Срок
 Due Today	Due Today	Datorită azi	Срок оплаты сегодня
 Duplicate	Duplicate	Duplică	Дублировать
@@ -266,8 +268,9 @@ Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
 Experiments	Experiments	Experimente	Эксперименты
 Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.	Explicați cele trei etape principale ale respirației celulare și descrieți ce se întâmplă în fiecare etapă, inclusiv reactanții consumați și produșii generați.	Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.
-EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
 Explanation	Explanation	Explicație	Объяснение
+EXPLANATION	EXPLANATION	EXPLICAŢIE	ОБЪЯСНЕНИЕ
+Export	Export	Exportă	Экспорт
 Export Deck	Export Deck	Exportă deckul	Экспортировать колоду
 Export Error	Export Error	Eroare la export	Ошибка экспорта
 Export selected decks	Export selected decks	Exportă deckurile selectate	Экспортировать выбранные колоды
@@ -286,6 +289,7 @@ Flashcards Isn't Ready	Flashcards Isn't Ready	Fișele nu sunt pregătite	Кар�
 FLICK	FLICK	SCUTURA	щелкнуть
 Focus deck	Focus deck	Deck principal	Главная колода
 Focus Streak	Focus Streak	Seria de focalizare	Полоса фокуса
+Folder	Folder	Folder	Папка
 Folders	Folders	Foldere	Папки
 Follow the text size selected in iOS Settings.	Follow the text size selected in iOS Settings.	Urmează dimensiunea textului aleasă în Setările iOS.	Следовать размеру текста, выбранному в настройках iOS.
 Font	Font	Font	Шрифт
@@ -349,9 +353,7 @@ Last Interaction	Last Interaction	Ultima interacțiune	Последнее вза
 Last opened %@.	Last opened %@.	Deschis ultima dată %@.	Последний раз открывали %@.
 Last week	Last week	Săptămâna trecută	Прошлая неделя
 Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.	Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.
-Learn	Learn	Învățare	Обучение
 Learn fast and effectively.	Learn fast and effectively.	Învață rapid și eficient.	Учитесь быстро и эффективно.
-Learn Isn't Ready	Learn Isn't Ready	Modul Învață nu este pregătit	Режим обучения ещё не готов
 Learning	Learning	În învățare	В изучении
 LEARNING PROGRESS	LEARNING PROGRESS	PROGRESUL DE ÎNVĂȚARE	ПРОГРЕСС ОБУЧЕНИЯ
 Left	Left	Stânga	Левый
@@ -410,7 +412,6 @@ No catalog matches	No catalog matches	Nicio potrivire de catalog	Нет совп
 No choices added	No choices added	Nicio variantă adăugată	Варианты не добавлены
 No content	No content	Fără conținut	Нет контента
 No content added	No content added	Niciun conținut adăugat	Контент не добавлен
-No coverage blocks yet. Once the deck has cards, Learn mode will group them here.	No coverage blocks yet. Once the deck has cards, Learn mode will group them here.	Încă nu există blocuri de acoperire. După ce deck are carduri, modul Învățare le va grupa aici.	Блокировок покрытия пока нет. Когда в колоде появятся карты, режим обучения сгруппирует их здесь.
 No deck data	No deck data	Nu există date deck	Нет данных колоды
 No deck yet	No deck yet	Niciun deck încă	Колоды пока нет
 No Decks	No Decks	Niciun deck	Нет колод
@@ -497,8 +498,8 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry	Retry	Reîncearcă	Повтор
+RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
 Reviews	Reviews	Repetări	Повторы
@@ -520,10 +521,14 @@ Scroll	Scroll	Scroll	Прокрутка
 Scroll this surface and watch the rows pass behind the sticky header blur.	Scroll this surface and watch the rows pass behind the sticky header blur.	Derulați această suprafață și urmăriți cum trec rândurile în spatele neclarității antetului lipicios.	Прокрутите эту поверхность и наблюдайте, как строки проходят за размытым липким заголовком.
 Search	Search	Căutare	Поиск
 Search decks, cards, answers	Search decks, cards, answers	Caută deckuri, carduri, răspunsuri	Искать колоды, карточки, ответы
+Search for decks	Search for decks	Caută deckuri	Искать колоды
 Searching…	Searching…	Se caută…	Поиск…
 See which decks need intervention before they slow down your progress.	See which decks need intervention before they slow down your progress.	Vedeți care deckuri au nevoie de intervenție înainte ca acestea să vă încetinească progresul.	Посмотрите, какие колоды требуют вмешательства, прежде чем они замедлят ваш прогресс.
 Select	Select	Selectează	Выбрать
 Select a non-empty substring to turn into the blank.	Select a non-empty substring to turn into the blank.	Selectează un fragment nevid pentru spațiul liber.	Выберите непустой фрагмент для пропуска.
+Select All	Select All	Selectează toate	Выбрать все
+Select all cards	Select all cards	Selectează toate cardurile	Выбрать все карточки
+Select all decks	Select all decks	Selectează toate deckurile	Выбрать все колоды
 Select Cards	Select Cards	Selectează carduri	Выбрать карточки
 Select text in the editor to define the blank.	Select text in the editor to define the blank.	Selectează text în editor pentru a defini spațiul liber.	Выберите текст в редакторе, чтобы задать пропуск.
 Selected day	Selected day	Ziua selectată	Выбранный день
@@ -566,7 +571,6 @@ Stop generation	Stop generation	Oprește generarea	Остановить гене
 Storage	Storage	Depozitare	Хранилище
 Stored Answer	Stored Answer	Răspuns salvat	Сохранённый ответ
 Streak	Streak	Serie	Серия
-Summary report	Summary report	Raport sumar	Итоговый отчёт
 Suspended	Suspended	Suspendat	Приостановлена
 Swipe HUD	Swipe HUD	Glisați HUD	Проведите по интерфейсу
 Swipe review	Swipe review	Repetare prin glisare	Повтор свайпом
@@ -603,8 +607,8 @@ This migration slice only enables the shared routing foundation. Flashcard editi
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
 This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-this week	this week	săptămâna asta	эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
+this week	this week	săptămâna asta	эта неделя
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
 To goal	To goal	Până la obiectiv	До цели
@@ -620,7 +624,6 @@ Top	Top	Sus	Сверху
 Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block.	Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block.	Sus fixează conținutul scurt în partea de sus. Centru folosește ghidajul de grilă pentru un bloc de text centrat natural.	Сверху закрепляет короткий контент у верхнего края. Центр использует сеточные направляющие для естественно центрированного текстового блока.
 Total cards for auto distribution.	Total cards for auto distribution.	Total carduri pentru distribuirea automată.	Всего карточек для автораздачи.
 Trace JSON	Trace JSON	Urmăriți JSON	Трассировка JSON
-Try a broader phrase, another deck title, or a different card keyword.	Try a broader phrase, another deck title, or a different card keyword.	Încearcă o expresie mai largă, alt titlu de deck sau un alt cuvânt-cheie de card.	Попробуйте более широкую фразу, другое название колоды или другой ключ карточки.
 Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`.	Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`.	Încercați un nume de tip Swift, cum ar fi `LibraryDeckListRow`, un nume de slot precum `backgroundFill` sau un simbol precum `BrandPrimary`.	Попробуйте имя типа Swift, например «LibraryDeckListRow», имя слота, например «backgroundFill», или токен, например «BrandPrimary».
 Tune Blur	Tune Blur	Ajustează blurul	Настроить блюр
 Tune Header Blur	Tune Header Blur	Ajustează blurul antetului	Настроить размытие заголовка

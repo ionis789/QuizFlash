@@ -16,10 +16,10 @@ struct DetailedCardRowView: View, Equatable {
     var isSelected: Bool = false
 
     var onPrimaryTap: (() -> Void)? = nil
+    var onToggleSelection: (() -> Void)? = nil
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var isCompactPreview: Bool { fixedHeight != nil }
-    private var trailingAccessorySize: CGFloat { 34 }
     private var displayCardNumber: Int { card.cardNumber > 0 ? card.cardNumber : index }
     private var locale: Locale { appPreferences.resolvedLocale }
 
@@ -30,10 +30,6 @@ struct DetailedCardRowView: View, Equatable {
     private func localizedFormat(_ value: String.LocalizationValue, _ arguments: CVarArg...) -> String {
         let format = AppLocalization.string(value, locale: locale)
         return String(format: format, locale: locale, arguments: arguments)
-    }
-
-    private func localizedTimestamp(_ date: Date) -> String {
-        date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale))
     }
 
     static func == (lhs: DetailedCardRowView, rhs: DetailedCardRowView) -> Bool {
@@ -48,8 +44,7 @@ struct DetailedCardRowView: View, Equatable {
         Group {
             if let fixedHeight {
                 cardContent
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
+                    .padding(.vertical, 10)
                     .frame(
                         maxWidth: .infinity,
                         minHeight: fixedHeight,
@@ -58,16 +53,23 @@ struct DetailedCardRowView: View, Equatable {
                     )
             } else {
                 cardContent
-                    .padding(20)
+                    .padding(.vertical, 12)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
-        .flashcardStyle(cornerRadius: 30, surfaceRole: .widget)
         .scaleEffect(isSelected ? 0.9 : 1, anchor: .center)
         .animation(.spring(response: 0.46, dampingFraction: 0.8, blendDuration: 0.08), value: isCompactPreview)
         .animation(.easeInOut(duration: 0.18), value: isSelected)
         .contentShape(Rectangle())
         .onTapGesture {
+            handlePrimaryTap()
+        }
+    }
+
+    private func handlePrimaryTap() {
+        if isSelecting {
+            onToggleSelection?()
+        } else {
             onPrimaryTap?()
         }
     }
@@ -75,199 +77,80 @@ struct DetailedCardRowView: View, Equatable {
     private var cardContent: some View {
         let summary = DraftCardContentSummary(card: card)
 
-        return VStack(alignment: .leading, spacing: isCompactPreview ? 10 : 18) {
-            header
-
-            if !isCompactPreview {
-                metricsStrip(summary: summary)
-            }
-
-            previewSurface(summary: summary)
-
-            if !isCompactPreview {
-                footer
-            }
-        }
-    }
-
-    private var header: some View {
-        HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
-            Text(localizedFormat("Card %d", displayCardNumber))
-                .font(
-                    .system(
-                        size: isCompactPreview ? 14 : 18,
-                        weight: isCompactPreview ? .semibold : .bold,
-                        design: .rounded
-                    )
-                )
-                .foregroundStyle(.primary.opacity(0.92))
-
-            if card.isPinned && !isCompactPreview {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.orange)
-            }
-
-            Spacer(minLength: UIConstants.Spacing.small)
-
-            trailingAccessory
-        }
-        .frame(minHeight: isCompactPreview ? 24 : trailingAccessorySize, alignment: .center)
-    }
-
-    @ViewBuilder
-    private var trailingAccessory: some View {
-        Group {
-            if isSelecting {
-                selectionIndicator
-            } else {
-                Color.clear
-            }
-        }
-        .frame(width: isSelecting ? trailingAccessorySize : 0, height: trailingAccessorySize)
-    }
-
-    private func metricsStrip(summary: DraftCardContentSummary) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chip(text: card.kind.editorDisplayTitle, symbol: card.kind.editorSymbol, tint: accent)
-                ForEach(summary.sections) { section in
-                    if section.metrics.displayZoneCount > 0 {
-                        chip(
-                            text: localizedFormat("%d %@", section.metrics.displayZoneCount, section.title.lowercased(with: locale)),
-                            symbol: section.symbol
-                        )
-                    }
-                }
-                chip(text: localizedFormat("%d chars", summary.total.textCharacterCount), symbol: "textformat")
-                chip(text: localizedFormat("%d photos", summary.total.imageCount), symbol: "photo")
-                chip(text: localizedFormat("%d sketches", summary.total.sketchCount), symbol: "pencil.and.outline")
-                chip(
-                    text: card.creationSource == .ai ? localized("AI") : localized("Manual"),
-                    symbol: card.creationSource == .ai ? "sparkles" : "hand.tap",
-                    tint: card.creationSource == .ai ? accent : .secondary
-                )
-            }
-        }
+        return previewSurface(summary: summary)
     }
 
     private func previewSurface(summary: DraftCardContentSummary) -> some View {
-        VStack(alignment: .leading, spacing: isCompactPreview ? 10 : 16) {
-            ForEach(Array(previewPanels(summary: summary).enumerated()), id: \.offset) { index, panel in
+        let panels = previewPanels(summary: summary)
+
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(panels.enumerated()), id: \.offset) { index, panel in
                 if index > 0 {
-                    Divider()
-                        .overlay(Color.white.opacity(0.05))
+                    separator
+                        .padding(.horizontal, isCompactPreview ? 12 : 14)
                 }
 
                 previewBlock(
-                    title: panel.title,
-                    symbol: panel.symbol,
                     text: panel.text,
                     hasContent: panel.hasContent,
-                    lineLimit: panel.lineLimit
+                    lineLimit: panel.lineLimit,
+                    reservesCardNumberSpace: index == 0
                 )
             }
         }
-        .padding(isCompactPreview ? 0 : 18)
-        .background {
-            if !isCompactPreview {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color.white.opacity(0.035))
-            }
+        .background(Color.white.opacity(0.075), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(isSelected ? accent.opacity(0.65) : Color.white.opacity(0.11), lineWidth: isSelected ? 1.4 : 1)
+        }
+        .overlay(alignment: .topTrailing) {
+            cardNumberBadge
+                .padding(.top, isCompactPreview ? 8 : 10)
+                .padding(.trailing, isCompactPreview ? 8 : 10)
         }
     }
 
     private func previewBlock(
-        title: String,
-        symbol: String,
         text: String,
         hasContent: Bool,
-        lineLimit: Int
+        lineLimit: Int,
+        reservesCardNumberSpace: Bool = false
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: symbol)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
-
-                Text(title.uppercased(with: locale))
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
-            }
-
-            Text(text)
-                .font(
-                    isCompactPreview
-                        ? .system(size: 15, weight: .medium, design: .rounded)
-                        : .system(size: 19, weight: .medium, design: .rounded)
-                )
-                .foregroundStyle(hasContent ? .primary : .secondary)
-                .lineLimit(lineLimit)
-                .fixedSize(horizontal: false, vertical: !isCompactPreview)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        Text(text)
+            .font(
+                isCompactPreview
+                    ? .system(size: 15, weight: .medium, design: .rounded)
+                    : .system(size: 17, weight: .medium, design: .rounded)
+            )
+            .foregroundStyle(hasContent ? .primary : .secondary)
+            .lineLimit(lineLimit)
+            .fixedSize(horizontal: false, vertical: !isCompactPreview)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, isCompactPreview ? 12 : 14)
+        .padding(.trailing, reservesCardNumberSpace ? (isCompactPreview ? 48 : 54) : (isCompactPreview ? 12 : 14))
+        .padding(.vertical, isCompactPreview ? 10 : 12)
     }
 
-    private var footer: some View {
-        HStack(alignment: .center, spacing: UIConstants.Spacing.standard) {
-            if let createdAt = card.createdAt {
-                Text(localizedFormat("Created %@", localizedTimestamp(createdAt)))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: UIConstants.Spacing.small)
-
-            if shouldShowEditedDate, let editedAt = card.editedAt {
-                Text(localizedFormat("Edited %@", localizedTimestamp(editedAt)))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .multilineTextAlignment(.trailing)
-            }
-        }
+    private var separator: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.08))
+            .frame(height: 1)
     }
 
-    private var selectionIndicator: some View {
-        ZStack {
-            Circle()
-                .fill(Color.white.opacity(isSelected ? 0.08 : 0.05))
-
-            Circle()
-                .stroke(
-                    isSelected ? accent.opacity(0.85) : Color.white.opacity(0.22),
-                    lineWidth: isSelected ? 1.8 : 1.4
-                )
-
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(accent)
-                    .transition(.opacity)
+    private var cardNumberBadge: some View {
+        Text("\(displayCardNumber)")
+            .font(.system(size: isCompactPreview ? 12 : 13, weight: .heavy, design: .rounded).monospacedDigit())
+            .foregroundStyle(isSelected ? accent : .secondary)
+            .minimumScaleFactor(0.75)
+            .padding(.horizontal, isCompactPreview ? 8 : 9)
+            .frame(minWidth: isCompactPreview ? 28 : 30, minHeight: isCompactPreview ? 24 : 26)
+            .background(Color.black.opacity(0.20), in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(isSelected ? accent.opacity(0.70) : Color.white.opacity(0.09), lineWidth: 1)
             }
-        }
-        .frame(width: trailingAccessorySize, height: trailingAccessorySize)
-        .accessibilityHidden(true)
-    }
-
-    @ViewBuilder
-    private func chip(text: String, symbol: String, tint: Color = .secondary) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: symbol)
-            Text(text)
-        }
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(tint)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(Color.white.opacity(0.05), in: Capsule())
-    }
-
-    private var shouldShowEditedDate: Bool {
-        guard let createdAt = card.createdAt, let editedAt = card.editedAt else { return false }
-        return abs(editedAt.timeIntervalSince(createdAt)) > 1
+            .accessibilityLabel(localizedFormat("Card %d", displayCardNumber))
     }
 
     private func previewPanels(summary: DraftCardContentSummary) -> [PreviewPanel] {
@@ -275,46 +158,36 @@ struct DetailedCardRowView: View, Equatable {
         case .flashcard(let content):
             return [
                 PreviewPanel(
-                    title: localized("Question"),
-                    symbol: "q.circle",
                     text: previewText(for: content.frontZone, maxLength: isCompactPreview ? 180 : 360),
                     hasContent: summary.sections[safe: 0]?.metrics.hasContent ?? false,
-                    lineLimit: isCompactPreview ? 3 : 5
+                    lineLimit: isCompactPreview ? 3 : 3
                 ),
                 PreviewPanel(
-                    title: localized("Answer"),
-                    symbol: "a.circle",
                     text: previewText(for: content.backZone, maxLength: isCompactPreview ? 220 : 460),
                     hasContent: summary.sections[safe: 1]?.metrics.hasContent ?? false,
-                    lineLimit: isCompactPreview ? 4 : 7
+                    lineLimit: isCompactPreview ? 4 : 4
                 )
             ]
         case .quiz(let content):
             var panels = [
                 PreviewPanel(
-                    title: localized("Question"),
-                    symbol: "questionmark.bubble",
                     text: previewText(for: content.questionZone, maxLength: isCompactPreview ? 160 : 320),
                     hasContent: summary.sections.first?.metrics.hasContent ?? false,
-                    lineLimit: isCompactPreview ? 2 : 4
+                    lineLimit: isCompactPreview ? 2 : 3
                 ),
                 PreviewPanel(
-                    title: localized("Choices"),
-                    symbol: "checklist",
                     text: joinedChoicePreview(for: content),
                     hasContent: !content.choices.isEmpty,
-                    lineLimit: isCompactPreview ? 3 : 6
+                    lineLimit: isCompactPreview ? 3 : 4
                 )
             ]
 
             if let explanationZone = content.explanationZone {
                 panels.append(
                     PreviewPanel(
-                        title: localized("Explanation"),
-                        symbol: "text.bubble",
                         text: previewText(for: explanationZone, maxLength: isCompactPreview ? 120 : 260),
                         hasContent: !previewFragments(in: explanationZone).isEmpty,
-                        lineLimit: isCompactPreview ? 2 : 4
+                        lineLimit: isCompactPreview ? 2 : 3
                     )
                 )
             }
@@ -392,41 +265,9 @@ struct DetailedCardRowView: View, Equatable {
 }
 
 private struct PreviewPanel {
-    let title: String
-    let symbol: String
     let text: String
     let hasContent: Bool
     let lineLimit: Int
-}
-
-private extension CardKind {
-    var editorDisplayTitle: String {
-        let locale = AppPreferences.persistedResolvedLocale
-        switch self {
-        case .flashcard:
-            return AppLocalization.string("Flashcard", locale: locale)
-        case .quiz:
-            return AppLocalization.string("Quiz", locale: locale)
-        }
-    }
-
-    func localizedDisplayTitle(locale: Locale) -> String {
-        switch self {
-        case .flashcard:
-            return AppLocalization.string("Flashcard", locale: locale)
-        case .quiz:
-            return AppLocalization.string("Quiz", locale: locale)
-        }
-    }
-
-    var editorSymbol: String {
-        switch self {
-        case .flashcard:
-            return "rectangle.on.rectangle"
-        case .quiz:
-            return "checklist"
-        }
-    }
 }
 
 private extension Array {

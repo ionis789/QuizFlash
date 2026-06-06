@@ -163,71 +163,51 @@ struct AIPreparationIndeterminateBar: View {
 }
 
 struct DeckWorkspaceSelectionBottomBar: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
     let selectedCount: Int
     let allSelected: Bool
-    let onDone: () -> Void
     let onToggleSelectAll: () -> Void
     let onDelete: () -> Void
 
-    var hasSelection: Bool {
+    private var hasSelection: Bool {
         selectedCount > 0
     }
 
-    var selectionSummary: String {
-        if selectedCount == 0 {
-            return "Tap cards"
-        }
-        return selectedCount == 1 ? "1 selected" : "\(selectedCount) selected"
-    }
-
-    var summaryTint: Color {
-        selectedCount == 0 ? .secondary : .primary
-    }
-
-    var accent: Color {
-        ThemeManager.shared.accentColor.color
-    }
+    private var locale: Locale { appPreferences.resolvedLocale }
 
     var body: some View {
-        HStack(spacing: UIConstants.Spacing.small) {
-            SelectionToolbarCapsuleButton(
-                action: onDone,
-                accessibilityLabel: "Done selecting draft cards"
-            ) {
-                Text("Done")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-            }
-            .layoutPriority(1)
+        SelectionActionToolbar(
+            selectedCount: selectedCount,
+            actions: [
+                .text(
+                    id: "selectAll",
+                    title: AppLocalization.string("Select All", locale: locale),
+                    accessibilityLabel: AppLocalization.string("Select all cards", locale: locale),
+                    isEnabled: !allSelected,
+                    action: onToggleSelectAll
+                ),
+                .icon(
+                    id: "delete",
+                    systemName: "trash",
+                    title: AppLocalization.string("Delete", locale: locale),
+                    accessibilityLabel: deleteAccessibilityLabel,
+                    isEnabled: hasSelection,
+                    tint: .destructive,
+                    action: onDelete
+                )
+            ]
+        )
+    }
 
-            Text(selectionSummary)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(summaryTint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.9)
-                .monospacedDigit()
-                .frame(width: 118, alignment: .leading)
-
-            SelectionToolbarTextButton(
-                title: allSelected ? "Clear" : "Select All",
-                accessibilityLabel: allSelected ? "Clear all selected cards" : "Select all cards",
-                tint: allSelected ? .primary : accent,
-                action: onToggleSelectAll
-            )
-
-            Spacer(minLength: 0)
-
-            SelectionToolbarIconButton(
-                isEnabled: hasSelection,
-                accessibilityLabel: "Delete \(selectedCount) selected card\(selectedCount == 1 ? "" : "s")",
-                action: onDelete
-            ) {
-                Image(systemName: "trash")
-                    .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
-                    .foregroundStyle(hasSelection ? Color.red : Color.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .contentShape(Rectangle())
+    private var deleteAccessibilityLabel: String {
+        String(
+            format: AppLocalization.string(
+                selectedCount == 1 ? "Delete %d selected card" : "Delete %d selected cards",
+                locale: locale
+            ),
+            locale: locale,
+            selectedCount
+        )
     }
 }

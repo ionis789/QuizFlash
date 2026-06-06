@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - DeckHeaderView
 
@@ -102,10 +103,7 @@ struct DeckHeaderView: View {
 
 // MARK: - DeckPlayModesView
 
-/// A horizontally scrolling carousel of deck play-mode cards.
-///
-/// The card width intentionally leaves part of the next card visible so the
-/// section communicates that more modes are available with a horizontal swipe.
+/// Compact deck play-mode actions shown without horizontal scrolling.
 struct DeckPlayModesView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
@@ -122,15 +120,13 @@ struct DeckPlayModesView: View {
     let onOpenMode: (DeckPlayModeDestination) -> Void
     /// Called when the user taps the mode-specific options button.
     let onOpenSettings: (DeckPlayModeDestination) -> Void
-    /// Called when the user taps a mode tile that is currently unavailable.
-    let onRequestUnavailableMode: (DeckPlayModeDestination) -> Void
 
     // MARK: - Computed Properties
 
     private var accentColor: Color { themeManager.roleColor(.buttonPrimaryFill) }
     private var deckColor: Color { Color(hex: deck.colorHex) ?? accentColor }
     private var orderedModes: [DeckPlayModeDestination] {
-        let visibleModes = DeckPlayModeDestination.allCases.filter { $0 != .learn }
+        let visibleModes = DeckPlayModeDestination.allCases
         let defaultOrder = Dictionary(
             uniqueKeysWithValues: visibleModes.enumerated().map { ($1, $0) }
         )
@@ -171,41 +167,23 @@ struct DeckPlayModesView: View {
                 .foregroundStyle(themeManager.textSecondary.opacity(0.72))
                 .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
 
-            GeometryReader { proxy in
-                let availableWidth = max(0, proxy.size.width - (UIConstants.Layout.screenEdgeInset * 2))
-                let widthScale = UIConstants.isPad ? 0.36 : 0.78
-                let cardWidth = min(max(availableWidth * widthScale, 220), UIConstants.isPad ? 290 : 300)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: UIConstants.Spacing.standard) {
-                        ForEach(orderedModes) { mode in
-                            PlayModeCard(
-                                mode: mode,
-                                tintColor: mode.tintColor(
-                                    deckColor: deckColor,
-                                    accentColor: accentColor
-                                ),
-                                statusText: mode.localizedStatusText(
-                                    locale: appPreferences.resolvedLocale,
-                                    in: availability,
-                                    deck: deck
-                                ),
-                                canPlay: mode.canLaunch(with: availability, deck: deck),
-                                onOpenMode: onOpenMode,
-                                onOpenSettings: onOpenSettings,
-                                onRequestUnavailableMode: onRequestUnavailableMode
-                            )
-                                .frame(width: cardWidth)
-                        }
-                    }
-                        .scrollTargetLayout()
-                        .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-                        .padding(.vertical, UIConstants.Spacing.small)
+            HStack(spacing: UIConstants.Spacing.small) {
+                ForEach(orderedModes) { mode in
+                    PlayModeCard(
+                        mode: mode,
+                        tintColor: mode.tintColor(
+                            deckColor: deckColor,
+                            accentColor: accentColor
+                        ),
+                        canPlay: mode.canLaunch(with: availability, deck: deck),
+                        onOpenMode: onOpenMode,
+                        onOpenSettings: onOpenSettings
+                    )
+                    .frame(maxWidth: .infinity)
                 }
-                    .scrollIndicators(.hidden)
-                    .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
             }
-                .frame(height: 188)
+            .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
+            .padding(.vertical, UIConstants.Spacing.small)
         }
     }
 }
@@ -221,75 +199,107 @@ private struct PlayModeCard: View {
 
     let mode: DeckPlayModeDestination
     let tintColor: Color
-    let statusText: String
     let canPlay: Bool
     let onOpenMode: (DeckPlayModeDestination) -> Void
     let onOpenSettings: (DeckPlayModeDestination) -> Void
-    let onRequestUnavailableMode: (DeckPlayModeDestination) -> Void
+
+    @State private var unavailableWiggleOffset: CGFloat = 0
+    @State private var unavailableScale: CGFloat = 1
+    @State private var unavailableFeedbackTask: Task<Void, Never>?
 
     // MARK: - Body
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-                Button {
-                    if canPlay {
-                        onOpenMode(mode)
-                    } else {
-                        onRequestUnavailableMode(mode)
-                    }
-                } label: {
-                    HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .fill(tintColor.opacity(canPlay ? 0.18 : 0.12))
-                                .frame(width: 56, height: 56)
-
-                            Image(systemName: mode.systemImage)
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundStyle(canPlay ? tintColor : tintColor.opacity(0.72))
-                        }
-
-                        VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny) {
-                            Text(mode.localizedTitle(locale: appPreferences.resolvedLocale))
-                                .font(.system(size: 19, weight: .bold, design: .rounded))
-                                .foregroundStyle(themeManager.textPrimary)
-                                .lineLimit(1)
-
-                            Text(mode.localizedSubtitle(locale: appPreferences.resolvedLocale))
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(themeManager.textSecondary)
-                                .lineLimit(2)
-
-                            Text(statusText)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(themeManager.textSecondary)
-                                .lineLimit(1)
-                        }
-
-                        Spacer(minLength: UIConstants.Size.actionButton)
-                    }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            Button {
+                if canPlay {
+                    onOpenMode(mode)
+                } else {
+                    runUnavailableFeedbackSequence()
                 }
-                    .buttonStyle(.plain)
+            } label: {
+                VStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 17, style: .continuous)
+                            .fill(tintColor.opacity(canPlay ? 0.18 : 0.12))
+                            .frame(width: 44, height: 44)
+
+                        Image(systemName: mode.systemImage)
+                            .font(.system(size: 20, weight: .black))
+                            .foregroundStyle(canPlay ? tintColor : tintColor.opacity(0.72))
+                    }
+
+                    Text(mode.localizedTitle(locale: appPreferences.resolvedLocale))
+                        .font(.system(size: 21, weight: .black, design: .rounded))
+                        .foregroundStyle(themeManager.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
+                }
+                .frame(maxWidth: .infinity, minHeight: 88, alignment: .center)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
             }
-                .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
-                .padding(14)
+            .buttonStyle(.plain)
 
             Button {
                 onOpenSettings(mode)
             } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 14, weight: .bold))
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(tintColor)
-                    .frame(width: 34, height: 34)
+                    .rotationEffect(.degrees(90))
+                    .frame(width: 30, height: 30)
             }
-                .quizFlashButtonStyle(.surface, shape: .circle, size: 34)
-                .padding(12)
+            .padding(5)
+
         }
-            .opacity(canPlay ? 1 : 0.56)
-            .flashcardStyle(cornerRadius: 28, surfaceRole: .widget)
+        .opacity(canPlay ? 1 : 0.56)
+        .flashcardStyle(cornerRadius: 26, surfaceRole: .widget)
+        .offset(x: unavailableWiggleOffset)
+        .scaleEffect(unavailableScale, anchor: .center)
+        .onDisappear {
+            unavailableFeedbackTask?.cancel()
+            unavailableFeedbackTask = nil
+        }
+    }
+
+    private func runUnavailableFeedbackSequence() {
+        unavailableFeedbackTask?.cancel()
+        emitUnavailableFeedbackHaptic()
+        unavailableScale = 1
+        unavailableWiggleOffset = 0
+
+        withAnimation(.linear(duration: 0.065).repeatCount(3, autoreverses: true)) {
+            unavailableWiggleOffset = 8
+        }
+
+        unavailableFeedbackTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 240_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.spring(response: 0.18, dampingFraction: 0.7)) {
+                unavailableWiggleOffset = 0
+            }
+            withAnimation(.smooth(duration: 0.22, extraBounce: 0)) {
+                unavailableScale = 0.9
+            }
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.smooth(duration: 0.18, extraBounce: 0)) {
+                unavailableScale = 1
+            }
+        }
+    }
+
+    private func emitUnavailableFeedbackHaptic() {
+        switch appPreferences.flashcardsSwipeHaptics {
+        case .off:
+            return
+        case .subtle, .standard:
+            let generator = UINotificationFeedbackGenerator()
+            generator.prepare()
+            generator.notificationOccurred(.error)
+        }
     }
 }
 
@@ -358,6 +368,8 @@ struct DeckActionOverlay: View {
     let onAdd: () -> Void
     /// Called when the user taps "Select Cards" in the menu.
     let onStartSelection: () -> Void
+    /// Called when the user taps the top checkmark while selecting.
+    let onDoneSelection: () -> Void
     /// Called when the user taps "Export Deck" in the menu.
     let onExport: () -> Void
 
@@ -401,53 +413,58 @@ struct DeckActionOverlay: View {
     // MARK: - Menu Button
 
     private var menuButton: some View {
-        Menu {
-            Button {
-                onStartSelection()
-            } label: {
-                Label(localized("Select Cards"), systemImage: "checkmark.circle")
-            }
-                .disabled(isSelecting)
-
-            Button {
-                onExport()
-            } label: {
-                Label(localized("Export Deck"), systemImage: "square.and.arrow.up")
-            }
-
-            Divider()
-
-            Toggle(isOn: groupByTypeBinding) {
-                Label(localized("Group by Card Type"), systemImage: "square.grid.2x2")
-            }
-
-            Divider()
-
-            Picker(localized("Sort By"), selection: $sortOrder) {
-                ForEach(SortOrder.allCases, id: \.self) { order in
-                    Label(order.localizedTitle(locale: locale), systemImage: order.icon)
-                        .tag(order)
-                }
-            }
-        } label: {
-            ChromeSoftCircleSymbol(
-                systemName: "ellipsis",
-                size: UIConstants.Size.actionButton,
-                symbolSize: UIConstants.Size.iconStandard
-            )
+        SelectionModeMenuButton(
+            isSelecting: isSelecting,
+            menuAccessibilityLabel: localized("More actions"),
+            doneAccessibilityLabel: localized("Done selecting cards"),
+            onDone: onDoneSelection
+        ) { prepareSelectionVisual, finishMenuInteraction in
+            UIMenu(children: [
+                SelectionModeMenuElement.action(
+                    title: localized("Select Cards"),
+                    systemImage: "checkmark.circle",
+                    isEnabled: !isSelecting
+                ) {
+                    prepareSelectionVisual()
+                    onStartSelection()
+                },
+                SelectionModeMenuElement.action(
+                    title: localized("Export Deck"),
+                    systemImage: "square.and.arrow.up"
+                ) {
+                    finishMenuInteraction()
+                    onExport()
+                },
+                SelectionModeMenuElement.action(
+                    title: localized("Group by Card Type"),
+                    systemImage: "square.grid.2x2",
+                    state: groupingMode == .byCardType ? .on : .off
+                ) {
+                    finishMenuInteraction()
+                    groupingMode = groupingMode == .byCardType ? .chronological : .byCardType
+                },
+                deckSortMenu(finishMenuInteraction: finishMenuInteraction)
+            ])
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(localized("More actions"))
     }
 
-    private var groupByTypeBinding: Binding<Bool> {
-        Binding(
-            get: { groupingMode == .byCardType },
-            set: { newValue in
-                groupingMode = newValue ? .byCardType : .chronological
+    private func deckSortMenu(finishMenuInteraction: @escaping () -> Void) -> UIMenu {
+        UIMenu(
+            title: localized("Sort By"),
+            image: UIImage(systemName: "arrow.up.arrow.down"),
+            children: SortOrder.allCases.map { order in
+                SelectionModeMenuElement.action(
+                    title: order.localizedTitle(locale: locale),
+                    systemImage: sortOrder == order ? "checkmark" : order.icon,
+                    state: sortOrder == order ? .on : .off
+                ) {
+                    finishMenuInteraction()
+                    sortOrder = order
+                }
             }
         )
     }
+
 }
 
 // MARK: - DeckSelectionBottomBar
@@ -459,82 +476,53 @@ struct DeckActionOverlay: View {
 /// via closures — this view holds no state.
 struct DeckSelectionBottomBar: View {
     @Environment(AppPreferences.self) private var appPreferences
-    @Environment(ThemeManager.self) private var themeManager
 
     // MARK: - Inputs
 
     /// The number of currently selected cards, displayed in the delete button label.
     let selectedCount: Int
-    /// Called when the user taps "Done" to exit selection mode.
-    var onDone: () -> Void
-    /// Called when the user clears the current selection without leaving selection mode.
-    var onClearSelection: () -> Void
+    let isSelectAllEnabled: Bool
+    /// Called when the user selects every visible card.
+    var onSelectAll: () -> Void
     /// Called when the user taps the delete button to confirm batch deletion.
     var onDelete: () -> Void
 
-    private var selectionSummary: String {
-        if selectedCount == 0 {
-            return AppLocalization.string("Tap cards", locale: appPreferences.resolvedLocale)
-        }
-        let format = AppLocalization.string("%d selected", locale: appPreferences.resolvedLocale)
-        return String(format: format, locale: appPreferences.resolvedLocale, selectedCount)
-    }
-
-    private var summaryTint: Color {
-        selectedCount == 0 ? themeManager.textSecondary : themeManager.textPrimary
-    }
+    private var locale: Locale { appPreferences.resolvedLocale }
 
     // MARK: - Body
 
     var body: some View {
-        HStack(spacing: UIConstants.Spacing.small) {
-            SelectionToolbarCapsuleButton(
-                action: onDone,
-                accessibilityLabel: AppLocalization.string("Done selecting cards", locale: appPreferences.resolvedLocale)
-            ) {
-                Text(AppLocalization.string("Done", locale: appPreferences.resolvedLocale))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(themeManager.textPrimary)
-            }
-                .layoutPriority(1)
-
-            Text(selectionSummary)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(summaryTint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.9)
-                .monospacedDigit()
-                .frame(width: 118, alignment: .leading)
-
-            if selectedCount > 0 {
-                SelectionToolbarTextButton(
-                    title: AppLocalization.string("Clear", locale: appPreferences.resolvedLocale),
-                    accessibilityLabel: AppLocalization.string("Clear selected cards", locale: appPreferences.resolvedLocale)
-                ) {
-                    onClearSelection()
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            SelectionToolbarIconButton(
-                isEnabled: selectedCount > 0,
-                accessibilityLabel: String(
-                    format: AppLocalization.string(
-                        selectedCount == 1 ? "Delete %d selected card" : "Delete %d selected cards",
-                        locale: appPreferences.resolvedLocale
-                    ),
-                    locale: appPreferences.resolvedLocale,
-                    selectedCount
+        SelectionActionToolbar(
+            selectedCount: selectedCount,
+            actions: [
+                .text(
+                    id: "selectAll",
+                    title: AppLocalization.string("Select All", locale: locale),
+                    accessibilityLabel: AppLocalization.string("Select all cards", locale: locale),
+                    isEnabled: isSelectAllEnabled,
+                    action: onSelectAll
                 ),
-                action: onDelete
-            ) {
-                Image(systemName: "trash")
-                    .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
-                    .foregroundStyle(selectedCount > 0 ? themeManager.dangerPrimary : themeManager.textSecondary)
-            }
-        }
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
+                .icon(
+                    id: "delete",
+                    systemName: "trash",
+                    title: AppLocalization.string("Delete", locale: locale),
+                    accessibilityLabel: deleteAccessibilityLabel,
+                    isEnabled: selectedCount > 0,
+                    tint: .destructive,
+                    action: onDelete
+                )
+            ]
+        )
+    }
+
+    private var deleteAccessibilityLabel: String {
+        String(
+            format: AppLocalization.string(
+                selectedCount == 1 ? "Delete %d selected card" : "Delete %d selected cards",
+                locale: locale
+            ),
+            locale: locale,
+            selectedCount
+        )
     }
 }

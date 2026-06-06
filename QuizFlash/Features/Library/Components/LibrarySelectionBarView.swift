@@ -12,7 +12,6 @@ import SwiftUI
 /// Provides actions for selected decks such as exporting or deleting.
 struct LibrarySelectionBarView: View {
     @Environment(AppPreferences.self) private var appPreferences
-    @Environment(ThemeManager.self) private var themeManager
 
     @Bindable var viewModel: LibraryViewModel
     let decks: [DeckModel]
@@ -21,15 +20,8 @@ struct LibrarySelectionBarView: View {
 
     private var selectedCount: Int { viewModel.selectedDecks.count }
     private var hasSelection: Bool { selectedCount > 0 }
+    private var canSelectAll: Bool { !viewModel.areAllVisibleDecksSelected(in: decks) }
     private var locale: Locale { appPreferences.resolvedLocale }
-    private var actionClusterBackground: some View {
-        Capsule(style: .continuous)
-            .fill(themeManager.roleColor(.selectionToolbarFill))
-            .overlay {
-                Capsule(style: .continuous)
-                    .stroke(themeManager.roleColor(.selectionToolbarBorder).opacity(0.18), lineWidth: 0.75)
-            }
-    }
 
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
@@ -41,67 +33,48 @@ struct LibrarySelectionBarView: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
-
-            SelectionToolbarCapsuleButton(
-                action: {
-                    withBottomChromeAnimation {
-                        viewModel.exitSelectionMode()
+        SelectionActionToolbar(
+            selectedCount: selectedCount,
+            actions: [
+                .text(
+                    id: "selectAll",
+                    title: localized("Select All"),
+                    accessibilityLabel: localized("Select all decks"),
+                    isEnabled: canSelectAll,
+                    action: {
+                        withAnimation(.selectionToolbarSpring) {
+                            viewModel.selectAllVisibleDecks(from: decks)
+                        }
                     }
-                },
-                accessibilityLabel: localized("Done selecting decks")
-            ) {
-                Text(localized("Done"))
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundStyle(themeManager.textPrimary)
-            }
-
-            Spacer()
-
-            HStack(spacing: 8) {
-                SelectionToolbarIconButton(
-                    isEnabled: hasSelection,
+                ),
+                .icon(
+                    id: "folder",
+                    systemName: "folder",
+                    title: localized("Folder"),
                     accessibilityLabel: localized("Move selected decks"),
-                    action: { onMoveTap?() }
-                ) {
-                    Image(systemName: "folder")
-                        .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
-                        .foregroundStyle(hasSelection ? themeManager.textPrimary : themeManager.textSecondary)
-                }
-
-                SelectionToolbarIconButton(
-                    isEnabled: hasSelection && !viewModel.isExporting,
-                    accessibilityLabel: localized("Export selected decks"),
-                    action: { viewModel.exportSelectedDecks(from: decks) }
-                ) {
-                    if viewModel.isExporting {
-                        ProgressView()
-                            .scaleEffect(0.78)
-                            .tint(hasSelection ? themeManager.textPrimary : themeManager.textSecondary)
-                    } else {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
-                            .foregroundStyle(hasSelection ? themeManager.textPrimary : themeManager.textSecondary)
-                    }
-                }
-
-                SelectionToolbarIconButton(
                     isEnabled: hasSelection,
+                    action: { onMoveTap?() }
+                ),
+                .icon(
+                    id: "export",
+                    systemName: "square.and.arrow.up",
+                    title: localized("Export"),
+                    accessibilityLabel: localized("Export selected decks"),
+                    isEnabled: hasSelection && !viewModel.isExporting,
+                    showsProgress: viewModel.isExporting,
+                    action: { viewModel.exportSelectedDecks(from: decks) }
+                ),
+                .icon(
+                    id: "delete",
+                    systemName: "trash",
+                    title: localized("Delete"),
                     accessibilityLabel: deleteAccessibilityLabel,
-                    badgeCount: selectedCount,
+                    isEnabled: hasSelection,
+                    tint: .destructive,
                     action: onDeleteTap
-                ) {
-                    Image(systemName: "trash")
-                        .font(.system(size: UIConstants.Size.selectionToolbarIcon, weight: .semibold))
-                        .foregroundStyle(hasSelection ? themeManager.dangerPrimary : themeManager.textSecondary)
-                }
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
-            .background { actionClusterBackground }
-        }
-        .frame(maxWidth: .infinity)
-        .animation(.selectionToolbarSpring, value: selectedCount)
+                )
+            ]
+        )
     }
 
     private var deleteAccessibilityLabel: String {

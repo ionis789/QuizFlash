@@ -10,8 +10,7 @@ import SwiftUI
 
 // MARK: - DeckProgressView
 
-/// Displays the deck's learning breakdown, quick aggregate stats, and the
-/// compact entry point to the deck activity history.
+/// Displays the deck's learning breakdown and quick aggregate stats.
 ///
 /// All inputs are pre-computed by `DeckViewModel` and `CardFetchActor`.
 /// The view remains rendering-only and performs no data fetching.
@@ -23,10 +22,8 @@ struct DeckProgressView: View {
 
     let progress: DeckProgressStats
     let stats: DeckStats
-    let deckCardCount: Int
     let activity: DeckTodayActivitySummary
     let deckTint: Color
-    let onOpenActivityHistory: () -> Void
 
     private var dueTint: Color {
         stats.dueCards > 0 ? themeManager.roleColor(.buttonDangerFill) : deckTint
@@ -62,10 +59,7 @@ struct DeckProgressView: View {
     }
 
     private var summarySeparator: some View {
-        Rectangle()
-            .fill(Color.white.opacity(0.08))
-            .frame(height: 1)
-            .padding(.horizontal, 6)
+        AppSectionSeparator()
             .padding(.bottom, 2)
     }
 
@@ -75,8 +69,6 @@ struct DeckProgressView: View {
                 Text(summaryValueText)
                     .font(.system(size: 56, weight: .black, design: .rounded))
                     .foregroundStyle(themeManager.textPrimary)
-                    .contentTransition(.numericText())
-                    .statusTextMotion(trigger: activity.uniqueCardsReviewed)
 
                 Text(summaryLabelText)
                     .font(.system(size: 24, weight: .heavy, design: .rounded))
@@ -84,6 +76,9 @@ struct DeckProgressView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .transaction { transaction in
+                transaction.animation = nil
+            }
 
             DeckIntegratedMasteryRing(
                 mastery: stats.deckMastery,
@@ -118,29 +113,26 @@ struct DeckProgressView: View {
             )
         }
         .padding(.top, 2)
+        .transaction { transaction in
+            transaction.animation = nil
+        }
     }
 
     private var progressBlock: some View {
-        VStack(alignment: .trailing, spacing: 12) {
-            DeckProgressSurface(
-                highlight: deckTint,
-                cornerRadius: 26
-            ) {
-                VStack(alignment: .leading, spacing: 14) {
-                    DeckSegmentedProgressBar(
-                        progress: progress,
-                        learningTint: deckTint,
-                        animationValue: deckCardCount
-                    )
-                    legend
-                }
+        DeckProgressSurface(
+            highlight: deckTint,
+            cornerRadius: 26
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                DeckSegmentedProgressBar(
+                    progress: progress,
+                    learningTint: deckTint
+                )
+                legend
             }
-
-            DeckHistoryExpandButton(
-                tint: deckTint,
-                action: onOpenActivityHistory
-            )
-            .padding(.trailing, 6)
+        }
+        .transaction { transaction in
+            transaction.animation = nil
         }
     }
 
@@ -175,21 +167,24 @@ private struct DeckProgressSurface<Content: View>: View {
 
     let highlight: Color
     let cornerRadius: CGFloat
+    let contentPadding: CGFloat
     let content: Content
 
     init(
         highlight: Color,
         cornerRadius: CGFloat = 30,
+        contentPadding: CGFloat = 20,
         @ViewBuilder content: () -> Content
     ) {
         self.highlight = highlight
         self.cornerRadius = cornerRadius
+        self.contentPadding = contentPadding
         self.content = content()
     }
 
     var body: some View {
         content
-            .padding(20)
+            .padding(contentPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -210,7 +205,6 @@ private struct DeckProgressSurface<Content: View>: View {
 private struct DeckSegmentedProgressBar: View {
     let progress: DeckProgressStats
     let learningTint: Color
-    let animationValue: Int
 
     var body: some View {
         GeometryReader { geo in
@@ -233,7 +227,6 @@ private struct DeckSegmentedProgressBar: View {
             }
         }
         .frame(height: 16)
-        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: animationValue)
     }
 }
 
@@ -270,9 +263,10 @@ private struct DeckMetricTile: View {
     var body: some View {
         DeckProgressSurface(
             highlight: highlight,
-            cornerRadius: 24
+            cornerRadius: 24,
+            contentPadding: 10
         ) {
-            VStack(spacing: 8) {
+            VStack(spacing: 5) {
                 Text(title)
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
@@ -283,7 +277,7 @@ private struct DeckMetricTile: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
             }
-            .frame(maxWidth: .infinity, minHeight: 72, alignment: .center)
+            .frame(maxWidth: .infinity, minHeight: 50, alignment: .center)
             .multilineTextAlignment(.center)
         }
     }
@@ -301,43 +295,5 @@ private struct DeckIntegratedMasteryRing: View {
             strokeWidth: 14
         )
         .frame(width: 144, height: 144)
-    }
-}
-
-private struct DeckHistoryExpandButton: View {
-    @Environment(AppPreferences.self) private var appPreferences
-    @Environment(ThemeManager.self) private var themeManager
-
-    let tint: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 12, weight: .black))
-
-                Text(AppLocalization.string("History", locale: appPreferences.resolvedLocale))
-                    .font(.system(size: 12, weight: .black, design: .rounded))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(themeManager.textPrimary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(themeManager.surfacePrimary)
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .fill(tint.opacity(0.12))
-                    }
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
-                    }
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(AppLocalization.string("Open activity history", locale: appPreferences.resolvedLocale))
     }
 }

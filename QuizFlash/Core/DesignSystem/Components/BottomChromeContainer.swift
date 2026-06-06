@@ -61,7 +61,7 @@ enum BottomChromeInsets {
         isPresentedInFullScreenSheet: Bool
     ) -> CGFloat {
         if isPresentedInFullScreenSheet {
-            return selection(physicalSafeBottom: physicalSafeBottom)
+            return selection(physicalSafeBottom: physicalSafeBottom) + UIConstants.Spacing.large
         }
         return persistent
     }

@@ -54,6 +54,11 @@ struct FlashcardGridLeafLayoutDebugSnapshot: Equatable {
     let highlightColor: HighlightColor
     let containsMath: Bool
     let containsInlineCode: Bool
+    let rawTextCharacterCount: Int
+    let rawTextLineCount: Int
+    let rawText: String
+    let normalizedDisplayText: String
+    let healedDisplayText: String
     let textCharacterCount: Int
     let textLineCount: Int
     let estimatedLineWidths: [CGFloat]
@@ -90,6 +95,30 @@ private struct FlashcardGridZoneWidthPreferenceKey: PreferenceKey {
     }
 }
 
+enum FlashcardGridLeafTapBehavior {
+    case all
+    case richContentOnly
+    case none
+
+    var allowsRichContentTap: Bool {
+        switch self {
+        case .all, .richContentOnly:
+            return true
+        case .none:
+            return false
+        }
+    }
+
+    var allowsPlainTextTap: Bool {
+        switch self {
+        case .all:
+            return true
+        case .richContentOnly, .none:
+            return false
+        }
+    }
+}
+
 private struct FlashcardGridLeafMeasurementIdentity: Equatable {
     let id: UUID
     let contentType: ZoneContentType
@@ -106,7 +135,62 @@ private struct FlashcardGridLeafMeasurementIdentity: Equatable {
     let fontFamily: FontFamily
     let fontScale: CGFloat
     let textVerticalPadding: CGFloat
+    let textHorizontalPaddingOverride: CGFloat?
     let availableWidth: CGFloat
+}
+
+private enum FlashcardGridDisplayTextNormalizer {
+    static func textZoneDisplayText(_ rawText: String) -> String {
+        let strippedText = MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(rawText)
+        if strippedText.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("```") {
+            return strippedText
+                .replacingOccurrences(of: "\r\n", with: "\n")
+                .replacingOccurrences(of: "\r", with: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return normalizeEditorLineWrapping(in: strippedText)
+    }
+
+    /// Play surfaces own their own wrapping. The editor may contain manual
+    /// single-newline wraps because raw LaTeX is wider than rendered KaTeX; those
+    /// wraps should not force bad line breaks in flashcard or quiz playback.
+    private static func normalizeEditorLineWrapping(in text: String) -> String {
+        let normalizedNewlines = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+
+        guard normalizedNewlines.contains("\n") else {
+            return normalizedNewlines.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        var paragraphs: [String] = []
+        var currentLines: [String] = []
+
+        for line in normalizedNewlines.components(separatedBy: "\n") {
+            let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedLine.isEmpty {
+                if !currentLines.isEmpty {
+                    paragraphs.append(currentLines.joined(separator: " "))
+                    currentLines = []
+                }
+            } else {
+                currentLines.append(trimmedLine)
+            }
+        }
+
+        if !currentLines.isEmpty {
+            paragraphs.append(currentLines.joined(separator: " "))
+        }
+
+        return paragraphs
+            .map { paragraph in
+                paragraph.replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
+            }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 private struct FlashcardGridContainerMeasurementIdentity: Equatable {
@@ -207,8 +291,11 @@ struct FlashcardGridFaceView: View {
     var showsZoneSurfaces: Bool = true
     var showsCodeBlockZoneSurfaces: Bool = false
     var usesBorderOnlyZoneHighlights: Bool = false
+    var zoneHighlightStrokeStyle: StrokeStyle = StrokeStyle(lineWidth: 2)
     var textVerticalPadding: CGFloat = FlashcardGridContentMetrics.textVerticalPadding
+    var textHorizontalPaddingOverride: CGFloat? = nil
     let collectsDebugMetrics: Bool
+    var leafTapBehavior: FlashcardGridLeafTapBehavior = .all
     var onTap: (() -> Void)?
     var onRootBlockWidthChange: ((CGFloat) -> Void)?
 
@@ -224,8 +311,11 @@ struct FlashcardGridFaceView: View {
             showsZoneSurfaces: showsZoneSurfaces,
             showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
             usesBorderOnlyZoneHighlights: usesBorderOnlyZoneHighlights,
+            zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
             textVerticalPadding: textVerticalPadding,
+            textHorizontalPaddingOverride: textHorizontalPaddingOverride,
             collectsDebugMetrics: collectsDebugMetrics,
+            leafTapBehavior: leafTapBehavior,
             onTap: onTap
         )
         .frame(width: max(availableWidth, 1), alignment: .topLeading)
@@ -259,8 +349,11 @@ private struct FlashcardGridZonePreview: View {
     let showsZoneSurfaces: Bool
     let showsCodeBlockZoneSurfaces: Bool
     let usesBorderOnlyZoneHighlights: Bool
+    let zoneHighlightStrokeStyle: StrokeStyle
     let textVerticalPadding: CGFloat
+    let textHorizontalPaddingOverride: CGFloat?
     let collectsDebugMetrics: Bool
+    let leafTapBehavior: FlashcardGridLeafTapBehavior
     var onTap: (() -> Void)?
 
     @State private var measuredDirectChildWidths: [String: CGFloat] = [:]
@@ -278,8 +371,11 @@ private struct FlashcardGridZonePreview: View {
                 showsZoneSurfaces: showsZoneSurfaces,
                 showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
                 usesBorderOnlyZoneHighlights: usesBorderOnlyZoneHighlights,
+                zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
                 textVerticalPadding: textVerticalPadding,
+                textHorizontalPaddingOverride: textHorizontalPaddingOverride,
                 collectsDebugMetrics: collectsDebugMetrics,
+                leafTapBehavior: leafTapBehavior,
                 onTap: onTap
             )
         } else {
@@ -310,8 +406,11 @@ private struct FlashcardGridZonePreview: View {
                         showsZoneSurfaces: showsZoneSurfaces,
                         showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
                         usesBorderOnlyZoneHighlights: usesBorderOnlyZoneHighlights,
+                        zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
                         textVerticalPadding: textVerticalPadding,
+                        textHorizontalPaddingOverride: textHorizontalPaddingOverride,
                         collectsDebugMetrics: collectsDebugMetrics,
+                        leafTapBehavior: leafTapBehavior,
                         onTap: onTap
                     )
                     .frame(width: childWidth, alignment: .topLeading)
@@ -338,8 +437,11 @@ private struct FlashcardGridZonePreview: View {
                         showsZoneSurfaces: showsZoneSurfaces,
                         showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
                         usesBorderOnlyZoneHighlights: usesBorderOnlyZoneHighlights,
+                        zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
                         textVerticalPadding: textVerticalPadding,
+                        textHorizontalPaddingOverride: textHorizontalPaddingOverride,
                         collectsDebugMetrics: collectsDebugMetrics,
+                        leafTapBehavior: leafTapBehavior,
                         onTap: onTap
                     )
                     .frame(width: availableWidth, alignment: .topLeading)
@@ -402,7 +504,8 @@ private struct FlashcardGridZonePreview: View {
                     for: $0,
                     fontScale: fontScale,
                     availableWidth: availableWidth,
-                    textVerticalPadding: textVerticalPadding
+                    textVerticalPadding: textVerticalPadding,
+                    textHorizontalPaddingOverride: textHorizontalPaddingOverride
                 )
             }
             .max() ?? availableWidth
@@ -421,7 +524,7 @@ private struct FlashcardGridZonePreview: View {
             switch child.contentType {
             case .text, .code, .empty:
                 return min(
-                    max(FlashcardGridContentMetrics.textHorizontalPadding + 8, 1),
+                    max(resolvedTextHorizontalPadding + 8, 1),
                     availableWidth
                 )
             case .image, .sketch:
@@ -464,8 +567,13 @@ private struct FlashcardGridZonePreview: View {
             fontFamily: child.fontFamily,
             fontScale: fontScale,
             textVerticalPadding: ceil(textVerticalPadding),
+            textHorizontalPaddingOverride: textHorizontalPaddingOverride.map(ceil),
             availableWidth: ceil(availableWidth)
         )
+    }
+
+    private var resolvedTextHorizontalPadding: CGFloat {
+        textHorizontalPaddingOverride ?? FlashcardGridContentMetrics.textHorizontalPadding
     }
 }
 
@@ -482,8 +590,11 @@ private struct FlashcardGridLeafPreview: View {
     let showsZoneSurfaces: Bool
     let showsCodeBlockZoneSurfaces: Bool
     let usesBorderOnlyZoneHighlights: Bool
+    let zoneHighlightStrokeStyle: StrokeStyle
     let textVerticalPadding: CGFloat
+    let textHorizontalPaddingOverride: CGFloat?
     let collectsDebugMetrics: Bool
+    let leafTapBehavior: FlashcardGridLeafTapBehavior
     var onTap: (() -> Void)?
 
     @State private var renderedContentSize: CGSize = .zero
@@ -498,7 +609,8 @@ private struct FlashcardGridLeafPreview: View {
             spec: CardZoneLayoutSpec(
                 availableWidth: availableWidth,
                 fontScale: fontScale,
-                textVerticalPadding: textVerticalPadding
+                textVerticalPadding: textVerticalPadding,
+                textHorizontalPaddingOverride: textHorizontalPaddingOverride
             ),
             measuredContentSize: renderedContentSize
         )
@@ -598,6 +710,7 @@ private struct FlashcardGridLeafPreview: View {
             fontFamily: zone.fontFamily,
             fontScale: fontScale,
             textVerticalPadding: ceil(textVerticalPadding),
+            textHorizontalPaddingOverride: textHorizontalPaddingOverride.map(ceil),
             availableWidth: ceil(availableWidth)
         )
     }
@@ -615,7 +728,7 @@ private struct FlashcardGridLeafPreview: View {
                     .overlay {
                         if let tint {
                             RoundedRectangle(cornerRadius: FlashcardGridContentMetrics.zoneCornerRadius, style: .continuous)
-                                .strokeBorder(tint.opacity(0.86), lineWidth: 2)
+                                .strokeBorder(tint.opacity(0.86), style: zoneHighlightStrokeStyle)
                         }
                     }
                     .shadow(color: tint?.opacity(0.16) ?? .clear, radius: tint == nil ? 0 : 3)
@@ -751,7 +864,7 @@ private struct FlashcardGridLeafPreview: View {
                     onScrollableDebugChange: scrollableDebugHandler,
                     onGestureDebugChange: gestureDebugHandler,
                     showsRenderDebugBounds: showsDebugGuides || collectsDebugMetrics,
-                    onTap: onTap
+                    onTap: leafTapBehavior.allowsRichContentTap ? onTap : nil
                 )
                 .padding(.vertical, textVerticalPadding / 2)
                 .padding(.horizontal, layout.textHorizontalInsets / 2)
@@ -770,7 +883,7 @@ private struct FlashcardGridLeafPreview: View {
                             )
                         )
                     },
-                    onTap: onTap
+                    onTap: leafTapBehavior.allowsPlainTextTap ? onTap : nil
                 )
                 .padding(.vertical, textVerticalPadding / 2)
                 .padding(.horizontal, layout.textHorizontalInsets / 2)
@@ -829,9 +942,13 @@ private struct FlashcardGridLeafPreview: View {
             ? FlashcardGridContentMetrics.bulletWidth + FlashcardGridContentMetrics.bulletSpacing
             : 0
         return min(
-            max(FlashcardGridContentMetrics.textHorizontalPadding + bulletInset + 8, 1),
+            max(resolvedTextHorizontalPadding + bulletInset + 8, 1),
             availableWidth
         )
+    }
+
+    private var resolvedTextHorizontalPadding: CGFloat {
+        textHorizontalPaddingOverride ?? FlashcardGridContentMetrics.textHorizontalPadding
     }
 
     private var minimumValidRenderedHeight: CGFloat {
@@ -839,6 +956,7 @@ private struct FlashcardGridLeafPreview: View {
     }
 
     private func debugSnapshot(layout: CardZoneLayoutResult) -> FlashcardGridLeafLayoutDebugSnapshot {
+        let rawText = zone.text
         let displayText = zone.contentType == .text ? displayText(for: zone) : zone.text
         let healedText = MathTextSanitizer.heal(displayText)
         let containsMath = MathTextSanitizer.containsMath(healedText)
@@ -887,6 +1005,11 @@ private struct FlashcardGridLeafPreview: View {
             highlightColor: zone.highlightColor,
             containsMath: containsMath,
             containsInlineCode: containsInlineCode,
+            rawTextCharacterCount: rawText.count,
+            rawTextLineCount: max(rawText.components(separatedBy: .newlines).count, 1),
+            rawText: rawText,
+            normalizedDisplayText: displayText,
+            healedDisplayText: healedText,
             textCharacterCount: displayText.count,
             textLineCount: max(displayText.components(separatedBy: .newlines).count, 1),
             estimatedLineWidths: estimatedLineWidths.map(ceil),
@@ -915,7 +1038,7 @@ private struct FlashcardGridLeafPreview: View {
     private func displayText(for zone: ZoneModel) -> String {
         switch zone.contentType {
         case .text:
-            return MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
+            return FlashcardGridDisplayTextNormalizer.textZoneDisplayText(zone.text)
         default:
             return zone.text
         }
@@ -985,10 +1108,7 @@ private struct FlashcardPlainTextBlockView: View {
             }
         }
         .frame(width: max(availableWidth, layout.size.width), alignment: frameAlignment)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onTap?()
-        }
+        .flashcardPlainTextTap(onTap)
         .onAppear {
             onIntrinsicContentSizeChange?(layout.size)
         }
@@ -1005,6 +1125,18 @@ private struct FlashcardPlainTextBlockView: View {
             return .top
         case .trailing:
             return .topTrailing
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func flashcardPlainTextTap(_ onTap: (() -> Void)?) -> some View {
+        if let onTap {
+            contentShape(Rectangle())
+                .onTapGesture(perform: onTap)
+        } else {
+            self
         }
     }
 }
@@ -1394,7 +1526,8 @@ enum FlashcardGridContentEstimator {
         for zone: ZoneModel,
         fontScale: CGFloat,
         availableWidth: CGFloat,
-        textVerticalPadding: CGFloat = FlashcardGridContentMetrics.textVerticalPadding
+        textVerticalPadding: CGFloat = FlashcardGridContentMetrics.textVerticalPadding,
+        textHorizontalPaddingOverride: CGFloat? = nil
     ) -> CGSize {
         let clampedWidth = max(availableWidth, 1)
 
@@ -1407,7 +1540,8 @@ enum FlashcardGridContentEstimator {
                 for: zone,
                 fontScale: fontScale,
                 availableWidth: clampedWidth,
-                textVerticalPadding: textVerticalPadding
+                textVerticalPadding: textVerticalPadding,
+                textHorizontalPaddingOverride: textHorizontalPaddingOverride
             )
         }
 
@@ -1423,7 +1557,8 @@ enum FlashcardGridContentEstimator {
                     for: $0,
                     fontScale: fontScale,
                     availableWidth: clampedWidth,
-                    textVerticalPadding: textVerticalPadding
+                    textVerticalPadding: textVerticalPadding,
+                    textHorizontalPaddingOverride: textHorizontalPaddingOverride
                 )
             }
             let totalHeight = childSizes.reduce(CGFloat(0)) { $0 + $1.height }
@@ -1443,7 +1578,8 @@ enum FlashcardGridContentEstimator {
                     for: $0,
                     fontScale: fontScale,
                     availableWidth: childWidth,
-                    textVerticalPadding: textVerticalPadding
+                    textVerticalPadding: textVerticalPadding,
+                    textHorizontalPaddingOverride: textHorizontalPaddingOverride
                 )
             }
             let totalWidth = childSizes.reduce(CGFloat(0)) { $0 + $1.width } + spacingTotal
@@ -1460,7 +1596,8 @@ enum FlashcardGridContentEstimator {
         for zone: ZoneModel,
         fontScale: CGFloat,
         availableWidth: CGFloat,
-        textVerticalPadding: CGFloat = FlashcardGridContentMetrics.textVerticalPadding
+        textVerticalPadding: CGFloat = FlashcardGridContentMetrics.textVerticalPadding,
+        textHorizontalPaddingOverride: CGFloat? = nil
     ) -> CGFloat {
         let clampedWidth = max(availableWidth, 1)
 
@@ -1473,14 +1610,16 @@ enum FlashcardGridContentEstimator {
                 for: zone,
                 fontScale: fontScale,
                 availableWidth: clampedWidth,
-                textVerticalPadding: textVerticalPadding
+                textVerticalPadding: textVerticalPadding,
+                textHorizontalPaddingOverride: textHorizontalPaddingOverride
             )
             let layout = CardZoneLayoutEngine.leafLayout(
                 for: zone,
                 spec: CardZoneLayoutSpec(
                     availableWidth: clampedWidth,
                     fontScale: fontScale,
-                    textVerticalPadding: textVerticalPadding
+                    textVerticalPadding: textVerticalPadding,
+                    textHorizontalPaddingOverride: textHorizontalPaddingOverride
                 ),
                 measuredContentSize: measuredSize
             )
@@ -1499,7 +1638,8 @@ enum FlashcardGridContentEstimator {
                         for: $0,
                         fontScale: fontScale,
                         availableWidth: clampedWidth,
-                        textVerticalPadding: textVerticalPadding
+                        textVerticalPadding: textVerticalPadding,
+                        textHorizontalPaddingOverride: textHorizontalPaddingOverride
                     )
                 }
                 .max() ?? 1
@@ -1509,7 +1649,8 @@ enum FlashcardGridContentEstimator {
                 for: zone,
                 fontScale: fontScale,
                 availableWidth: clampedWidth,
-                textVerticalPadding: textVerticalPadding
+                textVerticalPadding: textVerticalPadding,
+                textHorizontalPaddingOverride: textHorizontalPaddingOverride
             )
             .width
         }
@@ -1520,7 +1661,7 @@ enum FlashcardGridContentEstimator {
         fontScale: CGFloat,
         availableWidth: CGFloat
     ) -> [CGFloat] {
-        let displayText = MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
+        let displayText = FlashcardGridDisplayTextNormalizer.textZoneDisplayText(zone.text)
         return measuredTextLayout(
             displayText,
             zone: zone,
@@ -1534,15 +1675,16 @@ enum FlashcardGridContentEstimator {
         for zone: ZoneModel,
         fontScale: CGFloat,
         availableWidth: CGFloat,
-        textVerticalPadding: CGFloat
+        textVerticalPadding: CGFloat,
+        textHorizontalPaddingOverride: CGFloat?
     ) -> CGSize {
         switch zone.contentType {
         case .empty:
             return CGSize(width: 1, height: 36)
 
         case .text:
-            let displayText = MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
-            let horizontalInsets = textHorizontalPadding
+            let displayText = FlashcardGridDisplayTextNormalizer.textZoneDisplayText(zone.text)
+            let horizontalInsets = textHorizontalPaddingOverride ?? textHorizontalPadding
             let bulletInset = zone.hasBullet && !displayText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? bulletWidth + bulletSpacing
                 : 0

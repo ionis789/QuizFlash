@@ -30,8 +30,8 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
         {
           "order": "studyPriority",
           "retryWrongCards": true,
-          "revealFlow": "questionFirst",
-          "flipBehavior": "tapToFlip",
+          "revealFlow": "answerFirst",
+          "flipBehavior": "locked",
           "tapAnimationStyle": "flip3D",
           "staticSwapTextMotion": "animated"
         }
@@ -41,6 +41,14 @@ final class DeckPlayModeSettingsStoreTests: XCTestCase {
 
         XCTAssertEqual(decoded.contentAlignment, .center)
         XCTAssertEqual(decoded.textSize, .large)
+    }
+
+    func testFlashcardSettingsEncodingDropsRemovedFaceAndFlipFields() throws {
+        let encoded = try JSONEncoder().encode(FlashcardModeSettings())
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+
+        XCTAssertNil(payload["revealFlow"])
+        XCTAssertNil(payload["flipBehavior"])
     }
 
     func testFlashcardSettingsDecodeSchemaTwoPreservesSavedContentAlignmentAndDefaultsTextSizeToLarge() throws {

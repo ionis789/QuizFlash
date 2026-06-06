@@ -34,17 +34,12 @@ extension DeckWorkspaceView {
                 bottomPadding: BottomChromeInsets.selectionInEditor(
                     viewSafeBottom: viewSafeBottom,
                     physicalSafeBottom: physicalSafeBottom,
-                    isPresentedInFullScreenSheet: false
+                    isPresentedInFullScreenSheet: sheetSafeAreaInsets != nil
                 )
             ) {
                 DeckWorkspaceSelectionBottomBar(
                     selectedCount: viewModel.selectedDraftCardCount,
                     allSelected: viewModel.areAllDraftCardsSelected,
-                    onDone: {
-                        withBottomChromeAnimation {
-                            viewModel.exitCardSelectionMode()
-                        }
-                    },
                     onToggleSelectAll: {
                         withAnimation(.selectionToolbarSpring) {
                             viewModel.toggleSelectAllDraftCards()
@@ -63,7 +58,7 @@ extension DeckWorkspaceView {
 
     // MARK: 2. Cards List Content
     func cardsListContent(using scrollProxy: ScrollViewProxy) -> some View {
-        LazyVStack(spacing: 16) {
+        LazyVStack(spacing: UIConstants.Spacing.medium) {
             mainCardsListContent(using: scrollProxy)
         }
             .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
@@ -260,15 +255,14 @@ extension DeckWorkspaceView {
             isSelecting: viewModel.isSelectingCards,
             isSelected: viewModel.selectedDraftCardIDs.contains(card.id),
             onPrimaryTap: {
-                if viewModel.isSelectingCards {
-                    withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
-                        viewModel.toggleSelection(for: card.id)
-                    }
-                } else {
-                    isTitleFocused = false
-                    viewModel.presentCardEditor(for: card)
-                }
+                isTitleFocused = false
+                viewModel.presentCardEditor(for: card)
             },
+            onToggleSelection: {
+                withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+                    viewModel.toggleSelection(for: card.id)
+                }
+            }
         )
         .equatable()
             .transition(
@@ -394,7 +388,10 @@ extension DeckWorkspaceView {
         isTitleFocused = false
         exitDraftSelectionModeForExternalAction()
         allowDismissWithoutConfirmation = true
-        let didStartDismissFlow = viewModel.saveDeck(context: context)
+        let didStartDismissFlow = viewModel.saveDeck(
+            context: context,
+            onSuccessfulSave: onSuccessfulSave
+        )
         if !didStartDismissFlow {
             allowDismissWithoutConfirmation = false
         } else {
@@ -461,6 +458,11 @@ extension DeckWorkspaceView {
             return
         }
 
+        if let fullScreenSheetDismiss {
+            fullScreenSheetDismiss()
+            return
+        }
+
         dismiss()
     }
 
@@ -491,19 +493,35 @@ extension DeckWorkspaceView {
             let lhsDate = lhs.createdAt ?? .distantPast
             let rhsDate = rhs.createdAt ?? .distantPast
 
+            if appPreferences.createDeckSortOrder == .type {
+                if lhs.kind != rhs.kind {
+                    return lhs.kind.sortPriority < rhs.kind.sortPriority
+                }
+
+                if lhs.cardNumber != rhs.cardNumber {
+                    return lhs.cardNumber < rhs.cardNumber
+                }
+
+                if lhsDate != rhsDate {
+                    return lhsDate < rhsDate
+                }
+
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+
             if lhsDate != rhsDate {
-                return appPreferences.createDeckSortOrder == .newest
+                return appPreferences.createDeckSortOrder.usesNewestFallback
                     ? lhsDate > rhsDate
                     : lhsDate < rhsDate
             }
 
             if lhs.cardNumber != rhs.cardNumber {
-                return appPreferences.createDeckSortOrder == .newest
+                return appPreferences.createDeckSortOrder.usesNewestFallback
                     ? lhs.cardNumber > rhs.cardNumber
                     : lhs.cardNumber < rhs.cardNumber
             }
 
-            return appPreferences.createDeckSortOrder == .newest
+            return appPreferences.createDeckSortOrder.usesNewestFallback
                 ? lhs.id.uuidString > rhs.id.uuidString
                 : lhs.id.uuidString < rhs.id.uuidString
         }
@@ -532,6 +550,23 @@ extension DeckWorkspaceView {
                   !viewModel.hasPendingAISource else { return }
             viewModel.showAIPickerOptions = true
         }
+    }
+}
+
+private extension CardKind {
+    var sortPriority: Int {
+        switch self {
+        case .flashcard:
+            return 0
+        case .quiz:
+            return 1
+        }
+    }
+}
+
+private extension CreateDeckSortOrder {
+    var usesNewestFallback: Bool {
+        self == .newest
     }
 }
 

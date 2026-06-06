@@ -5,6 +5,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 // MARK: - Subviews
 extension DeckWorkspaceView {
@@ -33,11 +34,17 @@ extension DeckWorkspaceView {
     @ViewBuilder
     func navigationChrome(
         containerWidth _: CGFloat,
-        safeTopInset _: CGFloat
+        safeTopInset: CGFloat
     ) -> some View {
         let horizontalInset = UIConstants.Layout.compactScreenEdgeInset
 
-        navigationBarContent(horizontalInset: horizontalInset, appliesTopNavigationChrome: true)
+        if safeTopInset > 0 {
+            navigationBarContent(horizontalInset: horizontalInset, appliesTopNavigationChrome: false)
+                .padding(.horizontal, horizontalInset)
+                .padding(.top, safeTopInset + UIConstants.Layout.deckNavigationTopPadding)
+        } else {
+            navigationBarContent(horizontalInset: horizontalInset, appliesTopNavigationChrome: true)
+        }
     }
 
     func navigationBarContent(horizontalInset: CGFloat, appliesTopNavigationChrome: Bool) -> some View {
@@ -198,19 +205,27 @@ extension DeckWorkspaceView {
 
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: UIConstants.Spacing.small) {
-                CreateDeckHeaderStatChip(symbol: "rectangle.stack", text: localizedFormat("%d cards", summary.cardCount))
-                CreateDeckHeaderStatChip(symbol: "square.grid.2x2", text: localizedFormat("zones(%d)", summary.filledContentBlockCount))
+                if summary.cardCount > 0 {
+                    CreateDeckHeaderStatChip(symbol: "rectangle.stack", text: localizedFormat("%d cards", summary.cardCount))
+                }
                 if summary.flashcardCount > 0 {
                     CreateDeckHeaderStatChip(symbol: "rectangle.on.rectangle", text: localizedFormat("%d flashcards", summary.flashcardCount))
                 }
                 if summary.quizCount > 0 {
                     CreateDeckHeaderStatChip(symbol: "checklist", text: localizedFormat("%d quiz", summary.quizCount))
                 }
-                CreateDeckHeaderStatChip(symbol: "textformat", text: localizedFormat("%d chars", summary.characterCount))
-                CreateDeckHeaderStatChip(symbol: "photo", text: localizedFormat("%d photos", summary.photoCount))
-                CreateDeckHeaderStatChip(symbol: "pencil.and.outline", text: localizedFormat("%d sketches", summary.sketchCount))
-                CreateDeckHeaderStatChip(symbol: "hand.tap", text: localizedFormat("%d manual", summary.manualCardCount))
-                CreateDeckHeaderStatChip(symbol: "sparkles", text: localizedFormat("%d AI", summary.aiCardCount), tint: accent)
+                if summary.photoCount > 0 {
+                    CreateDeckHeaderStatChip(symbol: "photo", text: localizedFormat("%d photos", summary.photoCount))
+                }
+                if summary.sketchCount > 0 {
+                    CreateDeckHeaderStatChip(symbol: "pencil.and.outline", text: localizedFormat("%d sketches", summary.sketchCount))
+                }
+                if summary.aiCardCount > 0 {
+                    CreateDeckHeaderStatChip(symbol: "sparkles", text: localizedFormat("%d AI", summary.aiCardCount), tint: accent)
+                }
+                if summary.manualCardCount > 0 {
+                    CreateDeckHeaderStatChip(symbol: "hand.tap", text: localizedFormat("%d manual", summary.manualCardCount))
+                }
             }
             .padding(.vertical, 2)
         }
@@ -357,14 +372,15 @@ extension DeckWorkspaceView {
         Menu {
             addCardTypeButtons
         } label: {
-            CreateDeckChromeCircleSurface {
-                CreateDeckChromeButtonLabel(
-                    symbol: "plus",
-                    tint: themeManager.roleColor(.buttonDangerForeground)
-                )
-            }
+            ChromeSoftCircleSymbol(
+                systemName: "plus",
+                size: UIConstants.Size.actionButton,
+                symbolSize: UIConstants.Size.iconStandard,
+                tint: themeManager.roleColor(.buttonDangerForeground),
+                backgroundTint: themeManager.roleColor(.buttonDangerFill)
+            )
         }
-        .quizFlashButtonStyle(.accentAlt, shape: .circle, size: UIConstants.Size.actionButton)
+        .buttonStyle(.plain)
         .accessibilityLabel(localized("Choose card type"))
     }
 
@@ -386,48 +402,21 @@ extension DeckWorkspaceView {
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: shouldShowFloatingGenerate)
     }
 
-    var moreMenuContents: some View {
-        Group {
-            Menu {
-                ForEach(CreateDeckSortOrder.allCases) { sortOrder in
-                    Button {
-                        appPreferences.createDeckSortOrder = sortOrder
-                    } label: {
-                        if appPreferences.createDeckSortOrder == sortOrder {
-                            Label(sortOrder.localizedTitle(locale: locale), systemImage: "checkmark")
-                        } else {
-                            Text(sortOrder.localizedTitle(locale: locale))
-                        }
-                    }
+    func moreMenuContents(
+        prepareSelectionVisual: @escaping () -> Void = {},
+        finishMenuInteraction: @escaping () -> Void = {}
+    ) -> UIMenu {
+        var children: [UIMenuElement] = [
+            SelectionModeMenuElement.action(
+                title: viewModel.isSelectingCards ? localized("Done Selecting") : localized("Select Cards"),
+                systemImage: viewModel.isSelectingCards ? "checkmark" : "checkmark.circle",
+                isEnabled: viewModel.isSelectingCards || (!viewModel.isGenerating && !viewModel.draftCards.isEmpty)
+            ) {
+                if !viewModel.isSelectingCards {
+                    prepareSelectionVisual()
+                } else {
+                    finishMenuInteraction()
                 }
-            } label: {
-                Label(localized("Sort Cards"), systemImage: "arrow.up.arrow.down")
-            }
-            .disabled(viewModel.draftCards.count < 2)
-
-            if viewModel.isEditingExistingDeck {
-                Button {
-                    isTitleFocused = false
-                    withAnimation(.easeInOut(duration: UIConstants.Animation.standard)) {
-                        viewModel.revertToInitialState()
-                    }
-                } label: {
-                    Label(localized("Undo Changes"), systemImage: "arrow.uturn.backward")
-                }
-                .disabled(!viewModel.canUndoChanges)
-
-                Button(role: .destructive) {
-                    isTitleFocused = false
-                    showDeleteDeckConfirmation = true
-                } label: {
-                    Label(localized("Delete Deck"), systemImage: "trash")
-                }
-                .disabled(!viewModel.canDeleteDeck)
-
-                Divider()
-            }
-
-            Button(viewModel.isSelectingCards ? localized("Done Selecting") : localized("Select Cards")) {
                 isTitleFocused = false
                 withBottomChromeAnimation {
                     if viewModel.isSelectingCards {
@@ -437,8 +426,58 @@ extension DeckWorkspaceView {
                     }
                 }
             }
-            .disabled(!viewModel.isSelectingCards && (viewModel.isGenerating || viewModel.draftCards.isEmpty))
+        ]
+
+        if viewModel.isEditingExistingDeck {
+            children.append(
+                SelectionModeMenuElement.action(
+                    title: localized("Undo Changes"),
+                    systemImage: "arrow.uturn.backward",
+                    isEnabled: viewModel.canUndoChanges
+                ) {
+                    finishMenuInteraction()
+                    isTitleFocused = false
+                    withAnimation(.easeInOut(duration: UIConstants.Animation.standard)) {
+                        viewModel.revertToInitialState()
+                    }
+                }
+            )
+
+            children.append(
+                SelectionModeMenuElement.action(
+                    title: localized("Delete Deck"),
+                    systemImage: "trash",
+                    isEnabled: viewModel.canDeleteDeck,
+                    isDestructive: true
+                ) {
+                    finishMenuInteraction()
+                    isTitleFocused = false
+                    showDeleteDeckConfirmation = true
+                }
+            )
         }
+
+        children.append(editorSortMenu(finishMenuInteraction: finishMenuInteraction))
+        return UIMenu(children: children)
+    }
+
+    private func editorSortMenu(finishMenuInteraction: @escaping () -> Void) -> UIMenu {
+        UIMenu(
+            title: localized("Sort By"),
+            image: UIImage(systemName: "arrow.up.arrow.down"),
+            options: [],
+            children: CreateDeckSortOrder.allCases.map { sortOrder in
+                SelectionModeMenuElement.action(
+                    title: sortOrder.localizedTitle(locale: locale),
+                    systemImage: appPreferences.createDeckSortOrder == sortOrder ? "checkmark" : "arrow.up.arrow.down",
+                    isEnabled: viewModel.draftCards.count >= 2,
+                    state: appPreferences.createDeckSortOrder == sortOrder ? .on : .off
+                ) {
+                    finishMenuInteraction()
+                    appPreferences.createDeckSortOrder = sortOrder
+                }
+            }
+        )
     }
 
     var addCardTypeButtons: some View {
@@ -459,15 +498,22 @@ extension DeckWorkspaceView {
     }
 
     var moreActionsButton: some View {
-        Menu(content: { moreMenuContents }) {
-            ChromeSoftCircleSymbol(
-                systemName: "ellipsis",
-                size: UIConstants.Size.actionButton,
-                symbolSize: UIConstants.Size.iconStandard
+        SelectionModeMenuButton(
+            isSelecting: viewModel.isSelectingCards,
+            menuAccessibilityLabel: localized("More actions"),
+            doneAccessibilityLabel: localized("Done selecting draft cards"),
+            onDone: {
+                isTitleFocused = false
+                withBottomChromeAnimation {
+                    viewModel.exitCardSelectionMode()
+                }
+            }
+        ) { prepareSelectionVisual, finishMenuInteraction in
+            moreMenuContents(
+                prepareSelectionVisual: prepareSelectionVisual,
+                finishMenuInteraction: finishMenuInteraction
             )
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(localized("More actions"))
     }
 }
 

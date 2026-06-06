@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - Top Bar Button Style
 
@@ -90,32 +91,33 @@ struct LibraryTopBarTrailingAccessory: View {
 
 // MARK: - More Settings Button
 
-struct LibraryTopBarMoreSettingsButton<MenuContent: View>: View {
+struct LibraryTopBarMoreSettingsButton: View {
     @Environment(AppPreferences.self) private var appPreferences
-    @Environment(ThemeManager.self) private var themeManager
-    private let menuContent: () -> MenuContent
+    private let menu: (@escaping () -> Void, @escaping () -> Void) -> UIMenu
+    let isSelecting: Bool
+    let onDoneSelecting: () -> Void
     private let hitTargetSize = LibraryTopBarChromeMetrics.expandedHitTargetSize
 
     init(
-        @ViewBuilder menuContent: @escaping () -> MenuContent
+        isSelecting: Bool = false,
+        onDoneSelecting: @escaping () -> Void = {},
+        menu: @escaping (@escaping () -> Void, @escaping () -> Void) -> UIMenu
     ) {
-        self.menuContent = menuContent
+        self.isSelecting = isSelecting
+        self.onDoneSelecting = onDoneSelecting
+        self.menu = menu
     }
 
     var body: some View {
-        Menu {
-            menuContent()
-        } label: {
-            ChromeSoftCircleSymbol(
-                systemName: "ellipsis",
-                size: UIConstants.Size.actionButton,
-                symbolSize: UIConstants.Size.iconStandard
-            )
-        }
-        .buttonStyle(.plain)
+        SelectionModeMenuButton(
+            isSelecting: isSelecting,
+            menuAccessibilityLabel: AppLocalization.string("More library actions", locale: appPreferences.resolvedLocale),
+            doneAccessibilityLabel: AppLocalization.string("Done selecting decks", locale: appPreferences.resolvedLocale),
+            onDone: onDoneSelecting,
+            menu: menu
+        )
         .frame(width: hitTargetSize, height: hitTargetSize)
         .contentShape(Circle())
-        .accessibilityLabel(AppLocalization.string("More library actions", locale: appPreferences.resolvedLocale))
     }
 }
 

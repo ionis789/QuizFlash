@@ -16,14 +16,6 @@ struct AIGenerationSheetBackground: View {
     }
 }
 
-private enum AIGenerationSheetSection: Hashable {
-    case type
-    case level
-    case language
-    case extraction
-    case coverage
-}
-
 struct AIGenerationSheetView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
@@ -32,8 +24,9 @@ struct AIGenerationSheetView: View {
     var onPrimaryAction: () -> Void
     var onCancel: () -> Void
 
-    @State private var expandedSection: AIGenerationSheetSection? = .coverage
     @State private var selectedSourcePreview: AIGenerationSourcePreviewItem?
+    @State private var selectedSourcePreviewImage: UIImage?
+    @State private var sourcePreviewTask: Task<Void, Never>?
     @State private var headerHeight: CGFloat = 0
 
     private var accent: Color {
@@ -54,10 +47,6 @@ struct AIGenerationSheetView: View {
         viewModel.isPreparedSourcePDF
             ? AppLocalization.string("page", locale: appPreferences.resolvedLocale)
             : AppLocalization.string("image", locale: appPreferences.resolvedLocale)
-    }
-
-    private var sourceCountSummary: String {
-        "\(viewModel.preparedAISource?.itemCount ?? 0) \(sourceNounPlural)"
     }
 
     private var isPreparingSource: Bool {
@@ -81,16 +70,11 @@ struct AIGenerationSheetView: View {
                 header(safeTopInset: resolvedSafeTopInset)
                     .zIndex(2)
 
-                if let preview = selectedSourcePreview,
-                   let image = previewImage(for: preview) {
+                if selectedSourcePreview != nil {
                     SourcePreviewOverlay(
-                        image: image,
+                        image: selectedSourcePreviewImage,
                         safeAreaInsets: safeAreaInsets,
-                        onClose: {
-                            withAnimation(.easeInOut(duration: UIConstants.Animation.standard)) {
-                                selectedSourcePreview = nil
-                            }
-                        }
+                        onClose: closeSourcePreview
                     )
                     .transition(.opacity)
                     .zIndex(10)
@@ -114,97 +98,18 @@ struct AIGenerationSheetView: View {
     private func configurationLayout(bottomClearance: CGFloat) -> some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                sourceStatusCard
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                section(
+                    title: "Card Type",
+                    summary: generationSettingsSummary
+                ) {
+                    generationSettingsContent
+                }
 
                 section(
-                    .coverage,
                     title: "Source Coverage",
                     summary: coverageSummary
                 ) {
-                    sourcePreviewStrip
-                    distributionModePicker
-
-                    if viewModel.aiGenerationOptions.sourceDistributionMode == .auto {
-                        cardsCountCard
-                        autoCoverageSummary
-                    } else {
-                        manualCoverageEditor
-                    }
-                }
-
-                section(
-                    .type,
-                    title: "Card Type",
-                    summary: viewModel.aiGenerationOptions.cardType.localizedTitle(locale: appPreferences.resolvedLocale)
-                ) {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: UIConstants.Spacing.small) {
-                        ForEach(AICardGenerationType.allCases) { type in
-                            GenerationChoiceCard(
-                                title: type.localizedTitle(locale: appPreferences.resolvedLocale),
-                                subtitle: type.localizedSubtitle(locale: appPreferences.resolvedLocale),
-                                icon: type.systemImage,
-                                isSelected: viewModel.aiGenerationOptions.cardType == type
-                            ) {
-                                viewModel.aiGenerationOptions.cardType = type
-                            }
-                        }
-                    }
-                }
-
-                section(
-                    .level,
-                    title: "Card Level",
-                    summary: viewModel.aiGenerationOptions.cardLevel.localizedTitle(locale: appPreferences.resolvedLocale)
-                ) {
-                    VStack(spacing: UIConstants.Spacing.small) {
-                        ForEach(AICardGenerationLevel.allCases) { level in
-                            GenerationRowButton(
-                                title: level.localizedTitle(locale: appPreferences.resolvedLocale),
-                                subtitle: level.localizedSubtitle(locale: appPreferences.resolvedLocale),
-                                isSelected: viewModel.aiGenerationOptions.cardLevel == level
-                            ) {
-                                viewModel.aiGenerationOptions.cardLevel = level
-                            }
-                        }
-                    }
-                }
-
-                section(
-                    .language,
-                    title: "Output Language",
-                    summary: viewModel.aiGenerationOptions.localizedOutputLanguageSummary(locale: appPreferences.resolvedLocale)
-                ) {
-                    outputLanguagePicker
-                }
-
-                section(
-                    .extraction,
-                    title: "Extraction Mode",
-                    summary: viewModel.extractionMode == .fast ? "Fast" : "Quality"
-                ) {
-                    VStack(spacing: UIConstants.Spacing.small) {
-                        ModeButton(
-                            isSelected: viewModel.extractionMode == .fast,
-                            icon: "bolt.fill",
-                            iconColor: .yellow,
-                            title: "Fast",
-                            description: viewModel.isPreparedSourcePDF
-                                ? "Uses embedded text first, then local OCR when needed."
-                                : "Starts from local OCR text and keeps requests lighter.",
-                            onTap: { viewModel.extractionMode = .fast }
-                        )
-                        ModeButton(
-                            isSelected: viewModel.extractionMode == .quality,
-                            icon: "eye.fill",
-                            iconColor: .purple,
-                            title: "Quality",
-                            description: viewModel.isPreparedSourcePDF
-                                ? "Sends selected pages as rendered images to Vision."
-                                : "Sends selected images directly to Vision.",
-                            onTap: { viewModel.extractionMode = .quality }
-                        )
-                    }
+                    sourceCoverageContent
                 }
 
             }
@@ -232,48 +137,34 @@ struct AIGenerationSheetView: View {
     private var coverageSummary: String {
         switch viewModel.aiGenerationOptions.sourceDistributionMode {
         case .auto:
-            return "Auto · \(viewModel.requestedCardCount) cards · \(sourceCountSummary)"
+            return "Auto · \(viewModel.requestedCardCount) cards"
         case .manual:
-            let ranges = viewModel.manualAISourceAllocations.count
             let totalCards = viewModel.manualAllocatedCardCount
-            return "Manual · \(totalCards) cards · \(ranges) range\(ranges == 1 ? "" : "s")"
+            return "Manual · \(totalCards) cards"
         }
     }
 
+    private var generationSettingsSummary: String {
+        [
+            viewModel.aiGenerationOptions.cardType.localizedTitle(locale: appPreferences.resolvedLocale),
+            viewModel.aiGenerationOptions.cardLevel.localizedTitle(locale: appPreferences.resolvedLocale),
+            viewModel.aiGenerationOptions.localizedOutputLanguageSummary(locale: appPreferences.resolvedLocale)
+        ].joined(separator: " · ")
+    }
+
     private func header(safeTopInset: CGFloat) -> some View {
-        VStack(spacing: UIConstants.Spacing.small) {
-            Capsule()
-                .fill(Color.white.opacity(0.2))
-                .frame(width: 56, height: 5)
-                .accessibilityHidden(true)
+        HStack {
+            Spacer(minLength: 0)
 
-            ZStack {
-                VStack(spacing: 2) {
-                    Text(AppLocalization.string("Generate Cards with AI", locale: appPreferences.resolvedLocale))
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-
-                    Text(headerSubtitle)
-                        .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .bold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                HStack {
-                    Spacer(minLength: 0)
-
-                    ChromeSoftCircleSymbolButton(
-                        systemName: "xmark",
-                        accessibilityLabel: AppLocalization.string("Close", locale: appPreferences.resolvedLocale),
-                        action: requestCancel,
-                        symbolSize: UIConstants.Size.iconStandard
-                    )
-                    .frame(width: UIConstants.Size.actionButton, alignment: .trailing)
-                }
-            }
-            .frame(height: UIConstants.Size.capsuleHeight)
+            ChromeSoftCircleSymbolButton(
+                systemName: "xmark",
+                accessibilityLabel: AppLocalization.string("Close", locale: appPreferences.resolvedLocale),
+                action: requestCancel,
+                symbolSize: UIConstants.Size.iconStandard
+            )
+            .frame(width: UIConstants.Size.actionButton, alignment: .trailing)
         }
+        .frame(height: UIConstants.Size.actionButton)
         .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
         .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
         .background(alignment: .top) {
@@ -298,98 +189,30 @@ struct AIGenerationSheetView: View {
         }
     }
 
-    @ViewBuilder
-    private var sourceStatusCard: some View {
-        if let source = viewModel.preparedAISource {
-            HStack(spacing: UIConstants.Spacing.medium) {
-                ZStack {
-                    Circle()
-                        .fill((viewModel.pdfAnalysis?.isGoodForFast == false ? Color.orange : Color.green).opacity(0.16))
-                        .frame(width: 38, height: 38)
-
-                    Image(systemName: viewModel.pdfAnalysis?.qualityIcon ?? "checkmark")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(viewModel.pdfAnalysis?.isGoodForFast == false ? .orange : .green)
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(sourceStatusTitle)
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-
-                    Text(sourceStatusSubtitle(source: source))
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer(minLength: UIConstants.Spacing.small)
-
-                if let badge = sourceRecommendationBadge {
-                    Text(badge.title)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(badge.tint)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(badge.tint.opacity(0.14), in: Capsule())
-                }
-            }
-            .padding(.vertical, UIConstants.Spacing.small)
-        }
-    }
-
     private var cardsCountCard: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             HStack(alignment: .firstTextBaseline, spacing: UIConstants.Spacing.medium) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Cards Count")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-
-                    Text("Total cards for auto distribution.")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text("Cards")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
 
                 Spacer(minLength: UIConstants.Spacing.small)
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(viewModel.requestedCardCount)")
-                        .font(.system(size: 34, weight: .heavy, design: .rounded).monospacedDigit())
-                        .foregroundStyle(.primary)
-                        .statusTextMotion(trigger: viewModel.requestedCardCount)
-
-                    Text("cards")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                }
             }
 
-            VStack(spacing: UIConstants.Spacing.small) {
-                DiscreteValueSlider(
-                    value: viewModel.requestedCardCount,
-                    range: 1...100
-                ) { newValue in
-                    viewModel.setRequestedCardCount(newValue)
-                }
-
-                HStack {
-                    Text("1")
-                    Spacer()
-                    Text("100")
-                }
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.secondary)
+            CardCountControl(
+                value: viewModel.requestedCardCount,
+                range: 1...100,
+                presets: [5, 10, 15, 20, 30, 50, 100]
+            ) { newValue in
+                viewModel.setRequestedCardCount(newValue)
             }
         }
-        .padding(UIConstants.Spacing.large)
+        .padding(UIConstants.Spacing.standard)
         .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
     }
 
     @ViewBuilder
     private func section<Content: View>(
-        _ section: AIGenerationSheetSection,
         title: String,
         summary: String,
         @ViewBuilder content: @escaping () -> Content
@@ -397,38 +220,84 @@ struct AIGenerationSheetView: View {
         PlainGenerationSection(
             title: title,
             summary: summary,
-            isExpanded: expandedSection == section,
-            onToggle: {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                    expandedSection = expandedSection == section ? nil : section
-                }
-            },
             content: content
         )
+    }
+
+    private var generationSettingsContent: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            compactOptionRow(title: "Type") {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    ForEach(AICardGenerationType.allCases) { type in
+                        compactSelectionButton(
+                            title: type.localizedTitle(locale: appPreferences.resolvedLocale),
+                            isSelected: viewModel.aiGenerationOptions.cardType == type
+                        ) {
+                            viewModel.aiGenerationOptions.cardType = type
+                        }
+                    }
+                }
+            }
+
+            compactOptionRow(title: "Level") {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    ForEach(AICardGenerationLevel.allCases) { level in
+                        compactSelectionButton(
+                            title: level.localizedTitle(locale: appPreferences.resolvedLocale),
+                            isSelected: viewModel.aiGenerationOptions.cardLevel == level
+                        ) {
+                            viewModel.aiGenerationOptions.cardLevel = level
+                        }
+                    }
+                }
+            }
+
+            compactOptionRow(title: "Language") {
+                outputLanguageCompactPicker
+            }
+        }
+    }
+
+    private var sourceCoverageContent: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+            sourcePreviewStrip
+
+            compactOptionRow(title: "Distribution") {
+                HStack(spacing: UIConstants.Spacing.small) {
+                    compactSelectionButton(
+                        title: "Auto",
+                        isSelected: viewModel.aiGenerationOptions.sourceDistributionMode == .auto
+                    ) {
+                        viewModel.setSourceDistributionMode(.auto)
+                    }
+
+                    compactSelectionButton(
+                        title: "Manual",
+                        isSelected: viewModel.aiGenerationOptions.sourceDistributionMode == .manual
+                    ) {
+                        viewModel.setSourceDistributionMode(.manual)
+                    }
+                }
+            }
+
+            if viewModel.aiGenerationOptions.sourceDistributionMode == .auto {
+                cardsCountCard
+            } else {
+                manualCoverageEditor
+            }
+        }
     }
 
     @ViewBuilder
     private var sourcePreviewStrip: some View {
         if let source = viewModel.preparedAISource {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                HStack {
-                    Text("Selected source")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    Text("\(source.itemCount) \(sourceNounPlural) · \(source.totalCharacterCount) chars")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                }
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: UIConstants.Spacing.small) {
                         ForEach(source.previewItems) { item in
                             SourcePreviewCard(item: item) {
-                                guard previewImage(for: item) != nil else { return }
-                                withAnimation(.easeInOut(duration: UIConstants.Animation.standard)) {
-                                    selectedSourcePreview = item
-                                }
+                                openSourcePreview(item)
                             }
                         }
                     }
@@ -438,56 +307,18 @@ struct AIGenerationSheetView: View {
         }
     }
 
-    private func previewImage(for item: AIGenerationSourcePreviewItem) -> UIImage? {
-        guard let source = viewModel.preparedAISource else { return item.thumbnail }
-
-        if source.isPDF {
-            return item.thumbnail
-        }
-
-        let sourceIndex = item.index - 1
-        guard source.images.indices.contains(sourceIndex) else {
-            return item.thumbnail
-        }
-        return source.images[sourceIndex]
-    }
-
-    private var distributionModePicker: some View {
-        VStack(spacing: UIConstants.Spacing.small) {
-            HStack(spacing: UIConstants.Spacing.small) {
-                DistributionModeButton(
-                    title: "Auto",
-                    subtitle: "Spread cards by detected text density.",
-                    isSelected: viewModel.aiGenerationOptions.sourceDistributionMode == .auto
-                ) {
-                    viewModel.setSourceDistributionMode(.auto)
-                }
-
-                DistributionModeButton(
-                    title: "Manual",
-                    subtitle: "Assign exact ranges and card counts.",
-                    isSelected: viewModel.aiGenerationOptions.sourceDistributionMode == .manual
-                ) {
-                    viewModel.setSourceDistributionMode(.manual)
-                }
-            }
-        }
-    }
-
-    private var outputLanguagePicker: some View {
+    private var outputLanguageCompactPicker: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
             HStack(spacing: UIConstants.Spacing.small) {
-                DistributionModeButton(
+                compactSelectionButton(
                     title: "Auto",
-                    subtitle: "Detect from source text.",
                     isSelected: viewModel.aiGenerationOptions.outputLanguageMode == .auto
                 ) {
                     viewModel.aiGenerationOptions.outputLanguageMode = .auto
                 }
 
-                DistributionModeButton(
+                compactSelectionButton(
                     title: "Manual",
-                    subtitle: "Force one language for all cards.",
                     isSelected: viewModel.aiGenerationOptions.outputLanguageMode == .manual
                 ) {
                     viewModel.aiGenerationOptions.outputLanguageMode = .manual
@@ -512,18 +343,13 @@ struct AIGenerationSheetView: View {
                     }
                 } label: {
                     HStack(spacing: UIConstants.Spacing.small) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Selected language")
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.primary)
-
-                            Text(
-                                viewModel.aiGenerationOptions.manualOutputLanguage?.localizedDisplayName(locale: appPreferences.resolvedLocale)
-                                    ?? AppLocalization.string("Choose a language", locale: appPreferences.resolvedLocale)
-                            )
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
-                        }
+                        Text(
+                            viewModel.aiGenerationOptions.manualOutputLanguage?.localizedDisplayName(locale: appPreferences.resolvedLocale)
+                                ?? AppLocalization.string("Choose a language", locale: appPreferences.resolvedLocale)
+                        )
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
 
                         Spacer(minLength: UIConstants.Spacing.small)
 
@@ -532,7 +358,7 @@ struct AIGenerationSheetView: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, UIConstants.Spacing.standard)
-                    .padding(.vertical, 14)
+                    .padding(.vertical, 12)
                     .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -540,111 +366,51 @@ struct AIGenerationSheetView: View {
                     }
                 }
                 .buttonStyle(.plain)
-            } else {
-                Label("AI detects the source language once and keeps the whole run in that language.", systemImage: "waveform.and.magnifyingglass")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
-    private var autoCoverageSummary: some View {
-        let allocations = viewModel.summarizedAISourceAllocations
-        let itemCount = viewModel.preparedAISource?.itemCount ?? 0
-        let coverageColumns = UIConstants.isPad
-            ? [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
-            : [GridItem(.flexible()), GridItem(.flexible())]
-        let sourceCoverageTitle: String = {
-            guard itemCount > 0 else { return "Source coverage" }
-            if itemCount == 1 {
-                return "\(sourceNounSingular.capitalized) 1 covered"
-            }
-            return "\(sourceNounPlural.capitalized) 1-\(itemCount) covered"
-        }()
-        let estimatedRequests = allocations.reduce(into: 0) { partialResult, allocation in
-            let batchSize = viewModel.aiGenerationOptions.resolvedCardsPerBatch(for: allocation.cardCount)
-            partialResult += Int(ceil(Double(allocation.cardCount) / Double(max(batchSize, 1))))
-        }
-
-        return VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-            Text("Auto keeps the full source covered, then balances density by text weight.")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            LazyVGrid(columns: coverageColumns, spacing: UIConstants.Spacing.small) {
-                coveragePill(
-                    title: sourceCoverageTitle,
-                    subtitle: "Full coverage"
-                )
-
-                coveragePill(
-                    title: "\(allocations.count) range\(allocations.count == 1 ? "" : "s")",
-                    subtitle: "Coverage plan"
-                )
-
-                coveragePill(
-                    title: "\(estimatedRequests) AI request\(estimatedRequests == 1 ? "" : "s")",
-                    subtitle: "Adaptive delivery"
-                )
-            }
-
-            VStack(spacing: UIConstants.Spacing.small) {
-                ForEach(allocations) { allocation in
-                    HStack(spacing: UIConstants.Spacing.standard) {
-                        Text(viewModel.allocationTitle(for: allocation))
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-
-                        Spacer(minLength: UIConstants.Spacing.small)
-
-                        Text("\(allocation.cardCount) card\(allocation.cardCount == 1 ? "" : "s")")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.white.opacity(0.05), in: Capsule())
-                    }
-                    .padding(.horizontal, UIConstants.Spacing.standard)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.white.opacity(0.04))
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                    }
-                }
-            }
-        }
-    }
-
-    private func coveragePill(
+    private func compactOptionRow<Content: View>(
         title: String,
-        subtitle: String
+        @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.tiny) {
             Text(title)
                 .font(.caption.weight(.bold))
-                .foregroundStyle(.primary)
-                .lineLimit(2)
-
-            Text(subtitle)
-                .font(.caption2.weight(.medium))
                 .foregroundStyle(.secondary)
-                .lineLimit(2)
+                .textCase(.uppercase)
+
+            content()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+    }
+
+    private func compactSelectionButton(
+        title: String,
+        isSelected: Bool,
+        isEnabled: Bool = true,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(isSelected ? .primary : .secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, UIConstants.Spacing.small)
+                .padding(.vertical, 11)
+                .background(
+                    isSelected ? accent.opacity(0.16) : Color.white.opacity(0.05),
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(isSelected ? accent.opacity(0.42) : Color.white.opacity(0.07), lineWidth: 1)
+                }
         }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.45)
     }
 
     private var manualCoverageEditor: some View {
@@ -682,10 +448,6 @@ struct AIGenerationSheetView: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Label("Manual ranges currently generate \(viewModel.manualAllocatedCardCount) cards.", systemImage: "checkmark.circle.fill")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.green)
             }
         }
     }
@@ -746,40 +508,6 @@ struct AIGenerationSheetView: View {
         }
     }
 
-    private var sourceStatusTitle: String {
-        if let info = viewModel.pdfAnalysis {
-            return info.localizedQualityLabel(locale: appPreferences.resolvedLocale)
-        }
-        return viewModel.isPreparedSourcePDF
-            ? AppLocalization.string("Document ready", locale: appPreferences.resolvedLocale)
-            : AppLocalization.string("Images ready", locale: appPreferences.resolvedLocale)
-    }
-
-    private func sourceStatusSubtitle(source: AIPreparedGenerationSource) -> String {
-        if let info = viewModel.pdfAnalysis {
-            return "\(info.pageCount) pages · ~\(info.extractedChars) chars"
-        }
-        return "\(source.itemCount) \(sourceNounPlural) · \(source.totalCharacterCount) chars"
-    }
-
-    private var sourceRecommendationBadge: (title: String, tint: Color)? {
-        guard let info = viewModel.pdfAnalysis else { return nil }
-        return (
-            info.recommendation == .fast ? "Fast" : "Quality",
-            info.isGoodForFast ? .green : .orange
-        )
-    }
-
-    private var headerSubtitle: String {
-        if isPreparingSource {
-            return AppLocalization.string("Preparing source", locale: appPreferences.resolvedLocale)
-        }
-        guard let source = viewModel.preparedAISource else {
-            return AppLocalization.string("Generate", locale: appPreferences.resolvedLocale)
-        }
-        return "\(source.itemCount) \(sourceNounPlural) · \(viewModel.requestedCardCount) \(AppLocalization.string("cards", locale: appPreferences.resolvedLocale))"
-    }
-
     private func bottomActionClearance(safeBottomInset: CGFloat) -> CGFloat {
         max(safeBottomInset, UIConstants.Spacing.large)
             + UIConstants.Size.selectionToolbarBarHeight
@@ -798,49 +526,56 @@ struct AIGenerationSheetView: View {
     private func requestPrimaryAction() {
         onPrimaryAction()
     }
+
+    private func openSourcePreview(_ item: AIGenerationSourcePreviewItem) {
+        sourcePreviewTask?.cancel()
+        selectedSourcePreview = item
+        selectedSourcePreviewImage = nil
+
+        sourcePreviewTask = Task {
+            let image = await viewModel.fullQualityPreviewImage(for: item)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                selectedSourcePreviewImage = image
+            }
+        }
+    }
+
+    private func closeSourcePreview() {
+        sourcePreviewTask?.cancel()
+        sourcePreviewTask = nil
+        withAnimation(.easeInOut(duration: UIConstants.Animation.standard)) {
+            selectedSourcePreview = nil
+            selectedSourcePreviewImage = nil
+        }
+    }
 }
 
 private struct PlainGenerationSection<Content: View>: View {
     let title: String
     let summary: String
-    let isExpanded: Bool
-    let onToggle: () -> Void
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button(action: onToggle) {
-                HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
-                    Text(title)
-                        .font(.system(size: 24, weight: .black, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
+            HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
+                Text(title)
+                    .font(.system(size: 22, weight: .black, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
 
-                    Spacer(minLength: UIConstants.Spacing.small)
+                Spacer(minLength: UIConstants.Spacing.small)
 
-                    HStack(spacing: UIConstants.Spacing.small) {
-                        Text(summary)
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.trailing)
-                            .lineLimit(2)
-
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 13, weight: .black, design: .rounded))
-                            .foregroundStyle(.secondary)
-                            .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                    }
-                }
-                .contentShape(Rectangle())
-                .padding(.vertical, UIConstants.Spacing.medium)
+                Text(summary)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+                    .lineLimit(2)
             }
-            .buttonStyle(.plain)
+            .padding(.vertical, UIConstants.Spacing.small)
 
-            if isExpanded {
-                content()
-                    .padding(.bottom, UIConstants.Spacing.large)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
+            content()
+                .padding(.bottom, UIConstants.Spacing.standard)
 
             Rectangle()
                 .fill(Color.white.opacity(0.10))

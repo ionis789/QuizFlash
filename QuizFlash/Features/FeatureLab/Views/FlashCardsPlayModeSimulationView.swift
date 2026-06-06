@@ -272,7 +272,6 @@ struct FlashCardsPlayModeSimulationView: View {
                             handleSwipe(direction)
                         },
                         isInteractionEnabled: isCurrentCard,
-                        allowsTapToFlip: developerSwipeDebugState.allowsTapToFlip,
                         tapAnimationStyle: developerSwipeDebugState.tapAnimationStyle,
                         staticSwapTextMotion: developerSwipeDebugState.staticSwapTextMotion,
                         contentAlignment: developerSwipeDebugState.contentAlignment,
@@ -1109,7 +1108,6 @@ private final class FlashCardsPlayModeSimulationDebugState {
     var displayDeadZone: CGFloat = 0.12
     var displayCurve: CGFloat = 0.82
     var arrowBaseWidth: CGFloat = 28
-    var allowsTapToFlip = true
     var tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D
     var staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated
     var contentAlignment: FlashcardContentAlignment = .top
@@ -1156,11 +1154,6 @@ private struct FlashCardsPlayModeSimulationControlPanel: View {
                 panelLabel("Live Swipe HUD")
             }
             .tint(.cyan)
-
-            Toggle(isOn: $state.allowsTapToFlip) {
-                panelLabel("Tap To Flip")
-            }
-            .tint(.green)
 
             developerSliderRow(
                 title: "Flick Sensitivity",

@@ -1334,7 +1334,7 @@ private struct HomeDashboardLibraryDeckRow: View {
             showsContextMenu: false,
             onNavigate: action,
             onToggleSelection: {},
-            onImport: {},
+            onExport: {},
             onMoveToFolder: {},
             onDelete: {}
         )

@@ -81,32 +81,16 @@ struct ManualAllocationCard: View {
             }
 
             VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Cards")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
+                Text("Cards")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
 
-                    Spacer()
-
-                    Text("\(allocation.cardCount)")
-                        .font(.subheadline.weight(.bold).monospacedDigit())
-                        .foregroundStyle(.primary)
-                        .statusTextMotion(trigger: allocation.cardCount)
-                }
-
-                DiscreteValueSlider(
+                CardCountControl(
                     value: allocation.cardCount,
                     range: 1...max(cardCountUpperBound, 1),
+                    presets: [1, 2, 3, 5, 10, 15, 20],
                     onChange: onCardCountChange
                 )
-
-                HStack {
-                    Text("1")
-                    Spacer()
-                    Text("\(max(cardCountUpperBound, 1))")
-                }
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.secondary)
             }
         }
         .padding(UIConstants.Spacing.standard)
@@ -121,49 +105,81 @@ struct ManualAllocationCard: View {
     }
 }
 
-/// A minimalist discrete slider for integer-backed generation controls.
-struct DiscreteValueSlider: View {
+/// Stable integer picker for AI card counts. It avoids slider snapping issues
+/// when ranges are small and keeps manual allocation edits predictable.
+struct CardCountControl: View {
     let value: Int
     let range: ClosedRange<Int>
+    let presets: [Int]
     let onChange: (Int) -> Void
 
-    private let thumbSize = CGFloat(28)
-    private let trackHeight = CGFloat(8)
+    private var accent: Color {
+        ThemeManager.shared.accentColor.color
+    }
+
+    private var filteredPresets: [Int] {
+        presets
+            .filter { range.contains($0) }
+            .reduce(into: [Int]()) { result, preset in
+                if !result.contains(preset) {
+                    result.append(preset)
+                }
+            }
+    }
 
     var body: some View {
-        GeometryReader { proxy in
-            let metrics = SliderMetrics(width: proxy.size.width, thumbSize: thumbSize)
-            let thumbOffset = metrics.offset(for: value, in: range)
-            let filledWidth = thumbOffset + (thumbSize / 2)
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+            HStack(spacing: UIConstants.Spacing.small) {
+                StepperButton(symbol: "minus", isEnabled: value > range.lowerBound) {
+                    onChange(max(value - 1, range.lowerBound))
+                }
 
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.white.opacity(0.06))
-                    .frame(height: trackHeight)
+                Text("\(value)")
+                    .font(.system(size: 32, weight: .heavy, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .statusTextMotion(trigger: value)
 
-                Capsule()
-                    .fill(ThemeManager.shared.accentColor.color)
-                    .frame(width: filledWidth, height: trackHeight)
-
-                SliderThumb()
-                    .offset(x: thumbOffset)
+                StepperButton(symbol: "plus", isEnabled: value < range.upperBound) {
+                    onChange(min(value + 1, range.upperBound))
+                }
             }
-            .frame(height: thumbSize)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { gesture in
-                        let snappedValue = metrics.snappedValue(
-                            for: gesture.location.x,
-                            in: range
-                        )
-                        if snappedValue != value {
-                            onChange(snappedValue)
+            .padding(.horizontal, UIConstants.Spacing.small)
+            .padding(.vertical, UIConstants.Spacing.tiny)
+            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            }
+
+            if !filteredPresets.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: UIConstants.Spacing.tiny) {
+                        ForEach(filteredPresets, id: \.self) { preset in
+                            Button {
+                                onChange(preset)
+                            } label: {
+                                Text("\(preset)")
+                                    .font(.caption.weight(.bold).monospacedDigit())
+                                    .foregroundStyle(value == preset ? .primary : .secondary)
+                                    .frame(minWidth: 38)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        value == preset ? accent.opacity(0.16) : Color.white.opacity(0.05),
+                                        in: Capsule(style: .continuous)
+                                    )
+                                    .overlay {
+                                        Capsule(style: .continuous)
+                                            .stroke(value == preset ? accent.opacity(0.42) : Color.white.opacity(0.06), lineWidth: 1)
+                                    }
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
-            )
+                }
+            }
         }
-        .frame(height: thumbSize)
     }
 }
 
@@ -306,49 +322,9 @@ private struct SliderThumb: View {
     }
 }
 
-private struct SheetValueStepper: View {
-    let title: String
-    let value: Int
-    let range: ClosedRange<Int>
-    let onChange: (Int) -> Void
-
-    var body: some View {
-        HStack(spacing: UIConstants.Spacing.standard) {
-            Text(title)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(.primary)
-
-            Spacer(minLength: UIConstants.Spacing.small)
-
-            HStack(spacing: UIConstants.Spacing.small) {
-                StepperButton(symbol: "minus") {
-                    onChange(max(value - 1, range.lowerBound))
-                }
-                .disabled(value <= range.lowerBound)
-
-                Text("\(value)")
-                    .font(.subheadline.weight(.bold).monospacedDigit())
-                    .foregroundStyle(.primary)
-                    .frame(minWidth: 34)
-                    .statusTextMotion(trigger: value)
-
-                StepperButton(symbol: "plus") {
-                    onChange(min(value + 1, range.upperBound))
-                }
-                .disabled(value >= range.upperBound)
-            }
-        }
-        .padding(.horizontal, UIConstants.Spacing.standard)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.04))
-        )
-    }
-}
-
 private struct StepperButton: View {
     let symbol: String
+    var isEnabled = true
     let action: () -> Void
 
     var body: some View {
@@ -356,9 +332,11 @@ private struct StepperButton: View {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(.primary)
-                .frame(width: 28, height: 28)
+                .frame(width: 40, height: 40)
                 .background(Color.white.opacity(0.06), in: Circle())
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.38)
     }
 }

@@ -195,10 +195,6 @@ struct SourcePreviewCard: View {
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-
-                Text("\(item.characterCount) chars")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
             }
             .frame(width: 138, alignment: .leading)
         }
@@ -207,36 +203,34 @@ struct SourcePreviewCard: View {
 }
 
 struct SourcePreviewOverlay: View {
-    let image: UIImage
+    let image: UIImage?
     let safeAreaInsets: UIEdgeInsets
     let onClose: () -> Void
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Color.black.opacity(0.84)
+            BackgroundBlurView(radius: 18)
+                .ignoresSafeArea()
+
+            Color.black.opacity(0.42)
                 .ignoresSafeArea()
                 .onTapGesture(perform: onClose)
 
             VStack(spacing: UIConstants.Spacing.large) {
-                HStack {
-                    Spacer()
-
-                    ChromeSoftCircleSymbolButton(
-                        systemName: "xmark",
-                        accessibilityLabel: "Close source preview",
-                        action: onClose,
-                        symbolSize: UIConstants.Size.iconStandard
-                    )
-                }
-
                 Spacer(minLength: 0)
 
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: UIConstants.isPad ? 720 : .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    .shadow(color: .black.opacity(0.24), radius: UIConstants.Shadow.heavyRadius, y: 8)
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: UIConstants.isPad ? 720 : .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .shadow(color: .black.opacity(0.24), radius: UIConstants.Shadow.heavyRadius, y: 8)
+                } else {
+                    ProgressView()
+                        .controlSize(.large)
+                        .tint(.white)
+                }
 
                 Spacer(minLength: 0)
             }

@@ -68,16 +68,15 @@
 "%d sketches" = "%d эскизов";
 "%d still need another pass." = "%d ещё нужны повторные проходы.";
 "%d unique cards are locked in for today." = "%d уникальных карточек уже закрыты на сегодня.";
+"%d more match" = "%d совпадение";
+"%d more matches" = "%d совпадений";
 "%d/%d active" = "%d/%d активных дней";
 "%dd ago" = "%dд назад";
 "%dh ago" = "%dч назад";
 "%dm ago" = "%dм назад";
 "%dmo ago" = "%dмес назад";
 "+%@ more card%@" = "+%1$@ еще карточка%2$@";
-"+%@ more match%@ in this deck" = "+%1$@ больше совпадений %2$@ в этой колоде";
 "+%@ XP" = "+%@ опыта";
-"+%d more match in this deck" = "+%d совпадение в этой колоде";
-"+%d more matches in this deck" = "+%d совпадений в этой колоде";
 "+12%" = "+12%";
 "/%@" = "/%@";
 "1" = "1";
@@ -244,7 +243,9 @@
 "Discard received cards" = "Удалить полученные карточки";
 "Done" = "Готово";
 "Done Selecting" = "Завершить выбор";
+"Done selecting cards" = "Завершить выбор карточек";
 "Done selecting decks" = "Завершить выбор колод";
+"Done selecting draft cards" = "Завершить выбор черновиков карточек";
 "Due" = "Срок";
 "Due Today" = "Срок оплаты сегодня";
 "Duplicate" = "Дублировать";
@@ -267,6 +268,7 @@
 "Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated." = "Объясните три основные стадии клеточного дыхания и опишите, что происходит на каждой стадии, включая потребляемые реагенты и образующиеся продукты.";
 "Explanation" = "Объяснение";
 "EXPLANATION" = "ОБЪЯСНЕНИЕ";
+"Export" = "Экспорт";
 "Export Deck" = "Экспортировать колоду";
 "Export Error" = "Ошибка экспорта";
 "Export selected decks" = "Экспортировать выбранные колоды";
@@ -285,6 +287,7 @@
 "FLICK" = "щелкнуть";
 "Focus deck" = "Главная колода";
 "Focus Streak" = "Полоса фокуса";
+"Folder" = "Папка";
 "Folders" = "Папки";
 "Follow the text size selected in iOS Settings." = "Следовать размеру текста, выбранному в настройках iOS.";
 "Font" = "Шрифт";
@@ -348,9 +351,7 @@
 "Last opened %@." = "Последний раз открывали %@.";
 "Last week" = "Прошлая неделя";
 "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time." = "Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.";
-"Learn" = "Обучение";
 "Learn fast and effectively." = "Учитесь быстро и эффективно.";
-"Learn Isn't Ready" = "Режим обучения ещё не готов";
 "Learning" = "В изучении";
 "LEARNING PROGRESS" = "ПРОГРЕСС ОБУЧЕНИЯ";
 "Left" = "Левый";
@@ -409,7 +410,6 @@
 "No choices added" = "Варианты не добавлены";
 "No content" = "Нет контента";
 "No content added" = "Контент не добавлен";
-"No coverage blocks yet. Once the deck has cards, Learn mode will group them here." = "Блокировок покрытия пока нет. Когда в колоде появятся карты, режим обучения сгруппирует их здесь.";
 "No deck data" = "Нет данных колоды";
 "No deck yet" = "Колоды пока нет";
 "No Decks" = "Нет колод";
@@ -519,10 +519,14 @@
 "Scroll this surface and watch the rows pass behind the sticky header blur." = "Прокрутите эту поверхность и наблюдайте, как строки проходят за размытым липким заголовком.";
 "Search" = "Поиск";
 "Search decks, cards, answers" = "Искать колоды, карточки, ответы";
+"Search for decks" = "Искать колоды";
 "Searching…" = "Поиск…";
 "See which decks need intervention before they slow down your progress." = "Посмотрите, какие колоды требуют вмешательства, прежде чем они замедлят ваш прогресс.";
 "Select" = "Выбрать";
 "Select a non-empty substring to turn into the blank." = "Выберите непустой фрагмент для пропуска.";
+"Select All" = "Выбрать все";
+"Select all cards" = "Выбрать все карточки";
+"Select all decks" = "Выбрать все колоды";
 "Select Cards" = "Выбрать карточки";
 "Select text in the editor to define the blank." = "Выберите текст в редакторе, чтобы задать пропуск.";
 "Selected day" = "Выбранный день";
@@ -565,7 +569,6 @@
 "Storage" = "Хранилище";
 "Stored Answer" = "Сохранённый ответ";
 "Streak" = "Серия";
-"Summary report" = "Итоговый отчёт";
 "Suspended" = "Приостановлена";
 "Swipe HUD" = "Проведите по интерфейсу";
 "Swipe review" = "Повтор свайпом";
@@ -615,7 +618,6 @@
 "Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block." = "Сверху закрепляет короткий контент у верхнего края. Центр использует сеточные направляющие для естественно центрированного текстового блока.";
 "Total cards for auto distribution." = "Всего карточек для автораздачи.";
 "Trace JSON" = "Трассировка JSON";
-"Try a broader phrase, another deck title, or a different card keyword." = "Попробуйте более широкую фразу, другое название колоды или другой ключ карточки.";
 "Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`." = "Попробуйте имя типа Swift, например «LibraryDeckListRow», имя слота, например «backgroundFill», или токен, например «BrandPrimary».";
 "Tune Blur" = "Настроить блюр";
 "Tune Header Blur" = "Настроить размытие заголовка";
@@ -650,6 +652,7 @@
 "Your card changes couldn't be saved right now." = "Изменения карточки сейчас не удалось сохранить.";
 "Zone Size" = "Размер зоны";
 "zones(%d)" = "зоны(%d)";
+"Could not extract text from this source. Try another source." = "Не удалось извлечь текст из этого источника. Попробуйте другой источник.";
 "|" = "|";
 "â¢" = "â¢";
 "â¢ %@" = "â¢ %@";

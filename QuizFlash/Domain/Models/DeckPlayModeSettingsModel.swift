@@ -39,52 +39,6 @@ nonisolated enum FlashcardSessionOrder: String, Codable, CaseIterable, Identifia
     }
 }
 
-/// Controls which flashcard face is shown first when a card appears.
-nonisolated enum FlashcardRevealFlow: String, Codable, CaseIterable, Identifiable, Sendable {
-    case questionFirst
-    case answerFirst
-
-    var id: String { rawValue }
-
-    /// Human-readable option label shown in the settings UI.
-    var title: String {
-        switch self {
-        case .questionFirst: return "Question First"
-        case .answerFirst:   return "Answer First"
-        }
-    }
-
-    func localizedTitle(locale: Locale) -> String {
-        switch self {
-        case .questionFirst: return AppLocalization.string("Question First", locale: locale)
-        case .answerFirst:   return AppLocalization.string("Answer First", locale: locale)
-        }
-    }
-}
-
-/// Controls whether the flashcard can flip during the session.
-nonisolated enum FlashcardFlipBehavior: String, Codable, CaseIterable, Identifiable, Sendable {
-    case tapToFlip
-    case locked
-
-    var id: String { rawValue }
-
-    /// Human-readable option label shown in the settings UI.
-    var title: String {
-        switch self {
-        case .tapToFlip: return "Tap Enabled"
-        case .locked:    return "Locked Face"
-        }
-    }
-
-    func localizedTitle(locale: Locale) -> String {
-        switch self {
-        case .tapToFlip: return AppLocalization.string("Tap Enabled", locale: locale)
-        case .locked:    return AppLocalization.string("Locked Face", locale: locale)
-        }
-    }
-}
-
 /// Controls which visual treatment is used when tapping a flashcard.
 nonisolated enum FlashcardTapAnimationStyle: String, Codable, CaseIterable, Identifiable, Sendable {
     case flip3D
@@ -155,44 +109,89 @@ nonisolated enum FlashcardContentAlignment: String, Codable, CaseIterable, Ident
 }
 
 /// Controls how large flashcard text renders during play mode.
-nonisolated enum FlashcardTextSize: String, Codable, CaseIterable, Identifiable, Sendable {
-    case normal
-    case large
+nonisolated struct FlashcardTextSize: Codable, CaseIterable, Identifiable, Hashable, Sendable {
+    static let minimumStep = 0
+    static let maximumStep = 6
+    static let normal = FlashcardTextSize(step: 3)
+    static let large = FlashcardTextSize(step: 6)
+    static let allCases: [FlashcardTextSize] = (minimumStep...maximumStep).map { FlashcardTextSize(step: $0) }
 
-    var id: String { rawValue }
+    let step: Int
+
+    var id: Int { step }
+    var rawValue: Int { step }
+
+    init(step: Int) {
+        self.step = min(max(step, Self.minimumStep), Self.maximumStep)
+    }
 
     /// Human-readable option label shown in the settings UI.
     var title: String {
-        switch self {
-        case .normal: return "Normal"
-        case .large:  return "Large"
+        switch step {
+        case 0...1: return "Small"
+        case 2:     return "Medium"
+        case 3:     return "Normal"
+        default:    return "Large"
         }
     }
 
     func localizedTitle(locale: Locale) -> String {
-        switch self {
-        case .normal: return AppLocalization.string("Normal", locale: locale)
-        case .large:  return AppLocalization.string("Large", locale: locale)
+        switch step {
+        case 0...1: return AppLocalization.string("Small", locale: locale)
+        case 2:     return AppLocalization.string("Medium", locale: locale)
+        case 3:     return AppLocalization.string("Normal", locale: locale)
+        default:    return AppLocalization.string("Large", locale: locale)
         }
     }
 
     var playModeScale: Double {
-        switch self {
-        case .normal: return 1.32
-        case .large:  return 1.5
+        switch step {
+        case 0: return 1.10
+        case 1: return 1.18
+        case 2: return 1.25
+        case 3: return 1.32
+        case 4: return 1.39
+        case 5: return 1.45
+        default: return 1.5
         }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+
+        if let step = try? container.decode(Int.self) {
+            self.init(step: step)
+            return
+        }
+
+        let rawValue = try container.decode(String.self)
+        switch rawValue {
+        case "normal":
+            self = .normal
+        case "large":
+            self = .large
+        case "small":
+            self.init(step: 1)
+        case "medium":
+            self.init(step: 2)
+        default:
+            self = .large
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(step)
     }
 }
 
 /// Flashcards runtime preferences persisted per deck.
 nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
-    private static let currentSchemaVersion = 3
+    private static let currentSchemaVersion = 4
 
     private var schemaVersion: Int = Self.currentSchemaVersion
     var order: FlashcardSessionOrder = .studyPriority
     var retryWrongCards: Bool = true
-    var revealFlow: FlashcardRevealFlow = .questionFirst
-    var flipBehavior: FlashcardFlipBehavior = .tapToFlip
     var tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D
     var staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated
     var contentAlignment: FlashcardContentAlignment = .center
@@ -201,8 +200,6 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
     init(
         order: FlashcardSessionOrder = .studyPriority,
         retryWrongCards: Bool = true,
-        revealFlow: FlashcardRevealFlow = .questionFirst,
-        flipBehavior: FlashcardFlipBehavior = .tapToFlip,
         tapAnimationStyle: FlashcardTapAnimationStyle = .flip3D,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion = .animated,
         contentAlignment: FlashcardContentAlignment = .center,
@@ -211,8 +208,6 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         self.schemaVersion = Self.currentSchemaVersion
         self.order = order
         self.retryWrongCards = retryWrongCards
-        self.revealFlow = revealFlow
-        self.flipBehavior = flipBehavior
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
@@ -223,8 +218,6 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         case schemaVersion
         case order
         case retryWrongCards
-        case revealFlow
-        case flipBehavior
         case tapAnimationStyle
         case staticSwapTextMotion
         case contentAlignment
@@ -236,8 +229,6 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         let decodedSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
         self.order = try container.decodeIfPresent(FlashcardSessionOrder.self, forKey: .order) ?? .studyPriority
         self.retryWrongCards = try container.decodeIfPresent(Bool.self, forKey: .retryWrongCards) ?? true
-        self.revealFlow = try container.decodeIfPresent(FlashcardRevealFlow.self, forKey: .revealFlow) ?? .questionFirst
-        self.flipBehavior = try container.decodeIfPresent(FlashcardFlipBehavior.self, forKey: .flipBehavior) ?? .tapToFlip
         self.tapAnimationStyle = try container.decodeIfPresent(FlashcardTapAnimationStyle.self, forKey: .tapAnimationStyle) ?? .flip3D
         self.staticSwapTextMotion = try container.decodeIfPresent(FlashcardStaticSwapTextMotion.self, forKey: .staticSwapTextMotion) ?? .animated
         let decodedContentAlignment = try container.decodeIfPresent(FlashcardContentAlignment.self, forKey: .contentAlignment) ?? .center
@@ -253,8 +244,6 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         try container.encode(Self.currentSchemaVersion, forKey: .schemaVersion)
         try container.encode(order, forKey: .order)
         try container.encode(retryWrongCards, forKey: .retryWrongCards)
-        try container.encode(revealFlow, forKey: .revealFlow)
-        try container.encode(flipBehavior, forKey: .flipBehavior)
         try container.encode(tapAnimationStyle, forKey: .tapAnimationStyle)
         try container.encode(staticSwapTextMotion, forKey: .staticSwapTextMotion)
         try container.encode(contentAlignment, forKey: .contentAlignment)
@@ -318,69 +307,6 @@ nonisolated struct QuizModeSettings: Codable, Equatable, Sendable {
     var retryIncorrectQuestions: Bool = true
 }
 
-// MARK: - Learn Settings
-
-/// Controls how the Learn report groups its sections.
-nonisolated enum LearnReportGrouping: String, Codable, CaseIterable, Identifiable, Sendable {
-    case readinessFirst
-    case byCardKind
-    case freshMaterialFirst
-
-    var id: String { rawValue }
-
-    /// Human-readable option label shown in the settings UI.
-    var title: String {
-        switch self {
-        case .readinessFirst:   return "Readiness First"
-        case .byCardKind:       return "By Card Kind"
-        case .freshMaterialFirst: return "Fresh Material First"
-        }
-    }
-
-    func localizedTitle(locale: Locale) -> String {
-        switch self {
-        case .readinessFirst:
-            return AppLocalization.string("Readiness First", locale: locale)
-        case .byCardKind:
-            return AppLocalization.string("By Card Kind", locale: locale)
-        case .freshMaterialFirst:
-            return AppLocalization.string("Fresh Material First", locale: locale)
-        }
-    }
-}
-
-/// Controls how much information Learn mode shows at once.
-nonisolated enum LearnReportDensity: String, Codable, CaseIterable, Identifiable, Sendable {
-    case compact
-    case standard
-    case detailed
-
-    var id: String { rawValue }
-
-    /// Human-readable option label shown in the settings UI.
-    var title: String {
-        switch self {
-        case .compact:  return "Compact"
-        case .standard: return "Standard"
-        case .detailed: return "Detailed"
-        }
-    }
-
-    func localizedTitle(locale: Locale) -> String {
-        switch self {
-        case .compact:  return AppLocalization.string("Compact", locale: locale)
-        case .standard: return AppLocalization.string("Standard", locale: locale)
-        case .detailed: return AppLocalization.string("Detailed", locale: locale)
-        }
-    }
-}
-
-/// Learn report preferences persisted per deck.
-nonisolated struct LearnModeSettings: Codable, Equatable, Sendable {
-    var grouping: LearnReportGrouping = .readinessFirst
-    var density: LearnReportDensity = .standard
-}
-
 // MARK: - Deck Play Mode Settings Model
 
 /// One deck-scoped persistent bucket storing the active settings for every play mode.
@@ -395,9 +321,6 @@ final class DeckPlayModeSettingsModel {
     @Attribute(.externalStorage)
     private var quizSettingsData: Data
 
-    @Attribute(.externalStorage)
-    private var learnSettingsData: Data
-
     /// The date these settings were last changed.
     var updatedAt: Date
 
@@ -406,9 +329,6 @@ final class DeckPlayModeSettingsModel {
 
     /// The most recent time this deck launched Quiz.
     var quizLastUsedAt: Date?
-
-    /// The most recent time this deck launched Learn.
-    var learnLastUsedAt: Date?
 
     // MARK: - Relationships
 
@@ -447,31 +367,14 @@ final class DeckPlayModeSettingsModel {
         }
     }
 
-    /// Learn settings decoded from the persistent payload blob.
-    var learnSettings: LearnModeSettings {
-        get {
-            Self.decode(
-                LearnModeSettings.self,
-                from: learnSettingsData,
-                defaultValue: LearnModeSettings()
-            )
-        }
-        set {
-            learnSettingsData = Self.encode(newValue)
-            updatedAt = Date()
-        }
-    }
-
     // MARK: - Init
 
     init(deck: DeckModel? = nil) {
         self.flashcardSettingsData = Self.encode(FlashcardModeSettings())
         self.quizSettingsData = Self.encode(QuizModeSettings())
-        self.learnSettingsData = Self.encode(LearnModeSettings())
         self.updatedAt = Date()
         self.flashcardsLastUsedAt = nil
         self.quizLastUsedAt = nil
-        self.learnLastUsedAt = nil
         self.deck = deck
     }
 

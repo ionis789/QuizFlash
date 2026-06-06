@@ -68,16 +68,15 @@
 "%d sketches" = "%d sketches";
 "%d still need another pass." = "%d still need another pass.";
 "%d unique cards are locked in for today." = "%d unique cards are locked in for today.";
+"%d more match" = "%d more match";
+"%d more matches" = "%d more matches";
 "%d/%d active" = "%d/%d active";
 "%dd ago" = "%dd ago";
 "%dh ago" = "%dh ago";
 "%dm ago" = "%dm ago";
 "%dmo ago" = "%dmo ago";
 "+%@ more card%@" = "+%1$@ more card%2$@";
-"+%@ more match%@ in this deck" = "+%1$@ more match%2$@ in this deck";
 "+%@ XP" = "+%@ XP";
-"+%d more match in this deck" = "+%d more match in this deck";
-"+%d more matches in this deck" = "+%d more matches in this deck";
 "+12%" = "+12%";
 "/%@" = "/%@";
 "1" = "1";
@@ -244,7 +243,9 @@
 "Discard received cards" = "Discard received cards";
 "Done" = "Done";
 "Done Selecting" = "Done Selecting";
+"Done selecting cards" = "Done selecting cards";
 "Done selecting decks" = "Done selecting decks";
+"Done selecting draft cards" = "Done selecting draft cards";
 "Due" = "Due";
 "Due Today" = "Due Today";
 "Duplicate" = "Duplicate";
@@ -267,6 +268,7 @@
 "Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated." = "Explain the three main stages of cellular respiration and describe what happens during each stage, including the reactants consumed and the products generated.";
 "Explanation" = "Explanation";
 "EXPLANATION" = "EXPLANATION";
+"Export" = "Export";
 "Export Deck" = "Export Deck";
 "Export Error" = "Export Error";
 "Export selected decks" = "Export selected decks";
@@ -285,6 +287,7 @@
 "FLICK" = "FLICK";
 "Focus deck" = "Focus deck";
 "Focus Streak" = "Focus Streak";
+"Folder" = "Folder";
 "Folders" = "Folders";
 "Follow the text size selected in iOS Settings." = "Follow the text size selected in iOS Settings.";
 "Font" = "Font";
@@ -348,9 +351,7 @@
 "Last opened %@." = "Last opened %@.";
 "Last week" = "Last week";
 "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time." = "Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.";
-"Learn" = "Learn";
 "Learn fast and effectively." = "Learn fast and effectively.";
-"Learn Isn't Ready" = "Learn Isn't Ready";
 "Learning" = "Learning";
 "LEARNING PROGRESS" = "LEARNING PROGRESS";
 "Left" = "Left";
@@ -409,7 +410,6 @@
 "No choices added" = "No choices added";
 "No content" = "No content";
 "No content added" = "No content added";
-"No coverage blocks yet. Once the deck has cards, Learn mode will group them here." = "No coverage blocks yet. Once the deck has cards, Learn mode will group them here.";
 "No deck data" = "No deck data";
 "No deck yet" = "No deck yet";
 "No Decks" = "No Decks";
@@ -519,10 +519,14 @@
 "Scroll this surface and watch the rows pass behind the sticky header blur." = "Scroll this surface and watch the rows pass behind the sticky header blur.";
 "Search" = "Search";
 "Search decks, cards, answers" = "Search decks, cards, answers";
+"Search for decks" = "Search for decks";
 "Searching…" = "Searching…";
 "See which decks need intervention before they slow down your progress." = "See which decks need intervention before they slow down your progress.";
 "Select" = "Select";
 "Select a non-empty substring to turn into the blank." = "Select a non-empty substring to turn into the blank.";
+"Select All" = "Select All";
+"Select all cards" = "Select all cards";
+"Select all decks" = "Select all decks";
 "Select Cards" = "Select Cards";
 "Select text in the editor to define the blank." = "Select text in the editor to define the blank.";
 "Selected day" = "Selected day";
@@ -565,7 +569,6 @@
 "Storage" = "Storage";
 "Stored Answer" = "Stored Answer";
 "Streak" = "Streak";
-"Summary report" = "Summary report";
 "Suspended" = "Suspended";
 "Swipe HUD" = "Swipe HUD";
 "Swipe review" = "Swipe review";
@@ -615,7 +618,6 @@
 "Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block." = "Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block.";
 "Total cards for auto distribution." = "Total cards for auto distribution.";
 "Trace JSON" = "Trace JSON";
-"Try a broader phrase, another deck title, or a different card keyword." = "Try a broader phrase, another deck title, or a different card keyword.";
 "Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`." = "Try a Swift type name such as `LibraryDeckListRow`, a slot name like `backgroundFill`, or a token such as `BrandPrimary`.";
 "Tune Blur" = "Tune Blur";
 "Tune Header Blur" = "Tune Header Blur";
@@ -650,6 +652,7 @@
 "Your card changes couldn't be saved right now." = "Your card changes couldn't be saved right now.";
 "Zone Size" = "Zone Size";
 "zones(%d)" = "zones(%d)";
+"Could not extract text from this source. Try another source." = "Could not extract text from this source. Try another source.";
 "|" = "|";
 "â¢" = "â¢";
 "â¢ %@" = "â¢ %@";

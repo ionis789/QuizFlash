@@ -1075,6 +1075,7 @@ struct MathWebView: UIViewRepresentable {
         let tapBridgeState = {
             startPoint: null,
             startTime: 0,
+            cancelled: false,
             lastTouchTapTime: 0,
             isInstalled: false
         };
@@ -1143,17 +1144,42 @@ struct MathWebView: UIViewRepresentable {
             if (!contentDiv || tapBridgeState.isInstalled) { return; }
             tapBridgeState.isInstalled = true;
 
-            contentDiv.addEventListener('touchstart', event => {
+            const isContentTouch = event => {
+                const target = event.target;
+                return !!target && (target === contentDiv || contentDiv.contains(target));
+            };
+
+            document.addEventListener('touchstart', event => {
+                if (!isContentTouch(event)) { return; }
                 const touch = event.changedTouches && event.changedTouches[0];
                 if (!touch) { return; }
                 tapBridgeState.startPoint = { x: touch.clientX, y: touch.clientY };
                 tapBridgeState.startTime = Date.now();
-            }, { passive: true });
+                tapBridgeState.cancelled = false;
+            }, { passive: true, capture: true });
 
-            contentDiv.addEventListener('touchend', event => {
+            document.addEventListener('touchmove', event => {
+                if (!tapBridgeState.startPoint) { return; }
+                const touch = event.changedTouches && event.changedTouches[0];
+                if (!touch) { return; }
+
+                const dx = touch.clientX - tapBridgeState.startPoint.x;
+                const dy = touch.clientY - tapBridgeState.startPoint.y;
+                if (Math.hypot(dx, dy) > tapMovementLimit) {
+                    tapBridgeState.cancelled = true;
+                }
+            }, { passive: true, capture: true });
+
+            document.addEventListener('touchend', event => {
+                if (!isContentTouch(event)) {
+                    tapBridgeState.startPoint = null;
+                    tapBridgeState.cancelled = false;
+                    return;
+                }
                 const touch = event.changedTouches && event.changedTouches[0];
                 if (!touch || !tapBridgeState.startPoint) {
                     tapBridgeState.startPoint = null;
+                    tapBridgeState.cancelled = false;
                     return;
                 }
 
@@ -1161,21 +1187,25 @@ struct MathWebView: UIViewRepresentable {
                 const dy = touch.clientY - tapBridgeState.startPoint.y;
                 const distance = Math.hypot(dx, dy);
                 const duration = Date.now() - tapBridgeState.startTime;
+                const wasCancelled = tapBridgeState.cancelled;
                 tapBridgeState.startPoint = null;
+                tapBridgeState.cancelled = false;
 
-                if (distance > tapMovementLimit || duration > tapDurationLimit) { return; }
+                if (wasCancelled || distance > tapMovementLimit || duration > tapDurationLimit) { return; }
                 tapBridgeState.lastTouchTapTime = Date.now();
                 postTapUpdate();
-            }, { passive: true });
+            }, { passive: true, capture: true });
 
-            contentDiv.addEventListener('touchcancel', () => {
+            document.addEventListener('touchcancel', () => {
                 tapBridgeState.startPoint = null;
-            }, { passive: true });
+                tapBridgeState.cancelled = false;
+            }, { passive: true, capture: true });
 
-            contentDiv.addEventListener('click', () => {
+            document.addEventListener('click', event => {
+                if (!isContentTouch(event)) { return; }
                 if (Date.now() - tapBridgeState.lastTouchTapTime < syntheticClickSuppressionWindow) { return; }
                 postTapUpdate();
-            });
+            }, { capture: true });
         }
 
         function postTapUpdate() {
@@ -2224,6 +2254,17 @@ struct MathWebView: UIViewRepresentable {
 
             case "tapUpdate":
                 Task { @MainActor in
+                    self.publishGestureDebug(
+                        decision: "TAP",
+                        reason: "js tap bridge",
+                        direction: "none",
+                        location: .zero,
+                        horizontal: 0,
+                        vertical: 0,
+                        canScrollLeft: self.horizontalOverflowState.canScrollLeft,
+                        canScrollRight: self.horizontalOverflowState.canScrollRight,
+                        regionCount: self.horizontalOverflowState.scrollableInteractionRegions.count
+                    )
                     self.emitTap()
                 }
 

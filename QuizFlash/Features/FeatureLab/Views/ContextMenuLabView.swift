@@ -236,7 +236,7 @@ private struct ContextMenuLabSection: View {
                 isSelected: false,
                 onNavigate: { onAction("Open Deck") },
                 onToggleSelection: { onAction("Toggle Selection") },
-                onImport: { onAction("Import") },
+                onExport: { onAction("Export") },
                 onMoveToFolder: { onAction("Move to Folder") },
                 onDelete: { onAction("Delete") }
             )

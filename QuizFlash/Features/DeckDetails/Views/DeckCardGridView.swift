@@ -193,15 +193,6 @@ struct DeckCardGridView: View {
             count: columnsCount
         )
     }
-    private var animationSignature: [String] {
-        cards.map { section in
-            let cardSignature = section.cards.map { card in
-                "\(card.id.hashValue)-\(card.isPinned ? 1 : 0)-\(card.editedAt.timeIntervalSinceReferenceDate)"
-            }
-            return ([section.id] + cardSignature).joined(separator: "|")
-        }
-    }
-
     private var locale: Locale { appPreferences.resolvedLocale }
 
     private func localized(_ value: String.LocalizationValue) -> String {
@@ -217,7 +208,6 @@ struct DeckCardGridView: View {
                     sectionView(section)
                 }
             }
-            .animation(.easeInOut(duration: 0.18), value: animationSignature)
             .padding(.horizontal, UIConstants.Layout.cardListEdgeInset)
             .padding(.bottom, UIConstants.Spacing.standard)
         }
@@ -253,7 +243,6 @@ struct DeckCardGridView: View {
             ) {
                 ForEach(section.cards) { card in
                     cardCell(for: card)
-                        .transition(.opacity)
                 }
             }
         }
@@ -273,17 +262,8 @@ struct DeckCardGridView: View {
                     .foregroundStyle(.secondary)
             }
 
-            LinearGradient(
-                colors: [
-                    Color.primary.opacity(0.12),
-                    .clear
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(height: 1)
+            AppSectionSeparator()
         }
-        .padding(.horizontal, UIConstants.Spacing.tiny)
     }
 
     private var emptyState: some View {
@@ -310,10 +290,8 @@ struct DeckCardGridView: View {
 }
 
 enum DeckGridCardMetrics {
-    static let headerTopInset: CGFloat = 12
-    static let sideInset: CGFloat = 14
-    static let statusDotSize: CGFloat = 8
-    static let selectionIndicatorSize: CGFloat = 30
+    static let selectedStrokeWidth: CGFloat = 1.6
+    static let idleStrokeWidth: CGFloat = 1
 }
 
 private struct DeckGridCardCell: View {
@@ -337,29 +315,29 @@ private struct DeckGridCardCell: View {
     }
 
     var body: some View {
-        if isSelecting || isSuspended {
-            cardBody
-                .contentShape(RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
-                .onTapGesture {
-                    handleTap()
-                }
+        cardBody
+            .contentShape(RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+            .contentShape(.dragPreview, RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+            .onTapGesture {
+                handlePrimaryTap()
+            }
+            .customContextMenu(
+                id: card.id,
+                isEnabled: !isSelecting && !isSuspended,
+                infoRows: contextMenuInfoRows,
+                actions: contextMenuActions,
+                config: .deckGridCardMenu
+            ) {
+                contextMenuPreview
+            }
+    }
+
+    private func handlePrimaryTap() {
+        if isSelecting {
+            onToggleSelection(card)
         } else {
-            cardBody
-                .contentShape(RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
-                .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
-                .contentShape(.dragPreview, RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
-                .onTapGesture {
-                    handleTap()
-                }
-                .customContextMenu(
-                    id: card.id,
-                    isEnabled: !isSelecting && !isSuspended,
-                    infoRows: contextMenuInfoRows,
-                    actions: contextMenuActions,
-                    config: .deckGridCardMenu
-                ) {
-                    contextMenuPreview
-                }
+            onTapCard(card)
         }
     }
 
@@ -412,9 +390,10 @@ private struct DeckGridCardCell: View {
     private var contextMenuPreview: some View {
         MiniCardPreview(
             card: card,
-            isSelected: false,
+            isSelected: isSelecting && isSelected,
             isSuspended: isSuspended
         )
+        .equatable()
         .frame(
             width: cardSize.width > 0 ? cardSize.width : nil,
             height: cardSize.height > 0 ? cardSize.height : nil,
@@ -430,6 +409,7 @@ private struct DeckGridCardCell: View {
             isSelected: isSelecting && isSelected,
             isSuspended: isSuspended
         )
+        .equatable()
         .contentShape(RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
         .background {
             Color.clear
@@ -441,37 +421,19 @@ private struct DeckGridCardCell: View {
                     }
                 }
         }
-        .overlay(alignment: .topTrailing) {
-            if isSelecting {
-                SelectionBubble(
-                    isSelected: isSelected,
-                    accent: accent,
-                    size: DeckGridCardMetrics.selectionIndicatorSize
-                )
-                    .padding(.top, DeckGridCardMetrics.headerTopInset)
-                    .padding(.trailing, DeckGridCardMetrics.sideInset)
-                    .allowsHitTesting(false)
-            }
-        }
         .scaleEffect(isSelecting && isSelected ? 0.9 : 1)
         .animation(.spring(response: 0.24, dampingFraction: 0.88), value: isSelected)
     }
 
-    private func handleTap() {
-        if isSelecting {
-            onToggleSelection(card)
-        } else {
-            onTapCard(card)
-        }
-    }
 }
 
 // =============================================================================
 // MARK: - MiniCardPreview
 // =============================================================================
 
-private struct MiniCardPreview: View {
+private struct MiniCardPreview: View, Equatable {
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
     let card: GridCardInfo
     var isSelected: Bool = false
     var isSuspended: Bool = false
@@ -482,6 +444,12 @@ private struct MiniCardPreview: View {
 
     private let titleFontSize: CGFloat = 20
     private let contentPadding = UIConstants.Spacing.medium
+
+    static func == (lhs: MiniCardPreview, rhs: MiniCardPreview) -> Bool {
+        lhs.card == rhs.card
+            && lhs.isSelected == rhs.isSelected
+            && lhs.isSuspended == rhs.isSuspended
+    }
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
@@ -504,6 +472,18 @@ private struct MiniCardPreview: View {
 
     private var surfaceFill: Color {
         Color(uiColor: colorScheme == .dark ? .secondarySystemGroupedBackground : .secondarySystemBackground)
+    }
+
+    private var borderColor: Color {
+        isSelected
+            ? themeManager.accentColor.color.opacity(0.95)
+            : .clear
+    }
+
+    private var borderWidth: CGFloat {
+        isSelected
+            ? DeckGridCardMetrics.selectedStrokeWidth
+            : 0
     }
 
     var body: some View {
@@ -559,6 +539,10 @@ private struct MiniCardPreview: View {
                     .padding(.top, contentPadding + textTopInset)
                     .offset(x: textLeadingInset)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .transaction { transaction in
+                        transaction.animation = nil
+                        transaction.disablesAnimations = true
+                    }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -567,6 +551,16 @@ private struct MiniCardPreview: View {
             cardShape
                 .fill(surfaceFill)
         )
+        .background {
+            if isSelected {
+                cardShape
+                    .fill(themeManager.accentColor.color.opacity(0.12))
+            }
+        }
+        .overlay {
+            cardShape
+                .strokeBorder(borderColor, lineWidth: borderWidth)
+        }
         .clipShape(cardShape)
         .opacity(isSuspended ? 0.72 : 1)
         .contentShape(RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
@@ -763,36 +757,4 @@ nonisolated func downsample(data: Data, maxDimension: CGFloat) -> UIImage? {
         let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     else { return UIImage(data: data) }
     return UIImage(cgImage: cgImage)
-}
-
-// =============================================================================
-// MARK: - SelectionBubble
-// =============================================================================
-
-private struct SelectionBubble: View {
-    let isSelected: Bool
-    let accent: Color
-    let size: CGFloat
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(Color.white.opacity(isSelected ? 0.08 : 0.05))
-
-            Circle()
-                .stroke(
-                    isSelected ? accent.opacity(0.85) : Color.white.opacity(0.22),
-                    lineWidth: isSelected ? 1.8 : 1.4
-                )
-
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(accent)
-                    .transition(.opacity)
-            }
-        }
-        .frame(width: size, height: size)
-        .animation(.easeInOut(duration: 0.18), value: isSelected)
-    }
 }

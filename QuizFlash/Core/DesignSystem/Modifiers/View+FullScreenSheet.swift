@@ -58,6 +58,10 @@ private struct FullScreenSheetDismissCoordinatorKey: EnvironmentKey {
     static let defaultValue: FullScreenSheetDismissCoordinator? = nil
 }
 
+private struct FullScreenSheetPresentationCoordinatorKey: EnvironmentKey {
+    static let defaultValue: FullScreenSheetPresentationCoordinator? = nil
+}
+
 private struct FullScreenSheetDragActivationHeightPreferenceKey: PreferenceKey {
     static let defaultValue: CGFloat? = nil
     static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
@@ -90,6 +94,11 @@ extension EnvironmentValues {
         set { self[FullScreenSheetDismissCoordinatorKey.self] = newValue }
     }
 
+    fileprivate var fullScreenSheetPresentationCoordinator: FullScreenSheetPresentationCoordinator? {
+        get { self[FullScreenSheetPresentationCoordinatorKey.self] }
+        set { self[FullScreenSheetPresentationCoordinatorKey.self] = newValue }
+    }
+
     /// Vertical clearance reserved for the shared custom-sheet top blur/header.
     var fullScreenSheetTopChromeClearance: CGFloat {
         get { self[FullScreenSheetTopChromeClearanceKey.self] }
@@ -101,6 +110,15 @@ extension EnvironmentValues {
 
 final class FullScreenSheetDismissCoordinator {
     var shouldAllowDismiss: (() -> Bool)?
+}
+
+@MainActor
+private final class FullScreenSheetPresentationCoordinator {
+    var childPresentationHandler: ((UUID, Bool) -> Void)?
+
+    func setChildPresentationActive(_ id: UUID, _ isActive: Bool) {
+        childPresentationHandler?(id, isActive)
+    }
 }
 
 // MARK: - Sheet Configuration
@@ -355,7 +373,9 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
     @ViewBuilder var background: () -> SheetBackground
 
     @State private var tabBarVisibilityRequestID = UUID()
+    @State private var presentationID = UUID()
     @Environment(\.tabBarSheetVisibilityAction) private var tabBarSheetVisibilityAction
+    @Environment(\.fullScreenSheetPresentationCoordinator) private var parentPresentationCoordinator
 
     private var requiresModalCover: Bool {
         configuration.coversTabBar && !configuration.hidesTabBar
@@ -400,9 +420,11 @@ private struct FullScreenSheetBoolOverlayModifier<SheetContent: View, SheetBackg
         .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .onAppear {
+            parentPresentationCoordinator?.setChildPresentationActive(presentationID, true)
             updateSheetTabBarHidden(configuration.hidesTabBar)
         }
         .onDisappear {
+            parentPresentationCoordinator?.setChildPresentationActive(presentationID, false)
             updateSheetTabBarHidden(false)
         }
     }
@@ -423,7 +445,9 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
     @ViewBuilder var background: () -> SheetBackground
 
     @State private var tabBarVisibilityRequestID = UUID()
+    @State private var presentationID = UUID()
     @Environment(\.tabBarSheetVisibilityAction) private var tabBarSheetVisibilityAction
+    @Environment(\.fullScreenSheetPresentationCoordinator) private var parentPresentationCoordinator
 
     private var requiresModalCover: Bool {
         configuration.coversTabBar && !configuration.hidesTabBar
@@ -471,9 +495,11 @@ private struct FullScreenSheetItemOverlayModifier<Item: Identifiable, SheetConte
         .ignoresSafeArea(.container, edges: configuration.ignoresSafeArea ? .all : [])
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .onAppear {
+            parentPresentationCoordinator?.setChildPresentationActive(presentationID, true)
             updateSheetTabBarHidden(configuration.hidesTabBar)
         }
         .onDisappear {
+            parentPresentationCoordinator?.setChildPresentationActive(presentationID, false)
             updateSheetTabBarHidden(false)
         }
     }
@@ -507,6 +533,8 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     @State private var contentScrollOffset: CGFloat = 0
     @State private var preferredDragActivationHeight: CGFloat? = nil
     @State private var dismissCoordinator = FullScreenSheetDismissCoordinator()
+    @State private var childPresentationCoordinator = FullScreenSheetPresentationCoordinator()
+    @State private var activeChildPresentationIDs: Set<UUID> = []
 
     private var dismissalAnimation: Animation {
         .smooth(duration: UIConstants.Animation.medium * 1.05, extraBounce: 0)
@@ -553,6 +581,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         let effectiveBackdropProgress = fullScreenSheetClampedProgress(visibleSheetProgress)
         let topBlurRevealProgress = resolvedTopBlurRevealProgress(scrollOffset: contentScrollOffset)
         let topChromeDragHeight = resolvedTopChromeDragHeight(contentSafeAreaInsets: contentSafeAreaInsets)
+        let hasActiveChildPresentation = !activeChildPresentationIDs.isEmpty
         let sheetShape = UnevenRoundedRectangle(
             cornerRadii: .init(
                 topLeading: configuration.topCornerRadius,
@@ -675,6 +704,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             }
         )
         .environment(\.fullScreenSheetDismissCoordinator, dismissCoordinator)
+        .environment(\.fullScreenSheetPresentationCoordinator, childPresentationCoordinator)
         .onPreferenceChange(FullScreenSheetDragActivationHeightPreferenceKey.self) {
             preferredDragActivationHeight = $0
         }
@@ -684,6 +714,13 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
             isAnimatingDismiss = false
             presentationProgress = 0
             contentScrollOffset = 0
+            childPresentationCoordinator.childPresentationHandler = { id, isActive in
+                if isActive {
+                    activeChildPresentationIDs.insert(id)
+                } else {
+                    activeChildPresentationIDs.remove(id)
+                }
+            }
 
             Task { @MainActor in
                 await Task.yield()
@@ -692,9 +729,19 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
                 }
             }
         }
+        .onDisappear {
+            childPresentationCoordinator.childPresentationHandler = nil
+            activeChildPresentationIDs.removeAll()
+        }
+        .onChange(of: hasActiveChildPresentation) { _, hasActiveChildPresentation in
+            guard hasActiveChildPresentation else { return }
+            offset = 0
+            scrollDisabled = false
+        }
 
         baseView.background {
             SheetPanBridge(
+                isEnabled: !hasActiveChildPresentation,
                 sheetTopY: sheetTopY,
                 activationHeight: resolvedDragActivationHeight(sheetHeight: sheetHeight),
                 alwaysActiveTopHeight: topChromeDragHeight
@@ -871,8 +918,12 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
     ) {
         guard !isAnimatingDismiss else { return }
         guard dismissCoordinator.shouldAllowDismiss?() ?? true else {
-            scrollDisabled = false
-            completion?()
+            withAnimation(dismissalAnimation) { offset = 0 }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))
+                scrollDisabled = false
+                completion?()
+            }
             return
         }
         isAnimatingDismiss = true
@@ -944,9 +995,7 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
 
     private func resolvedTopBlurRevealProgress(scrollOffset: CGFloat) -> CGFloat {
         guard configuration.showsDefaultTopProgressiveBlur else { return 0 }
-        let revealDistance = max(resolvedCustomSheetSettings.topBlurRevealDistance, 1)
-        let normalized = min(max(scrollOffset / revealDistance, 0), 1)
-        return smoothStep(normalized)
+        return 1
     }
 
     private var defaultSheetTopBlurConfiguration: ScreenTopProgressiveBlurConfiguration {
@@ -1157,7 +1206,9 @@ private struct StableHostedSheetContent<Root: View>: UIViewControllerRepresentab
         uiViewController.updateTopCornerRadius(topCornerRadius)
         uiViewController.setSheetInteractionDisabled(interactionDisabled)
         uiViewController.setTrackedScrollOffsetHandler(onScrollOffsetChange)
-        uiViewController.updateRootView(hostedRootView, rootUpdateKey: rootUpdateKey)
+        uiViewController.updateRootViewIfNeeded(rootUpdateKey: rootUpdateKey) {
+            hostedRootView
+        }
     }
 
     func sizeThatFits(
@@ -1246,10 +1297,13 @@ private final class SheetHostingContainerController: UIViewController {
         hostingController.view.layer.masksToBounds = resolvedRadius > 0
     }
 
-    func updateRootView(_ rootView: AnyView, rootUpdateKey: HostedSheetContentUpdateKey) {
+    func updateRootViewIfNeeded(
+        rootUpdateKey: HostedSheetContentUpdateKey,
+        makeRootView: () -> AnyView
+    ) {
         guard self.rootUpdateKey != rootUpdateKey else { return }
         self.rootUpdateKey = rootUpdateKey
-        hostingController.rootView = rootView
+        hostingController.rootView = makeRootView()
     }
 
     func setTrackedScrollOffsetHandler(_ handler: ((CGFloat) -> Void)?) {
@@ -1288,11 +1342,14 @@ private final class SheetHostingController: UIHostingController<AnyView> {
 
     func setTrackedScrollOffsetHandler(_ handler: ((CGFloat) -> Void)?) {
         trackedScrollOffsetHandler = handler
-        updateTrackedScrollViewIfNeeded()
 
         if let trackedScrollView {
             reportTrackedScrollOffset(from: trackedScrollView)
         } else {
+            updateTrackedScrollViewIfNeeded()
+        }
+
+        if trackedScrollView == nil {
             lastReportedTrackedScrollOffset = 0
             handler?(0)
         }
@@ -1397,6 +1454,7 @@ private final class SheetHostingController: UIHostingController<AnyView> {
 // MARK: - Sheet Pan Bridge
 
 private struct SheetPanBridge: UIViewRepresentable {
+    let isEnabled: Bool
     let sheetTopY: CGFloat
     let activationHeight: CGFloat?
     let alwaysActiveTopHeight: CGFloat
@@ -1404,6 +1462,7 @@ private struct SheetPanBridge: UIViewRepresentable {
 
     func makeUIView(context: Context) -> ProbeView {
         let view = ProbeView()
+        view.isDismissGestureEnabled = isEnabled
         view.sheetTopY = sheetTopY
         view.activationHeight = activationHeight
         view.alwaysActiveTopHeight = alwaysActiveTopHeight
@@ -1412,6 +1471,7 @@ private struct SheetPanBridge: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: ProbeView, context: Context) {
+        uiView.isDismissGestureEnabled = isEnabled
         uiView.sheetTopY = sheetTopY
         uiView.activationHeight = activationHeight
         uiView.alwaysActiveTopHeight = alwaysActiveTopHeight
@@ -1423,6 +1483,12 @@ private struct SheetPanBridge: UIViewRepresentable {
         var activationHeight: CGFloat?
         var alwaysActiveTopHeight: CGFloat = 0
         var onPan: ((UIPanGestureRecognizer) -> Void)?
+        var isDismissGestureEnabled = true {
+            didSet {
+                guard oldValue != isDismissGestureEnabled else { return }
+                panGesture.isEnabled = isDismissGestureEnabled
+            }
+        }
 
         private weak var hostView: UIView?
         private var panBeganInAlwaysActiveTopArea = false
@@ -1469,6 +1535,7 @@ private struct SheetPanBridge: UIViewRepresentable {
         }
 
         override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard isDismissGestureEnabled else { return false }
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
                 let host = hostView else { return false }
 

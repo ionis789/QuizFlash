@@ -16,53 +16,11 @@ struct PlayModeSettingsBackground: View {
     let deck: DeckModel
     let mode: DeckPlayModeDestination
 
-    private var accentColor: Color { ThemeManager.shared.accentColor.color }
-    private var deckColor: Color { Color(hex: deck.colorHex) ?? accentColor }
-    private var tintColor: Color {
-        mode.tintColor(deckColor: deckColor, accentColor: accentColor)
-    }
-
     var body: some View {
-        ZStack {
-            if colorScheme == .dark {
-                Color.black
-            } else {
-                Color(uiColor: .systemGroupedBackground)
-            }
-
-            LinearGradient(
-                colors: [
-                    deckColor.opacity(colorScheme == .dark ? 0.18 : 0.14),
-                    tintColor.opacity(colorScheme == .dark ? 0.10 : 0.07),
-                    .clear
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            Circle()
-                .fill(deckColor.opacity(0.18))
-                .frame(
-                    width: UIConstants.Spacing.huge * 8,
-                    height: UIConstants.Spacing.huge * 8
-                )
-                .blur(radius: UIConstants.Spacing.huge * 2.5)
-                .offset(
-                    x: UIConstants.Spacing.huge * 2,
-                    y: -UIConstants.Spacing.huge * 2
-                )
-
-            Circle()
-                .fill(accentColor.opacity(0.12))
-                .frame(
-                    width: UIConstants.Spacing.huge * 7,
-                    height: UIConstants.Spacing.huge * 7
-                )
-                .blur(radius: UIConstants.Spacing.huge * 2)
-                .offset(
-                    x: -UIConstants.Spacing.huge * 2,
-                    y: UIConstants.Spacing.huge * 4
-                )
+        if colorScheme == .dark {
+            Color.black
+        } else {
+            Color(uiColor: .systemGroupedBackground)
         }
     }
 }

@@ -17,50 +17,88 @@ struct SearchResultsView: View {
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(NavigationManager.self) private var router
 
+    @State private var displayedResults: [DeckSearchResultItem] = []
+    @State private var displayedQuery = ""
+    @State private var snapshotOpacity: Double = 1
+    @State private var snapshotTransitionTask: Task<Void, Never>?
+
     let results: [DeckSearchResultItem]
     let query: String
     let isSearchLoading: Bool
+    let expandedDeckIDs: Set<PersistentIdentifier>
     let onCardTap: (PersistentIdentifier) -> Void
+    let onToggleDeckExpansion: (PersistentIdentifier) -> Void
+
+    private var shouldShowEmptyState: Bool {
+        displayedResults.isEmpty && !isSearchLoading
+    }
+
+    private var resultPresentationToken: String {
+        let resultToken = results
+            .map { "\($0.id)-\($0.totalMatchedCardsCount)" }
+            .joined(separator: "|")
+        return "\(query)::\(resultToken)"
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if results.isEmpty {
+        ZStack(alignment: .topLeading) {
+            if !displayedResults.isEmpty {
+                resultList
+            }
+
+            if shouldShowEmptyState {
                 emptyState
-            } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(results) { result in
-                        SearchDeckResultRow(
-                            result: result,
-                            query: query,
-                            onDeckTap: { navigateToDeck(with: result.id) },
-                            onCardTap: onCardTap
-                        )
-                    }
-                }
             }
         }
-        .padding(.top, UIConstants.Spacing.small)
+        .transaction { transaction in
+            transaction.animation = nil
+        }
+        .opacity(snapshotOpacity)
+        .padding(.top, UIConstants.Spacing.huge + UIConstants.Spacing.large)
         .padding(.bottom, 80)
+        .onAppear {
+            updateDisplayedSnapshot(animated: false)
+        }
+        .onChange(of: resultPresentationToken) { _, _ in
+            updateDisplayedSnapshot(animated: true)
+        }
+        .onDisappear {
+            snapshotTransitionTask?.cancel()
+            snapshotTransitionTask = nil
+        }
+    }
+
+    private var resultList: some View {
+        LazyVStack(spacing: 0) {
+            ForEach(displayedResults) { result in
+                SearchDeckResultRow(
+                    result: result,
+                    query: displayedQuery,
+                    isExpanded: expandedDeckIDs.contains(result.id),
+                    onDeckTap: { navigateToDeck(with: result.id) },
+                    onCardTap: onCardTap,
+                    onToggleExpansion: { onToggleDeckExpansion(result.id) }
+                )
+            }
+        }
     }
 
     private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(isSearchLoading ? localized("Searching…") : localized("No matching decks or cards"))
+        VStack(alignment: .center, spacing: 18) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 58, weight: .semibold, design: .rounded))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.secondary)
+                .opacity(0.55)
+
+            Text(localized("No matching decks or cards"))
                 .font(.system(.title3, design: .rounded).weight(.bold))
                 .foregroundStyle(.primary)
-
-            Text(
-                isSearchLoading
-                    ? localized("Keeping the current list stable while the next result set is prepared.")
-                    : localized("Try a broader phrase, another deck title, or a different card keyword.")
-            )
-            .font(.system(size: 16, weight: .medium, design: .rounded))
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-        .padding(.top, UIConstants.Spacing.large)
+        .padding(.top, UIConstants.Spacing.huge + UIConstants.Spacing.extraLarge)
     }
 
     private func navigateToDeck(with id: PersistentIdentifier) {
@@ -74,24 +112,65 @@ struct SearchResultsView: View {
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: appPreferences.resolvedLocale)
     }
+
+    private func updateDisplayedSnapshot(animated: Bool) {
+        snapshotTransitionTask?.cancel()
+
+        guard animated, !displayedQuery.isEmpty || !displayedResults.isEmpty else {
+            snapshotTransitionTask = nil
+            setDisplayedSnapshot()
+            snapshotOpacity = 1
+            return
+        }
+
+        snapshotTransitionTask = Task { @MainActor in
+            guard !Task.isCancelled else { return }
+            setDisplayedSnapshot()
+            snapshotOpacity = 0.92
+
+            withAnimation(.easeOut(duration: 0.18)) {
+                snapshotOpacity = 1
+            }
+
+            snapshotTransitionTask = nil
+        }
+    }
+
+    private func setDisplayedSnapshot() {
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            displayedResults = results
+            displayedQuery = query
+        }
+    }
 }
 
 // MARK: - SearchDeckResultRow
 
 private struct SearchDeckResultRow: View {
     @Environment(AppPreferences.self) private var appPreferences
+    @Environment(ThemeManager.self) private var themeManager
 
     let result: DeckSearchResultItem
     let query: String
+    let isExpanded: Bool
     let onDeckTap: () -> Void
     let onCardTap: (PersistentIdentifier) -> Void
+    let onToggleExpansion: () -> Void
 
-    private var visibleSnippets: ArraySlice<MatchedCardInfo> {
-        result.matchedCards.prefix(2)
+    private let collapsedSnippetLimit = 5
+
+    private var visibleSnippets: [MatchedCardInfo] {
+        isExpanded ? result.matchedCards : Array(result.matchedCards.prefix(collapsedSnippetLimit))
     }
 
     private var hiddenMatchCount: Int {
         max(0, result.totalMatchedCardsCount - visibleSnippets.count)
+    }
+
+    private var hasExpandableMatches: Bool {
+        result.totalMatchedCardsCount > collapsedSnippetLimit
     }
 
     private var timeAgoString: String {
@@ -101,12 +180,12 @@ private struct SearchDeckResultRow: View {
         return formatter.localizedString(for: result.editedAt, relativeTo: Date())
     }
 
-    private var deckTint: Color {
-        Color(hex: result.deckColorHex) ?? ThemeManager.shared.accentColor.color
-    }
-
     private var locale: Locale {
         appPreferences.resolvedLocale
+    }
+
+    private var accentColor: Color {
+        themeManager.accentColor.color
     }
 
     private func localized(_ value: String.LocalizationValue) -> String {
@@ -127,20 +206,11 @@ private struct SearchDeckResultRow: View {
         )
     }
 
-    private var localizedMatchCount: String {
-        AppLocalization.numbered(
-            result.totalMatchedCardsCount,
-            singular: "%d match",
-            plural: "%d matches",
-            locale: locale
-        )
-    }
-
     private var localizedMoreMatchesCount: String {
         AppLocalization.numbered(
             hiddenMatchCount,
-            singular: "+%d more match in this deck",
-            plural: "+%d more matches in this deck",
+            singular: "%d more match",
+            plural: "%d more matches",
             locale: locale
         )
     }
@@ -168,10 +238,6 @@ private struct SearchDeckResultRow: View {
                                 systemImage: "clock",
                                 text: timeAgoString
                             )
-                            LibraryDeckMetaLabel(
-                                systemImage: "sparkles",
-                                text: localizedMatchCount
-                            )
                             Spacer(minLength: 0)
                         }
                     }
@@ -188,30 +254,49 @@ private struct SearchDeckResultRow: View {
             }
             .buttonStyle(.plain)
 
-            ForEach(visibleSnippets) { card in
+            ForEach(Array(visibleSnippets.enumerated()), id: \.element.id) { index, card in
                 Button {
                     onCardTap(card.id)
                 } label: {
                     SearchSnippetRow(card: card, query: query)
                 }
                 .buttonStyle(.plain)
+
+                if index < visibleSnippets.count - 1 {
+                    AppSectionSeparator()
+                        .opacity(0.45)
+                        .padding(.vertical, 2)
+                }
             }
 
-            if hiddenMatchCount > 0 {
-                Text(localizedMoreMatchesCount)
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 56)
+            if hiddenMatchCount > 0 && !isExpanded {
+                Button(action: onToggleExpansion) {
+                    Text(localizedMoreMatchesCount)
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(accentColor)
+                        .padding(.top, 2)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            if isExpanded && hasExpandableMatches {
+                Button(action: onToggleExpansion) {
+                    Text(localized("Hide"))
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(accentColor)
+                        .padding(.top, 2)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, UIConstants.Layout.compactScreenEdgeInset + 4)
         .padding(.vertical, 14)
         .overlay(alignment: .bottom) {
-            LibraryRowSeparator(
-                baseTint: deckTint,
-                highlightTint: ThemeManager.shared.accentColor.color
-            )
-                .padding(.top, 10)
+            AppSectionSeparator()
         }
     }
 }
@@ -223,14 +308,7 @@ private struct SearchSnippetRow: View {
     let query: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(card.matchSide.rawValue)
-                .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundStyle(badgeColor)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background(badgeColor.opacity(0.14), in: Capsule())
-
+        HStack(alignment: .top, spacing: 0) {
             HighlightedText(
                 text: card.snippet,
                 query: query,
@@ -243,14 +321,5 @@ private struct SearchSnippetRow: View {
             Spacer(minLength: 0)
         }
         .contentShape(Rectangle())
-    }
-
-    private var badgeColor: Color {
-        switch card.matchSide {
-        case .front: .blue
-        case .back: .purple
-        case .both: .orange
-        case .content: .teal
-        }
     }
 }

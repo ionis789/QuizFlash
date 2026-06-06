@@ -23,10 +23,18 @@ import Observation
 /// This view only reads observable state and calls ViewModel methods.
 struct FlashCardsPlayModeView: View {
     private struct BufferedCardEntry: Identifiable {
+        struct Identity: Hashable {
+            let runGeneration: Int
+            let cardID: PersistentIdentifier
+        }
+
+        let runGeneration: Int
         let displayIndex: Int
         let card: PlayableCard
 
-        var id: PersistentIdentifier { card.id }
+        var id: Identity {
+            Identity(runGeneration: runGeneration, cardID: card.id)
+        }
     }
 
     private enum ScoreZoneEdge {
@@ -168,10 +176,14 @@ struct FlashCardsPlayModeView: View {
 
                 if viewModel.isComplete {
                     completionOverlay
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
+                        .clipped()
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
 
             }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
+            .clipped()
             .background(Color.black.ignoresSafeArea())
         }
         .animation(.smooth(duration: 0.26, extraBounce: 0), value: viewModel.isComplete)
@@ -277,7 +289,7 @@ struct FlashCardsPlayModeView: View {
                         let isCurrentCard = entry.card.id == currentPlayableCard?.id
                         let flipBinding = isCurrentCard
                             ? $bindableViewModel.isFlipped
-                            : .constant(viewModel.settings.revealFlow == .answerFirst)
+                            : .constant(false)
 
                         GameplayCard(
                             card: entry.card,
@@ -285,7 +297,6 @@ struct FlashCardsPlayModeView: View {
                                 viewModel.handleSwipe(direction)
                             },
                             isInteractionEnabled: isCurrentCard,
-                            allowsTapToFlip: viewModel.settings.flipBehavior == .tapToFlip,
                             tapAnimationStyle: viewModel.settings.tapAnimationStyle,
                             staticSwapTextMotion: viewModel.settings.staticSwapTextMotion,
                             contentAlignment: viewModel.settings.contentAlignment,
@@ -491,6 +502,7 @@ struct FlashCardsPlayModeView: View {
         let upperBound = min(viewModel.cards.count, viewModel.currentIndex + preloadBufferDepth + 1)
         return Array(viewModel.cards[viewModel.currentIndex..<upperBound].enumerated()).map { offset, card in
             BufferedCardEntry(
+                runGeneration: viewModel.playRunGeneration,
                 displayIndex: viewModel.currentIndex + offset,
                 card: card
             )
@@ -1310,6 +1322,7 @@ private final class PlayModeDeveloperSwipeDebugState {
 }
 
 nonisolated private enum FlashcardLayoutDebugReportFormatter {
+    @MainActor
     static func makeReport(
         deckTitle: String,
         card: PlayableCard,
@@ -1330,7 +1343,7 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         lines.append("visibleFace: \(snapshot.face)")
         lines.append("isFlipped: \(isFlipped)")
         lines.append(
-            "settings: revealFlow=\(settings.revealFlow.rawValue), flipBehavior=\(settings.flipBehavior.rawValue), tapAnimation=\(settings.tapAnimationStyle.rawValue), staticSwapMotion=\(settings.staticSwapTextMotion.rawValue), contentAlignment=\(settings.contentAlignment.rawValue), textSize=\(settings.textSize.rawValue)"
+            "settings: tapAnimation=\(settings.tapAnimationStyle.rawValue), staticSwapMotion=\(settings.staticSwapTextMotion.rawValue), contentAlignment=\(settings.contentAlignment.rawValue), textSize=\(settings.textSize.rawValue)"
         )
         lines.append("frontPreview: \(card.frontZone.previewText(maxLength: 220))")
         lines.append("backPreview: \(card.backZone.previewText(maxLength: 220))")
@@ -1346,6 +1359,9 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         lines.append("contentFitsVertically: \(snapshot.contentFitsVertically)")
         lines.append("centeredTopInset: \(metric(snapshot.centeredTopInset))")
         lines.append("scrollContentHeight: \(metric(snapshot.scrollContentHeight))")
+        lines.append("")
+        lines.append("CARD GESTURE DEBUG")
+        lines.append(cardGestureDebugLine(for: SwipeTouchDebugStore.latest))
         lines.append("")
         lines.append("ZONE TREE")
         lines.append(contentsOf: zoneTreeLines(for: visibleZone, path: "root", depth: 0))
@@ -1466,6 +1482,15 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         guard let snapshot else { return "    <none>" }
 
         return "    decision=\(snapshot.decision) reason=\"\(snapshot.reason)\" direction=\"\(snapshot.direction)\" location=(x:\(metric(snapshot.location.x)), y:\(metric(snapshot.location.y))) h=\(metric(snapshot.horizontalMagnitude)) v=\(metric(snapshot.verticalMagnitude)) canLeft=\(snapshot.canScrollLeft) canRight=\(snapshot.canScrollRight) regions=\(snapshot.regionCount)"
+    }
+
+    private static func cardGestureDebugLine(for snapshot: SwipeTouchDebugSnapshot?) -> String {
+        guard let snapshot else { return "    <none>" }
+
+        let location = snapshot.locationInWebView.map {
+            "(x:\(metric($0.x)), y:\(metric($0.y)))"
+        } ?? "nil"
+        return "    event=\(snapshot.event) recognizer=\(snapshot.recognizer) decision=\(snapshot.decision) reason=\"\(snapshot.reason)\" touchedView=\(snapshot.touchedViewClass) webLocation=\(location) translation=(x:\(metric(snapshot.translation.x)), y:\(metric(snapshot.translation.y))) velocity=(x:\(metric(snapshot.velocity.x)), y:\(metric(snapshot.velocity.y))) webRegions=\(snapshot.webRegionCount) canLeft=\(snapshot.webRegionCanScrollLeft) canRight=\(snapshot.webRegionCanScrollRight)"
     }
 
     private static func singleLinePreview(_ value: String, limit: Int) -> String {

@@ -30,6 +30,7 @@ extension LibraryLayout {
                 }
 
                 stackContent
+                    .allowsHitTesting(!viewModel.isSearching)
             }
             .tabBarAutoHideOnScroll(enabled: !viewModel.isSearching && !viewModel.isSelecting)
             .safeAreaInset(edge: .bottom) {
@@ -50,18 +51,25 @@ extension LibraryLayout {
         .coordinateSpace(name: kLibraryScrollSpace)
         .overlay {
             ZStack(alignment: .top) {
+                if viewModel.isSearching {
+                    searchBackgroundBlurOverlay
+                        .transition(.opacity)
+                }
+
                 if isSearchBrowseFrozen {
                     searchBrowseFreezeOverlay
                         .transition(.opacity)
                 }
 
-                if isSearchResultsPresented {
+                if viewModel.isSearching {
                     searchResultsOverlay
-                        .transition(.opacity)
+                        .opacity(isSearchResultsPresented ? 1 : 0)
+                        .allowsHitTesting(isSearchResultsPresented)
                 }
             }
-            .animation(.easeInOut(duration: 0.18), value: isSearchBrowseFrozen)
-            .animation(.easeInOut(duration: 0.18), value: isSearchResultsPresented)
+            .animation(searchBackdropAnimation, value: viewModel.isSearching)
+            .animation(searchBackdropAnimation, value: isSearchBrowseFrozen)
+            .animation(searchBackdropAnimation, value: isSearchResultsPresented)
         }
         .onPreferenceChange(LibrarySectionHeaderFramePreferenceKey.self) { frames in
             handleSectionHeaderDebugFrames(frames)
@@ -85,12 +93,9 @@ extension LibraryLayout {
                 transaction.animation = nil
                 withTransaction(transaction) {
                     areCompactChromeVisibilityAnimationsEnabled = false
-                    isCompactChromeRecoveryVisible = false
                     isCompactChromeSearchRecoveryAnimating = false
                     compactChromeRecoverySectionHeaderID = nil
-                    hiddenSectionHeaderIDs = searchStickyHiddenSectionHeaderIDs
-                    heroCollapsedTitleReady = false
-                    heroCollapsedTitleFallbackReady = false
+                    hiddenSectionHeaderIDs = []
                 }
                 compactChromeAnimationResetTask = Task { @MainActor in
                     defer { compactChromeAnimationResetTask = nil }
@@ -148,6 +153,19 @@ extension LibraryLayout {
         .accessibilityHidden(true)
     }
 
+    var searchBackgroundBlurOverlay: some View {
+        ZStack {
+            BackgroundBlurView(radius: searchBrowseFreezeBlurRadius)
+                .ignoresSafeArea()
+
+            backgroundTheme
+                .opacity(searchBrowseFreezeDimOpacity)
+                .ignoresSafeArea()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(false)
+    }
+
     @ViewBuilder
     var stackContent: some View {
         LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
@@ -202,17 +220,16 @@ extension LibraryLayout {
         } else {
             LibraryFlatListView(
                 decks: flatSearchDecks,
+                showsContextMenus: false,
                 isSelecting: viewModel.isSelecting,
                 selectedDeckIDs: viewModel.selectedDecks,
                 onNavigate: { deckID in
                     onDeckNavigate(deckID)
                 },
                 onToggleSelection: { deckID in
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.75)) {
-                        viewModel.toggleSelection(for: deckID)
-                    }
+                    viewModel.toggleSelection(for: deckID)
                 },
-                onImport: { viewModel.triggerDeckImport() },
+                onExport: { target in viewModel.exportSingleDeck(target, from: decks) },
                 onMoveToFolder: { target in viewModel.deckToMove = target },
                 onDelete: { target in viewModel.deckToDelete = target }
             )
@@ -225,8 +242,12 @@ extension LibraryLayout {
         SearchResultsView(
             results: viewModel.searchResults,
             query: viewModel.renderedSearchQuery,
-            isSearchLoading: viewModel.isSearchLoading,
-            onCardTap: onCardTap
+            isSearchLoading: isSearchResultsLoadingPresentation,
+            expandedDeckIDs: viewModel.expandedSearchDecks,
+            onCardTap: onCardTap,
+            onToggleDeckExpansion: { deckID in
+                viewModel.toggleSearchDeckExpansion(for: deckID)
+            }
         )
         .frame(maxWidth: searchContentMaxWidth, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .top)
@@ -247,17 +268,16 @@ extension LibraryLayout {
                 isCompactChromeRecoveryVisible: isCompactChromeRecoveryVisible,
                 compactChromeVisibilityAnimation: compactChromeVisibilityAnimation,
                 animateHiddenSectionHeaders: areCompactChromeVisibilityAnimationsEnabled && !viewModel.isSearching,
+                showsContextMenus: !viewModel.isSearching,
                 isSelecting: viewModel.isSelecting,
                 selectedDeckIDs: viewModel.selectedDecks,
                 onNavigate: { deckID in
                     onDeckNavigate(deckID)
                 },
                 onToggleSelection: { deckID in
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.75)) {
-                        viewModel.toggleSelection(for: deckID)
-                    }
+                    viewModel.toggleSelection(for: deckID)
                 },
-                onImport: { viewModel.triggerDeckImport() },
+                onExport: { target in viewModel.exportSingleDeck(target, from: decks) },
                 onMoveToFolder: { target in viewModel.deckToMove = target },
                 onDelete: { target in viewModel.deckToDelete = target }
             )
@@ -272,12 +292,19 @@ extension LibraryLayout {
     }
 
     var searchResultsOverlay: some View {
-        ScrollView {
-            searchResultsContent
-                .frame(maxWidth: .infinity, alignment: .top)
+        ZStack(alignment: .top) {
+            backgroundTheme
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+
+            ScrollView {
+                searchResultsContent
+                    .frame(maxWidth: .infinity, alignment: .top)
+            }
+            .scrollDismissesKeyboard(.interactively)
         }
-        .background(backgroundTheme)
-        .scrollDismissesKeyboard(.interactively)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
     }
 
     func handleSectionHeaderDebugFrames(_ frames: [LibrarySectionHeaderFrame]) {

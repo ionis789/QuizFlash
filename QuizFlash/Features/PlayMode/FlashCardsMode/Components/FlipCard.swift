@@ -381,6 +381,7 @@ struct FlipCard: View {
             centersLeafBlocks: centersLeafBlocks,
             showsDebugGuides: showsFlashcardGridGuides,
             collectsDebugMetrics: onLayoutDebugSnapshot != nil,
+            leafTapBehavior: .richContentOnly,
             onTap: onTap
         )
             .frame(width: contentWidth, alignment: .topLeading)
@@ -463,17 +464,11 @@ struct FlipCard: View {
                     )
                 }
                 .scrollDisabled(layout.contentFitsVertically)
-                .onTapGesture {
-                    onTap?()
-                }
                 .frame(width: available.size.width, height: available.size.height)
             } else {
                 emptyContent
                     .frame(width: available.size.width, height: available.size.height)
                     .contentShape(Rectangle())
-                    .onTapGesture {
-                        onTap?()
-                    }
             }
         }
     }

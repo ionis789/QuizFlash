@@ -284,16 +284,11 @@ struct HomeCalendarSectionView: View {
             return AnyView(EmptyView())
         }
 
-        let controlHeight = max(size * 1.22, 1)
-        let buttonDiameter = max(controlHeight * 0.88, 1)
-        let horizontalInset = max(controlHeight * 0.18, 2)
-        let buttonSpacing = max(spacing, controlHeight * 0.04)
-        let totalWidth = (buttonDiameter * 2) + (horizontalInset * 2) + buttonSpacing
+        let buttonDiameter = max(size * 1.28, 30)
+        let buttonSpacing = max(spacing + 6, 12)
+        let totalWidth = (buttonDiameter * 2) + buttonSpacing
 
-        return AnyView(ZStack {
-            Capsule(style: .continuous)
-                .fill(themeManager.roleColor(.buttonSurfaceFill))
-
+        return AnyView(
             HStack(spacing: buttonSpacing) {
                 monthChevronButton(
                     systemName: "chevron.compact.left",
@@ -307,10 +302,8 @@ struct HomeCalendarSectionView: View {
                     action: { calendarVM.monthUpdate(increment: true) }
                 )
             }
-                .padding(.horizontal, horizontalInset)
-        }
-            .frame(width: totalWidth, height: controlHeight)
-            .clipped())
+            .frame(width: totalWidth, height: buttonDiameter)
+        )
     }
 
     private func monthChevronButton(
@@ -322,7 +315,7 @@ struct HomeCalendarSectionView: View {
             action()
         } label: {
             Image(systemName: systemName)
-                .font(.system(size: size * 0.52, weight: .black, design: .rounded))
+                .font(.system(size: size * 0.58, weight: .black, design: .rounded))
                 .foregroundStyle(themeManager.roleColor(.circularToolbarForeground))
                 .frame(width: size, height: size)
                 .contentShape(Rectangle())

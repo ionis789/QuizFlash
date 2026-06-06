@@ -195,6 +195,15 @@ enum ThemeColorRole: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var isFixedScreenBackground: Bool {
+        switch self {
+        case .screenBackgroundPrimary, .screenBackgroundGrouped:
+            true
+        default:
+            false
+        }
+    }
+
     var title: String {
         switch self {
         case .tintAccent: "Tint Accent"
@@ -610,6 +619,10 @@ final class ThemeManager {
     }
 
     func resolvedToken(for role: ThemeColorRole) -> ThemeColorToken {
+        if role.isFixedScreenBackground {
+            return .backgroundPrimary
+        }
+
         if let rawValue = roleOverrideTokenNames[role.rawValue],
            let token = ThemeColorToken(rawValue: rawValue) {
             return token
@@ -631,6 +644,11 @@ final class ThemeManager {
     }
 
     func setRoleOverride(_ token: ThemeColorToken, for role: ThemeColorRole) {
+        guard !role.isFixedScreenBackground else {
+            clearRoleOverride(for: role)
+            return
+        }
+
         roleOverrideTokenNames[role.rawValue] = token.rawValue
         persistOverrides()
     }
@@ -652,6 +670,10 @@ final class ThemeManager {
     }
 
     func color(_ token: ThemeColorToken) -> Color {
+        if token == .backgroundPrimary {
+            return .black
+        }
+
         if let overrideHex = colorOverrideHexes[token.rawValue],
            let overrideColor = Color(hex: overrideHex) {
             return overrideColor
@@ -661,6 +683,10 @@ final class ThemeManager {
     }
 
     func resolvedHex(for token: ThemeColorToken) -> String {
+        if token == .backgroundPrimary {
+            return "#000000"
+        }
+
         if let overrideHex = colorOverrideHexes[token.rawValue] {
             return overrideHex
         }
@@ -673,7 +699,11 @@ final class ThemeManager {
     }
 
     func hasColorOverride(for token: ThemeColorToken) -> Bool {
-        colorOverrideHexes[token.rawValue] != nil
+        if token == .backgroundPrimary {
+            return false
+        }
+
+        return colorOverrideHexes[token.rawValue] != nil
     }
 
     var hasColorOverrides: Bool {
@@ -686,6 +716,11 @@ final class ThemeManager {
     }
 
     func setColorHexOverride(_ hex: String, for token: ThemeColorToken) {
+        guard token != .backgroundPrimary else {
+            clearColorOverride(for: token)
+            return
+        }
+
         guard let normalizedHex = Self.normalizedHex(hex),
               Color(hex: normalizedHex) != nil else { return }
 
@@ -775,6 +810,7 @@ final class ThemeManager {
         self.userDefaults = userDefaults
         self.colorOverrideHexes = userDefaults.dictionary(forKey: Keys.colorOverrides) as? [String: String] ?? [:]
         self.roleOverrideTokenNames = userDefaults.dictionary(forKey: Keys.roleOverrides) as? [String: String] ?? [:]
+        enforceFixedScreenBackgroundIfNeeded()
         migrateLegacySurfaceTokenIfNeeded()
         migrateLegacyDangerRoleOverridesIfNeeded()
     }
@@ -790,6 +826,24 @@ final class ThemeManager {
             userDefaults.removeObject(forKey: Keys.roleOverrides)
         } else {
             userDefaults.set(roleOverrideTokenNames, forKey: Keys.roleOverrides)
+        }
+    }
+
+    private func enforceFixedScreenBackgroundIfNeeded() {
+        var didChange = false
+
+        if colorOverrideHexes.removeValue(forKey: ThemeColorToken.backgroundPrimary.rawValue) != nil {
+            didChange = true
+        }
+
+        for role in ThemeColorRole.allCases where role.isFixedScreenBackground {
+            if roleOverrideTokenNames.removeValue(forKey: role.rawValue) != nil {
+                didChange = true
+            }
+        }
+
+        if didChange {
+            persistOverrides()
         }
     }
 

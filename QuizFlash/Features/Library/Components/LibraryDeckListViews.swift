@@ -28,11 +28,12 @@ struct LibraryListView: View {
     let isCompactChromeRecoveryVisible: Bool
     let compactChromeVisibilityAnimation: Animation?
     var animateHiddenSectionHeaders = true
+    var showsContextMenus = true
     let isSelecting: Bool
     let selectedDeckIDs: Set<PersistentIdentifier>
     let onNavigate: @MainActor @Sendable (PersistentIdentifier) -> Void
     let onToggleSelection: @MainActor @Sendable (PersistentIdentifier) -> Void
-    let onImport: @MainActor @Sendable () -> Void
+    let onExport: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
     let onMoveToFolder: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
     let onDelete: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
 
@@ -52,9 +53,10 @@ struct LibraryListView: View {
                     isFirstInSection: index == 0,
                     isSelecting: isSelecting,
                     isSelected: selectedDeckIDs.contains(deck.id),
+                    showsContextMenu: showsContextMenus,
                     onNavigate: { onNavigate(deck.id) },
                     onToggleSelection: { onToggleSelection(deck.id) },
-                    onImport: { onImport() },
+                    onExport: { onExport(LibraryDeckActionTarget(id: deck.id, title: deck.title)) },
                     onMoveToFolder: { onMoveToFolder(LibraryDeckActionTarget(id: deck.id, title: deck.title)) },
                     onDelete: { onDelete(LibraryDeckActionTarget(id: deck.id, title: deck.title)) }
                 )
@@ -88,11 +90,12 @@ struct LibraryListView: View {
 /// chrome is intentionally hidden.
 struct LibraryFlatListView: View {
     let decks: [LibraryDeckRowSnapshot]
+    var showsContextMenus = true
     let isSelecting: Bool
     let selectedDeckIDs: Set<PersistentIdentifier>
     let onNavigate: @MainActor @Sendable (PersistentIdentifier) -> Void
     let onToggleSelection: @MainActor @Sendable (PersistentIdentifier) -> Void
-    let onImport: @MainActor @Sendable () -> Void
+    let onExport: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
     let onMoveToFolder: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
     let onDelete: @MainActor @Sendable (LibraryDeckActionTarget) -> Void
 
@@ -103,9 +106,10 @@ struct LibraryFlatListView: View {
                 isFirstInSection: index == 0,
                 isSelecting: isSelecting,
                 isSelected: selectedDeckIDs.contains(deck.id),
+                showsContextMenu: showsContextMenus,
                 onNavigate: { onNavigate(deck.id) },
                 onToggleSelection: { onToggleSelection(deck.id) },
-                onImport: { onImport() },
+                onExport: { onExport(LibraryDeckActionTarget(id: deck.id, title: deck.title)) },
                 onMoveToFolder: { onMoveToFolder(LibraryDeckActionTarget(id: deck.id, title: deck.title)) },
                 onDelete: { onDelete(LibraryDeckActionTarget(id: deck.id, title: deck.title)) }
             )

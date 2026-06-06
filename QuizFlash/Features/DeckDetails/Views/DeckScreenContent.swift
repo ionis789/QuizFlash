@@ -20,14 +20,10 @@ extension DeckContentView {
                 ) {
                     DeckSelectionBottomBar(
                         selectedCount: viewModel.selectedCards.count,
-                        onDone: {
-                            withBottomChromeAnimation {
-                                viewModel.exitSelectionMode()
-                            }
-                        },
-                        onClearSelection: {
+                        isSelectAllEnabled: !viewModel.areAllVisibleCardsSelected,
+                        onSelectAll: {
                             withAnimation(.selectionToolbarSpring) {
-                                viewModel.clearSelection()
+                                viewModel.selectAllVisibleCards()
                             }
                         },
                         onDelete: { viewModel.showDeleteConfirmation = true }
@@ -50,10 +46,9 @@ extension DeckContentView {
                 && selectedPlayMode == nil
                 && selectedPlayModeSettings == nil
                 && previewedCard == nil
+                && deckEditorPresentation == nil
                 && cardEditorDestination == nil
-                && unavailablePlayMode == nil
         ) { dismiss() }
-        .overlay { unavailablePlayModeOverlay }
         .overlay {
             if shouldShowFullScreenSheetBacking {
                 CardPreviewModeBackground()
@@ -91,7 +86,11 @@ extension DeckContentView {
         }
         .fullScreenSheet(
             item: $selectedPlayModeSettings,
-            configuration: .chrome(backgroundReceivesDragProgress: false)
+            configuration: .chrome(
+                heightMode: playModeSettingsSheetHeightMode,
+                backgroundReceivesDragProgress: false,
+                showsBackdropBlur: true
+            )
         ) { mode, safeArea in
             mode.settingsSheetView(
                 for: deck,
@@ -139,6 +138,31 @@ extension DeckContentView {
         } background: {
             DeckActivitySheetBackground()
         }
+        .fullScreenSheet(
+            item: $deckEditorPresentation,
+            configuration: .chrome(
+                heightMode: .fullScreen,
+                backgroundReceivesDragProgress: false,
+                showsBackdropBlur: true,
+                hidesTabBar: true,
+                coversTabBar: true
+            )
+        ) { presentation, safeArea in
+            if let editingDeck = context.safeModel(for: presentation.id, as: DeckModel.self) {
+                DeckWorkspaceView(
+                    deckToEdit: editingDeck,
+                    sheetSafeAreaInsets: safeArea
+                ) {
+                    deckEditorPresentation = nil
+                    viewModel.requestSnapshotLoad(
+                        deckID: deck.persistentModelID,
+                        container: context.container
+                    )
+                }
+            }
+        } background: {
+            DeckActivitySheetBackground()
+        }
         .fullScreenCover(item: $cardEditorDestination) { destination in
             CardEditorView(
                 destination: destination,
@@ -152,15 +176,22 @@ extension DeckContentView {
     // MARK: Navigation Bar
 
     var shouldShowDeckNavigationBar: Bool {
-        selectedPlayModeSettings == nil
-            && previewedCard == nil
-            && viewModel.activitySheetPresentation == nil
-            && cardEditorDestination == nil
+        cardEditorDestination == nil
     }
 
     var shouldShowFullScreenSheetBacking: Bool {
-        selectedPlayModeSettings != nil
-            || previewedCard != nil
+        previewedCard != nil
+    }
+
+    var playModeSettingsSheetHeightMode: FullScreenSheetHeightMode {
+        switch selectedPlayModeSettings {
+        case .quiz:
+            .absolute(420)
+        case .flashcards:
+            .absolute(700)
+        case nil:
+            .custom(0.6)
+        }
     }
 
     var measuredNavigationBar: some View {
@@ -193,6 +224,11 @@ extension DeckContentView {
             onStartSelection: {
                 withBottomChromeAnimation {
                     viewModel.enterSelectionMode()
+                }
+            },
+            onDoneSelection: {
+                withBottomChromeAnimation {
+                    viewModel.exitSelectionMode()
                 }
             },
             onExport: {
@@ -277,7 +313,7 @@ extension DeckContentView {
                 VStack(spacing: 16) {
                     Button {
                         exitSelectionModeForExternalAction()
-                        router.showDeckWorkspace(for: deck.persistentModelID)
+                        deckEditorPresentation = DeckEditorSheetPresentation(id: deck.persistentModelID)
                     } label: {
                         HStack(alignment: .top, spacing: 16) {
                             VStack(alignment: .leading, spacing: 6) {
@@ -326,12 +362,8 @@ extension DeckContentView {
                         DeckProgressView(
                             progress: viewModel.progressStats,
                             stats: viewModel.currentStats,
-                            deckCardCount: deck.cardCount,
                             activity: viewModel.todayActivitySummary,
-                            deckTint: Color(hex: deck.colorHex) ?? themeManager.roleColor(.buttonPrimaryFill),
-                            onOpenActivityHistory: {
-                                viewModel.presentActivityHistorySheet()
-                            }
+                            deckTint: Color(hex: deck.colorHex) ?? themeManager.roleColor(.buttonPrimaryFill)
                         )
                         DeckPlayModesView(
                             deck: deck,
@@ -342,9 +374,6 @@ extension DeckContentView {
                             },
                             onOpenSettings: { mode in
                                 selectedPlayModeSettings = mode
-                            },
-                            onRequestUnavailableMode: { mode in
-                                presentUnavailablePlayMode(mode)
                             }
                         )
                         .padding(.top, 16)
@@ -384,20 +413,18 @@ extension DeckContentView {
             .tabBarAutoHideOnScroll(enabled: !viewModel.isSelecting)
             .background {
                 themeManager.groupedScreenBackground
-
-                if viewModel.isSelecting {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            withBottomChromeAnimation {
-                                viewModel.exitSelectionMode()
-                            }
-                        }
-                }
             }
         }
         .coordinateSpace(name: kDeckScrollSpace)
         .scrollIndicators(.hidden)
+        .gesture(
+            TapGesture().onEnded {
+                guard viewModel.isSelecting else { return }
+                withBottomChromeAnimation {
+                    viewModel.exitSelectionMode()
+                }
+            }
+        )
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: topContentInset)
         }

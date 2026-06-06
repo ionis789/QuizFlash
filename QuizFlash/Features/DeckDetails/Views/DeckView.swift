@@ -19,6 +19,10 @@ import OSLog
 let kDeckScrollSpace = "DeckViewScrollSpace"
 let kDeckChromeSpace = "DeckViewChromeSpace"
 
+struct DeckEditorSheetPresentation: Identifiable {
+    let id: PersistentIdentifier
+}
+
 struct DeckContentView: View {
     private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
@@ -42,6 +46,7 @@ struct DeckContentView: View {
     @State var selectedPlayMode: DeckPlayModeDestination? = nil
     @State var selectedPlayModeSettings: DeckPlayModeDestination? = nil
     @State var previewedCard: CardModel? = nil
+    @State var deckEditorPresentation: DeckEditorSheetPresentation? = nil
     @State var cardEditorDestination: CardEditorDestination? = nil
     @State var unavailablePlayMode: DeckPlayModeDestination? = nil
     @State var showAddCardTypeDialog = false
@@ -80,11 +85,9 @@ struct DeckContentView: View {
 
     /// Bottom scroll clearance reserved for floating chrome without creating a large dead zone.
     var bottomContentInset: CGFloat {
-        let baseInset = UIConstants.Spacing.small
-        guard viewModel.isSelecting else { return baseInset }
-        return UIConstants.Size.selectionToolbarBarHeight
+        UIConstants.Size.bottomChromeBarHeight
             + UIConstants.Layout.bottomChromeBottomPadding
-            + UIConstants.Spacing.standard
+            + UIConstants.Spacing.extraLarge
     }
 
     func localized(_ value: String.LocalizationValue) -> String {

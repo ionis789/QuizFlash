@@ -107,8 +107,8 @@ enum UIConstants {
         static let bottomChromeControl: CGFloat = 54
         /// 66 pt — shared outer height for floating bottom chrome surfaces.
         static let bottomChromeBarHeight: CGFloat = 66
-        /// 48 pt — shared outer height for floating selection bars.
-        static let selectionToolbarBarHeight: CGFloat = 48
+        /// 66 pt — shared outer height for floating selection bars, matching the tab bar.
+        static let selectionToolbarBarHeight: CGFloat = 66
         /// 40 pt — unified control size used by selection toolbars.
         static let selectionToolbarControl: CGFloat = 40
         /// 16 pt — icon size used inside shared selection toolbar controls.
@@ -151,10 +151,10 @@ enum UIConstants {
         static let bottomChromeInnerVerticalPadding: CGFloat = 6
 
         /// Shared inner horizontal padding for floating selection bars.
-        static let selectionToolbarInnerHorizontalPadding: CGFloat = 6
+        static let selectionToolbarInnerHorizontalPadding: CGFloat = 12
 
-        /// Shared inner vertical padding for floating selection bars.
-        static let selectionToolbarInnerVerticalPadding: CGFloat = 3
+        /// Selection toolbars fill the tab-bar-height capsule.
+        static let selectionToolbarInnerVerticalPadding: CGFloat = 0
 
         /// Shared bottom spacing above the home indicator for floating bottom chrome.
         static var bottomChromeBottomPadding: CGFloat {

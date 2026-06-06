@@ -304,29 +304,103 @@ extension _SwipeHost {
 
         // MARK: Tap
 
-        @objc func handleTap() { onTap?() }
+        @objc func handleTap() {
+            publishTouchDebug(
+                event: "tap ended",
+                recognizer: "cardTap",
+                decision: "TAP",
+                reason: "card tap handler fired"
+            )
+            onTap?()
+        }
 
         // MARK: Gesture recogniser delegate
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            guard isInteractionEnabled else { return false }
-            guard !isExiting else { return false }
+            guard isInteractionEnabled else {
+                publishTouchDebug(
+                    event: "shouldBegin",
+                    recognizer: recognizerName(gestureRecognizer),
+                    decision: "BLOCK",
+                    reason: "interaction disabled",
+                    gestureRecognizer: gestureRecognizer
+                )
+                return false
+            }
+            guard !isExiting else {
+                publishTouchDebug(
+                    event: "shouldBegin",
+                    recognizer: recognizerName(gestureRecognizer),
+                    decision: "BLOCK",
+                    reason: "card exiting",
+                    gestureRecognizer: gestureRecognizer
+                )
+                return false
+            }
             guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
-                  let view = pan.view else { return true }
+                  let view = pan.view else {
+                publishTouchDebug(
+                    event: "shouldBegin",
+                    recognizer: recognizerName(gestureRecognizer),
+                    decision: "ALLOW",
+                    reason: "non-pan recognizer",
+                    gestureRecognizer: gestureRecognizer
+                )
+                return true
+            }
             let v = pan.velocity(in: view)
-            guard v != .zero else { return true }
+            guard v != .zero else {
+                publishTouchDebug(
+                    event: "shouldBegin",
+                    recognizer: "cardPan",
+                    decision: "ALLOW",
+                    reason: "zero velocity",
+                    gestureRecognizer: gestureRecognizer
+                )
+                return true
+            }
             // Reject gestures whose initial velocity is predominantly vertical.
             // This lets the card ignore scroll attempts completely — the `.began`
             // phase never fires for vertical gestures, so the card never moves.
-            guard isHorizontalCardSwipeIntent(pan, in: view) else { return false }
+            guard isHorizontalCardSwipeIntent(pan, in: view) else {
+                publishTouchDebug(
+                    event: "shouldBegin",
+                    recognizer: "cardPan",
+                    decision: "BLOCK",
+                    reason: "not horizontal card intent",
+                    gestureRecognizer: gestureRecognizer
+                )
+                return false
+            }
             if gestureRecognizer === cardPanGesture,
                shouldMathWebViewHandlePan(pan) {
+                publishTouchDebug(
+                    event: "shouldBegin",
+                    recognizer: "cardPan",
+                    decision: "WEB",
+                    reason: "math web region can scroll",
+                    gestureRecognizer: gestureRecognizer
+                )
                 return false
             }
             if gestureRecognizer === cardPanGesture,
                shouldEdgeHandoffScrollViewHandlePan(pan) {
+                publishTouchDebug(
+                    event: "shouldBegin",
+                    recognizer: "cardPan",
+                    decision: "SCROLL",
+                    reason: "edge handoff scroll view can scroll",
+                    gestureRecognizer: gestureRecognizer
+                )
                 return false
             }
+            publishTouchDebug(
+                event: "shouldBegin",
+                recognizer: "cardPan",
+                decision: "CARD",
+                reason: "card pan allowed",
+                gestureRecognizer: gestureRecognizer
+            )
             return true
         }
 
@@ -345,9 +419,25 @@ extension _SwipeHost {
                     cardPanInitialLocationInWebView = nil
                 }
                 cardPanInitialEdgeHandoffScrollView = touch.view.flatMap(nearestEdgeHandoffScrollView(from:))
+                publishTouchDebug(
+                    event: "shouldReceive",
+                    recognizer: "cardPan",
+                    decision: "ALLOW",
+                    reason: cardPanInitialWebView == nil ? "plain card touch" : "web touch tracked for pan handoff",
+                    touch: touch,
+                    gestureRecognizer: gestureRecognizer
+                )
                 return true
             }
             if gestureRecognizer === cardTapGesture {
+                publishTouchDebug(
+                    event: "shouldReceive",
+                    recognizer: "cardTap",
+                    decision: "ALLOW",
+                    reason: touch.view.flatMap(nearestHostedWebView(from:)) == nil ? "plain card tap" : "web tap allowed",
+                    touch: touch,
+                    gestureRecognizer: gestureRecognizer
+                )
                 return true
             }
             return true
@@ -850,6 +940,60 @@ extension _SwipeHost {
                 return containerWidth
             }
             return max(card.bounds.width, 1)
+        }
+
+        // MARK: Gesture debug
+
+        private func publishTouchDebug(
+            event: String,
+            recognizer: String,
+            decision: String,
+            reason: String,
+            touch: UITouch? = nil,
+            gestureRecognizer: UIGestureRecognizer? = nil
+        ) {
+            let touchedView = touch?.view
+            let webView = touchedView.flatMap(nearestHostedWebView(from:)) ?? cardPanInitialWebView
+            let locationInWebView = webView.map { webView in
+                if let touch {
+                    return touch.location(in: webView)
+                }
+                if let gestureRecognizer {
+                    return gestureRecognizer.location(in: webView)
+                }
+                return cardPanInitialLocationInWebView ?? .zero
+            }
+            let region = webView.flatMap { webView -> ScrollableMathInteractionRegion? in
+                guard let locationInWebView else { return nil }
+                return webView.quizflashScrollableMathInteractionRegions.first { region in
+                    region.rect
+                        .insetBy(dx: -UIConstants.Spacing.small, dy: -UIConstants.Spacing.small)
+                        .contains(locationInWebView)
+                }
+            }
+            let pan = gestureRecognizer as? UIPanGestureRecognizer
+            let referenceView = gestureRecognizer?.view
+
+            SwipeTouchDebugStore.latest = SwipeTouchDebugSnapshot(
+                timestamp: Date(),
+                event: event,
+                recognizer: recognizer,
+                decision: decision,
+                reason: reason,
+                touchedViewClass: touchedView.map { NSStringFromClass(type(of: $0)) } ?? "nil",
+                locationInWebView: locationInWebView,
+                translation: pan?.translation(in: referenceView) ?? .zero,
+                velocity: pan?.velocity(in: referenceView) ?? .zero,
+                webRegionCount: webView?.quizflashScrollableMathInteractionRegions.count ?? 0,
+                webRegionCanScrollLeft: region?.canScrollLeft ?? false,
+                webRegionCanScrollRight: region?.canScrollRight ?? false
+            )
+        }
+
+        private func recognizerName(_ gestureRecognizer: UIGestureRecognizer) -> String {
+            if gestureRecognizer === cardTapGesture { return "cardTap" }
+            if gestureRecognizer === cardPanGesture { return "cardPan" }
+            return String(describing: type(of: gestureRecognizer))
         }
 
         // MARK: WebView gesture helpers

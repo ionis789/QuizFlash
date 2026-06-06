@@ -16,17 +16,20 @@ struct CardZoneLayoutSpec: Equatable {
     let fontScale: CGFloat
     let minimumAutoWidth: CGFloat
     let textVerticalPadding: CGFloat
+    let textHorizontalPaddingOverride: CGFloat?
 
     init(
         availableWidth: CGFloat,
         fontScale: CGFloat,
         minimumAutoWidth: CGFloat = 1,
-        textVerticalPadding: CGFloat = CardZoneContentMetrics.textVerticalPadding
+        textVerticalPadding: CGFloat = CardZoneContentMetrics.textVerticalPadding,
+        textHorizontalPaddingOverride: CGFloat? = nil
     ) {
         self.availableWidth = max(availableWidth, 1)
         self.fontScale = fontScale
         self.minimumAutoWidth = max(minimumAutoWidth, 1)
         self.textVerticalPadding = max(textVerticalPadding, 0)
+        self.textHorizontalPaddingOverride = textHorizontalPaddingOverride.map { max($0, 0) }
     }
 }
 
@@ -69,9 +72,10 @@ enum CardZoneLayoutEngine {
             for: zone,
             fontScale: spec.fontScale,
             availableWidth: spec.availableWidth,
-            textVerticalPadding: spec.textVerticalPadding
+            textVerticalPadding: spec.textVerticalPadding,
+            textHorizontalPaddingOverride: spec.textHorizontalPaddingOverride
         )
-        let textHorizontalInsets = horizontalTextInsets(for: zone)
+        let textHorizontalInsets = spec.textHorizontalPaddingOverride ?? horizontalTextInsets(for: zone)
         let bulletHorizontalInset = bulletInset(for: zone)
         let intrinsicMeasurement = usesIntrinsicTextMeasurement(for: zone)
         let usesMediaIntrinsicLayout = usesMediaIntrinsicLayout(for: zone)

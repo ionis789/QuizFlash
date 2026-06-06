@@ -183,8 +183,8 @@ extension DeckWorkspaceViewModel {
 
     // MARK: - Process Photos
     //
-    // Fast    — On-device Vision OCR (free, fast)
-    // Quality — GPT Vision, all images in a single request (accurate, understands diagrams)
+    // Text-only — On-device Vision OCR extracts text locally; image-to-AI is
+    // intentionally not used by this flow.
 
     func processPhotosForAI(
         _ source: AIPreparedGenerationSource,
@@ -198,43 +198,21 @@ extension DeckWorkspaceViewModel {
         aiGenerationTask = Task { [weak self] in
             guard let self else { return }
             do {
-                switch extractionMode {
-                case .fast:
-                    let texts = source.textSegments.map(\.text)
-                    guard DocumentTextExtractor.isUsableOCRText(texts) else {
-                        try await consumeGeneratedBatchChunks(
-                            from: aiService.generateFlashcardBatchStream(
-                                from: source.images,
-                                itemLabels: source.itemLabels,
-                                targetCards: targetCardCount,
-                                allocations: allocations,
-                                options: options
-                            )
-                        )
-                        return
-                    }
-
-                    try await consumeGeneratedBatchChunks(
-                        from: aiService.generateFlashcardBatchStream(
-                            fromSegments: source.textSegments,
-                            targetCards: targetCardCount,
-                            allocations: allocations,
-                            needsOCRCorrection: true,
-                            options: options
-                        )
-                    )
-
-                case .quality:
-                    try await consumeGeneratedBatchChunks(
-                        from: aiService.generateFlashcardBatchStream(
-                            from: source.images,
-                            itemLabels: source.itemLabels,
-                            targetCards: targetCardCount,
-                            allocations: allocations,
-                            options: options
-                        )
-                    )
+                let texts = source.textSegments.map(\.text)
+                guard DocumentTextExtractor.isUsableExtractedText(texts) else {
+                    aiState = .error(localizedTextExtractionFailureMessage)
+                    return
                 }
+
+                try await consumeGeneratedBatchChunks(
+                    from: aiService.generateFlashcardBatchStream(
+                        fromSegments: source.textSegments,
+                        targetCards: targetCardCount,
+                        allocations: allocations,
+                        needsOCRCorrection: true,
+                        options: options
+                    )
+                )
             } catch {
                 guard !(error is CancellationError) else { return }
                 handleAIGenerationFailure(error)
@@ -244,8 +222,7 @@ extension DeckWorkspaceViewModel {
 
     // MARK: - Process PDF
     //
-    // Fast    — Automatic pipeline: PDFKit → on-device Vision OCR (free)
-    // Quality — Render pages as images → all in a single GPT Vision request
+    // Text-only — Prepared PDF text comes from PDFKit first, then local OCR.
 
     func processPDFForAI(
         _ source: AIPreparedGenerationSource,
@@ -270,68 +247,22 @@ extension DeckWorkspaceViewModel {
             defer { url.stopAccessingSecurityScopedResource() }
 
             do {
-                switch extractionMode {
-                case .fast:
-                    aiState = .extractingText
-                    let directTextIsReliable = (pdfAnalysis?.isGoodForFast ?? false)
-                        && source.textSegments.contains(where: { !$0.text.isEmpty })
-
-                    if directTextIsReliable {
-                        try await consumeGeneratedBatchChunks(
-                            from: aiService.generateFlashcardBatchStream(
-                                fromSegments: source.textSegments,
-                                targetCards: targetCardCount,
-                                allocations: allocations,
-                                needsOCRCorrection: false,
-                                options: options
-                            )
-                        )
-                        return
-                    }
-
-                    let images = await DocumentTextExtractor.renderPDFPages(from: url)
-                    guard !images.isEmpty else { throw AIServiceError.parsingFailed }
-
-                    let pageTexts = await DocumentTextExtractor.extractVisionTexts(from: images)
-                    if DocumentTextExtractor.isUsableOCRText(pageTexts) {
-                        let ocrSegments = makeTextSegments(from: pageTexts, labelPrefix: "Page")
-                        try await consumeGeneratedBatchChunks(
-                            from: aiService.generateFlashcardBatchStream(
-                                fromSegments: ocrSegments,
-                                targetCards: targetCardCount,
-                                allocations: allocations,
-                                needsOCRCorrection: true,
-                                options: options
-                            )
-                        )
-                        return
-                    }
-
-                    try await consumeGeneratedBatchChunks(
-                        from: aiService.generateFlashcardBatchStream(
-                            from: images,
-                            itemLabels: source.itemLabels,
-                            targetCards: targetCardCount,
-                            allocations: allocations,
-                            options: options
-                        )
-                    )
-
-                case .quality:
-                    aiState = .extractingText
-                    let images = await DocumentTextExtractor.renderPDFPages(from: url, dpi: 150)
-                    guard !images.isEmpty else { throw AIServiceError.parsingFailed }
-
-                    try await consumeGeneratedBatchChunks(
-                        from: aiService.generateFlashcardBatchStream(
-                            from: images,
-                            itemLabels: source.itemLabels,
-                            targetCards: targetCardCount,
-                            allocations: allocations,
-                            options: options
-                        )
-                    )
+                aiState = .extractingText
+                let texts = source.textSegments.map(\.text)
+                guard DocumentTextExtractor.isUsableExtractedText(texts) else {
+                    aiState = .error(localizedTextExtractionFailureMessage)
+                    return
                 }
+
+                try await consumeGeneratedBatchChunks(
+                    from: aiService.generateFlashcardBatchStream(
+                        fromSegments: source.textSegments,
+                        targetCards: targetCardCount,
+                        allocations: allocations,
+                        needsOCRCorrection: source.needsOCRCorrection,
+                        options: options
+                    )
+                )
             } catch {
                 guard !(error is CancellationError) else { return }
                 handleAIGenerationFailure(error)
@@ -358,12 +289,20 @@ extension DeckWorkspaceViewModel {
 
             let texts = await DocumentTextExtractor.extractVisionTexts(from: images)
             await Task.yield()
+
+            guard DocumentTextExtractor.isUsableExtractedText(texts) else {
+                clearAISourcePreparation()
+                aiState = .error(localizedTextExtractionFailureMessage)
+                return
+            }
+
             let source = AIPreparedGenerationSource(
                 kind: .photos,
                 previewItems: makePhotoPreviewItems(images: images, texts: texts),
                 textSegments: makeTextSegments(from: texts, labelPrefix: "Image"),
                 images: images,
-                pdfURL: nil
+                pdfURL: nil,
+                needsOCRCorrection: true
             )
 
             prepareSheetState(for: source, pdfAnalysis: nil)
@@ -383,8 +322,22 @@ extension DeckWorkspaceViewModel {
         }
         defer { url.stopAccessingSecurityScopedResource() }
 
-        let pageTexts = await extractPDFKitPageTexts(from: url)
+        var pageTexts = await extractPDFKitPageTexts(from: url)
+        var needsOCRCorrection = false
         await Task.yield()
+
+        if !DocumentTextExtractor.isUsableExtractedText(pageTexts) {
+            pageTexts = await DocumentTextExtractor.extractVisionTextsFromPDFPages(from: url)
+            needsOCRCorrection = true
+            await Task.yield()
+        }
+
+        guard DocumentTextExtractor.isUsableExtractedText(pageTexts) else {
+            clearAISourcePreparation()
+            aiState = .error(localizedTextExtractionFailureMessage)
+            return
+        }
+
         let thumbnails = await DocumentTextExtractor.renderPDFPreviewThumbnails(from: url)
         await Task.yield()
         let pageCount = max(pageTexts.count, await extractPDFPageCount(from: url))
@@ -404,7 +357,8 @@ extension DeckWorkspaceViewModel {
             ),
             textSegments: makeTextSegments(from: pageTexts, labelPrefix: "Page"),
             images: [],
-            pdfURL: url
+            pdfURL: url,
+            needsOCRCorrection: needsOCRCorrection
         )
 
         prepareSheetState(for: source, pdfAnalysis: info)
@@ -422,6 +376,13 @@ extension DeckWorkspaceViewModel {
             requestedCards: requestedCardCount
         )
         presentAIGenerationSheet()
+    }
+
+    var localizedTextExtractionFailureMessage: String {
+        AppLocalization.string(
+            "Could not extract text from this source. Try another source.",
+            locale: AppPreferences.persistedResolvedLocale
+        )
     }
 
     func decodePreparedPhoto(from data: Data) async -> UIImage? {
@@ -503,6 +464,34 @@ extension DeckWorkspaceViewModel {
                 text: text
             )
         }
+    }
+
+    func fullQualityPreviewImage(
+        for item: AIGenerationSourcePreviewItem
+    ) async -> UIImage? {
+        guard let source = preparedAISource else { return item.thumbnail }
+
+        if source.isPDF {
+            guard let url = source.pdfURL else { return item.thumbnail }
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            return await DocumentTextExtractor.renderPDFPage(
+                from: url,
+                pageIndex: item.index - 1,
+                dpi: 200
+            ) ?? item.thumbnail
+        }
+
+        let sourceIndex = item.index - 1
+        guard source.images.indices.contains(sourceIndex) else {
+            return item.thumbnail
+        }
+        return source.images[sourceIndex]
     }
 
     // MARK: - Source Allocation Controls

@@ -94,28 +94,13 @@ struct LibrarySelectionIndicator: View {
 struct LibraryLoadingOverlay: View {
     @Environment(ThemeManager.self) private var themeManager
 
-    let message: String
-
     var body: some View {
         ZStack {
-            Color.black.opacity(0.35).ignoresSafeArea()
+            Color.black.opacity(0.001).ignoresSafeArea()
 
-            VStack(spacing: 16) {
-                ProgressView()
-                    .scaleEffect(1.4)
-                    .tint(themeManager.textPrimary)
-                Text(message)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(themeManager.textPrimary)
-            }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 28)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(themeManager.textPrimary.opacity(0.06), lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.2), radius: 20)
+            ProgressView()
+                .scaleEffect(1.45)
+                .tint(themeManager.textPrimary)
         }
         .transition(.opacity)
     }

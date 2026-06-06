@@ -112,12 +112,29 @@ extension LibraryViewModel {
         let selected = allDecks.filter { selectedDecks.contains($0.id) }
         guard !selected.isEmpty else { return }
 
+        exitSelectionMode()
+        exportDecks(selected)
+    }
+
+    func exportSingleDeck(_ target: LibraryDeckActionTarget, from allDecks: [DeckModel]) {
+        guard let deck = allDecks.first(where: { $0.id == target.id }) else { return }
+        exportDecks([deck])
+    }
+}
+
+// MARK: - Helpers
+
+private extension LibraryViewModel {
+
+    func exportDecks(_ decks: [DeckModel]) {
+        guard !decks.isEmpty else { return }
         isExporting = true
+
         Task {
             var exportedFiles: [URL] = []
             var errors: [String] = []
 
-            for deck in selected {
+            for deck in decks {
                 do {
                     let url = try await DeckSharingManager.shared.exportDeck(deck)
                     exportedFiles.append(url)
@@ -137,11 +154,6 @@ extension LibraryViewModel {
             }
         }
     }
-}
-
-// MARK: - Helpers
-
-private extension LibraryViewModel {
 
     func deleteDecks(
         with ids: Set<PersistentIdentifier>,

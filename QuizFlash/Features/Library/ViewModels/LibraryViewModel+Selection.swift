@@ -31,4 +31,14 @@ extension LibraryViewModel {
         isSelecting = false
         selectedDecks.removeAll()
     }
+
+    func areAllVisibleDecksSelected(in decks: [DeckModel]) -> Bool {
+        let visibleIDs = decks.map(\.id)
+        guard !visibleIDs.isEmpty else { return false }
+        return visibleIDs.allSatisfy { selectedDecks.contains($0) }
+    }
+
+    func selectAllVisibleDecks(from decks: [DeckModel]) {
+        selectedDecks.formUnion(decks.map(\.id))
+    }
 }

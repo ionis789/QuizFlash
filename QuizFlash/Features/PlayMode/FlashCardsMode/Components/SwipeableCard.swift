@@ -161,6 +161,28 @@ struct SwipeProgressSnapshot {
     )
 }
 
+// MARK: - SwipeTouchDebugSnapshot
+
+struct SwipeTouchDebugSnapshot {
+    let timestamp: Date
+    let event: String
+    let recognizer: String
+    let decision: String
+    let reason: String
+    let touchedViewClass: String
+    let locationInWebView: CGPoint?
+    let translation: CGPoint
+    let velocity: CGPoint
+    let webRegionCount: Int
+    let webRegionCanScrollLeft: Bool
+    let webRegionCanScrollRight: Bool
+}
+
+@MainActor
+enum SwipeTouchDebugStore {
+    static var latest: SwipeTouchDebugSnapshot?
+}
+
 // MARK: - SwipeGestureEvaluation
 
 enum SwipeCommitReason {

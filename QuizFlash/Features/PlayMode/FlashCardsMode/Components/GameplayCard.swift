@@ -42,9 +42,6 @@ struct GameplayCard: View {
     /// rich content can finish rendering before they become visible.
     let isInteractionEnabled: Bool
 
-    /// `true` when tapping the card should toggle between question and answer.
-    let allowsTapToFlip: Bool
-
     /// Controls which visual treatment is used when tap reveal is enabled.
     let tapAnimationStyle: FlashcardTapAnimationStyle
 
@@ -77,7 +74,6 @@ struct GameplayCard: View {
         card: PlayableCard,
         onSwipe: @escaping (SwipeDirection) -> Void,
         isInteractionEnabled: Bool,
-        allowsTapToFlip: Bool,
         tapAnimationStyle: FlashcardTapAnimationStyle,
         staticSwapTextMotion: FlashcardStaticSwapTextMotion,
         contentAlignment: FlashcardContentAlignment,
@@ -90,7 +86,6 @@ struct GameplayCard: View {
         self.card = card
         self.onSwipe = onSwipe
         self.isInteractionEnabled = isInteractionEnabled
-        self.allowsTapToFlip = allowsTapToFlip
         self.tapAnimationStyle = tapAnimationStyle
         self.staticSwapTextMotion = staticSwapTextMotion
         self.contentAlignment = contentAlignment
@@ -104,7 +99,7 @@ struct GameplayCard: View {
     // MARK: - Body
 
     private var tapHandler: (() -> Void)? {
-        (isInteractionEnabled && allowsTapToFlip) ? { handleTap() } : nil
+        isInteractionEnabled ? { handleTap() } : nil
     }
 
     var body: some View {
@@ -132,7 +127,7 @@ struct GameplayCard: View {
 
     /// Toggles the card between question and answer faces using the selected tap animation.
     private func handleTap() {
-        guard isInteractionEnabled, allowsTapToFlip else { return }
+        guard isInteractionEnabled else { return }
         playRevealHaptic()
         if let tapAnimation = resolvedTapAnimation {
             withAnimation(tapAnimation) {

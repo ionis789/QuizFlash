@@ -487,12 +487,19 @@ extension DeckWorkspaceViewModel {
             }
             
             let texts = await DocumentTextExtractor.extractVisionTexts(from: images)
+            guard DocumentTextExtractor.isUsableExtractedText(texts) else {
+                try? await AIGenerationSessionStore.shared.clearSession()
+                aiState = .error(localizedTextExtractionFailureMessage)
+                return
+            }
+
             let source = AIPreparedGenerationSource(
                 kind: .photos,
                 previewItems: makePhotoPreviewItems(images: images, texts: texts),
                 textSegments: makeTextSegments(from: texts, labelPrefix: "Image"),
                 images: images,
-                pdfURL: nil
+                pdfURL: nil,
+                needsOCRCorrection: true
             )
             prepareSheetState(for: source, pdfAnalysis: nil)
         }

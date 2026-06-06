@@ -64,17 +64,28 @@ private struct QuizModeSessionView: View {
 
     @State private var headerHeight: CGFloat = 0
     @State private var measuredChoiceZoneWidths: [UUID: CGFloat] = [:]
+    @State private var questionLeafDebugSnapshots: [FlashcardGridLeafLayoutDebugSnapshot] = []
+    @State private var choiceLeafDebugSnapshots: [UUID: [FlashcardGridLeafLayoutDebugSnapshot]] = [:]
     @State private var showsQuizLayoutDebug = false
     @State private var showsExplanationSheet = false
     @State private var didCopyQuizLayoutDebug = false
     @State private var editingCard: CardModel?
     @State private var measuredExplanationSheetHeight: CGFloat = 0
+    @State private var measuredFloatingControlsHeight: CGFloat = 0
+    @State private var measuredQuizDebugControlsHeight: CGFloat = 0
+    @State private var isQuestionContentVisible = false
+    @State private var areFloatingControlsVisible = false
+    @State private var isQuestionTransitioning = false
+    @State private var questionTransitionTask: Task<Void, Never>?
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var tintColor: Color { Color(hex: deck.colorHex) ?? ThemeManager.shared.accentColor.color }
     private var contentHorizontalPadding: CGFloat { 8 }
     private var contentTopPadding: CGFloat { 12 }
     private var contentBottomPadding: CGFloat { 12 }
+    private var minimumReservedFloatingControlsHeight: CGFloat { 62 }
+    private var questionContentHiddenScale: CGFloat { 0.952 }
+    private var questionContentSpring: Animation { .spring(response: 0.36, dampingFraction: 0.84) }
     private var playModeTextScale: CGFloat {
         let textSize = deck.playModeSettings?.flashcardSettings.textSize ?? .large
         return CGFloat(textSize.playModeScale) * appPreferences.cardContentFontScale
@@ -94,6 +105,12 @@ private struct QuizModeSessionView: View {
 
                 if viewModel.isComplete {
                     completionOverlay
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
+                        .clipped()
+                } else if viewModel.isShowingRetryPrompt {
+                    retryCompletionOverlay
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
+                        .clipped()
                 } else {
                     VStack(spacing: 0) {
                         header(
@@ -101,31 +118,45 @@ private struct QuizModeSessionView: View {
                             horizontalPadding: headerHorizontalPadding
                         )
 
-                        content
+                        content(safeBottomInset: resolvedSafeBottomInset)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
 
-                if showsFloatingQuizControls {
+                if !viewModel.isShowingRetryPrompt && !viewModel.isComplete {
                     quizFloatingControls()
+                        .onGeometryChange(for: CGFloat.self) { proxy in
+                            ceil(proxy.size.height)
+                        } action: { newHeight in
+                            updateMeasuredFloatingControlsHeight(newHeight)
+                        }
                         .padding(.horizontal, contentHorizontalPadding)
-                        .padding(.bottom, max(resolvedSafeBottomInset, UIConstants.Spacing.large))
+                        .padding(.bottom, quizFloatingControlsBottomPadding(safeBottomInset: resolvedSafeBottomInset))
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
                         .zIndex(25)
                 }
 
-                if developmentPreferences.playModeDeveloperModeEnabled {
+                if developmentPreferences.playModeDeveloperModeEnabled
+                    && !viewModel.isShowingRetryPrompt
+                    && !viewModel.isComplete {
                     quizLayoutDebugButton
+                        .onGeometryChange(for: CGFloat.self) { proxy in
+                            ceil(proxy.size.height)
+                        } action: { newHeight in
+                            updateMeasuredQuizDebugControlsHeight(newHeight)
+                        }
                         .padding(.trailing, contentHorizontalPadding)
                         .padding(.bottom, quizDebugBottomPadding(safeBottomInset: resolvedSafeBottomInset))
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                         .zIndex(30)
                 }
             }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
+            .clipped()
             .fullScreenSheetDragActivationHeight(headerHeight)
             .task {
                 await viewModel.startSession(container: context.container)
+                showQuestionContentIfReady()
             }
         }
         .fullScreenCover(item: $editingCard) { card in
@@ -158,12 +189,20 @@ private struct QuizModeSessionView: View {
             showsExplanationSheet = false
             measuredExplanationSheetHeight = 0
         }
+        .onChange(of: viewModel.loadState) { _, _ in
+            showQuestionContentIfReady()
+        }
         .onChange(of: viewModel.isComplete) { _, isComplete in
             if isComplete {
                 showsExplanationSheet = false
             }
         }
+        .onChange(of: viewModel.evaluationFeedbackTrigger) { _, trigger in
+            guard trigger > 0, let result = viewModel.evaluationFeedbackWasCorrect else { return }
+            emitQuizEvaluationHaptic(isCorrect: result)
+        }
         .onDisappear {
+            questionTransitionTask?.cancel()
             viewModel.tearDown()
         }
     }
@@ -264,7 +303,7 @@ private struct QuizModeSessionView: View {
     }
 
     @ViewBuilder
-    private var content: some View {
+    private func content(safeBottomInset: CGFloat) -> some View {
         switch viewModel.loadState {
         case .idle, .loading:
             centeredMessageCard(
@@ -292,10 +331,11 @@ private struct QuizModeSessionView: View {
                 message: viewModel.errorMessage.isEmpty ? "The quiz session couldn't be prepared right now." : viewModel.errorMessage
             )
         case .ready:
-            if viewModel.isShowingRetryPrompt {
-                retryPromptCard
-            } else if let currentCard = viewModel.currentCard {
-                questionFlow(for: currentCard)
+            if let currentCard = viewModel.currentCard {
+                questionFlow(for: currentCard, safeBottomInset: safeBottomInset)
+                    .opacity(isQuestionContentVisible ? 1 : 0.001)
+                    .scaleEffect(isQuestionContentVisible ? 1 : questionContentHiddenScale)
+                    .animation(questionContentSpring, value: isQuestionContentVisible)
             } else {
                 centeredMessageCard(
                     icon: "questionmark.circle",
@@ -306,15 +346,16 @@ private struct QuizModeSessionView: View {
         }
     }
 
-    private func questionFlow(for card: QuizPlayableCard) -> some View {
+    private func questionFlow(for card: QuizPlayableCard, safeBottomInset: CGFloat) -> some View {
         GeometryReader { proxy in
             let screenWidth = max(proxy.size.width, 1)
             let screenHeight = max(proxy.size.height, 1)
             let contentWidth = max(screenWidth - (contentHorizontalPadding * 2), 1)
             let contentHeight = max(screenHeight - contentTopPadding - contentBottomPadding, 1)
             let answerGroupWidth = choiceGroupWidth(availableWidth: contentWidth)
+            let answerBottomOverlayInset = quizAnswerBottomOverlayInset(safeBottomInset: safeBottomInset)
 
-            VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+            VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
                     QuizPlayZoneContent(
                         zone: card.questionZone,
@@ -322,7 +363,11 @@ private struct QuizModeSessionView: View {
                         availableWidth: contentWidth,
                         centersLeafBlocks: true,
                         alignLeafBlocksToGroupLeading: false,
-                        showsLayoutDebug: showsQuizLayoutDebug
+                        showsZoneSurfaces: false,
+                        textVerticalPadding: 0,
+                        textHorizontalPaddingOverride: 0,
+                        showsLayoutDebug: showsQuizLayoutDebug,
+                        onLeafDebugSnapshotsChange: updateQuestionLeafDebugSnapshots
                     )
 
                     quizQuestionSeparator
@@ -337,22 +382,30 @@ private struct QuizModeSessionView: View {
                     choices: card.choices,
                     selectedChoiceIDs: viewModel.selectedChoiceIDs,
                     incorrectChoiceIDs: viewModel.incorrectChoiceIDs,
+                    revealedMissedCorrectChoiceIDs: viewModel.revealedMissedCorrectChoiceIDs,
+                    wrongFeedbackChoiceIDs: viewModel.wrongFeedbackChoiceIDs,
+                    wrongFeedbackTrigger: viewModel.wrongFeedbackTrigger,
                     isEvaluated: viewModel.isEvaluated,
-                    allowsSelection: !viewModel.isEvaluated || viewModel.lastEvaluationWasCorrect == false,
+                    allowsSelection: allowsChoiceSelection,
                     fontScale: playModeTextScale,
                     groupWidth: answerGroupWidth,
                     layoutWidth: contentWidth,
+                    topContentInset: UIConstants.Spacing.large,
+                    bottomOverlayInset: answerBottomOverlayInset,
                     showsLayoutDebug: showsQuizLayoutDebug,
                     selectChoice: { viewModel.selectChoice($0) },
                     onMeasuredWidthChange: { choiceID, width in
                         updateMeasuredChoiceWidth(width, for: choiceID)
+                    },
+                    onLeafDebugSnapshotsChange: { choiceID, snapshots in
+                        updateChoiceLeafDebugSnapshots(snapshots, for: choiceID)
                     }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .quizDebugOutline(
                     isVisible: showsQuizLayoutDebug,
                     color: .green,
-                    label: "ANSWERS viewport w=\(Self.metric(contentWidth)) group=\(Self.metric(answerGroupWidth))"
+                    label: "ANSWERS viewport w=\(Self.metric(contentWidth)) group=\(Self.metric(answerGroupWidth)) avoidB=\(Self.metric(answerBottomOverlayInset))"
                 )
             }
             .frame(width: contentWidth, height: contentHeight, alignment: .topLeading)
@@ -368,6 +421,8 @@ private struct QuizModeSessionView: View {
         }
         .onChange(of: card.id) { _, _ in
             measuredChoiceZoneWidths = [:]
+            questionLeafDebugSnapshots = []
+            choiceLeafDebugSnapshots = [:]
         }
     }
 
@@ -437,18 +492,6 @@ private struct QuizModeSessionView: View {
             .frame(height: 1)
     }
 
-    private var retryPromptCard: some View {
-        centeredMessageCard(
-            icon: "arrow.counterclockwise",
-            title: "Main Pass Complete",
-            message: "Retry the questions you missed to mirror the flashcards wrong-card flow.",
-            bullets: [
-                "\(viewModel.firstPassFailedIDs.count) wrong question\(viewModel.firstPassFailedIDs.count == 1 ? "" : "s") queued for retry.",
-                "Correct answers in the retry pass earn another full review write."
-            ]
-        )
-    }
-
     private func centeredMessageCard(
         icon: String,
         title: String,
@@ -470,31 +513,51 @@ private struct QuizModeSessionView: View {
 
     private func quizFloatingControls() -> some View {
         HStack(alignment: .bottom) {
-            if showsExplanationFloatingButton {
-                quizExplanationFloatingButton
-                .transition(.move(edge: .leading).combined(with: .opacity))
+            HStack(alignment: .bottom, spacing: UIConstants.Spacing.small) {
+                if showsMissedCorrectFloatingButton {
+                    quizMissedCorrectFloatingButton
+                }
+
+                if showsExplanationFloatingButton {
+                    quizExplanationFloatingButton
+                }
             }
+            .bottomChromeVisibility(isSecondaryFloatingControlsVisible)
+            .accessibilityHidden(!isSecondaryFloatingControlsVisible)
 
             Spacer(minLength: UIConstants.Spacing.standard)
 
-            if showsPrimaryFloatingButton {
-                quizPrimaryFloatingButton(
-                    title: viewModel.primaryActionTitle,
-                    systemImage: primaryFloatingSymbol,
-                    isDisabled: isPrimaryActionDisabled,
-                    action: handlePrimaryAction
-                )
-                .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
+            quizPrimaryFloatingButton(
+                title: viewModel.primaryActionTitle,
+                systemImage: primaryFloatingSymbol,
+                isDisabled: isPrimaryActionDisabled,
+                action: handlePrimaryAction
+            )
+            .bottomChromeVisibility(isPrimaryFloatingButtonVisible)
+            .accessibilityHidden(!isPrimaryFloatingButtonVisible)
         }
-        .animation(.spring(response: 0.28, dampingFraction: 0.82), value: showsFloatingQuizControls)
-        .animation(.spring(response: 0.28, dampingFraction: 0.82), value: viewModel.isEvaluated)
+    }
+
+    private var quizMissedCorrectFloatingButton: some View {
+        Button(action: viewModel.revealMissedCorrectChoices) {
+            Image(systemName: "lightbulb.max.fill")
+                .font(.system(size: 19, weight: .black, design: .rounded))
+                .foregroundStyle(viewModel.canRevealMissedCorrectChoices ? Color.orange : Color.orange.opacity(0.62))
+                .frame(width: 54, height: 54)
+                .background {
+                    Circle()
+                        .fill(Color(white: 0.15))
+                }
+        }
+        .buttonStyle(.plain)
+        .disabled(!viewModel.canRevealMissedCorrectChoices)
+        .accessibilityLabel("Show missed correct answers")
     }
 
     private var quizExplanationFloatingButton: some View {
         Button(action: openExplanationSheet) {
-            Image(systemName: "lightbulb.max.fill")
-                .font(.system(size: 22, weight: .black, design: .rounded))
+            Image(systemName: "book.closed.fill")
+                .font(.system(size: 19, weight: .black, design: .rounded))
                 .foregroundStyle(.orange)
                 .frame(width: 54, height: 54)
                 .background {
@@ -517,8 +580,9 @@ private struct QuizModeSessionView: View {
                 .font(.system(size: 16, weight: .black, design: .rounded))
                 .foregroundStyle(isDisabled ? Color.white.opacity(0.42) : .white)
                 .lineLimit(1)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 13)
+                .padding(.horizontal, 26)
+                .padding(.vertical, 16)
+                .frame(minWidth: 154, minHeight: 62)
                 .background {
                     Capsule(style: .continuous)
                         .fill(primaryFloatingBackground(isDisabled: isDisabled))
@@ -588,9 +652,13 @@ private struct QuizModeSessionView: View {
             "lastEvaluationWasCorrect: \(String(describing: viewModel.lastEvaluationWasCorrect))",
             "selectedChoiceIDs: \(viewModel.selectedChoiceIDs.map(\.uuidString).sorted().joined(separator: ", "))",
             "incorrectChoiceIDs: \(viewModel.incorrectChoiceIDs.map(\.uuidString).sorted().joined(separator: ", "))",
+            "missedCorrectChoiceIDs: \(viewModel.missedCorrectChoiceIDs.map(\.uuidString).sorted().joined(separator: ", "))",
+            "revealedMissedCorrectChoiceIDs: \(viewModel.revealedMissedCorrectChoiceIDs.map(\.uuidString).sorted().joined(separator: ", "))",
             "contentHorizontalPadding: \(Self.metric(contentHorizontalPadding))",
             "contentTopPadding: \(Self.metric(contentTopPadding))",
             "contentBottomPadding: \(Self.metric(contentBottomPadding))",
+            "floatingControlsHeight: \(Self.metric(measuredFloatingControlsHeight))",
+            "quizDebugControlsHeight: \(Self.metric(measuredQuizDebugControlsHeight))",
             "textScale: \(String(format: "%.2f", playModeTextScale))",
             "zoneCornerRadius: \(Self.metric(FlashcardGridContentMetrics.zoneCornerRadius))",
             "minimumFixedAnswerZoneHeight: \(Self.metric(QuizChoiceRow.minimumFixedZoneHeight))",
@@ -609,6 +677,23 @@ private struct QuizModeSessionView: View {
             "allowsMultipleCorrect: \(card.allowsMultipleCorrect)",
             "questionText: \(Self.debugPreview(card.questionZone.text))",
             "",
+            "QUESTION ZONE TREE",
+        ]
+        lines.append(contentsOf: Self.zoneTreeLines(for: card.questionZone, path: "question.root", depth: 0))
+        lines += [
+            "",
+            "QUESTION LEAF METRICS",
+        ]
+        if questionLeafDebugSnapshots.isEmpty {
+            lines.append("no question leaf metrics captured; enable Quiz Debug and wait one render pass before copying")
+        } else {
+            for leaf in questionLeafDebugSnapshots {
+                lines.append(contentsOf: Self.leafLines(for: leaf))
+            }
+        }
+
+        lines += [
+            "",
             "choices:",
         ]
 
@@ -625,7 +710,17 @@ private struct QuizModeSessionView: View {
                 "  markedWrong: \(markedWrong)",
                 "  measuredZoneWidth: \(measuredWidth)",
                 "  text: \(Self.debugPreview(choice.contentZone.text))",
+                "  zoneTree:",
             ]
+            lines.append(contentsOf: Self.zoneTreeLines(for: choice.contentZone, path: "choice[\(index)].root", depth: 2))
+            lines.append("  leafMetrics:")
+            if let snapshots = choiceLeafDebugSnapshots[choice.id], !snapshots.isEmpty {
+                for leaf in snapshots {
+                    lines.append(contentsOf: Self.leafLines(for: leaf).map { "  \($0)" })
+                }
+            } else {
+                lines.append("    <none captured>")
+            }
         }
 
         return lines.joined(separator: "\n")
@@ -658,16 +753,9 @@ private struct QuizModeSessionView: View {
 
     private var completionOverlay: some View {
         PlayModeCompletionOverlay(
-            headline: "Quiz Complete!",
+            headline: "Session Complete!",
             xpEarned: viewModel.sessionXP,
-            stats: [
-                PlayModeCompletionStat(title: "Accuracy", value: "\(sessionAccuracy)%", icon: "target", color: .green),
-                PlayModeCompletionStat(title: "Correct", value: "\(viewModel.correctCount)", icon: "checkmark.circle.fill", color: .green),
-                PlayModeCompletionStat(title: "Wrong", value: "\(viewModel.wrongCount)", icon: "xmark.circle.fill", color: .red),
-                PlayModeCompletionStat(title: "Retry Pass", value: "\(viewModel.retryPassCount)", icon: "arrow.counterclockwise", color: .orange),
-                PlayModeCompletionStat(title: "Skipped", value: "\(viewModel.diagnostics.skippedInvalidCount)", icon: "text.badge.xmark", color: .red),
-                PlayModeCompletionStat(title: "Time", value: viewModel.formattedSessionDuration, icon: "timer", color: .blue)
-            ],
+            stats: completionStats,
             primaryActionTitle: "Continue",
             primaryAction: dismissSheet,
             secondaryActionTitle: nil,
@@ -675,24 +763,92 @@ private struct QuizModeSessionView: View {
         )
     }
 
+    private var retryCompletionOverlay: some View {
+        PlayModeCompletionOverlay(
+            headline: "Session Complete!",
+            xpEarned: viewModel.sessionXP,
+            stats: completionStats,
+            primaryActionTitle: "Retry Wrong Questions",
+            primaryAction: advanceQuestionWithFade,
+            secondaryActionTitle: "Continue",
+            secondaryAction: dismissSheet
+        )
+    }
+
+    private var completionStats: [PlayModeCompletionStat] {
+        [
+            PlayModeCompletionStat(title: "Accuracy", value: "\(sessionAccuracy)%", icon: "target", color: .green),
+            PlayModeCompletionStat(title: "Time", value: viewModel.formattedSessionDuration, icon: "timer", color: .blue),
+            PlayModeCompletionStat(title: "Correct", value: "\(viewModel.correctCount)", icon: "checkmark.circle.fill", color: .green),
+            PlayModeCompletionStat(title: "Wrong", value: "\(viewModel.wrongCount)", icon: "xmark.circle.fill", color: .red)
+        ]
+    }
+
     private var showsFloatingQuizControls: Bool {
-        showsPrimaryFloatingButton || showsExplanationFloatingButton
+        showsPrimaryFloatingButton || showsExplanationFloatingButton || showsMissedCorrectFloatingButton
+    }
+
+    private func quizFloatingControlsBottomPadding(safeBottomInset: CGFloat) -> CGFloat {
+        max(safeBottomInset, UIConstants.Spacing.large)
+    }
+
+    private func quizAnswerBottomOverlayInset(safeBottomInset: CGFloat) -> CGFloat {
+        let baseInset = contentBottomPadding
+        let floatingBottomExtent = quizFloatingControlsBottomPadding(safeBottomInset: safeBottomInset)
+            + max(measuredFloatingControlsHeight, minimumReservedFloatingControlsHeight)
+        guard floatingBottomExtent > baseInset else { return 0 }
+        return ceil(floatingBottomExtent - baseInset + UIConstants.Spacing.small)
+    }
+
+    private func updateMeasuredFloatingControlsHeight(_ height: CGFloat) {
+        guard height > 0 else { return }
+        if abs(measuredFloatingControlsHeight - height) > 0.5 {
+            measuredFloatingControlsHeight = height
+        }
+    }
+
+    private func updateMeasuredQuizDebugControlsHeight(_ height: CGFloat) {
+        guard height > 0 else { return }
+        if abs(measuredQuizDebugControlsHeight - height) > 0.5 {
+            measuredQuizDebugControlsHeight = height
+        }
     }
 
     private var showsPrimaryFloatingButton: Bool {
         switch viewModel.loadState {
         case .ready:
-            return viewModel.isShowingRetryPrompt || viewModel.requiresSubmitAction || didAnswerCorrectly
+            return viewModel.isShowingRetryPrompt
+                || viewModel.requiresSubmitAction
+                || didAnswerCorrectly
+                || didEvaluateMultipleAnswerCard
         default:
             return false
         }
     }
 
     private var showsExplanationFloatingButton: Bool {
-        didAnswerCorrectly && viewModel.currentCard?.explanationZone != nil
+        (didAnswerCorrectly || didEvaluateMultipleAnswerCard)
+            && viewModel.currentCard?.explanationZone != nil
+    }
+
+    private var showsMissedCorrectFloatingButton: Bool {
+        viewModel.hasMissedCorrectChoices
+    }
+
+    private var isSecondaryFloatingControlsVisible: Bool {
+        areFloatingControlsVisible && (showsExplanationFloatingButton || showsMissedCorrectFloatingButton)
+    }
+
+    private var isPrimaryFloatingButtonVisible: Bool {
+        areFloatingControlsVisible && showsPrimaryFloatingButton
+    }
+
+    private var isExplanationFloatingButtonVisible: Bool {
+        areFloatingControlsVisible && showsExplanationFloatingButton
     }
 
     private var isPrimaryActionDisabled: Bool {
+        if isQuestionTransitioning { return true }
         if viewModel.isShowingRetryPrompt { return false }
         if viewModel.isEvaluated { return false }
         return !viewModel.canSubmitAnswer
@@ -712,6 +868,18 @@ private struct QuizModeSessionView: View {
 
     private var didAnswerCorrectly: Bool {
         viewModel.isEvaluated && viewModel.lastEvaluationWasCorrect == true
+    }
+
+    private var didEvaluateMultipleAnswerCard: Bool {
+        viewModel.isEvaluated && viewModel.currentCard?.allowsMultipleCorrect == true
+    }
+
+    private var allowsChoiceSelection: Bool {
+        guard !viewModel.isEvaluated else {
+            return viewModel.lastEvaluationWasCorrect == false
+                && viewModel.currentCard?.allowsMultipleCorrect == false
+        }
+        return true
     }
 
     private var headerSubtitle: String {
@@ -754,8 +922,7 @@ private struct QuizModeSessionView: View {
 
     private func handlePrimaryAction() {
         if viewModel.isShowingRetryPrompt {
-            showsExplanationSheet = false
-            viewModel.advance()
+            advanceQuestionWithFade()
             return
         }
 
@@ -764,8 +931,7 @@ private struct QuizModeSessionView: View {
         if !viewModel.isEvaluated {
             viewModel.submitAnswer()
         } else {
-            showsExplanationSheet = false
-            viewModel.advance()
+            advanceQuestionWithFade()
         }
     }
 
@@ -796,6 +962,21 @@ private struct QuizModeSessionView: View {
         }
     }
 
+    private func updateQuestionLeafDebugSnapshots(_ snapshots: [FlashcardGridLeafLayoutDebugSnapshot]) {
+        let sortedSnapshots = snapshots.sorted { $0.path < $1.path }
+        guard sortedSnapshots != questionLeafDebugSnapshots else { return }
+        questionLeafDebugSnapshots = sortedSnapshots
+    }
+
+    private func updateChoiceLeafDebugSnapshots(
+        _ snapshots: [FlashcardGridLeafLayoutDebugSnapshot],
+        for choiceID: UUID
+    ) {
+        let sortedSnapshots = snapshots.sorted { $0.path < $1.path }
+        guard choiceLeafDebugSnapshots[choiceID] != sortedSnapshots else { return }
+        choiceLeafDebugSnapshots[choiceID] = sortedSnapshots
+    }
+
     private static func metric(_ value: CGFloat) -> String {
         String(format: "%.0f", ceil(value))
     }
@@ -812,11 +993,211 @@ private struct QuizModeSessionView: View {
         return String(collapsed.prefix(limit)) + "..."
     }
 
+    private static func zoneTreeLines(for zone: ZoneModel, path: String, depth: Int) -> [String] {
+        let indent = String(repeating: "  ", count: depth)
+        if zone.isLeaf {
+            var line = "\(indent)- \(path) leaf type=\(zone.contentType.rawValue) hasContent=\(zone.hasContent) sizeMode=\(zone.sizeMode.rawValue) blockAlignment=\(zone.blockAlignment.rawValue) textAlignment=\(zone.textAlignment.rawValue) verticalAlignment=\(zone.verticalAlignment.rawValue)"
+            if zone.contentType == .text || zone.contentType == .code {
+                line += " rawChars=\(zone.text.count) rawLines=\(max(zone.text.components(separatedBy: .newlines).count, 1)) preview=\"\(singleLinePreview(zone.text, limit: 140))\""
+            }
+            return [line]
+        }
+
+        let children = zone.children ?? []
+        var lines = [
+            "\(indent)- \(path) container direction=\(zone.direction.rawValue) children=\(children.count) filledChildren=\(children.filter(\.hasContent).count)"
+        ]
+        for (index, child) in children.enumerated() {
+            lines.append(contentsOf: zoneTreeLines(for: child, path: "\(path).\(index)", depth: depth + 1))
+        }
+        return lines
+    }
+
+    private static func leafLines(for leaf: FlashcardGridLeafLayoutDebugSnapshot) -> [String] {
+        let maxEstimatedLine = leaf.estimatedLineWidths.max() ?? 0
+        let textWidthLimit = leaf.textWidthLimit ?? leaf.contentLayoutWidth
+        let rightSpaceAfterBlock = max(leaf.availableWidth - leaf.leadingInset - leaf.blockSize.width, 0)
+        let remainingTextWidth = max(textWidthLimit - maxEstimatedLine, 0)
+        let lineWidths = leaf.estimatedLineWidths.map { metric($0) }.joined(separator: ", ")
+        let renderedLineWidths = leaf.renderedLineWidths.map { metric($0) }.joined(separator: ", ")
+        let renderedLines = leaf.renderedLineTexts.enumerated()
+            .map { index, lineText in
+                let lineWidth = index < leaf.renderedLineWidths.count ? leaf.renderedLineWidths[index] : 0
+                return "    \(index + 1). [\(metric(lineWidth))] \"\(lineText)\""
+            }
+            .joined(separator: "\n")
+        let renderedTokenLines = tokenDebugLines(for: leaf.renderedTokenLines)
+        let renderedScrollableMath = scrollableMathDebugLines(for: leaf.renderedScrollableMath)
+        let mathGestureDebug = gestureDebugLine(for: leaf.mathGestureDebug)
+
+        return [
+            "- \(leaf.path) id=\(leaf.zoneID.uuidString)",
+            "  type=\(leaf.contentType.rawValue) hasContent=\(leaf.hasContent) math=\(leaf.containsMath) inlineCode=\(leaf.containsInlineCode)",
+            "  availableWidth=\(metric(leaf.availableWidth)) estimated=\(size(leaf.estimatedSize)) rendered=\(size(leaf.renderedContentSize))",
+            "  block=\(size(leaf.blockSize)) leadingInset=\(metric(leaf.leadingInset)) rightSpaceAfterBlock=\(metric(rightSpaceAfterBlock))",
+            "  contentLayoutWidth=\(metric(leaf.contentLayoutWidth)) textWidthLimit=\(metric(textWidthLimit)) remainingTextWidthAfterWidestLine=\(metric(remainingTextWidth))",
+            "  textInsets=\(metric(leaf.textHorizontalInsets)) bulletInset=\(metric(leaf.bulletHorizontalInset)) intrinsicText=\(leaf.usesIntrinsicTextMeasurement)",
+            "  sizeMode=\(leaf.zoneSizeMode.rawValue) blockAlignment=\(leaf.zoneBlockAlignment.rawValue) textAlignment=\(leaf.zoneTextAlignment.rawValue) autoBlockCentering=\(leaf.usesNaturalBlockCentering)",
+            "  style=\(leaf.textStyle.rawValue) font=\(leaf.fontFamily.rawValue) bold=\(leaf.isBold) italic=\(leaf.isItalic) bullet=\(leaf.hasBullet) highlight=\(leaf.highlightColor.rawValue)",
+            "  rawChars=\(leaf.rawTextCharacterCount) rawExplicitLines=\(leaf.rawTextLineCount) displayChars=\(leaf.textCharacterCount) displayExplicitLines=\(leaf.textLineCount)",
+            "  estimatedLineWidths=[\(lineWidths)] renderedLineWidths=[\(renderedLineWidths)]",
+            "  rawText:",
+            leaf.rawText.isEmpty ? "  <empty>" : indentMultiline(leaf.rawText, prefix: "  | "),
+            "  normalizedDisplayText:",
+            leaf.normalizedDisplayText.isEmpty ? "  <empty>" : indentMultiline(leaf.normalizedDisplayText, prefix: "  | "),
+            "  healedDisplayText:",
+            leaf.healedDisplayText.isEmpty ? "  <empty>" : indentMultiline(leaf.healedDisplayText, prefix: "  | "),
+            "  renderedLines:",
+            renderedLines.isEmpty ? "    <none>" : renderedLines,
+            "  renderedTokenLines:",
+            renderedTokenLines.isEmpty ? "    <none>" : renderedTokenLines,
+            "  renderedScrollableMath:",
+            renderedScrollableMath.isEmpty ? "    <none>" : renderedScrollableMath,
+            "  mathGestureDebug:",
+            mathGestureDebug,
+            "  preview=\"\(leaf.textPreview)\""
+        ]
+    }
+
+    private static func tokenDebugLines(for lines: [MixedMathRenderedLineDebug]) -> String {
+        guard !lines.isEmpty else { return "" }
+
+        return lines.enumerated()
+            .map { offset, line in
+                let remaining = max(line.widthLimit - line.width, 0)
+                let nextFirstToken = offset + 1 < lines.count ? lines[offset + 1].tokens.first : nil
+                let nextFitText: String
+                if let nextFirstToken {
+                    let fitsAlone = nextFirstToken.width <= remaining
+                    nextFitText = " nextFirst=\"\(singleLinePreview(nextFirstToken.text, limit: 44))\" width=\(metric(nextFirstToken.width)) fitsRemainingWithoutSpace=\(fitsAlone)"
+                } else {
+                    nextFitText = ""
+                }
+
+                let tokens = line.tokens
+                    .map { token in
+                        "      - \(token.kind) \"\(singleLinePreview(token.text, limit: 90))\" frame=(x:\(metric(token.left)), y:\(metric(token.top)), w:\(metric(token.width)), h:\(metric(token.height)), r:\(metric(token.right)), b:\(metric(token.bottom)))"
+                    }
+                    .joined(separator: "\n")
+
+                let header = "    \(line.index). frame=(x:\(metric(line.left)), y:\(metric(line.top)), w:\(metric(line.width)), h:\(metric(line.height)), r:\(metric(line.right)), b:\(metric(line.bottom))) limit=\(metric(line.widthLimit)) remaining=\(metric(remaining))\(nextFitText)"
+                return tokens.isEmpty ? header : "\(header)\n\(tokens)"
+            }
+            .joined(separator: "\n")
+    }
+
+    private static func scrollableMathDebugLines(for rows: [MixedMathScrollableDebug]) -> String {
+        guard !rows.isEmpty else { return "" }
+
+        return rows.enumerated()
+            .map { index, row in
+                "    \(index + 1). kind=\(row.kind) wrapperHeight=\(metric(row.wrapperHeight)) clientHeight=\(metric(row.clientHeight)) scrollHeight=\(metric(row.scrollHeight)) visualHeight=\(metric(row.visualHeight)) visualTop=\(metric(row.visualTop)) visualBottom=\(metric(row.visualBottom)) paddingTop=\(metric(row.paddingTop)) paddingBottom=\(metric(row.paddingBottom)) topAdjustment=\(metric(row.topAdjustment))"
+            }
+            .joined(separator: "\n")
+    }
+
+    private static func gestureDebugLine(for snapshot: MixedMathGestureDebugSnapshot?) -> String {
+        guard let snapshot else { return "    <none>" }
+
+        return "    decision=\(snapshot.decision) reason=\"\(snapshot.reason)\" direction=\"\(snapshot.direction)\" location=(x:\(metric(snapshot.location.x)), y:\(metric(snapshot.location.y))) h=\(metric(snapshot.horizontalMagnitude)) v=\(metric(snapshot.verticalMagnitude)) canLeft=\(snapshot.canScrollLeft) canRight=\(snapshot.canScrollRight) regions=\(snapshot.regionCount)"
+    }
+
+    private static func singleLinePreview(_ value: String, limit: Int) -> String {
+        let collapsed = value
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard collapsed.count > limit else { return collapsed }
+        return String(collapsed.prefix(limit)) + "..."
+    }
+
+    private static func indentMultiline(_ value: String, prefix: String) -> String {
+        value.components(separatedBy: .newlines)
+            .map { prefix + $0 }
+            .joined(separator: "\n")
+    }
+
+    private static func size(_ size: CGSize) -> String {
+        "\(metric(size.width)) x \(metric(size.height))"
+    }
+
     private func dismissSheet() {
         if let fullScreenSheetDismiss {
             fullScreenSheetDismiss()
         } else {
             dismiss()
+        }
+    }
+
+    private func emitQuizEvaluationHaptic(isCorrect: Bool) {
+        switch appPreferences.flashcardsSwipeHaptics {
+        case .off:
+            return
+        case .subtle, .standard:
+            let generator = UINotificationFeedbackGenerator()
+            generator.prepare()
+            generator.notificationOccurred(isCorrect ? .success : .error)
+        }
+    }
+
+    private func advanceQuestionWithFade() {
+        guard !isQuestionTransitioning else { return }
+
+        questionTransitionTask?.cancel()
+        isQuestionTransitioning = true
+        showsExplanationSheet = false
+
+        questionTransitionTask = Task { @MainActor in
+            withAnimation(questionContentSpring) {
+                isQuestionContentVisible = false
+            }
+            withBottomChromeAnimation {
+                areFloatingControlsVisible = false
+            }
+
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            guard !Task.isCancelled else { return }
+
+            viewModel.advance()
+
+            try? await Task.sleep(nanoseconds: 35_000_000)
+            guard !Task.isCancelled else { return }
+
+            withAnimation(questionContentSpring) {
+                isQuestionContentVisible = true
+            }
+            withBottomChromeAnimation {
+                areFloatingControlsVisible = true
+            }
+
+            try? await Task.sleep(nanoseconds: 320_000_000)
+            guard !Task.isCancelled else { return }
+
+            isQuestionTransitioning = false
+            questionTransitionTask = nil
+        }
+    }
+
+    private func showQuestionContentIfReady() {
+        guard viewModel.loadState == .ready,
+              !viewModel.isShowingRetryPrompt,
+              viewModel.currentCard != nil else {
+            return
+        }
+        guard !isQuestionContentVisible || !areFloatingControlsVisible else { return }
+
+        questionTransitionTask?.cancel()
+        questionTransitionTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 35_000_000)
+            guard !Task.isCancelled else { return }
+
+            withAnimation(questionContentSpring) {
+                isQuestionContentVisible = true
+            }
+            withBottomChromeAnimation {
+                areFloatingControlsVisible = true
+            }
+
+            questionTransitionTask = nil
         }
     }
 }
@@ -881,30 +1262,44 @@ private struct QuizAnswerList: View {
     let choices: [QuizChoiceDraft]
     let selectedChoiceIDs: Set<UUID>
     let incorrectChoiceIDs: Set<UUID>
+    let revealedMissedCorrectChoiceIDs: Set<UUID>
+    let wrongFeedbackChoiceIDs: Set<UUID>
+    let wrongFeedbackTrigger: Int
     let isEvaluated: Bool
     let allowsSelection: Bool
     let fontScale: CGFloat
     let groupWidth: CGFloat
     let layoutWidth: CGFloat
+    let topContentInset: CGFloat
+    let bottomOverlayInset: CGFloat
     let showsLayoutDebug: Bool
     let selectChoice: (UUID) -> Void
     let onMeasuredWidthChange: (UUID, CGFloat) -> Void
+    let onLeafDebugSnapshotsChange: (UUID, [FlashcardGridLeafLayoutDebugSnapshot]) -> Void
 
     @State private var contentHeight: CGFloat = 0
 
     var body: some View {
         GeometryReader { proxy in
             let viewportHeight = max(ceil(proxy.size.height), 1)
-            let needsScroll = contentHeight > viewportHeight + 1
+            let effectiveViewportHeight = max(viewportHeight - bottomOverlayInset, 1)
+            let needsScroll = contentHeight > effectiveViewportHeight + 1
+            let centersContent = !needsScroll
+            let centeringHeight = centersContent ? effectiveViewportHeight : viewportHeight
+            let centeredContentTopInset = max((centeringHeight - contentHeight) / 2, 0)
+            let centeredContentBottom = centeredContentTopInset + contentHeight
+            let contentWouldBeCovered = bottomOverlayInset > 0 && centeredContentBottom > effectiveViewportHeight + 1
             let groupLeadingInset = max((layoutWidth - groupWidth) / 2, 0)
 
-            ScrollView(.vertical, showsIndicators: needsScroll) {
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: UIConstants.Spacing.extraLarge) {
                     ForEach(choices) { choice in
                         QuizChoiceRow(
                             choice: choice,
                             isSelected: selectedChoiceIDs.contains(choice.id),
                             isMarkedWrong: incorrectChoiceIDs.contains(choice.id),
+                            isRevealedMissedCorrect: revealedMissedCorrectChoiceIDs.contains(choice.id),
+                            wrongFeedbackTrigger: wrongFeedbackChoiceIDs.contains(choice.id) ? wrongFeedbackTrigger : 0,
                             isEvaluated: isEvaluated,
                             isCorrect: choice.isCorrect,
                             allowsSelection: allowsSelection,
@@ -915,6 +1310,9 @@ private struct QuizAnswerList: View {
                             action: { selectChoice(choice.id) },
                             onMeasuredWidthChange: { width in
                                 onMeasuredWidthChange(choice.id, width)
+                            },
+                            onLeafDebugSnapshotsChange: { snapshots in
+                                onLeafDebugSnapshotsChange(choice.id, snapshots)
                             }
                         )
                     }
@@ -922,6 +1320,7 @@ private struct QuizAnswerList: View {
                 .frame(width: layoutWidth, alignment: .topLeading)
                 .offset(x: groupLeadingInset)
                 .frame(width: layoutWidth, alignment: .topLeading)
+                .padding(.top, topContentInset)
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     ceil(proxy.size.height)
                 } action: { newHeight in
@@ -929,21 +1328,21 @@ private struct QuizAnswerList: View {
                 }
                 .frame(
                     maxWidth: .infinity,
-                    minHeight: needsScroll ? nil : viewportHeight,
-                    alignment: needsScroll ? .top : .center
+                    minHeight: centersContent ? centeringHeight : nil,
+                    alignment: centersContent ? .center : .top
                 )
-                .padding(.bottom, needsScroll ? UIConstants.Spacing.large : 0)
+                .padding(.bottom, needsScroll ? bottomOverlayInset : 0)
                 .quizDebugOutline(
                     isVisible: showsLayoutDebug,
                     color: .pink,
-                    label: "ANSWER CONTENT h=\(Self.metric(contentHeight)) scroll=\(needsScroll.description)"
+                    label: "ANSWER CONTENT h=\(Self.metric(contentHeight)) bottom=\(Self.metric(centeredContentBottom)) effective=\(Self.metric(effectiveViewportHeight)) covered=\(contentWouldBeCovered.description) scroll=\(needsScroll.description)"
                 )
             }
             .scrollDisabled(!needsScroll)
             .quizDebugOutline(
                 isVisible: showsLayoutDebug,
                 color: needsScroll ? .red : .green,
-                label: "ANSWER VIEWPORT \(Self.metric(groupWidth))x\(Self.metric(viewportHeight)) contentH=\(Self.metric(contentHeight))"
+                label: "ANSWER VIEWPORT \(Self.metric(groupWidth))x\(Self.metric(viewportHeight)) avoidB=\(Self.metric(bottomOverlayInset)) contentH=\(Self.metric(contentHeight))"
             )
         }
     }
@@ -962,11 +1361,18 @@ private struct QuizAnswerList: View {
 
 // MARK: - QuizChoiceRow
 
+private struct CorrectAnswerFeedbackFrame {
+    var scale: CGFloat = 1
+    var verticalOffset: CGFloat = 0
+}
+
 /// One authored quiz choice row with immediate correctness styling after evaluation.
 private struct QuizChoiceRow: View {
     let choice: QuizChoiceDraft
     let isSelected: Bool
     let isMarkedWrong: Bool
+    let isRevealedMissedCorrect: Bool
+    let wrongFeedbackTrigger: Int
     let isEvaluated: Bool
     let isCorrect: Bool
     let allowsSelection: Bool
@@ -976,11 +1382,13 @@ private struct QuizChoiceRow: View {
     let showsLayoutDebug: Bool
     let action: () -> Void
     let onMeasuredWidthChange: (CGFloat) -> Void
+    let onLeafDebugSnapshotsChange: ([FlashcardGridLeafLayoutDebugSnapshot]) -> Void
 
     @State private var lastTapTime: TimeInterval = 0
     @State private var measuredContentWidth: CGFloat = 0
     @State private var wrongWiggleOffset: CGFloat = 0
     @State private var wrongScale: CGFloat = 1
+    @State private var correctFeedbackAnimationTrigger = 0
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -990,10 +1398,38 @@ private struct QuizChoiceRow: View {
                 availableWidth: choiceContentWidth,
                 centersLeafBlocks: false,
                 alignLeafBlocksToGroupLeading: true,
+                zoneHighlightStrokeStyle: missedCorrectFeedback
+                    ? StrokeStyle(lineWidth: 2.5, dash: [8, 5], dashPhase: 0)
+                    : StrokeStyle(lineWidth: 2),
                 showsLayoutDebug: showsLayoutDebug,
                 onTap: handleTap,
-                onMeasuredWidthChange: updateMeasuredContentWidth
+                onMeasuredWidthChange: updateMeasuredContentWidth,
+                onLeafDebugSnapshotsChange: onLeafDebugSnapshotsChange
             )
+            .keyframeAnimator(
+                initialValue: CorrectAnswerFeedbackFrame(),
+                trigger: correctFeedbackAnimationTrigger
+            ) { content, frame in
+                content
+                    .scaleEffect(frame.scale, anchor: .center)
+                    .offset(y: frame.verticalOffset)
+            } keyframes: { _ in
+                KeyframeTrack(\.scale) {
+                    CubicKeyframe(0.94, duration: 0.10)
+                    LinearKeyframe(0.94, duration: 0.045)
+                    CubicKeyframe(1.0, duration: 0.12)
+                    CubicKeyframe(0.985, duration: 0.07)
+                    SpringKeyframe(1.0, duration: 0.16, spring: .smooth)
+                }
+
+                KeyframeTrack(\.verticalOffset) {
+                    CubicKeyframe(3, duration: 0.10)
+                    LinearKeyframe(3, duration: 0.045)
+                    CubicKeyframe(-10, duration: 0.12)
+                    CubicKeyframe(2, duration: 0.07)
+                    SpringKeyframe(0, duration: 0.16, spring: .smooth)
+                }
+            }
 
             Spacer(minLength: 0)
         }
@@ -1006,16 +1442,23 @@ private struct QuizChoiceRow: View {
                     handleTap()
                 }
         )
-        .allowsHitTesting(allowsSelection)
         .opacity(isEvaluated || isSelected ? 1 : 0.98)
         .offset(x: wrongWiggleOffset)
         .scaleEffect(wrongFeedback ? wrongScale : 1, anchor: .leading)
         .zIndex(correctFeedback ? 1 : 0)
         .onChange(of: wrongFeedback) { _, isActive in
-            if isActive {
-                runWrongFeedbackSequence()
-            } else {
+            if !isActive {
+                wrongWiggleOffset = 0
                 wrongScale = 1
+            }
+        }
+        .onChange(of: wrongFeedbackTrigger) { _, trigger in
+            guard trigger > 0, wrongFeedback else { return }
+            runWrongFeedbackSequence()
+        }
+        .onChange(of: correctFeedback) { _, isActive in
+            if isActive {
+                correctFeedbackAnimationTrigger &+= 1
             }
         }
         .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isSelected)
@@ -1038,6 +1481,14 @@ private struct QuizChoiceRow: View {
         isMarkedWrong
     }
 
+    private var missedCorrectFeedback: Bool {
+        isRevealedMissedCorrect && isEvaluated && isCorrect && !isSelected
+    }
+
+    private var selectionFeedback: Bool {
+        isSelected && !isEvaluated
+    }
+
     private var displayZone: ZoneModel {
         guard choice.contentZone.isLeaf else {
             return choice.contentZone
@@ -1049,6 +1500,10 @@ private struct QuizChoiceRow: View {
             zone.highlightColor = .red
         } else if correctFeedback {
             zone.highlightColor = .green
+        } else if missedCorrectFeedback {
+            zone.highlightColor = .green
+        } else if selectionFeedback {
+            zone.highlightColor = .accent
         }
 
         if rendersCodeAnswer(zone) {
@@ -1129,12 +1584,12 @@ private struct QuizChoiceRow: View {
     private func runWrongFeedbackSequence() {
         wrongScale = 1
         wrongWiggleOffset = 0
-        withAnimation(.linear(duration: 0.065).repeatCount(5, autoreverses: true)) {
+        withAnimation(.linear(duration: 0.065).repeatCount(3, autoreverses: true)) {
             wrongWiggleOffset = 8
         }
 
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 390_000_000)
+            try? await Task.sleep(nanoseconds: 240_000_000)
             withAnimation(.spring(response: 0.18, dampingFraction: 0.7)) {
                 wrongWiggleOffset = 0
             }
@@ -1177,9 +1632,14 @@ private struct QuizPlayZoneContent: View {
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
     var alignLeafBlocksToGroupLeading: Bool = false
+    var showsZoneSurfaces: Bool = true
+    var textVerticalPadding: CGFloat = FlashcardGridContentMetrics.textVerticalPadding
+    var textHorizontalPaddingOverride: CGFloat? = nil
+    var zoneHighlightStrokeStyle: StrokeStyle = StrokeStyle(lineWidth: 2)
     var showsLayoutDebug: Bool = false
     var onTap: (() -> Void)?
     var onMeasuredWidthChange: ((CGFloat) -> Void)?
+    var onLeafDebugSnapshotsChange: (([FlashcardGridLeafLayoutDebugSnapshot]) -> Void)?
 
     var body: some View {
         let width = max(availableWidth, 1)
@@ -1191,19 +1651,26 @@ private struct QuizPlayZoneContent: View {
             centersLeafBlocks: centersLeafBlocks,
             alignLeafBlocksToGroupLeading: alignLeafBlocksToGroupLeading,
             showsDebugGuides: showsLayoutDebug,
-            showsZoneSurfaces: true,
+            showsZoneSurfaces: showsZoneSurfaces,
             showsCodeBlockZoneSurfaces: true,
             usesBorderOnlyZoneHighlights: true,
+            zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
+            textVerticalPadding: textVerticalPadding,
+            textHorizontalPaddingOverride: textHorizontalPaddingOverride,
             collectsDebugMetrics: showsLayoutDebug,
             onTap: onTap,
             onRootBlockWidthChange: onMeasuredWidthChange
         )
             .frame(width: width, alignment: .topLeading)
+            .onPreferenceChange(FlashcardGridLeafDebugPreferenceKey.self) { snapshots in
+                guard showsLayoutDebug else { return }
+                onLeafDebugSnapshotsChange?(snapshots.sorted { $0.path < $1.path })
+            }
             .background(alignment: .topLeading) {
                 if showsLayoutDebug {
                     QuizGridDebugFrame(width: width)
-                }
             }
+        }
     }
 }
 

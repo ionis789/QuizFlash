@@ -37,6 +37,12 @@ final class FlashCardsPlayModeViewModel {
     /// Lightweight, `Sendable` snapshots of the deck's cards loaded for playback.
     var cards: [PlayableCard] = []
 
+    /// Increments whenever the same logical cards are replayed as a new visual run.
+    ///
+    /// SwiftUI can otherwise reuse a UIKit swipe host whose card already exited
+    /// off-screen, because retry rounds reuse the same persistent card IDs.
+    var playRunGeneration: Int = 0
+
     /// Whether `startSession(container:)` has been called at least once.
     var isSessionStarted: Bool = false
 
@@ -166,7 +172,7 @@ final class FlashCardsPlayModeViewModel {
         self.cards = initialBatch.cards
         self.totalCardCount = initialBatch.totalCount
         self.hasLoadedAllCards = initialBatch.loadedAll
-        self.isFlipped = settings.revealFlow == .answerFirst
+        self.isFlipped = false
         self.isSessionStarted = true
 
         guard !initialBatch.loadedAll else { return }
@@ -239,7 +245,7 @@ final class FlashCardsPlayModeViewModel {
             wrongCards.append(playableCard)
         }
 
-        isFlipped            = settings.revealFlow == .answerFirst
+        isFlipped            = false
         currentIndex        += 1        // The next card appears here.
         currentCardStartTime = Date()
 
@@ -274,16 +280,24 @@ final class FlashCardsPlayModeViewModel {
     /// rather than accumulating on top of the original run.
     func retryWrongCards() {
         let retry = wrongCards
+        guard !retry.isEmpty else {
+            isComplete = true
+            return
+        }
+
         wrongCards = []
 
         // Maintain study order for the retry batch.
+        playRunGeneration += 1
         cards = orderedCards(retry)
         totalCardCount = cards.count
 
         currentIndex = 0
         correctCount = 0
+        totalSessionSwipes = 0
+        totalSessionCorrect = 0
         isComplete   = false
-        isFlipped    = settings.revealFlow == .answerFirst
+        isFlipped    = false
         hasLoadedAllCards = true
         currentCardStartTime = Date()
     }

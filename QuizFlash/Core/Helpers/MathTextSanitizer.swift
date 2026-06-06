@@ -373,9 +373,36 @@ struct MathTextSanitizer {
             return line
         }
 
+        let trailingFragment = String(line[lastRange.upperBound...])
+        guard shouldKeepFinalFragmentTogether(trailingFragment) else {
+            return line
+        }
+
         var result = line
         result.replaceSubrange(lastRange, with: "\u{00A0}")
         return result
+    }
+
+    private nonisolated static func shouldKeepFinalFragmentTogether(_ fragment: String) -> Bool {
+        let trimmed = fragment.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        // Keep final math/code fragments attached, but let normal language
+        // reflow naturally in the actual play container.
+        if trimmed.contains("$") || trimmed.contains("\\") || trimmed.contains("`") {
+            return true
+        }
+
+        return trimmed.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x2200...0x22FF, // mathematical operators
+                 0x2100...0x214F, // letterlike symbols
+                 0x2190...0x21FF: // arrows
+                return true
+            default:
+                return false
+            }
+        }
     }
 
     /// Collapses JSON-escaped LaTeX commands such as `\\neq` into `\neq`.

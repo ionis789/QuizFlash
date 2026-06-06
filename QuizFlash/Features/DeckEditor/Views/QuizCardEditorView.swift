@@ -214,6 +214,9 @@ struct QuizCardEditorView: View {
                     debugScreenID: "quiz.editor",
                     style: .progressiveBlur()
                 )
+                    .onScrollViewEmptySpaceTap(isActive: isFormatBarVisible) {
+                    dismissFormatBar()
+                }
 
                 topChrome
                     .zIndex(20)
@@ -224,7 +227,7 @@ struct QuizCardEditorView: View {
             if isFormatBarVisible, let content = currentContent, let path = currentSelectedPath {
                 formatBar(content: content, path: path)
                     .padding(.horizontal, UIConstants.Spacing.standard)
-                    .padding(.bottom, UIConstants.Spacing.small)
+                    .padding(.bottom, UIConstants.Spacing.large)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -294,10 +297,17 @@ struct QuizCardEditorView: View {
                 openPreview()
             },
             onClose: {
-                focusManager.forceReleaseKeyboard()
-                previewDirection = nil
+                dismissFormatBar()
             }
         )
+    }
+
+    private func dismissFormatBar() {
+        focusManager.forceReleaseKeyboard()
+        zoneController.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
+        currentSelectedPath = nil
+        previewDirection = nil
     }
 
     private var topChrome: some View {

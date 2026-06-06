@@ -79,8 +79,7 @@ struct HomeView: View {
                             getOffset: { viewModel.savedScrollOffset },
                             onOffsetChange: { offset in
                                 viewModel.savedScrollOffset = offset
-                            },
-                            disablesVerticalBounce: true
+                            }
                         )
                         .frame(width: 0, height: 0)
 

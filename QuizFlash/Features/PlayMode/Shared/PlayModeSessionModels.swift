@@ -2,7 +2,7 @@
 //  PlayModeSessionModels.swift
 //  QuizFlash
 //
-//  Shared runtime models for gameplay sessions outside Learn mode.
+//  Shared runtime models for gameplay sessions.
 //
 
 import Foundation

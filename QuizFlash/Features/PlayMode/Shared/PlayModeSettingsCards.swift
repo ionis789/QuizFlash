@@ -83,149 +83,472 @@ struct PlayModeSettingsModeCard: View {
     let tintColor: Color
     @Binding var flashcardSettings: FlashcardModeSettings
     @Binding var quizSettings: QuizModeSettings
-    @Binding var learnSettings: LearnModeSettings
 
     @ViewBuilder
     var body: some View {
         switch mode {
         case .flashcards:
-            PlayModeSettingsSectionCard(
-                title: "Session Controls",
-                subtitle: "Tune order, retry behavior, and how flashcards open."
-            ) {
-                PlayModeSettingsMenuRow(
-                    title: "Card Order",
-                    detail: "Study order prioritizes new and short-interval cards. Other orders follow deck numbering.",
-                    selection: $flashcardSettings.order,
-                    options: FlashcardSessionOrder.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                PlayModeSettingsToggleRow(
-                    title: "Retry Wrong Cards",
-                    detail: "Queue missed flashcards into one more run after the main pass.",
-                    isOn: $flashcardSettings.retryWrongCards,
-                    tint: tintColor
-                )
-
-                PlayModeSettingsSegmentedRow(
-                    title: "Opening Face",
-                    detail: "Choose whether each card starts on the question side or the answer side.",
-                    selection: $flashcardSettings.revealFlow,
-                    options: FlashcardRevealFlow.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                PlayModeSettingsSegmentedRow(
-                    title: "Tap Behavior",
-                    detail: "Allow tap-based reveal during the session or keep the opening face locked.",
-                    selection: $flashcardSettings.flipBehavior,
-                    options: FlashcardFlipBehavior.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                PlayModeSettingsSegmentedRow(
-                    title: "Tap Animation",
-                    detail: "Choose between the current 3D flip and a static card that swaps only the content with the lighter snappy motion.",
-                    selection: $flashcardSettings.tapAnimationStyle,
-                    options: FlashcardTapAnimationStyle.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                if flashcardSettings.tapAnimationStyle == .staticSwap {
-                    PlayModeSettingsSegmentedRow(
-                        title: "Static Text Motion",
-                        detail: "Keep the current snappy text transition or switch the content instantly with no text animation.",
-                        selection: $flashcardSettings.staticSwapTextMotion,
-                        options: FlashcardStaticSwapTextMotion.allCases
-                    ) { option, locale in
-                        option.localizedTitle(locale: locale)
-                    }
-                }
-
-                PlayModeSettingsSegmentedRow(
-                    title: "Content Alignment",
-                    detail: "Top keeps short content pinned to the top. Center uses the grid guide layout for a naturally centered text block.",
-                    selection: $flashcardSettings.contentAlignment,
-                    options: FlashcardContentAlignment.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                PlayModeSettingsSegmentedRow(
-                    title: "Text Size",
-                    detail: "Normal keeps text large and clear. Large uses the current oversized playback text.",
-                    selection: $flashcardSettings.textSize,
-                    options: FlashcardTextSize.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-            }
+            CompactFlashcardSettingsCard(
+                tintColor: tintColor,
+                flashcardSettings: $flashcardSettings
+            )
         case .quiz:
-            PlayModeSettingsSectionCard(
-                title: "Question Controls",
-                subtitle: "Control validation pacing, explanation visibility, and replay rules."
-            ) {
-                PlayModeSettingsToggleRow(
-                    title: "Shuffle Choices",
-                    detail: "Randomize answer order before each quiz session starts.",
-                    isOn: $quizSettings.shuffleChoices,
-                    tint: tintColor
-                )
+            CompactQuizSettingsCard(
+                tintColor: tintColor,
+                quizSettings: $quizSettings
+            )
+        }
+    }
+}
 
-                PlayModeSettingsSegmentedRow(
-                    title: "Validation",
-                    detail: "Single-answer questions can check immediately or wait for an explicit submit.",
-                    selection: $quizSettings.answerValidation,
-                    options: QuizAnswerValidationMode.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
+private struct CompactFlashcardSettingsCard: View {
+    let tintColor: Color
+    @Binding var flashcardSettings: FlashcardModeSettings
+    private var accentTint: Color { ThemeManager.shared.accentColor.color }
 
-                PlayModeSettingsSegmentedRow(
-                    title: "Explanation",
-                    detail: "Show explanations immediately after checking or keep them behind a manual reveal.",
-                    selection: $quizSettings.explanationTiming,
-                    options: QuizExplanationTiming.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
-
-                PlayModeSettingsToggleRow(
-                    title: "Retry Wrong Questions",
-                    detail: "Run one dedicated retry pass for questions missed in the first pass.",
-                    isOn: $quizSettings.retryIncorrectQuestions,
-                    tint: tintColor
-                )
+    var body: some View {
+        VStack(spacing: UIConstants.Spacing.small) {
+            CompactSettingsMenuRow(
+                title: "Card Order",
+                icon: "arrow.up.arrow.down",
+                tint: accentTint,
+                selection: $flashcardSettings.order,
+                options: FlashcardSessionOrder.allCases,
+                isDense: true
+            ) { option, locale in
+                option.localizedTitle(locale: locale)
             }
-        case .learn:
-            PlayModeSettingsSectionCard(
-                title: "Report Controls",
-                subtitle: "Adjust how the guided Learn briefing groups and trims content."
-            ) {
-                PlayModeSettingsMenuRow(
-                    title: "Grouping",
-                    detail: "Change which insight section appears first in the Learn briefing.",
-                    selection: $learnSettings.grouping,
-                    options: LearnReportGrouping.allCases
-                ) { option, locale in
-                    option.localizedTitle(locale: locale)
-                }
 
-                PlayModeSettingsSegmentedRow(
-                    title: "Density",
-                    detail: "Compact shows fewer cards per section. Detailed expands each group.",
-                    selection: $learnSettings.density,
-                    options: LearnReportDensity.allCases
+            CompactSettingsToggleRow(
+                title: "Retry Wrong Cards",
+                icon: "arrow.clockwise",
+                isOn: $flashcardSettings.retryWrongCards,
+                tint: accentTint,
+                isDense: true
+            )
+
+            CompactTapAnimationRow(
+                tint: accentTint,
+                tapAnimationStyle: $flashcardSettings.tapAnimationStyle,
+                staticSwapTextMotion: $flashcardSettings.staticSwapTextMotion
+            )
+
+            CompactSettingsButtonRow(
+                title: "Content Alignment",
+                icon: "text.aligncenter",
+                tint: accentTint,
+                selection: $flashcardSettings.contentAlignment,
+                options: FlashcardContentAlignment.allCases,
+                isDense: true
+            ) { option, locale in
+                option.localizedTitle(locale: locale)
+            }
+
+            CompactTextSizeSliderRow(
+                title: "Text Size",
+                icon: "textformat.size",
+                tint: accentTint,
+                textSize: $flashcardSettings.textSize,
+                isDense: true
+            )
+        }
+        .padding(UIConstants.Spacing.medium)
+        .flashcardStyle(cornerRadius: UIConstants.Radius.maximum, surfaceRole: .widget)
+    }
+}
+
+private struct CompactTapAnimationRow: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
+    let tint: Color
+    @Binding var tapAnimationStyle: FlashcardTapAnimationStyle
+    @Binding var staticSwapTextMotion: FlashcardStaticSwapTextMotion
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+            label(title: "Tap Animation", icon: "rectangle.2.swap")
+
+            optionButtons(
+                selection: $tapAnimationStyle,
+                options: FlashcardTapAnimationStyle.allCases
+            ) { option, locale in
+                option.localizedTitle(locale: locale)
+            }
+
+            if tapAnimationStyle == .staticSwap {
+                optionButtons(
+                    selection: $staticSwapTextMotion,
+                    options: FlashcardStaticSwapTextMotion.allCases
                 ) { option, locale in
                     option.localizedTitle(locale: locale)
                 }
             }
         }
+        .padding(.horizontal, UIConstants.Spacing.medium)
+        .padding(.top, UIConstants.Spacing.medium)
+        .padding(.bottom, tapAnimationStyle == .staticSwap ? UIConstants.Spacing.standard : UIConstants.Spacing.medium)
+        .frame(minHeight: tapAnimationStyle == .staticSwap ? 158 : 110, alignment: .top)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+        .transaction { transaction in
+            transaction.animation = nil
+        }
+    }
+
+    private func label(title: LocalizedStringResource, icon: String) -> some View {
+        HStack(spacing: UIConstants.Spacing.medium) {
+            CompactSettingsIcon(systemName: icon, tint: tint)
+
+            Text(title)
+                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+        }
+    }
+
+    private func optionButtons<Option: Identifiable & Hashable>(
+        selection: Binding<Option>,
+        options: [Option],
+        titleForOption: @escaping (Option, Locale) -> String
+    ) -> some View {
+        HStack(spacing: UIConstants.Spacing.medium) {
+            ForEach(options) { option in
+                let isSelected = option == selection.wrappedValue
+
+                Button {
+                    selection.wrappedValue = option
+                } label: {
+                    Text(titleForOption(option, appPreferences.resolvedLocale))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.78))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                        .contentTransition(.identity)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(
+                            isSelected ? tint : Color.primary.opacity(0.075),
+                            in: Capsule()
+                        )
+                        .transaction { transaction in
+                            transaction.animation = nil
+                        }
+                }
+                .buttonStyle(.plain)
+                .transaction { transaction in
+                    transaction.animation = nil
+                }
+            }
+        }
+        .frame(height: 40)
+        .transaction { transaction in
+            transaction.animation = nil
+        }
+    }
+}
+
+private struct CompactQuizSettingsCard: View {
+    let tintColor: Color
+    @Binding var quizSettings: QuizModeSettings
+    private var accentTint: Color { ThemeManager.shared.accentColor.color }
+
+    var body: some View {
+        VStack(spacing: UIConstants.Spacing.small) {
+            CompactSettingsToggleRow(
+                title: "Shuffle Choices",
+                icon: "shuffle",
+                isOn: $quizSettings.shuffleChoices,
+                tint: accentTint,
+                isDense: true
+            )
+
+            CompactSettingsButtonRow(
+                title: "Validation",
+                icon: "checkmark.seal.fill",
+                tint: accentTint,
+                selection: $quizSettings.answerValidation,
+                options: QuizAnswerValidationMode.allCases,
+                isDense: true
+            ) { option, locale in
+                option.localizedTitle(locale: locale)
+            }
+
+            CompactSettingsToggleRow(
+                title: "Retry Wrong Quiz",
+                icon: "arrow.clockwise",
+                isOn: $quizSettings.retryIncorrectQuestions,
+                tint: accentTint,
+                isDense: true
+            )
+        }
+        .padding(UIConstants.Spacing.medium)
+        .flashcardStyle(cornerRadius: UIConstants.Radius.maximum, surfaceRole: .widget)
+    }
+}
+
+private struct CompactTextSizeSliderRow: View {
+    let title: LocalizedStringResource
+    let icon: String
+    let tint: Color
+    @Binding var textSize: FlashcardTextSize
+    var isDense = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+            HStack(spacing: UIConstants.Spacing.medium) {
+                CompactSettingsIcon(systemName: icon, tint: tint)
+
+                Text(title)
+                    .font(.system(size: isDense ? 17 : 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+
+            TextSizeSliderControl(textSize: $textSize, isDense: isDense)
+        }
+        .padding(isDense ? UIConstants.Spacing.medium : UIConstants.Spacing.standard)
+        .frame(minHeight: isDense ? 96 : 124)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+    }
+}
+
+private struct TextSizeSliderControl: View {
+    @Binding var textSize: FlashcardTextSize
+    var isDense = false
+
+    private let trackHeight: CGFloat = 8
+    private var thumbWidth: CGFloat { isDense ? 48 : 58 }
+    private var thumbHeight: CGFloat { isDense ? 28 : 34 }
+
+    private var progress: CGFloat {
+        CGFloat(textSize.step - FlashcardTextSize.minimumStep)
+            / CGFloat(FlashcardTextSize.maximumStep - FlashcardTextSize.minimumStep)
+    }
+
+    var body: some View {
+        HStack(spacing: UIConstants.Spacing.standard) {
+            Text("A")
+                .font(.system(size: isDense ? 18 : 22, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary)
+
+            GeometryReader { proxy in
+                let width = max(proxy.size.width, 1)
+                let usableWidth = max(width - thumbWidth, 1)
+                let thumbX = progress * usableWidth
+
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.28))
+                        .frame(height: trackHeight)
+                        .padding(.horizontal, thumbWidth / 2)
+
+                    Capsule()
+                        .fill(Color.white.opacity(0.68))
+                        .frame(width: thumbX + thumbWidth / 2, height: trackHeight)
+                        .padding(.leading, thumbWidth / 2)
+
+                    HStack {
+                        ForEach(FlashcardTextSize.minimumStep...FlashcardTextSize.maximumStep, id: \.self) { step in
+                            Circle()
+                                .fill(Color.black.opacity(step == textSize.step ? 0 : 0.28))
+                                .frame(width: isDense ? 4 : 5, height: isDense ? 4 : 5)
+
+                            if step != FlashcardTextSize.maximumStep {
+                                Spacer(minLength: 0)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, thumbWidth / 2)
+                    .offset(y: isDense ? 13 : 16)
+
+                    Capsule()
+                        .fill(Color.white)
+                        .frame(width: thumbWidth, height: thumbHeight)
+                        .shadow(color: Color.black.opacity(0.22), radius: 8, y: 3)
+                        .offset(x: thumbX)
+                }
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            updateTextSize(locationX: value.location.x, width: width)
+                        }
+                )
+            }
+            .frame(height: isDense ? 38 : 48)
+
+            Text("A")
+                .font(.system(size: isDense ? 28 : 34, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, UIConstants.Spacing.medium)
+        .padding(.vertical, isDense ? UIConstants.Spacing.small : UIConstants.Spacing.standard)
+        .background(Color.black.opacity(0.18), in: Capsule())
+    }
+
+    private func updateTextSize(locationX: CGFloat, width: CGFloat) {
+        let usableWidth = max(width - thumbWidth, 1)
+        let clampedX = min(max(locationX - thumbWidth / 2, 0), usableWidth)
+        let progress = clampedX / usableWidth
+        let stepSpan = FlashcardTextSize.maximumStep - FlashcardTextSize.minimumStep
+        let step = FlashcardTextSize.minimumStep + Int((progress * CGFloat(stepSpan)).rounded())
+
+        textSize = FlashcardTextSize(step: step)
+    }
+}
+
+private struct CompactSettingsMenuRow<Option: Identifiable & Hashable>: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
+    let title: LocalizedStringResource
+    let icon: String
+    let tint: Color
+    @Binding var selection: Option
+    let options: [Option]
+    var isDense = false
+    let titleForOption: (Option, Locale) -> String
+
+    var body: some View {
+        HStack(spacing: UIConstants.Spacing.medium) {
+            CompactSettingsIcon(systemName: icon, tint: tint)
+
+            Text(title)
+                .font(.system(size: isDense ? 17 : 18, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Spacer(minLength: UIConstants.Spacing.small)
+
+            Menu {
+                Picker(selection: $selection) {
+                    ForEach(options) { option in
+                        Text(titleForOption(option, appPreferences.resolvedLocale))
+                            .tag(option)
+                    }
+                } label: {
+                    Text(title)
+                }
+            } label: {
+                HStack(spacing: UIConstants.Spacing.tiny) {
+                    Text(titleForOption(selection, appPreferences.resolvedLocale))
+                        .font(.system(size: isDense ? 14 : 15, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 11, weight: .black))
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, isDense ? UIConstants.Spacing.medium : UIConstants.Spacing.standard)
+                .frame(height: isDense ? 38 : 44)
+                .background(Color.primary.opacity(0.075), in: Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, UIConstants.Spacing.standard)
+        .padding(.vertical, isDense ? UIConstants.Spacing.small : UIConstants.Spacing.medium)
+        .frame(minHeight: isDense ? 58 : 68)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+    }
+}
+
+private struct CompactSettingsToggleRow: View {
+    let title: LocalizedStringResource
+    let icon: String
+    @Binding var isOn: Bool
+    let tint: Color
+    var isDense = false
+
+    var body: some View {
+        HStack(spacing: UIConstants.Spacing.medium) {
+            CompactSettingsIcon(systemName: icon, tint: tint)
+
+            Text(title)
+                .font(.system(size: isDense ? 17 : 18, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Spacer(minLength: UIConstants.Spacing.small)
+
+            Toggle(title, isOn: $isOn)
+                .labelsHidden()
+                .tint(tint)
+                .scaleEffect(isDense ? 0.86 : 0.92)
+        }
+        .padding(.horizontal, UIConstants.Spacing.standard)
+        .padding(.vertical, isDense ? UIConstants.Spacing.small : UIConstants.Spacing.medium)
+        .frame(minHeight: isDense ? 58 : 68)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+    }
+}
+
+private struct CompactSettingsButtonRow<Option: Identifiable & Hashable>: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
+    let title: LocalizedStringResource
+    let icon: String
+    let tint: Color
+    @Binding var selection: Option
+    let options: [Option]
+    var isDense = false
+    let titleForOption: (Option, Locale) -> String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isDense ? UIConstants.Spacing.small : UIConstants.Spacing.standard) {
+            label
+            HStack(spacing: UIConstants.Spacing.medium) {
+                ForEach(options) { option in
+                    validationButton(for: option)
+                }
+            }
+        }
+        .padding(isDense ? UIConstants.Spacing.medium : UIConstants.Spacing.standard)
+        .frame(minHeight: isDense ? 106 : 124)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+    }
+
+    private var label: some View {
+        HStack(spacing: UIConstants.Spacing.medium) {
+            CompactSettingsIcon(systemName: icon, tint: tint)
+
+            Text(title)
+                .font(.system(size: isDense ? 17 : 18, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+        }
+    }
+
+    private func validationButton(for option: Option) -> some View {
+        let isSelected = option == selection
+
+        return Button {
+            selection = option
+        } label: {
+            Text(titleForOption(option, appPreferences.resolvedLocale))
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.78))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .frame(maxWidth: .infinity)
+                .frame(height: isDense ? 40 : 48)
+                .background(
+                    isSelected ? tint : Color.primary.opacity(0.075),
+                    in: Capsule()
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct CompactSettingsIcon: View {
+    let systemName: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 15, weight: .black))
+            .foregroundStyle(tint)
+            .frame(width: 38, height: 38)
+            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous))
     }
 }
 

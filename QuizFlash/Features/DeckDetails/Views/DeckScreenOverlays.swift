@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 extension DeckContentView {
     func handleEditCard(_ gridCard: GridCardInfo) {
+        guard !viewModel.isSelecting else { return }
         if let model = context.model(for: gridCard.id) as? CardModel {
             presentCardEditor(for: model)
         }
@@ -123,6 +124,12 @@ extension DeckContentView {
     }
 
     func presentCardEditor(for card: CardModel) {
+        guard !viewModel.isSelecting else {
+            withAnimation(.spring(response: 0.18, dampingFraction: 0.88)) {
+                viewModel.toggleSelection(for: card.persistentModelID)
+            }
+            return
+        }
         exitSelectionModeForExternalAction()
         cardEditorDestination = .edit(DraftCard.from(card))
     }

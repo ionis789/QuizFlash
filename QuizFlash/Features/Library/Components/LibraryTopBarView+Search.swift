@@ -9,7 +9,7 @@ import SwiftUI
 
 extension LibraryTopBarView {
     private var localizedSearchPrompt: String {
-        localized("Search decks, cards, answers")
+        localized("Search for decks")
     }
 
     @ViewBuilder

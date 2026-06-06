@@ -35,6 +35,22 @@ extension DeckViewModel {
         selectedCards.removeAll()
     }
 
+    var visibleCardIDs: [PersistentIdentifier] {
+        cachedGroupedCards.flatMap { section in
+            section.cards.map(\.id)
+        }
+    }
+
+    var areAllVisibleCardsSelected: Bool {
+        let visibleIDs = visibleCardIDs
+        guard !visibleIDs.isEmpty else { return false }
+        return visibleIDs.allSatisfy { selectedCards.contains($0) }
+    }
+
+    func selectAllVisibleCards() {
+        selectedCards.formUnion(visibleCardIDs)
+    }
+
     // MARK: - Single Card Actions
 
     /// Toggles the pinned state of a single card and refreshes the grouped grid.

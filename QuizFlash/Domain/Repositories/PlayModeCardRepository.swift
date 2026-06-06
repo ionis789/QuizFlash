@@ -56,10 +56,10 @@ struct QuizPlayableCard: Identifiable, Equatable, Sendable {
     let allowsMultipleCorrect: Bool
 }
 
-// MARK: - Learn Payload
+// MARK: - Deck Health Payload
 
-/// Lightweight deck-level snapshot that powers the guided Learn report.
-struct LearnModeReport: Equatable, Sendable {
+/// Lightweight deck-level snapshot used by Home deck-health summaries.
+struct DeckHealthReport: Equatable, Sendable {
     let totalCards: Int
     let reviewedCards: Int
     let newCards: Int
@@ -69,13 +69,13 @@ struct LearnModeReport: Equatable, Sendable {
     let reviewAccuracy: Int
     let flashcardCards: Int
     let quizCards: Int
-    let focusCards: [LearnModeCardInsight]
-    let newMaterialCards: [LearnModeCardInsight]
-    let stableHighlights: [LearnModeCardInsight]
-    let coverageGroups: [LearnModeCoverageGroup]
+    let focusCards: [DeckHealthCardInsight]
+    let newMaterialCards: [DeckHealthCardInsight]
+    let stableHighlights: [DeckHealthCardInsight]
+    let coverageGroups: [DeckHealthCoverageGroup]
 
     /// Empty placeholder used before the first repository load completes.
-    nonisolated static let empty = LearnModeReport(
+    nonisolated static let empty = DeckHealthReport(
         totalCards: 0,
         reviewedCards: 0,
         newCards: 0,
@@ -92,8 +92,8 @@ struct LearnModeReport: Equatable, Sendable {
     )
 }
 
-/// One lightweight card-level insight shown inside Learn mode lists.
-struct LearnModeCardInsight: Identifiable, Equatable, Sendable {
+/// One lightweight card-level insight used by deck-health ranking.
+struct DeckHealthCardInsight: Identifiable, Equatable, Sendable {
     let id: PersistentIdentifier
     let kind: CardKind
     let cardNumber: Int
@@ -103,8 +103,8 @@ struct LearnModeCardInsight: Identifiable, Equatable, Sendable {
     let recommendation: String
 }
 
-/// One grouped coverage block shown in Learn mode's deck briefing section.
-struct LearnModeCoverageGroup: Identifiable, Equatable, Sendable {
+/// One grouped coverage block used by deck-health analysis.
+struct DeckHealthCoverageGroup: Identifiable, Equatable, Sendable {
     let id: String
     let kind: CardKind
     let title: String
@@ -340,10 +340,10 @@ actor PlayModeCardRepository {
         return ValidatedPlayModeLoadResult(cards: results, diagnostics: diagnostics)
     }
 
-    // MARK: - Learn
+    // MARK: - Deck Health
 
-    /// Builds a guided-study report from cached mixed-card previews and review history.
-    func loadLearnReport(for deckID: PersistentIdentifier) -> LearnModeReport {
+    /// Builds a deck-health report from cached mixed-card previews and review history.
+    func loadDeckHealthReport(for deckID: PersistentIdentifier) -> DeckHealthReport {
         guard let deck = activeContext.model(for: deckID) as? DeckModel else {
             return .empty
         }
@@ -361,9 +361,9 @@ actor PlayModeCardRepository {
         var totalReviews = 0
         var successfulReviews = 0
 
-        var focusCandidates: [(score: Double, insight: LearnModeCardInsight)] = []
-        var newMaterialCards: [LearnModeCardInsight] = []
-        var stableHighlights: [(score: Double, insight: LearnModeCardInsight)] = []
+        var focusCandidates: [(score: Double, insight: DeckHealthCardInsight)] = []
+        var newMaterialCards: [DeckHealthCardInsight] = []
+        var stableHighlights: [(score: Double, insight: DeckHealthCardInsight)] = []
         var coverageBuckets: [CardKind: [String]] = [:]
 
         for card in cards {
@@ -391,7 +391,7 @@ actor PlayModeCardRepository {
                 if history.isEmpty {
                     newCards += 1
                     newMaterialCards.append(
-                        LearnModeCardInsight(
+                        DeckHealthCardInsight(
                             id: card.persistentModelID,
                             kind: card.kind,
                             cardNumber: card.cardNumber,
@@ -414,7 +414,7 @@ actor PlayModeCardRepository {
                     buildingCards += 1
                 }
 
-                let insight = LearnModeCardInsight(
+                let insight = DeckHealthCardInsight(
                     id: card.persistentModelID,
                     kind: card.kind,
                     cardNumber: card.cardNumber,
@@ -452,7 +452,7 @@ actor PlayModeCardRepository {
             ? Int((Double(successfulReviews) / Double(totalReviews)) * 100)
             : 0
 
-        return LearnModeReport(
+        return DeckHealthReport(
             totalCards: cards.count,
             reviewedCards: reviewedCards,
             newCards: newCards,
@@ -712,7 +712,7 @@ actor PlayModeCardRepository {
         flashcardCards: Int,
         quizCards: Int,
         coverageBuckets: [CardKind: [String]]
-    ) -> [LearnModeCoverageGroup] {
+    ) -> [DeckHealthCoverageGroup] {
         CardKind.allCases.compactMap { kind in
             let cardCount: Int
             let title: String
@@ -732,7 +732,7 @@ actor PlayModeCardRepository {
             guard cardCount > 0 else { return nil }
 
             let prompts = Array((coverageBuckets[kind] ?? []).prefix(3))
-            return LearnModeCoverageGroup(
+            return DeckHealthCoverageGroup(
                 id: kind.rawValue,
                 kind: kind,
                 title: title,

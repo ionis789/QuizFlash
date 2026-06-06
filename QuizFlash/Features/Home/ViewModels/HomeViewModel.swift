@@ -357,7 +357,7 @@ final class HomeViewModel {
         ranked.reserveCapacity(candidates.count)
 
         for deck in candidates {
-            let report = await repository.loadLearnReport(for: deck.persistentModelID)
+            let report = await repository.loadDeckHealthReport(for: deck.persistentModelID)
             guard report.totalCards > 0 else { continue }
 
             let summary = buildDeckHealthSummary(

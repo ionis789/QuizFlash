@@ -23,6 +23,8 @@ struct DeckWorkspaceView: View {
     // MARK: - Environment
     @Environment(\.modelContext) var context
     @Environment(\.dismiss) var dismiss
+    @Environment(\.fullScreenSheetDismiss) var fullScreenSheetDismiss
+    @Environment(\.fullScreenSheetDismissCoordinator) var fullScreenSheetDismissCoordinator
     @Environment(\.scenePhase) var scenePhase
     @Environment(NavigationManager.self) var router
     @Environment(AIWorkspaceCoordinator.self) var aiWorkspaceCoordinator
@@ -55,6 +57,8 @@ struct DeckWorkspaceView: View {
 
     // MARK: - Input
     let launchAction: DeckWorkspaceLaunchAction?
+    let sheetSafeAreaInsets: UIEdgeInsets?
+    let onSuccessfulSave: (() -> Void)?
 
     // MARK: - Computed Properties
     var accent: Color { themeManager.accentColor.color }
@@ -249,9 +253,13 @@ struct DeckWorkspaceView: View {
     // MARK: - Initialization
     init(
         deckToEdit: DeckModel? = nil,
-        launchAction: DeckWorkspaceLaunchAction? = nil
+        launchAction: DeckWorkspaceLaunchAction? = nil,
+        sheetSafeAreaInsets: UIEdgeInsets? = nil,
+        onSuccessfulSave: (() -> Void)? = nil
     ) {
         self.launchAction = launchAction
+        self.sheetSafeAreaInsets = sheetSafeAreaInsets
+        self.onSuccessfulSave = onSuccessfulSave
         _viewModel = State(initialValue: DeckWorkspaceViewModel(deckToEdit: deckToEdit))
     }
 
@@ -311,6 +319,9 @@ struct DeckWorkspaceView: View {
                 requestDismiss()
             }
             .onAppear {
+                fullScreenSheetDismissCoordinator?.shouldAllowDismiss = {
+                    attemptInteractiveDismissValidation()
+                }
                 refreshDerivedDeckState()
                 refreshSessionPresentationState()
                 syncAIWorkspaceGenerationState()
@@ -320,6 +331,7 @@ struct DeckWorkspaceView: View {
                 refreshDerivedDeckState()
             }
             .onDisappear {
+                fullScreenSheetDismissCoordinator?.shouldAllowDismiss = nil
                 guard viewModel.aiSheetDestination == nil,
                       viewModel.cardEditorDestination == nil else { return }
                 ImageCache.shared.clearCache()
@@ -397,9 +409,14 @@ struct DeckWorkspaceView: View {
     var viewContent: some View {
         ScrollViewReader { scrollProxy in
             GeometryReader { outer in
-                let resolvedSafeTopInset = outer.safeAreaInsets.top
+                let resolvedSafeTopInset = max(
+                    outer.safeAreaInsets.top,
+                    sheetSafeAreaInsets?.top ?? 0
+                )
+                let sheetTopChromeInset = sheetSafeAreaInsets == nil ? 0 : resolvedSafeTopInset
                 let resolvedSafeBottomInset = outer.safeAreaInsets.bottom
-                let heroTopPadding = UIConstants.Layout.createDeckPinnedToolbarTopInset
+                let heroTopPadding = sheetTopChromeInset
+                    + UIConstants.Layout.createDeckPinnedToolbarTopInset
                     + UIConstants.Layout.createDeckHeroTopPadding
                 let structuralTopEdgeShadowHeight = resolvedSafeTopInset + navigationBarHeight
 
@@ -421,9 +438,13 @@ struct DeckWorkspaceView: View {
                         }
                         .scrollIndicators(.hidden)
                         .scrollDismissesKeyboard(.interactively)
-                        .onTapGesture {
-                            isTitleFocused = false
-                        }
+                        .gesture(
+                            TapGesture().onEnded {
+                                isTitleFocused = false
+                                guard viewModel.isSelectingCards else { return }
+                                exitDraftSelectionModeForExternalAction()
+                            }
+                        )
                     }
                     .screenTopEdgeShadow(
                         topHeight: structuralTopEdgeShadowHeight,
@@ -438,7 +459,7 @@ struct DeckWorkspaceView: View {
                 .overlay(alignment: .top) {
                     navigationChrome(
                         containerWidth: outer.size.width,
-                        safeTopInset: resolvedSafeTopInset
+                        safeTopInset: sheetTopChromeInset
                     )
                 }
                 .overlay(alignment: .bottomTrailing) {

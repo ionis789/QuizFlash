@@ -246,106 +246,165 @@ struct PlayModeCompletionOverlay: View {
     let secondaryActionTitle: String?
     let secondaryAction: (() -> Void)?
 
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(ThemeManager.self) private var themeManager
+    @State private var isGlowShifted = false
 
-    private var isCompact: Bool { horizontalSizeClass == .compact }
+    private var panelCornerRadius: CGFloat { 38 }
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.5)
-                .ignoresSafeArea()
-                .background(.ultraThinMaterial)
+        GeometryReader { proxy in
+            let panelWidth = panelWidth(in: proxy.size.width)
 
-            VStack(spacing: 0) {
-                VStack(spacing: UIConstants.Spacing.standard) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.yellow.opacity(0.2))
-                            .frame(width: 120, height: 120)
+            ZStack {
+                themeManager.screenBackground.opacity(0.78)
+                    .ignoresSafeArea()
+                    .background(.ultraThinMaterial)
 
-                        Image(systemName: "star.circle.fill")
-                            .font(.system(size: 80))
-                            .foregroundStyle(
-                                .linearGradient(
-                                    colors: [.yellow, .orange],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .shadow(color: .orange.opacity(0.5), radius: 10, y: 5)
-                    }
-                    .padding(.bottom, UIConstants.Spacing.small)
+                completionGlowBackground
 
-                    Text(headline)
-                        .font(isCompact ? .title : .largeTitle)
-                        .fontWeight(.black)
-
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
-                        Text("+\(xpEarned) XP")
-                            .fontWeight(.bold)
-                    }
-                    .font(.title2)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, UIConstants.Spacing.large)
-                    .padding(.vertical, UIConstants.Spacing.standard)
-                    .background(
-                        Capsule().fill(
-                            .linearGradient(
-                                colors: [.orange, .red],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                    )
-                    .shadow(color: .orange.opacity(0.3), radius: 8, y: 4)
+                VStack(spacing: UIConstants.Spacing.extraLarge) {
+                    completionHeader
+                    statsGrid
+                    actionButtons
                 }
-                .padding(.top, 40)
-                .padding(.bottom, UIConstants.Spacing.huge)
-
-                LazyVGrid(
-                    columns: [GridItem(.flexible()), GridItem(.flexible())],
-                    spacing: UIConstants.Spacing.medium
-                ) {
-                    ForEach(stats) { stat in
-                        PlayModeCompletionStatBox(stat: stat)
-                    }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 28)
+                .frame(width: panelWidth)
+                .background(
+                    RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
+                        .fill(themeManager.surfacePrimary.opacity(0.86))
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
+                        .stroke(themeManager.textPrimary.opacity(0.06), lineWidth: 1)
                 }
-                .padding(.horizontal, UIConstants.Spacing.extraLarge)
-                .padding(.bottom, UIConstants.Spacing.huge)
-
-                VStack(spacing: UIConstants.Spacing.medium) {
-                    Button(primaryActionTitle, action: primaryAction)
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, UIConstants.Spacing.standard)
-                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: UIConstants.Radius.card))
-                        .foregroundStyle(.white)
-                        .shadow(color: Color.accentColor.opacity(0.3), radius: 10, y: 5)
-
-                    if let secondaryActionTitle, let secondaryAction {
-                        Button(secondaryActionTitle, action: secondaryAction)
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, UIConstants.Spacing.standard)
-                            .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: UIConstants.Radius.card))
-                            .foregroundStyle(.orange)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: UIConstants.Radius.card)
-                                    .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                            }
-                    }
-                }
-                .padding(.horizontal, UIConstants.Spacing.extraLarge)
-                .padding(.bottom, UIConstants.Spacing.huge)
             }
-            .background(
-                RoundedRectangle(cornerRadius: UIConstants.Radius.maximum)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                    .shadow(color: .black.opacity(0.2), radius: 30, y: 15)
-            )
-            .padding(isCompact ? UIConstants.Spacing.extraLarge : 60)
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
         }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 7.5).repeatForever(autoreverses: true)) {
+                isGlowShifted = true
+            }
+        }
+    }
+
+    private func panelHorizontalInset(in availableWidth: CGFloat) -> CGFloat {
+        min(max(availableWidth * 0.06, 22), 64)
+    }
+
+    private func panelWidth(in availableWidth: CGFloat) -> CGFloat {
+        let horizontalInset = panelHorizontalInset(in: availableWidth)
+        return max(0, availableWidth - (horizontalInset * 2))
+    }
+
+    private var completionHeader: some View {
+        VStack(spacing: UIConstants.Spacing.small) {
+            Text(headline)
+                .font(.system(size: 31, weight: .black, design: .rounded))
+                .foregroundStyle(themeManager.textPrimary)
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+        }
+    }
+
+    private var completionGlowBackground: some View {
+        ZStack {
+            RadialGradient(
+                colors: [
+                    themeManager.roleColor(.buttonPrimaryFill).opacity(0.30),
+                    themeManager.roleColor(.buttonPrimaryFill).opacity(0.08),
+                    .clear
+                ],
+                center: .center,
+                startRadius: 8,
+                endRadius: 230
+            )
+            .frame(width: 430, height: 430)
+            .offset(x: isGlowShifted ? 84 : -70, y: isGlowShifted ? -178 : -112)
+
+            RadialGradient(
+                colors: [
+                    themeManager.highlightRose.opacity(0.18),
+                    themeManager.highlightRose.opacity(0.06),
+                    .clear
+                ],
+                center: .center,
+                startRadius: 6,
+                endRadius: 250
+            )
+            .frame(width: 500, height: 500)
+            .offset(x: isGlowShifted ? -112 : 92, y: isGlowShifted ? 176 : 108)
+
+            RadialGradient(
+                colors: [
+                    themeManager.brandDeep.opacity(0.24),
+                    themeManager.brandDeep.opacity(0.07),
+                    .clear
+                ],
+                center: .center,
+                startRadius: 4,
+                endRadius: 260
+            )
+            .frame(width: 520, height: 520)
+            .offset(x: isGlowShifted ? 124 : -96, y: isGlowShifted ? 80 : 158)
+        }
+        .blur(radius: 42)
+        .allowsHitTesting(false)
+        .ignoresSafeArea()
+    }
+
+    private var statsGrid: some View {
+        LazyVGrid(
+            columns: [
+                GridItem(.flexible(), spacing: UIConstants.Spacing.small),
+                GridItem(.flexible(), spacing: UIConstants.Spacing.small)
+            ],
+            spacing: UIConstants.Spacing.small
+        ) {
+            ForEach(stats) { stat in
+                PlayModeCompletionStatBox(stat: stat)
+            }
+        }
+    }
+
+    private var actionButtons: some View {
+        VStack(spacing: UIConstants.Spacing.small) {
+            completionButton(
+                title: primaryActionTitle,
+                isPrimary: true,
+                action: primaryAction
+            )
+
+            if let secondaryActionTitle, let secondaryAction {
+                completionButton(
+                    title: secondaryActionTitle,
+                    isPrimary: false,
+                    action: secondaryAction
+                )
+            }
+        }
+    }
+
+    private func completionButton(
+        title: String,
+        isPrimary: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 19, weight: .black, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .frame(maxWidth: .infinity)
+                .frame(height: 58)
+                .foregroundStyle(isPrimary ? themeManager.roleColor(.buttonPrimaryForeground) : themeManager.textPrimary)
+                .background {
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .fill(isPrimary ? themeManager.roleColor(.buttonPrimaryFill) : themeManager.surfaceSecondary.opacity(0.78))
+                }
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -355,29 +414,37 @@ struct PlayModeCompletionOverlay: View {
 private struct PlayModeCompletionStatBox: View {
     let stat: PlayModeCompletionStat
 
+    @Environment(ThemeManager.self) private var themeManager
+
     var body: some View {
-        HStack(spacing: UIConstants.Spacing.medium) {
+        VStack(spacing: UIConstants.Spacing.small) {
             Image(systemName: stat.icon)
-                .font(.title2)
+                .font(.system(size: 18, weight: .black, design: .rounded))
                 .foregroundStyle(stat.color)
-                .frame(width: 30)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(stat.title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-
+            VStack(spacing: 3) {
                 Text(stat.value)
-                    .font(.headline.weight(.heavy))
-                    .foregroundStyle(.primary)
-            }
+                    .font(.system(size: 30, weight: .black, design: .rounded))
+                    .foregroundStyle(themeManager.textPrimary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
 
-            Spacer(minLength: 0)
+                Text(stat.title)
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(themeManager.textSecondary)
+                    .textCase(.uppercase)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
         }
-        .padding(UIConstants.Spacing.standard)
-        .background(Color(uiColor: .systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: UIConstants.Radius.card))
-        .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, UIConstants.Spacing.small)
+        .padding(.vertical, UIConstants.Spacing.standard)
+        .frame(maxWidth: .infinity, minHeight: 98, alignment: .center)
+        .background(
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .fill(themeManager.surfaceSecondary.opacity(0.72))
+        )
     }
 }

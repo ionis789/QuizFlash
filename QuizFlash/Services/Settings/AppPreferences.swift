@@ -103,6 +103,7 @@ nonisolated enum AppWeekStartDayPreference: String, CaseIterable, Identifiable, 
 nonisolated enum CreateDeckSortOrder: String, CaseIterable, Identifiable, Codable, Sendable {
     case newest
     case oldest
+    case type
 
     var id: String { rawValue }
 
@@ -112,6 +113,8 @@ nonisolated enum CreateDeckSortOrder: String, CaseIterable, Identifiable, Codabl
             return "Newest First"
         case .oldest:
             return "Oldest First"
+        case .type:
+            return "Type"
         }
     }
 
@@ -121,6 +124,8 @@ nonisolated enum CreateDeckSortOrder: String, CaseIterable, Identifiable, Codabl
             return AppLocalization.string("Newest First", locale: locale)
         case .oldest:
             return AppLocalization.string("Oldest First", locale: locale)
+        case .type:
+            return AppLocalization.string("Type", locale: locale)
         }
     }
 }

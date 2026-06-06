@@ -81,20 +81,22 @@ struct LibraryLayout: View {
     var isSearchBrowseFrozen: Bool {
         viewModel.isSearching && trimmedSearchText.isEmpty
     }
+    var isSearchResultsLoadingPresentation: Bool {
+        viewModel.isSearchLoading
+            || viewModel.renderedSearchQuery != trimmedSearchText
+            || (viewModel.searchResults.isEmpty && !viewModel.isNoMatchReady)
+    }
+    var searchBackdropAnimation: Animation {
+        .easeInOut(duration: 0.16)
+    }
     var searchBrowseFreezeBlurRadius: CGFloat {
         18
     }
+    var searchBrowseFreezeDimOpacity: CGFloat {
+        0.12
+    }
     var browseStickyHiddenSectionHeaderIDs: Set<String> {
         Set([visualPassedCompactTitleSectionID].compactMap { $0 })
-    }
-    var searchStickyHiddenSectionHeaderIDs: Set<String> {
-        Set(
-            [
-                pinnedStartDebugSectionID,
-                visualPassedCompactTitleSectionID,
-                passedCompactTitleDebugSectionID
-            ].compactMap { $0 }
-        )
     }
     var activeLayoutPresentation: LibrarySearchPresentation {
         isSearchResultsPresented ? .searchResults : .browse
@@ -104,6 +106,9 @@ struct LibraryLayout: View {
             return navigationBarBottomY
         }
         return safeTop + UIConstants.Layout.topEdgeShadowHeight
+    }
+    var activeTopEdgeShadowHeight: CGFloat {
+        structuralTopEdgeShadowHeight
     }
     var topChromeInsetSpacing: CGFloat {
         switch activeLayoutPresentation {
@@ -134,7 +139,6 @@ struct LibraryLayout: View {
     }
 
     var isCollapsedTitleVisible: Bool {
-        guard !viewModel.isSearching else { return false }
         return heroCollapsedTitleReady || heroCollapsedTitleFallbackReady
     }
 
@@ -181,22 +185,21 @@ struct LibraryLayout: View {
                 mainScrollArea
             }
             .screenTopEdgeShadow(
-                topHeight: structuralTopEdgeShadowHeight,
+                topHeight: activeTopEdgeShadowHeight,
                 topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
                 debugScreenID: "library.root",
-                fullScreenFillProgress: isSearchBrowseFrozen ? 1 : 0,
-                fullScreenDimOpacity: isSearchBrowseFrozen ? 0.08 : 0,
-                fullScreenBlurRadius: searchBrowseFreezeBlurRadius,
+                fullScreenFillProgress: 0,
+                fullScreenDimOpacity: 0,
+                fullScreenBlurRadius: 0,
                 style: .progressiveBlur()
             )
+            .animation(searchBackdropAnimation, value: viewModel.isSearching)
+            .animation(searchBackdropAnimation, value: isSearchBrowseFrozen)
 
             if viewModel.isSelecting && !isSearching {
                 BottomChromeContainer(
                     kind: .selection,
-                    bottomPadding: BottomChromeInsets.persistent,
-                    minimumHeightOverride: 62,
-                    innerHorizontalPaddingOverride: 10,
-                    innerVerticalPaddingOverride: 7
+                    bottomPadding: BottomChromeInsets.persistent
                 ) {
                     LibrarySelectionBarView(
                         viewModel: viewModel,
@@ -210,15 +213,7 @@ struct LibraryLayout: View {
             }
 
             if viewModel.isImporting || viewModel.isExporting {
-                LibraryLoadingOverlay(
-                    message: viewModel.isImporting
-                        ? localized("Importing…")
-                        : (
-                            viewModel.selectedDecks.count == 1
-                                ? localizedFormat("Exporting %d deck…", viewModel.selectedDecks.count)
-                                : localizedFormat("Exporting %d decks…", viewModel.selectedDecks.count)
-                        )
-                )
+                LibraryLoadingOverlay()
                     .zIndex(20)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }

@@ -384,7 +384,7 @@ struct FlashcardEditorView: View {
 
     private var floatingToolbarBaseBottomInset: CGFloat {
         keyboardMonitor.isVisible || isFloatingFormatBarPresented
-            ? 4
+            ? UIConstants.Spacing.large
             : UIConstants.Spacing.standard
     }
 
@@ -397,7 +397,7 @@ struct FlashcardEditorView: View {
     }
 
     private var floatingToolbarAccessoryHeight: CGFloat {
-        isFloatingFormatBarVisible ? 76 : 0
+        isFloatingFormatBarVisible ? 96 : 0
     }
 
     @ViewBuilder
@@ -536,8 +536,7 @@ struct FlashcardEditorView: View {
                 openPreview()
             },
             onClose: {
-                focusManager.forceReleaseKeyboard()
-                previewDirection = nil
+                dismissFloatingFormatMenu()
             }
         )
     }
@@ -567,6 +566,11 @@ struct FlashcardEditorView: View {
     }
 
     private func handleCanvasEmptySpaceTap(_ context: ZoneEditorCanvasTapContext) {
+        if isFloatingFormatBarVisible || keyboardMonitor.isVisible {
+            dismissFloatingFormatMenu()
+            return
+        }
+
         focusManager.prepareForZoneInsertion()
 
         if !currentContent.rootZone.hasContent,
@@ -602,6 +606,14 @@ struct FlashcardEditorView: View {
         }
 
         insertTextZoneWithFocus(relativeTo: insertion.path, direction: insertion.direction)
+    }
+
+    private func dismissFloatingFormatMenu() {
+        focusManager.forceReleaseKeyboard()
+        zoneController.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
+        selectedPath = nil
+        previewDirection = nil
     }
 
     private func blockingEmptyTextZonePath(

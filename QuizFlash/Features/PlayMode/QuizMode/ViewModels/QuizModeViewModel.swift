@@ -26,11 +26,16 @@ final class QuizModeViewModel {
     var isRetryPass = false
     var selectedChoiceIDs: Set<UUID> = []
     var incorrectChoiceIDs: Set<UUID> = []
+    var missedCorrectChoiceIDs: Set<UUID> = []
+    var revealedMissedCorrectChoiceIDs: Set<UUID> = []
+    var wrongFeedbackChoiceIDs: Set<UUID> = []
+    var wrongFeedbackTrigger = 0
+    var evaluationFeedbackTrigger = 0
+    var evaluationFeedbackWasCorrect: Bool?
     var isEvaluated = false
     var lastEvaluationWasCorrect: Bool?
     var currentQuestionHasWrongAttempt = false
     var wrongCards: [QuizPlayableCard] = []
-    var firstPassFailedIDs: Set<PersistentIdentifier> = []
     var sessionXP = 0
     var sessionStartTime = Date()
     var loadState: PlayModeSessionLoadState = .idle
@@ -59,6 +64,9 @@ final class QuizModeViewModel {
 
     @ObservationIgnored
     private var missedCardIDs: Set<PersistentIdentifier> = []
+
+    @ObservationIgnored
+    private var currentPassFailedIDs: Set<PersistentIdentifier> = []
 
     @ObservationIgnored
     private var retryEvaluationCount = 0
@@ -136,6 +144,14 @@ final class QuizModeViewModel {
         return selectedChoiceIDs.count == 1
     }
 
+    var hasMissedCorrectChoices: Bool {
+        isEvaluated && !missedCorrectChoiceIDs.isEmpty
+    }
+
+    var canRevealMissedCorrectChoices: Bool {
+        hasMissedCorrectChoices && revealedMissedCorrectChoiceIDs != missedCorrectChoiceIDs
+    }
+
     // MARK: - Lifecycle
 
     /// Loads and validates the deck's quiz payloads, then primes the first question.
@@ -145,6 +161,7 @@ final class QuizModeViewModel {
         sessionStartTime = Date()
         loadState = .loading
         persistenceService = PlaySessionPersistenceService(container: container)
+        currentPassFailedIDs = []
 
         let repository = PlayModeCardRepository(container: container)
         let result = await repository.loadValidatedQuizCards(for: deck.persistentModelID)
@@ -167,6 +184,7 @@ final class QuizModeViewModel {
     func tearDown() {
         cards = []
         wrongCards = []
+        currentPassFailedIDs = []
         persistenceService = nil
         MathWebViewPool.shared.flush()
         ImageCache.shared.clearCache()
@@ -182,6 +200,9 @@ final class QuizModeViewModel {
             guard lastEvaluationWasCorrect == false, !currentCard.allowsMultipleCorrect else { return }
             isEvaluated = false
             lastEvaluationWasCorrect = nil
+            missedCorrectChoiceIDs = []
+            revealedMissedCorrectChoiceIDs = []
+            wrongFeedbackChoiceIDs = []
             isExplanationRevealed = false
         }
 
@@ -206,6 +227,11 @@ final class QuizModeViewModel {
         evaluateSelection()
     }
 
+    func revealMissedCorrectChoices() {
+        guard hasMissedCorrectChoices else { return }
+        revealedMissedCorrectChoiceIDs = missedCorrectChoiceIDs
+    }
+
     /// Advances to the next question, retry prompt, or final completion overlay.
     func advance() {
         if isShowingRetryPrompt {
@@ -217,6 +243,9 @@ final class QuizModeViewModel {
 
         selectedChoiceIDs = []
         incorrectChoiceIDs = []
+        missedCorrectChoiceIDs = []
+        revealedMissedCorrectChoiceIDs = []
+        wrongFeedbackChoiceIDs = []
         isEvaluated = false
         lastEvaluationWasCorrect = nil
         currentQuestionHasWrongAttempt = false
@@ -224,7 +253,7 @@ final class QuizModeViewModel {
         currentIndex += 1
 
         if currentIndex >= cards.count {
-            if !isRetryPass && settings.retryIncorrectQuestions && !wrongCards.isEmpty {
+            if settings.retryIncorrectQuestions && !wrongCards.isEmpty {
                 isShowingRetryPrompt = true
             } else {
                 finishSession()
@@ -259,6 +288,9 @@ final class QuizModeViewModel {
         if index == currentIndex {
             selectedChoiceIDs = []
             incorrectChoiceIDs = []
+            missedCorrectChoiceIDs = []
+            revealedMissedCorrectChoiceIDs = []
+            wrongFeedbackChoiceIDs = []
             isEvaluated = false
             lastEvaluationWasCorrect = nil
             currentQuestionHasWrongAttempt = false
@@ -277,8 +309,22 @@ final class QuizModeViewModel {
         markReviewed(currentCard.id)
 
         let correctChoiceIDs = Set(currentCard.choices.filter(\.isCorrect).map(\.id))
-        let isCorrect = selectedChoiceIDs == correctChoiceIDs
-        lastEvaluationWasCorrect = isCorrect
+        let selectedIncorrectChoiceIDs = selectedChoiceIDs.subtracting(correctChoiceIDs)
+        let selectedCorrectChoiceIDs = selectedChoiceIDs.intersection(correctChoiceIDs)
+        let missedCorrectIDs = correctChoiceIDs.subtracting(selectedChoiceIDs)
+        let isCorrect = selectedIncorrectChoiceIDs.isEmpty && missedCorrectIDs.isEmpty
+        let isPartialCorrect = currentCard.allowsMultipleCorrect
+            && !selectedCorrectChoiceIDs.isEmpty
+            && selectedIncorrectChoiceIDs.isEmpty
+            && !missedCorrectIDs.isEmpty
+
+        missedCorrectChoiceIDs = missedCorrectIDs
+        revealedMissedCorrectChoiceIDs = []
+        lastEvaluationWasCorrect = isPartialCorrect ? nil : isCorrect
+        evaluationFeedbackWasCorrect = isPartialCorrect ? nil : isCorrect
+        if !isPartialCorrect {
+            evaluationFeedbackTrigger &+= 1
+        }
 
         if isRetryPass {
             retryEvaluationCount += 1
@@ -287,6 +333,9 @@ final class QuizModeViewModel {
         let timeSpent = Date().timeIntervalSince(currentQuestionStartTime)
 
         if isCorrect {
+            wrongFeedbackChoiceIDs = []
+            guard !currentQuestionHasWrongAttempt else { return }
+
             correctCount += 1
             let xp = PlaySessionXP.awarded(for: .good, timeSpent: timeSpent)
             sessionXP += xp
@@ -302,7 +351,19 @@ final class QuizModeViewModel {
             return
         }
 
-        incorrectChoiceIDs.formUnion(selectedChoiceIDs)
+        if isPartialCorrect {
+            wrongFeedbackChoiceIDs = []
+            missedCardIDs.insert(currentCard.id)
+            queueCurrentCardForRetry(currentCard)
+            return
+        }
+
+        let newlyIncorrectChoiceIDs = selectedIncorrectChoiceIDs.subtracting(incorrectChoiceIDs)
+        incorrectChoiceIDs.formUnion(selectedIncorrectChoiceIDs)
+        wrongFeedbackChoiceIDs = newlyIncorrectChoiceIDs
+        if !newlyIncorrectChoiceIDs.isEmpty {
+            wrongFeedbackTrigger &+= 1
+        }
         missedCardIDs.insert(currentCard.id)
 
         guard !currentQuestionHasWrongAttempt else { return }
@@ -310,9 +371,7 @@ final class QuizModeViewModel {
         currentQuestionHasWrongAttempt = true
         wrongCount += 1
 
-        if !isRetryPass, firstPassFailedIDs.insert(currentCard.id).inserted {
-            wrongCards.append(currentCard)
-        }
+        queueCurrentCardForRetry(currentCard)
 
         let xp = PlaySessionXP.awarded(for: .again, timeSpent: timeSpent)
         sessionXP += xp
@@ -329,7 +388,13 @@ final class QuizModeViewModel {
 
     private func startRetryPass() {
         let retryCards = Self.studyOrdered(wrongCards)
+        guard !retryCards.isEmpty else {
+            finishSession()
+            return
+        }
+
         wrongCards = []
+        currentPassFailedIDs = []
         cards = settings.shuffleChoices ? shuffledChoices(in: retryCards) : retryCards
         currentIndex = 0
         isRetryPass = true
@@ -337,6 +402,9 @@ final class QuizModeViewModel {
         isEvaluated = false
         selectedChoiceIDs = []
         incorrectChoiceIDs = []
+        missedCorrectChoiceIDs = []
+        revealedMissedCorrectChoiceIDs = []
+        wrongFeedbackChoiceIDs = []
         lastEvaluationWasCorrect = nil
         currentQuestionHasWrongAttempt = false
         isExplanationRevealed = false
@@ -356,6 +424,11 @@ final class QuizModeViewModel {
             reviewedCardIDs: reviewedCardIDs,
             missedCardIDs: Array(missedCardIDs)
         )
+    }
+
+    private func queueCurrentCardForRetry(_ card: QuizPlayableCard) {
+        guard currentPassFailedIDs.insert(card.id).inserted else { return }
+        wrongCards.append(card)
     }
 
     private func markReviewed(_ cardID: PersistentIdentifier) {

@@ -17,16 +17,16 @@ struct LibraryTopBarMenuContent: View {
     private var locale: Locale { appPreferences.resolvedLocale }
 
     var body: some View {
+        Button(action: enterSelectionMode) {
+            Label(AppLocalization.string("Select", locale: locale), systemImage: "checkmark.circle")
+        }
+        .disabled(viewModel.isSelecting || viewModel.isSearching)
+
         Button {
             viewModel.showFileImporter = true
         } label: {
             Label(AppLocalization.string("Import Deck", locale: locale), systemImage: "square.and.arrow.down")
         }
-
-        Button(action: enterSelectionMode) {
-            Label(AppLocalization.string("Select", locale: locale), systemImage: "checkmark.circle")
-        }
-        .disabled(viewModel.isSelecting || viewModel.isSearching)
 
         Divider()
 

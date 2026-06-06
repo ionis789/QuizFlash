@@ -90,6 +90,7 @@ struct AIPreparedGenerationSource {
     let textSegments: [AITextSourceSegment]
     let images: [UIImage]
     let pdfURL: URL?
+    let needsOCRCorrection: Bool
 
     var isPDF: Bool { kind == .pdf }
     var itemCount: Int { previewItems.count }
@@ -151,7 +152,6 @@ final class DeckWorkspaceViewModel {
 
     // MARK: - Generation Settings
     var requestedCardCount: Int = 15
-    var extractionMode: ExtractionMode = .fast
     var aiGenerationOptions = AIGenerationOptions()
     var preparedAISource: AIPreparedGenerationSource? = nil
     var manualAISourceAllocations: [AISourceRangeAllocation] = []
@@ -398,12 +398,13 @@ final class DeckWorkspaceViewModel {
         let initialDrafts: [DraftCard]
 
         if let deck = deckToEdit {
+            let persistedDrafts = Self.orderedPersistedDraftCards(from: deck)
             deckTitle = deck.title
             selectedFolder = deck.folder
-            draftCards = Self.orderedPersistedDraftCards(from: deck)
+            draftCards = persistedDrafts
             initialTitle = deck.title
             initialFolder = deck.folder
-            initialDrafts = Self.orderedPersistedDraftCards(from: deck)
+            initialDrafts = persistedDrafts
         } else {
             initialTitle = ""
             initialFolder = nil

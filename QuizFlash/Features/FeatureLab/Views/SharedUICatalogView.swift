@@ -164,7 +164,7 @@ struct SharedUICatalogView: View {
                 isSelected: false,
                 onNavigate: { },
                 onToggleSelection: { },
-                onImport: { },
+                onExport: { },
                 onMoveToFolder: { },
                 onDelete: { }
             )
@@ -232,10 +232,8 @@ struct SharedUICatalogView: View {
             DeckProgressView(
                 progress: runtime.progress,
                 stats: runtime.stats,
-                deckCardCount: runtime.stats.totalCards,
                 activity: runtime.todayActivity,
-                deckTint: Color(hex: runtime.recentDeck.colorHex) ?? .orange,
-                onOpenActivityHistory: {}
+                deckTint: Color(hex: runtime.recentDeck.colorHex) ?? .orange
             )
 
         case .selectionToolbarControls:
