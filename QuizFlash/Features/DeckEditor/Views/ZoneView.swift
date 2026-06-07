@@ -792,12 +792,7 @@ struct ZoneContentView: View {
     }
 
     private func fontSizeFor(_ zone: ZoneModel?) -> CGFloat {
-        switch zone?.textStyle ?? .body {
-        case .caption: return 16 * fontScale
-        case .body: return 22 * fontScale
-        case .headline: return 26 * fontScale
-        case .title: return 32 * fontScale
-        }
+        ZoneTextTypography.fontSize(for: zone?.textStyle ?? .body, fontScale: fontScale)
     }
 
     // MARK: - Text Editor Core
@@ -1019,20 +1014,32 @@ struct ZoneContentView: View {
     }
 
     private var textFont: Font {
-        let style = zone?.textStyle ?? .body; let family = zone?.fontFamily ?? .system
-        let weight: Font.Weight = zone?.isBold == true ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
-        let size: CGFloat; switch style { case .body: size = 22; case .title: size = 32; case .headline: size = 26; case .caption: size = 16 }
-        return family.font(size: size * fontScale, weight: weight)
+        guard let zone else {
+            return ZoneTextTypography.font(
+                family: .system,
+                style: .body,
+                isBold: false,
+                isItalic: false,
+                fontScale: fontScale
+            )
+        }
+        return ZoneTextTypography.font(for: zone, fontScale: fontScale)
     }
     private var textUIFont: UIFont {
         textUIFont(for: zone)
     }
 
     private func textUIFont(for zone: ZoneModel?) -> UIFont {
-        let style = zone?.textStyle ?? .body; let family = zone?.fontFamily ?? .system
-        let weight: UIFont.Weight = zone?.isBold == true ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
-        let size: CGFloat; switch style { case .body: size = 22; case .title: size = 32; case .headline: size = 26; case .caption: size = 16 }
-        return family.uiFont(size: size * fontScale, weight: weight)
+        guard let zone else {
+            return ZoneTextTypography.uiFont(
+                family: .system,
+                style: .body,
+                isBold: false,
+                isItalic: false,
+                fontScale: fontScale
+            )
+        }
+        return ZoneTextTypography.uiFont(for: zone, fontScale: fontScale)
     }
 
     private var editorTextHorizontalPadding: CGFloat {
@@ -1045,7 +1052,7 @@ struct ZoneContentView: View {
     }
 
     private var editorTextLineSpacing: CGFloat {
-        max(floor(fontSizeFor(zone) * 0.26), 6)
+        ZoneTextTypography.lineSpacing(for: zone?.textStyle ?? .body, fontScale: fontScale)
     }
 
     private var editorTextVerticalPadding: CGFloat {
@@ -1207,6 +1214,7 @@ struct CardFaceView: View {
                         MixedMathTextView(
                             text: previewText,
                             fontSize: fontSizeFor(zone),
+                            fontFamily: zone.fontFamily,
                             textColor: zone.textColor.color,
                             alignment: resolvedTextAlignment.horizontalAlignment,
                             isBold: zone.isBold,
@@ -1244,18 +1252,12 @@ struct CardFaceView: View {
     }
 
     private func fontSizeFor(_ zone: ZoneModel) -> CGFloat {
-        switch zone.textStyle {
-        case .caption: return 16 * fontScale
-        case .body: return 22 * fontScale
-        case .headline: return 26 * fontScale
-        case .title: return 32 * fontScale
-        }
+        ZoneTextTypography.fontSize(for: zone.textStyle, fontScale: fontScale)
     }
 
     private func previewBulletTopPadding(for zone: ZoneModel) -> CGFloat {
         let size = fontSizeFor(zone)
-        let weight: UIFont.Weight = zone.isBold ? .bold : (zone.textStyle == .title ? .bold : (zone.textStyle == .headline ? .semibold : .regular))
-        let lineHeight = zone.fontFamily.uiFont(size: size, weight: weight).lineHeight
+        let lineHeight = ZoneTextTypography.uiFont(for: zone, fontScale: fontScale).lineHeight
         return 4 + max((lineHeight - CardZoneContentMetrics.bulletWidth) / 2, 0)
     }
 
@@ -1292,11 +1294,7 @@ struct CardFaceView: View {
     }
 
     private func previewFont(for zone: ZoneModel) -> Font {
-        let style = zone.textStyle; let family = zone.fontFamily
-        let weight: Font.Weight = zone.isBold ? .bold : (style == .title ? .bold : (style == .headline ? .semibold : .regular))
-        let size: CGFloat
-        switch style { case .body: size = 22; case .title: size = 32; case .headline: size = 26; case .caption: size = 16 }
-        return family.font(size: size * fontScale, weight: weight)
+        ZoneTextTypography.font(for: zone, fontScale: fontScale)
     }
 }
 

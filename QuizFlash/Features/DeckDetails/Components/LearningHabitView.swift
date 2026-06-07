@@ -2,7 +2,7 @@
 //  LearningHabitView.swift
 //  QuizFlash
 //
-//  Habit-tracker section — 28-day activity heatmap, XP level bar, and streak badge.
+//  Habit-tracker section — 28-day activity heatmap, XP summary, and streak badge.
 //  Data is injected from `DeckView` via `DailyActivityLog` records and a `UserProfile`
 //  fetched with `@Query` — this view is fully dumb and contains no fetch logic.
 //
@@ -11,7 +11,7 @@ import SwiftUI
 
 // MARK: - LearningHabitView
 
-/// Displays a 28-day activity heatmap, an XP / level progress bar, and a streak badge.
+/// Displays a 28-day activity heatmap, an XP summary, and a streak badge.
 ///
 /// This is a pure display component: all data arrives via `let` properties injected
 /// by the parent view. No `@Query`, `@Environment`, or network calls are made here.
@@ -26,21 +26,13 @@ struct LearningHabitView: View {
 
     /// All activity log entries used to build the 28-day heatmap.
     let activityLogs: [DailyActivityLog]
-    /// The current user's profile, providing streak, XP, and level data.
+    /// The current user's profile, providing streak and XP data.
     let userProfile: UserProfile?
 
     // MARK: - Derived Data
 
     private var streak: Int  { userProfile?.currentStreak ?? 0 }
     private var totalXP: Int { userProfile?.totalXP ?? 0 }
-    private var level: Int   { userProfile?.level ?? 1 }
-
-    /// XP already earned inside the current level (0–499).
-    private var xpInLevel: Int    { totalXP % 500 }
-    /// Fractional progress through the current level, in [0, 1].
-    private var xpProgress: Double { Double(xpInLevel) / 500.0 }
-    /// XP remaining to reach the next level.
-    private var xpToNextLevel: Int { 500 - xpInLevel }
 
     /// Total cards reviewed across the last 28 days.
     private var totalRecentCards: Int { last28Days.reduce(0) { $0 + $1.cardsReviewed } }
@@ -114,8 +106,7 @@ struct LearningHabitView: View {
     private var mainCard: some View {
         VStack(spacing: 16) {
 
-            // ── XP / Level row ──────────────────────────────────────────────
-            xpLevelSection
+            xpSummarySection
 
             // ── Subtle divider ──────────────────────────────────────────────
             Rectangle()
@@ -134,68 +125,19 @@ struct LearningHabitView: View {
         .padding(.horizontal, 20)
     }
 
-    // MARK: - XP Level Section
+    // MARK: - XP Summary Section
 
-    private var xpLevelSection: some View {
-        VStack(spacing: 10) {
-            HStack(alignment: .center) {
-                // Level badge
-                HStack(spacing: 6) {
-                    ZStack {
-                        Circle()
-                            .fill(accentColor.opacity(0.15))
-                            .frame(width: 32, height: 32)
-                        Text("\(level)")
-                            .font(.system(size: 13, weight: .black))
-                            .foregroundStyle(accentColor)
-                    }
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Level \(level)")
-                            .font(.subheadline.weight(.semibold))
-                        Text("\(xpToNextLevel) XP to next")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
+    private var xpSummarySection: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "star.fill")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.yellow.opacity(0.82))
 
-                Spacer()
+            Text("\(totalXP) XP")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(accentColor.opacity(0.9))
 
-                HStack(spacing: 3) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.yellow.opacity(0.8))
-                    Text("\(totalXP)")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(accentColor.opacity(0.85))
-                    Text("XP")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-
-            // Progress bar — thinner, subtler
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.secondary.opacity(0.10))
-                        .frame(height: 5)
-
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [accentColor.opacity(0.65), accentColor.opacity(0.85)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(
-                            width: max(5, geo.size.width * xpProgress),
-                            height: 5
-                        )
-                        .animation(.spring(response: 0.7, dampingFraction: 0.75), value: xpProgress)
-                }
-            }
-            .frame(height: 5)
+            Spacer(minLength: 0)
         }
     }
 

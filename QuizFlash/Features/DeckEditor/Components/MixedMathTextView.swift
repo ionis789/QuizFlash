@@ -149,6 +149,7 @@ extension WKWebView {
 struct MixedMathTextView: View {
     let text: String
     let fontSize: CGFloat
+    var fontFamily: FontFamily = .system
     let textColor: Color
     let alignment: HorizontalAlignment
     var isBold: Bool = false
@@ -206,6 +207,7 @@ struct MixedMathTextView: View {
             MathWebView(
                 text: clean,
                 fontSize: fontSize,
+                fontFamily: fontFamily,
                 textColor: textColor,
                 colorScheme: colorScheme,
                 isBold: isBold,
@@ -401,7 +403,7 @@ struct MixedMathTextView: View {
 
     private func plainUIFont(isEmphasized: Bool) -> UIFont {
         let weight: UIFont.Weight = (isBold || isEmphasized) ? .bold : .regular
-        let baseFont = UIFont.systemFont(ofSize: fontSize, weight: weight)
+        let baseFont = fontFamily.uiFont(size: fontSize, weight: weight)
 
         guard isItalic,
               let descriptor = baseFont.fontDescriptor.withSymbolicTraits(.traitItalic)
@@ -418,6 +420,7 @@ struct MixedMathTextView: View {
             String(format: "%.3f", fontSize),
             colorSignature,
             alignmentSignature,
+            fontFamily.rawValue,
             isBold ? "1" : "0",
             isItalic ? "1" : "0",
             renderStyle.rawValue,
@@ -431,7 +434,7 @@ struct MixedMathTextView: View {
     }
 
     private func swiftUIFont(isEmphasized: Bool) -> Font {
-        let base = Font.system(size: fontSize)
+        let base = fontFamily.font(size: fontSize)
         switch (isBold || isEmphasized, isItalic) {
         case (true,  true):  return base.bold().italic()
         case (true,  false): return base.bold()
@@ -670,6 +673,7 @@ class MathWebViewPool {
 struct MathWebView: UIViewRepresentable {
     let text: String
     let fontSize: CGFloat
+    let fontFamily: FontFamily
     let textColor: Color
     let colorScheme: ColorScheme
     let isBold: Bool
@@ -840,6 +844,7 @@ struct MathWebView: UIViewRepresentable {
 
         let weight    = isBold   ? "bold"   : "normal"
         let fontStyle = isItalic ? "italic" : "normal"
+        let cssFontFamily = fontFamily.cssFontFamily
         let cssColor  = getCSSColor()
 
         let safeText  = text
@@ -856,7 +861,7 @@ struct MathWebView: UIViewRepresentable {
         let measurementWidth = max(ceil(intrinsicMeasurementWidthLimit ?? 0), 0)
         let debugBounds = showsRenderDebugBounds ? "true" : "false"
         let renderToken = context.coordinator.beginRender()
-        let js = "updateMathContent('\(b64)', '\(cssColor)', \(fontSize), '\(cssAlign)', '\(weight)', '\(fontStyle)', \(allowDisplayMathOverflowScrolling), \(measurementWidth), \(debugBounds), '\(renderToken)');"
+        let js = "updateMathContent('\(b64)', '\(cssColor)', \(fontSize), '\(cssAlign)', '\(weight)', '\(fontStyle)', '\(cssFontFamily)', \(allowDisplayMathOverflowScrolling), \(measurementWidth), \(debugBounds), '\(renderToken)');"
         context.coordinator.applyUpdate(js: js, renderToken: renderToken)
     }
 
@@ -1008,7 +1013,7 @@ struct MathWebView: UIViewRepresentable {
             .katex-error {
                 color: inherit !important;
                 font-style: normal !important;
-                font-family: -apple-system, sans-serif !important;
+                font-family: inherit !important;
             }
             code.inline-code {
                 font-family: ui-monospace, 'SF Mono', Menlo, monospace;
@@ -1080,12 +1085,13 @@ struct MathWebView: UIViewRepresentable {
             isInstalled: false
         };
 
-        function updateMathContent(b64, color, fontSize, align, weight, fontStyle, allowDisplayMathOverflowScrolling, intrinsicMeasurementWidthLimit, showsRenderDebugBounds, renderToken) {
+        function updateMathContent(b64, color, fontSize, align, weight, fontStyle, fontFamily, allowDisplayMathOverflowScrolling, intrinsicMeasurementWidthLimit, showsRenderDebugBounds, renderToken) {
             document.body.style.color = color;
             document.body.style.fontSize = fontSize + 'px';
             document.body.style.textAlign = align;
             document.body.style.fontWeight = weight;
             document.body.style.fontStyle = fontStyle;
+            document.body.style.fontFamily = fontFamily;
             document.body.dataset.allowDisplayMathOverflowScrolling = allowDisplayMathOverflowScrolling ? '1' : '0';
             document.body.dataset.intrinsicMeasurementWidthLimit = intrinsicMeasurementWidthLimit > 0 ? intrinsicMeasurementWidthLimit : '';
             document.body.dataset.renderDebugBounds = showsRenderDebugBounds ? '1' : '0';

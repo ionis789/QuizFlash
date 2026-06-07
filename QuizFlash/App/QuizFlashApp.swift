@@ -16,7 +16,6 @@ struct QuizFlashApp: App {
     @State private var aiProviderStore = AIProviderStore.shared
     @State private var appPreferences = AppPreferences.shared
     @State private var developmentPreferences = DevelopmentPreferences.shared
-    @State private var cardAppearancePreferences = CardAppearancePreferences.shared
     @State private var appMigrationStore = AppMigrationStore.shared
 
     init() {
@@ -32,11 +31,9 @@ struct QuizFlashApp: App {
                 .environment(aiProviderStore)
                 .environment(appPreferences)
                 .environment(developmentPreferences)
-                .environment(cardAppearancePreferences)
                 .environment(appMigrationStore)
                 .environment(\.locale, appPreferences.resolvedLocale)
                 .tint(themeManager.accentColor.color)
-                .quizFlashAppTextSize(appPreferences)
                 .preferredColorScheme(.dark)
                 .onAppear {
                     print(URL.documentsDirectory.path())
@@ -54,16 +51,5 @@ struct QuizFlashApp: App {
                 HomeDailyCardAggregate.self,
                 DeckPlayModeSettingsModel.self
             ])
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func quizFlashAppTextSize(_ appPreferences: AppPreferences) -> some View {
-        if appPreferences.usesSystemTextSize {
-            self
-        } else {
-            dynamicTypeSize(appPreferences.appInterfaceDynamicTypeSize)
-        }
     }
 }

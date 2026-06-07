@@ -26,8 +26,6 @@ import UIKit
 /// `FlashCardsPlayModeViewModel.handleSwipe(_:)`, and `isFlipped` is a binding
 /// to `FlashCardsPlayModeViewModel.isFlipped`.
 struct GameplayCard: View {
-    @Environment(AppPreferences.self) private var appPreferences
-
     // MARK: - Properties
 
     /// The lightweight snapshot of the card being displayed.
@@ -139,18 +137,9 @@ struct GameplayCard: View {
     }
 
     private func playRevealHaptic() {
-        switch appPreferences.flashcardsSwipeHaptics {
-        case .off:
-            return
-        case .subtle:
-            let generator = UIImpactFeedbackGenerator(style: .soft)
-            generator.prepare()
-            generator.impactOccurred(intensity: 0.48)
-        case .standard:
-            let generator = UIImpactFeedbackGenerator(style: .soft)
-            generator.prepare()
-            generator.impactOccurred(intensity: 0.62)
-        }
+        let generator = UIImpactFeedbackGenerator(style: .soft)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.62)
     }
 
     private var resolvedTapAnimation: Animation? {

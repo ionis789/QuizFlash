@@ -844,6 +844,7 @@ private struct FlashcardGridLeafPreview: View {
                 MixedMathTextView(
                     text: previewText,
                     fontSize: fontSizeFor(zone),
+                    fontFamily: zone.fontFamily,
                     textColor: zone.textColor.color,
                     alignment: layout.resolvedTextAlignment.horizontalAlignment,
                     isBold: zone.isBold,
@@ -1045,12 +1046,7 @@ private struct FlashcardGridLeafPreview: View {
     }
 
     private func fontSizeFor(_ zone: ZoneModel) -> CGFloat {
-        switch zone.textStyle {
-        case .caption: return 16 * fontScale
-        case .body: return 22 * fontScale
-        case .headline: return 26 * fontScale
-        case .title: return 32 * fontScale
-        }
+        ZoneTextTypography.fontSize(for: zone.textStyle, fontScale: fontScale)
     }
 
     private func codeBlockFontSize(for zone: ZoneModel) -> CGFloat {
@@ -1360,16 +1356,14 @@ private enum FlashcardPlainTextLayoutMeasurer {
         fontScale: CGFloat,
         weight: UIFont.Weight
     ) -> UIFont {
-        let size = fontSize(for: zone) * fontScale
-        let baseFont = zone.fontFamily.uiFont(size: size, weight: weight)
-
-        guard zone.isItalic,
-              let descriptor = baseFont.fontDescriptor.withSymbolicTraits(.traitItalic)
-        else {
-            return baseFont
-        }
-
-        return UIFont(descriptor: descriptor, size: size)
+        ZoneTextTypography.uiFont(
+            family: zone.fontFamily,
+            style: zone.textStyle,
+            isBold: false,
+            isItalic: zone.isItalic,
+            fontScale: fontScale,
+            emphasized: weight == .bold
+        )
     }
 
     private static func swiftUIFont(
@@ -1377,46 +1371,26 @@ private enum FlashcardPlainTextLayoutMeasurer {
         fontScale: CGFloat,
         weight: Font.Weight
     ) -> Font {
-        zone.fontFamily.font(size: fontSize(for: zone) * fontScale, weight: weight)
+        ZoneTextTypography.font(
+            family: zone.fontFamily,
+            style: zone.textStyle,
+            isBold: false,
+            isItalic: zone.isItalic,
+            fontScale: fontScale,
+            emphasized: weight == .bold
+        )
     }
 
     private static func fontWeight(for zone: ZoneModel, emphasized: Bool) -> UIFont.Weight {
-        if zone.isBold || emphasized {
-            return .bold
-        }
-
-        switch zone.textStyle {
-        case .title:
-            return .bold
-        case .headline:
-            return .semibold
-        case .body, .caption:
-            return .regular
-        }
+        ZoneTextTypography.uiFontWeight(for: zone.textStyle, isBold: zone.isBold, emphasized: emphasized)
     }
 
     private static func swiftUIFontWeight(for zone: ZoneModel, emphasized: Bool) -> Font.Weight {
-        if zone.isBold || emphasized {
-            return .bold
-        }
-
-        switch zone.textStyle {
-        case .title:
-            return .bold
-        case .headline:
-            return .semibold
-        case .body, .caption:
-            return .regular
-        }
+        ZoneTextTypography.fontWeight(for: zone.textStyle, isBold: zone.isBold, emphasized: emphasized)
     }
 
     private static func fontSize(for zone: ZoneModel) -> CGFloat {
-        switch zone.textStyle {
-        case .caption: return 16
-        case .body: return 22
-        case .headline: return 26
-        case .title: return 32
-        }
+        ZoneTextTypography.baseFontSize(for: zone.textStyle)
     }
 }
 
@@ -2095,43 +2069,20 @@ enum FlashcardGridContentEstimator {
         emphasized: Bool,
         monospaced: Bool
     ) -> UIFont {
-        let size = fontSize(for: zone) * fontScale
-        let weight = fontWeight(for: zone, emphasized: emphasized)
-        let baseFont = monospaced
-            ? UIFont.monospacedSystemFont(ofSize: size, weight: weight)
-            : zone.fontFamily.uiFont(size: size, weight: weight)
-
-        guard zone.isItalic,
-              let descriptor = baseFont.fontDescriptor.withSymbolicTraits(.traitItalic)
-        else {
-            return baseFont
-        }
-
-        return UIFont(descriptor: descriptor, size: size)
+        ZoneTextTypography.uiFont(
+            for: zone,
+            fontScale: fontScale,
+            emphasized: emphasized,
+            monospaced: monospaced
+        )
     }
 
     private static func fontWeight(for zone: ZoneModel, emphasized: Bool) -> UIFont.Weight {
-        if zone.isBold || emphasized {
-            return .bold
-        }
-
-        switch zone.textStyle {
-        case .title:
-            return .bold
-        case .headline:
-            return .semibold
-        case .body, .caption:
-            return .regular
-        }
+        ZoneTextTypography.uiFontWeight(for: zone.textStyle, isBold: zone.isBold, emphasized: emphasized)
     }
 
     private static func fontSize(for zone: ZoneModel) -> CGFloat {
-        switch zone.textStyle {
-        case .caption: return 16
-        case .body: return 22
-        case .headline: return 26
-        case .title: return 32
-        }
+        ZoneTextTypography.baseFontSize(for: zone.textStyle)
     }
 
     private static func codeBlockFontSize(for zone: ZoneModel, fontScale: CGFloat) -> CGFloat {

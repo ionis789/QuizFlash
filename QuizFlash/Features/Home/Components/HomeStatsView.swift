@@ -93,9 +93,9 @@ struct HomeCalendarOverviewCard: View {
 
             HStack(spacing: usesRegularMetrics ? 8 : 10) {
                 HomeCalendarCompactMetricTile(
-                    title: "Level",
-                    value: "\(overview.level)",
-                    detail: "\(overview.totalXP) XP",
+                    title: "XP",
+                    value: "\(overview.totalXP)",
+                    detail: "\(overview.xpEarnedToday) XP",
                     tint: .blue,
                     usesRegularMetrics: usesRegularMetrics
                 )
@@ -343,9 +343,9 @@ struct HomeAnalyticsHeroCard: View {
 
             HStack(spacing: 12) {
                 HomeHeroMetricTile(
-                    title: "Level",
-                    value: "\(overview.level)",
-                    detail: "\(overview.totalXP) XP",
+                    title: "XP",
+                    value: "\(overview.totalXP)",
+                    detail: "\(overview.xpEarnedToday) today",
                     tint: .blue
                 )
 

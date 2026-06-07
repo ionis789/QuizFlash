@@ -296,13 +296,6 @@ struct DeckWorkspaceView: View {
             .onChange(of: viewModel.hasPausedAIGeneration) { _, _ in
                 refreshSessionPresentationState()
             }
-            .onChange(of: appPreferences.autoCollapseEarlierCardsInAISession) { _, newValue in
-                if newValue {
-                    refreshSessionPresentationState()
-                } else {
-                    isHistoricalCardsCollapsed = false
-                }
-            }
     }
 
     var appearanceBoundContent: some View {
@@ -362,7 +355,7 @@ struct DeckWorkspaceView: View {
                 configuration: .sheet(
                     heightMode: .custom(0.35),
                     dragActivationArea: .fullSurface,
-                    showsDragIndicator: true,
+                    showsDragIndicator: false,
                     backgroundReceivesDragProgress: true,
                     showsBackdropBlur: true,
                     showsDefaultTopProgressiveBlur: false,
@@ -437,6 +430,7 @@ struct DeckWorkspaceView: View {
                             .frame(minHeight: outer.size.height, alignment: .top)
                         }
                         .scrollIndicators(.hidden)
+                        .scrollBounceBehavior(.basedOnSize, axes: .vertical)
                         .scrollDismissesKeyboard(.interactively)
                         .gesture(
                             TapGesture().onEnded {

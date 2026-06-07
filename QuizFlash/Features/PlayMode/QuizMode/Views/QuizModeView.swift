@@ -88,7 +88,7 @@ private struct QuizModeSessionView: View {
     private var questionContentSpring: Animation { .spring(response: 0.36, dampingFraction: 0.84) }
     private var playModeTextScale: CGFloat {
         let textSize = deck.playModeSettings?.flashcardSettings.textSize ?? .large
-        return CGFloat(textSize.playModeScale) * appPreferences.cardContentFontScale
+        return CGFloat(textSize.playModeScale)
     }
 
     var body: some View {
@@ -154,6 +154,7 @@ private struct QuizModeSessionView: View {
             .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
             .clipped()
             .fullScreenSheetDragActivationHeight(headerHeight)
+            .keepsScreenAwake()
             .task {
                 await viewModel.startSession(container: context.container)
                 showQuestionContentIfReady()
@@ -1129,14 +1130,9 @@ private struct QuizModeSessionView: View {
     }
 
     private func emitQuizEvaluationHaptic(isCorrect: Bool) {
-        switch appPreferences.flashcardsSwipeHaptics {
-        case .off:
-            return
-        case .subtle, .standard:
-            let generator = UINotificationFeedbackGenerator()
-            generator.prepare()
-            generator.notificationOccurred(isCorrect ? .success : .error)
-        }
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(isCorrect ? .success : .error)
     }
 
     private func advanceQuestionWithFade() {
@@ -1548,16 +1544,7 @@ private struct QuizChoiceRow: View {
     }
 
     private func codeAnswerFontSize(for zone: ZoneModel) -> CGFloat {
-        baseFontSize(for: zone) * fontScale * CodeSnippetMetrics.relativeFontScale
-    }
-
-    private func baseFontSize(for zone: ZoneModel) -> CGFloat {
-        switch zone.textStyle {
-        case .caption: return 16
-        case .body: return 22
-        case .headline: return 26
-        case .title: return 32
-        }
+        ZoneTextTypography.fontSize(for: zone.textStyle, fontScale: fontScale) * CodeSnippetMetrics.relativeFontScale
     }
 
     private func strippedCodeText(_ text: String) -> String {

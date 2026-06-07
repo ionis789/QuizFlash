@@ -21,7 +21,6 @@ struct HomeSelectedDayOverviewSummary: Equatable {
     let retryCardCount: Int
     let streakCount: Int
     let totalXP: Int
-    let level: Int
     let headline: String
     let detailLine: String
 
@@ -258,7 +257,6 @@ struct HomeDashboardSnapshot: Equatable {
             retryCardCount: 0,
             streakCount: 0,
             totalXP: 0,
-            level: 1,
             headline: "Fresh study window",
             detailLine: "Start a session to build momentum today."
         )

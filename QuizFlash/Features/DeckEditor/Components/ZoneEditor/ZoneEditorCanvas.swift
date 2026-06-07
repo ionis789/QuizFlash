@@ -65,23 +65,26 @@ struct ZoneEditorCanvas: View {
             let editorViewportHeight = max(geometry.size.height - (UIConstants.Spacing.small * 2), 1)
             let contentWidth = max(cardWidth - (editorCardHorizontalPadding * 2), 1)
             let contentHeight = max(editorViewportHeight - (editorCardVerticalPadding * 2), 1)
-            let contentFrameAlignment: Alignment = .top
             let scrollBottomAvoidanceInset = keyboardMonitor.isVisible
                 ? max(keyboardMonitor.visibleHeight + activeBottomChromeClearance, 160)
                 : 0
+            let idleBottomCreationInset = max(editorViewportHeight * 0.45, 260)
+            let bottomCreationTapInset = keyboardMonitor.isVisible
+                ? scrollBottomAvoidanceInset
+                : idleBottomCreationInset
 
             ScrollViewReader { _ in
                 ScrollView(.vertical, showsIndicators: false) {
                     zoneContentSurface(
                         contentWidth: contentWidth,
                         contentHeight: contentHeight,
-                        contentFrameAlignment: contentFrameAlignment
+                        bottomCreationTapInset: bottomCreationTapInset
                     )
                     .padding(.horizontal, editorCardHorizontalPadding)
                     .padding(.top, editorCardVerticalPadding + topContentInset)
-                    .padding(.bottom, editorCardVerticalPadding + scrollBottomAvoidanceInset)
+                    .padding(.bottom, editorCardVerticalPadding)
                     .frame(width: cardWidth, alignment: .topLeading)
-                    .frame(minHeight: editorViewportHeight + topContentInset + scrollBottomAvoidanceInset, alignment: .topLeading)
+                    .frame(minHeight: editorViewportHeight + topContentInset + bottomCreationTapInset, alignment: .topLeading)
                 }
                 .background {
                     ZoneEditorScrollViewLocator { scrollView in
@@ -256,33 +259,32 @@ struct ZoneEditorCanvas: View {
     private func zoneContentSurface(
         contentWidth: CGFloat,
         contentHeight: CGFloat,
-        contentFrameAlignment: Alignment
+        bottomCreationTapInset: CGFloat
     ) -> some View {
-        ZoneEditorView(
-            content: content,
-            path: .root,
-            selectedPath: $selectedPath,
-            highlightContext: highlightContext,
-            fontScale: fontScale,
-            availableWidth: contentWidth,
-            maxEditableZoneHeight: contentHeight,
-            previewDirection: $previewDirection
+        let tappableContentSize = CGSize(
+            width: contentWidth,
+            height: contentHeight + bottomCreationTapInset
         )
-        .frame(width: contentWidth, alignment: .topLeading)
-        .frame(minHeight: contentHeight, alignment: contentFrameAlignment)
-        .background {
+
+        return VStack(alignment: .leading, spacing: 0) {
+            ZoneEditorView(
+                content: content,
+                path: .root,
+                selectedPath: $selectedPath,
+                highlightContext: highlightContext,
+                fontScale: fontScale,
+                availableWidth: contentWidth,
+                maxEditableZoneHeight: contentHeight,
+                previewDirection: $previewDirection
+            )
+            .frame(width: contentWidth, alignment: .topLeading)
+
             Color.clear
+                .frame(width: contentWidth, height: contentHeight + bottomCreationTapInset)
                 .contentShape(Rectangle())
-                .gesture(
-                    SpatialTapGesture(coordinateSpace: .named(Self.coordinateSpaceName))
-                        .onEnded { value in
-                            handleEmptySpaceTap(
-                                location: value.location,
-                                contentSize: CGSize(width: contentWidth, height: contentHeight)
-                            )
-                        }
-                )
+                .gesture(emptySpaceTapGesture(contentSize: tappableContentSize))
         }
+        .frame(width: contentWidth, alignment: .topLeading)
         .coordinateSpace(name: Self.coordinateSpaceName)
         .overlayPreferenceValue(ZoneEditorZoneBoundsPreferenceKey.self) { bounds in
             GeometryReader { proxy in
@@ -303,8 +305,18 @@ struct ZoneEditorCanvas: View {
         }
     }
 
+    private func emptySpaceTapGesture(contentSize: CGSize) -> some Gesture {
+        SpatialTapGesture(coordinateSpace: .named(Self.coordinateSpaceName))
+            .onEnded { value in
+                handleEmptySpaceTap(
+                    location: value.location,
+                    contentSize: contentSize
+                )
+            }
+    }
+
     private func handleEmptySpaceTap(location: CGPoint, contentSize: CGSize) {
-        guard !zoneFrames.contains(where: { $0.frame.insetBy(dx: -6, dy: -6).contains(location) }) else {
+        guard !zoneFrames.contains(where: { $0.frame.contains(location) }) else {
             lastTapDebugLine = "tap zone/select"
             ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
             return
@@ -421,7 +433,7 @@ struct ZoneEditorCanvas: View {
     }
 
     private var caretBottomChromeBuffer: CGFloat {
-        40
+        88
     }
 
     private var caretScrollAnimationDuration: TimeInterval {

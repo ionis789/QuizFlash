@@ -32,6 +32,7 @@ struct HomeCalendarSectionView: View {
 
     /// O(1) lookup dictionary providing per-day progress and marker insights.
     let calendarInsightsCache: [String: HomeCalendarDayInsight]
+    let calendarInsightsRevision: Int
     let blurConfiguration: ScreenTopProgressiveBlurConfiguration
     let blurHeightOffset: CGFloat
     let blurColor: Color
@@ -41,6 +42,7 @@ struct HomeCalendarSectionView: View {
         calendarVM: CalendarViewModel,
         layout: HomeCalendarAdaptiveLayout,
         calendarInsightsCache: [String: HomeCalendarDayInsight],
+        calendarInsightsRevision: Int,
         blurConfiguration: ScreenTopProgressiveBlurConfiguration = .quizFlashDefault,
         blurHeightOffset: CGFloat = 0,
         blurColor: Color = EdgeShadowDebugSettings.default.resolvedColor,
@@ -49,6 +51,7 @@ struct HomeCalendarSectionView: View {
         self.calendarVM = calendarVM
         self.layout = layout
         self.calendarInsightsCache = calendarInsightsCache
+        self.calendarInsightsRevision = calendarInsightsRevision
         self.blurConfiguration = blurConfiguration
         self.blurHeightOffset = blurHeightOffset
         self.blurColor = blurColor
@@ -200,13 +203,30 @@ struct HomeCalendarSectionView: View {
         let usesMonthSwipe = progress < 0.001
         let visibleGridWidth = state.dayColumnWidth * 7
         let capsuleWidth = layout.capsuleWidth(for: progress)
-        let calendarTrack = dayGrid(
-            totalGridHeight: totalGridHeight,
-            progress: progress,
-            state: state
-        )
-        .frame(width: visibleGridWidth, alignment: .leading)
-        .simultaneousGesture(monthSwipeGesture(enabled: usesMonthSwipe))
+        let calendarTrack = Group {
+            if usesMonthSwipe {
+                ExpandedMonthPagerHost(
+                    snapshots: calendarVM.adjacentMonthSnapshots(),
+                    progress: progress,
+                    state: state,
+                    calendarInsightsCache: calendarInsightsCache,
+                    insightsRevision: calendarInsightsRevision,
+                    onSelectDay: { day in
+                        calendarVM.selectDate(day.date)
+                    },
+                    onMonthOffset: { offset in
+                        calendarVM.applyMonthOffset(offset)
+                    }
+                )
+            } else {
+                dayGrid(
+                    totalGridHeight: totalGridHeight,
+                    progress: progress,
+                    state: state
+                )
+            }
+        }
+            .frame(width: visibleGridWidth, alignment: .leading)
             .frame(
             height: state.rowHeight + (totalGridHeight - state.rowHeight) * (1 - progress),
             alignment: .top
@@ -249,9 +269,27 @@ struct HomeCalendarSectionView: View {
         progress: CGFloat,
         state: HomeCalendarAdaptiveLayout.State
     ) -> some View {
+        monthGridPage(
+            rows: calendarVM.monthRows,
+            selectedMonthProgress: calendarVM.monthProgress,
+            totalGridHeight: totalGridHeight,
+            progress: progress,
+            state: state
+        )
+        .offset(y: -(calendarVM.monthProgress * state.rowHeight) * progress)
+        .transaction { $0.animation = nil }
+    }
+
+    private func monthGridPage(
+        rows: [[Day]],
+        selectedMonthProgress: CGFloat,
+        totalGridHeight: CGFloat,
+        progress: CGFloat,
+        state: HomeCalendarAdaptiveLayout.State
+    ) -> some View {
         VStack(spacing: 0) {
-            ForEach(Array(calendarVM.monthRows.enumerated()), id: \.element.first?.id) { rowIndex, row in
-                let distance = abs(CGFloat(rowIndex) - calendarVM.monthProgress)
+            ForEach(Array(rows.enumerated()), id: \.element.first?.id) { rowIndex, row in
+                let distance = abs(CGFloat(rowIndex) - selectedMonthProgress)
                 let rowOpacity = max(0, 1.0 - distance * progress)
 
                 HStack(spacing: 0) {
@@ -263,20 +301,18 @@ struct HomeCalendarSectionView: View {
                             dayColumnWidth: state.dayColumnWidth,
                             rowHeight: state.rowHeight
                         )
-                            .frame(width: state.dayColumnWidth, height: state.rowHeight)
-                            .onTapGesture {
+                        .frame(width: state.dayColumnWidth, height: state.rowHeight)
+                        .onTapGesture {
                             calendarVM.selectDate(day.date)
                         }
                     }
                 }
-                    .frame(width: state.dayColumnWidth * 7, height: state.rowHeight, alignment: .leading)
-                    .opacity(rowOpacity)
-                // Disable automatic opacity interpolation during month transitions.
+                .frame(width: state.dayColumnWidth * 7, height: state.rowHeight, alignment: .leading)
+                .opacity(rowOpacity)
                 .transaction { $0.animation = nil }
             }
         }
-            .frame(height: totalGridHeight, alignment: .top)
-            .offset(y: -(calendarVM.monthProgress * state.rowHeight) * progress)
+        .frame(height: totalGridHeight, alignment: .top)
     }
 
     private func monthNavigationControl(size: CGFloat, spacing: CGFloat) -> some View {
@@ -321,22 +357,6 @@ struct HomeCalendarSectionView: View {
                 .contentShape(Rectangle())
         }
             .buttonStyle(.plain)
-    }
-
-    private func monthSwipeGesture(enabled: Bool) -> some Gesture {
-        DragGesture(minimumDistance: 28, coordinateSpace: .local)
-            .onEnded { value in
-                guard enabled else { return }
-                let horizontal = value.translation.width
-                let vertical = value.translation.height
-                guard abs(horizontal) > 56, abs(horizontal) > abs(vertical) * 1.35 else {
-                    return
-                }
-
-                withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
-                    calendarVM.applyMonthOffset(horizontal < 0 ? 1 : -1)
-                }
-            }
     }
 
 }

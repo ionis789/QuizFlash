@@ -287,23 +287,72 @@ extension DeckWorkspaceView {
             Image(systemName: "rectangle.stack.badge.plus")
                 .font(.system(size: 44, weight: .light))
                 .foregroundStyle(.tertiary)
+
             Text(localized("No cards yet"))
                 .font(.headline)
                 .foregroundStyle(.primary)
-            Text(localized("Tap + to add a card, or generate cards with AI."))
+
+            Text(localized("Generate a starter set with AI, or add cards manually."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 20)
+
+            VStack(spacing: UIConstants.Spacing.small) {
+                CreateDeckCapsuleButton(
+                    action: {
+                        presentAIGenerationSourcePicker()
+                    },
+                    isEnabled: canStartLocalGeneration,
+                    chrome: .accentAlt,
+                    accessibilityLabel: localized("Generate cards with AI")
+                ) {
+                    HStack(spacing: UIConstants.Spacing.small) {
+                        Image(systemName: "wand.and.stars")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+
+                        Text(localized("Generate with AI"))
+                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(themeManager.roleColor(.buttonDangerForeground))
+                }
+
+                Button {
+                    isTitleFocused = false
+                    showAddCardTypeDialog = true
+                } label: {
+                    HStack(spacing: UIConstants.Spacing.small) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                            .foregroundStyle(accent)
+
+                        Text(localized("Add manually"))
+                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.primary.opacity(0.82))
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.secondary.opacity(0.7))
+                    }
+                    .padding(.horizontal, UIConstants.Spacing.standard)
+                    .frame(height: 42)
+                    .background(Color.white.opacity(0.055), in: Capsule(style: .continuous))
+                    .overlay {
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(0.055), lineWidth: 1)
+                    }
+                    .contentShape(Capsule(style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(localized("Add manually"))
+            }
+            .padding(.top, UIConstants.Spacing.tiny)
         }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 60)
             .background(Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .onTapGesture {
-                isTitleFocused = false
-                showAddCardTypeDialog = true
-        }
     }
 
     func presentAIGenerationSourcePicker() {
@@ -528,7 +577,6 @@ extension DeckWorkspaceView {
     }
 
     func refreshSessionPresentationState() {
-        guard appPreferences.autoCollapseEarlierCardsInAISession else { return }
         if hasUnifiedAISession,
            !viewModel.baseDraftCards.isEmpty,
            !viewModel.sessionDraftCards.isEmpty {

@@ -37,20 +37,12 @@ struct AIGenerationSheetView: View {
         UIConstants.isPad ? 760 : .infinity
     }
 
-    private var sourceNounPlural: String {
-        viewModel.isPreparedSourcePDF
-            ? AppLocalization.string("pages", locale: appPreferences.resolvedLocale)
-            : AppLocalization.string("images", locale: appPreferences.resolvedLocale)
-    }
-
-    private var sourceNounSingular: String {
-        viewModel.isPreparedSourcePDF
-            ? AppLocalization.string("page", locale: appPreferences.resolvedLocale)
-            : AppLocalization.string("image", locale: appPreferences.resolvedLocale)
-    }
-
     private var isPreparingSource: Bool {
         viewModel.isPreparingAISource && viewModel.preparedAISource == nil
+    }
+
+    private var canUseManualDistribution: Bool {
+        (viewModel.preparedAISource?.itemCount ?? 0) > 1
     }
 
     var body: some View {
@@ -67,6 +59,20 @@ struct AIGenerationSheetView: View {
                         .transition(.opacity)
                 }
 
+                TopProgressiveBlurOverlay(
+                    topHeight: resolvedSafeTopInset + UIConstants.Size.actionButton + UIConstants.Spacing.huge,
+                    revealProgress: 1,
+                    tintColor: .black,
+                    configuration: ScreenTopProgressiveBlurConfiguration(
+                        maxBlurRadius: 5,
+                        fadeExtension: 56,
+                        tintOpacityTop: 0.78,
+                        tintOpacityMiddle: 0.42
+                    ),
+                    revealAnimation: nil
+                )
+                .zIndex(1)
+
                 header(safeTopInset: resolvedSafeTopInset)
                     .zIndex(2)
 
@@ -81,13 +87,6 @@ struct AIGenerationSheetView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .bottom) {
-                if !isPreparingSource {
-                    bottomActionChrome(safeBottomInset: resolvedSafeBottomInset)
-                        .opacity(selectedSourcePreview == nil ? 1 : 0)
-                        .allowsHitTesting(selectedSourcePreview == nil)
-                }
-            }
         }
         .task(id: isPreparingSource) {
             guard isPreparingSource else { return }
@@ -97,21 +96,18 @@ struct AIGenerationSheetView: View {
 
     private func configurationLayout(bottomClearance: CGFloat) -> some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+            VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
                 section(
-                    title: "Card Type",
-                    summary: generationSettingsSummary
+                    title: AppLocalization.string("Cards Settings", locale: appPreferences.resolvedLocale)
                 ) {
                     generationSettingsContent
                 }
 
                 section(
-                    title: "Source Coverage",
-                    summary: coverageSummary
+                    title: AppLocalization.string("Source Coverage", locale: appPreferences.resolvedLocale)
                 ) {
                     sourceCoverageContent
                 }
-
             }
             .frame(maxWidth: maxContentWidth)
             .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
@@ -119,6 +115,7 @@ struct AIGenerationSheetView: View {
             .padding(.bottom, bottomClearance)
             .frame(maxWidth: .infinity, alignment: .top)
         }
+        .scrollBounceBehavior(.basedOnSize)
     }
 
     private var preparingLayout: some View {
@@ -134,52 +131,23 @@ struct AIGenerationSheetView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    private var coverageSummary: String {
-        switch viewModel.aiGenerationOptions.sourceDistributionMode {
-        case .auto:
-            return "Auto · \(viewModel.requestedCardCount) cards"
-        case .manual:
-            let totalCards = viewModel.manualAllocatedCardCount
-            return "Manual · \(totalCards) cards"
-        }
-    }
-
-    private var generationSettingsSummary: String {
-        [
-            viewModel.aiGenerationOptions.cardType.localizedTitle(locale: appPreferences.resolvedLocale),
-            viewModel.aiGenerationOptions.cardLevel.localizedTitle(locale: appPreferences.resolvedLocale),
-            viewModel.aiGenerationOptions.localizedOutputLanguageSummary(locale: appPreferences.resolvedLocale)
-        ].joined(separator: " · ")
-    }
-
     private func header(safeTopInset: CGFloat) -> some View {
         HStack {
-            Spacer(minLength: 0)
-
             ChromeSoftCircleSymbolButton(
                 systemName: "xmark",
                 accessibilityLabel: AppLocalization.string("Close", locale: appPreferences.resolvedLocale),
                 action: requestCancel,
                 symbolSize: UIConstants.Size.iconStandard
             )
-            .frame(width: UIConstants.Size.actionButton, alignment: .trailing)
+            .frame(width: UIConstants.Size.actionButton, alignment: .leading)
+
+            Spacer(minLength: 0)
+
+            headerGenerateButton
         }
         .frame(height: UIConstants.Size.actionButton)
         .padding(.top, safeTopInset + UIConstants.Spacing.tiny)
         .padding(.horizontal, UIConstants.Layout.screenEdgeInset)
-        .background(alignment: .top) {
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.72),
-                    Color.black.opacity(0.34),
-                    Color.clear
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: headerHeight + UIConstants.Spacing.extraLarge)
-            .allowsHitTesting(false)
-        }
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.size.height
         } action: { newHeight in
@@ -190,36 +158,24 @@ struct AIGenerationSheetView: View {
     }
 
     private var cardsCountCard: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            HStack(alignment: .firstTextBaseline, spacing: UIConstants.Spacing.medium) {
-                Text("Cards")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-
-                Spacer(minLength: UIConstants.Spacing.small)
-            }
-
-            CardCountControl(
+        VStack(spacing: 0) {
+            TickCardCountPicker(
                 value: viewModel.requestedCardCount,
-                range: 1...100,
-                presets: [5, 10, 15, 20, 30, 50, 100]
+                range: 5 ... 100
             ) { newValue in
                 viewModel.setRequestedCardCount(newValue)
             }
         }
-        .padding(UIConstants.Spacing.standard)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous))
+        .padding(.horizontal, UIConstants.Spacing.standard)
     }
 
     @ViewBuilder
     private func section<Content: View>(
         title: String,
-        summary: String,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         PlainGenerationSection(
             title: title,
-            summary: summary,
             content: content
         )
     }
@@ -259,32 +215,12 @@ struct AIGenerationSheetView: View {
     }
 
     private var sourceCoverageContent: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
+        VStack(alignment: .leading, spacing: 0) {
+            cardsCountCard
             sourcePreviewStrip
-
-            compactOptionRow(title: "Distribution") {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    compactSelectionButton(
-                        title: "Auto",
-                        isSelected: viewModel.aiGenerationOptions.sourceDistributionMode == .auto
-                    ) {
-                        viewModel.setSourceDistributionMode(.auto)
-                    }
-
-                    compactSelectionButton(
-                        title: "Manual",
-                        isSelected: viewModel.aiGenerationOptions.sourceDistributionMode == .manual
-                    ) {
-                        viewModel.setSourceDistributionMode(.manual)
-                    }
-                }
-            }
-
-            if viewModel.aiGenerationOptions.sourceDistributionMode == .auto {
-                cardsCountCard
-            } else {
-                manualCoverageEditor
-            }
+        }
+        .onAppear {
+            viewModel.setSourceDistributionMode(.auto)
         }
     }
 
@@ -292,7 +228,6 @@ struct AIGenerationSheetView: View {
     private var sourcePreviewStrip: some View {
         if let source = viewModel.preparedAISource {
             VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
-
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: UIConstants.Spacing.small) {
                         ForEach(source.previewItems) { item in
@@ -417,31 +352,30 @@ struct AIGenerationSheetView: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
             ForEach(viewModel.manualAISourceAllocations) { allocation in
                 ManualAllocationCard(
-                    title: viewModel.allocationTitle(for: allocation),
                     allocation: allocation,
                     upperBound: max(viewModel.preparedAISource?.itemCount ?? 1, 1),
-                    sourceSingular: sourceNounSingular,
-                    sourcePlural: sourceNounPlural,
+                    maximumEndIndex: viewModel.maximumManualEndIndex(for: allocation),
                     cardCountUpperBound: 100,
                     canRemove: viewModel.manualAISourceAllocations.count > 1,
-                    onStartChange: { viewModel.updateManualAllocation(id: allocation.id, startIndex: $0) },
                     onEndChange: { viewModel.updateManualAllocation(id: allocation.id, endIndex: $0) },
                     onCardCountChange: { viewModel.updateManualAllocation(id: allocation.id, cardCount: $0) },
                     onRemove: { viewModel.removeManualAllocation(id: allocation.id) }
                 )
             }
 
-            Button {
-                viewModel.addManualAllocation()
-            } label: {
-                Label("Add Range", systemImage: "plus.circle.fill")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.blue)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            if viewModel.canAddManualAllocation {
+                Button {
+                    viewModel.addManualAllocation()
+                } label: {
+                    Label(AppLocalization.string("Add Range", locale: appPreferences.resolvedLocale), systemImage: "plus.circle.fill")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.blue)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
 
             if let message = viewModel.manualAllocationValidationMessage {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
@@ -452,65 +386,25 @@ struct AIGenerationSheetView: View {
         }
     }
 
-    private func bottomActionChrome(safeBottomInset: CGFloat) -> some View {
-        BottomChromeContainer(
-            kind: .selection,
-            bottomPadding: max(safeBottomInset, UIConstants.Spacing.large),
-            horizontalInset: UIConstants.Layout.bottomChromeSideInset,
-            minimumHeightOverride: 64,
-            innerHorizontalPaddingOverride: UIConstants.Spacing.tiny,
-            innerVerticalPaddingOverride: UIConstants.Spacing.tiny
-        ) {
-            actionBar
-        }
-        .frame(maxWidth: maxContentWidth)
-        .frame(maxWidth: .infinity)
-        .background(alignment: .bottom) {
-            LinearGradient(
-                colors: [
-                    Color.clear,
-                    Color.black.opacity(0.34),
-                    Color.black.opacity(0.68)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 180)
-            .allowsHitTesting(false)
-        }
-    }
-
     @ViewBuilder
-    private var actionBar: some View {
-        HStack(spacing: UIConstants.Spacing.tiny) {
-            Button(action: requestCancel) {
-                Text(AppLocalization.string("Cancel", locale: appPreferences.resolvedLocale))
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .contentShape(Capsule(style: .continuous))
-            }
-            .buttonStyle(.plain)
-
-            Button(action: requestPrimaryAction) {
-                Text(AppLocalization.string("Generate", locale: appPreferences.resolvedLocale))
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(accent, in: Capsule(style: .continuous))
-                    .contentShape(Capsule(style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .disabled(!viewModel.canConfirmAIGeneration)
-            .opacity(viewModel.canConfirmAIGeneration ? 1 : 0.48)
+    private var headerGenerateButton: some View {
+        Button(action: requestPrimaryAction) {
+            Text(AppLocalization.string("Generate", locale: appPreferences.resolvedLocale))
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: UIConstants.Size.actionButton)
+                .background(accent, in: Capsule(style: .continuous))
+                .contentShape(Capsule(style: .continuous))
         }
+        .buttonStyle(.plain)
+        .frame(width: UIConstants.isPad ? 180 : 142)
+        .disabled(!viewModel.canConfirmAIGeneration)
+        .opacity(viewModel.canConfirmAIGeneration ? 1 : 0.48)
     }
 
     private func bottomActionClearance(safeBottomInset: CGFloat) -> CGFloat {
         max(safeBottomInset, UIConstants.Spacing.large)
-            + UIConstants.Size.selectionToolbarBarHeight
             + UIConstants.Spacing.huge
     }
 
@@ -553,26 +447,16 @@ struct AIGenerationSheetView: View {
 
 private struct PlainGenerationSection<Content: View>: View {
     let title: String
-    let summary: String
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
-                Text(title)
-                    .font(.system(size: 22, weight: .black, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-
-                Spacer(minLength: UIConstants.Spacing.small)
-
-                Text(summary)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.trailing)
-                    .lineLimit(2)
-            }
-            .padding(.vertical, UIConstants.Spacing.small)
+            Text(title)
+                .font(.system(size: 22, weight: .black, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, UIConstants.Spacing.small)
 
             content()
                 .padding(.bottom, UIConstants.Spacing.standard)

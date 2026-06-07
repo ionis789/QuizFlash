@@ -155,7 +155,7 @@ extension DeckWorkspaceViewModel {
 
         let cardsPerBatch = aiGenerationOptions.resolvedCardsPerBatch(for: mockCards.count)
         let batches = stride(from: 0, to: mockCards.count, by: cardsPerBatch).map { index in
-            Array(mockCards[index..<min(index + cardsPerBatch, mockCards.count)])
+            Array(mockCards[index ..< min(index + cardsPerBatch, mockCards.count)])
         }
 
         aiGenerationTask = Task { [weak self] in
@@ -371,6 +371,9 @@ extension DeckWorkspaceViewModel {
         clearAISourcePreparation()
         self.pdfAnalysis = pdfAnalysis
         preparedAISource = source
+        if source.itemCount <= 1 {
+            aiGenerationOptions.sourceDistributionMode = .auto
+        }
         manualAISourceAllocations = defaultManualAllocations(
             itemCount: source.itemCount,
             requestedCards: requestedCardCount
@@ -426,14 +429,14 @@ extension DeckWorkspaceViewModel {
     ) -> [AIGenerationSourcePreviewItem] {
         images.enumerated().map { index, image in
             let text = texts.indices.contains(index) ? texts[index] : ""
-        return AIGenerationSourcePreviewItem(
-            index: index + 1,
-            title: "Image \(index + 1)",
-            characterCount: text.count,
-            thumbnail: image.resizedForAI(toMaxDimension: 240)
-        )
+            return AIGenerationSourcePreviewItem(
+                index: index + 1,
+                title: "Image \(index + 1)",
+                characterCount: text.count,
+                thumbnail: image.resizedForAI(toMaxDimension: 240)
+            )
+        }
     }
-}
 
     func makePDFPreviewItems(
         pageTexts: [String],
@@ -442,7 +445,7 @@ extension DeckWorkspaceViewModel {
     ) -> [AIGenerationSourcePreviewItem] {
         let totalPages = max(pageCount, pageTexts.count)
 
-        return (0..<totalPages).map { index in
+        return (0 ..< totalPages).map { index in
             let text = pageTexts.indices.contains(index) ? pageTexts[index] : ""
             return AIGenerationSourcePreviewItem(
                 index: index + 1,
@@ -498,13 +501,18 @@ extension DeckWorkspaceViewModel {
 
     /// Updates the auto-generation target card count selected in the sheet.
     func setRequestedCardCount(_ count: Int) {
-        let clampedCount = min(max(count, 1), 100)
+        let clampedCount = min(max(count, 5), 100)
         guard requestedCardCount != clampedCount else { return }
 
         requestedCardCount = clampedCount
     }
 
     func setSourceDistributionMode(_ mode: AISourceDistributionMode) {
+        if mode == .manual, let source = preparedAISource, source.itemCount <= 1 {
+            aiGenerationOptions.sourceDistributionMode = .auto
+            return
+        }
+
         aiGenerationOptions.sourceDistributionMode = mode
 
         guard mode == .manual, let source = preparedAISource else { return }
@@ -518,11 +526,7 @@ extension DeckWorkspaceViewModel {
 
     func addManualAllocation() {
         guard let source = preparedAISource else { return }
-
-        let nextStart = min(
-            (manualAISourceAllocations.map(\.endIndex).max() ?? 0) + 1,
-            max(source.itemCount, 1)
-        )
+        guard let nextStart = firstAvailableManualSourceIndex(itemCount: source.itemCount) else { return }
 
         manualAISourceAllocations.append(
             AISourceRangeAllocation(
@@ -535,6 +539,15 @@ extension DeckWorkspaceViewModel {
 
     func removeManualAllocation(id: UUID) {
         manualAISourceAllocations.removeAll { $0.id == id }
+    }
+
+    var canAddManualAllocation: Bool {
+        guard let source = preparedAISource else { return false }
+        return firstAvailableManualSourceIndex(itemCount: source.itemCount) != nil
+    }
+
+    func maximumManualEndIndex(for allocation: AISourceRangeAllocation) -> Int {
+        preparedAISource?.itemCount ?? allocation.endIndex
     }
 
     func updateManualAllocation(
@@ -560,19 +573,14 @@ extension DeckWorkspaceViewModel {
             allocation.endIndex = allocation.startIndex
         }
 
+        allocation.endIndex = min(allocation.endIndex, source.itemCount)
+
         if let cardCount {
             allocation.cardCount = max(cardCount, 1)
         }
 
         manualAISourceAllocations[index] = allocation
-    }
-
-    func allocationTitle(for allocation: AISourceRangeAllocation) -> String {
-        let noun = isPreparedSourcePDF ? "Pages" : "Images"
-        if allocation.startIndex == allocation.endIndex {
-            return "\(noun.dropLast()) \(allocation.startIndex)"
-        }
-        return "\(noun) \(allocation.startIndex)-\(allocation.endIndex)"
+        normalizeManualAllocationChain(itemCount: source.itemCount)
     }
 
     func defaultManualAllocations(
@@ -585,7 +593,7 @@ extension DeckWorkspaceViewModel {
                 startIndex: 1,
                 endIndex: itemCount,
                 cardCount: requestedCards
-            )
+            ),
         ]
     }
 
@@ -612,10 +620,54 @@ extension DeckWorkspaceViewModel {
             }
     }
 
+    private func normalizeManualAllocationChain(itemCount: Int) {
+        guard itemCount > 0, !manualAISourceAllocations.isEmpty else { return }
+
+        var orderedAllocations = manualAISourceAllocations.sorted {
+            if $0.startIndex == $1.startIndex {
+                return $0.endIndex < $1.endIndex
+            }
+            return $0.startIndex < $1.startIndex
+        }
+
+        var nextStart = 1
+        for index in orderedAllocations.indices {
+            var allocation = orderedAllocations[index]
+            let safeStart = min(max(nextStart, 1), itemCount)
+            let safeEnd = min(max(allocation.endIndex, safeStart), itemCount)
+
+            allocation.startIndex = safeStart
+            allocation.endIndex = safeEnd
+            orderedAllocations[index] = allocation
+            nextStart = safeEnd + 1
+
+            guard nextStart <= itemCount else {
+                orderedAllocations = Array(orderedAllocations.prefix(index + 1))
+                break
+            }
+        }
+
+        manualAISourceAllocations = orderedAllocations
+    }
+
+    private func firstAvailableManualSourceIndex(itemCount: Int) -> Int? {
+        guard itemCount > 0 else { return nil }
+
+        var occupied = Set<Int>()
+        for allocation in manualAISourceAllocations {
+            let start = min(max(allocation.startIndex, 1), itemCount)
+            let end = min(max(allocation.endIndex, start), itemCount)
+            for index in start ... end {
+                occupied.insert(index)
+            }
+        }
+
+        return (1 ... itemCount).first { !occupied.contains($0) }
+    }
     func hasOverlappingAllocations(_ allocations: [AISourceRangeAllocation]) -> Bool {
         guard allocations.count > 1 else { return false }
 
-        for pairIndex in 1..<allocations.count {
+        for pairIndex in 1 ..< allocations.count {
             let previous = allocations[pairIndex - 1]
             let current = allocations[pairIndex]
             if current.startIndex <= previous.endIndex {
@@ -720,7 +772,7 @@ extension DeckWorkspaceViewModel {
             }
             .map(\.index)
 
-        for offset in 0..<leftoverCards {
+        for offset in 0 ..< leftoverCards {
             counts[orderedIndices[offset % orderedIndices.count]] += 1
         }
 
@@ -749,13 +801,13 @@ extension DeckWorkspaceViewModel {
         let weights = normalizedWeights(from: characterCounts)
 
         if cappedGroupCount == characterCounts.count {
-            return characterCounts.indices.map { $0...$0 }
+            return characterCounts.indices.map { $0 ... $0 }
         }
 
         var ranges: [ClosedRange<Int>] = []
         var startIndex = 0
 
-        for groupIndex in 0..<(cappedGroupCount - 1) {
+        for groupIndex in 0 ..< (cappedGroupCount - 1) {
             let groupsRemaining = cappedGroupCount - groupIndex
             let remainingWeight = weights[startIndex...].reduce(0, +)
             let targetWeight = remainingWeight / Double(groupsRemaining)
@@ -772,11 +824,11 @@ extension DeckWorkspaceViewModel {
                 endIndex += 1
             }
 
-            ranges.append(startIndex...endIndex)
+            ranges.append(startIndex ... endIndex)
             startIndex = endIndex + 1
         }
 
-        ranges.append(startIndex...(characterCounts.count - 1))
+        ranges.append(startIndex ... (characterCounts.count - 1))
         return ranges
     }
 
@@ -804,5 +856,4 @@ extension DeckWorkspaceViewModel {
 
         return merged
     }
-
 }

@@ -3,8 +3,8 @@
 //  QuizFlash
 //
 //  SwiftData models that power the app's gamification layer:
-//  XP accumulation, level progression, streaks, and the daily activity
-//  heatmap that feeds the Statistics screen.
+//  XP accumulation, streaks, and the daily activity heatmap that feeds the
+//  Statistics screen.
 //
 
 import Foundation
@@ -12,11 +12,7 @@ import SwiftData
 
 // MARK: - UserProfile
 
-/// Stores the player's global gamification state: total XP, current streak,
-/// longest streak, and the last date the app was actively used.
-///
-/// Level is derived dynamically from `totalXP` so no migration is required
-/// when the levelling formula changes.
+/// Stores the player's global profile and gamification state.
 @Model
 class UserProfile {
 
@@ -34,16 +30,8 @@ class UserProfile {
     /// The most recent date on which the user completed at least one swipe.
     var lastActiveDate: Date?
 
-    // MARK: - Computed Properties
-
-    /// Current level, calculated as one level per 500 XP (level 1 at 0 XP).
-    ///
-    /// The formula is intentionally linear to keep it predictable. It can be
-    /// swapped for an exponential curve (RPG-style) without a data migration
-    /// because `level` is not stored.
-    var level: Int {
-        (totalXP / 500) + 1
-    }
+    /// Optional profile image selected by the user.
+    @Attribute(.externalStorage) var profileImageData: Data?
 
     // MARK: - Init
 
@@ -51,12 +39,14 @@ class UserProfile {
         totalXP: Int = 0,
         currentStreak: Int = 0,
         longestStreak: Int = 0,
-        lastActiveDate: Date? = nil
+        lastActiveDate: Date? = nil,
+        profileImageData: Data? = nil
     ) {
         self.totalXP       = totalXP
         self.currentStreak = currentStreak
         self.longestStreak = longestStreak
         self.lastActiveDate = lastActiveDate
+        self.profileImageData = profileImageData
     }
 }
 

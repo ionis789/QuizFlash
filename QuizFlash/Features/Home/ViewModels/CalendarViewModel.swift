@@ -261,6 +261,19 @@ final class CalendarViewModel {
         calculateMonthData()
     }
 
+    /// Returns previous, current, and next month snapshots for interactive paging.
+    func adjacentMonthSnapshots() -> [MonthSnapshot] {
+        let currentMonth = selectedMonth
+        let previousMonth = calendar.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
+        let nextMonth = calendar.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
+
+        return [
+            snapshot(for: previousMonth, selectedDate: selectedDate),
+            snapshot(for: currentMonth, selectedDate: selectedDate),
+            snapshot(for: nextMonth, selectedDate: selectedDate)
+        ]
+    }
+
     // MARK: - Private: Grid Calculation
 
     /// Rebuilds `monthRows` and `monthProgress` for the current `selectedMonth`.

@@ -7,24 +7,28 @@
 
 import SwiftData
 import SwiftUI
+import PhotosUI
+import UIKit
 
 private let kSettingsChromeSpace = "SettingsChromeSpace"
-private let kSettingsInfoChromeSpace = "SettingsInfoChromeSpace"
-
 // MARK: - Settings View
 
 struct SettingsView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
-    @Environment(CardAppearancePreferences.self) private var cardAppearancePreferences
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     @State private var keyboardMonitor = KeyboardMonitor.shared
     @State private var isCollapsedTitleVisible = false
     @State private var navigationBarHeight: CGFloat =
         UIConstants.Size.capsuleHeight + UIConstants.Layout.deckNavigationTopPadding
     @State private var navigationBarBottomY: CGFloat = 0
+    @State private var scrollContentHeight: CGFloat = 0
+    @State private var scrollViewportHeight: CGFloat = 0
+    @State private var selectedProfilePhoto: PhotosPickerItem?
+    @State private var isPremiumSheetPresented = false
     @Query private var decks: [DeckModel]
     @Query private var userProfiles: [UserProfile]
 
@@ -41,22 +45,30 @@ struct SettingsView: View {
                     .ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
+                    VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
                         screenTitle
                         profileCard
-                        appearanceSection
-                        studyDefaultsSection
-                        workflowSection
-                        supportSection
-                        accountSection
+                        settingsBlocks
+                    }
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.height
+                    } action: { height in
+                        scrollContentHeight = height
                     }
                     .tabBarAutoHideOnScroll()
                     .padding(.horizontal, UIConstants.Spacing.large)
-                    .padding(.top, UIConstants.Spacing.large)
-                    .padding(.bottom, keyboardMonitor.isVisible ? UIConstants.Spacing.large : UIConstants.Spacing.huge * 1.5)
+                    .padding(.top, UIConstants.Spacing.small)
+                    .padding(.bottom, keyboardMonitor.isVisible ? UIConstants.Spacing.large : UIConstants.Spacing.huge)
+                }
+                .scrollDisabled(!isSettingsScrollEnabled)
+                .scrollBounceBehavior(.basedOnSize)
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { height in
+                    scrollViewportHeight = height
                 }
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
+                    Color.clear.frame(height: settingsTopContentInset)
                 }
             }
             .screenTopEdgeShadow(
@@ -73,9 +85,28 @@ struct SettingsView: View {
         .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: keyboardMonitor.isVisible ? 0 : 40)
         }
+        .onChange(of: selectedProfilePhoto) { _, newValue in
+            updateProfilePhoto(from: newValue)
+        }
+        .fullScreenSheet(
+            isPresented: $isPremiumSheetPresented,
+            configuration: .sheet(
+                heightMode: .custom(0.62),
+                showsCloseButton: true
+            )
+        ) { _ in
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } background: {
+            themeManager.screenBackground
+        }
         .swipeBack(enabled: allowsSwipeBack) {
             dismiss()
         }
+    }
+
+    private var isSettingsScrollEnabled: Bool {
+        scrollContentHeight > scrollViewportHeight + 1
     }
 
     private var structuralTopEdgeShadowHeight: CGFloat {
@@ -83,6 +114,12 @@ struct SettingsView: View {
             return navigationBarBottomY
         }
         return UIConstants.Layout.topEdgeShadowHeight
+    }
+
+    private var settingsTopContentInset: CGFloat {
+        allowsSwipeBack
+            ? navigationBarHeight + UIConstants.Spacing.small
+            : UIConstants.Spacing.medium
     }
 
     private var screenTitle: some View {
@@ -96,82 +133,218 @@ struct SettingsView: View {
     }
 
     private var profileCard: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
-            HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    themeManager.accentColor.color.opacity(0.84),
-                                    themeManager.accentColor.color.opacity(0.34)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 76, height: 76)
-
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 30, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("QuizFlash User")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-
-                    Text(levelSummary)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer(minLength: 0)
-
-                premiumBadge
+        VStack(spacing: UIConstants.Spacing.small) {
+            PhotosPicker(
+                selection: $selectedProfilePhoto,
+                matching: .images,
+                photoLibrary: .shared()
+            ) {
+                profileAvatar
             }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity)
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: UIConstants.Spacing.small) {
-                    profileMetric(icon: "bolt.fill", title: levelBadgeTitle)
-                    profileMetric(icon: "flame.fill", title: streakSummary)
-                    profileMetric(icon: "square.stack.3d.up.fill", title: deckCountSummary)
-                }
+            Text(profileName)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, UIConstants.Spacing.extraLarge)
 
-                VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+            VStack(spacing: UIConstants.Spacing.standard) {
+                ViewThatFits(in: .horizontal) {
                     HStack(spacing: UIConstants.Spacing.small) {
-                        profileMetric(icon: "bolt.fill", title: levelBadgeTitle)
                         profileMetric(icon: "flame.fill", title: streakSummary)
+                        profileMetric(icon: "square.stack.3d.up.fill", title: deckCountSummary)
+                        profileMetric(icon: isPremiumUser ? "crown.fill" : nil, title: accountPlanSummary, alignment: .center)
                     }
 
-                    profileMetric(icon: "square.stack.3d.up.fill", title: deckCountSummary)
+                    VStack(alignment: .leading, spacing: UIConstants.Spacing.small) {
+                        HStack(spacing: UIConstants.Spacing.small) {
+                            profileMetric(icon: "flame.fill", title: streakSummary)
+                            profileMetric(icon: "square.stack.3d.up.fill", title: deckCountSummary)
+                        }
+
+                        profileMetric(icon: isPremiumUser ? "crown.fill" : nil, title: accountPlanSummary, alignment: .center)
+                    }
+                }
+
+                if !isPremiumUser {
+                    Button {
+                        isPremiumSheetPresented = true
+                    } label: {
+                        Text(AppLocalization.string("Unlock full AI features", locale: appPreferences.resolvedLocale))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(themeManager.accentColor.color)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.84)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, UIConstants.Spacing.large)
+                            .padding(.vertical, 12)
+                            .background(themeManager.accentColor.color.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
+            .padding(UIConstants.Spacing.large)
+            .settingsCardBackground(cornerRadius: UIConstants.Radius.maximum)
         }
-        .padding(UIConstants.Spacing.large)
-        .settingsCardBackground(cornerRadius: UIConstants.Radius.maximum)
     }
 
-    private var premiumBadge: some View {
-        Text(isPremiumUser ? AppLocalization.string("Premium", locale: appPreferences.resolvedLocale) : AppLocalization.string("Free", locale: appPreferences.resolvedLocale))
-            .font(.caption.weight(.bold))
-            .foregroundStyle(isPremiumUser ? .yellow : .secondary)
-            .padding(.horizontal, UIConstants.Spacing.standard)
-            .padding(.vertical, 6)
-            .background(
-                (isPremiumUser ? Color.yellow.opacity(0.14) : Color.white.opacity(0.06)),
-                in: Capsule()
-            )
+    @ViewBuilder
+    private var profileAvatar: some View {
+        Group {
+            if let image = profileImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                themeManager.accentColor.color.opacity(0.84),
+                                themeManager.accentColor.color.opacity(0.34)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+        }
+        .frame(width: 104, height: 104)
+        .clipShape(Circle())
     }
 
-    private func profileMetric(icon: String, title: String) -> some View {
+    private var profileImage: UIImage? {
+        guard let data = profile?.profileImageData else { return nil }
+        return UIImage(data: data)
+    }
+
+    private var profileName: String {
+        AppLocalization.string("QuizFlash User", locale: appPreferences.resolvedLocale)
+    }
+
+    private var accountPlanSummary: String {
+        isPremiumUser
+            ? AppLocalization.string("Premium", locale: appPreferences.resolvedLocale)
+            : AppLocalization.string("Free", locale: appPreferences.resolvedLocale)
+    }
+
+    @ViewBuilder
+    private var settingsBlocks: some View {
+        VStack(spacing: 10) {
+            settingsBlock {
+                SettingsMenuPickerRow(
+                    icon: "globe",
+                    tint: .blue,
+                    title: "Language",
+                    selection: appLanguageBinding,
+                    options: AppLanguagePreference.allCases,
+                    titleForOption: { option, locale in
+                        option.localizedTitle(locale: locale)
+                    }
+                )
+            }
+
+            settingsBlock {
+                SettingsMenuPickerRow(
+                    icon: "calendar",
+                    tint: themeManager.accentColor.color,
+                    title: "Calendar",
+                    selection: weekStartBinding,
+                    options: AppWeekStartDayPreference.allCases,
+                    titleForOption: { option, locale in
+                        option.localizedTitle(locale: locale)
+                    }
+                )
+            }
+
+            if UIConstants.isPad {
+                settingsBlock {
+                    SettingsMenuPickerRow(
+                        icon: "sidebar.leading",
+                        tint: .purple,
+                        title: "Navigation",
+                        selection: padTabBarPositionBinding,
+                        options: AppPadTabBarPosition.allCases,
+                        titleForOption: { option, locale in
+                            option.localizedTitle(locale: locale)
+                        }
+                    )
+                }
+            }
+
+            settingsBlock {
+                Button {
+                    authManager.logout()
+                } label: {
+                    HStack(spacing: UIConstants.Spacing.medium) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous)
+                                .fill(Color.red.opacity(0.12))
+                                .frame(width: 40, height: 40)
+
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(.red)
+                        }
+
+                        Text("Log Out")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.red)
+
+                        Spacer(minLength: 0)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func settingsBlock<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .padding(.horizontal, UIConstants.Spacing.large)
+            .padding(.vertical, UIConstants.Spacing.standard)
+            .settingsCardBackground(cornerRadius: UIConstants.Radius.large)
+    }
+
+    private func updateProfilePhoto(from item: PhotosPickerItem?) {
+        guard let item else { return }
+
+        Task { @MainActor in
+            defer { selectedProfilePhoto = nil }
+            guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+
+            let resolvedProfile: UserProfile
+            if let profile {
+                resolvedProfile = profile
+            } else {
+                let newProfile = UserProfile()
+                modelContext.insert(newProfile)
+                resolvedProfile = newProfile
+            }
+
+            resolvedProfile.profileImageData = data
+            try? modelContext.save()
+        }
+    }
+
+    private func profileMetric(
+        icon: String?,
+        title: String,
+        alignment: Alignment = .leading
+    ) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(themeManager.accentColor.color.opacity(0.92))
+            if let icon {
+                Image(systemName: icon)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(themeManager.accentColor.color.opacity(0.92))
+            }
 
             Text(title)
                 .font(.caption.weight(.semibold))
@@ -179,197 +352,10 @@ struct SettingsView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: alignment)
         .padding(.horizontal, UIConstants.Spacing.standard)
         .padding(.vertical, 8)
         .background(Color.white.opacity(0.05), in: Capsule())
-    }
-
-    private var appearanceSection: some View {
-        SettingsSectionCard(
-            title: "Appearance",
-            subtitle: nil
-        ) {
-            NavigationLink {
-                SettingsCardAppearanceView()
-            } label: {
-                SettingsNavigationRow(
-                    icon: "rectangle.on.rectangle",
-                    tint: themeManager.accentColor.color,
-                    title: "Card Appearance",
-                    detail: nil,
-                    value: currentCardAppearanceTitle
-                )
-            }
-            .buttonStyle(.plain)
-
-            SettingsCardDivider()
-
-            NavigationLink {
-                SettingsTextSizeView()
-            } label: {
-                SettingsNavigationRow(
-                    icon: "textformat.size",
-                    tint: .blue,
-                    title: "Text Size",
-                    detail: nil,
-                    value: textSizeSummary
-                )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var studyDefaultsSection: some View {
-        SettingsSectionCard(
-            title: "Study Defaults",
-            subtitle: nil
-        ) {
-            NavigationLink {
-                AppPreferencesSettingsView()
-            } label: {
-                SettingsNavigationRow(
-                    icon: "gearshape.2.fill",
-                    tint: .blue,
-                    title: "App Defaults",
-                    detail: nil,
-                    value: appPreferences.weekStartDay.localizedTitle(locale: appPreferences.resolvedLocale)
-                )
-            }
-            .buttonStyle(.plain)
-
-            SettingsCardDivider()
-
-            NavigationLink {
-                PlayModeDefaultsSettingsView(mode: .flashcards)
-            } label: {
-                SettingsNavigationRow(
-                    icon: SettingsStudyModeKind.flashcards.systemImage,
-                    tint: SettingsStudyModeKind.flashcards.tint,
-                    title: "Flashcards",
-                    detail: nil,
-                    value: flashcardsSummary
-                )
-            }
-            .buttonStyle(.plain)
-
-            SettingsCardDivider()
-
-            NavigationLink {
-                PlayModeDefaultsSettingsView(mode: .quiz)
-            } label: {
-                SettingsNavigationRow(
-                    icon: SettingsStudyModeKind.quiz.systemImage,
-                    tint: SettingsStudyModeKind.quiz.tint,
-                    title: "Quiz",
-                    detail: nil,
-                    value: quizSummary
-                )
-            }
-            .buttonStyle(.plain)
-
-        }
-    }
-
-    private var workflowSection: some View {
-        SettingsSectionCard(
-            title: "Data & Tools",
-            subtitle: nil
-        ) {
-            NavigationLink {
-                StorageInfoView(decks: decks)
-            } label: {
-                SettingsNavigationRow(
-                    icon: "externaldrive.fill",
-                    tint: .orange,
-                    title: "Data & Storage",
-                    detail: nil,
-                    value: deckCountSummary
-                )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var supportSection: some View {
-        SettingsSectionCard(
-            title: "About",
-            subtitle: nil
-        ) {
-            NavigationLink {
-                SettingsInfoDetailView(
-                    title: "Help & Support",
-                    icon: "questionmark.circle.fill",
-                    tint: .teal,
-                    message: "Support content can live here later."
-                )
-            } label: {
-                SettingsNavigationRow(
-                    icon: "questionmark.circle.fill",
-                    tint: .teal,
-                    title: "Help & Support",
-                    detail: nil,
-                    value: nil
-                )
-            }
-            .buttonStyle(.plain)
-
-            SettingsCardDivider()
-
-            NavigationLink {
-                SettingsInfoDetailView(
-                    title: "About QuizFlash",
-                    icon: "info.circle.fill",
-                    tint: .blue,
-                    message: "Version, credits, and release notes can live here."
-                )
-            } label: {
-                SettingsNavigationRow(
-                    icon: "info.circle.fill",
-                    tint: .blue,
-                    title: "About QuizFlash",
-                    detail: nil,
-                    value: nil
-                )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var accountSection: some View {
-        SettingsSectionCard(
-            title: "Account",
-            subtitle: nil
-        ) {
-            Button {
-                authManager.logout()
-            } label: {
-                HStack(spacing: UIConstants.Spacing.medium) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: UIConstants.Radius.medium, style: .continuous)
-                            .fill(Color.red.opacity(0.12))
-                            .frame(width: 40, height: 40)
-
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(.red)
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Log Out")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(.red)
-
-                        Text("Sign out of the current QuizFlash session on this device.")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer(minLength: 0)
-                }
-            }
-            .buttonStyle(.plain)
-        }
     }
 
     private var navigationBar: some View {
@@ -396,24 +382,6 @@ struct SettingsView: View {
         }
     }
 
-    private var currentCardAppearanceTitle: String {
-        cardAppearancePreferences.cardContentMode.localizedLabel(locale: appPreferences.resolvedLocale)
-    }
-
-    private var levelSummary: String {
-        String.localizedStringWithFormat(
-            AppLocalization.string("Level %d", locale: appPreferences.resolvedLocale),
-            userLevel
-        )
-    }
-
-    private var levelBadgeTitle: String {
-        String.localizedStringWithFormat(
-            AppLocalization.string("Lvl %d", locale: appPreferences.resolvedLocale),
-            userLevel
-        )
-    }
-
     private var streakSummary: String {
         AppLocalization.numbered(
             currentStreak,
@@ -421,27 +389,6 @@ struct SettingsView: View {
             plural: "%d streaks",
             locale: appPreferences.resolvedLocale
         )
-    }
-
-    private var flashcardsSummary: String {
-        String.localizedStringWithFormat(
-            AppLocalization.string("%@ Progress", locale: appPreferences.resolvedLocale),
-            appPreferences.flashcardsProgressStyle.localizedTitle(locale: appPreferences.resolvedLocale)
-        )
-    }
-
-    private var quizSummary: String {
-        appPreferences.quizAutoAdvanceCorrectAnswers
-            ? AppLocalization.string("Auto Advance", locale: appPreferences.resolvedLocale)
-            : AppLocalization.string("Manual Pace", locale: appPreferences.resolvedLocale)
-    }
-
-    private var textSizeSummary: String {
-        let appText = appPreferences.usesSystemTextSize
-            ? AppLocalization.string("System", locale: appPreferences.resolvedLocale)
-            : "\(Int((appPreferences.appInterfaceTextScale * 100).rounded()))%"
-        let cardText = "\(Int((appPreferences.cardContentTextScale * 100).rounded()))%"
-        return "\(appText) / \(cardText)"
     }
 
     private var deckCountSummary: String {
@@ -457,10 +404,6 @@ struct SettingsView: View {
         userProfiles.first
     }
 
-    private var userLevel: Int {
-        profile?.level ?? 1
-    }
-
     private var currentStreak: Int {
         profile?.currentStreak ?? 0
     }
@@ -468,94 +411,26 @@ struct SettingsView: View {
     private var isPremiumUser: Bool {
         false
     }
-}
 
-// MARK: - Settings Info Detail View
-
-private struct SettingsInfoDetailView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(ThemeManager.self) private var themeManager
-    @State private var isCollapsedTitleVisible = false
-    @State private var navigationBarHeight: CGFloat =
-        UIConstants.Size.capsuleHeight + UIConstants.Layout.deckNavigationTopPadding
-    @State private var navigationBarBottomY: CGFloat = 0
-
-    let title: AppTextValue
-    let icon: String
-    let tint: Color
-    let message: SettingsTextContent
-
-    var body: some View {
-        ZStack(alignment: .top) {
-            ZStack {
-                themeManager.groupedScreenBackground
-                    .ignoresSafeArea()
-
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: UIConstants.Layout.sectionSpacing) {
-                        LargeScreenTitle(title: title)
-                            .collapsibleTitleRevealAnchor(
-                                in: kSettingsInfoChromeSpace,
-                                navigationBarBottomY: navigationBarBottomY,
-                                revealClearance: SettingsChromeMetrics.pillRevealClearance,
-                                isVisible: $isCollapsedTitleVisible
-                            )
-
-                        SettingsInfoCard(
-                            icon: icon,
-                            tint: tint,
-                            text: message
-                        )
-
-                        SettingsInfoCard(
-                            icon: "clock.arrow.circlepath",
-                            tint: themeManager.accentColor.color,
-                            text: "This destination is now organized and visually aligned with the rest of Settings, even though the underlying support content can be expanded later."
-                        )
-                    }
-                    .padding(.horizontal, UIConstants.Spacing.large)
-                    .padding(.top, UIConstants.Spacing.large)
-                    .padding(.bottom, UIConstants.Spacing.huge)
-                }
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    Color.clear.frame(height: navigationBarHeight + UIConstants.Spacing.small)
-                }
-            }
-            .screenTopEdgeShadow(
-                topHeight: structuralTopEdgeShadowHeight,
-                topRevealProgress: isCollapsedTitleVisible ? 1 : 0,
-                debugScreenID: "settings.detail",
-                style: .progressiveBlur()
-            )
-
-            CollapsibleTitleNavigationBar(
-                coordinateSpaceName: kSettingsInfoChromeSpace,
-                onHeightChange: { navigationBarHeight = $0 },
-                onBottomChange: { navigationBarBottomY = $0 }
-            ) {
-                ChromeCircleIconButton(systemName: "chevron.left") {
-                    dismiss()
-                }
-            } center: { maxWidth in
-                CollapsibleTitlePill(
-                    title: title,
-                    maxWidth: maxWidth,
-                    isVisible: isCollapsedTitleVisible
-                )
-            } trailing: {
-                ChromeCirclePlaceholder()
-            }
-        }
-        .coordinateSpace(name: kSettingsInfoChromeSpace)
-        .toolbar(.hidden, for: .navigationBar)
-        .swipeBack { dismiss() }
+    private var appLanguageBinding: Binding<AppLanguagePreference> {
+        Binding(
+            get: { appPreferences.appLanguage },
+            set: { appPreferences.appLanguage = $0 }
+        )
     }
 
-    private var structuralTopEdgeShadowHeight: CGFloat {
-        if navigationBarBottomY > 0 {
-            return navigationBarBottomY
-        }
-        return UIConstants.Layout.topEdgeShadowHeight
+    private var weekStartBinding: Binding<AppWeekStartDayPreference> {
+        Binding(
+            get: { appPreferences.weekStartDay },
+            set: { appPreferences.weekStartDay = $0 }
+        )
+    }
+
+    private var padTabBarPositionBinding: Binding<AppPadTabBarPosition> {
+        Binding(
+            get: { appPreferences.padTabBarPosition },
+            set: { appPreferences.padTabBarPosition = $0 }
+        )
     }
 }
 
@@ -564,6 +439,5 @@ private struct SettingsInfoDetailView: View {
         .environment(AuthManager.shared)
         .environment(ThemeManager.shared)
         .environment(AppPreferences.shared)
-        .environment(CardAppearancePreferences.shared)
         .modelContainer(for: [DeckModel.self, CardModel.self], inMemory: true)
 }

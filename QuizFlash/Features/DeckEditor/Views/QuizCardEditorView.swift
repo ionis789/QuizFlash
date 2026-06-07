@@ -227,7 +227,7 @@ struct QuizCardEditorView: View {
             if isFormatBarVisible, let content = currentContent, let path = currentSelectedPath {
                 formatBar(content: content, path: path)
                     .padding(.horizontal, UIConstants.Spacing.standard)
-                    .padding(.bottom, UIConstants.Spacing.large)
+                    .padding(.bottom, UIConstants.Spacing.tiny)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }

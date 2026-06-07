@@ -28,7 +28,6 @@ import UIKit
 /// their own `@Query` — all data flows from here, keeping the fetch logic
 /// centralised and testable.
 struct HomeView: View {
-
     // MARK: - Environment
 
     @Environment(NavigationManager.self) private var router
@@ -244,6 +243,7 @@ struct HomeView: View {
             calendarVM: calendarVM,
             layout: layout,
             calendarInsightsCache: viewModel.calendarInsightsCache,
+            calendarInsightsRevision: viewModel.calendarInsightsRevision,
             blurConfiguration: homeBlurConfiguration,
             blurHeightOffset: homeBlurHeightOffset,
             blurColor: homeBlurColor,
@@ -273,37 +273,37 @@ struct HomeView: View {
 
     @ViewBuilder
     private func debugShadowControls(safeAreaTop: CGFloat) -> some View {
-#if DEBUG
-        if developmentPreferences.edgeShadowTuningEnabled {
-            EdgeShadowDebugFloatingPanel(
-                mode: .progressiveBlur,
-                supportsBottomEdge: false,
-                panelTitleOverride: "Header Blur",
-                showButtonTitleOverride: "Tune Header Blur",
-                hideButtonTitleOverride: "Hide Header Blur",
-                settings: Binding(
-                    get: {
-                        developmentPreferences.edgeShadowSettings(for: Self.edgeShadowDebugScreenID)
-                    },
-                    set: {
-                        developmentPreferences.setEdgeShadowSettings(
-                            $0,
-                            for: Self.edgeShadowDebugScreenID
-                        )
+        #if DEBUG
+            if developmentPreferences.edgeShadowTuningEnabled {
+                EdgeShadowDebugFloatingPanel(
+                    mode: .progressiveBlur,
+                    supportsBottomEdge: false,
+                    panelTitleOverride: "Header Blur",
+                    showButtonTitleOverride: "Tune Header Blur",
+                    hideButtonTitleOverride: "Hide Header Blur",
+                    settings: Binding(
+                        get: {
+                            developmentPreferences.edgeShadowSettings(for: Self.edgeShadowDebugScreenID)
+                        },
+                        set: {
+                            developmentPreferences.setEdgeShadowSettings(
+                                $0,
+                                for: Self.edgeShadowDebugScreenID
+                            )
+                        }
+                    ),
+                    onReset: {
+                        developmentPreferences.resetEdgeShadowSettings(for: Self.edgeShadowDebugScreenID)
                     }
-                ),
-                onReset: {
-                    developmentPreferences.resetEdgeShadowSettings(for: Self.edgeShadowDebugScreenID)
-                }
-            )
-            .padding(.trailing, UIConstants.Spacing.medium)
-            .padding(.bottom, 92)
-            .padding(.top, safeAreaTop)
-            .zIndex(200)
-        }
-#else
-        EmptyView()
-#endif
+                )
+                .padding(.trailing, UIConstants.Spacing.medium)
+                .padding(.bottom, 92)
+                .padding(.top, safeAreaTop)
+                .zIndex(200)
+            }
+        #else
+            EmptyView()
+        #endif
     }
 
     private func homeLayoutSignature(
@@ -321,7 +321,7 @@ struct HomeView: View {
             roundedLayoutValue(layoutContext.dashboardContext.contentWidth),
             roundedLayoutValue(calendarLayout.expandedCalendarWidth),
             roundedLayoutValue(calendarLayout.expandedCompanionWidth),
-            roundedLayoutValue(calendarLayout.compactCapsuleWidth)
+            roundedLayoutValue(calendarLayout.compactCapsuleWidth),
         ].joined(separator: "|")
     }
 
@@ -343,32 +343,32 @@ struct HomeView: View {
         layoutContext: HomeAdaptiveLayoutContext,
         calendarLayout: HomeCalendarAdaptiveLayout
     ) {
-#if DEBUG
-        let signature = homeLayoutSignature(
-            containerWidth: containerWidth,
-            safeAreaTop: safeAreaTop,
-            layoutContext: layoutContext,
-            calendarLayout: calendarLayout
-        )
+        #if DEBUG
+            let signature = homeLayoutSignature(
+                containerWidth: containerWidth,
+                safeAreaTop: safeAreaTop,
+                layoutContext: layoutContext,
+                calendarLayout: calendarLayout
+            )
 
-        guard lastLoggedLayoutSignature != signature else { return }
-        lastLoggedLayoutSignature = signature
+            guard lastLoggedLayoutSignature != signature else { return }
+            lastLoggedLayoutSignature = signature
 
-        Self.layoutLogger.notice(
-            """
-            home_layout \
-            container=\(Double(containerWidth), format: .fixed(precision: 1)) \
-            safeTop=\(Double(safeAreaTop), format: .fixed(precision: 1)) \
-            mode=\(String(describing: layoutContext.mode), privacy: .public) \
-            header=\(String(describing: layoutContext.headerScaffold), privacy: .public) \
-            calendarContent=\(Double(layoutContext.calendarContext.contentWidth), format: .fixed(precision: 1)) \
-            dashboardContent=\(Double(layoutContext.dashboardContext.contentWidth), format: .fixed(precision: 1)) \
-            expandedCalendar=\(Double(calendarLayout.expandedCalendarWidth), format: .fixed(precision: 1)) \
-            companion=\(Double(calendarLayout.expandedCompanionWidth), format: .fixed(precision: 1)) \
-            compactCapsule=\(Double(calendarLayout.compactCapsuleWidth), format: .fixed(precision: 1))
-            """
-        )
-#endif
+            Self.layoutLogger.notice(
+                """
+                home_layout \
+                container=\(Double(containerWidth), format: .fixed(precision: 1)) \
+                safeTop=\(Double(safeAreaTop), format: .fixed(precision: 1)) \
+                mode=\(String(describing: layoutContext.mode), privacy: .public) \
+                header=\(String(describing: layoutContext.headerScaffold), privacy: .public) \
+                calendarContent=\(Double(layoutContext.calendarContext.contentWidth), format: .fixed(precision: 1)) \
+                dashboardContent=\(Double(layoutContext.dashboardContext.contentWidth), format: .fixed(precision: 1)) \
+                expandedCalendar=\(Double(calendarLayout.expandedCalendarWidth), format: .fixed(precision: 1)) \
+                companion=\(Double(calendarLayout.expandedCompanionWidth), format: .fixed(precision: 1)) \
+                compactCapsule=\(Double(calendarLayout.compactCapsuleWidth), format: .fixed(precision: 1))
+                """
+            )
+        #endif
     }
 
     private func roundedLayoutValue(_ value: CGFloat) -> String {
@@ -409,7 +409,7 @@ private struct HomeDataCoordinator: View {
         var calendarInsightsTaskSignature: String {
             [
                 "\(logs)",
-                profile
+                profile,
             ].joined(separator: "||")
         }
 
@@ -419,7 +419,7 @@ private struct HomeDataCoordinator: View {
                 "\(logs)",
                 profile,
                 "\(analytics)",
-                "\(decks)"
+                "\(decks)",
             ].joined(separator: "||")
         }
     }
@@ -448,7 +448,7 @@ private struct HomeDataCoordinator: View {
             "\(folders.count)",
             "\(recentlyOpenedQuery.count)",
             recentDecksPreviewSignature,
-            userProfileDashboardSignature
+            userProfileDashboardSignature,
         ].joined(separator: "|")
     }
 
@@ -458,7 +458,7 @@ private struct HomeDataCoordinator: View {
             .map { deck in
                 [
                     "\(deck.persistentModelID.hashValue)",
-                    "\(deck.lastOpenedAt?.timeIntervalSince1970.bitPattern ?? 0)"
+                    "\(deck.lastOpenedAt?.timeIntervalSince1970.bitPattern ?? 0)",
                 ].joined(separator: ":")
             }
             .joined(separator: ",")
@@ -470,7 +470,7 @@ private struct HomeDataCoordinator: View {
             "\(profile.totalXP)",
             "\(profile.currentStreak)",
             "\(profile.longestStreak)",
-            "\(profile.lastActiveDate?.timeIntervalSince1970 ?? 0)"
+            "\(profile.lastActiveDate?.timeIntervalSince1970 ?? 0)",
         ].joined(separator: "|")
     }
 
@@ -525,7 +525,7 @@ private struct HomeDataCoordinator: View {
                     "\(folder.persistentModelID.hashValue)",
                     folder.title,
                     folder.colorHex,
-                    "\(folder.deckCount)"
+                    "\(folder.deckCount)",
                 ].joined(separator: ":")
             }
             .joined(separator: "|")
@@ -552,7 +552,7 @@ private struct HomeDataCoordinator: View {
                     deck.title,
                     deck.colorHex,
                     "\(deck.cardCount)",
-                    "\(deck.lastOpenedAt?.timeIntervalSince1970.bitPattern ?? 0)"
+                    "\(deck.lastOpenedAt?.timeIntervalSince1970.bitPattern ?? 0)",
                 ].joined(separator: ":")
             }
             .joined(separator: "|")

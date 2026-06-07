@@ -5,6 +5,7 @@
 
 import SwiftUI
 import Foundation
+import UIKit
 
 // MARK: - Text Alignment
 enum TextBlockAlignment: String, Codable, Equatable {
@@ -40,12 +41,7 @@ enum TextBlockStyle: String, Codable, Equatable {
     case body, title, headline, caption
 
     var font: Font {
-        switch self {
-        case .body: return .system(size: 24)
-        case .title: return .system(size: 36, weight: .bold)
-        case .headline: return .system(size: 26, weight: .semibold)
-        case .caption: return .system(size: 16)
-        }
+        .system(size: ZoneTextTypography.baseFontSize(for: self), weight: ZoneTextTypography.fontWeight(for: self))
     }
 
     func localizedName(locale: Locale) -> String {
@@ -97,6 +93,19 @@ enum FontFamily: String, Codable, Equatable, CaseIterable {
         }
     }
 
+    var cssFontFamily: String {
+        switch self {
+        case .system:
+            return "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif"
+        case .serif:
+            return "ui-serif, Georgia, \"Times New Roman\", serif"
+        case .mono:
+            return "ui-monospace, \"SF Mono\", Menlo, monospace"
+        case .rounded:
+            return "ui-rounded, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
+        }
+    }
+
     func font(size: CGFloat, weight: Font.Weight = .regular) -> Font {
         switch self {
         case .system: return .system(size: size, weight: weight)
@@ -108,10 +117,141 @@ enum FontFamily: String, Codable, Equatable, CaseIterable {
 
     func uiFont(size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
         switch self {
-        case .system: return .systemFont(ofSize: size, weight: weight)
-        case .serif: return UIFont(name: "Georgia", size: size) ?? .systemFont(ofSize: size, weight: weight)
-        case .rounded: return UIFont(name: "SF Pro Rounded", size: size) ?? .systemFont(ofSize: size, weight: weight)
-        case .mono: return UIFont.monospacedSystemFont(ofSize: size, weight: weight)
+        case .system:
+            return .systemFont(ofSize: size, weight: weight)
+        case .serif:
+            return Self.systemUIFont(size: size, weight: weight, design: .serif)
+        case .rounded:
+            return Self.systemUIFont(size: size, weight: weight, design: .rounded)
+        case .mono:
+            return .monospacedSystemFont(ofSize: size, weight: weight)
+        }
+    }
+
+    private static func systemUIFont(
+        size: CGFloat,
+        weight: UIFont.Weight,
+        design: UIFontDescriptor.SystemDesign
+    ) -> UIFont {
+        let baseFont = UIFont.systemFont(ofSize: size, weight: weight)
+        guard let descriptor = baseFont.fontDescriptor.withDesign(design) else {
+            return baseFont
+        }
+        return UIFont(descriptor: descriptor, size: size)
+    }
+}
+
+// MARK: - Zone Text Typography
+
+enum ZoneTextTypography {
+    static func baseFontSize(for style: TextBlockStyle) -> CGFloat {
+        switch style {
+        case .caption: return 16
+        case .body: return 22
+        case .headline: return 26
+        case .title: return 32
+        }
+    }
+
+    static func fontSize(for style: TextBlockStyle, fontScale: CGFloat) -> CGFloat {
+        baseFontSize(for: style) * fontScale
+    }
+
+    static func lineSpacing(for style: TextBlockStyle, fontScale: CGFloat) -> CGFloat {
+        max(floor(fontSize(for: style, fontScale: fontScale) * 0.26), 6)
+    }
+
+    static func fontWeight(for style: TextBlockStyle, isBold: Bool = false, emphasized: Bool = false) -> Font.Weight {
+        if isBold || emphasized {
+            return .bold
+        }
+
+        return fontWeight(for: style)
+    }
+
+    static func uiFontWeight(for style: TextBlockStyle, isBold: Bool = false, emphasized: Bool = false) -> UIFont.Weight {
+        if isBold || emphasized {
+            return .bold
+        }
+
+        switch style {
+        case .title:
+            return .bold
+        case .headline:
+            return .semibold
+        case .body, .caption:
+            return .regular
+        }
+    }
+
+    static func font(for zone: ZoneModel, fontScale: CGFloat, emphasized: Bool = false) -> Font {
+        font(
+            family: zone.fontFamily,
+            style: zone.textStyle,
+            isBold: zone.isBold,
+            isItalic: zone.isItalic,
+            fontScale: fontScale,
+            emphasized: emphasized
+        )
+    }
+
+    static func font(
+        family: FontFamily,
+        style: TextBlockStyle,
+        isBold: Bool,
+        isItalic: Bool,
+        fontScale: CGFloat,
+        emphasized: Bool = false
+    ) -> Font {
+        let base = family.font(
+            size: fontSize(for: style, fontScale: fontScale),
+            weight: fontWeight(for: style, isBold: isBold, emphasized: emphasized)
+        )
+
+        return isItalic ? base.italic() : base
+    }
+
+    static func uiFont(for zone: ZoneModel, fontScale: CGFloat, emphasized: Bool = false, monospaced: Bool = false) -> UIFont {
+        uiFont(
+            family: monospaced ? .mono : zone.fontFamily,
+            style: zone.textStyle,
+            isBold: zone.isBold,
+            isItalic: zone.isItalic,
+            fontScale: fontScale,
+            emphasized: emphasized
+        )
+    }
+
+    static func uiFont(
+        family: FontFamily,
+        style: TextBlockStyle,
+        isBold: Bool,
+        isItalic: Bool,
+        fontScale: CGFloat,
+        emphasized: Bool = false
+    ) -> UIFont {
+        let size = fontSize(for: style, fontScale: fontScale)
+        let baseFont = family.uiFont(
+            size: size,
+            weight: uiFontWeight(for: style, isBold: isBold, emphasized: emphasized)
+        )
+
+        guard isItalic,
+              let descriptor = baseFont.fontDescriptor.withSymbolicTraits(.traitItalic) else {
+            return baseFont
+        }
+
+        return UIFont(descriptor: descriptor, size: size)
+    }
+
+    private static func fontWeight(for style: TextBlockStyle) -> Font.Weight {
+        switch style {
+        case .title:
+            return .bold
+        case .headline:
+            return .semibold
+        case .body, .caption:
+            return .regular
         }
     }
 }

@@ -23,9 +23,12 @@ final class DevelopmentPreferences {
         static let playModeDeveloperModeEnabled = "preferences.development.playModeDeveloperModeEnabled"
         static let edgeShadowTuningEnabled = "preferences.development.edgeShadowTuningEnabled"
         static let edgeShadowDebugSettingsByScreen = "preferences.development.edgeShadowDebugSettingsByScreen"
+        static let edgeShadowDebugDefaultsVersion = "preferences.development.edgeShadowDebugDefaultsVersion"
         static let customSheetTuningEnabled = "preferences.development.customSheetTuningEnabled"
         static let customSheetDebugSettings = "preferences.development.customSheetDebugSettings"
     }
+
+    private static let currentEdgeShadowDebugDefaultsVersion = 2
 
     private let userDefaults: UserDefaults
     @ObservationIgnored private var edgeShadowDebugSettingsPersistenceTask: Task<Void, Never>?
@@ -146,6 +149,7 @@ final class DevelopmentPreferences {
         self.edgeShadowTuningEnabled = userDefaults.object(
             forKey: Keys.edgeShadowTuningEnabled
         ) as? Bool ?? false
+        Self.migrateEdgeShadowDebugDefaultsIfNeeded(in: userDefaults)
         self.edgeShadowDebugSettingsByScreen = Self.loadEdgeShadowDebugSettings(from: userDefaults)
         self.customSheetTuningEnabled = userDefaults.object(
             forKey: Keys.customSheetTuningEnabled
@@ -201,6 +205,19 @@ final class DevelopmentPreferences {
 
         let decoder = JSONDecoder()
         return (try? decoder.decode([String: EdgeShadowDebugSettings].self, from: data)) ?? [:]
+    }
+
+    private static func migrateEdgeShadowDebugDefaultsIfNeeded(
+        in userDefaults: UserDefaults
+    ) {
+        let storedVersion = userDefaults.integer(forKey: Keys.edgeShadowDebugDefaultsVersion)
+        guard storedVersion < currentEdgeShadowDebugDefaultsVersion else { return }
+
+        userDefaults.removeObject(forKey: Keys.edgeShadowDebugSettingsByScreen)
+        userDefaults.set(
+            currentEdgeShadowDebugDefaultsVersion,
+            forKey: Keys.edgeShadowDebugDefaultsVersion
+        )
     }
 
     private func persistCustomSheetDebugSettings() {

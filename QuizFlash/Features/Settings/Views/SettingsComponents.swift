@@ -337,7 +337,7 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
     let icon: String
     let tint: Color
     let title: SettingsTextContent
-    let detail: SettingsTextContent
+    let detail: SettingsTextContent?
     @Binding var selection: Option
     let options: [Option]
     let titleForOption: (Option, Locale) -> String
@@ -346,7 +346,7 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
         icon: String,
         tint: Color,
         title: SettingsTextContent,
-        detail: SettingsTextContent,
+        detail: SettingsTextContent? = nil,
         selection: Binding<Option>,
         options: [Option],
         titleForOption: @escaping (Option, Locale) -> String
@@ -364,7 +364,7 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
         icon: String,
         tint: Color,
         title: String,
-        detail: String,
+        detail: String? = nil,
         selection: Binding<Option>,
         options: [Option],
         titleForOption: @escaping (Option, Locale) -> String
@@ -373,7 +373,7 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
             icon: icon,
             tint: tint,
             title: .localizedLiteral(title),
-            detail: .localizedLiteral(detail),
+            detail: detail.map(SettingsTextContent.localizedLiteral),
             selection: selection,
             options: options,
             titleForOption: titleForOption
@@ -381,7 +381,7 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: UIConstants.Spacing.medium) {
+        HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
             SettingsRowIcon(icon: icon, tint: tint)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -389,10 +389,12 @@ struct SettingsMenuPickerRow<Option: Identifiable & Hashable>: View {
                     .font(.body.weight(.semibold))
                     .foregroundStyle(themeManager.textPrimary)
 
-                SettingsTextLabel(content: detail)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(themeManager.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let detail {
+                    SettingsTextLabel(content: detail)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(themeManager.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Spacer(minLength: UIConstants.Spacing.standard)

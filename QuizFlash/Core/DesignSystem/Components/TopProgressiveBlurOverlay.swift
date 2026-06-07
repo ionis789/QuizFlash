@@ -10,12 +10,22 @@ import CoreImage.CIFilterBuiltins
 import QuartzCore
 
 struct ScreenTopProgressiveBlurConfiguration {
-    var maxBlurRadius: CGFloat = 5
+    var maxBlurRadius: CGFloat = 2.92
     var fadeExtension: CGFloat = 54
-    var tintOpacityTop: Double = 0.73
-    var tintOpacityMiddle: Double = 0.47
+    var tintOpacityTop: Double = 1
+    var tintOpacityMiddle: Double = 0
+    var tintEdgeHeight: CGFloat = 87
+    var startOffset: CGFloat = 0
 
     static let quizFlashDefault = ScreenTopProgressiveBlurConfiguration()
+    static let tabBarDefault = ScreenTopProgressiveBlurConfiguration(
+        maxBlurRadius: 0,
+        fadeExtension: 0,
+        tintOpacityTop: 1,
+        tintOpacityMiddle: 0,
+        tintEdgeHeight: 73,
+        startOffset: 0
+    )
 }
 
 struct TopProgressiveBlurOverlay: View {
@@ -54,15 +64,15 @@ struct ScreenEdgeProgressiveBlurOverlay: View {
         if height > 0, clampedRevealProgress > 0.001 {
             let totalHeight = max(height, 1)
             let blurHeight = totalHeight + max(configuration.fadeExtension, 0)
-            let middleLocation = min(max(totalHeight / max(blurHeight, 1), 0), 1)
+            let tintEndLocation = min(max(configuration.tintEdgeHeight / max(blurHeight, 1), 0), 1)
 
             let overlay = overlayContainer(
                 blurHeight: blurHeight,
-                middleLocation: middleLocation
+                tintEndLocation: tintEndLocation
             )
-                .ignoresSafeArea(.all, edges: ignoredSafeAreaEdges)
-                .allowsHitTesting(false)
-                .opacity(clampedRevealProgress)
+            .ignoresSafeArea(.all, edges: ignoredSafeAreaEdges)
+            .allowsHitTesting(false)
+            .opacity(clampedRevealProgress)
 
             if let revealAnimation {
                 overlay.animation(revealAnimation, value: clampedRevealProgress)
@@ -75,7 +85,7 @@ struct ScreenEdgeProgressiveBlurOverlay: View {
     @ViewBuilder
     private func overlayContainer(
         blurHeight: CGFloat,
-        middleLocation: CGFloat
+        tintEndLocation: CGFloat
     ) -> some View {
         if fillsContainer {
             VStack(spacing: 0) {
@@ -83,7 +93,7 @@ struct ScreenEdgeProgressiveBlurOverlay: View {
                     Spacer(minLength: 0)
                 }
 
-                overlayBody(blurHeight: blurHeight, middleLocation: middleLocation)
+                overlayBody(blurHeight: blurHeight, tintEndLocation: tintEndLocation)
 
                 if edge == .top {
                     Spacer(minLength: 0)
@@ -91,32 +101,33 @@ struct ScreenEdgeProgressiveBlurOverlay: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: containerAlignment)
         } else {
-            overlayBody(blurHeight: blurHeight, middleLocation: middleLocation)
+            overlayBody(blurHeight: blurHeight, tintEndLocation: tintEndLocation)
         }
     }
 
     @ViewBuilder
     private func overlayBody(
         blurHeight: CGFloat,
-        middleLocation: CGFloat
+        tintEndLocation: CGFloat
     ) -> some View {
         StableVariableBlurView(
             maxBlurRadius: configuration.maxBlurRadius,
-            direction: variableBlurDirection
+            direction: variableBlurDirection,
+            startOffset: configuration.startOffset
         )
-            .frame(maxWidth: .infinity)
-            .frame(height: blurHeight, alignment: containerAlignment)
-            .overlay {
-                tintGradient(middleLocation: middleLocation)
-            }
-            .ignoresSafeArea(.all, edges: ignoredSafeAreaEdges)
+        .frame(maxWidth: .infinity)
+        .frame(height: blurHeight, alignment: containerAlignment)
+        .overlay {
+            tintGradient(tintEndLocation: tintEndLocation)
+        }
+        .ignoresSafeArea(.all, edges: ignoredSafeAreaEdges)
     }
 
-    private func tintGradient(middleLocation: CGFloat) -> LinearGradient {
+    private func tintGradient(tintEndLocation: CGFloat) -> LinearGradient {
         LinearGradient(
             stops: [
                 .init(color: tintColor.opacity(configuration.tintOpacityTop), location: 0),
-                .init(color: tintColor.opacity(configuration.tintOpacityMiddle), location: middleLocation),
+                .init(color: tintColor.opacity(0), location: tintEndLocation),
                 .init(color: tintColor.opacity(0), location: 1),
             ],
             startPoint: gradientStartPoint,
@@ -153,18 +164,21 @@ private enum StableVariableBlurDirection: Equatable {
 private struct StableVariableBlurView: UIViewRepresentable {
     let maxBlurRadius: CGFloat
     let direction: StableVariableBlurDirection
+    let startOffset: CGFloat
 
     func makeUIView(context: Context) -> StableVariableBlurUIView {
         StableVariableBlurUIView(
             maxBlurRadius: maxBlurRadius,
-            direction: direction
+            direction: direction,
+            startOffset: startOffset
         )
     }
 
     func updateUIView(_ uiView: StableVariableBlurUIView, context: Context) {
         uiView.update(
             maxBlurRadius: maxBlurRadius,
-            direction: direction
+            direction: direction,
+            startOffset: startOffset
         )
     }
 
@@ -184,13 +198,18 @@ private final class StableVariableBlurUIView: UIVisualEffectView {
     private var variableBlurFilter: NSObject?
     private var currentDirection: StableVariableBlurDirection
     private var currentMaxBlurRadius: CGFloat
+    private var currentStartOffset: CGFloat
+    private var currentMaskPixelSize: CGSize = .zero
+    private var currentDisplayScale: CGFloat = 0
 
     init(
         maxBlurRadius: CGFloat,
-        direction: StableVariableBlurDirection
+        direction: StableVariableBlurDirection,
+        startOffset: CGFloat
     ) {
         self.currentDirection = direction
         self.currentMaxBlurRadius = -1
+        self.currentStartOffset = startOffset
         super.init(effect: UIBlurEffect(style: .regular))
 
         isUserInteractionEnabled = false
@@ -206,24 +225,35 @@ private final class StableVariableBlurUIView: UIVisualEffectView {
         super.didMoveToWindow()
 
         configureFilterIfNeeded()
-        guard let window else { return }
-        backdropLayer?.setValue(window.traitCollection.displayScale, forKey: "scale")
+        updateBackdropScale()
+        refreshMaskImage(force: true)
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         configureFilterIfNeeded()
+        updateBackdropScale()
+        refreshMaskImage(force: true)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        updateBackdropScale()
+        refreshMaskImage(force: false)
     }
 
     func update(
         maxBlurRadius: CGFloat,
-        direction: StableVariableBlurDirection
+        direction: StableVariableBlurDirection,
+        startOffset: CGFloat
     ) {
         if currentDirection != direction {
             currentDirection = direction
-            variableBlurFilter?.setValue(
-                makeGradientImage(direction: direction),
-                forKey: maskKey
-            )
+            refreshMaskImage(force: true)
+        }
+
+        if abs(currentStartOffset - startOffset) > 0.001 {
+            currentStartOffset = startOffset
+            refreshMaskImage(force: true)
         }
 
         setMaxBlurRadius(maxBlurRadius)
@@ -241,7 +271,15 @@ private final class StableVariableBlurUIView: UIVisualEffectView {
         }
 
         currentMaxBlurRadius = maxBlurRadius
-        variableBlurFilter?.setValue(NSNumber(value: Double(maxBlurRadius)), forKey: radiusKey)
+        rebuildFilter()
+    }
+
+    private func rebuildFilter() {
+        backdropLayer?.filters = nil
+        variableBlurFilter = nil
+        configureFilterIfNeeded()
+        backdropLayer?.setNeedsDisplay()
+        backdropLayer?.setNeedsLayout()
     }
 
     private func configureFilterIfNeeded() {
@@ -263,37 +301,80 @@ private final class StableVariableBlurUIView: UIVisualEffectView {
             return
         }
 
-        filter.setValue(NSNumber(value: Double(currentMaxBlurRadius)), forKey: radiusKey)
-        filter.setValue(makeGradientImage(direction: currentDirection), forKey: maskKey)
         filter.setValue(true, forKey: normalizeEdgesKey)
 
         let layer = subviews.first?.layer
         layer?.filters = [filter]
         backdropLayer = layer
         variableBlurFilter = filter
+        updateBackdropScale()
+        filter.setValue(currentMaxBlurRadius, forKey: radiusKey)
+        refreshMaskImage(force: true)
+    }
+
+    private func updateBackdropScale() {
+        let scale = resolvedDisplayScale
+        guard currentDisplayScale != scale else { return }
+        currentDisplayScale = scale
+        backdropLayer?.setValue(scale, forKey: "scale")
+    }
+
+    private var resolvedDisplayScale: CGFloat {
+        let scale = window?.screen.scale ?? traitCollection.displayScale
+        return max(scale, 1)
+    }
+
+    private func refreshMaskImage(force: Bool) {
+        guard let variableBlurFilter else { return }
+
+        let scale = resolvedDisplayScale
+        let pixelSize = CGSize(
+            width: max((bounds.width * scale).rounded(.up), 1),
+            height: max((bounds.height * scale).rounded(.up), 1)
+        )
+
+        guard force || pixelSize != currentMaskPixelSize || scale != currentDisplayScale else {
+            return
+        }
+
+        currentMaskPixelSize = pixelSize
+        currentDisplayScale = scale
+        variableBlurFilter.setValue(
+            makeGradientImage(
+                pixelWidth: pixelSize.width,
+                pixelHeight: pixelSize.height,
+                startOffset: currentStartOffset,
+                direction: currentDirection
+            ),
+            forKey: maskKey
+        )
+        backdropLayer?.setNeedsDisplay()
+        backdropLayer?.setNeedsLayout()
     }
 
     private func makeGradientImage(
-        width: CGFloat = 100,
-        height: CGFloat = 100,
+        pixelWidth: CGFloat,
+        pixelHeight: CGFloat,
+        startOffset: CGFloat,
         direction: StableVariableBlurDirection
     ) -> CGImage {
-        let gradientFilter = CIFilter.linearGradient()
+        let clearTailOffset = min(max(startOffset, 0), 0.45)
+        let gradientFilter = CIFilter.smoothLinearGradient()
         gradientFilter.color0 = CIColor.black
         gradientFilter.color1 = CIColor.clear
 
         switch direction {
         case .blurredTopClearBottom:
-            gradientFilter.point0 = CGPoint(x: 0, y: height)
-            gradientFilter.point1 = CGPoint(x: 0, y: 0)
+            gradientFilter.point0 = CGPoint(x: 0, y: pixelHeight)
+            gradientFilter.point1 = CGPoint(x: 0, y: clearTailOffset * pixelHeight)
         case .blurredBottomClearTop:
             gradientFilter.point0 = CGPoint(x: 0, y: 0)
-            gradientFilter.point1 = CGPoint(x: 0, y: height)
+            gradientFilter.point1 = CGPoint(x: 0, y: pixelHeight - (clearTailOffset * pixelHeight))
         }
 
         return Self.gradientContext.createCGImage(
             gradientFilter.outputImage!,
-            from: CGRect(x: 0, y: 0, width: width, height: height)
+            from: CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight)
         )!
     }
 }

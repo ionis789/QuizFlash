@@ -127,7 +127,7 @@ struct FlashcardEditorView: View {
         return baseX + sideSwitchSegmentWidth + UIConstants.Spacing.medium
     }
     private var editorTextScale: CGFloat {
-        CGFloat(textSize.playModeScale) * appPreferences.cardContentFontScale
+        CGFloat(textSize.playModeScale)
     }
     private var verticalAlignmentFallback: ZoneVerticalAlignment {
         ZoneVerticalAlignment(fallbackContentAlignment: contentAlignment)
@@ -384,7 +384,7 @@ struct FlashcardEditorView: View {
 
     private var floatingToolbarBaseBottomInset: CGFloat {
         keyboardMonitor.isVisible || isFloatingFormatBarPresented
-            ? UIConstants.Spacing.large
+            ? UIConstants.Spacing.tiny
             : UIConstants.Spacing.standard
     }
 
@@ -566,11 +566,6 @@ struct FlashcardEditorView: View {
     }
 
     private func handleCanvasEmptySpaceTap(_ context: ZoneEditorCanvasTapContext) {
-        if isFloatingFormatBarVisible || keyboardMonitor.isVisible {
-            dismissFloatingFormatMenu()
-            return
-        }
-
         focusManager.prepareForZoneInsertion()
 
         if !currentContent.rootZone.hasContent,

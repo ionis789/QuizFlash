@@ -23,7 +23,9 @@ extension DeckWorkspaceView {
                 .submitLabel(.done)
                 .onSubmit { isTitleFocused = false }
 
-            headerMetadataRow
+            if shouldShowHeaderMetadataRow {
+                headerMetadataRow
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, UIConstants.Layout.heroScreenEdgeInset)
@@ -98,16 +100,15 @@ extension DeckWorkspaceView {
     var headerMetadataRow: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.medium) {
             HStack(alignment: .center, spacing: UIConstants.Spacing.medium) {
-                destinationMetadataControl
-                .layoutPriority(1)
-
                 Spacer(minLength: 0)
 
                 if shouldShowMockAIHeaderAction {
                     mockAIActionControl
                 }
 
-                headerGenerateActionControl
+                if !viewModel.draftCards.isEmpty || aiVisualStatusText != nil {
+                    headerGenerateActionControl
+                }
             }
 
             if !viewModel.draftCards.isEmpty {
@@ -127,6 +128,12 @@ extension DeckWorkspaceView {
         }
     }
 
+    var shouldShowHeaderMetadataRow: Bool {
+        !viewModel.draftCards.isEmpty
+            || aiVisualStatusText != nil
+            || shouldShowMockAIHeaderAction
+    }
+
     var shouldShowMockAIHeaderAction: Bool {
         developmentPreferences.deckWorkspaceMockAIEnabled
             && !hasUnifiedAISession
@@ -136,7 +143,6 @@ extension DeckWorkspaceView {
 
     var shouldShowPrimaryGenerateAction: Bool {
         !hasUnifiedAISession
-            && !viewModel.isSelectingCards
             && !shouldShowFloatingGenerate
     }
 
@@ -457,8 +463,47 @@ extension DeckWorkspaceView {
             )
         }
 
+        children.append(locationMenu(finishMenuInteraction: finishMenuInteraction))
         children.append(editorSortMenu(finishMenuInteraction: finishMenuInteraction))
         return UIMenu(children: children)
+    }
+
+    private func locationMenu(finishMenuInteraction: @escaping () -> Void) -> UIMenu {
+        var children: [UIMenuElement] = [
+            SelectionModeMenuElement.action(
+                title: localized("Library"),
+                systemImage: viewModel.selectedFolder == nil ? "checkmark" : "tray.full",
+                state: viewModel.selectedFolder == nil ? .on : .off
+            ) {
+                finishMenuInteraction()
+                isTitleFocused = false
+                exitDraftSelectionModeForExternalAction()
+                viewModel.selectedFolder = nil
+            }
+        ]
+
+        if !folders.isEmpty {
+            children.append(contentsOf: folders.map { folder in
+                let isSelected = viewModel.selectedFolder?.id == folder.id
+                return SelectionModeMenuElement.action(
+                    title: folder.title,
+                    systemImage: isSelected ? "checkmark" : "folder",
+                    state: isSelected ? .on : .off
+                ) {
+                    finishMenuInteraction()
+                    isTitleFocused = false
+                    exitDraftSelectionModeForExternalAction()
+                    viewModel.selectedFolder = folder
+                }
+            })
+        }
+
+        return UIMenu(
+            title: localizedFormat("Location: %@", destinationTitle),
+            image: UIImage(systemName: "folder"),
+            options: [],
+            children: children
+        )
     }
 
     private func editorSortMenu(finishMenuInteraction: @escaping () -> Void) -> UIMenu {

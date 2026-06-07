@@ -30,7 +30,7 @@ import UIKit
 /// Controls the maximum feather-band length used by the adaptive fade.
 /// Range: 60–180. Higher = softer and more extended.
 private let kShadowRadius: CGFloat = 160
-private let kDefaultEdgeShadowColor = Color(ThemeColorToken.backgroundPrimary.assetName)
+private let kDefaultEdgeShadowColor = Color.black
 
 // MARK: - EdgeShadowOverlay
 
@@ -62,6 +62,9 @@ struct EdgeShadowTuning: Equatable {
 }
 
 struct EdgeShadowDebugSettings: Codable, Equatable {
+    private static let defaultHeaderHeightOffset: CGFloat = -69
+    private static let defaultTabBarHeightOffset: CGFloat = -27
+
     var topEnabled: Bool = true
     var bottomEnabled: Bool = true
     var maxAlpha: CGFloat = 1.0
@@ -70,21 +73,21 @@ struct EdgeShadowDebugSettings: Codable, Equatable {
     var tintOpacityScale: CGFloat = EdgeShadowTuning.default.tintOpacityScale
     var fadeLengthScale: CGFloat = EdgeShadowTuning.default.fadeLengthScale
     var curveExponentBase: CGFloat = EdgeShadowTuning.default.curveExponentBase
-    var heightOffset: CGFloat = 0
-    var bottomHeightOffset: CGFloat = 0
-    var colorOverride: EdgeShadowDebugColor?
-    var bottomColorOverride: EdgeShadowDebugColor?
+    var heightOffset: CGFloat = Self.defaultHeaderHeightOffset
+    var bottomHeightOffset: CGFloat = Self.defaultTabBarHeightOffset
     var progressiveBlurRadius: CGFloat = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.maxBlurRadius
     var progressiveFadeExtension: CGFloat = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.fadeExtension
     var progressiveTintOpacityTop: CGFloat = CGFloat(ScreenTopProgressiveBlurConfiguration.quizFlashDefault.tintOpacityTop)
-    var progressiveTintOpacityMiddle: CGFloat = CGFloat(ScreenTopProgressiveBlurConfiguration.quizFlashDefault.tintOpacityMiddle)
-    var bottomProgressiveBlurRadius: CGFloat = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.maxBlurRadius
-    var bottomProgressiveFadeExtension: CGFloat = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.fadeExtension
-    var bottomProgressiveTintOpacityEdge: CGFloat = CGFloat(ScreenTopProgressiveBlurConfiguration.quizFlashDefault.tintOpacityTop)
-    var bottomProgressiveTintOpacityMiddle: CGFloat = CGFloat(ScreenTopProgressiveBlurConfiguration.quizFlashDefault.tintOpacityMiddle)
+    var progressiveTintEdgeHeight: CGFloat = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.tintEdgeHeight
+    var progressiveStartOffset: CGFloat = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.startOffset
+    var bottomProgressiveBlurRadius: CGFloat = ScreenTopProgressiveBlurConfiguration.tabBarDefault.maxBlurRadius
+    var bottomProgressiveFadeExtension: CGFloat = ScreenTopProgressiveBlurConfiguration.tabBarDefault.fadeExtension
+    var bottomProgressiveTintOpacityEdge: CGFloat = CGFloat(ScreenTopProgressiveBlurConfiguration.tabBarDefault.tintOpacityTop)
+    var bottomProgressiveTintEdgeHeight: CGFloat = ScreenTopProgressiveBlurConfiguration.tabBarDefault.tintEdgeHeight
+    var bottomProgressiveStartOffset: CGFloat = ScreenTopProgressiveBlurConfiguration.tabBarDefault.startOffset
 
     static let `default` = EdgeShadowDebugSettings()
-    private static let minimumProgressiveBlurRadius = ScreenTopProgressiveBlurConfiguration.quizFlashDefault.maxBlurRadius
+    private static let minimumProgressiveBlurRadius: CGFloat = 0
 
     enum CodingKeys: String, CodingKey {
         case topEnabled
@@ -97,16 +100,16 @@ struct EdgeShadowDebugSettings: Codable, Equatable {
         case curveExponentBase
         case heightOffset
         case bottomHeightOffset
-        case colorOverride
-        case bottomColorOverride
         case progressiveBlurRadius
         case progressiveFadeExtension
         case progressiveTintOpacityTop
-        case progressiveTintOpacityMiddle
+        case progressiveTintEdgeHeight
+        case progressiveStartOffset
         case bottomProgressiveBlurRadius
         case bottomProgressiveFadeExtension
         case bottomProgressiveTintOpacityEdge
-        case bottomProgressiveTintOpacityMiddle
+        case bottomProgressiveTintEdgeHeight
+        case bottomProgressiveStartOffset
     }
 
     init() {}
@@ -124,16 +127,16 @@ struct EdgeShadowDebugSettings: Codable, Equatable {
         curveExponentBase = try container.decodeIfPresent(CGFloat.self, forKey: .curveExponentBase) ?? defaults.curveExponentBase
         heightOffset = try container.decodeIfPresent(CGFloat.self, forKey: .heightOffset) ?? defaults.heightOffset
         bottomHeightOffset = try container.decodeIfPresent(CGFloat.self, forKey: .bottomHeightOffset) ?? defaults.bottomHeightOffset
-        colorOverride = try container.decodeIfPresent(EdgeShadowDebugColor.self, forKey: .colorOverride)
-        bottomColorOverride = try container.decodeIfPresent(EdgeShadowDebugColor.self, forKey: .bottomColorOverride)
         progressiveBlurRadius = try container.decodeIfPresent(CGFloat.self, forKey: .progressiveBlurRadius) ?? defaults.progressiveBlurRadius
         progressiveFadeExtension = try container.decodeIfPresent(CGFloat.self, forKey: .progressiveFadeExtension) ?? defaults.progressiveFadeExtension
         progressiveTintOpacityTop = try container.decodeIfPresent(CGFloat.self, forKey: .progressiveTintOpacityTop) ?? defaults.progressiveTintOpacityTop
-        progressiveTintOpacityMiddle = try container.decodeIfPresent(CGFloat.self, forKey: .progressiveTintOpacityMiddle) ?? defaults.progressiveTintOpacityMiddle
+        progressiveTintEdgeHeight = try container.decodeIfPresent(CGFloat.self, forKey: .progressiveTintEdgeHeight) ?? defaults.progressiveTintEdgeHeight
+        progressiveStartOffset = try container.decodeIfPresent(CGFloat.self, forKey: .progressiveStartOffset) ?? defaults.progressiveStartOffset
         bottomProgressiveBlurRadius = try container.decodeIfPresent(CGFloat.self, forKey: .bottomProgressiveBlurRadius) ?? defaults.bottomProgressiveBlurRadius
         bottomProgressiveFadeExtension = try container.decodeIfPresent(CGFloat.self, forKey: .bottomProgressiveFadeExtension) ?? defaults.bottomProgressiveFadeExtension
         bottomProgressiveTintOpacityEdge = try container.decodeIfPresent(CGFloat.self, forKey: .bottomProgressiveTintOpacityEdge) ?? defaults.bottomProgressiveTintOpacityEdge
-        bottomProgressiveTintOpacityMiddle = try container.decodeIfPresent(CGFloat.self, forKey: .bottomProgressiveTintOpacityMiddle) ?? defaults.bottomProgressiveTintOpacityMiddle
+        bottomProgressiveTintEdgeHeight = try container.decodeIfPresent(CGFloat.self, forKey: .bottomProgressiveTintEdgeHeight) ?? defaults.bottomProgressiveTintEdgeHeight
+        bottomProgressiveStartOffset = try container.decodeIfPresent(CGFloat.self, forKey: .bottomProgressiveStartOffset) ?? defaults.bottomProgressiveStartOffset
     }
 
     var tuning: EdgeShadowTuning {
@@ -156,11 +159,11 @@ struct EdgeShadowDebugSettings: Codable, Equatable {
     }
 
     var resolvedColor: Color {
-        colorOverride?.swiftUIColor ?? kDefaultEdgeShadowColor
+        kDefaultEdgeShadowColor
     }
 
     var resolvedBottomColor: Color {
-        bottomColorOverride?.swiftUIColor ?? resolvedColor
+        kDefaultEdgeShadowColor
     }
 
     var progressiveBlurConfiguration: ScreenTopProgressiveBlurConfiguration {
@@ -168,54 +171,20 @@ struct EdgeShadowDebugSettings: Codable, Equatable {
             maxBlurRadius: max(progressiveBlurRadius, Self.minimumProgressiveBlurRadius),
             fadeExtension: progressiveFadeExtension,
             tintOpacityTop: Double(progressiveTintOpacityTop),
-            tintOpacityMiddle: Double(progressiveTintOpacityMiddle)
+            tintOpacityMiddle: 0,
+            tintEdgeHeight: progressiveTintEdgeHeight,
+            startOffset: max(progressiveStartOffset, 0)
         )
     }
 
     var bottomProgressiveBlurConfiguration: ScreenTopProgressiveBlurConfiguration {
         ScreenTopProgressiveBlurConfiguration(
-            maxBlurRadius: max(bottomProgressiveBlurRadius, Self.minimumProgressiveBlurRadius),
-            fadeExtension: bottomProgressiveFadeExtension,
+            maxBlurRadius: 0,
+            fadeExtension: 0,
             tintOpacityTop: Double(bottomProgressiveTintOpacityEdge),
-            tintOpacityMiddle: Double(bottomProgressiveTintOpacityMiddle)
-        )
-    }
-}
-
-struct EdgeShadowDebugColor: Codable, Equatable {
-    var red: Double
-    var green: Double
-    var blue: Double
-
-    init(red: Double, green: Double, blue: Double) {
-        self.red = red
-        self.green = green
-        self.blue = blue
-    }
-
-    init(color: Color) {
-        let resolved = UIColor(color)
-        var redComponent: CGFloat = 0
-        var greenComponent: CGFloat = 0
-        var blueComponent: CGFloat = 0
-        var alphaComponent: CGFloat = 0
-
-        if resolved.getRed(&redComponent, green: &greenComponent, blue: &blueComponent, alpha: &alphaComponent) {
-            self.red = redComponent
-            self.green = greenComponent
-            self.blue = blueComponent
-        } else {
-            self.red = 0
-            self.green = 0
-            self.blue = 0
-        }
-    }
-
-    var swiftUIColor: Color {
-        Color(
-            red: red,
-            green: green,
-            blue: blue
+            tintOpacityMiddle: 0,
+            tintEdgeHeight: bottomProgressiveTintEdgeHeight,
+            startOffset: max(bottomProgressiveStartOffset, 0)
         )
     }
 }
@@ -233,7 +202,6 @@ struct EdgeShadowDebugColor: Codable, Equatable {
 /// }
 /// ```
 struct EdgeShadowOverlay: View {
-
     // MARK: - Configuration
 
     /// Height of the top gradient (safe area inset + header content height). Pass `0` to hide.
@@ -438,7 +406,6 @@ private func _smootherStep(_ value: CGFloat) -> CGFloat {
 /// Core Animation gradient view. GPU-rendered in linear colour space —
 /// no banding and no shimmer. Only alpha changes at every stop.
 private struct _CAGradientView: UIViewRepresentable {
-
     // MARK: - Properties
 
     let direction: _GradientDirection
@@ -481,7 +448,6 @@ private struct _CAGradientView: UIViewRepresentable {
 
     /// The backing `UIView` that hosts the `CAGradientLayer`.
     final class _LayerView: UIView {
-
         private let blurView = _TransparentBackdropBlurView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
         private let boostBlurView = _TransparentBackdropBlurView(effect: UIBlurEffect(style: .systemThinMaterial))
         private let maxBoostBlurView = _TransparentBackdropBlurView(effect: UIBlurEffect(style: .systemMaterial))

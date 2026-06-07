@@ -187,6 +187,7 @@ struct FlashCardsPlayModeView: View {
             .background(Color.black.ignoresSafeArea())
         }
         .animation(.smooth(duration: 0.26, extraBounce: 0), value: viewModel.isComplete)
+        .keepsScreenAwake()
         .onAppear {
 #if DEBUG
             startupDebugState.reset()

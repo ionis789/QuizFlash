@@ -265,7 +265,6 @@ final class HomeViewModel {
             retryCardCount: selectedDayStats.retryCardCount,
             streakCount: userProfile?.currentStreak ?? 0,
             totalXP: userProfile?.totalXP ?? 0,
-            level: userProfile?.level ?? 1,
             headline: headline,
             detailLine: detailLine
         )

@@ -47,10 +47,10 @@ key	en	ro	ru
 %d day	%d day	%d zi	%d день
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
-%d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
-%d Decks	%d Decks	%d deckuri	%d колод
+%d deck	%d deck	%d pachet	%d колода
 %d decks	%d decks	%d pachete	%d колод
+%d Decks	%d Decks	%d deckuri	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -58,6 +58,8 @@ key	en	ro	ru
 %d manual	%d manual	%d manuale	%d вручную
 %d match	%d match	%d potrivire	%d совпадение
 %d matches	%d matches	%d potriviri	%d совпадений
+%d more match	%d more match	%d potrivire în plus	%d совпадение
+%d more matches	%d more matches	%d potriviri în plus	%d совпадений
 %d Pairs	%d Pairs	%d perechi	%d пар
 %d pass	%d pass	%d trecere	%d проход
 %d passes	%d passes	%d treceri	%d проходов
@@ -69,8 +71,6 @@ key	en	ro	ru
 %d sketches	%d sketches	%d schițe	%d эскизов
 %d still need another pass.	%d still need another pass.	%d încă au nevoie de o trecere.	%d ещё нужны повторные проходы.
 %d unique cards are locked in for today.	%d unique cards are locked in for today.	%d carduri unice sunt deja bifate azi.	%d уникальных карточек уже закрыты на сегодня.
-%d more match	%d more match	%d potrivire în plus	%d совпадение
-%d more matches	%d more matches	%d potriviri în plus	%d совпадений
 %d/%d active	%d/%d active	%d/%d zile active	%d/%d активных дней
 %dd ago	%dd ago	acum %dz	%dд назад
 %dh ago	%dh ago	acum %dore	%dч назад
@@ -107,6 +107,7 @@ Add Below	Add Below	Adaugă dedesubt	Добавить ниже
 Add cards to this deck first.	Add cards to this deck first.	Adaugă mai întâi carduri în acest deck.	Сначала добавьте карточки в эту колоду.
 Add Explanation	Add Explanation	Adaugă explicație	Добавить объяснение
 Add Left	Add Left	Adaugă la stânga	Добавить слева
+Add manually	Add manually	Adaugă manual	Добавить вручную
 Add Right	Add Right	Adaugă la dreapta	Добавить справа
 Add source text before saving.	Add source text before saving.	Adaugă textul sursă înainte de salvare.	Добавьте исходный текст перед сохранением.
 Add text and mark a blank to preview the card.	Add text and mark a blank to preview the card.	Adaugă text și marchează un spațiu liber pentru previzualizare.	Добавьте текст и отметьте пропуск для предпросмотра.
@@ -154,19 +155,23 @@ Bottom chrome visible	Bottom chrome visible	Parte de jos crom vizibil	Виден
 Building the deck briefing	Building the deck briefing	Crearea briefing-ului deck	Брифинг по составлению колоды
 Bullet List	Bullet List	Listă cu marcatori	Маркированный список
 By Deck	By Deck	De Deck	По колоде
+Calendar	Calendar	Calendar	Календарь
 Cancel	Cancel	Anulează	Отмена
 Cancel AI generation	Cancel AI generation	Anulează generarea AI	Отменить AI генерацию
 Cancel editing deck	Cancel editing deck	Anulează editarea deckului	Отменить редактирование колоды
 Caption	Caption	Legendă	Подпись
+Add Range	Add Range	Adaugă interval	Добавить диапазон
 Card	Card	Card	Карта
 Card %@	Card %@	Card %@	Карта %@
 Card %d	Card %d	Card %d	Карта %d
 Card Content	Card Content	Conținut card	Содержимое карточки
+Card Distribution	Card Distribution	Distribuția cardurilor	Распределение карточек
 card moved	card moved	card mutat	карточка пройдена
 Card Text	Card Text	Text card	Текст карточки
-Cards	Cards	Carduri	Карточки
 cards	cards	carduri	карточки
+Cards	Cards	Carduri	Карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
+Cards Settings	Cards Settings	Setări carduri	Настройки карточек
 cards moved	cards moved	carduri mutate	карточек пройдено
 CARDS(%@)	CARDS(%@)	CARDURI(%@)	КАРТОЧКИ(%@)
 CARDS(%d)	CARDS(%d)	CARDURI(%d)	КАРТОЧКИ(%d)
@@ -179,8 +184,8 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
+Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -263,6 +268,7 @@ Empty card	Empty card	Card gol	Пустая карточка
 Empty choice	Empty choice	Variantă goală	Пустой вариант
 Enabled	Enabled	Activ	Включено
 Endpoint: %@	Endpoint: %@	Punct final: %@	Конечная точка: %@
+English	English	Engleză	Английский
 Example: Capital of France	Example: Capital of France	Exemplu: Capitala Franței	Пример: столица Франции
 Example: Paris	Example: Paris	Exemplu: Paris	Пример: Париж
 Expand	Expand	Extinde	Развернуть
@@ -297,8 +303,10 @@ Freed	Freed	Eliberat	Фрид
 Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
+Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
 Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
 Generating AI...	Generating AI...	Se generează cu AI...	Генерация AI...
 Get started	Get started	Începe	Начать
@@ -348,6 +356,7 @@ Keep Editing	Keep Editing	Continuă editarea	Продолжить редакти
 Keeping the current list stable while the next result set is prepared.	Keeping the current list stable while the next result set is prepared.	Păstrăm lista curentă stabilă până când se pregătește următorul set de rezultate.	Текущий список остается стабильным, пока готовится следующий набор результатов.
 Labs	Labs	Laborator	Лабы
 Landed	Landed	Reușite	Уверенно
+Language	Language	Limbă	Язык
 Large	Large	Mare	Крупный
 Last Interaction	Last Interaction	Ultima interacțiune	Последнее взаимодействие
 Last opened %@.	Last opened %@.	Deschis ultima dată %@.	Последний раз открывали %@.
@@ -358,13 +367,13 @@ Learning	Learning	În învățare	В изучении
 LEARNING PROGRESS	LEARNING PROGRESS	PROGRESUL DE ÎNVĂȚARE	ПРОГРЕСС ОБУЧЕНИЯ
 Left	Left	Stânga	Левый
 Less	Less	Mai puțin	Меньше
-Level %@	Level %@	Nivel %@	Уровень %@
 Library	Library	Bibliotecă	Библиотека
 Library (All Decks)	Library (All Decks)	Bibliotecă (toate deckurile)	Библиотека (все колоды)
 List	List	Listă	Список
 Live card memory and schedule snapshot	Live card memory and schedule snapshot	Instantaneu live al memoriei cardului și al programului	Живой снимок памяти карточки и расписания
 Live Preview	Live Preview	Previzualizare live	Живой предпросмотр
 Live Swipe HUD	Live Swipe HUD	Live Swipe HUD	Живой HUD смахивания
+Location: %@	Location: %@	Locație: %@	Расположение: %@
 Log Out	Log Out	Deconectare	Выйти
 Manual	Manual	Manual	Вручную
 Manual input	Manual input	Introducere manuală	Ручной ввод
@@ -377,6 +386,7 @@ Medium	Medium	Mediu	Средний
 Mock AI	Mock AI	Simulare AI	Мок ИИ
 Mode	Mode	Modul	Режим
 Momentum	Momentum	Impuls	Импульс
+Monday	Monday	Luni	Понедельник
 Monospaced	Monospaced	Monospațiat	Моноширинный
 More	More	Mai mult	Более
 More actions	More actions	Mai multe acțiuni	Еще действия
@@ -396,6 +406,7 @@ Multiple	Multiple	Multiple	Несколько
 Multiple choice	Multiple choice	Variante multiple	Множественный выбор
 Multiple Correct	Multiple Correct	Răspunsuri multiple	Несколько правильных
 Multiple correct answers enabled	Multiple correct answers enabled	Răspunsuri corecte multiple activate	Включено несколько правильных ответов
+Navigation	Navigation	Navigare	Навигация
 Needs attention	Needs attention	Cere atenție	Требует внимания
 New	New	Nou	Новый
 Newest	Newest	Cele mai noi	Сначала новые
@@ -498,15 +509,17 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-Retry	Retry	Reîncearcă	Повтор
 RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
+Retry	Retry	Reîncearcă	Повтор
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
 Reviews	Reviews	Repetări	Повторы
 Right	Right	Corect	Верно
+Romanian	Romanian	Română	Румынский
 Rounded	Rounded	Rotunjit	Скруглённый
 Row %@	Row %@	Rândul %@	Строка %@
 Run mock AI generation	Run mock AI generation	Rulează generarea mock AI	Запустить mock AI генерацию
+Russian	Russian	Rusă	Русский
 Sans-Serif	Sans-Serif	Sans-serif	Без засечек
 Save	Save	Salvează	Сохранить
 Save Changes	Save Changes	Salvează modificările	Сохранить изменения
@@ -548,7 +561,6 @@ Show	Show	Arată	Показать
 Showing all	Showing all	Se afișează toate	Показаны все
 Side	Side	Parte	Сторона
 Sign in with Google	Sign in with Google	Conectați-vă cu Google	Войти через Google
-Sign out of the current QuizFlash session on this device.	Sign out of the current QuizFlash session on this device.	Deconectați-vă de la sesiunea curentă QuizFlash pe acest dispozitiv.	Выйдите из текущего сеанса QuizFlash на этом устройстве.
 Simple	Simple	Simplu	Простой
 Single correct answer	Single correct answer	Un singur răspuns corect	Один правильный ответ
 Sketch	Sketch	Schiță	Набросок
@@ -556,6 +568,7 @@ Small	Small	Mic	Маленький
 Sort By	Sort By	Sortează după	Сортировать по
 Sort Cards	Sort Cards	Sortează cardurile	Сортировать карточки
 Source	Source	Sursă	Источник
+Source Coverage	Source Coverage	Acoperirea sursei	Покрытие источника
 Source Range	Source Range	Interval sursă	Исходный диапазон
 Spaced Repetition Stats	Spaced Repetition Stats	Statistici repetare spațiată	Статистика интервального повторения
 Split Zone	Split Zone	Împarte zona	Разделить зону
@@ -571,9 +584,12 @@ Stop generation	Stop generation	Oprește generarea	Остановить гене
 Storage	Storage	Depozitare	Хранилище
 Stored Answer	Stored Answer	Răspuns salvat	Сохранённый ответ
 Streak	Streak	Serie	Серия
+Sunday	Sunday	Duminică	Воскресенье
 Suspended	Suspended	Suspendat	Приостановлена
 Swipe HUD	Swipe HUD	Glisați HUD	Проведите по интерфейсу
 Swipe review	Swipe review	Repetare prin glisare	Повтор свайпом
+System	System	Sistem	Система
+System Default	System Default	Implicit de sistem	Системное значение
 Tab Bar	Tab Bar	Bara de file	Панель вкладок
 Tab Bar Blur	Tab Bar Blur	Blur tabbar	Размытие панели вкладок
 Tap + to add a card, or generate cards with AI.	Tap + to add a card, or generate cards with AI.	Atinge + ca să adaugi un card sau generează carduri cu AI.	Нажмите +, чтобы добавить карточку, или сгенерируйте карточки с AI.
@@ -607,8 +623,8 @@ This migration slice only enables the shared routing foundation. Flashcard editi
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
 This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-This Week	This Week	Săptămâna asta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
+This Week	This Week	Săptămâna asta	Эта неделя
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
 To goal	To goal	Până la obiectiv	До цели
@@ -633,10 +649,10 @@ Type	Type	Tip	Тип
 Undo Changes	Undo Changes	Anulează modificările	Отменить изменения
 Unique rate	Unique rate	Rată unice	Доля уникальных
 Universal OpenAI-Compatible Setup	Universal OpenAI-Compatible Setup	Configurare universală compatibilă cu OpenAI	Универсальная установка, совместимая с OpenAI
+Unlock full AI features	Unlock full AI features	Deblochează toate funcțiile AI	Откройте все AI-функции
 Unpin	Unpin	Anulează fixarea	Открепить
 Untitled Deck	Untitled Deck	Deck fără titlu	Колода без названия
 Upcoming	Upcoming	Următoarele	Дальше
-Use System Text Size	Use System Text Size	Folosește dimensiunea textului din sistem	Использовать системный размер текста
 Use the current text selection as the omitted answer.	Use the current text selection as the omitted answer.	Folosește selecția curentă ca răspuns omis.	Используйте текущее выделение как пропущенный ответ.
 Verbose	Verbose	Detaliat	Подробно
 Vertical Position	Vertical Position	Poziție verticală	Положение по вертикали

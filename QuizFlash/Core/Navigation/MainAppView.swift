@@ -31,7 +31,6 @@ import SwiftUI
 import SwiftData
 
 struct MainAppView: View {
-
     // MARK: - State
 
     @Environment(\.modelContext) private var modelContext
@@ -78,7 +77,7 @@ struct MainAppView: View {
         appearance.backgroundEffect = nil
         appearance.shadowColor = .clear
 
-        UITabBar.appearance().standardAppearance   = appearance
+        UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
     }
 
@@ -102,8 +101,8 @@ struct MainAppView: View {
         guard !keyboardMonitor.isVisible else { return false }
         guard sheetHiddenTabBarRequestIDs.isEmpty else { return false }
         switch tabBarRule {
-        case .visible:  return !isTabBarAutoHiddenByScroll
-        case .hidden:   return false
+        case .visible: return !isTabBarAutoHiddenByScroll
+        case .hidden: return false
         case .implicit: return !isTabBarAutoHiddenByScroll
         }
     }
@@ -207,46 +206,46 @@ struct MainAppView: View {
 
                 // ── Navigation Layer ─────────────────────────────────────────────
                 rootTabView
-                .environment(\.tabBarScrollAutoHideAction, handleTabBarAutoHideAction)
-                .environment(
-                    \.tabBarSheetVisibilityAction,
-                    TabBarSheetVisibilityAction(update: handleSheetTabBarVisibilityRequest)
-                )
-                .environment(\.bottomChromeIsVisible, isTabBarLayoutVisible)
-                .ignoresSafeArea(.keyboard, edges: .bottom)
-                .dismissKeyboardOnBackgroundTap(enabled: keyboardMonitor.isVisible)
-                // Propagate tab bar visibility changes with an explicit spring so the
-                // animation context is preserved regardless of where the preference
-                // change fires. Without withAnimation here, mutations placed inside
-                // DispatchQueue.main.async run in a new SwiftUI transaction that is
-                // decoupled from the .animation modifier on the ZStack — the tab bar
-                // would snap instead of spring.
-                .onPreferenceChange(TabBarVisibilityKey.self) { rule in
-                    Task { @MainActor in
-                        withAnimation(.bottomChromeSpring) {
-                            self.tabBarRule = rule
+                    .environment(\.tabBarScrollAutoHideAction, handleTabBarAutoHideAction)
+                    .environment(
+                        \.tabBarSheetVisibilityAction,
+                        TabBarSheetVisibilityAction(update: handleSheetTabBarVisibilityRequest)
+                    )
+                    .environment(\.bottomChromeIsVisible, isTabBarLayoutVisible)
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
+                    .dismissKeyboardOnBackgroundTap(enabled: keyboardMonitor.isVisible)
+                    // Propagate tab bar visibility changes with an explicit spring so the
+                    // animation context is preserved regardless of where the preference
+                    // change fires. Without withAnimation here, mutations placed inside
+                    // DispatchQueue.main.async run in a new SwiftUI transaction that is
+                    // decoupled from the .animation modifier on the ZStack — the tab bar
+                    // would snap instead of spring.
+                    .onPreferenceChange(TabBarVisibilityKey.self) { rule in
+                        Task { @MainActor in
+                            withAnimation(.bottomChromeSpring) {
+                                self.tabBarRule = rule
+                            }
                         }
                     }
-                }
-                // Directly controls the live UITabBar instance created by UIKit for
-                // SwiftUI's TabView. The appearance proxy only affects new instances;
-                // this configurator applies isHidden and isUserInteractionEnabled on
-                // the existing object so that safe area recalculates immediately and
-                // hit-testing is disabled, preventing phantom _tabBarItemClicked: events.
-                .configureNativeTabBar(visible: isTabBarLayoutVisible)
-                .onChange(of: router.activeTab) { _, _ in
-                    resetTabBarAutoHideIfNeeded()
-                }
-                .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
-                    if isVisible {
+                    // Directly controls the live UITabBar instance created by UIKit for
+                    // SwiftUI's TabView. The appearance proxy only affects new instances;
+                    // this configurator applies isHidden and isUserInteractionEnabled on
+                    // the existing object so that safe area recalculates immediately and
+                    // hit-testing is disabled, preventing phantom _tabBarItemClicked: events.
+                    .configureNativeTabBar(visible: isTabBarLayoutVisible)
+                    .onChange(of: router.activeTab) { _, _ in
                         resetTabBarAutoHideIfNeeded()
                     }
-                }
-                .onChange(of: tabBarRule) { _, rule in
-                    if rule == .hidden {
-                        resetTabBarAutoHideIfNeeded()
+                    .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
+                        if isVisible {
+                            resetTabBarAutoHideIfNeeded()
+                        }
                     }
-                }
+                    .onChange(of: tabBarRule) { _, rule in
+                        if rule == .hidden {
+                            resetTabBarAutoHideIfNeeded()
+                        }
+                    }
 
                 // ── Custom Tab Bar Layer ─────────────────────────────────────────
                 // The bar is always present in the view hierarchy. Visibility is
@@ -272,8 +271,8 @@ struct MainAppView: View {
                         status: status,
                         bottomPadding: isTabBarLayoutVisible
                             ? UIConstants.Layout.bottomChromeBottomPadding
-                                + UIConstants.Size.bottomChromeBarHeight
-                                + UIConstants.Spacing.medium
+                            + UIConstants.Size.bottomChromeBarHeight
+                            + UIConstants.Spacing.medium
                             : proxy.safeAreaInsets.bottom + UIConstants.Spacing.large,
                         onOpenWorkspace: {
                             aiWorkspaceCoordinator.openWorkspace(router: router)
@@ -319,7 +318,7 @@ struct MainAppView: View {
             }
         }
         .alert("Migration Error", isPresented: $showMigrationError) {
-            Button("OK", role: .cancel) { }
+            Button("OK", role: .cancel) {}
         } message: {
             Text(migrationErrorMessage)
         }
@@ -409,42 +408,45 @@ struct MainAppView: View {
 
     @ViewBuilder
     private func tabBarBlurDebugControls(in proxy: GeometryProxy) -> some View {
-#if DEBUG
-        if developmentPreferences.edgeShadowTuningEnabled, !keyboardMonitor.isVisible {
-            EdgeShadowDebugFloatingPanel(
-                mode: .progressiveBlur,
-                supportsTopEdge: false,
-                supportsBottomEdge: true,
-                initialSelectedEdge: .bottom,
-                bottomHeightBase: tabBarBottomBlurBaseHeight(safeBottomInset: proxy.safeAreaInsets.bottom),
-                heightRange: 0...260,
-                showsProgressiveBlurRadius: false,
-                panelTitleOverride: "Tab Bar Blur",
-                showButtonTitleOverride: "Tune Tab Blur",
-                hideButtonTitleOverride: "Hide Tab Blur",
-                settings: Binding(
-                    get: {
-                        developmentPreferences.edgeShadowSettings(for: Self.tabBarBlurDebugScreenID)
-                    },
-                    set: {
-                        developmentPreferences.setEdgeShadowSettings(
-                            $0,
-                            for: Self.tabBarBlurDebugScreenID
-                        )
+        #if DEBUG
+            if developmentPreferences.edgeShadowTuningEnabled, !keyboardMonitor.isVisible {
+                EdgeShadowDebugFloatingPanel(
+                    mode: .progressiveBlur,
+                    supportsTopEdge: false,
+                    supportsBottomEdge: true,
+                    initialSelectedEdge: .bottom,
+                    bottomHeightBase: tabBarBottomBlurBaseHeight(safeBottomInset: proxy.safeAreaInsets.bottom),
+                    heightRange: 0 ... 260,
+                    showsProgressiveBlurRadius: false,
+                    showsProgressiveFade: false,
+                    showsProgressiveTintEdgeHeight: false,
+                    showsProgressiveStart: false,
+                    panelTitleOverride: "Tab Bar Blur",
+                    showButtonTitleOverride: "Tune Tab Blur",
+                    hideButtonTitleOverride: "Hide Tab Blur",
+                    settings: Binding(
+                        get: {
+                            developmentPreferences.edgeShadowSettings(for: Self.tabBarBlurDebugScreenID)
+                        },
+                        set: {
+                            developmentPreferences.setEdgeShadowSettings(
+                                $0,
+                                for: Self.tabBarBlurDebugScreenID
+                            )
+                        }
+                    ),
+                    onReset: {
+                        developmentPreferences.resetEdgeShadowSettings(for: Self.tabBarBlurDebugScreenID)
                     }
-                ),
-                onReset: {
-                    developmentPreferences.resetEdgeShadowSettings(for: Self.tabBarBlurDebugScreenID)
-                }
-            )
-            .padding(.trailing, UIConstants.Spacing.medium)
-            .padding(.bottom, UIConstants.Size.bottomChromeBarHeight + 104)
-            .opacity(isFloatingTabBarVisible ? 1 : 0)
-            .allowsHitTesting(isFloatingTabBarVisible)
-        }
-#else
-        EmptyView()
-#endif
+                )
+                .padding(.trailing, UIConstants.Spacing.medium)
+                .padding(.bottom, UIConstants.Size.bottomChromeBarHeight + 104)
+                .opacity(isFloatingTabBarVisible ? 1 : 0)
+                .allowsHitTesting(isFloatingTabBarVisible)
+            }
+        #else
+            EmptyView()
+        #endif
     }
 
     @ViewBuilder

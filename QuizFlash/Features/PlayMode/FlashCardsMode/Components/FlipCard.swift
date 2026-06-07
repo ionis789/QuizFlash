@@ -164,7 +164,6 @@ struct FlipCard: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(AppPreferences.self) private var appPreferences
     @Environment(DevelopmentPreferences.self) private var developmentPreferences
 
     // MARK: - State
@@ -182,7 +181,7 @@ struct FlipCard: View {
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var playModeTextScale: CGFloat {
-        CGFloat(textSize.playModeScale) * appPreferences.cardContentFontScale
+        CGFloat(textSize.playModeScale)
     }
     private var cardCornerRadius: CGFloat { isCompact ? 42 : 52 }
     private var hPad: CGFloat { isCompact ? 20 : 28 }

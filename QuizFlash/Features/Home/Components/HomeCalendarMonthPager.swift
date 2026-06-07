@@ -7,7 +7,8 @@ import SwiftUI
 import UIKit
 
 private struct ExpandedMonthPagerConfiguration: Equatable {
-    let snapshots: [CalendarViewModel.MonthSnapshot]
+    let monthStarts: [Date]
+    let selectedDateIDs: [String?]
     let progress: CGFloat
     let state: HomeCalendarAdaptiveLayout.State
     let insightsRevision: Int
@@ -100,6 +101,7 @@ final class ExpandedMonthPagerController: UIPageViewController, UIPageViewContro
     private var pageControllers: [MonthGridHostingController] = []
     private var centeredMonthStart: Date?
     private var lastConfiguration: ExpandedMonthPagerConfiguration?
+    private var pendingRecenteringID: UUID?
 
     init() {
         super.init(transitionStyle: .scroll, navigationOrientation: .horizontal)
@@ -128,7 +130,10 @@ final class ExpandedMonthPagerController: UIPageViewController, UIPageViewContro
         guard snapshots.count == 3 else { return }
 
         let configuration = ExpandedMonthPagerConfiguration(
-            snapshots: snapshots,
+            monthStarts: snapshots.map(\.monthStart),
+            selectedDateIDs: snapshots.map { snapshot in
+                snapshot.rows.flatMap { $0 }.first { $0.isSelected }?.dateString
+            },
             progress: progress,
             state: state,
             insightsRevision: insightsRevision
@@ -155,6 +160,8 @@ final class ExpandedMonthPagerController: UIPageViewController, UIPageViewContro
             }
             centeredMonthStart = snapshots[1].monthStart
             setViewControllers([pageControllers[1]], direction: .forward, animated: false)
+            pendingRecenteringID = nil
+            view.isUserInteractionEnabled = true
         } else {
             for (index, controller) in pageControllers.enumerated() {
                 controller.rootView = MonthGridPageView(
@@ -206,13 +213,35 @@ final class ExpandedMonthPagerController: UIPageViewController, UIPageViewContro
             let controller = viewControllers?.first as? MonthGridHostingController
         else { return }
 
+        let offset: Int
         switch controller.pageIndex {
         case 0:
-            onMonthOffset?(-1)
+            offset = -1
         case 2:
-            onMonthOffset?(1)
+            offset = 1
         default:
-            break
+            return
+        }
+
+        view.isUserInteractionEnabled = false
+        let recenteringID = UUID()
+        pendingRecenteringID = recenteringID
+
+        DispatchQueue.main.async { [weak self] in
+            self?.onMonthOffset?(offset)
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            guard
+                let self,
+                self.pendingRecenteringID == recenteringID
+            else { return }
+
+            self.pendingRecenteringID = nil
+            if self.pageControllers.indices.contains(1) {
+                self.setViewControllers([self.pageControllers[1]], direction: .forward, animated: false)
+            }
+            self.view.isUserInteractionEnabled = true
         }
     }
 }

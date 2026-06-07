@@ -292,14 +292,9 @@ private struct PlayModeCard: View {
     }
 
     private func emitUnavailableFeedbackHaptic() {
-        switch appPreferences.flashcardsSwipeHaptics {
-        case .off:
-            return
-        case .subtle, .standard:
-            let generator = UINotificationFeedbackGenerator()
-            generator.prepare()
-            generator.notificationOccurred(.error)
-        }
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(.error)
     }
 }
 
