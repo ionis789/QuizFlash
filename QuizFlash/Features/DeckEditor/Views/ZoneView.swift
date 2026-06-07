@@ -64,6 +64,17 @@ struct ZoneEditorResolvedZoneFramePreferenceKey: PreferenceKey {
     }
 }
 
+struct ZoneEditorNaturalBlockWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] { [:] }
+
+    static func reduce(
+        value: inout [String: CGFloat],
+        nextValue: () -> [String: CGFloat]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, newValue in newValue })
+    }
+}
+
 // MARK: - Zone Editor View (Recursive)
 
 /// Recursive view that renders a zone tree rooted at `path`.
@@ -78,11 +89,13 @@ struct ZoneEditorView: View {
     var highlightContext: HighlightContext?
     var fontScale: CGFloat
     var availableWidth: CGFloat
+    var measurementWidth: CGFloat
     var maxEditableZoneHeight: CGFloat?
     var previewDirection: Binding<AddDirection?>
 
     private var zone: ZoneModel? { content.zone(at: path) }
     private var isSelected: Bool { selectedPath == path }
+    @State private var measuredDirectChildWidths: [String: CGFloat] = [:]
 
     init(
         content: ZoneCardContent,
@@ -91,6 +104,7 @@ struct ZoneEditorView: View {
         highlightContext: HighlightContext?,
         fontScale: CGFloat = 1.0,
         availableWidth: CGFloat = 320,
+        measurementWidth: CGFloat? = nil,
         maxEditableZoneHeight: CGFloat? = nil,
         previewDirection: Binding<AddDirection?> = .constant(nil)
     ) {
@@ -100,6 +114,7 @@ struct ZoneEditorView: View {
         self.highlightContext = highlightContext
         self.fontScale = fontScale
         self.availableWidth = availableWidth
+        self.measurementWidth = measurementWidth ?? availableWidth
         self.maxEditableZoneHeight = maxEditableZoneHeight
         self.previewDirection = previewDirection
     }
@@ -123,6 +138,8 @@ struct ZoneEditorView: View {
             highlightContext: highlightContext,
             fontScale: fontScale,
             availableWidth: availableWidth,
+            measurementWidth: measurementWidth,
+            maxEditableZoneHeight: maxEditableZoneHeight,
             onSelect: { selectZone() },
             previewDirection: previewDirection
         )
@@ -134,9 +151,13 @@ struct ZoneEditorView: View {
     @ViewBuilder
     private func containerZoneView(zone: ZoneModel) -> some View {
         let children = zone.children ?? []
+        let indexedChildren = Array(children.enumerated())
+        let childPaths = indexedChildren.map { path.appending($0.offset).id }
+        let groupWidth = verticalGroupWidth(for: children, childPaths: childPaths)
+        let groupLeadingInset = max((availableWidth - groupWidth) / 2, 0)
 
         VStack(spacing: 8) {
-            ForEach(Array(children.enumerated()), id: \.element.id) { index, _ in
+            ForEach(indexedChildren, id: \.element.id) { index, _ in
                 let childPath = path.appending(index)
                 let isChildSelected = (selectedPath == childPath)
 
@@ -151,11 +172,12 @@ struct ZoneEditorView: View {
                     selectedPath: $selectedPath,
                     highlightContext: highlightContext,
                     fontScale: fontScale,
-                    availableWidth: availableWidth,
+                    availableWidth: groupWidth,
+                    measurementWidth: measurementWidth,
                     maxEditableZoneHeight: maxEditableZoneHeight,
                     previewDirection: maskedPreviewDirection(for: isChildSelected)
                 )
-                .frame(width: availableWidth, alignment: .topLeading)
+                .frame(width: groupWidth, alignment: .topLeading)
 
                 if isChildSelected, previewDirection.wrappedValue == .down {
                     FakeGhostBlockView()
@@ -163,8 +185,78 @@ struct ZoneEditorView: View {
                 }
             }
         }
+        .frame(width: groupWidth, alignment: .topLeading)
+        .offset(x: groupLeadingInset)
         .frame(width: availableWidth, alignment: .topLeading)
         .fixedSize(horizontal: false, vertical: true)
+        .animation(.easeOut(duration: 0.14), value: groupWidth)
+        .onPreferenceChange(ZoneEditorNaturalBlockWidthPreferenceKey.self) { widths in
+            let directWidths = Dictionary(
+                uniqueKeysWithValues: childPaths.compactMap { childPath -> (String, CGFloat)? in
+                    guard let width = widths[childPath], width > 0 else { return nil }
+                    return (childPath, min(max(ceil(width), 1), availableWidth))
+                }
+            )
+
+            guard directWidths.count == childPaths.count else {
+                if !measuredDirectChildWidths.isEmpty {
+                    measuredDirectChildWidths = [:]
+                }
+                return
+            }
+
+            guard directWidths != measuredDirectChildWidths else { return }
+            measuredDirectChildWidths = directWidths
+        }
+        .onChange(of: verticalGroupIdentity(for: children)) { _, _ in
+            measuredDirectChildWidths = [:]
+        }
+    }
+
+    private func verticalGroupWidth(for children: [ZoneModel], childPaths: [String]) -> CGFloat {
+        if measuredDirectChildWidths.count == childPaths.count {
+            let measuredWidth = childPaths
+                .compactMap { measuredDirectChildWidths[$0] }
+                .max() ?? 1
+
+            return min(max(ceil(measuredWidth), 1), availableWidth)
+        }
+
+        let estimatedWidth = children
+            .map { estimatedEditorBlockWidth(for: $0, constrainedTo: measurementWidth) }
+            .max() ?? availableWidth
+
+        return min(max(ceil(estimatedWidth), 1), availableWidth)
+    }
+
+    private func estimatedEditorBlockWidth(for zone: ZoneModel, constrainedTo width: CGFloat) -> CGFloat {
+        if zone.isLeaf {
+            return ZoneContentEstimator.estimatedBlockWidth(
+                for: normalizedEditorMeasurementZone(zone),
+                fontScale: fontScale,
+                availableWidth: width
+            )
+        }
+
+        let children = zone.children ?? []
+        guard !children.isEmpty else { return 1 }
+        return children
+            .map { estimatedEditorBlockWidth(for: $0, constrainedTo: width) }
+            .max() ?? 1
+    }
+
+    private func normalizedEditorMeasurementZone(_ zone: ZoneModel) -> ZoneModel {
+        var layoutZone = zone
+        layoutZone.textAlignment = .leading
+        if layoutZone.blockAlignment == .auto {
+            layoutZone.blockAlignment = .leading
+        }
+        return layoutZone
+    }
+
+    private func verticalGroupIdentity(for children: [ZoneModel]) -> String {
+        children.map(\.id.uuidString)
+        .joined(separator: "||")
     }
 
     private func maskedPreviewDirection(for isChildSelected: Bool) -> Binding<AddDirection?> {
@@ -210,6 +302,7 @@ struct ZoneContentView: View {
     var highlightContext: HighlightContext?
     var fontScale: CGFloat
     var availableWidth: CGFloat
+    var measurementWidth: CGFloat
     var maxEditableZoneHeight: CGFloat?
     var onSelect: () -> Void
     @Binding var previewDirection: AddDirection?
@@ -232,10 +325,6 @@ struct ZoneContentView: View {
     private var currentZoneID: UUID? { zone?.id }
     private var locale: Locale { appPreferences.resolvedLocale }
 
-    private func localized(_ value: String.LocalizationValue) -> String {
-        AppLocalization.string(value, locale: locale)
-    }
-
     init(
         content: ZoneCardContent,
         path: ZonePath,
@@ -243,6 +332,7 @@ struct ZoneContentView: View {
         highlightContext: HighlightContext? = nil,
         fontScale: CGFloat = 1.0,
         availableWidth: CGFloat = 320,
+        measurementWidth: CGFloat? = nil,
         maxEditableZoneHeight: CGFloat? = nil,
         onSelect: @escaping () -> Void,
         previewDirection: Binding<AddDirection?> = .constant(nil)
@@ -253,9 +343,14 @@ struct ZoneContentView: View {
         self.highlightContext = highlightContext
         self.fontScale = fontScale
         self.availableWidth = availableWidth
+        self.measurementWidth = measurementWidth ?? availableWidth
         self.maxEditableZoneHeight = maxEditableZoneHeight
         self.onSelect = onSelect
         self._previewDirection = previewDirection
+    }
+
+    private func localized(_ value: String.LocalizationValue) -> String {
+        AppLocalization.string(value, locale: locale)
     }
 
     private var shouldShowHighlight: Bool {
@@ -316,6 +411,10 @@ struct ZoneContentView: View {
                 width: availableWidth,
                 height: layout.blockSize.height + (visualOutset.vertical * 2),
                 alignment: .topLeading
+            )
+            .preference(
+                key: ZoneEditorNaturalBlockWidthPreferenceKey.self,
+                value: [path.id: naturalBlockWidth(for: layoutZone, measuredContentSize: measuredContentSize)]
             )
             .contentShape(Rectangle())
             .simultaneousGesture(
@@ -512,16 +611,32 @@ struct ZoneContentView: View {
         for zone: ZoneModel,
         layoutZone: ZoneModel
     ) -> CGFloat {
+        let maxMeasurementWidth = max(measurementWidth, availableWidth, 1)
         switch layoutZone.sizeMode {
         case .fixed:
-            return min(max(layoutZone.fixedWidth ?? availableWidth, minimumResizableWidth(for: zone)), availableWidth)
+            return min(max(layoutZone.fixedWidth ?? maxMeasurementWidth, minimumResizableWidth(for: zone)), maxMeasurementWidth)
         case .fillWidth:
-            return availableWidth
+            return maxMeasurementWidth
         case .auto:
             if layoutZone.text.isEmpty {
-                return stableEmptyTextWidth(for: zone)
+                return stableEmptyTextWidth(for: zone, constrainedTo: maxMeasurementWidth)
             }
-            return rawTextMeasurementWidth(for: layoutZone, constrainedTo: availableWidth)
+            return rawTextMeasurementWidth(for: layoutZone, constrainedTo: maxMeasurementWidth)
+        }
+    }
+
+    private func naturalBlockWidth(
+        for layoutZone: ZoneModel,
+        measuredContentSize: CGSize
+    ) -> CGFloat {
+        let minimumWidth = stableMinimumAutoWidth(for: layoutZone)
+        switch layoutZone.sizeMode {
+        case .fixed:
+            return min(max(ceil(layoutZone.fixedWidth ?? measuredContentSize.width), minimumWidth), measurementWidth)
+        case .fillWidth:
+            return min(max(measurementWidth, 1), measurementWidth)
+        case .auto:
+            return min(max(ceil(measuredContentSize.width), minimumWidth), measurementWidth)
         }
     }
 
@@ -559,7 +674,11 @@ struct ZoneContentView: View {
     }
 
     private func stableEmptyTextWidth(for zone: ZoneModel) -> CGFloat {
-        min(max(156, minimumResizableWidth(for: zone)), availableWidth)
+        stableEmptyTextWidth(for: zone, constrainedTo: availableWidth)
+    }
+
+    private func stableEmptyTextWidth(for zone: ZoneModel, constrainedTo width: CGFloat) -> CGFloat {
+        min(max(156, minimumResizableWidth(for: zone)), width)
     }
 
     private func rawTextMeasurementWidth(
