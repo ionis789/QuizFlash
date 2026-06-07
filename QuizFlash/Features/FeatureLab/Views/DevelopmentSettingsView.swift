@@ -87,9 +87,9 @@ struct DevelopmentSettingsView: View {
             SettingsToggleRow(
                 icon: "rectangle.dashed",
                 tint: .orange,
-                title: "FlashCard Grid Guides",
+                title: "Zone Content Guides",
                 detail: nil,
-                isOn: flashcardGridTextLayoutDebugBinding
+                isOn: zoneContentLayoutDebugBinding
             )
 
             SettingsCardDivider()
@@ -253,10 +253,10 @@ struct DevelopmentSettingsView: View {
         )
     }
 
-    private var flashcardGridTextLayoutDebugBinding: Binding<Bool> {
+    private var zoneContentLayoutDebugBinding: Binding<Bool> {
         Binding(
-            get: { developmentPreferences.flashcardGridTextLayoutDebugEnabled },
-            set: { developmentPreferences.flashcardGridTextLayoutDebugEnabled = $0 }
+            get: { developmentPreferences.zoneContentLayoutDebugEnabled },
+            set: { developmentPreferences.zoneContentLayoutDebugEnabled = $0 }
         )
     }
 

@@ -270,9 +270,9 @@ struct ZoneContentView: View {
                 for: zone,
                 layoutZone: layoutZone
             )
-            let layout = CardZoneLayoutEngine.leafLayout(
+            let layout = ZoneContentLayoutEngine.leafLayout(
                 for: layoutZone,
-                spec: CardZoneLayoutSpec(
+                spec: ZoneContentLayoutSpec(
                     availableWidth: availableWidth,
                     fontScale: fontScale,
                     minimumAutoWidth: stableMinimumAutoWidth(for: layoutZone)
@@ -370,7 +370,7 @@ struct ZoneContentView: View {
         }
     }
 
-    private func selectionOutline(layout: CardZoneLayoutResult, zone: ZoneModel, active: Bool) -> some View {
+    private func selectionOutline(layout: ZoneContentLayoutResult, zone: ZoneModel, active: Bool) -> some View {
         let outset = visualZoneOutset(for: zone)
 
         return RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
@@ -386,7 +386,7 @@ struct ZoneContentView: View {
             .allowsHitTesting(false)
     }
 
-    private func blockFrameReporter(layout: CardZoneLayoutResult, zone: ZoneModel) -> some View {
+    private func blockFrameReporter(layout: ZoneContentLayoutResult, zone: ZoneModel) -> some View {
         let outset = visualZoneOutset(for: zone)
 
         return Color.clear
@@ -401,7 +401,7 @@ struct ZoneContentView: View {
             }
     }
 
-    private func blockSurface(layout: CardZoneLayoutResult, zone: ZoneModel) -> some View {
+    private func blockSurface(layout: ZoneContentLayoutResult, zone: ZoneModel) -> some View {
         let outset = visualZoneOutset(for: zone)
         let highlightTint = zone.highlightColor.zoneSurfaceTint
 
@@ -428,8 +428,11 @@ struct ZoneContentView: View {
     private func normalizedLayoutZone(_ zone: ZoneModel) -> ZoneModel {
         if isTextResizableZone(zone) {
             var layoutZone = zone
-            layoutZone.sizeMode = .fillWidth
-            layoutZone.blockAlignment = .leading
+            layoutZone.sizeMode = .auto
+            if layoutZone.blockAlignment == .auto {
+                layoutZone.blockAlignment = .leading
+            }
+            layoutZone.textAlignment = .leading
             layoutZone.fixedWidth = nil
             layoutZone.fixedHeight = nil
             return layoutZone
@@ -524,7 +527,7 @@ struct ZoneContentView: View {
 
     private func contentPlacement(
         for zone: ZoneModel,
-        layout: CardZoneLayoutResult,
+        layout: ZoneContentLayoutResult,
         measuredContentSize: CGSize
     ) -> (leadingInset: CGFloat, width: CGFloat) {
         guard isTextResizableZone(zone),
@@ -580,7 +583,7 @@ struct ZoneContentView: View {
         preservesTrailingBlankLines: Bool = false
     ) -> CGSize {
         let bulletOffset = shouldShowBullet(for: zone)
-            ? CardZoneContentMetrics.bulletWidth + CardZoneContentMetrics.bulletSpacing
+            ? ZoneContentMetrics.bulletWidth + ZoneContentMetrics.bulletSpacing
             : 0
         let horizontalPadding = editorTextHorizontalPadding(for: zone) * 2
         let textViewWidth = max(width - bulletOffset - horizontalPadding, 1)
@@ -654,7 +657,7 @@ struct ZoneContentView: View {
     }
 
     private func textMeasurementAttributes(for zone: ZoneModel) -> [NSAttributedString.Key: Any] {
-        textMeasurementAttributes(for: zone, alignment: zone.textAlignment.nsTextAlignment)
+        textMeasurementAttributes(for: zone, alignment: .left)
     }
 
     private func textMeasurementAttributes(
@@ -676,7 +679,7 @@ struct ZoneContentView: View {
         zone.contentType == .text || zone.contentType == .empty || zone.contentType == .code
     }
 
-    private func contentFrameHeight(for zone: ZoneModel, layout: CardZoneLayoutResult) -> CGFloat? {
+    private func contentFrameHeight(for zone: ZoneModel, layout: ZoneContentLayoutResult) -> CGFloat? {
         switch zone.contentType {
         case .image, .sketch:
             return layout.blockSize.height
@@ -778,9 +781,10 @@ struct ZoneContentView: View {
             text: zone?.text ?? "",
             font: textUIFont,
             textColor: UIColor(zone?.textColor.color ?? .primary),
-            textAlignment: zone?.textAlignment.nsTextAlignment ?? .left,
+            textAlignment: .left,
             lineSpacing: editorTextLineSpacing,
-            contentInset: editorTextContentInsets
+            contentInset: editorTextContentInsets,
+            forcedLineBreakTintColor: UIColor(accent)
         )
         .padding(.horizontal, editorTextHorizontalPadding)
         .contentShape(Rectangle())
@@ -791,7 +795,7 @@ struct ZoneContentView: View {
         let displayText = rawText.hasSuffix("\n") ? rawText + "\u{200B}" : (rawText.isEmpty ? "\u{200B}" : rawText)
         let attrString = highlightContext?.generateOverlay(for: displayText, font: textFont, highlightColor: ThemeManager.shared.accentColor.color) ?? AttributedString(displayText)
         return Text(attrString)
-            .multilineTextAlignment(zone?.textAlignment.alignment ?? .leading)
+            .multilineTextAlignment(.leading)
             .lineSpacing(editorTextLineSpacing)
             .padding(.top, editorTextContentInsets.top)
             .padding(.leading, editorTextContentInsets.left)
@@ -809,7 +813,7 @@ struct ZoneContentView: View {
     @ViewBuilder
     private func textEditorCore(maxVisibleTextHeight: CGFloat) -> some View {
         let currentTextColor = zone?.textColor.color ?? .primary
-        let currentTextAlignment = zone?.textAlignment.nsTextAlignment ?? .left
+        let currentTextAlignment = NSTextAlignment.left
         let currentIsBold = zone?.isBold ?? false
         let currentIsItalic = zone?.isItalic ?? false
         let currentPath = path
@@ -819,7 +823,7 @@ struct ZoneContentView: View {
 
         ZStack(alignment: .topLeading) {
             ZoneTextViewRepresentable(
-                text: pureTextBinding, font: textUIFont, textColor: UIColor(currentTextColor), textAlignment: currentTextAlignment, isBold: currentIsBold, isItalic: currentIsItalic, lineSpacing: editorTextLineSpacing, contentInset: textInsets, maximumVisibleHeight: maxVisibleTextHeight, cursorTintColor: UIColor(accent), zoneID: zoneID, isFirstResponder: isFocused,
+                text: pureTextBinding, font: textUIFont, textColor: UIColor(currentTextColor), textAlignment: currentTextAlignment, isBold: currentIsBold, isItalic: currentIsItalic, lineSpacing: editorTextLineSpacing, contentInset: textInsets, maximumVisibleHeight: maxVisibleTextHeight, cursorTintColor: UIColor(accent), forcedLineBreakTintColor: UIColor(accent), zoneID: zoneID, isFirstResponder: isFocused,
                 onTextChange: { newText in
                     if currentContentType == .text || currentContentType == .empty || currentContentType == .code {
                         highlightContext?.dismiss()
@@ -942,7 +946,7 @@ struct ZoneContentView: View {
 
     // MARK: - Debug Reporting
 
-    private func reportDebugZoneState(zone: ZoneModel, layout: CardZoneLayoutResult) {
+    private func reportDebugZoneState(zone: ZoneModel, layout: ZoneContentLayoutResult) {
         ZoneEditorDebugStore.shared.updateFocusManager(
             focusedZoneID: focusManager.focusedZoneID,
             pendingZoneID: focusManager.pendingFocusZoneID,
@@ -976,7 +980,7 @@ struct ZoneContentView: View {
         )
     }
 
-    private func zoneDebugSignature(zone: ZoneModel, layout: CardZoneLayoutResult) -> String {
+    private func zoneDebugSignature(zone: ZoneModel, layout: ZoneContentLayoutResult) -> String {
         let parts: [String] = [
             path.id,
             zone.id.uuidString,
@@ -1104,7 +1108,7 @@ struct ZoneContentView: View {
     private var zoneTextVerticalPadding: CGFloat { 16 }
 
     private var editorBulletSize: CGFloat {
-        CardZoneContentMetrics.bulletWidth
+        ZoneContentMetrics.bulletWidth
     }
 
     private var editorBulletTopPadding: CGFloat {
@@ -1166,26 +1170,23 @@ struct ZoneContentView: View {
         }
     }
 
-    private func alignmentFor(_ zone: ZoneModel?) -> Alignment { switch zone?.textAlignment ?? .leading { case .leading: return .leading; case .center: return .center; case .trailing: return .trailing } }
-    private func topAlignmentFor(_ zone: ZoneModel?) -> Alignment { switch zone?.textAlignment ?? .leading { case .leading: return .topLeading; case .center: return .top; case .trailing: return .topTrailing } }
+    private func alignmentFor(_ zone: ZoneModel?) -> Alignment { .leading }
+    private func topAlignmentFor(_ zone: ZoneModel?) -> Alignment { .topLeading }
 }
 
 struct CardFaceView: View {
     let zone: ZoneModel
     let fontScale: CGFloat
-    let displayTextAlignment: TextBlockAlignment?
     var onTap: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
 
     init(
         zone: ZoneModel,
         fontScale: CGFloat = 1.0,
-        displayTextAlignment: TextBlockAlignment? = nil,
         onTap: (() -> Void)? = nil
     ) {
         self.zone = zone
         self.fontScale = fontScale
-        self.displayTextAlignment = displayTextAlignment
         self.onTap = onTap
     }
 
@@ -1201,7 +1202,6 @@ struct CardFaceView: View {
         case .text, .code:
             if !zone.text.isEmpty {
                 let previewText = displayText(for: zone)
-                let resolvedTextAlignment = displayTextAlignment ?? zone.textAlignment
                 if zone.contentType == .code || previewText.hasPrefix("```") {
                     CodeSnippetView(
                         rawText: previewText,
@@ -1215,8 +1215,8 @@ struct CardFaceView: View {
                             Circle()
                                 .fill(zone.textColor.color)
                                 .frame(
-                                    width: CardZoneContentMetrics.bulletWidth,
-                                    height: CardZoneContentMetrics.bulletWidth
+                                    width: ZoneContentMetrics.bulletWidth,
+                                    height: ZoneContentMetrics.bulletWidth
                                 )
                                 .padding(.top, previewBulletTopPadding(for: zone))
                         }
@@ -1225,7 +1225,7 @@ struct CardFaceView: View {
                             fontSize: fontSizeFor(zone),
                             fontFamily: zone.fontFamily,
                             textColor: zone.textColor.color,
-                            alignment: resolvedTextAlignment.horizontalAlignment,
+                            alignment: TextBlockAlignment.leading.horizontalAlignment,
                             isBold: zone.isBold,
                             isItalic: zone.isItalic,
                             isInteractive: false,
@@ -1241,7 +1241,7 @@ struct CardFaceView: View {
                             }
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: alignmentFor(resolvedTextAlignment))
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         case .image:
@@ -1254,9 +1254,11 @@ struct CardFaceView: View {
     private func displayText(for zone: ZoneModel) -> String {
         switch zone.contentType {
         case .text:
-            return MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
+            return ZoneForcedLineBreak.renderText(
+                MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
+            )
         default:
-            return zone.text
+            return ZoneForcedLineBreak.renderText(zone.text)
         }
     }
 
@@ -1266,7 +1268,7 @@ struct CardFaceView: View {
 
     private func previewBulletTopPadding(for zone: ZoneModel) -> CGFloat {
         let lineHeight = ZoneTextTypography.uiFont(for: zone, fontScale: fontScale).lineHeight
-        return 4 + max((lineHeight - CardZoneContentMetrics.bulletWidth) / 2, 0)
+        return 4 + max((lineHeight - ZoneContentMetrics.bulletWidth) / 2, 0)
     }
 
     @ViewBuilder
@@ -1278,27 +1280,21 @@ struct CardFaceView: View {
                     CardFaceView(
                         zone: child,
                         fontScale: fontScale,
-                        displayTextAlignment: displayTextAlignment,
                         onTap: onTap
                     )
                 }
             }
         } else {
-            VStack(alignment: displayTextAlignment?.horizontalAlignment ?? .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 12) {
                 ForEach(children) { child in
                     CardFaceView(
                         zone: child,
                         fontScale: fontScale,
-                        displayTextAlignment: displayTextAlignment,
                         onTap: onTap
                     )
                 }
             }
         }
-    }
-
-    private func alignmentFor(_ textAlignment: TextBlockAlignment) -> Alignment {
-        switch textAlignment { case .leading: return .leading; case .center: return .center; case .trailing: return .trailing }
     }
 
     private func previewFont(for zone: ZoneModel) -> Font {

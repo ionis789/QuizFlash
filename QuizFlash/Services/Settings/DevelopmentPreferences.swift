@@ -18,7 +18,7 @@ final class DevelopmentPreferences {
         static let aiDebugTracingEnabled = AIDebugTracePreferenceKeys.debugTracingEnabled
         static let deckWorkspaceMockAIEnabled = "preferences.development.deckWorkspaceMockAIEnabled"
         static let deckGridTextLayoutDebugEnabled = "preferences.development.deckGridTextLayoutDebugEnabled"
-        static let flashcardGridTextLayoutDebugEnabled = "preferences.development.flashcardGridTextLayoutDebugEnabled"
+        static let zoneContentLayoutDebugEnabled = "preferences.development.zoneContentLayoutDebugEnabled"
         static let zoneEditorDebugHUDEnabled = "preferences.development.zoneEditorDebugHUDEnabled"
         static let playModeDeveloperModeEnabled = "preferences.development.playModeDeveloperModeEnabled"
         static let edgeShadowTuningEnabled = "preferences.development.edgeShadowTuningEnabled"
@@ -63,12 +63,12 @@ final class DevelopmentPreferences {
         }
     }
 
-    /// Shows the flashcard play-mode text-block guides used during card layout tuning.
-    var flashcardGridTextLayoutDebugEnabled: Bool {
+    /// Shows the zone content text-block guides used during layout tuning.
+    var zoneContentLayoutDebugEnabled: Bool {
         didSet {
             userDefaults.set(
-                flashcardGridTextLayoutDebugEnabled,
-                forKey: Keys.flashcardGridTextLayoutDebugEnabled
+                zoneContentLayoutDebugEnabled,
+                forKey: Keys.zoneContentLayoutDebugEnabled
             )
         }
     }
@@ -137,8 +137,8 @@ final class DevelopmentPreferences {
         self.deckGridTextLayoutDebugEnabled = userDefaults.object(
             forKey: Keys.deckGridTextLayoutDebugEnabled
         ) as? Bool ?? false
-        self.flashcardGridTextLayoutDebugEnabled = userDefaults.object(
-            forKey: Keys.flashcardGridTextLayoutDebugEnabled
+        self.zoneContentLayoutDebugEnabled = userDefaults.object(
+            forKey: Keys.zoneContentLayoutDebugEnabled
         ) as? Bool ?? false
         self.zoneEditorDebugHUDEnabled = userDefaults.object(
             forKey: Keys.zoneEditorDebugHUDEnabled

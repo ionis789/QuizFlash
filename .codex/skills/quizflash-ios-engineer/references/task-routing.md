@@ -68,13 +68,13 @@ For video-heavy UI debugging, extract a few representative frames first and use 
 
 ### Flashcard zone editor interaction/layout bug
 
-Use this route for card-zone editing issues: caret placement, long-press selection, focus/unfocus jumps, resize handles, raw text editor metrics, toolbar overlap, keyboard avoidance, editor/play preview parity, or visual zone outlines.
+Use this route for zone-based editing issues: caret placement, long-press selection, focus/unfocus jumps, resize handles, raw text editor metrics, toolbar overlap, keyboard avoidance, editor/play preview parity, or visual zone outlines.
 
 - Start with the narrow symptom:
   - Text input, caret, selection, focus state: `Features/DeckEditor/ZoneLogic/ZoneTextView.swift`, then `Features/DeckEditor/ZoneLogic/ZoneFocusManager.swift`.
   - Zone frame, resize, hit testing, handles, empty-zone sizing: `Features/DeckEditor/Views/ZoneView.swift`, then the local resize/helper symbols found by `rg "resize|handle|ZoneResize|minimum|caret" Features/DeckEditor`.
   - Toolbar, keyboard, scroll, canvas placement: `Features/DeckEditor/Views/FlashcardEditorView.swift`, then `Features/DeckEditor/Components/EditorFormatMenuBar.swift`.
-  - Editor/play size or wrapping mismatch: `Features/DeckEditor/Components/FlashcardGridContentLayout.swift` plus the exact play-mode renderer found by `rg "FlashcardGridContentLayout|contentAlignment|textSize" Features Domain`.
+  - Editor/play size or wrapping mismatch: `Features/DeckEditor/Components/ZoneEditor/ZoneContentLayoutEngine.swift`, `Features/PlayMode/Shared/Components/ZoneContentLayout.swift`, plus the exact play-mode renderer found by `rg "ZoneContentLayout|contentAlignment|textSize" Features Domain`.
 - Do not open `MixedMathTextView.swift` for raw editor bugs unless the issue explicitly involves compiled math/rich preview or play-mode rendering.
 - Do not read `project-map.md` or `architecture.md` for local cursor, focus, resize, or outline bugs unless the fix crosses shared sheet/navigation/long-scroll infrastructure.
 - Keep UIKit wrapper and SwiftUI container reads paired. Most bugs here come from a contract mismatch between `UITextView` behavior, SwiftUI frame updates, focus state, and gesture hit testing.
@@ -135,6 +135,6 @@ Use this route for card-zone editing issues: caret placement, long-press selecti
 - A text, copy, spacing, or local overlay change should not automatically pull `project-map.md`.
 - A local Home or DeckView UI tweak should not automatically pull `architecture.md` end to end.
 - A `DeckWorkspaceView` UI tweak should not automatically pull the whole AI stack.
-- A flashcard zone-editor touch or layout bug should not automatically pull every `Features/DeckEditor` file.
+- A flashzone content-editor touch or layout bug should not automatically pull every `Features/DeckEditor` file.
 - A screenshot/video bug should not start with broad repo docs; use `rg` and a small owner-file set first.
 - If two nearby files explain the change safely, stop there and edit.

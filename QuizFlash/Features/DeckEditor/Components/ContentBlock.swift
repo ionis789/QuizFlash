@@ -7,6 +7,53 @@ import SwiftUI
 import Foundation
 import UIKit
 
+// MARK: - Forced Line Break
+
+enum ZoneForcedLineBreak {
+    nonisolated static let marker = "┃"
+
+    nonisolated static func renderText(_ text: String) -> String {
+        normalizeCarriageReturns(in: text)
+            .replacingOccurrences(of: marker, with: "\n")
+    }
+
+    nonisolated static func normalizeCarriageReturns(in text: String) -> String {
+        text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+    }
+
+    static func applyMarkerStyle(
+        to textStorage: NSTextStorage,
+        baseAttributes: [NSAttributedString.Key: Any],
+        markerColor: UIColor
+    ) {
+        let fullText = textStorage.string as NSString
+        let fullRange = NSRange(location: 0, length: fullText.length)
+        guard fullRange.length > 0 else { return }
+
+        var searchRange = fullRange
+        while searchRange.length > 0 {
+            let markerRange = fullText.range(of: marker, options: [], range: searchRange)
+            guard markerRange.location != NSNotFound else { break }
+
+            var attributes = baseAttributes
+            attributes[.foregroundColor] = markerColor
+            attributes[.font] = markerFont(from: baseAttributes[.font] as? UIFont)
+            textStorage.setAttributes(attributes, range: markerRange)
+
+            let nextLocation = markerRange.location + markerRange.length
+            let end = fullRange.location + fullRange.length
+            searchRange = NSRange(location: nextLocation, length: max(end - nextLocation, 0))
+        }
+    }
+
+    private static func markerFont(from font: UIFont?) -> UIFont {
+        let pointSize = font?.pointSize ?? ZoneTextTypography.baseFontSize(for: .body)
+        return .systemFont(ofSize: pointSize, weight: .bold)
+    }
+}
+
 // MARK: - Text Alignment
 enum TextBlockAlignment: String, Codable, Equatable {
     case leading, center, trailing

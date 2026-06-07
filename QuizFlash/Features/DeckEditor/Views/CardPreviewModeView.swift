@@ -231,6 +231,7 @@ struct CardPreviewModeView: View {
         )
         .layoutPriority(1)
         .contentShape(Rectangle())
+        .onTapGesture(perform: togglePreviewFlip)
     }
 
     private func resolvedPreviewCardMaxWidth(containerWidth: CGFloat, horizontalInset: CGFloat) -> CGFloat {

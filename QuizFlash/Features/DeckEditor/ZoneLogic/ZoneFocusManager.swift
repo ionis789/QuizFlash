@@ -19,6 +19,7 @@ extension Notification.Name {
     static let zoneEditorCaretMoved = Notification.Name("zoneEditorCaretMoved")
     static let zoneEditorZoneTapped = Notification.Name("zoneEditorZoneTapped")
     static let zoneEditorWillFocusTextView = Notification.Name("zoneEditorWillFocusTextView")
+    static let zoneEditorInsertForcedLineBreak = Notification.Name("zoneEditorInsertForcedLineBreak")
 }
 
 enum ZoneEditorCaretScrollNotification {

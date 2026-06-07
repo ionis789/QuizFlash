@@ -64,8 +64,8 @@ private struct QuizModeSessionView: View {
 
     @State private var headerHeight: CGFloat = 0
     @State private var measuredChoiceZoneWidths: [UUID: CGFloat] = [:]
-    @State private var questionLeafDebugSnapshots: [FlashcardGridLeafLayoutDebugSnapshot] = []
-    @State private var choiceLeafDebugSnapshots: [UUID: [FlashcardGridLeafLayoutDebugSnapshot]] = [:]
+    @State private var questionLeafDebugSnapshots: [ZoneContentLeafLayoutDebugSnapshot] = []
+    @State private var choiceLeafDebugSnapshots: [UUID: [ZoneContentLeafLayoutDebugSnapshot]] = [:]
     @State private var showsQuizLayoutDebug = false
     @State private var showsExplanationSheet = false
     @State private var didCopyQuizLayoutDebug = false
@@ -661,7 +661,7 @@ private struct QuizModeSessionView: View {
             "floatingControlsHeight: \(Self.metric(measuredFloatingControlsHeight))",
             "quizDebugControlsHeight: \(Self.metric(measuredQuizDebugControlsHeight))",
             "textScale: \(String(format: "%.2f", playModeTextScale))",
-            "zoneCornerRadius: \(Self.metric(FlashcardGridContentMetrics.zoneCornerRadius))",
+            "zoneCornerRadius: \(Self.metric(ZoneContentMetrics.zoneCornerRadius))",
             "minimumFixedAnswerZoneHeight: \(Self.metric(QuizChoiceRow.minimumFixedZoneHeight))",
             "feedbackStyle: native zone surface border",
             "",
@@ -963,14 +963,14 @@ private struct QuizModeSessionView: View {
         }
     }
 
-    private func updateQuestionLeafDebugSnapshots(_ snapshots: [FlashcardGridLeafLayoutDebugSnapshot]) {
+    private func updateQuestionLeafDebugSnapshots(_ snapshots: [ZoneContentLeafLayoutDebugSnapshot]) {
         let sortedSnapshots = snapshots.sorted { $0.path < $1.path }
         guard sortedSnapshots != questionLeafDebugSnapshots else { return }
         questionLeafDebugSnapshots = sortedSnapshots
     }
 
     private func updateChoiceLeafDebugSnapshots(
-        _ snapshots: [FlashcardGridLeafLayoutDebugSnapshot],
+        _ snapshots: [ZoneContentLeafLayoutDebugSnapshot],
         for choiceID: UUID
     ) {
         let sortedSnapshots = snapshots.sorted { $0.path < $1.path }
@@ -1014,7 +1014,7 @@ private struct QuizModeSessionView: View {
         return lines
     }
 
-    private static func leafLines(for leaf: FlashcardGridLeafLayoutDebugSnapshot) -> [String] {
+    private static func leafLines(for leaf: ZoneContentLeafLayoutDebugSnapshot) -> [String] {
         let maxEstimatedLine = leaf.estimatedLineWidths.max() ?? 0
         let textWidthLimit = leaf.textWidthLimit ?? leaf.contentLayoutWidth
         let rightSpaceAfterBlock = max(leaf.availableWidth - leaf.leadingInset - leaf.blockSize.width, 0)
@@ -1271,7 +1271,7 @@ private struct QuizAnswerList: View {
     let showsLayoutDebug: Bool
     let selectChoice: (UUID) -> Void
     let onMeasuredWidthChange: (UUID, CGFloat) -> Void
-    let onLeafDebugSnapshotsChange: (UUID, [FlashcardGridLeafLayoutDebugSnapshot]) -> Void
+    let onLeafDebugSnapshotsChange: (UUID, [ZoneContentLeafLayoutDebugSnapshot]) -> Void
 
     @State private var contentHeight: CGFloat = 0
 
@@ -1378,7 +1378,7 @@ private struct QuizChoiceRow: View {
     let showsLayoutDebug: Bool
     let action: () -> Void
     let onMeasuredWidthChange: (CGFloat) -> Void
-    let onLeafDebugSnapshotsChange: ([FlashcardGridLeafLayoutDebugSnapshot]) -> Void
+    let onLeafDebugSnapshotsChange: ([ZoneContentLeafLayoutDebugSnapshot]) -> Void
 
     @State private var lastTapTime: TimeInterval = 0
     @State private var measuredContentWidth: CGFloat = 0
@@ -1539,7 +1539,7 @@ private struct QuizChoiceRow: View {
             }
             .max() ?? 1
         let codeInternalPadding = CodeSnippetMetrics.contentPadding * 2
-        let zoneHorizontalPadding = FlashcardGridContentMetrics.textHorizontalPadding
+        let zoneHorizontalPadding = ZoneContentMetrics.textHorizontalPadding
         return min(ceil(widestLine + codeInternalPadding + zoneHorizontalPadding), layoutWidth)
     }
 
@@ -1611,7 +1611,7 @@ private struct QuizChoiceRow: View {
 
 // MARK: - QuizPlayZoneContent
 
-/// Quiz-mode wrapper around the flashcard grid renderer so questions and choices
+/// Quiz-mode wrapper around the shared zone-content renderer so questions and choices
 /// use the same rich text, math, code, and local-overflow behavior as flashcards.
 private struct QuizPlayZoneContent: View {
     let zone: ZoneModel
@@ -1620,18 +1620,18 @@ private struct QuizPlayZoneContent: View {
     let centersLeafBlocks: Bool
     var alignLeafBlocksToGroupLeading: Bool = false
     var showsZoneSurfaces: Bool = true
-    var textVerticalPadding: CGFloat = FlashcardGridContentMetrics.textVerticalPadding
+    var textVerticalPadding: CGFloat = ZoneContentMetrics.textVerticalPadding
     var textHorizontalPaddingOverride: CGFloat? = nil
     var zoneHighlightStrokeStyle: StrokeStyle = StrokeStyle(lineWidth: 2)
     var showsLayoutDebug: Bool = false
     var onTap: (() -> Void)?
     var onMeasuredWidthChange: ((CGFloat) -> Void)?
-    var onLeafDebugSnapshotsChange: (([FlashcardGridLeafLayoutDebugSnapshot]) -> Void)?
+    var onLeafDebugSnapshotsChange: (([ZoneContentLeafLayoutDebugSnapshot]) -> Void)?
 
     var body: some View {
         let width = max(availableWidth, 1)
 
-        FlashcardGridFaceView(
+        ZoneContentRenderView(
             zone: zone,
             fontScale: fontScale,
             availableWidth: width,
@@ -1649,7 +1649,7 @@ private struct QuizPlayZoneContent: View {
             onRootBlockWidthChange: onMeasuredWidthChange
         )
             .frame(width: width, alignment: .topLeading)
-            .onPreferenceChange(FlashcardGridLeafDebugPreferenceKey.self) { snapshots in
+            .onPreferenceChange(ZoneContentLeafDebugPreferenceKey.self) { snapshots in
                 guard showsLayoutDebug else { return }
                 onLeafDebugSnapshotsChange?(snapshots.sorted { $0.path < $1.path })
             }

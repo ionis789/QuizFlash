@@ -158,7 +158,7 @@ struct FlipCard: View {
     private let contentAlignment: FlashcardContentAlignment
     private let textSize: FlashcardTextSize
     private let onTap: (() -> Void)?
-    private let onLayoutDebugSnapshot: ((FlashcardGridLayoutDebugSnapshot) -> Void)?
+    private let onLayoutDebugSnapshot: ((ZoneContentLayoutDebugSnapshot) -> Void)?
 
     // MARK: - Environment
 
@@ -174,8 +174,8 @@ struct FlipCard: View {
     /// Measured rendered size of the back face content.
     @State private var backContentSize: CGSize = .zero
 
-    @State private var latestFrontLayoutDebugSnapshot: FlashcardGridLayoutDebugSnapshot?
-    @State private var latestBackLayoutDebugSnapshot: FlashcardGridLayoutDebugSnapshot?
+    @State private var latestFrontLayoutDebugSnapshot: ZoneContentLayoutDebugSnapshot?
+    @State private var latestBackLayoutDebugSnapshot: ZoneContentLayoutDebugSnapshot?
 
     // MARK: - Convenience
 
@@ -220,7 +220,7 @@ struct FlipCard: View {
         contentAlignment: FlashcardContentAlignment = .center,
         textSize: FlashcardTextSize = .large,
         onTap: (() -> Void)? = nil,
-        onLayoutDebugSnapshot: ((FlashcardGridLayoutDebugSnapshot) -> Void)? = nil
+        onLayoutDebugSnapshot: ((ZoneContentLayoutDebugSnapshot) -> Void)? = nil
     ) {
         self.frontZone = card.frontZone
         self.backZone = card.backZone
@@ -243,7 +243,7 @@ struct FlipCard: View {
         contentAlignment: FlashcardContentAlignment = .center,
         textSize: FlashcardTextSize = .large,
         onTap: (() -> Void)? = nil,
-        onLayoutDebugSnapshot: ((FlashcardGridLayoutDebugSnapshot) -> Void)? = nil
+        onLayoutDebugSnapshot: ((ZoneContentLayoutDebugSnapshot) -> Void)? = nil
     ) {
         self.frontZone = frontZone
         self.backZone = backZone
@@ -373,12 +373,12 @@ struct FlipCard: View {
         contentWidth: CGFloat,
         centersLeafBlocks: Bool
     ) -> some View {
-        FlashcardGridFaceView(
+        ZoneContentRenderView(
             zone: zone,
             fontScale: playModeTextScale,
             availableWidth: contentWidth,
             centersLeafBlocks: centersLeafBlocks,
-            showsDebugGuides: showsFlashcardGridGuides,
+            showsDebugGuides: showsZoneContentGuides,
             collectsDebugMetrics: onLayoutDebugSnapshot != nil,
             leafTapBehavior: .richContentOnly,
             onTap: onTap
@@ -418,12 +418,12 @@ struct FlipCard: View {
             let fallbackVerticalAlignment = ZoneVerticalAlignment(fallbackContentAlignment: contentAlignment)
             let faceVerticalAlignment = zone.verticalAlignment.resolved(fallback: fallbackVerticalAlignment)
             let availableContentWidth = max(available.size.width - (hPad * 2), 1)
-            let estimatedContentSize = FlashcardGridContentEstimator.estimatedSize(
+            let estimatedContentSize = ZoneContentEstimator.estimatedSize(
                 for: zone,
                 fontScale: playModeTextScale,
                 availableWidth: availableContentWidth
             )
-            let layout = FlashcardGridContentLayout(
+            let layout = ZoneContentLayout(
                 containerSize: available.size,
                 horizontalPadding: hPad,
                 verticalPadding: vPad,
@@ -435,8 +435,8 @@ struct FlipCard: View {
             if zone.hasContent {
                 ScrollView(.vertical, showsIndicators: false) {
                     ZStack(alignment: .topLeading) {
-                        if showsFlashcardGridGuides {
-                            flashcardGridDebugGuides(layout: layout)
+                        if showsZoneContentGuides {
+                            zoneContentDebugGuides(layout: layout)
                         }
 
                         measuredFaceContent(
@@ -445,7 +445,7 @@ struct FlipCard: View {
                             contentWidth: layout.availableContentWidth,
                             centersLeafBlocks: faceVerticalAlignment == .center
                         )
-                        .onPreferenceChange(FlashcardGridLeafDebugPreferenceKey.self) { leafSnapshots in
+                        .onPreferenceChange(ZoneContentLeafDebugPreferenceKey.self) { leafSnapshots in
                             updateLayoutDebugSnapshot(
                                 marker: marker,
                                 layout: layout,
@@ -473,7 +473,7 @@ struct FlipCard: View {
     }
 
     @ViewBuilder
-    private func flashcardGridDebugGuides(layout: FlashcardGridContentLayout) -> some View {
+    private func zoneContentDebugGuides(layout: ZoneContentLayout) -> some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
             .stroke(
                 Color.cyan.opacity(0.9),
@@ -514,9 +514,9 @@ struct FlipCard: View {
             .accessibilityHidden(true)
     }
 
-    private var showsFlashcardGridGuides: Bool {
+    private var showsZoneContentGuides: Bool {
         AppFeatures.current.showsVisualDebugOverlays
-            && developmentPreferences.flashcardGridTextLayoutDebugEnabled
+            && developmentPreferences.zoneContentLayoutDebugEnabled
     }
 
     private var visibleMarker: FaceMarker {
@@ -525,12 +525,12 @@ struct FlipCard: View {
 
     private func updateLayoutDebugSnapshot(
         marker: FaceMarker,
-        layout: FlashcardGridContentLayout,
-        leafSnapshots: [FlashcardGridLeafLayoutDebugSnapshot]
+        layout: ZoneContentLayout,
+        leafSnapshots: [ZoneContentLeafLayoutDebugSnapshot]
     ) {
         guard onLayoutDebugSnapshot != nil else { return }
 
-        let snapshot = FlashcardGridLayoutDebugSnapshot(
+        let snapshot = ZoneContentLayoutDebugSnapshot(
             face: marker.debugTitle,
             containerSize: roundedSize(layout.containerSize),
             horizontalPadding: ceil(layout.horizontalPadding),

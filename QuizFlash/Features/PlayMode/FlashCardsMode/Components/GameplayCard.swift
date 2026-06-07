@@ -59,7 +59,7 @@ struct GameplayCard: View {
     let swipeGestureTuning: SwipeGestureTuning
 
     /// Developer-only layout diagnostics emitted by the visible flashcard face.
-    let onLayoutDebugSnapshot: ((FlashcardGridLayoutDebugSnapshot) -> Void)?
+    let onLayoutDebugSnapshot: ((ZoneContentLayoutDebugSnapshot) -> Void)?
 
     /// Binding to the ViewModel's `isFlipped` property.
     ///
@@ -78,7 +78,7 @@ struct GameplayCard: View {
         textSize: FlashcardTextSize,
         onSwipeProgress: ((SwipeProgressSnapshot) -> Void)?,
         swipeGestureTuning: SwipeGestureTuning,
-        onLayoutDebugSnapshot: ((FlashcardGridLayoutDebugSnapshot) -> Void)? = nil,
+        onLayoutDebugSnapshot: ((ZoneContentLayoutDebugSnapshot) -> Void)? = nil,
         isFlipped: Binding<Bool>
     ) {
         self.card = card

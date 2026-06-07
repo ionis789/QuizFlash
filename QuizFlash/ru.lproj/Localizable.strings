@@ -288,6 +288,7 @@
 "Folders" = "Папки";
 "Follow the text size selected in iOS Settings." = "Следовать размеру текста, выбранному в настройках iOS.";
 "Font" = "Шрифт";
+"Force Line Break" = "Принудительный перенос";
 "Freed" = "Фрид";
 "Full Width" = "На всю ширину";
 "Gallery" = "Галерея";

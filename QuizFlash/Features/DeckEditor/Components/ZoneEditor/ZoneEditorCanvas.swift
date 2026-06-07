@@ -531,7 +531,7 @@ struct ZoneEditorCanvas: View {
 
     private var showsGridDebugOverlay: Bool {
         AppFeatures.current.showsVisualDebugOverlays
-            && developmentPreferences.flashcardGridTextLayoutDebugEnabled
+            && developmentPreferences.zoneContentLayoutDebugEnabled
     }
 
 }

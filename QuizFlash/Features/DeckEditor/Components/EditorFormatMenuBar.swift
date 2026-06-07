@@ -17,6 +17,7 @@ struct EditorFormatMenuBar: View {
 
     var onChoosePhoto: () -> Void
     var onSketch: () -> Void
+    var onInsertForcedLineBreak: () -> Void
     var onDuplicateZone: () -> Void
     var onDeleteZone: () -> Void
     var canPreview: Bool
@@ -30,6 +31,7 @@ struct EditorFormatMenuBar: View {
         path: ZonePath,
         onChoosePhoto: @escaping () -> Void,
         onSketch: @escaping () -> Void,
+        onInsertForcedLineBreak: @escaping () -> Void = { },
         onDuplicateZone: @escaping () -> Void = { },
         onDeleteZone: @escaping () -> Void = { },
         canPreview: Bool,
@@ -42,6 +44,7 @@ struct EditorFormatMenuBar: View {
         self.path = path
         self.onChoosePhoto = onChoosePhoto
         self.onSketch = onSketch
+        self.onInsertForcedLineBreak = onInsertForcedLineBreak
         self.onDuplicateZone = onDuplicateZone
         self.onDeleteZone = onDeleteZone
         self.canPreview = canPreview
@@ -186,6 +189,7 @@ struct EditorFormatMenuBar: View {
     // MARK: - Text Tools
     private var textTools: some View {
         HStack(spacing: 16) {
+            forcedLineBreakButton
             paragraphMenu
             typographyMenu
             textColorMenu
@@ -193,25 +197,43 @@ struct EditorFormatMenuBar: View {
         }
     }
 
+    private var forcedLineBreakButton: some View {
+        ToolbarButton(
+            icon: "return",
+            tint: accent,
+            accessibilityLabel: localized("Force Line Break"),
+            action: onInsertForcedLineBreak
+        )
+    }
+
     private var paragraphMenu: some View {
         Menu {
             Section {
                 Button {
-                    content.updateZone(at: path) { $0.textAlignment = .leading }
+                    content.updateZone(at: path) {
+                        $0.blockAlignment = .leading
+                        $0.textAlignment = .leading
+                    }
                 } label: {
-                    menuRow(title: localized("Align Left"), systemImage: "text.alignleft", isSelected: zone?.textAlignment == .leading)
+                    menuRow(title: localized("Align Left"), systemImage: "text.alignleft", isSelected: effectiveBlockAlignment == .leading)
                 }
 
                 Button {
-                    content.updateZone(at: path) { $0.textAlignment = .center }
+                    content.updateZone(at: path) {
+                        $0.blockAlignment = .center
+                        $0.textAlignment = .leading
+                    }
                 } label: {
-                    menuRow(title: localized("Align Center"), systemImage: "text.aligncenter", isSelected: zone?.textAlignment == .center)
+                    menuRow(title: localized("Align Center"), systemImage: "text.aligncenter", isSelected: effectiveBlockAlignment == .center)
                 }
 
                 Button {
-                    content.updateZone(at: path) { $0.textAlignment = .trailing }
+                    content.updateZone(at: path) {
+                        $0.blockAlignment = .trailing
+                        $0.textAlignment = .leading
+                    }
                 } label: {
-                    menuRow(title: localized("Align Right"), systemImage: "text.alignright", isSelected: zone?.textAlignment == .trailing)
+                    menuRow(title: localized("Align Right"), systemImage: "text.alignright", isSelected: effectiveBlockAlignment == .trailing)
                 }
             }
 
@@ -402,7 +424,7 @@ struct EditorFormatMenuBar: View {
 
     private var paragraphMenuIcon: String {
         if zone?.hasBullet == true { return "list.bullet" }
-        switch zone?.textAlignment ?? .leading {
+        switch effectiveBlockAlignment {
         case .leading: return "text.alignleft"
         case .center: return "text.aligncenter"
         case .trailing: return "text.alignright"
@@ -416,7 +438,18 @@ struct EditorFormatMenuBar: View {
     }
 
     private var isParagraphMenuActive: Bool {
-        zone?.hasBullet == true || zone?.textAlignment != .leading
+        zone?.hasBullet == true || effectiveBlockAlignment != .leading
+    }
+
+    private var effectiveBlockAlignment: TextBlockAlignment {
+        switch zone?.blockAlignment ?? .leading {
+        case .leading, .auto:
+            return .leading
+        case .center:
+            return .center
+        case .trailing:
+            return .trailing
+        }
     }
 
     private var isTypographyMenuActive: Bool {

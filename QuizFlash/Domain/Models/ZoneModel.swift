@@ -126,7 +126,7 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     var sizeMode: ZoneSizeMode = .auto
 
     /// The block alignment applied to this zone's layout rectangle.
-    var blockAlignment: ZoneBlockAlignment = .auto
+    var blockAlignment: ZoneBlockAlignment = .leading
 
     /// Explicit width used when `sizeMode` is `.fixed`.
     var fixedWidth: CGFloat? = nil
@@ -234,7 +234,7 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         textStyle: TextBlockStyle = .body,
         textAlignment: TextBlockAlignment = .leading,
         sizeMode: ZoneSizeMode = .auto,
-        blockAlignment: ZoneBlockAlignment = .auto,
+        blockAlignment: ZoneBlockAlignment = .leading,
         verticalAlignment: ZoneVerticalAlignment = .auto,
         fixedWidth: CGFloat? = nil,
         fixedHeight: CGFloat? = nil,

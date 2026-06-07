@@ -28,7 +28,7 @@ Constraints:
 - Keep changes minimal and consistent with surrounding patterns.
 - Keep the read set minimal; do not preload unrelated feature clusters or AI/service files for local UI or copy tweaks.
 - Do not read broad repo docs to compensate for an unclear bug report. Use local discovery first, then escalate deliberately.
-- For flashcard zone-editor issues, preserve raw-editor invariants: focus/unfocus must not change text metrics; tap moves caret; native selection belongs to long press, drag handles, or double tap; resize must not cut existing text but must allow shrinking when visual slack exists.
+- For flashzone content-editor issues, preserve raw-editor invariants: focus/unfocus must not change text metrics; tap moves caret; native selection belongs to long press, drag handles, or double tap; resize must not cut existing text but must allow shrinking when visual slack exists.
 - If you cannot run builds/tests, explicitly ask me to run `xcodebuild` and paste output.
 
 Task:

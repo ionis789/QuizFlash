@@ -131,7 +131,7 @@ When context is already large, summarize findings and continue from the narrowed
 
 ## Flashcard Zone Editor Guardrails
 
-The flashcard zone editor is interaction-sensitive and can regress from small SwiftUI/UIKit changes. Treat bugs in `FlashcardEditorView`, `ZoneView`, `ZoneTextView`, zone resizing, cursor placement, selection, keyboard avoidance, or editor/play preview parity as a special local system.
+The flashzone content editor is interaction-sensitive and can regress from small SwiftUI/UIKit changes. Treat bugs in `FlashcardEditorView`, `ZoneView`, `ZoneTextView`, zone resizing, cursor placement, selection, keyboard avoidance, or editor/play preview parity as a special local system.
 
 `MUST` preserve these invariants:
 - Tap on text places the caret; text selection starts only from native long press, drag handles, or double tap.
@@ -139,7 +139,7 @@ The flashcard zone editor is interaction-sensitive and can regress from small Sw
 - Focus and unfocus must use identical text metrics. The focused `UITextView` and unfocused raw preview must not have different insets, line spacing, font, width, or vertical alignment.
 - A newly created empty text zone must keep a stable minimum visual size after losing focus; it must not collapse to a one-line sliver.
 - Resize handles, debug HUDs, selection outlines, toolbar overlays, and parent gestures must not steal `UITextView` touch handling.
-- Per-caret or per-selection updates must not invalidate the whole card layout. Avoid using cursor changes to update observed state that recomputes sizes.
+- Per-caret or per-selection updates must not invalidate the whole content layout. Avoid using cursor changes to update observed state that recomputes sizes.
 - Do not switch between rendered math/rich preview and raw editor metrics inside the editor unless the task explicitly reintroduces compiled preview behavior.
 
 For zone editor bugs, start with the route in `references/task-routing.md` before opening broader DeckEditor files.

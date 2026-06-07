@@ -220,6 +220,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     var lineSpacing: CGFloat = 0
     var contentInset: UIEdgeInsets = .zero
     var maximumVisibleHeight: CGFloat?
+    var forcedLineBreakTintColor: UIColor = .systemPurple
     
     private var lastText: String = ""
     private var lastAcceptedText: String = ""
@@ -227,6 +228,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     var isUpdating: Bool = false
     weak var textView: UITextView?
     private var focusObserver: NSObjectProtocol?
+    private var forcedLineBreakObserver: NSObjectProtocol?
     private var lastReportedCursorRange: NSRange?
     private var lastReportedText: String?
     private var lastReportedLineInfo: (zoneID: UUID?, lineIndex: Int, totalLines: Int)?
@@ -267,11 +269,28 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                 }
             }
         }
+        forcedLineBreakObserver = NotificationCenter.default.addObserver(
+            forName: .zoneEditorInsertForcedLineBreak,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self,
+                  let targetZoneID = notification.object as? UUID,
+                  self.zoneID == targetZoneID,
+                  let textView = self.textView else {
+                return
+            }
+
+            self.insertForcedLineBreak(in: textView)
+        }
     }
     
     deinit {
         caretReportGeneration += 1
         if let observer = focusObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = forcedLineBreakObserver {
             NotificationCenter.default.removeObserver(observer)
         }
     }
@@ -552,9 +571,44 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         reportCursorPosition(from: textView, includeCaretAnchor: true)
         scheduleSettledCaretReport(from: textView)
     }
+
+    private func insertForcedLineBreak(in textView: UITextView) {
+        if let zoneID, !textView.isFirstResponder {
+            postWillFocusNotification(for: zoneID)
+            _ = textView.becomeFirstResponder()
+            Task { @MainActor in
+                ZoneFocusManager.shared.completeFocus(for: zoneID)
+            }
+        }
+
+        let currentText = ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text)
+            ? ""
+            : (textView.text ?? "")
+        let textLength = (currentText as NSString).length
+        let selectedRange = ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text)
+            ? NSRange(location: 0, length: 0)
+            : NSRange(
+                location: min(max(textView.selectedRange.location, 0), textLength),
+                length: min(max(textView.selectedRange.length, 0), max(textLength - min(max(textView.selectedRange.location, 0), textLength), 0))
+            )
+        let mutable = NSMutableString(string: currentText)
+        mutable.replaceCharacters(in: selectedRange, with: ZoneForcedLineBreak.marker)
+
+        isUpdating = true
+        textView.text = mutable as String
+        textView.selectedRange = NSRange(
+            location: selectedRange.location + (ZoneForcedLineBreak.marker as NSString).length,
+            length: 0
+        )
+        isUpdating = false
+
+        applyForcedLineBreakMarkerStyle(to: textView)
+        textViewDidChange(textView)
+        reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
+    }
     
     private func calculateLineInfo(from text: String, location: Int) -> (lineIndex: Int, totalLines: Int) {
-        let lines = text.components(separatedBy: "\n")
+        let lines = ZoneForcedLineBreak.renderText(text).components(separatedBy: "\n")
         let totalLines = lines.count
         guard location >= 0 else { return (0, totalLines) }
         
@@ -565,6 +619,27 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             currentIndex += lineLength
         }
         return (max(0, totalLines - 1), totalLines)
+    }
+
+    func applyForcedLineBreakMarkerStyle(to textView: UITextView) {
+        ZoneForcedLineBreak.applyMarkerStyle(
+            to: textView.textStorage,
+            baseAttributes: textAttributes,
+            markerColor: forcedLineBreakTintColor
+        )
+    }
+
+    private var textAttributes: [NSAttributedString.Key: Any] {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = textView?.textAlignment ?? .left
+        paragraphStyle.lineBreakMode = .byWordWrapping
+        paragraphStyle.lineSpacing = max(lineSpacing, 0)
+
+        return [
+            .font: font,
+            .foregroundColor: textView?.textColor ?? UIColor.label,
+            .paragraphStyle: paragraphStyle
+        ]
     }
 }
 
@@ -581,6 +656,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     var contentInset: UIEdgeInsets = .zero
     var maximumVisibleHeight: CGFloat?
     var cursorTintColor: UIColor = .systemPurple
+    var forcedLineBreakTintColor: UIColor = .systemPurple
     let zoneID: UUID
     let isFirstResponder: Bool
     var onTextChange: ((String) -> Void)?
@@ -600,6 +676,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.lineSpacing = lineSpacing
         context.coordinator.contentInset = contentInset
         context.coordinator.maximumVisibleHeight = maximumVisibleHeight
+        context.coordinator.forcedLineBreakTintColor = forcedLineBreakTintColor
         
         textView.font = font
         textView.textColor = textColor
@@ -665,6 +742,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.lineSpacing = lineSpacing
         context.coordinator.contentInset = contentInset
         context.coordinator.maximumVisibleHeight = maximumVisibleHeight
+        context.coordinator.forcedLineBreakTintColor = forcedLineBreakTintColor
         (textView as? FullHitTextView)?.usesCompactCaret = true
         ZoneEditorDebugStore.shared.updateTextView(
             zoneID: zoneID,
@@ -768,6 +846,11 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
                 attributes[.foregroundColor] = UIColor.clear
             }
             textView.textStorage.setAttributes(attributes, range: fullRange)
+            ZoneForcedLineBreak.applyMarkerStyle(
+                to: textView.textStorage,
+                baseAttributes: textAttributes,
+                markerColor: forcedLineBreakTintColor
+            )
         }
     }
 
@@ -806,6 +889,7 @@ struct ZonePlainTextViewRepresentable: UIViewRepresentable {
     let textAlignment: NSTextAlignment
     var lineSpacing: CGFloat = 0
     var contentInset: UIEdgeInsets = .zero
+    var forcedLineBreakTintColor: UIColor = .systemPurple
 
     func makeUIView(context: Context) -> UITextView {
         let textView = UITextView()
@@ -857,6 +941,11 @@ struct ZonePlainTextViewRepresentable: UIViewRepresentable {
         let fullRange = NSRange(location: 0, length: textView.textStorage.length)
         if fullRange.length > 0 {
             textView.textStorage.setAttributes(textAttributes, range: fullRange)
+            ZoneForcedLineBreak.applyMarkerStyle(
+                to: textView.textStorage,
+                baseAttributes: textAttributes,
+                markerColor: forcedLineBreakTintColor
+            )
         }
     }
 

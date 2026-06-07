@@ -1,17 +1,17 @@
 //
-//  CardZoneLayoutEngine.swift
+//  ZoneContentLayoutEngine.swift
 //  QuizFlash
 //
-//  Shared deterministic layout rules for zone-based card rendering.
+//  Shared deterministic layout rules for zone-based content rendering.
 //
 
 import CoreGraphics
 import Foundation
 
-// MARK: - Card Zone Layout Spec
+// MARK: - Zone Content Layout Spec
 
 /// Input values used to resolve one zone's card-local rectangle.
-struct CardZoneLayoutSpec: Equatable {
+struct ZoneContentLayoutSpec: Equatable {
     let availableWidth: CGFloat
     let fontScale: CGFloat
     let minimumAutoWidth: CGFloat
@@ -22,7 +22,7 @@ struct CardZoneLayoutSpec: Equatable {
         availableWidth: CGFloat,
         fontScale: CGFloat,
         minimumAutoWidth: CGFloat = 1,
-        textVerticalPadding: CGFloat = CardZoneContentMetrics.textVerticalPadding,
+        textVerticalPadding: CGFloat = ZoneContentMetrics.textVerticalPadding,
         textHorizontalPaddingOverride: CGFloat? = nil
     ) {
         self.availableWidth = max(availableWidth, 1)
@@ -33,10 +33,10 @@ struct CardZoneLayoutSpec: Equatable {
     }
 }
 
-// MARK: - Card Zone Layout Result
+// MARK: - Zone Content Layout Result
 
 /// Resolved layout values for one leaf zone.
-struct CardZoneLayoutResult: Equatable {
+struct ZoneContentLayoutResult: Equatable {
     let estimatedContentSize: CGSize
     let measuredContentSize: CGSize
     let blockSize: CGSize
@@ -59,16 +59,16 @@ struct CardZoneLayoutResult: Equatable {
     }
 }
 
-// MARK: - Card Zone Layout Engine
+// MARK: - Zone Content Layout Engine
 
 /// Resolves zone rectangles for editor, preview, and play-mode rendering.
-enum CardZoneLayoutEngine {
+enum ZoneContentLayoutEngine {
     static func leafLayout(
         for zone: ZoneModel,
-        spec: CardZoneLayoutSpec,
+        spec: ZoneContentLayoutSpec,
         measuredContentSize: CGSize
-    ) -> CardZoneLayoutResult {
-        let estimatedSize = FlashcardGridContentEstimator.estimatedSize(
+    ) -> ZoneContentLayoutResult {
+        let estimatedSize = ZoneContentEstimator.estimatedSize(
             for: zone,
             fontScale: spec.fontScale,
             availableWidth: spec.availableWidth,
@@ -120,7 +120,7 @@ enum CardZoneLayoutEngine {
             ? max(contentLayoutWidth - textHorizontalInsets - bulletHorizontalInset, 1)
             : nil
 
-        return CardZoneLayoutResult(
+        return ZoneContentLayoutResult(
             estimatedContentSize: roundedSize(estimatedSize),
             measuredContentSize: roundedSize(measuredContentSize),
             blockSize: roundedSize(blockSize),
@@ -130,8 +130,8 @@ enum CardZoneLayoutEngine {
             textHorizontalInsets: ceil(textHorizontalInsets),
             bulletHorizontalInset: ceil(bulletHorizontalInset),
             usesIntrinsicTextMeasurement: intrinsicMeasurement,
-            usesAutoBlockCentering: zone.blockAlignment == .auto,
-            resolvedTextAlignment: zone.textAlignment
+            usesAutoBlockCentering: false,
+            resolvedTextAlignment: .leading
         )
     }
 
@@ -205,9 +205,9 @@ enum CardZoneLayoutEngine {
         availableWidth: CGFloat
     ) -> CGFloat {
         switch zone.blockAlignment {
-        case .leading:
+        case .leading, .auto:
             return 0
-        case .center, .auto:
+        case .center:
             return max((availableWidth - blockWidth) / 2, 0)
         case .trailing:
             return max(availableWidth - blockWidth, 0)
@@ -216,14 +216,16 @@ enum CardZoneLayoutEngine {
 
     private static func usesIntrinsicTextMeasurement(for zone: ZoneModel) -> Bool {
         guard zone.contentType == .text else { return false }
-        let previewText = MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
+        let previewText = ZoneForcedLineBreak.renderText(
+            MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
+        )
         return !previewText.isEmpty && !previewText.hasPrefix("```")
     }
 
     private static func horizontalTextInsets(for zone: ZoneModel) -> CGFloat {
         switch zone.contentType {
         case .empty, .text, .code:
-            return CardZoneContentMetrics.textHorizontalPadding
+            return ZoneContentMetrics.textHorizontalPadding
         case .image, .sketch:
             return 0
         }
@@ -231,13 +233,13 @@ enum CardZoneLayoutEngine {
 
     private static func bulletInset(for zone: ZoneModel) -> CGFloat {
         zone.hasBullet && !zone.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? CardZoneContentMetrics.bulletWidth + CardZoneContentMetrics.bulletSpacing
+            ? ZoneContentMetrics.bulletWidth + ZoneContentMetrics.bulletSpacing
             : 0
     }
 
     private static func minimumAutoWidth(
         for zone: ZoneModel,
-        spec: CardZoneLayoutSpec
+        spec: ZoneContentLayoutSpec
     ) -> CGFloat {
         guard !zone.hasContent else { return 1 }
         return spec.minimumAutoWidth

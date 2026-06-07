@@ -72,7 +72,7 @@ struct FlashCardsPlayModeView: View {
     @State private var editingCard: CardModel?
     @State private var showsDeveloperPanel = false
     @State private var developerSwipeDebugState = PlayModeDeveloperSwipeDebugState()
-    @State private var currentLayoutDebugSnapshot: FlashcardGridLayoutDebugSnapshot?
+    @State private var currentLayoutDebugSnapshot: ZoneContentLayoutDebugSnapshot?
     @State private var currentLayoutDebugCardID: PersistentIdentifier?
     @State private var didCopyFloatingLayoutDebug = false
     @State private var debugCardCaptureState = DebugCardCaptureState.idle
@@ -543,7 +543,7 @@ struct FlashCardsPlayModeView: View {
     }
 
     private func updateCurrentLayoutDebugSnapshot(
-        _ snapshot: FlashcardGridLayoutDebugSnapshot,
+        _ snapshot: ZoneContentLayoutDebugSnapshot,
         cardID: PersistentIdentifier
     ) {
         guard currentPlayableCard?.id == cardID else { return }
@@ -1332,7 +1332,7 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         isFlipped: Bool,
         settings: FlashcardModeSettings,
         visibleZone: ZoneModel,
-        snapshot: FlashcardGridLayoutDebugSnapshot
+        snapshot: ZoneContentLayoutDebugSnapshot
     ) -> String {
         var lines: [String] = []
         lines.append("QuizFlash Flashcard Layout Debug")
@@ -1400,7 +1400,7 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         return lines
     }
 
-    private static func leafLines(for leaf: FlashcardGridLeafLayoutDebugSnapshot) -> [String] {
+    private static func leafLines(for leaf: ZoneContentLeafLayoutDebugSnapshot) -> [String] {
         let maxEstimatedLine = leaf.estimatedLineWidths.max() ?? 0
         let textWidthLimit = leaf.textWidthLimit ?? leaf.contentLayoutWidth
         let rightSpaceAfterBlock = max(leaf.availableWidth - leaf.leadingInset - leaf.blockSize.width, 0)
@@ -1521,7 +1521,7 @@ private struct PlayModeDeveloperSwipePanel: View {
     @Bindable var state: PlayModeDeveloperSwipeDebugState
     let maxHeight: CGFloat
     let performanceContent: AnyView?
-    let layoutDebugSnapshot: FlashcardGridLayoutDebugSnapshot?
+    let layoutDebugSnapshot: ZoneContentLayoutDebugSnapshot?
     let layoutDebugReport: String?
     let onClose: () -> Void
 

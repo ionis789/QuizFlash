@@ -514,6 +514,9 @@ struct FlashcardEditorView: View {
             onSketch: {
                 showSketchModal = true
             },
+            onInsertForcedLineBreak: {
+                insertForcedLineBreak(at: path)
+            },
             onDuplicateZone: {
                 duplicateSelectedZone()
             },
@@ -572,7 +575,7 @@ struct FlashcardEditorView: View {
             currentContent.updateZone(at: .root) { zone in
                 zone.contentType = .text
                 zone.sizeMode = .auto
-                zone.blockAlignment = .auto
+                zone.blockAlignment = .leading
                 zone.textAlignment = .leading
             }
             focusManager.requestFocus(for: currentContent.rootZone.id)
@@ -678,6 +681,21 @@ struct FlashcardEditorView: View {
         focusManager.forceReleaseKeyboard()
         selectedPath = nil
         previewDirection = nil
+    }
+
+    private func insertForcedLineBreak(at path: ZonePath) {
+        guard let zone = currentContent.zone(at: path),
+              zone.contentType == .text || zone.contentType == .empty || zone.contentType == .code else {
+            return
+        }
+
+        selectedPath = path
+        focusManager.prepareForZoneInsertion()
+        focusManager.requestFocus(for: zone.id)
+        NotificationCenter.default.post(
+            name: .zoneEditorInsertForcedLineBreak,
+            object: zone.id
+        )
     }
 
     private func insertionPoint(for context: ZoneEditorCanvasTapContext) -> (path: ZonePath, direction: AddDirection) {
