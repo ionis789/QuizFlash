@@ -443,8 +443,10 @@ struct EditorFormatMenuBar: View {
 
     private var effectiveBlockAlignment: TextBlockAlignment {
         switch zone?.blockAlignment ?? .leading {
-        case .leading, .auto:
+        case .leading:
             return .leading
+        case .auto:
+            return content.rootZone.leafCount == 1 ? .center : .leading
         case .center:
             return .center
         case .trailing:

@@ -575,7 +575,7 @@ struct FlashcardEditorView: View {
             currentContent.updateZone(at: .root) { zone in
                 zone.contentType = .text
                 zone.sizeMode = .auto
-                zone.blockAlignment = .leading
+                zone.blockAlignment = .auto
                 zone.textAlignment = .leading
             }
             focusManager.requestFocus(for: currentContent.rootZone.id)

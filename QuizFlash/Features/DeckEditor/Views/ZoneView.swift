@@ -430,7 +430,7 @@ struct ZoneContentView: View {
             var layoutZone = zone
             layoutZone.sizeMode = .auto
             if layoutZone.blockAlignment == .auto {
-                layoutZone.blockAlignment = .leading
+                layoutZone.blockAlignment = content.rootZone.leafCount == 1 ? .center : .leading
             }
             layoutZone.textAlignment = .leading
             layoutZone.fixedWidth = nil

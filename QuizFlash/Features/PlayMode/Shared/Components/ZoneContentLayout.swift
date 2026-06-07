@@ -693,7 +693,7 @@ private struct ZoneContentLeafPreview: View {
         layoutZone.textAlignment = .leading
 
         if layoutZone.blockAlignment == .auto {
-            layoutZone.blockAlignment = .leading
+            layoutZone.blockAlignment = path == "root" ? .center : .leading
         }
 
         guard alignLeafBlocksToGroupLeading else { return layoutZone }

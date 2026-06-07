@@ -126,7 +126,7 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     var sizeMode: ZoneSizeMode = .auto
 
     /// The block alignment applied to this zone's layout rectangle.
-    var blockAlignment: ZoneBlockAlignment = .leading
+    var blockAlignment: ZoneBlockAlignment = .auto
 
     /// Explicit width used when `sizeMode` is `.fixed`.
     var fixedWidth: CGFloat? = nil
@@ -187,6 +187,12 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     /// The number of direct child zones.
     var childCount: Int { children?.count ?? 0 }
 
+    /// Number of leaf zones contained in this subtree.
+    var leafCount: Int {
+        if isLeaf { return 1 }
+        return children?.reduce(0) { $0 + $1.leafCount } ?? 0
+    }
+
     /// The preferred display orientation inferred from the zone tree layout.
     var preferredOrientation: CardOrientation {
         if isLeaf { return .adaptive }
@@ -234,7 +240,7 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         textStyle: TextBlockStyle = .body,
         textAlignment: TextBlockAlignment = .leading,
         sizeMode: ZoneSizeMode = .auto,
-        blockAlignment: ZoneBlockAlignment = .leading,
+        blockAlignment: ZoneBlockAlignment = .auto,
         verticalAlignment: ZoneVerticalAlignment = .auto,
         fixedWidth: CGFloat? = nil,
         fixedHeight: CGFloat? = nil,
