@@ -426,6 +426,15 @@ struct ZoneContentView: View {
     }
 
     private func normalizedLayoutZone(_ zone: ZoneModel) -> ZoneModel {
+        if isTextResizableZone(zone) {
+            var layoutZone = zone
+            layoutZone.sizeMode = .fillWidth
+            layoutZone.blockAlignment = .leading
+            layoutZone.fixedWidth = nil
+            layoutZone.fixedHeight = nil
+            return layoutZone
+        }
+
         guard zone.sizeMode == .fixed else { return zone }
 
         var layoutZone = zone
@@ -1256,7 +1265,6 @@ struct CardFaceView: View {
     }
 
     private func previewBulletTopPadding(for zone: ZoneModel) -> CGFloat {
-        let size = fontSizeFor(zone)
         let lineHeight = ZoneTextTypography.uiFont(for: zone, fontScale: fontScale).lineHeight
         return 4 + max((lineHeight - CardZoneContentMetrics.bulletWidth) / 2, 0)
     }

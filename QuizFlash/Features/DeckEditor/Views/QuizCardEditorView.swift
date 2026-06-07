@@ -291,8 +291,6 @@ struct QuizCardEditorView: View {
             canPreview: questionContent.hasContent || choices.contains { $0.content.hasContent },
             showsPrimaryActions: false,
             showsZoneActions: false,
-            showsPreviewAction: false,
-            showsMoreActions: false,
             onPreview: {
                 openPreview()
             },

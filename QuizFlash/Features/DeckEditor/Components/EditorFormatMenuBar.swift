@@ -11,46 +11,30 @@ import SwiftUI
 
 struct EditorFormatMenuBar: View {
     @Environment(AppPreferences.self) private var appPreferences
-    @State private var toolMode: ToolMode = .format
 
     let content: ZoneCardContent
     let path: ZonePath
 
     var onChoosePhoto: () -> Void
     var onSketch: () -> Void
-    var onSetAutoSize: () -> Void
-    var onSetFillWidth: () -> Void
-    var onSetBlockAlignment: (ZoneBlockAlignment) -> Void
     var onDuplicateZone: () -> Void
     var onDeleteZone: () -> Void
     var canPreview: Bool
     var showsPrimaryActions: Bool
     var showsZoneActions: Bool
-    var showsPreviewAction: Bool
-    var showsMoreActions: Bool
     var onPreview: () -> Void
     var onClose: () -> Void
-
-    private enum ToolMode {
-        case format
-        case zoneActions
-    }
 
     init(
         content: ZoneCardContent,
         path: ZonePath,
         onChoosePhoto: @escaping () -> Void,
         onSketch: @escaping () -> Void,
-        onSetAutoSize: @escaping () -> Void = { },
-        onSetFillWidth: @escaping () -> Void = { },
-        onSetBlockAlignment: @escaping (ZoneBlockAlignment) -> Void = { _ in },
         onDuplicateZone: @escaping () -> Void = { },
         onDeleteZone: @escaping () -> Void = { },
         canPreview: Bool,
         showsPrimaryActions: Bool = true,
         showsZoneActions: Bool = false,
-        showsPreviewAction: Bool = true,
-        showsMoreActions: Bool = true,
         onPreview: @escaping () -> Void,
         onClose: @escaping () -> Void
     ) {
@@ -58,16 +42,11 @@ struct EditorFormatMenuBar: View {
         self.path = path
         self.onChoosePhoto = onChoosePhoto
         self.onSketch = onSketch
-        self.onSetAutoSize = onSetAutoSize
-        self.onSetFillWidth = onSetFillWidth
-        self.onSetBlockAlignment = onSetBlockAlignment
         self.onDuplicateZone = onDuplicateZone
         self.onDeleteZone = onDeleteZone
         self.canPreview = canPreview
         self.showsPrimaryActions = showsPrimaryActions
         self.showsZoneActions = showsZoneActions
-        self.showsPreviewAction = showsPreviewAction
-        self.showsMoreActions = showsMoreActions
         self.onPreview = onPreview
         self.onClose = onClose
     }
@@ -83,9 +62,6 @@ struct EditorFormatMenuBar: View {
         guard let zone, zone.isLeaf else { return false }
         return zone.contentType == .image || zone.contentType == .sketch
     }
-    private var showsTrailingZoneControls: Bool {
-        showsZoneActions && (showsPreviewAction || showsMoreActions)
-    }
 
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
@@ -99,24 +75,8 @@ struct EditorFormatMenuBar: View {
                 .padding(.trailing, 10)
             }
             
-            if showsTrailingZoneControls {
-                Divider()
-                    .frame(height: 26)
-
-                if showsPreviewAction {
-                    previewButton
-                }
-
-                if showsMoreActions {
-                    modeToggleButton
-                }
-
-                Divider()
-                    .frame(height: 26)
-            } else {
-                Divider()
-                    .frame(height: 26)
-            }
+            Divider()
+                .frame(height: 26)
             
             Button { onClose() } label: {
                 Image(systemName: "keyboard.chevron.compact.down")
@@ -138,68 +98,25 @@ struct EditorFormatMenuBar: View {
             Capsule(style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
         )
-        .animation(.tabItemSpring, value: toolMode)
-        .onChange(of: path) { _, _ in
-            toolMode = .format
-        }
     }
 
     @ViewBuilder
     private var activeTools: some View {
         HStack(spacing: 20) {
-            if toolMode == .zoneActions, showsZoneActions, showsMoreActions {
+            if showsPrimaryActions {
+                cardActionTools
+            }
+
+            if showsTextTools {
+                textTools
+            } else if showsMediaTools {
+                mediaTools
+            }
+
+            if showsZoneActions {
                 zoneActionTools
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
-            } else {
-                if showsPrimaryActions {
-                    cardActionTools
-                }
-
-                if showsTextTools {
-                    textTools
-                } else if showsMediaTools {
-                    mediaTools
-                }
             }
         }
-        .id(toolMode)
-    }
-
-    private var modeToggleButton: some View {
-        Button {
-            withAnimation(.tabItemSpring) {
-                toolMode = toolMode == .format ? .zoneActions : .format
-            }
-        } label: {
-            Image(systemName: "square.grid.2x2")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(toolMode == .zoneActions ? Color.black.opacity(0.78) : accent)
-                .frame(width: 42, height: 36)
-                .background {
-                    if toolMode == .zoneActions {
-                        Capsule(style: .continuous)
-                            .fill(accent)
-                    }
-                }
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(localized("More Options"))
-        .accessibilityAddTraits(toolMode == .zoneActions ? .isSelected : [])
-    }
-
-    private var previewButton: some View {
-        Button(action: onPreview) {
-            Image(systemName: "eye")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(canPreview ? accent : Color.secondary)
-                .frame(width: 42, height: 36)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!canPreview)
-        .opacity(canPreview ? 1 : 0.45)
-        .accessibilityLabel(localized("Preview"))
     }
 
     private var cardActionTools: some View {
@@ -227,87 +144,8 @@ struct EditorFormatMenuBar: View {
     // MARK: - Zone Actions
     private var zoneActionTools: some View {
         HStack(spacing: 16) {
-            zoneSizeMenu
-            blockPositionMenu
             zoneContentMenu
             zoneOperationsMenu
-        }
-    }
-
-    private var zoneSizeMenu: some View {
-        Menu {
-            Button(action: onSetAutoSize) {
-                menuRow(
-                    title: localized("Auto Size"),
-                    systemImage: "arrow.up.left.and.down.right.magnifyingglass",
-                    isSelected: zone?.sizeMode == .auto
-                )
-            }
-
-            Button(action: onSetFillWidth) {
-                menuRow(
-                    title: localized("Fill Width"),
-                    systemImage: "arrow.left.and.right",
-                    isSelected: zone?.sizeMode == .fillWidth
-                )
-            }
-
-            if zone?.sizeMode == .fixed {
-                Button { } label: {
-                    menuRow(
-                        title: localized("Fixed Size"),
-                        systemImage: "rectangle.resize",
-                        isSelected: true
-                    )
-                }
-                .disabled(true)
-            }
-        } label: {
-            ToolbarIconLabel(
-                icon: sizeModeIcon(for: zone?.sizeMode ?? .auto),
-                isActive: zone?.sizeMode != .auto,
-                accessibilityLabel: localized("Zone Size")
-            )
-        }
-    }
-
-    private var blockPositionMenu: some View {
-        Menu {
-            Button {
-                onSetBlockAlignment(.leading)
-            } label: {
-                menuRow(
-                    title: localized("Block Left"),
-                    systemImage: "rectangle.leadinghalf.inset.filled",
-                    isSelected: zone?.blockAlignment == .leading
-                )
-            }
-
-            Button {
-                onSetBlockAlignment(.center)
-            } label: {
-                menuRow(
-                    title: localized("Block Center"),
-                    systemImage: "rectangle.center.inset.filled",
-                    isSelected: zone?.blockAlignment == .center
-                )
-            }
-
-            Button {
-                onSetBlockAlignment(.trailing)
-            } label: {
-                menuRow(
-                    title: localized("Block Right"),
-                    systemImage: "rectangle.trailinghalf.inset.filled",
-                    isSelected: zone?.blockAlignment == .trailing
-                )
-            }
-        } label: {
-            ToolbarIconLabel(
-                icon: blockAlignmentIcon(for: zone),
-                isActive: zone?.blockAlignment != .auto,
-                accessibilityLabel: localized("Block Position")
-            )
         }
     }
 
@@ -597,29 +435,6 @@ struct EditorFormatMenuBar: View {
         }
     }
 
-    private func sizeModeIcon(for mode: ZoneSizeMode) -> String {
-        switch mode {
-        case .auto:
-            return "arrow.up.left.and.down.right.magnifyingglass"
-        case .fillWidth:
-            return "arrow.left.and.right"
-        case .fixed:
-            return "rectangle.resize"
-        }
-    }
-
-    private func blockAlignmentIcon(for zone: ZoneModel?) -> String {
-        switch zone?.blockAlignment ?? .auto {
-        case .auto:
-            return "sparkles"
-        case .leading:
-            return "rectangle.leadinghalf.inset.filled"
-        case .center:
-            return "rectangle.center.inset.filled"
-        case .trailing:
-            return "rectangle.trailinghalf.inset.filled"
-        }
-    }
 }
 
 // MARK: - Zone Management Floating Button
@@ -679,16 +494,6 @@ struct ZoneManagementFloatingButton: View {
     var body: some View {
         Menu {
             Section {
-                sizeModeMenu
-            }
-
-            if showsBlockPositionMenu {
-                Section {
-                    blockAlignmentMenu
-                }
-            }
-
-            Section {
                 if canSplit {
                     Button(action: onSplit) {
                         Label(localized("Split Zone"), systemImage: "rectangle.split.1x2")
@@ -720,123 +525,7 @@ struct ZoneManagementFloatingButton: View {
                 .background(accent, in: Circle())
                 .shadow(color: accent.opacity(0.32), radius: 12, y: 5)
         }
-        .accessibilityLabel(localized("Block Position"))
-    }
-
-    private var showsBlockPositionMenu: Bool {
-        guard let zone else { return true }
-        return zone.sizeMode != .fillWidth
-    }
-
-    private var sizeModeMenu: some View {
-        Menu {
-            Button {
-                content.updateZone(at: path) {
-                    $0.sizeMode = .auto
-                    $0.blockAlignment = .auto
-                    $0.fixedWidth = nil
-                    $0.fixedHeight = nil
-                }
-            } label: {
-                menuRow(title: localized("Auto Size"), systemImage: "arrow.up.left.and.down.right.magnifyingglass", isSelected: zone?.sizeMode == .auto)
-            }
-
-            Button {
-                content.updateZone(at: path) {
-                    $0.sizeMode = .fillWidth
-                    $0.blockAlignment = .leading
-                    $0.fixedWidth = nil
-                    $0.fixedHeight = nil
-                }
-            } label: {
-                menuRow(title: localized("Fill Width"), systemImage: "arrow.left.and.right", isSelected: zone?.sizeMode == .fillWidth)
-            }
-
-            if zone?.sizeMode == .fixed {
-                Button { } label: {
-                    menuRow(title: localized("Fixed Size"), systemImage: "rectangle.resize", isSelected: true)
-                }
-                .disabled(true)
-            }
-        } label: {
-            menuRow(title: localized("Zone Size"), systemImage: sizeModeIcon(for: zone?.sizeMode ?? .auto), isSelected: false)
-        }
-    }
-
-    private var blockAlignmentMenu: some View {
-        Menu {
-            Button {
-                content.updateZone(at: path) {
-                    if $0.sizeMode == .fillWidth {
-                        $0.sizeMode = .auto
-                        $0.fixedWidth = nil
-                        $0.fixedHeight = nil
-                    }
-                    $0.blockAlignment = .leading
-                }
-            } label: {
-                menuRow(title: localized("Block Left"), systemImage: "rectangle.leadinghalf.inset.filled", isSelected: zone?.blockAlignment == .leading)
-            }
-
-            if zone?.sizeMode == .fixed {
-                Button {
-                    content.updateZone(at: path) { $0.blockAlignment = .center }
-                } label: {
-                    menuRow(title: localized("Block Center"), systemImage: "rectangle.center.inset.filled", isSelected: zone?.blockAlignment == .center)
-                }
-            }
-
-            Button {
-                content.updateZone(at: path) {
-                    if $0.sizeMode == .fillWidth {
-                        $0.sizeMode = .auto
-                        $0.fixedWidth = nil
-                        $0.fixedHeight = nil
-                    }
-                    $0.blockAlignment = .trailing
-                }
-            } label: {
-                menuRow(title: localized("Block Right"), systemImage: "rectangle.trailinghalf.inset.filled", isSelected: zone?.blockAlignment == .trailing)
-            }
-        } label: {
-            menuRow(title: localized("Block Position"), systemImage: blockAlignmentIcon(for: zone), isSelected: false)
-        }
-    }
-
-    private func menuRow(title: String, systemImage: String, isSelected: Bool) -> some View {
-        HStack {
-            Label(title, systemImage: systemImage)
-            if isSelected { Image(systemName: "checkmark") }
-        }
-    }
-
-    private func sizeModeIcon(for mode: ZoneSizeMode) -> String {
-        switch mode {
-        case .auto:
-            return "arrow.up.left.and.down.right.magnifyingglass"
-        case .fillWidth:
-            return "arrow.left.and.right"
-        case .fixed:
-            return "rectangle.resize"
-        }
-    }
-
-    private func blockAlignmentIcon(for zone: ZoneModel?) -> String {
-        let alignment = zone?.blockAlignment ?? .auto
-        if zone?.sizeMode != .fixed && alignment == .center {
-            return "sparkles"
-        }
-
-        switch alignment {
-        case .auto:
-            return "sparkles"
-        case .leading:
-            return "rectangle.leadinghalf.inset.filled"
-        case .center:
-            return "rectangle.center.inset.filled"
-        case .trailing:
-            return "rectangle.trailinghalf.inset.filled"
-        }
+        .accessibilityLabel(localized("More Options"))
     }
 }
 

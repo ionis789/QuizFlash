@@ -514,15 +514,6 @@ struct FlashcardEditorView: View {
             onSketch: {
                 showSketchModal = true
             },
-            onSetAutoSize: {
-                setSelectedZoneAutoSize(at: path)
-            },
-            onSetFillWidth: {
-                setSelectedZoneFillWidth(at: path)
-            },
-            onSetBlockAlignment: { alignment in
-                setSelectedZoneBlockAlignment(alignment, at: path)
-            },
             onDuplicateZone: {
                 duplicateSelectedZone()
             },
@@ -682,46 +673,6 @@ struct FlashcardEditorView: View {
         return nil
     }
 
-    private func setSelectedZoneAutoSize(at path: ZonePath) {
-        selectedPath = path
-        currentContent.updateZone(at: path) {
-            $0.sizeMode = .auto
-            $0.blockAlignment = .auto
-            $0.fixedWidth = nil
-            $0.fixedHeight = nil
-        }
-    }
-
-    private func setSelectedZoneFillWidth(at path: ZonePath) {
-        selectedPath = path
-        currentContent.updateZone(at: path) {
-            if $0.contentType == .image || $0.contentType == .sketch {
-                $0.imageScale = 1
-                $0.sizeMode = .auto
-                $0.fixedWidth = nil
-                $0.fixedHeight = nil
-                return
-            }
-
-            $0.sizeMode = .fillWidth
-            $0.blockAlignment = .leading
-            $0.fixedWidth = nil
-            $0.fixedHeight = nil
-        }
-    }
-
-    private func setSelectedZoneBlockAlignment(_ alignment: ZoneBlockAlignment, at path: ZonePath) {
-        selectedPath = path
-        currentContent.updateZone(at: path) {
-            if $0.sizeMode == .fillWidth {
-                $0.sizeMode = .auto
-                $0.fixedWidth = nil
-                $0.fixedHeight = nil
-            }
-            $0.blockAlignment = alignment
-        }
-    }
-
     private func deleteSelectedZone(at path: ZonePath) {
         currentContent.deleteZone(at: path)
         focusManager.forceReleaseKeyboard()
@@ -796,7 +747,10 @@ struct FlashcardEditorView: View {
 
             Spacer(minLength: 0)
 
-            sideSwitch
+            HStack(spacing: UIConstants.Spacing.small) {
+                sideSwitch
+                previewTopButton
+            }
 
             Spacer(minLength: 0)
 
@@ -827,6 +781,22 @@ struct FlashcardEditorView: View {
             tint: topChromeUtilityForeground,
             backgroundTint: topChromeUtilityFill
         )
+    }
+
+    private var previewTopButton: some View {
+        Button(action: openPreview) {
+            ChromeSoftCircleSymbol(
+                systemName: "eye",
+                size: UIConstants.Size.actionButton,
+                symbolSize: UIConstants.Size.navigationChromeIcon,
+                tint: hasSavableContent ? topChromeUtilityForeground : .secondary,
+                backgroundTint: topChromeUtilityFill
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!hasSavableContent)
+        .opacity(hasSavableContent ? 1 : 0.55)
+        .accessibilityLabel(localized("Preview"))
     }
 
     private var sideSwitch: some View {

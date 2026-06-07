@@ -133,16 +133,11 @@
 "Auto" = "Авто";
 "Auto Block" = "Автоблок";
 "Auto keeps the full source covered, then balances density by text weight." = "В режиме «Авто» сохраняется весь источник, а затем балансируется плотность по весу текста.";
-"Auto Size" = "Авторазмер";
 "Background Color" = "Цвет фона";
 "Background is rendered inside the shared sheet surface and clipped by the top corner radius." = "Фон отображается внутри общей поверхности листа и обрезается по радиусу верхнего угла.";
 "Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request." = "Базовые URL-адреса принимаются. QuizFlash автоматически определяет окончательный путь /chat/completions. Необязательный HTTP-Referer, X-Title и дополнительный JSON тела объединяются в запрос.";
 "Blank" = "Пропуск";
 "BLANK" = "ПРОПУСК";
-"Block Center" = "Блок по центру";
-"Block Left" = "Блок слева";
-"Block Position" = "Позиция блока";
-"Block Right" = "Блок справа";
 "Blue" = "Синий";
 "Bottom" = "Снизу";
 "Blur Color" = "Цвет блюра";
@@ -280,10 +275,8 @@
 "Exporting %d deck…" = "Экспорт %d колоды…";
 "Exporting..." = "Экспорт...";
 "Fill in every answer before saving." = "Заполните все ответы перед сохранением.";
-"Fill Width" = "По ширине";
 "Filtered by \"**%@**\"" = "Отфильтровано по \"**%@**\"";
 "First cards are on the way" = "Первые карточки уже создаются";
-"Fixed Size" = "Фиксированный размер";
 "Flashcard" = "Флэшкарточка";
 "Flashcard Border Radius" = "Радиус границы карточки";
 "Flashcards" = "Карточки";
@@ -655,7 +648,6 @@
 "You can stop now and keep the cards already received, or discard this AI batch completely." = "Вы можете остановиться сейчас и оставить уже полученные карты или полностью отказаться от этой партии ИИ.";
 "You have unsaved changes in this deck." = "У вас есть несохраненные изменения в этой колоде.";
 "Your card changes couldn't be saved right now." = "Изменения карточки сейчас не удалось сохранить.";
-"Zone Size" = "Размер зоны";
 "zones(%d)" = "зоны(%d)";
 "Could not extract text from this source. Try another source." = "Не удалось извлечь текст из этого источника. Попробуйте другой источник.";
 "Calendar" = "Календарь";

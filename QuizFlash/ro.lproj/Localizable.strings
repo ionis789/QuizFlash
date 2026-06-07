@@ -133,16 +133,11 @@
 "Auto" = "Auto";
 "Auto Block" = "Bloc auto";
 "Auto keeps the full source covered, then balances density by text weight." = "Auto menține întreaga sursă acoperită, apoi echilibrează densitatea în funcție de greutatea textului.";
-"Auto Size" = "Dimensiune automată";
 "Background Color" = "Culoare fundal";
 "Background is rendered inside the shared sheet surface and clipped by the top corner radius." = "Fundalul este redat în interiorul suprafeței foii partajate și decupat de raza colțului de sus.";
 "Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request." = "Adresele URL de bază sunt acceptate. QuizFlash rezolvă automat calea finală /chat/completions. Opțional HTTP-Referer, X-Title și JSON de corp suplimentar sunt îmbinate în cerere.";
 "Blank" = "Gol";
 "BLANK" = "SPAȚIU LIBER";
-"Block Center" = "Bloc centru";
-"Block Left" = "Bloc stânga";
-"Block Position" = "Poziție bloc";
-"Block Right" = "Bloc dreapta";
 "Blue" = "Albastru";
 "Bottom" = "Jos";
 "Blur Color" = "Culoare blur";
@@ -280,10 +275,8 @@
 "Exporting %d deck…" = "Se exportă %d deck…";
 "Exporting..." = "Se exportă...";
 "Fill in every answer before saving." = "Completează toate răspunsurile înainte de salvare.";
-"Fill Width" = "Umple lățimea";
 "Filtered by \"**%@**\"" = "Filtrată după „**%@**”";
 "First cards are on the way" = "Primele carduri sunt pe drum";
-"Fixed Size" = "Dimensiune fixă";
 "Flashcard" = "Flashcard";
 "Flashcard Border Radius" = "Raza chenarului cardului";
 "Flashcards" = "Fișe";
@@ -655,7 +648,6 @@
 "You can stop now and keep the cards already received, or discard this AI batch completely." = "Puteți să vă opriți acum și să păstrați carduri deja primite sau să renunțați complet la acest lot AI.";
 "You have unsaved changes in this deck." = "Aveți modificări nesalvate în acest deck.";
 "Your card changes couldn't be saved right now." = "Modificările cardului nu au putut fi salvate acum.";
-"Zone Size" = "Dimensiune zonă";
 "zones(%d)" = "zone(%d)";
 "Could not extract text from this source. Try another source." = "Nu s-a putut extrage textul din această sursă. Încearcă altă sursă.";
 "Calendar" = "Calendar";

@@ -1100,6 +1100,7 @@ private struct FlashcardPlainTextBlockView: View {
         VStack(alignment: textAlignment.horizontalAlignment, spacing: layout.lineSpacing) {
             ForEach(Array(layout.lines.enumerated()), id: \.offset) { _, line in
                 line.textView(defaultColor: zone.textColor.color)
+                    .fixedSize(horizontal: true, vertical: false)
                     .frame(width: line.width, alignment: .leading)
             }
         }

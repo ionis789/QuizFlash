@@ -133,16 +133,11 @@
 "Auto" = "Auto";
 "Auto Block" = "Auto Block";
 "Auto keeps the full source covered, then balances density by text weight." = "Auto keeps the full source covered, then balances density by text weight.";
-"Auto Size" = "Auto Size";
 "Background Color" = "Background Color";
 "Background is rendered inside the shared sheet surface and clipped by the top corner radius." = "Background is rendered inside the shared sheet surface and clipped by the top corner radius.";
 "Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request." = "Base URLs are accepted. QuizFlash automatically resolves the final /chat/completions path. Optional HTTP-Referer, X-Title, and extra body JSON are merged into the request.";
 "Blank" = "Blank";
 "BLANK" = "BLANK";
-"Block Center" = "Block Center";
-"Block Left" = "Block Left";
-"Block Position" = "Block Position";
-"Block Right" = "Block Right";
 "Blue" = "Blue";
 "Bottom" = "Bottom";
 "Blur Color" = "Blur Color";
@@ -280,10 +275,8 @@
 "Exporting %d deck…" = "Exporting %d deck…";
 "Exporting..." = "Exporting...";
 "Fill in every answer before saving." = "Fill in every answer before saving.";
-"Fill Width" = "Fill Width";
 "Filtered by \"**%@**\"" = "Filtered by \"**%@**\"";
 "First cards are on the way" = "First cards are on the way";
-"Fixed Size" = "Fixed Size";
 "Flashcard" = "Flashcard";
 "Flashcard Border Radius" = "Flashcard Border Radius";
 "Flashcards" = "Flashcards";
@@ -655,7 +648,6 @@
 "You can stop now and keep the cards already received, or discard this AI batch completely." = "You can stop now and keep the cards already received, or discard this AI batch completely.";
 "You have unsaved changes in this deck." = "You have unsaved changes in this deck.";
 "Your card changes couldn't be saved right now." = "Your card changes couldn't be saved right now.";
-"Zone Size" = "Zone Size";
 "zones(%d)" = "zones(%d)";
 "Could not extract text from this source. Try another source." = "Could not extract text from this source. Try another source.";
 "Calendar" = "Calendar";
