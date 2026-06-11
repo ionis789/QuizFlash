@@ -252,6 +252,7 @@
 "Ease" = "Ușurință";
 "Easy" = "Ușor";
 "Edit" = "Edita";
+"Edit Text" = "Editează text";
 "Edit the source text, then select the part you want learners to fill in." = "Editează textul sursă, apoi selectează partea pe care cursanții trebuie să o completeze.";
 "Edited" = "Editate";
 "Edited %@" = "Editat %@";
@@ -651,9 +652,11 @@
 "Your card changes couldn't be saved right now." = "Modificările cardului nu au putut fi salvate acum.";
 "zones(%d)" = "zone(%d)";
 "Could not extract text from this source. Try another source." = "Nu s-a putut extrage textul din această sursă. Încearcă altă sursă.";
+"Default size for editors and play modes." = "Dimensiune implicită pentru editor și modurile de joc.";
 "Calendar" = "Calendar";
 "English" = "Engleză";
 "Language" = "Limbă";
+"Layout" = "Aranjare";
 "Monday" = "Luni";
 "Navigation" = "Navigare";
 "Romanian" = "Română";

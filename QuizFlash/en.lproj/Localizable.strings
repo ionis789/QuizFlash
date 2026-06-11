@@ -252,6 +252,7 @@
 "Ease" = "Ease";
 "Easy" = "Easy";
 "Edit" = "Edit";
+"Edit Text" = "Edit Text";
 "Edit the source text, then select the part you want learners to fill in." = "Edit the source text, then select the part you want learners to fill in.";
 "Edited" = "Edited";
 "Edited %@" = "Edited %@";
@@ -651,9 +652,11 @@
 "Your card changes couldn't be saved right now." = "Your card changes couldn't be saved right now.";
 "zones(%d)" = "zones(%d)";
 "Could not extract text from this source. Try another source." = "Could not extract text from this source. Try another source.";
+"Default size for editors and play modes." = "Default size for editors and play modes.";
 "Calendar" = "Calendar";
 "English" = "English";
 "Language" = "Language";
+"Layout" = "Layout";
 "Monday" = "Monday";
 "Navigation" = "Navigation";
 "Romanian" = "Romanian";

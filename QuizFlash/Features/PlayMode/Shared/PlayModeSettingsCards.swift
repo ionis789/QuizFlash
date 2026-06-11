@@ -279,6 +279,14 @@ private struct CompactQuizSettingsCard: View {
                 tint: accentTint,
                 isDense: true
             )
+
+            CompactTextSizeSliderRow(
+                title: "Text Size",
+                icon: "textformat.size",
+                tint: accentTint,
+                textSize: $quizSettings.textSize,
+                isDense: true
+            )
         }
         .padding(UIConstants.Spacing.medium)
         .flashcardStyle(cornerRadius: UIConstants.Radius.maximum, surfaceRole: .widget)

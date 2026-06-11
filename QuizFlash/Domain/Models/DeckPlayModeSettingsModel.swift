@@ -111,9 +111,10 @@ nonisolated enum FlashcardContentAlignment: String, Codable, CaseIterable, Ident
 /// Controls how large flashcard text renders during play mode.
 nonisolated struct FlashcardTextSize: Codable, CaseIterable, Identifiable, Hashable, Sendable {
     static let minimumStep = 0
-    static let maximumStep = 6
-    static let normal = FlashcardTextSize(step: 3)
-    static let large = FlashcardTextSize(step: 6)
+    static let maximumStep = 10
+    static let legacyMaximumStep = 6
+    static let normal = FlashcardTextSize(step: 6)
+    static let large = FlashcardTextSize(step: 10)
     static let allCases: [FlashcardTextSize] = (minimumStep...maximumStep).map { FlashcardTextSize(step: $0) }
 
     let step: Int
@@ -128,31 +129,35 @@ nonisolated struct FlashcardTextSize: Codable, CaseIterable, Identifiable, Hasha
     /// Human-readable option label shown in the settings UI.
     var title: String {
         switch step {
-        case 0...1: return "Small"
-        case 2:     return "Medium"
-        case 3:     return "Normal"
+        case 0...2: return "Small"
+        case 3...5: return "Medium"
+        case 6...7: return "Normal"
         default:    return "Large"
         }
     }
 
     func localizedTitle(locale: Locale) -> String {
         switch step {
-        case 0...1: return AppLocalization.string("Small", locale: locale)
-        case 2:     return AppLocalization.string("Medium", locale: locale)
-        case 3:     return AppLocalization.string("Normal", locale: locale)
+        case 0...2: return AppLocalization.string("Small", locale: locale)
+        case 3...5: return AppLocalization.string("Medium", locale: locale)
+        case 6...7: return AppLocalization.string("Normal", locale: locale)
         default:    return AppLocalization.string("Large", locale: locale)
         }
     }
 
     var playModeScale: Double {
         switch step {
-        case 0: return 1.10
-        case 1: return 1.18
-        case 2: return 1.25
-        case 3: return 1.32
-        case 4: return 1.39
-        case 5: return 1.45
-        default: return 1.5
+        case 0: return 0.82
+        case 1: return 0.90
+        case 2: return 0.98
+        case 3: return 1.06
+        case 4: return 1.10
+        case 5: return 1.18
+        case 6: return 1.28
+        case 7: return 1.39
+        case 8: return 1.50
+        case 9: return 1.62
+        default: return 1.74
         }
     }
 
@@ -173,7 +178,7 @@ nonisolated struct FlashcardTextSize: Codable, CaseIterable, Identifiable, Hasha
         case "small":
             self.init(step: 1)
         case "medium":
-            self.init(step: 2)
+            self.init(step: 4)
         default:
             self = .large
         }
@@ -187,7 +192,7 @@ nonisolated struct FlashcardTextSize: Codable, CaseIterable, Identifiable, Hasha
 
 /// Flashcards runtime preferences persisted per deck.
 nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
-    private static let currentSchemaVersion = 4
+    private static let currentSchemaVersion = 5
 
     private var schemaVersion: Int = Self.currentSchemaVersion
     var order: FlashcardSessionOrder = .studyPriority
@@ -235,7 +240,10 @@ nonisolated struct FlashcardModeSettings: Codable, Equatable, Sendable {
         self.contentAlignment = decodedSchemaVersion < 2 && decodedContentAlignment == .top
             ? .center
             : decodedContentAlignment
-        self.textSize = try container.decodeIfPresent(FlashcardTextSize.self, forKey: .textSize) ?? .large
+        let decodedTextSize = try container.decodeIfPresent(FlashcardTextSize.self, forKey: .textSize) ?? .large
+        self.textSize = decodedSchemaVersion < 5 && decodedTextSize.step == FlashcardTextSize.legacyMaximumStep
+            ? .large
+            : decodedTextSize
         self.schemaVersion = Self.currentSchemaVersion
     }
 
@@ -305,6 +313,7 @@ nonisolated struct QuizModeSettings: Codable, Equatable, Sendable {
     var explanationTiming: QuizExplanationTiming = .afterCheck
     var answerValidation: QuizAnswerValidationMode = .instantCheck
     var retryIncorrectQuestions: Bool = true
+    var textSize: FlashcardTextSize = .large
 }
 
 // MARK: - Deck Play Mode Settings Model

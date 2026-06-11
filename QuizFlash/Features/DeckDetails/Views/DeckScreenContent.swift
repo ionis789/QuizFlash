@@ -113,7 +113,7 @@ extension DeckContentView {
         ) { card, safeArea in
             DeckCardPreviewSheetView(
                 card: card,
-                flashcardSettings: deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings(),
+                flashcardSettings: resolvedFlashcardSettings,
                 safeAreaInsets: safeArea
             )
         } background: {
@@ -166,7 +166,8 @@ extension DeckContentView {
         .fullScreenCover(item: $cardEditorDestination) { destination in
             CardEditorView(
                 destination: destination,
-                searchQuery: viewModel.searchQuery
+                searchQuery: viewModel.searchQuery,
+                textSizeOverride: resolvedEditorTextSize(for: destination.kind)
             ) { content in
                 handleCardEditorSave(destination: destination, content: content)
             }
@@ -186,11 +187,31 @@ extension DeckContentView {
     var playModeSettingsSheetHeightMode: FullScreenSheetHeightMode {
         switch selectedPlayModeSettings {
         case .quiz:
-            .absolute(420)
+            .absolute(540)
         case .flashcards:
             .absolute(700)
         case nil:
             .custom(0.6)
+        }
+    }
+
+    private var resolvedFlashcardSettings: FlashcardModeSettings {
+        var settings = deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
+        if deck.playModeSettings == nil {
+            settings.textSize = appPreferences.defaultTextSize
+        }
+        return settings
+    }
+
+    private func resolvedEditorTextSize(for kind: CardKind) -> FlashcardTextSize {
+        switch kind {
+        case .flashcard:
+            return resolvedFlashcardSettings.textSize
+        case .quiz:
+            if let settings = deck.playModeSettings?.quizSettings {
+                return settings.textSize
+            }
+            return appPreferences.defaultTextSize
         }
     }
 
@@ -385,6 +406,7 @@ extension DeckContentView {
                     isSelecting: viewModel.isSelecting,
                     selectedCards: viewModel.selectedCards,
                     isSuspended: isSuspended,
+                    modelContainer: context.container,
                     onToggleSelection: { gridCard in
                         withAnimation(.spring(response: 0.18, dampingFraction: 0.88)) {
                             viewModel.toggleSelection(for: gridCard.id)

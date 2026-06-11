@@ -46,9 +46,14 @@ extension DeckContentView {
         }
         guard flashcardsPreparationTask == nil else { return }
 
+        var flashcardSettings = deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
+        if deck.playModeSettings == nil {
+            flashcardSettings.textSize = appPreferences.defaultTextSize
+        }
+
         let sessionViewModel = preparedFlashcardsPlayModeViewModel ?? FlashCardsPlayModeViewModel(
             deck: deck,
-            settings: deck.playModeSettings?.flashcardSettings ?? FlashcardModeSettings()
+            settings: flashcardSettings
         )
         preparedFlashcardsPlayModeViewModel = sessionViewModel
 

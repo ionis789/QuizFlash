@@ -13,6 +13,7 @@ import UIKit
 
 /// Lazy wrapper that avoids initializing the quiz view model inside the full-screen cover path.
 struct QuizModeView: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(ThemeManager.self) private var themeManager
 
     let deck: DeckModel
@@ -36,12 +37,20 @@ struct QuizModeView: View {
                         if viewModel == nil {
                             viewModel = QuizModeViewModel(
                                 deck: deck,
-                                settings: deck.playModeSettings?.quizSettings ?? QuizModeSettings()
+                                settings: resolvedSettings
                             )
                         }
                     }
             }
         }
+    }
+
+    private var resolvedSettings: QuizModeSettings {
+        var settings = deck.playModeSettings?.quizSettings ?? QuizModeSettings()
+        if deck.playModeSettings == nil {
+            settings.textSize = appPreferences.defaultTextSize
+        }
+        return settings
     }
 }
 
@@ -87,8 +96,7 @@ private struct QuizModeSessionView: View {
     private var questionContentHiddenScale: CGFloat { 0.952 }
     private var questionContentSpring: Animation { .spring(response: 0.36, dampingFraction: 0.84) }
     private var playModeTextScale: CGFloat {
-        let textSize = deck.playModeSettings?.flashcardSettings.textSize ?? .large
-        return CGFloat(textSize.playModeScale)
+        CGFloat(viewModel.settings.textSize.playModeScale)
     }
 
     var body: some View {
@@ -162,7 +170,10 @@ private struct QuizModeSessionView: View {
         }
         .fullScreenCover(item: $editingCard) { card in
             NavigationStack {
-                CardEditorView(destination: .edit(DraftCard.from(card))) { content in
+                CardEditorView(
+                    destination: .edit(DraftCard.from(card)),
+                    textSizeOverride: viewModel.settings.textSize
+                ) { content in
                     saveEditedQuiz(card, content: content)
                     editingCard = nil
                 }

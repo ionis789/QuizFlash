@@ -176,7 +176,11 @@ final class AppPreferences {
         static let weekStartDay = "preferences.calendar.weekStartDay"
         static let createDeckSortOrder = "preferences.createDeck.sortOrder"
         static let padTabBarPosition = "preferences.navigation.padTabBarPosition"
+        static let defaultTextSize = "preferences.editor.defaultTextSize"
+        static let defaultTextSizeScaleVersion = "preferences.editor.defaultTextSizeScaleVersion"
     }
+
+    private static let currentTextSizeScaleVersion = 2
 
     private let userDefaults: UserDefaults
 
@@ -227,6 +231,14 @@ final class AppPreferences {
         }
     }
 
+    /// Default card text size used by editors and play modes before a deck overrides it.
+    var defaultTextSize: FlashcardTextSize {
+        didSet {
+            userDefaults.set(defaultTextSize.rawValue, forKey: Keys.defaultTextSize)
+            userDefaults.set(Self.currentTextSizeScaleVersion, forKey: Keys.defaultTextSizeScaleVersion)
+        }
+    }
+
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.appLanguage = AppLanguagePreference(
@@ -241,7 +253,23 @@ final class AppPreferences {
         self.padTabBarPosition = AppPadTabBarPosition(
             rawValue: userDefaults.string(forKey: Keys.padTabBarPosition) ?? ""
         ) ?? .center
+        self.defaultTextSize = Self.resolvedDefaultTextSize(from: userDefaults)
+        userDefaults.set(Self.currentTextSizeScaleVersion, forKey: Keys.defaultTextSizeScaleVersion)
         AppLocalization.applyLanguageOverride(appLanguage)
+    }
+
+    private static func resolvedDefaultTextSize(from userDefaults: UserDefaults) -> FlashcardTextSize {
+        guard let storedStep = userDefaults.object(forKey: Keys.defaultTextSize) as? Int else {
+            return .large
+        }
+
+        let scaleVersion = userDefaults.integer(forKey: Keys.defaultTextSizeScaleVersion)
+        if scaleVersion < currentTextSizeScaleVersion,
+           storedStep == FlashcardTextSize.legacyMaximumStep {
+            return .large
+        }
+
+        return FlashcardTextSize(step: storedStep)
     }
 
     /// Resolves the app's effective calendar based on the stored weekday preference.

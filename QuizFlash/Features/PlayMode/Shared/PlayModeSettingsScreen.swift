@@ -83,7 +83,8 @@ struct PlayModeSettingsScreen: View {
                 quizSettings.shuffleChoices ? AppLocalization.string("Choices shuffle at runtime.", locale: locale) : AppLocalization.string("Author order is preserved.", locale: locale),
                 AppLocalization.string("Validation: %@", locale: locale).replacingOccurrences(of: "%@", with: quizSettings.answerValidation.localizedTitle(locale: locale)),
                 AppLocalization.string("Explanation: %@", locale: locale).replacingOccurrences(of: "%@", with: quizSettings.explanationTiming.localizedTitle(locale: locale)),
-                quizSettings.retryIncorrectQuestions ? AppLocalization.string("Wrong questions queue for one retry pass.", locale: locale) : AppLocalization.string("Wrong questions do not replay automatically.", locale: locale)
+                quizSettings.retryIncorrectQuestions ? AppLocalization.string("Wrong questions queue for one retry pass.", locale: locale) : AppLocalization.string("Wrong questions do not replay automatically.", locale: locale),
+                AppLocalization.string("Text size: %@.", locale: locale).replacingOccurrences(of: "%@", with: quizSettings.textSize.localizedTitle(locale: locale))
             ]
         }
     }
@@ -220,6 +221,10 @@ struct PlayModeSettingsScreen: View {
         hasLoadedSettings = false
         flashcardSettings = model.flashcardSettings
         quizSettings = model.quizSettings
+        if isNewlyCreated {
+            flashcardSettings.textSize = appPreferences.defaultTextSize
+            quizSettings.textSize = appPreferences.defaultTextSize
+        }
         hasLoadedSettings = true
 
         if isNewlyCreated {

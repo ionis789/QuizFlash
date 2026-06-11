@@ -502,7 +502,7 @@ struct SettingsSliderRow: View {
 
                 Spacer(minLength: UIConstants.Spacing.standard)
 
-                Text("\(Int(value.rounded())) \(valueSuffix)")
+                Text(valueLabel)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(themeManager.textPrimary)
                     .padding(.horizontal, UIConstants.Spacing.standard)
@@ -525,6 +525,12 @@ struct SettingsSliderRow: View {
             }
             .padding(.leading, 54)
         }
+    }
+
+    private var valueLabel: String {
+        let roundedValue = "\(Int(value.rounded()))"
+        guard !valueSuffix.isEmpty else { return roundedValue }
+        return "\(roundedValue) \(valueSuffix)"
     }
 }
 

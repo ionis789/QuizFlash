@@ -106,13 +106,13 @@ final class ZoneModelLayoutMigrationTests: XCTestCase {
         zone.fixedWidth = 160
         zone.fixedHeight = 40
 
-        let layout = CardZoneLayoutEngine.leafLayout(
+        let layout = ZoneContentLayoutEngine.leafLayout(
             for: zone,
-            spec: CardZoneLayoutSpec(availableWidth: 300, fontScale: 1),
+            spec: ZoneContentLayoutSpec(availableWidth: 300, fontScale: 1),
             measuredContentSize: CGSize(width: 150, height: 128)
         )
 
-        XCTAssertEqual(layout.blockSize.height, 128)
+        XCTAssertEqual(layout.blockSize.height, 152)
     }
 
     func testFixedZoneHeightRemainsMinimumWhenContentIsShorter() {
@@ -121,9 +121,9 @@ final class ZoneModelLayoutMigrationTests: XCTestCase {
         zone.fixedWidth = 160
         zone.fixedHeight = 96
 
-        let layout = CardZoneLayoutEngine.leafLayout(
+        let layout = ZoneContentLayoutEngine.leafLayout(
             for: zone,
-            spec: CardZoneLayoutSpec(availableWidth: 300, fontScale: 1),
+            spec: ZoneContentLayoutSpec(availableWidth: 300, fontScale: 1),
             measuredContentSize: CGSize(width: 150, height: 42)
         )
 
@@ -133,23 +133,26 @@ final class ZoneModelLayoutMigrationTests: XCTestCase {
     func testAutoMathZoneUsesRenderedContentWidthFromWebView() {
         let zone = ZoneModel.text(#"$S' \cdot A_{\tilde{B},\tilde{B}'} = A_{B,B'} \cdot S$"#)
 
-        let layout = CardZoneLayoutEngine.leafLayout(
+        let layout = ZoneContentLayoutEngine.leafLayout(
             for: zone,
-            spec: CardZoneLayoutSpec(availableWidth: 329, fontScale: 1),
+            spec: ZoneContentLayoutSpec(availableWidth: 329, fontScale: 1),
             measuredContentSize: CGSize(width: 166, height: 113)
         )
 
-        XCTAssertEqual(layout.blockSize.width, 166)
-        XCTAssertEqual(layout.textWidthLimit, 142)
+        XCTAssertEqual(layout.blockSize.width, 190)
+        XCTAssertEqual(layout.textWidthLimit, 166)
+        XCTAssertEqual(layout.resolvedInsets, ZoneContentInsets.zoneText)
+        XCTAssertEqual(layout.contentFrame.minX, 82)
+        XCTAssertEqual(layout.contentFrame.width, 166)
         XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
     }
 
     func testAutoMathZoneConstrainsTextToInnerWidth() {
         let zone = ZoneModel.text(#"Cum se reprezintă un operator liniar $T: \mathbb{R}^n \to \mathbb{R}^m$ în bazele canonice?"#)
 
-        let layout = CardZoneLayoutEngine.leafLayout(
+        let layout = ZoneContentLayoutEngine.leafLayout(
             for: zone,
-            spec: CardZoneLayoutSpec(availableWidth: 329, fontScale: 1),
+            spec: ZoneContentLayoutSpec(availableWidth: 329, fontScale: 1),
             measuredContentSize: CGSize(width: 329, height: 140)
         )
 
@@ -157,68 +160,72 @@ final class ZoneModelLayoutMigrationTests: XCTestCase {
         XCTAssertEqual(layout.contentLayoutWidth, 329)
         XCTAssertEqual(layout.textHorizontalInsets, 24)
         XCTAssertEqual(layout.textWidthLimit, 305)
+        XCTAssertEqual(layout.resolvedInsets.top, 12)
+        XCTAssertEqual(layout.resolvedInsets.left, 12)
+        XCTAssertEqual(layout.resolvedInsets.bottom, 12)
+        XCTAssertEqual(layout.resolvedInsets.right, 12)
         XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
     }
 
     func testAutoMathZoneShrinksToStableRenderedContentWidth() {
         let zone = ZoneModel.text("def(T − λ·1V) = dim(Ker(T − λ·1V))")
 
-        let layout = CardZoneLayoutEngine.leafLayout(
+        let layout = ZoneContentLayoutEngine.leafLayout(
             for: zone,
-            spec: CardZoneLayoutSpec(availableWidth: 329, fontScale: 1),
+            spec: ZoneContentLayoutSpec(availableWidth: 329, fontScale: 1),
             measuredContentSize: CGSize(width: 289, height: 107)
         )
 
-        XCTAssertEqual(layout.blockSize.width, 289)
-        XCTAssertEqual(layout.textWidthLimit, 265)
+        XCTAssertEqual(layout.blockSize.width, 313)
+        XCTAssertEqual(layout.textWidthLimit, 289)
         XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
     }
 
     func testAutoMathListItemUsesStableRenderedContentWidth() {
         let zone = ZoneModel.text(#"a) $T$ este injectivă;"#)
 
-        let layout = CardZoneLayoutEngine.leafLayout(
+        let layout = ZoneContentLayoutEngine.leafLayout(
             for: zone,
-            spec: CardZoneLayoutSpec(availableWidth: 329, fontScale: 1),
+            spec: ZoneContentLayoutSpec(availableWidth: 329, fontScale: 1),
             measuredContentSize: CGSize(width: 220, height: 70)
         )
 
-        XCTAssertEqual(layout.blockSize.width, 220)
-        XCTAssertEqual(layout.contentLayoutWidth, 220)
-        XCTAssertEqual(layout.textWidthLimit, 196)
-        XCTAssertEqual(layout.leadingInset, 55)
+        XCTAssertEqual(layout.blockSize.width, 244)
+        XCTAssertEqual(layout.contentLayoutWidth, 244)
+        XCTAssertEqual(layout.textWidthLimit, 220)
+        XCTAssertEqual(layout.leadingInset, 43)
         XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
     }
 
     func testLongMixedMathQuestionUsesRenderedContentWidth() {
         let zone = ZoneModel.text(#"Definiți condițiile pe care trebuie să le satisfacă o submulțime $f \subseteq X \times Y$ pentru a fi o funcție $f: X \to Y$."#)
 
-        let layout = CardZoneLayoutEngine.leafLayout(
+        let layout = ZoneContentLayoutEngine.leafLayout(
             for: zone,
-            spec: CardZoneLayoutSpec(availableWidth: 329, fontScale: 1),
+            spec: ZoneContentLayoutSpec(availableWidth: 329, fontScale: 1),
             measuredContentSize: CGSize(width: 236, height: 254)
         )
 
-        XCTAssertEqual(layout.blockSize.width, 236)
-        XCTAssertEqual(layout.contentLayoutWidth, 236)
-        XCTAssertEqual(layout.textWidthLimit, 212)
-        XCTAssertEqual(layout.leadingInset, 47)
+        XCTAssertEqual(layout.blockSize.width, 260)
+        XCTAssertEqual(layout.contentLayoutWidth, 260)
+        XCTAssertEqual(layout.textWidthLimit, 236)
+        XCTAssertEqual(layout.leadingInset, 35)
         XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
     }
 
     func testShortMathListItemUsesRendererMeasuredWidth() {
         let zone = ZoneModel.text(#"b) $\operatorname{def}(T) = 0$;"#)
 
-        let layout = CardZoneLayoutEngine.leafLayout(
+        let layout = ZoneContentLayoutEngine.leafLayout(
             for: zone,
-            spec: CardZoneLayoutSpec(availableWidth: 329, fontScale: 1),
+            spec: ZoneContentLayoutSpec(availableWidth: 329, fontScale: 1),
             measuredContentSize: CGSize(width: 191, height: 70)
         )
 
-        XCTAssertEqual(layout.blockSize.width, 191)
-        XCTAssertEqual(layout.contentLayoutWidth, 191)
-        XCTAssertEqual(layout.textWidthLimit, 167)
-        XCTAssertEqual(layout.leadingInset, 69)
+        XCTAssertEqual(layout.blockSize.width, 215)
+        XCTAssertEqual(layout.contentLayoutWidth, 215)
+        XCTAssertEqual(layout.textWidthLimit, 191)
+        XCTAssertEqual(layout.leadingInset, 57)
         XCTAssertTrue(layout.usesIntrinsicTextMeasurement)
     }
 

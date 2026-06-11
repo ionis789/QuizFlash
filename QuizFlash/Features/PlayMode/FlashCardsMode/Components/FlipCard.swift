@@ -12,6 +12,20 @@
 
 import SwiftUI
 
+// MARK: - Flashcard Play Layout Tuning
+
+enum FlashcardPlayLayoutTuning {
+    static let screenToCardHorizontalPaddingCompact: CGFloat = 8
+//    static let screenToCardHorizontalPaddingCompact: CGFloat = 12
+    static let screenToCardHorizontalPaddingRegular: CGFloat = 8
+//    static let screenToCardHorizontalPaddingRegular: CGFloat = 24
+
+    static let cardToContentHorizontalPaddingCompact: CGFloat = 4
+    static let cardToContentHorizontalPaddingRegular: CGFloat = 4
+    static let cardToContentVerticalPaddingCompact: CGFloat = 4
+    static let cardToContentVerticalPaddingRegular: CGFloat = 4
+}
+
 // MARK: - Static Swap Transition
 
 private struct StaticSwapTransitionModifier: ViewModifier {
@@ -31,7 +45,7 @@ private struct StaticSwapTransitionModifier: ViewModifier {
 
 private extension AnyTransition {
     static var flashcardStaticSwap: AnyTransition {
-        .asymmetric(
+            .asymmetric(
             insertion: .modifier(
                 active: StaticSwapTransitionModifier(
                     scale: 0.972,
@@ -77,9 +91,9 @@ private struct FlipFaceModifier: AnimatableModifier {
         content
             .rotation3DEffect(
                 .degrees(rotationDegrees),
-                axis: (x: 0, y: 1, z: 0),
-                perspective: perspective
-            )
+            axis: (x: 0, y: 1, z: 0),
+            perspective: perspective
+        )
             .opacity(isFacingViewer ? 1 : 0)
     }
 
@@ -184,29 +198,37 @@ struct FlipCard: View {
         CGFloat(textSize.playModeScale)
     }
     private var cardCornerRadius: CGFloat { isCompact ? 42 : 52 }
-    private var hPad: CGFloat { isCompact ? 20 : 28 }
-    private var vPad: CGFloat { isCompact ? 20 : 24 }
+    private var hPad: CGFloat {
+        isCompact
+            ? FlashcardPlayLayoutTuning.cardToContentHorizontalPaddingCompact
+        : FlashcardPlayLayoutTuning.cardToContentHorizontalPaddingRegular
+    }
+    private var vPad: CGFloat {
+        isCompact
+            ? FlashcardPlayLayoutTuning.cardToContentVerticalPaddingCompact
+        : FlashcardPlayLayoutTuning.cardToContentVerticalPaddingRegular
+    }
     private var faceMarkerInset: CGFloat { isCompact ? 8 : 10 }
     private var faceMarkerFrameSize: CGFloat { isCompact ? 22 : 24 }
     private var cardSurfaceFill: Color {
         colorScheme == .dark
             ? Color(red: 0.068, green: 0.068, blue: 0.068)
-            : Color(red: 0.92, green: 0.92, blue: 0.91)
+        : Color(red: 0.92, green: 0.92, blue: 0.91)
     }
     private var cardBorderColor: Color {
         colorScheme == .dark
             ? Color.white.opacity(0.045)
-            : Color.black.opacity(0.08)
+        : Color.black.opacity(0.08)
     }
     private var cardInnerHighlightColor: Color {
         colorScheme == .dark
             ? Color.white.opacity(0.025)
-            : Color.white.opacity(0.36)
+        : Color.white.opacity(0.36)
     }
     private var cardShadowColor: Color {
         colorScheme == .dark
             ? Color.black.opacity(0.42)
-            : Color.black.opacity(0.12)
+        : Color.black.opacity(0.12)
     }
 
     // MARK: - Init
@@ -267,10 +289,10 @@ struct FlipCard: View {
                 staticSwapBody
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Full-surface hit testing so SwipeableCard gestures fire everywhere.
         .contentShape(Rectangle())
-        .onChange(of: isFlipped) { _, _ in
+            .onChange(of: isFlipped) { _, _ in
             publishStoredLayoutDebugSnapshot()
         }
     }
@@ -332,23 +354,23 @@ struct FlipCard: View {
         ZStack {
             content()
         }
-        .background {
+            .background {
             cardShape
                 .fill(cardSurfaceFill)
                 .shadow(color: cardShadowColor, radius: isCompact ? 18 : 24, y: 10)
         }
-        .overlay {
+            .overlay {
             cardShape
                 .strokeBorder(cardBorderColor, lineWidth: 1)
         }
-        .overlay {
+            .overlay {
             cardShape
                 .strokeBorder(cardInnerHighlightColor, lineWidth: 0.7)
                 .blur(radius: 1.2)
                 .clipShape(cardShape)
         }
-        .clipShape(cardShape)
-        .overlay(alignment: .bottomTrailing) {
+            .clipShape(cardShape)
+            .overlay(alignment: .bottomTrailing) {
             faceMarkerBadge(marker)
                 .padding(.bottom, faceMarkerInset + 2)
                 .padding(.trailing, faceMarkerInset)
@@ -385,18 +407,18 @@ struct FlipCard: View {
         )
             .frame(width: contentWidth, alignment: .topLeading)
             .onGeometryChange(for: CGSize.self) { proxy in
-                CGSize(
-                    width: ceil(proxy.size.width),
-                    height: ceil(proxy.size.height)
-                )
-            } action: { newSize in
-                guard newSize.width > 0, newSize.height > 0 else { return }
-                let oldSize = contentSize.wrappedValue
-                if abs(oldSize.width - newSize.width) > 0.5
-                    || abs(oldSize.height - newSize.height) > 0.5 {
-                    contentSize.wrappedValue = newSize
-                }
+            CGSize(
+                width: ceil(proxy.size.width),
+                height: ceil(proxy.size.height)
+            )
+        } action: { newSize in
+            guard newSize.width > 0, newSize.height > 0 else { return }
+            let oldSize = contentSize.wrappedValue
+            if abs(oldSize.width - newSize.width) > 0.5
+                || abs(oldSize.height - newSize.height) > 0.5 {
+                contentSize.wrappedValue = newSize
             }
+        }
     }
 
     // MARK: - Adaptive Scroll Content
@@ -445,25 +467,25 @@ struct FlipCard: View {
                             contentWidth: layout.availableContentWidth,
                             centersLeafBlocks: faceVerticalAlignment == .center
                         )
-                        .onPreferenceChange(ZoneContentLeafDebugPreferenceKey.self) { leafSnapshots in
+                            .onPreferenceChange(ZoneContentLeafDebugPreferenceKey.self) { leafSnapshots in
                             updateLayoutDebugSnapshot(
                                 marker: marker,
                                 layout: layout,
                                 leafSnapshots: leafSnapshots
                             )
                         }
-                        .padding(.top, vPad + layout.contentTopInset)
-                        .padding(.leading, hPad)
-                        .padding(.bottom, vPad + layout.contentBottomInset)
+                            .padding(.top, vPad + layout.contentTopInset)
+                            .padding(.leading, hPad)
+                            .padding(.bottom, vPad + layout.contentBottomInset)
                     }
-                    .frame(
+                        .frame(
                         width: available.size.width,
                         height: layout.scrollContentHeight,
                         alignment: .topLeading
                     )
                 }
-                .scrollDisabled(layout.contentFitsVertically)
-                .frame(width: available.size.width, height: available.size.height)
+                    .scrollDisabled(layout.contentFitsVertically)
+                    .frame(width: available.size.width, height: available.size.height)
             } else {
                 emptyContent
                     .frame(width: available.size.width, height: available.size.height)
@@ -476,14 +498,14 @@ struct FlipCard: View {
     private func zoneContentDebugGuides(layout: ZoneContentLayout) -> some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
             .stroke(
-                Color.cyan.opacity(0.9),
-                style: StrokeStyle(lineWidth: 1.6, dash: [7, 5])
-            )
+            Color.cyan.opacity(0.9),
+            style: StrokeStyle(lineWidth: 1.6, dash: [7, 5])
+        )
             .frame(
-                width: layout.debugAvailableFrame.width,
-                height: layout.debugAvailableFrame.height,
-                alignment: .topLeading
-            )
+            width: layout.debugAvailableFrame.width,
+            height: layout.debugAvailableFrame.height,
+            alignment: .topLeading
+        )
             .padding(.leading, hPad)
             .padding(.top, vPad)
             .allowsHitTesting(false)
@@ -501,7 +523,7 @@ struct FlipCard: View {
                 .font(isCompact ? .body : .title3)
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func faceMarkerBadge(_ marker: FaceMarker) -> some View {
@@ -561,7 +583,7 @@ struct FlipCard: View {
         guard let onLayoutDebugSnapshot else { return }
         let snapshot = visibleMarker == .answer
             ? latestBackLayoutDebugSnapshot
-            : latestFrontLayoutDebugSnapshot
+        : latestFrontLayoutDebugSnapshot
 
         if let snapshot {
             onLayoutDebugSnapshot(snapshot)

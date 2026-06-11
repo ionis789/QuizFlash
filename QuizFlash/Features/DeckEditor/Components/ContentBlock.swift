@@ -340,7 +340,7 @@ enum HighlightColor: String, Codable, Equatable, CaseIterable {
 
     var zoneSurfaceFill: Color {
         guard let tint = zoneSurfaceTint else {
-            return Color(red: 0.075, green: 0.075, blue: 0.082)
+            return Color(red: 0.105, green: 0.105, blue: 0.112)
         }
         return tint.opacity(0.22)
     }

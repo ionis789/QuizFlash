@@ -250,6 +250,19 @@ struct SettingsView: View {
             }
 
             settingsBlock {
+                SettingsSliderRow(
+                    icon: "textformat.size",
+                    tint: themeManager.accentColor.color,
+                    title: "Text Size",
+                    detail: "Default size for editors and play modes.",
+                    valueSuffix: "",
+                    range: Double(FlashcardTextSize.minimumStep)...Double(FlashcardTextSize.maximumStep),
+                    step: 1,
+                    value: defaultTextSizeBinding
+                )
+            }
+
+            settingsBlock {
                 SettingsMenuPickerRow(
                     icon: "calendar",
                     tint: themeManager.accentColor.color,
@@ -423,6 +436,13 @@ struct SettingsView: View {
         Binding(
             get: { appPreferences.weekStartDay },
             set: { appPreferences.weekStartDay = $0 }
+        )
+    }
+
+    private var defaultTextSizeBinding: Binding<Double> {
+        Binding(
+            get: { Double(appPreferences.defaultTextSize.step) },
+            set: { appPreferences.defaultTextSize = FlashcardTextSize(step: Int($0.rounded())) }
         )
     }
 

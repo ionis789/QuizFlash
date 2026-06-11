@@ -147,11 +147,18 @@ final class CardPreviewPayload: @unchecked Sendable {
     let thumbnailData: Data?
     let hasFrontImage: Bool
     let hasFrontSketch: Bool
+    let previewContent: DraftCardContent?
 
-    nonisolated init(thumbnailData: Data?, hasFrontImage: Bool, hasFrontSketch: Bool) {
+    nonisolated init(
+        thumbnailData: Data?,
+        hasFrontImage: Bool,
+        hasFrontSketch: Bool,
+        previewContent: DraftCardContent? = nil
+    ) {
         self.thumbnailData  = thumbnailData
         self.hasFrontImage  = hasFrontImage
         self.hasFrontSketch = hasFrontSketch
+        self.previewContent = previewContent
     }
 }
 
@@ -171,6 +178,7 @@ struct DeckCardGridView: View {
     let isSelecting: Bool
     let selectedCards: Set<PersistentIdentifier>
     let isSuspended: Bool
+    var modelContainer: ModelContainer? = nil
 
     var onToggleSelection: (GridCardInfo) -> Void
     var onTapCard: (GridCardInfo) -> Void
@@ -221,6 +229,7 @@ struct DeckCardGridView: View {
             isSelected: selectedCards.contains(card.id),
             isSuspended: isSuspended,
             accent: accent,
+            modelContainer: modelContainer,
             onToggleSelection: onToggleSelection,
             onTapCard: onTapCard,
             onEditCard: onEditCard,
@@ -301,6 +310,7 @@ private struct DeckGridCardCell: View {
     let isSelected: Bool
     let isSuspended: Bool
     let accent: Color
+    let modelContainer: ModelContainer?
     let onToggleSelection: (GridCardInfo) -> Void
     let onTapCard: (GridCardInfo) -> Void
     let onEditCard: (GridCardInfo) -> Void
@@ -388,12 +398,12 @@ private struct DeckGridCardCell: View {
     }
 
     private var contextMenuPreview: some View {
-        MiniCardPreview(
+        DeckGridGamePreview(
             card: card,
+            modelContainer: modelContainer,
             isSelected: isSelecting && isSelected,
             isSuspended: isSuspended
         )
-        .equatable()
         .frame(
             width: cardSize.width > 0 ? cardSize.width : nil,
             height: cardSize.height > 0 ? cardSize.height : nil,
@@ -425,6 +435,146 @@ private struct DeckGridCardCell: View {
         .animation(.spring(response: 0.24, dampingFraction: 0.88), value: isSelected)
     }
 
+}
+
+private struct DeckGridGamePreviewLoadID: Hashable {
+    let cardID: PersistentIdentifier
+    let editedAt: Date
+}
+
+private struct DeckGridGamePreview: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(ThemeManager.self) private var themeManager
+
+    let card: GridCardInfo
+    let modelContainer: ModelContainer?
+    let isSelected: Bool
+    let isSuspended: Bool
+
+    @State private var payload: CardPreviewPayload?
+    @State private var isFlipped = false
+
+    private var loadID: DeckGridGamePreviewLoadID {
+        DeckGridGamePreviewLoadID(cardID: card.id, editedAt: card.editedAt)
+    }
+
+    private var surfaceFill: Color {
+        colorScheme == .dark
+            ? Color(red: 0.068, green: 0.068, blue: 0.068)
+            : Color(red: 0.92, green: 0.92, blue: 0.91)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            if let previewContent = payload?.previewContent {
+                switch previewContent {
+                case .flashcard(let content):
+                    flashcardPreview(content)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                case .quiz(let content):
+                    quizPreview(content, size: proxy.size)
+                }
+            } else {
+                MiniCardPreview(
+                    card: card,
+                    isSelected: isSelected,
+                    isSuspended: isSuspended
+                )
+                .equatable()
+            }
+        }
+        .task(id: loadID) {
+            guard let modelContainer else { return }
+            payload = CardPreviewCache.shared.payload(for: card.id)
+            if payload?.previewContent == nil {
+                payload = await CardPreviewCache.shared.loadPayload(for: card.id, container: modelContainer)
+            }
+        }
+    }
+
+    private func flashcardPreview(_ content: FlashcardCardContent) -> some View {
+        FlipCard(
+            frontZone: content.frontZone,
+            backZone: content.backZone,
+            isFlipped: $isFlipped,
+            tapAnimationStyle: .flip3D,
+            staticSwapTextMotion: .instant,
+            contentAlignment: .center,
+            textSize: .large
+        )
+    }
+
+    private func quizPreview(_ content: QuizCardContent, size: CGSize) -> some View {
+        let horizontalPadding: CGFloat = 12
+        let verticalPadding: CGFloat = 12
+        let availableWidth = max(size.width - (horizontalPadding * 2), 1)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            deckGridZonePreview(
+                zone: content.questionZone,
+                availableWidth: availableWidth,
+                fontScale: 0.82,
+                showsZoneSurfaces: true
+            )
+
+            ForEach(Array(content.choices.prefix(4).enumerated()), id: \.element.id) { index, choice in
+                HStack(alignment: .top, spacing: 8) {
+                    Text("\(index + 1)")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(choice.isCorrect ? themeManager.accentColor.color : .secondary)
+                        .frame(width: 18, height: 18)
+                        .background(
+                            Circle()
+                                .fill(choice.isCorrect ? themeManager.accentColor.color.opacity(0.16) : Color.secondary.opacity(0.10))
+                        )
+
+                    deckGridZonePreview(
+                        zone: choice.contentZone,
+                        availableWidth: max(availableWidth - 26, 1),
+                        fontScale: 0.68,
+                        showsZoneSurfaces: false
+                    )
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, verticalPadding)
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
+                .fill(surfaceFill)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: UIConstants.Radius.large, style: .continuous)
+                .strokeBorder(Color.primary.opacity(colorScheme == .dark ? 0.05 : 0.08), lineWidth: 1)
+        }
+    }
+
+    private func deckGridZonePreview(
+        zone: ZoneModel,
+        availableWidth: CGFloat,
+        fontScale: CGFloat,
+        showsZoneSurfaces: Bool
+    ) -> some View {
+        ZoneContentRenderView(
+            zone: zone,
+            fontScale: fontScale,
+            availableWidth: availableWidth,
+            centersLeafBlocks: false,
+            alignLeafBlocksToGroupLeading: true,
+            showsDebugGuides: false,
+            showsZoneSurfaces: showsZoneSurfaces,
+            showsCodeBlockZoneSurfaces: true,
+            usesBorderOnlyZoneHighlights: true,
+            zoneHighlightStrokeStyle: StrokeStyle(lineWidth: 1.4),
+            textVerticalPadding: ZoneContentMetrics.textVerticalPadding,
+            textHorizontalPaddingOverride: ZoneContentMetrics.textHorizontalPadding,
+            collectsDebugMetrics: false
+        )
+        .frame(width: availableWidth, alignment: .topLeading)
+    }
 }
 
 // =============================================================================

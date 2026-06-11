@@ -1751,10 +1751,24 @@ struct MathWebView: UIViewRepresentable {
 
         function reportLayoutMetrics() {
             const el = document.getElementById('content');
+            if (!el) { return; }
             const intrinsicMeasurementWidthLimit = parseFloat(document.body.dataset.intrinsicMeasurementWidthLimit || '0') || 0;
-            const bounds = intrinsicMeasurementWidthLimit > 0
+            let bounds = intrinsicMeasurementWidthLimit > 0
                 ? measuredVisualContentBoundsAtWidth(el, intrinsicMeasurementWidthLimit)
                 : measuredVisualContentBounds(el);
+            if (!bounds) {
+                const rect = el.getBoundingClientRect();
+                const width = Math.max(rect.width, el.scrollWidth, intrinsicMeasurementWidthLimit, 1);
+                const height = Math.max(rect.height, el.scrollHeight, 1);
+                bounds = {
+                    left: rect.left,
+                    right: rect.left + width,
+                    top: rect.top,
+                    bottom: rect.top + height,
+                    width: width,
+                    height: height
+                };
+            }
             if (bounds.height > 0 && window.webkit && window.webkit.messageHandlers.heightUpdate) {
                 window.webkit.messageHandlers.heightUpdate.postMessage(payloadWithRenderToken(Math.ceil(bounds.height)));
             }
@@ -2463,7 +2477,10 @@ struct MathWebView: UIViewRepresentable {
                 guard let self else { return }
                 guard renderToken == self.activeRenderToken else { return }
                 if let str = result as? String, str == "function" {
-                    webView.evaluateJavaScript(js)
+                    webView.evaluateJavaScript(js) { [weak self] _, _ in
+                        guard let self else { return }
+                        self.scheduleLayoutMetricReports(renderToken: renderToken)
+                    }
                 } else if retries > 0 {
                     self.updateRetryTask?.cancel()
                     self.updateRetryTask = Task { @MainActor [weak self] in
@@ -2471,6 +2488,40 @@ struct MathWebView: UIViewRepresentable {
                         guard let self, !Task.isCancelled else { return }
                         self.attemptUpdate(js: js, renderToken: renderToken, retries: retries - 1)
                     }
+                }
+            }
+        }
+
+        private func scheduleLayoutMetricReports(renderToken: String) {
+            let delays: [Duration] = [
+                .milliseconds(0),
+                .milliseconds(50),
+                .milliseconds(150),
+                .milliseconds(350)
+            ]
+
+            updateRetryTask?.cancel()
+            updateRetryTask = Task { @MainActor [weak self] in
+                for delay in delays {
+                    try? await Task.sleep(for: delay)
+                    guard let self,
+                          !Task.isCancelled,
+                          renderToken == self.activeRenderToken,
+                          let webView = self.webView else {
+                        return
+                    }
+
+                    webView.evaluateJavaScript(
+                        """
+                        if (typeof reportLayoutMetrics === 'function') {
+                            reportLayoutMetrics();
+                        }
+                        if (typeof reportLineDebug === 'function') {
+                            reportLineDebug();
+                        }
+                        """,
+                        completionHandler: nil
+                    )
                 }
             }
         }

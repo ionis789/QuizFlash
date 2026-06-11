@@ -103,7 +103,11 @@ struct FlashCardsPlayModeView: View {
     private var accentColor: Color { ThemeManager.shared.accentColor.color }
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var chromeButtonSize: CGFloat { isCompact ? 54 : UIConstants.Size.actionButton }
-    private var playSurfaceHorizontalPadding: CGFloat { isCompact ? 12 : 24 }
+    private var playSurfaceHorizontalPadding: CGFloat {
+        isCompact
+            ? FlashcardPlayLayoutTuning.screenToCardHorizontalPaddingCompact
+            : FlashcardPlayLayoutTuning.screenToCardHorizontalPaddingRegular
+    }
     private var flipPerspectiveBottomClearance: CGFloat { isCompact ? 14 : 22 }
     private var scoreZoneHeight: CGFloat { isCompact ? 44 : 52 }
     private var scoreZoneBottomPadding: CGFloat { isCompact ? 10 : 16 }
@@ -304,7 +308,7 @@ struct FlashCardsPlayModeView: View {
                             textSize: viewModel.settings.textSize,
                             onSwipeProgress: resolvedSwipeProgressHandler(isCurrentCard: isCurrentCard),
                             swipeGestureTuning: resolvedSwipeGestureTuning,
-                            onLayoutDebugSnapshot: isCurrentCard
+                            onLayoutDebugSnapshot: isCurrentCard && shouldCollectCurrentLayoutDebug
                                 ? { snapshot in
                                     updateCurrentLayoutDebugSnapshot(snapshot, cardID: entry.card.id)
                                 }
@@ -517,6 +521,10 @@ struct FlashCardsPlayModeView: View {
     private var currentVisibleZone: ZoneModel? {
         guard let currentPlayableCard else { return nil }
         return viewModel.isFlipped ? currentPlayableCard.backZone : currentPlayableCard.frontZone
+    }
+
+    private var shouldCollectCurrentLayoutDebug: Bool {
+        developmentPreferences.playModeDeveloperModeEnabled && showsDeveloperPanel
     }
 
     private var currentLayoutDebugReport: String? {
@@ -963,6 +971,8 @@ struct FlashCardsPlayModeView: View {
             showsDeveloperPanel.toggle()
             if !showsDeveloperPanel {
                 developerSwipeDebugState.reset()
+                currentLayoutDebugSnapshot = nil
+                currentLayoutDebugCardID = nil
             }
         }
     }
@@ -971,6 +981,8 @@ struct FlashCardsPlayModeView: View {
         withAnimation(.circularProgressSpring) {
             showsDeveloperPanel = false
             developerSwipeDebugState.reset()
+            currentLayoutDebugSnapshot = nil
+            currentLayoutDebugCardID = nil
         }
     }
 

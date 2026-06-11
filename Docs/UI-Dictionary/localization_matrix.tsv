@@ -47,10 +47,10 @@ key	en	ro	ru
 %d day	%d day	%d zi	%d день
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
-%d Deck	%d Deck	%d deck	%d колода
 %d deck	%d deck	%d pachet	%d колода
-%d Decks	%d Decks	%d deckuri	%d колод
+%d Deck	%d Deck	%d deck	%d колода
 %d decks	%d decks	%d pachete	%d колод
+%d Decks	%d Decks	%d deckuri	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
 %d goal days	%d goal days	%d zile cu țintă	%d дней с целью
 %d hidden	%d hidden	%d ascunse	%d скрыто
@@ -125,8 +125,8 @@ All Decks	All Decks	Toate deckurile	Все колоды
 All folders	All folders	Toate foldere	Все папки
 Also visible in %@	Also visible in %@	Vizibil și în %@	Также видно в %@
 Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Analyzing card previews and review history to group weak areas, fresh material, and stable concepts.	Se analizează previzualizările card și se examinează istoricul pentru a grupa zonele slabe, materialul proaspăt și conceptele stabile.	Анализ превью карточек и истории просмотров для группировки слабых мест, свежего материала и устойчивых концепций.
-Answer	Answer	Răspuns	Ответ
 ANSWER	ANSWER	RĂSPUNS	ОТВЕТ
+Answer	Answer	Răspuns	Ответ
 ANSWER %@	ANSWER %@	RĂSPUNS %@	ОТВЕТ %@
 Answer Reveal	Answer Reveal	Afișare răspuns	Показ ответа
 ANSWERS	ANSWERS	RĂSPUNSURI	ОТВЕТЫ
@@ -179,8 +179,8 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
+Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -230,6 +230,7 @@ DECK-SCOPED SETTINGS	DECK-SCOPED SETTINGS	SETĂRI PENTRU PUNTE	НАСТРОЙК�
 Deeper cards with structure, context, and key nuance.	Deeper cards with structure, context, and key nuance.	Carduri mai profunde, cu structură, context și nuanțe-cheie.	Более глубокие карточки со структурой, контекстом и ключевыми нюансами.
 Default	Default	Implicit	По умолчанию
 Default %@	Default %@	%@ implicit	По умолчанию %@
+Default size for editors and play modes.	Default size for editors and play modes.	Dimensiune implicită pentru editor și modurile de joc.	Размер по умолчанию для редактора и игровых режимов.
 Delete	Delete	Șterge	Удалить
 "Delete ""%@""?"	"Delete ""%@""?"	Ștergi „%@”?	"Удалить ""%@""?"
 Delete %d card?	Delete %d card?	Ștergi %d card?	Удалить %d карточку?
@@ -256,6 +257,7 @@ Ease	Ease	Ușurință	Лёгкость
 Easy	Easy	Ușor	Легко
 Edge	Edge	Margine	Край
 Edit	Edit	Edita	Редактировать
+Edit Text	Edit Text	Editează text	Редактировать текст
 Edit the source text, then select the part you want learners to fill in.	Edit the source text, then select the part you want learners to fill in.	Editează textul sursă, apoi selectează partea pe care cursanții trebuie să o completeze.	Отредактируйте исходный текст, затем выберите часть, которую нужно заполнить.
 Edited	Edited	Editate	Изменённые
 Edited %@	Edited %@	Editat %@	Отредактировано %@
@@ -356,6 +358,7 @@ Last Interaction	Last Interaction	Ultima interacțiune	Последнее вза
 Last opened %@.	Last opened %@.	Deschis ultima dată %@.	Последний раз открывали %@.
 Last week	Last week	Săptămâna trecută	Прошлая неделя
 Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Launches a live `fullScreenSheet` playground. Change the controls inside the sheet and the container updates in real time.	Lansează un loc de joacă live „fullScreenSheet”. Schimbați controalele din interiorul foii și containerul se actualizează în timp real.	Запускает живую игровую площадку «fullScreenSheet». Изменяйте элементы управления внутри листа, и контейнер обновляется в режиме реального времени.
+Layout	Layout	Aranjare	Разметка
 Learn fast and effectively.	Learn fast and effectively.	Învață rapid și eficient.	Учитесь быстро и эффективно.
 Learning	Learning	În învățare	В изучении
 LEARNING PROGRESS	LEARNING PROGRESS	PROGRESUL DE ÎNVĂȚARE	ПРОГРЕСС ОБУЧЕНИЯ
@@ -474,8 +477,8 @@ Preview	Preview	Previzualizare	Предварительный просмотр
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Pro	Pro	Pro	Pro
 Progress and pace.	Progress and pace.	Progres și ritm.	Прогресс и темп.
-Prompt	Prompt	Enunț	Задание
 PROMPT	PROMPT	ENUNȚ	ЗАДАНИЕ
+Prompt	Prompt	Enunț	Задание
 Prompt with Blank	Prompt with Blank	Enunț cu spațiu liber	Подсказка с пропуском
 Purple	Purple	Mov	Фиолетовый
 QUESTION	QUESTION	ÎNTREBARE	ВОПРОС
@@ -503,8 +506,8 @@ Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симу�
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
 Resume AI generation	Resume AI generation	Reia generarea AI	Возобновить AI генерацию
 Resume Deck	Resume Deck	Reia deckul	Продолжить колоду
-RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry	Retry	Reîncearcă	Повтор
+RETRY	RETRY	ÎNCERCAȚI	ПОВТОРИТЬ
 Retry cards	Retry	De repetat	Повторить
 Reviewed	Reviewed	Revizuite	Пройдено
 Reviews	Reviews	Repetări	Повторы
@@ -617,8 +620,8 @@ This migration slice only enables the shared routing foundation. Flashcard editi
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
 This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-This Week	This Week	Săptămâna asta	Эта неделя
 this week	this week	săptămâna asta	эта неделя
+This Week	This Week	Săptămâna asta	Эта неделя
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
 To goal	To goal	Până la obiectiv	До цели

@@ -252,6 +252,7 @@
 "Ease" = "Лёгкость";
 "Easy" = "Легко";
 "Edit" = "Редактировать";
+"Edit Text" = "Редактировать текст";
 "Edit the source text, then select the part you want learners to fill in." = "Отредактируйте исходный текст, затем выберите часть, которую нужно заполнить.";
 "Edited" = "Изменённые";
 "Edited %@" = "Отредактировано %@";
@@ -651,9 +652,11 @@
 "Your card changes couldn't be saved right now." = "Изменения карточки сейчас не удалось сохранить.";
 "zones(%d)" = "зоны(%d)";
 "Could not extract text from this source. Try another source." = "Не удалось извлечь текст из этого источника. Попробуйте другой источник.";
+"Default size for editors and play modes." = "Размер по умолчанию для редактора и игровых режимов.";
 "Calendar" = "Календарь";
 "English" = "Английский";
 "Language" = "Язык";
+"Layout" = "Разметка";
 "Monday" = "Понедельник";
 "Navigation" = "Навигация";
 "Romanian" = "Румынский";
