@@ -10,6 +10,7 @@ import SwiftUI
 struct CardEditorView: View {
     let destination: CardEditorDestination
     var searchQuery: String? = nil
+    var textSizeOverride: FlashcardTextSize? = nil
     var onSave: (DraftCardContent) -> Void
 
     var body: some View {
@@ -27,7 +28,8 @@ struct CardEditorView: View {
         return FlashcardEditorView(
             frontZone: content.frontZone,
             backZone: content.backZone,
-            searchQuery: searchQuery
+            searchQuery: searchQuery,
+            textSize: textSizeOverride ?? .large
         ) { frontZone, backZone in
             onSave(
                 .flashcard(

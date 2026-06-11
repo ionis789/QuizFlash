@@ -91,6 +91,7 @@ struct ZoneEditorView: View {
     var availableWidth: CGFloat
     var measurementWidth: CGFloat
     var maxEditableZoneHeight: CGFloat?
+    var rendersRichText: Bool
     var previewDirection: Binding<AddDirection?>
 
     private var zone: ZoneModel? { content.zone(at: path) }
@@ -106,6 +107,7 @@ struct ZoneEditorView: View {
         availableWidth: CGFloat = 320,
         measurementWidth: CGFloat? = nil,
         maxEditableZoneHeight: CGFloat? = nil,
+        rendersRichText: Bool = false,
         previewDirection: Binding<AddDirection?> = .constant(nil)
     ) {
         self.content = content
@@ -116,6 +118,7 @@ struct ZoneEditorView: View {
         self.availableWidth = availableWidth
         self.measurementWidth = measurementWidth ?? availableWidth
         self.maxEditableZoneHeight = maxEditableZoneHeight
+        self.rendersRichText = rendersRichText
         self.previewDirection = previewDirection
     }
 
@@ -140,6 +143,7 @@ struct ZoneEditorView: View {
             availableWidth: availableWidth,
             measurementWidth: measurementWidth,
             maxEditableZoneHeight: maxEditableZoneHeight,
+            rendersRichText: rendersRichText,
             onSelect: { selectZone() },
             previewDirection: previewDirection
         )
@@ -175,6 +179,7 @@ struct ZoneEditorView: View {
                     availableWidth: groupWidth,
                     measurementWidth: measurementWidth,
                     maxEditableZoneHeight: maxEditableZoneHeight,
+                    rendersRichText: rendersRichText,
                     previewDirection: maskedPreviewDirection(for: isChildSelected)
                 )
                 .frame(width: groupWidth, alignment: .topLeading)
@@ -304,6 +309,7 @@ struct ZoneContentView: View {
     var availableWidth: CGFloat
     var measurementWidth: CGFloat
     var maxEditableZoneHeight: CGFloat?
+    var rendersRichText: Bool
     var onSelect: () -> Void
     @Binding var previewDirection: AddDirection?
 
@@ -334,6 +340,7 @@ struct ZoneContentView: View {
         availableWidth: CGFloat = 320,
         measurementWidth: CGFloat? = nil,
         maxEditableZoneHeight: CGFloat? = nil,
+        rendersRichText: Bool = false,
         onSelect: @escaping () -> Void,
         previewDirection: Binding<AddDirection?> = .constant(nil)
     ) {
@@ -345,6 +352,7 @@ struct ZoneContentView: View {
         self.availableWidth = availableWidth
         self.measurementWidth = measurementWidth ?? availableWidth
         self.maxEditableZoneHeight = maxEditableZoneHeight
+        self.rendersRichText = rendersRichText
         self.onSelect = onSelect
         self._previewDirection = previewDirection
     }
@@ -421,15 +429,23 @@ struct ZoneContentView: View {
                 SpatialTapGesture().onEnded { _ in
                     let type = zone.contentType
 
-                    if type != .text && type != .empty && type != .code {
+                    if rendersRichText || (type != .text && type != .empty && type != .code) {
                         onSelect()
                         ZoneEditorDebugStore.shared.recordTap("tap zone path=\(path.id) type=\(zone.contentType.rawValue)")
-                        focusManager.updateFocusedZone(zone.id)
-                        zoneController.updateFocusedZone(zone.id)
+                        if rendersRichText {
+                            focusManager.forceReleaseKeyboard()
+                            zoneController.forceReleaseKeyboard()
+                            zoneController.updateFocusedZone(nil)
+                        } else {
+                            focusManager.updateFocusedZone(zone.id)
+                            zoneController.updateFocusedZone(zone.id)
+                        }
                         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                     }
                 },
-                including: isTextResizableZone(zone) || isTextViewFirstResponder ? .none : .all
+                including: rendersRichText
+                    ? .all
+                    : (isTextResizableZone(zone) || isTextViewFirstResponder ? .none : .all)
             )
             .onAppear {
                 syncFocusState(with: focusManager.focusedZoneID)
@@ -527,7 +543,7 @@ struct ZoneContentView: View {
     private func normalizedLayoutZone(_ zone: ZoneModel) -> ZoneModel {
         if isTextResizableZone(zone) {
             var layoutZone = zone
-            layoutZone.sizeMode = .auto
+            layoutZone.sizeMode = rendersRichText ? .auto : .fillWidth
             if layoutZone.blockAlignment == .auto {
                 layoutZone.blockAlignment = content.rootZone.leafCount == 1 ? .center : .leading
             }
@@ -587,6 +603,10 @@ struct ZoneContentView: View {
         layoutZone: ZoneModel
     ) -> CGSize {
         guard isTextResizableZone(layoutZone) else {
+            return renderedContentSize
+        }
+
+        if rendersRichText, renderedContentSize.width > 0, renderedContentSize.height > 0 {
             return renderedContentSize
         }
 
@@ -823,10 +843,39 @@ struct ZoneContentView: View {
     @ViewBuilder
     private func contentView(maxVisibleTextHeight: CGFloat) -> some View {
         switch zone?.contentType ?? .empty {
-        case .empty, .text, .code:
-            textViewWithGhostOverlay(maxVisibleTextHeight: maxVisibleTextHeight)
+        case .empty:
+            emptyZonePreview
+        case .text, .code:
+            if rendersRichText {
+                renderedTextPreview(maxVisibleTextHeight: maxVisibleTextHeight)
+            } else {
+                textViewWithGhostOverlay(maxVisibleTextHeight: maxVisibleTextHeight)
+            }
         case .image: imageView
         case .sketch: sketchView
+        }
+    }
+
+    @ViewBuilder
+    private func renderedTextPreview(maxVisibleTextHeight: CGFloat) -> some View {
+        if let zone {
+            ZoneContentRenderView(
+                zone: zone,
+                fontScale: fontScale,
+                availableWidth: availableWidth,
+                centersLeafBlocks: false,
+                showsDebugGuides: false,
+                showsZoneSurfaces: true,
+                showsCodeBlockZoneSurfaces: true,
+                collectsDebugMetrics: false,
+                leafTapBehavior: .none
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .onGeometryChange(for: CGSize.self) { proxy in
+                CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
+            } action: { newSize in
+                updateRenderedContentSize(newSize)
+            }
         }
     }
 
@@ -872,6 +921,7 @@ struct ZoneContentView: View {
 
     private var shouldUseInteractiveTextSurface: Bool {
         guard let zone else { return false }
+        guard !rendersRichText else { return false }
         guard zone.contentType == .text || zone.contentType == .empty || zone.contentType == .code else {
             return false
         }
@@ -1222,9 +1272,13 @@ struct ZoneContentView: View {
         return (horizontal: 0, vertical: 0)
     }
 
-    private var zoneTextHorizontalPadding: CGFloat { 12 }
+    private var zoneTextHorizontalPadding: CGFloat {
+        ZoneContentMetrics.textHorizontalPadding / 2
+    }
 
-    private var zoneTextVerticalPadding: CGFloat { 16 }
+    private var zoneTextVerticalPadding: CGFloat {
+        ZoneContentMetrics.textVerticalPadding / 2
+    }
 
     private var editorBulletSize: CGFloat {
         ZoneContentMetrics.bulletWidth

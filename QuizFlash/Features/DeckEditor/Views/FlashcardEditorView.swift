@@ -53,6 +53,7 @@ struct FlashcardEditorView: View {
     @State private var keyboardDebugRevision = 0
     @State private var toolbarVisibilityDebugRevision = 0
     @State private var editorScrollOffsetY: CGFloat = 0
+    @State private var showsRenderedContent = false
 
 
     // Visual-only ghost preview. The model changes only after the user commits.
@@ -346,7 +347,7 @@ struct FlashcardEditorView: View {
     }
 
     private var isFloatingFormatBarVisible: Bool {
-        isFloatingFormatBarPresented
+        isFloatingFormatBarPresented || (showsRenderedContent && selectedPath != nil)
     }
 
     private var floatingFormatBarScale: CGFloat {
@@ -547,6 +548,7 @@ struct FlashcardEditorView: View {
             bottomAccessoryHeight: floatingToolbarAccessoryHeight,
             bottomAccessoryTopY: keyboardMonitor.isVisible ? floatingFormatBarRenderedTopY : nil,
             scrollResetToken: activeSide,
+            rendersRichText: showsRenderedContent,
             onScrollOffsetChange: handleEditorScrollOffsetChange,
             onEmptySpaceTap: handleCanvasEmptySpaceTap
         )
@@ -768,6 +770,7 @@ struct FlashcardEditorView: View {
             HStack(spacing: UIConstants.Spacing.small) {
                 sideSwitch
                 previewTopButton
+                renderTopButton
             }
 
             Spacer(minLength: 0)
@@ -815,6 +818,22 @@ struct FlashcardEditorView: View {
         .disabled(!hasSavableContent)
         .opacity(hasSavableContent ? 1 : 0.55)
         .accessibilityLabel(localized("Preview"))
+    }
+
+    private var renderTopButton: some View {
+        Button(action: toggleRenderedContent) {
+            ChromeSoftCircleSymbol(
+                systemName: "rectangle.dashed",
+                size: UIConstants.Size.actionButton,
+                symbolSize: UIConstants.Size.navigationChromeIcon,
+                tint: hasSavableContent ? topChromeUtilityForeground : .secondary,
+                backgroundTint: showsRenderedContent ? accent.opacity(0.28) : topChromeUtilityFill
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!hasSavableContent)
+        .opacity(hasSavableContent ? 1 : 0.55)
+        .accessibilityLabel(localized("Render"))
     }
 
     private var sideSwitch: some View {
@@ -880,6 +899,16 @@ struct FlashcardEditorView: View {
         selectedPath = nil
         previewDirection = nil
         showPreview = true
+    }
+
+    private func toggleRenderedContent() {
+        guard hasSavableContent else { return }
+        showsRenderedContent.toggle()
+        if showsRenderedContent {
+            focusManager.forceReleaseKeyboard()
+            zoneController.forceReleaseKeyboard()
+            zoneController.updateFocusedZone(nil)
+        }
     }
 
     private func closeEditor() {

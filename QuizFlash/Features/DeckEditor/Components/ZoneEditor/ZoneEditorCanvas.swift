@@ -32,6 +32,7 @@ struct ZoneEditorCanvas: View {
     let bottomAccessoryHeight: CGFloat
     let bottomAccessoryTopY: CGFloat?
     let scrollResetToken: Int
+    let rendersRichText: Bool
     let onScrollOffsetChange: (CGFloat) -> Void
     let onEmptySpaceTap: (ZoneEditorCanvasTapContext) -> Void
 
@@ -55,6 +56,36 @@ struct ZoneEditorCanvas: View {
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var editorCardHorizontalPadding: CGFloat { isCompact ? 20 : 28 }
     private var editorCardVerticalPadding: CGFloat { isCompact ? 20 : 24 }
+
+    init(
+        content: ZoneCardContent,
+        selectedPath: Binding<ZonePath?>,
+        previewDirection: Binding<AddDirection?>,
+        highlightContext: HighlightContext?,
+        fontScale: CGFloat,
+        verticalAlignmentFallback: ZoneVerticalAlignment,
+        topContentInset: CGFloat,
+        bottomAccessoryHeight: CGFloat,
+        bottomAccessoryTopY: CGFloat?,
+        scrollResetToken: Int,
+        rendersRichText: Bool = false,
+        onScrollOffsetChange: @escaping (CGFloat) -> Void,
+        onEmptySpaceTap: @escaping (ZoneEditorCanvasTapContext) -> Void
+    ) {
+        self.content = content
+        self._selectedPath = selectedPath
+        self._previewDirection = previewDirection
+        self.highlightContext = highlightContext
+        self.fontScale = fontScale
+        self.verticalAlignmentFallback = verticalAlignmentFallback
+        self.topContentInset = topContentInset
+        self.bottomAccessoryHeight = bottomAccessoryHeight
+        self.bottomAccessoryTopY = bottomAccessoryTopY
+        self.scrollResetToken = scrollResetToken
+        self.rendersRichText = rendersRichText
+        self.onScrollOffsetChange = onScrollOffsetChange
+        self.onEmptySpaceTap = onEmptySpaceTap
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -275,6 +306,7 @@ struct ZoneEditorCanvas: View {
                 fontScale: fontScale,
                 availableWidth: contentWidth,
                 maxEditableZoneHeight: contentHeight,
+                rendersRichText: rendersRichText,
                 previewDirection: $previewDirection
             )
             .frame(width: contentWidth, alignment: .topLeading)
