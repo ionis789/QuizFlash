@@ -82,6 +82,26 @@ struct ZoneContentLeafDebugPreferenceKey: PreferenceKey {
     }
 }
 
+struct ZoneContentRenderBlockBounds {
+    let zoneID: UUID
+    let frame: CGRect
+}
+
+struct ZoneContentRenderBlockBoundsPreferenceKey: PreferenceKey {
+    static var defaultValue: [ZoneContentRenderBlockBounds] { [] }
+
+    static func reduce(
+        value: inout [ZoneContentRenderBlockBounds],
+        nextValue: () -> [ZoneContentRenderBlockBounds]
+    ) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+enum ZoneContentRenderCoordinateSpace {
+    static let name = "ZoneContentRenderSurface"
+}
+
 private struct ZoneContentWidthPreferenceKey: PreferenceKey {
     static var defaultValue: [String: CGFloat] { [:] }
 
@@ -126,7 +146,6 @@ private struct ZoneContentLeafMeasurementIdentity: Equatable {
     let textStyle: TextBlockStyle
     let textAlignment: TextBlockAlignment
     let sizeMode: ZoneSizeMode
-    let blockAlignment: ZoneBlockAlignment
     let fixedWidth: CGFloat?
     let fixedHeight: CGFloat?
     let isBold: Bool
@@ -202,6 +221,18 @@ private struct ZoneContentContainerMeasurementIdentity: Equatable {
     let childIdentities: [ZoneContentLeafMeasurementIdentity]
     let fontScale: CGFloat
     let availableWidth: CGFloat
+}
+
+@ViewBuilder
+private func zoneAlignmentHighlight(cornerRadius: CGFloat = 16) -> some View {
+    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        .stroke(
+            ThemeManager.shared.accentColor.color.opacity(0.78),
+            style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round)
+        )
+        .shadow(color: ThemeManager.shared.accentColor.color.opacity(0.24), radius: 8)
+        .allowsHitTesting(false)
+        .transition(.opacity.combined(with: .scale(scale: 0.985)))
 }
 
 // MARK: - Zone Content Content Layout
@@ -297,6 +328,7 @@ struct ZoneContentRenderView: View {
     var zoneHighlightStrokeStyle: StrokeStyle = StrokeStyle(lineWidth: 2)
     var textVerticalPadding: CGFloat = ZoneContentMetrics.textVerticalPadding
     var textHorizontalPaddingOverride: CGFloat? = nil
+    var alignmentFeedback: ZoneAlignmentFeedback = .inactive
     let collectsDebugMetrics: Bool
     var leafTapBehavior: ZoneContentLeafTapBehavior = .all
     var onTap: (() -> Void)?
@@ -317,6 +349,7 @@ struct ZoneContentRenderView: View {
             zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
             textVerticalPadding: textVerticalPadding,
             textHorizontalPaddingOverride: textHorizontalPaddingOverride,
+            alignmentFeedback: alignmentFeedback,
             collectsDebugMetrics: collectsDebugMetrics,
             leafTapBehavior: leafTapBehavior,
             onTap: onTap
@@ -355,6 +388,7 @@ private struct ZoneContentTreePreview: View {
     let zoneHighlightStrokeStyle: StrokeStyle
     let textVerticalPadding: CGFloat
     let textHorizontalPaddingOverride: CGFloat?
+    let alignmentFeedback: ZoneAlignmentFeedback
     let collectsDebugMetrics: Bool
     let leafTapBehavior: ZoneContentLeafTapBehavior
     var onTap: (() -> Void)?
@@ -377,6 +411,7 @@ private struct ZoneContentTreePreview: View {
                 zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
                 textVerticalPadding: textVerticalPadding,
                 textHorizontalPaddingOverride: textHorizontalPaddingOverride,
+                alignmentFeedback: alignmentFeedback,
                 collectsDebugMetrics: collectsDebugMetrics,
                 leafTapBehavior: leafTapBehavior,
                 onTap: onTap
@@ -388,7 +423,8 @@ private struct ZoneContentTreePreview: View {
 
     @ViewBuilder
     private var containerPreview: some View {
-        let children = zone.children?.filter(ZoneContentRenderPolicy.shouldRender) ?? []
+        let indexedChildren = renderableIndexedChildren
+        let children = indexedChildren.map(\.element)
 
         if children.isEmpty {
             Color.clear.frame(width: availableWidth, height: 1)
@@ -397,7 +433,7 @@ private struct ZoneContentTreePreview: View {
             let childWidth = max((availableWidth - spacingTotal) / CGFloat(max(children.count, 1)), 1)
 
             HStack(alignment: .top, spacing: ZoneContentMetrics.childSpacing) {
-                ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
+                ForEach(indexedChildren, id: \.element.id) { index, child in
                     ZoneContentTreePreview(
                         zone: child,
                         path: "\(path).\(index)",
@@ -412,6 +448,7 @@ private struct ZoneContentTreePreview: View {
                         zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
                         textVerticalPadding: textVerticalPadding,
                         textHorizontalPaddingOverride: textHorizontalPaddingOverride,
+                        alignmentFeedback: alignmentFeedback,
                         collectsDebugMetrics: collectsDebugMetrics,
                         leafTapBehavior: leafTapBehavior,
                         onTap: onTap
@@ -421,38 +458,59 @@ private struct ZoneContentTreePreview: View {
             }
             .frame(width: availableWidth, alignment: .topLeading)
         } else {
-            let indexedChildren = Array(children.enumerated())
             let childPaths = indexedChildren.map { "\(path).\($0.offset)" }
             let containerIdentity = verticalContainerMeasurementIdentity(for: children)
             let groupWidth = verticalGroupWidth(for: children, childPaths: childPaths)
-            let groupLeadingInset = max((availableWidth - groupWidth) / 2, 0)
+            let groupTarget = zonePath.map { ZoneAlignmentTargetRef(path: $0, kind: .group) }
+            let groupWiggleOffset = groupTarget.map { alignmentFeedback.offset(for: $0) } ?? 0
+            let groupLeadingInset = ZoneContentLayoutEngine.blockLeadingInset(
+                for: zone.blockAlignment,
+                blockWidth: groupWidth,
+                availableWidth: availableWidth,
+                defaultAlignment: .center
+            )
 
-            VStack(alignment: .leading, spacing: ZoneContentMetrics.childSpacing) {
-                ForEach(indexedChildren, id: \.element.id) { index, child in
-                    ZoneContentTreePreview(
-                        zone: child,
-                        path: "\(path).\(index)",
-                        fontScale: fontScale,
-                        availableWidth: groupWidth,
-                        centersLeafBlocks: centersLeafBlocks,
-                        alignLeafBlocksToGroupLeading: false,
-                        showsDebugGuides: showsDebugGuides,
-                        showsZoneSurfaces: showsZoneSurfaces,
-                        showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
-                        usesBorderOnlyZoneHighlights: usesBorderOnlyZoneHighlights,
-                        zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
-                        textVerticalPadding: textVerticalPadding,
-                        textHorizontalPaddingOverride: textHorizontalPaddingOverride,
-                        collectsDebugMetrics: collectsDebugMetrics,
-                        leafTapBehavior: leafTapBehavior,
-                        onTap: onTap
-                    )
-                    .frame(width: groupWidth, alignment: .topLeading)
+            HStack(spacing: 0) {
+                Color.clear.frame(width: groupLeadingInset)
+
+                VStack(alignment: .leading, spacing: ZoneContentMetrics.childSpacing) {
+                    ForEach(indexedChildren, id: \.element.id) { index, child in
+                        ZoneContentTreePreview(
+                            zone: child,
+                            path: "\(path).\(index)",
+                            fontScale: fontScale,
+                            availableWidth: groupWidth,
+                            centersLeafBlocks: centersLeafBlocks,
+                            alignLeafBlocksToGroupLeading: false,
+                            showsDebugGuides: showsDebugGuides,
+                            showsZoneSurfaces: showsZoneSurfaces,
+                            showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
+                            usesBorderOnlyZoneHighlights: usesBorderOnlyZoneHighlights,
+                            zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
+                            textVerticalPadding: textVerticalPadding,
+                            textHorizontalPaddingOverride: textHorizontalPaddingOverride,
+                            alignmentFeedback: alignmentFeedback,
+                            collectsDebugMetrics: collectsDebugMetrics,
+                            leafTapBehavior: leafTapBehavior,
+                            onTap: onTap
+                        )
+                        .frame(width: groupWidth, alignment: .topLeading)
+                    }
                 }
+                .frame(width: groupWidth, alignment: .topLeading)
+                .overlay {
+                    if let groupTarget,
+                       alignmentFeedback.highlightedTarget == groupTarget {
+                        zoneAlignmentHighlight()
+                    }
+                }
+                .offset(x: groupWiggleOffset)
+
+                Color.clear.frame(width: max(availableWidth - groupLeadingInset - groupWidth, 0))
             }
-            .frame(width: groupWidth, alignment: .topLeading)
-            .offset(x: groupLeadingInset)
             .frame(width: availableWidth, alignment: .topLeading)
+            .animation(.easeOut(duration: 0.22), value: groupLeadingInset)
+            .animation(.easeOut(duration: 0.22), value: groupWidth)
             .onPreferenceChange(ZoneContentWidthPreferenceKey.self) { widths in
                 let directWidths: [String: CGFloat] = Dictionary(
                     uniqueKeysWithValues: zip(childPaths, children).compactMap { childPath, child -> (String, CGFloat)? in
@@ -492,15 +550,39 @@ private struct ZoneContentTreePreview: View {
         }
     }
 
+    private var renderableIndexedChildren: [(offset: Int, element: ZoneModel)] {
+        (zone.children ?? [])
+            .enumerated()
+            .filter { ZoneContentRenderPolicy.shouldRender($0.element) }
+    }
+
+    private var zonePath: ZonePath? {
+        Self.zonePath(from: path)
+    }
+
+    private static func zonePath(from value: String) -> ZonePath? {
+        guard value == "root" || value.hasPrefix("root.") else { return nil }
+        let components = value.split(separator: ".").dropFirst()
+        let indices = components.compactMap { Int($0) }
+        guard indices.count == components.count else { return nil }
+        return ZonePath(indices: indices)
+    }
+
     private func verticalGroupWidth(for children: [ZoneModel], childPaths: [String]) -> CGFloat {
+        let estimatedWidth = estimatedVerticalGroupWidth(for: children)
+
         if measuredDirectChildWidths.count == childPaths.count {
             let measuredWidth = childPaths
                 .compactMap { measuredDirectChildWidths[$0] }
                 .max() ?? 1
 
-            return min(max(ceil(measuredWidth), 1), availableWidth)
+            return min(max(ceil(max(measuredWidth, estimatedWidth)), 1), availableWidth)
         }
 
+        return min(max(ceil(estimatedWidth), 1), availableWidth)
+    }
+
+    private func estimatedVerticalGroupWidth(for children: [ZoneModel]) -> CGFloat {
         let widestChild = children
             .map {
                 ZoneContentEstimator.estimatedBlockWidth(
@@ -561,7 +643,6 @@ private struct ZoneContentTreePreview: View {
             textStyle: child.textStyle,
             textAlignment: child.textAlignment,
             sizeMode: child.sizeMode,
-            blockAlignment: child.blockAlignment,
             fixedWidth: child.fixedWidth.map(ceil),
             fixedHeight: child.fixedHeight.map(ceil),
             isBold: child.isBold,
@@ -596,6 +677,7 @@ private struct ZoneContentLeafPreview: View {
     let zoneHighlightStrokeStyle: StrokeStyle
     let textVerticalPadding: CGFloat
     let textHorizontalPaddingOverride: CGFloat?
+    let alignmentFeedback: ZoneAlignmentFeedback
     let collectsDebugMetrics: Bool
     let leafTapBehavior: ZoneContentLeafTapBehavior
     var onTap: (() -> Void)?
@@ -618,41 +700,55 @@ private struct ZoneContentLeafPreview: View {
             measuredContentSize: renderedContentSize
         )
 
-        ZStack(alignment: .topLeading) {
-            zoneBlockSurface(layout: layout)
+        HStack(spacing: 0) {
+            Color.clear.frame(width: layout.leadingInset)
 
-            if showsDebugGuides {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(
-                        Color.orange.opacity(0.95),
-                        style: StrokeStyle(lineWidth: 1.6, dash: [5, 4])
-                    )
-                    .frame(width: layout.blockSize.width, height: layout.blockSize.height)
-                    .offset(x: layout.leadingInset)
-                    .allowsHitTesting(false)
-            }
+            ZStack(alignment: .topLeading) {
+                renderBlockBounds(layout: layout)
+                zoneBlockSurface(layout: layout)
 
-            leafContent(layout: layout)
-                .frame(
-                    width: layout.contentLayoutWidth,
-                    height: contentFrameHeight(for: layout),
-                    alignment: contentAlignment(for: resolvedLayoutZone)
-                )
-                .offset(x: layout.leadingInset)
-                .onGeometryChange(for: CGSize.self) { proxy in
-                    CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
-                } action: { newSize in
-                    if layout.usesIntrinsicTextMeasurement {
-                        updateRenderedContentHeight(newSize.height)
-                    } else {
-                        updateRenderedContentSize(newSize)
-                    }
+                if let leafTarget,
+                   alignmentFeedback.highlightedTarget == leafTarget {
+                    zoneAlignmentHighlight()
+                        .frame(width: layout.blockSize.width, height: layout.blockSize.height)
                 }
+
+                if showsDebugGuides {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(
+                            Color.orange.opacity(0.95),
+                            style: StrokeStyle(lineWidth: 1.6, dash: [5, 4])
+                        )
+                        .frame(width: layout.blockSize.width, height: layout.blockSize.height)
+                        .allowsHitTesting(false)
+                }
+
+                leafContent(layout: layout)
+                    .frame(
+                        width: layout.contentLayoutWidth,
+                        height: contentFrameHeight(for: layout),
+                        alignment: contentAlignment(for: resolvedLayoutZone)
+                    )
+                    .onGeometryChange(for: CGSize.self) { proxy in
+                        CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
+                    } action: { newSize in
+                        if layout.usesIntrinsicTextMeasurement {
+                            updateRenderedContentHeight(newSize.height)
+                        } else {
+                            updateRenderedContentSize(newSize)
+                        }
+                    }
+            }
+            .frame(width: layout.blockSize.width, height: layout.blockSize.height, alignment: .topLeading)
+            .offset(x: leafWiggleOffset)
+
+            Color.clear.frame(width: max(availableWidth - layout.leadingInset - layout.blockSize.width, 0))
         }
         .frame(width: availableWidth, height: layout.blockSize.height, alignment: .topLeading)
-            .preference(
-                key: ZoneContentLeafDebugPreferenceKey.self,
-                value: collectsDebugMetrics
+        .animation(.easeOut(duration: 0.22), value: layout.leadingInset)
+        .preference(
+            key: ZoneContentLeafDebugPreferenceKey.self,
+            value: collectsDebugMetrics
                 ? [debugSnapshot(layout: layout, layoutZone: resolvedLayoutZone)]
                 : []
         )
@@ -666,6 +762,45 @@ private struct ZoneContentLeafPreview: View {
             renderedScrollableMath = []
             mathGestureDebug = nil
         }
+    }
+
+    private func renderBlockBounds(layout: ZoneContentLayoutResult) -> some View {
+        Color.clear
+            .frame(width: layout.blockSize.width, height: layout.blockSize.height)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: ZoneContentRenderBlockBoundsPreferenceKey.self,
+                        value: [
+                            ZoneContentRenderBlockBounds(
+                                zoneID: zone.id,
+                                frame: proxy.frame(in: .named(ZoneContentRenderCoordinateSpace.name))
+                            )
+                        ]
+                    )
+                }
+            )
+            .allowsHitTesting(false)
+    }
+
+    private var leafWiggleOffset: CGFloat {
+        leafTarget.map(alignmentFeedback.offset(for:)) ?? 0
+    }
+
+    private var leafTarget: ZoneAlignmentTargetRef? {
+        zonePath.map { ZoneAlignmentTargetRef(path: $0, kind: .leaf) }
+    }
+
+    private var zonePath: ZonePath? {
+        Self.zonePath(from: path)
+    }
+
+    private static func zonePath(from value: String) -> ZonePath? {
+        guard value == "root" || value.hasPrefix("root.") else { return nil }
+        let components = value.split(separator: ".").dropFirst()
+        let indices = components.compactMap { Int($0) }
+        guard indices.count == components.count else { return nil }
+        return ZonePath(indices: indices)
     }
 
     private func contentFrameHeight(for layout: ZoneContentLayoutResult) -> CGFloat? {
@@ -710,7 +845,6 @@ private struct ZoneContentLeafPreview: View {
             textStyle: zone.textStyle,
             textAlignment: zone.textAlignment,
             sizeMode: zone.sizeMode,
-            blockAlignment: zone.blockAlignment,
             fixedWidth: zone.fixedWidth.map(ceil),
             fixedHeight: zone.fixedHeight.map(ceil),
             isBold: zone.isBold,
@@ -742,7 +876,6 @@ private struct ZoneContentLeafPreview: View {
                     }
                     .shadow(color: tint?.opacity(0.16) ?? .clear, radius: tint == nil ? 0 : 3)
                     .frame(width: layout.blockSize.width, height: layout.blockSize.height)
-                    .offset(x: layout.leadingInset)
                     .allowsHitTesting(false)
             }
         case .image, .sketch:

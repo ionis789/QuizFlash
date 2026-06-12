@@ -63,6 +63,24 @@ struct ZoneContentLayoutResult: Equatable {
 
 /// Resolves zone rectangles for editor, preview, and play-mode rendering.
 enum ZoneContentLayoutEngine {
+    static func blockLeadingInset(
+        for alignment: ZoneBlockAlignment,
+        blockWidth: CGFloat,
+        availableWidth: CGFloat,
+        defaultAlignment: ZoneBlockAlignment = .leading
+    ) -> CGFloat {
+        let resolvedAlignment = alignment == .auto ? defaultAlignment : alignment
+
+        switch resolvedAlignment {
+        case .leading, .auto:
+            return 0
+        case .center:
+            return max((availableWidth - blockWidth) / 2, 0)
+        case .trailing:
+            return max(availableWidth - blockWidth, 0)
+        }
+    }
+
     static func leafLayout(
         for zone: ZoneModel,
         spec: ZoneContentLayoutSpec,
@@ -204,14 +222,11 @@ enum ZoneContentLayoutEngine {
         blockWidth: CGFloat,
         availableWidth: CGFloat
     ) -> CGFloat {
-        switch zone.blockAlignment {
-        case .leading, .auto:
-            return 0
-        case .center:
-            return max((availableWidth - blockWidth) / 2, 0)
-        case .trailing:
-            return max(availableWidth - blockWidth, 0)
-        }
+        blockLeadingInset(
+            for: zone.blockAlignment,
+            blockWidth: blockWidth,
+            availableWidth: availableWidth
+        )
     }
 
     private static func usesIntrinsicTextMeasurement(for zone: ZoneModel) -> Bool {

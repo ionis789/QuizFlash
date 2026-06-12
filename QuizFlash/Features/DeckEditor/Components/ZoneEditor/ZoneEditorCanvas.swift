@@ -17,6 +17,37 @@ struct ZoneEditorCanvasTapContext {
     let zoneFrames: [ZoneEditorResolvedZoneFrame]
 }
 
+private enum ZoneAlignmentDirection {
+    case left
+    case right
+}
+
+private struct ZoneAlignmentMenuState: Equatable {
+    let target: ZoneAlignmentTargetRef
+    let tappedPath: ZonePath
+    var frame: CGRect
+    var anchor: CGPoint
+    var movementWidth: CGFloat
+    var currentAlignment: ZoneBlockAlignment
+
+    var id: String {
+        "\(target.path.id)-\(target.kind.debugName)"
+    }
+}
+
+private final class ZoneAlignmentFrameGate {
+    var isFrozen = false
+    var pendingFrames: [ZoneEditorResolvedZoneFrame]?
+}
+
+private struct ZoneAlignmentGroupContext {
+    let parentPath: ZonePath
+    let parentZone: ZoneModel
+    let childPath: ZonePath
+    let childFrame: CGRect
+    let siblingFrames: [ZoneEditorResolvedZoneFrame]
+}
+
 // MARK: - Zone Editor Canvas
 
 /// A reusable editing canvas that renders a zone tree on the authoring surface.
@@ -46,16 +77,41 @@ struct ZoneEditorCanvas: View {
     @State private var activeCaretWindowRect: CGRect?
     @State private var lastKeyboardVisibleHeight: CGFloat = 0
     @State private var lastTapDebugLine: String = ""
-    @State private var debugStore = ZoneEditorDebugStore.shared
+    private let debugStore = ZoneEditorDebugStore.shared
     @State private var scrollDriver = ZoneEditorScrollDriver()
+    @State private var alignmentMenuState: ZoneAlignmentMenuState?
+    @State private var alignmentWiggleTarget: ZoneAlignmentTargetRef?
+    @State private var alignmentWiggleOffset: CGFloat = 0
+    @State private var alignmentWiggleTask: Task<Void, Never>?
+    @State private var alignmentFrameUpdateTask: Task<Void, Never>?
+    @State private var alignmentFrameGate = ZoneAlignmentFrameGate()
+    @State private var renderMeasuredContentSize: CGSize = .zero
 
     private var focusManager: ZoneFocusManager { ZoneFocusManager.shared }
 
     private static let coordinateSpaceName = "ZoneEditorCanvasContent"
+    private static let alignmentTolerance: CGFloat = 1
+    private static let alignmentMenuSize = CGSize(width: 104, height: 44)
+    private static let renderHitSlop: CGFloat = 8
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var editorCardHorizontalPadding: CGFloat { isCompact ? 20 : 28 }
     private var editorCardVerticalPadding: CGFloat { isCompact ? 20 : 24 }
+    private var renderScreenHorizontalPadding: CGFloat {
+        isCompact
+            ? FlashcardPlayLayoutTuning.screenToCardHorizontalPaddingCompact
+            : FlashcardPlayLayoutTuning.screenToCardHorizontalPaddingRegular
+    }
+    private var renderCardHorizontalPadding: CGFloat {
+        isCompact
+            ? FlashcardPlayLayoutTuning.cardToContentHorizontalPaddingCompact
+            : FlashcardPlayLayoutTuning.cardToContentHorizontalPaddingRegular
+    }
+    private var renderCardVerticalPadding: CGFloat {
+        isCompact
+            ? FlashcardPlayLayoutTuning.cardToContentVerticalPaddingCompact
+            : FlashcardPlayLayoutTuning.cardToContentVerticalPaddingRegular
+    }
 
     init(
         content: ZoneCardContent,
@@ -89,13 +145,15 @@ struct ZoneEditorCanvas: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let horizontalInset: CGFloat = isCompact ? 12 : 24
+            let horizontalInset: CGFloat = rendersRichText ? renderScreenHorizontalPadding : (isCompact ? 12 : 24)
             let maxEditorWidth: CGFloat = isCompact ? .infinity : 620
             let proposedWidth = max(geometry.size.width - (horizontalInset * 2), 1)
             let cardWidth = min(proposedWidth, maxEditorWidth)
             let editorViewportHeight = max(geometry.size.height - (UIConstants.Spacing.small * 2), 1)
-            let contentWidth = max(cardWidth - (editorCardHorizontalPadding * 2), 1)
-            let contentHeight = max(editorViewportHeight - (editorCardVerticalPadding * 2), 1)
+            let surfaceHorizontalPadding = rendersRichText ? 0 : editorCardHorizontalPadding
+            let surfaceVerticalPadding = rendersRichText ? 0 : editorCardVerticalPadding
+            let contentWidth = max(cardWidth - (surfaceHorizontalPadding * 2), 1)
+            let contentHeight = max(editorViewportHeight - (surfaceVerticalPadding * 2), 1)
             let scrollBottomAvoidanceInset = keyboardMonitor.isVisible
                 ? max(keyboardMonitor.visibleHeight + activeBottomChromeClearance, 160)
                 : 0
@@ -111,9 +169,9 @@ struct ZoneEditorCanvas: View {
                         contentHeight: contentHeight,
                         bottomCreationTapInset: bottomCreationTapInset
                     )
-                    .padding(.horizontal, editorCardHorizontalPadding)
-                    .padding(.top, editorCardVerticalPadding + topContentInset)
-                    .padding(.bottom, editorCardVerticalPadding)
+                    .padding(.horizontal, surfaceHorizontalPadding)
+                    .padding(.top, surfaceVerticalPadding + topContentInset)
+                    .padding(.bottom, surfaceVerticalPadding)
                     .frame(width: cardWidth, alignment: .topLeading)
                     .frame(minHeight: editorViewportHeight + topContentInset + bottomCreationTapInset, alignment: .topLeading)
                 }
@@ -140,6 +198,7 @@ struct ZoneEditorCanvas: View {
                     if newPath == nil {
                         cancelCaretAvoidanceScroll()
                         clearActiveCaretGeometry()
+                        dismissAlignmentMenu()
                     } else {
                         scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
                         if keyboardMonitor.isVisible {
@@ -235,8 +294,17 @@ struct ZoneEditorCanvas: View {
                 .onChange(of: scrollResetToken) { _, _ in
                     cancelCaretAvoidanceScroll()
                     clearActiveCaretGeometry()
+                    dismissAlignmentMenu()
                     scrollDriver.resetBottomInset()
                     scrollDriver.resetToTop()
+                }
+                .onChange(of: rendersRichText) { _, isRendered in
+                    dismissAlignmentMenu()
+                    thawFrameUpdates()
+                    if !isRendered {
+                        zoneFrames = []
+                    }
+                    renderMeasuredContentSize = .zero
                 }
                 .onAppear {
                     scrollDriver.resetBottomInset()
@@ -271,6 +339,8 @@ struct ZoneEditorCanvas: View {
                         return
                     }
 
+                    handleZoneTapNotification(notification, contentWidth: contentWidth)
+
                     if keyboardMonitor.isVisible {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(16))
                     }
@@ -281,6 +351,9 @@ struct ZoneEditorCanvas: View {
                 .onDisappear {
                     scheduledBottomChromeScrollTask?.cancel()
                     scheduledBottomChromeScrollTask = nil
+                    alignmentWiggleTask?.cancel()
+                    alignmentWiggleTask = nil
+                    thawFrameUpdates()
                     scrollDriver.detach()
                 }
             }
@@ -298,18 +371,26 @@ struct ZoneEditorCanvas: View {
         )
 
         return VStack(alignment: .leading, spacing: 0) {
-            ZoneEditorView(
-                content: content,
-                path: .root,
-                selectedPath: $selectedPath,
-                highlightContext: highlightContext,
-                fontScale: fontScale,
-                availableWidth: contentWidth,
-                maxEditableZoneHeight: contentHeight,
-                rendersRichText: rendersRichText,
-                previewDirection: $previewDirection
-            )
-            .frame(width: contentWidth, alignment: .topLeading)
+            if rendersRichText {
+                renderContentView(
+                    containerSize: CGSize(width: contentWidth, height: contentHeight)
+                )
+                .frame(width: contentWidth, height: contentHeight, alignment: .topLeading)
+            } else {
+                ZoneEditorView(
+                    content: content,
+                    path: .root,
+                    selectedPath: $selectedPath,
+                    highlightContext: highlightContext,
+                    fontScale: fontScale,
+                    availableWidth: contentWidth,
+                    maxEditableZoneHeight: contentHeight,
+                    rendersRichText: false,
+                    alignmentFeedback: .inactive,
+                    previewDirection: $previewDirection
+                )
+                .frame(width: contentWidth, alignment: .topLeading)
+            }
 
             Color.clear
                 .frame(width: contentWidth, height: contentHeight + bottomCreationTapInset)
@@ -318,11 +399,12 @@ struct ZoneEditorCanvas: View {
         }
         .frame(width: contentWidth, alignment: .topLeading)
         .coordinateSpace(name: Self.coordinateSpaceName)
+        .coordinateSpace(name: ZoneContentRenderCoordinateSpace.name)
         .overlayPreferenceValue(ZoneEditorZoneBoundsPreferenceKey.self) { bounds in
             GeometryReader { proxy in
                 Color.clear.preference(
                     key: ZoneEditorResolvedZoneFramePreferenceKey.self,
-                    value: bounds.map {
+                    value: rendersRichText ? [] : bounds.map {
                         ZoneEditorResolvedZoneFrame(
                             path: $0.path,
                             zoneID: $0.zoneID,
@@ -332,9 +414,133 @@ struct ZoneEditorCanvas: View {
                 )
             }
         }
-        .onPreferenceChange(ZoneEditorResolvedZoneFramePreferenceKey.self) { frames in
-            zoneFrames = frames
+        .overlayPreferenceValue(ZoneContentRenderBlockBoundsPreferenceKey.self) { bounds in
+            Color.clear.preference(
+                key: ZoneEditorResolvedZoneFramePreferenceKey.self,
+                value: rendersRichText ? bounds.compactMap { bound in
+                    guard let path = findPath(for: bound.zoneID, in: content.rootZone) else {
+                        return nil
+                    }
+
+                    return ZoneEditorResolvedZoneFrame(
+                        path: path,
+                        zoneID: bound.zoneID,
+                        frame: bound.frame
+                    )
+                } : []
+            )
         }
+        .onPreferenceChange(ZoneEditorResolvedZoneFramePreferenceKey.self) { frames in
+            handleResolvedZoneFrames(frames, contentWidth: contentWidth)
+        }
+        .overlay(alignment: .topLeading) {
+            alignmentOverlay(contentWidth: contentWidth)
+        }
+    }
+
+    private func renderContentView(contentWidth: CGFloat) -> some View {
+        let faceVerticalAlignment = content.rootZone.verticalAlignment
+            .resolved(fallback: verticalAlignmentFallback)
+
+        let availableContentWidth = max(contentWidth - (renderCardHorizontalPadding * 2), 1)
+        let estimatedContentSize = ZoneContentEstimator.estimatedSize(
+            for: content.rootZone,
+            fontScale: fontScale,
+            availableWidth: availableContentWidth
+        )
+        let layout = ZoneContentLayout(
+            containerSize: CGSize(width: contentWidth, height: 1),
+            horizontalPadding: renderCardHorizontalPadding,
+            verticalPadding: renderCardVerticalPadding,
+            estimatedContentSize: estimatedContentSize,
+            measuredContentSize: renderMeasuredContentSize,
+            verticalAlignment: faceVerticalAlignment
+        )
+
+        return renderContentView(layout: layout, faceVerticalAlignment: faceVerticalAlignment)
+    }
+
+    private func renderContentView(containerSize: CGSize) -> some View {
+        let faceVerticalAlignment = content.rootZone.verticalAlignment
+            .resolved(fallback: verticalAlignmentFallback)
+        let availableContentWidth = max(containerSize.width - (renderCardHorizontalPadding * 2), 1)
+        let estimatedContentSize = ZoneContentEstimator.estimatedSize(
+            for: content.rootZone,
+            fontScale: fontScale,
+            availableWidth: availableContentWidth
+        )
+        let layout = ZoneContentLayout(
+            containerSize: containerSize,
+            horizontalPadding: renderCardHorizontalPadding,
+            verticalPadding: renderCardVerticalPadding,
+            estimatedContentSize: estimatedContentSize,
+            measuredContentSize: renderMeasuredContentSize,
+            verticalAlignment: faceVerticalAlignment
+        )
+
+        return renderContentView(layout: layout, faceVerticalAlignment: faceVerticalAlignment)
+    }
+
+    private func renderContentView(
+        layout: ZoneContentLayout,
+        faceVerticalAlignment: ZoneVerticalAlignment
+    ) -> some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            ZStack(alignment: .topLeading) {
+                if showsGridDebugOverlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(
+                            Color.cyan.opacity(0.9),
+                            style: StrokeStyle(lineWidth: 1.6, dash: [7, 5])
+                        )
+                        .frame(
+                            width: layout.debugAvailableFrame.width,
+                            height: layout.debugAvailableFrame.height,
+                            alignment: .topLeading
+                        )
+                        .padding(.leading, layout.horizontalPadding)
+                        .padding(.top, layout.verticalPadding)
+                        .allowsHitTesting(false)
+                }
+
+                ZoneContentRenderView(
+                    zone: content.rootZone,
+                    fontScale: fontScale,
+                    availableWidth: layout.availableContentWidth,
+                    centersLeafBlocks: faceVerticalAlignment == .center,
+                    showsDebugGuides: showsGridDebugOverlay,
+                    alignmentFeedback: alignmentFeedback,
+                    collectsDebugMetrics: false,
+                    leafTapBehavior: .none
+                )
+                .frame(width: layout.availableContentWidth, alignment: .topLeading)
+                .onGeometryChange(for: CGSize.self) { proxy in
+                    CGSize(
+                        width: ceil(proxy.size.width),
+                        height: ceil(proxy.size.height)
+                    )
+                } action: { newSize in
+                    guard newSize.width > 0, newSize.height > 0 else { return }
+                    let oldSize = renderMeasuredContentSize
+                    if abs(oldSize.width - newSize.width) > 0.5
+                        || abs(oldSize.height - newSize.height) > 0.5 {
+                        renderMeasuredContentSize = newSize
+                    }
+                }
+                .padding(.top, layout.verticalPadding + layout.contentTopInset)
+                .padding(.leading, layout.horizontalPadding)
+                .padding(.bottom, layout.verticalPadding + layout.contentBottomInset)
+            }
+            .frame(
+                width: layout.containerSize.width,
+                height: layout.scrollContentHeight,
+                alignment: .topLeading
+            )
+        }
+        .scrollDisabled(layout.contentFitsVertically)
+        .frame(width: layout.containerSize.width, height: layout.containerSize.height)
+        .contentShape(Rectangle())
+        .simultaneousGesture(renderModeTapGesture(contentWidth: layout.containerSize.width))
     }
 
     private func emptySpaceTapGesture(contentSize: CGSize) -> some Gesture {
@@ -347,7 +553,28 @@ struct ZoneEditorCanvas: View {
             }
     }
 
+    private func renderModeTapGesture(contentWidth: CGFloat) -> some Gesture {
+        SpatialTapGesture(coordinateSpace: .named(Self.coordinateSpaceName))
+            .onEnded { value in
+                handleRenderModeTap(location: value.location, contentWidth: contentWidth)
+            }
+    }
+
     private func handleEmptySpaceTap(location: CGPoint, contentSize: CGSize) {
+        if alignmentMenuState != nil {
+            dismissAlignmentMenu()
+            lastTapDebugLine = "tap dismiss alignment menu"
+            ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
+            return
+        }
+
+        if rendersRichText {
+            lastTapDebugLine = "render tap empty x=\(Int(location.x)) y=\(Int(location.y))"
+            ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
+            selectedPath = nil
+            return
+        }
+
         guard !zoneFrames.contains(where: { $0.frame.contains(location) }) else {
             lastTapDebugLine = "tap zone/select"
             ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
@@ -363,6 +590,605 @@ struct ZoneEditorCanvas: View {
                 zoneFrames: zoneFrames
             )
         )
+    }
+
+    private func handleRenderModeTap(location: CGPoint, contentWidth: CGFloat) {
+        guard rendersRichText else { return }
+
+        let candidateFrames = zoneFrames
+            .filter { $0.frame.insetBy(dx: -Self.renderHitSlop, dy: -Self.renderHitSlop).contains(location) }
+            .sorted { ($0.frame.width * $0.frame.height) < ($1.frame.width * $1.frame.height) }
+        let matchedFrame = candidateFrames.first
+
+        guard let matchedFrame else {
+            dismissAlignmentMenu()
+            selectedPath = nil
+            lastTapDebugLine = "render tap empty x=\(Int(location.x)) y=\(Int(location.y)) frames=\(zoneFrames.count) nearest=\(nearestFrameDebug(to: location))"
+            ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
+            return
+        }
+
+        selectedPath = matchedFrame.path
+        focusManager.forceReleaseKeyboard()
+        ZoneController.shared.forceReleaseKeyboard()
+        ZoneController.shared.updateFocusedZone(nil)
+        lastTapDebugLine = "render tap zone path=\(matchedFrame.path.id) hits=\(candidateFrames.count)"
+        ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
+        presentAlignmentMenu(for: matchedFrame.path, contentWidth: contentWidth)
+    }
+
+    private func nearestFrameDebug(to location: CGPoint) -> String {
+        guard let nearest = zoneFrames.min(by: {
+            distance(from: $0.frame, to: location) < distance(from: $1.frame, to: location)
+        }) else {
+            return "nil"
+        }
+
+        return "\(nearest.path.id):\(Int(distance(from: nearest.frame, to: location)))"
+    }
+
+    private func distance(from frame: CGRect, to point: CGPoint) -> CGFloat {
+        let dx = max(frame.minX - point.x, 0, point.x - frame.maxX)
+        let dy = max(frame.minY - point.y, 0, point.y - frame.maxY)
+        return sqrt((dx * dx) + (dy * dy))
+    }
+
+    private var alignmentFeedback: ZoneAlignmentFeedback {
+        ZoneAlignmentFeedback(
+            highlightedTarget: alignmentMenuState?.target,
+            wiggleTarget: alignmentWiggleTarget,
+            wiggleOffset: alignmentWiggleOffset
+        )
+    }
+
+    private func handleZoneTapNotification(_ notification: Notification, contentWidth: CGFloat) {
+        guard rendersRichText else { return }
+
+        let pathID = notification.userInfo?[ZoneEditorCaretScrollNotification.pathIDKey] as? String
+        let tappedPath = pathID
+            .flatMap { pathID in zoneFrames.first(where: { $0.path.id == pathID })?.path }
+            ?? selectedPath
+
+        guard let tappedPath,
+              content.zone(at: tappedPath) != nil else {
+            return
+        }
+
+        if rendersRichText {
+            focusManager.forceReleaseKeyboard()
+            ZoneController.shared.forceReleaseKeyboard()
+            ZoneController.shared.updateFocusedZone(nil)
+        }
+
+        presentAlignmentMenu(for: tappedPath, contentWidth: contentWidth)
+    }
+
+    private func presentAlignmentMenu(for tappedPath: ZonePath, contentWidth: CGFloat) {
+        guard let state = resolvedAlignmentMenuState(for: tappedPath, contentWidth: contentWidth, frames: zoneFrames) else {
+            ZoneEditorDebugStore.shared.recordAlignment("align resolve failed tapped=\(tappedPath.id)")
+            return
+        }
+
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+            alignmentMenuState = state
+        }
+        ZoneEditorDebugStore.shared.recordAlignment(debugSummary(for: state, action: "present"))
+    }
+
+    private func refreshAlignmentMenu(contentWidth: CGFloat, frames: [ZoneEditorResolvedZoneFrame]) {
+        guard let currentState = alignmentMenuState,
+              let refreshedState = resolvedAlignmentMenuState(
+                for: currentState.tappedPath,
+                contentWidth: contentWidth,
+                frames: frames
+              ) else {
+            if alignmentMenuState != nil {
+                dismissAlignmentMenu()
+            }
+            return
+        }
+
+        if refreshedState != currentState {
+            alignmentMenuState = refreshedState
+        }
+    }
+
+    private func dismissAlignmentMenu() {
+        guard alignmentMenuState != nil else { return }
+        withAnimation(.easeOut(duration: 0.16)) {
+            alignmentMenuState = nil
+        }
+        alignmentWiggleTask?.cancel()
+        alignmentWiggleTask = nil
+        alignmentWiggleTarget = nil
+        alignmentWiggleOffset = 0
+        thawFrameUpdates()
+    }
+
+    @ViewBuilder
+    private func alignmentOverlay(contentWidth: CGFloat) -> some View {
+        if let menuState = alignmentMenuState {
+            alignmentMenu(for: menuState, contentWidth: contentWidth)
+                .zIndex(4)
+        }
+    }
+
+    private func handleResolvedZoneFrames(
+        _ frames: [ZoneEditorResolvedZoneFrame],
+        contentWidth: CGFloat
+    ) {
+        guard rendersRichText else {
+            commitResolvedZoneFrames(frames, contentWidth: contentWidth, refreshMenu: false)
+            return
+        }
+
+        guard !alignmentFrameGate.isFrozen else {
+            alignmentFrameGate.pendingFrames = frames
+            return
+        }
+
+        commitResolvedZoneFrames(frames, contentWidth: contentWidth, refreshMenu: alignmentMenuState != nil)
+    }
+
+    private func commitResolvedZoneFrames(
+        _ frames: [ZoneEditorResolvedZoneFrame],
+        contentWidth: CGFloat,
+        refreshMenu: Bool
+    ) {
+        guard !resolvedFramesMatch(zoneFrames, frames) else { return }
+
+        zoneFrames = frames
+        if refreshMenu {
+            refreshAlignmentMenu(contentWidth: contentWidth, frames: frames)
+        }
+    }
+
+    private func resolvedFramesMatch(
+        _ lhs: [ZoneEditorResolvedZoneFrame],
+        _ rhs: [ZoneEditorResolvedZoneFrame]
+    ) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+
+        for (left, right) in zip(lhs, rhs) {
+            guard left.path == right.path,
+                  left.zoneID == right.zoneID,
+                  framesMatch(left.frame, right.frame) else {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private func framesMatch(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+        abs(lhs.minX - rhs.minX) < 0.5
+            && abs(lhs.minY - rhs.minY) < 0.5
+            && abs(lhs.width - rhs.width) < 0.5
+            && abs(lhs.height - rhs.height) < 0.5
+    }
+
+    private func freezeFrameUpdatesDuringAlignment() {
+        alignmentFrameUpdateTask?.cancel()
+        alignmentFrameGate.isFrozen = true
+        alignmentFrameGate.pendingFrames = nil
+
+        alignmentFrameUpdateTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(260))
+            guard !Task.isCancelled else { return }
+
+            alignmentFrameGate.isFrozen = false
+            if let pendingFrames = alignmentFrameGate.pendingFrames {
+                alignmentFrameGate.pendingFrames = nil
+                commitResolvedZoneFrames(
+                    pendingFrames,
+                    contentWidth: 0,
+                    refreshMenu: false
+                )
+            }
+        }
+    }
+
+    private func thawFrameUpdates() {
+        alignmentFrameUpdateTask?.cancel()
+        alignmentFrameUpdateTask = nil
+        alignmentFrameGate.isFrozen = false
+        alignmentFrameGate.pendingFrames = nil
+    }
+
+    private func alignmentMenu(for menuState: ZoneAlignmentMenuState, contentWidth: CGFloat) -> some View {
+        let menuWidth = Self.alignmentMenuSize.width
+        let menuHeight = Self.alignmentMenuSize.height
+        let x = clampedMenuX(anchorX: menuState.anchor.x, menuWidth: menuWidth, contentWidth: contentWidth)
+        let y = max(menuState.anchor.y + 8, 0)
+
+        return HStack(spacing: 4) {
+            alignmentMenuButton(systemName: "chevron.left") {
+                performAlignmentAction(.left)
+            }
+
+            Rectangle()
+                .fill(Color.primary.opacity(0.12))
+                .frame(width: 1, height: 18)
+                .allowsHitTesting(false)
+
+            alignmentMenuButton(systemName: "chevron.right") {
+                performAlignmentAction(.right)
+            }
+        }
+        .frame(width: menuWidth, height: menuHeight)
+        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 0.75)
+        )
+        .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 8)
+        .offset(x: x, y: y)
+        .transition(.scale(scale: 0.82, anchor: .top).combined(with: .opacity))
+        .zIndex(4)
+    }
+
+    private func alignmentMenuButton(
+        systemName: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(Color.primary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func resolvedAlignmentMenuState(
+        for tappedPath: ZonePath,
+        contentWidth: CGFloat,
+        frames: [ZoneEditorResolvedZoneFrame]
+    ) -> ZoneAlignmentMenuState? {
+        guard let target = resolveAlignmentTarget(for: tappedPath, contentWidth: contentWidth, frames: frames) else {
+            return nil
+        }
+
+        return ZoneAlignmentMenuState(
+            target: target.targetRef,
+            tappedPath: tappedPath,
+            frame: target.frame,
+            anchor: CGPoint(x: target.frame.midX, y: target.frame.maxY),
+            movementWidth: target.movementWidth,
+            currentAlignment: target.currentAlignment
+        )
+    }
+
+    private func resolveAlignmentTarget(
+        for tappedPath: ZonePath,
+        contentWidth: CGFloat,
+        frames: [ZoneEditorResolvedZoneFrame]
+    ) -> (
+        targetRef: ZoneAlignmentTargetRef,
+        frame: CGRect,
+        movementWidth: CGFloat,
+        currentAlignment: ZoneBlockAlignment
+    )? {
+        guard let tappedZone = content.zone(at: tappedPath) else { return nil }
+        guard let leafFrame = frame(for: tappedPath, in: frames) else { return nil }
+
+        if let groupContext = resolvedGroupMoveContext(
+            for: tappedPath,
+            frames: frames
+        ) {
+            let parentPath = groupContext.parentPath
+            let parentZone = groupContext.parentZone
+            let childPath = groupContext.childPath
+            let childFrame = groupContext.childFrame
+            let siblingFrames = groupContext.siblingFrames
+            let widestSiblingWidth = siblingFrames.map(\.frame.width).max() ?? childFrame.width
+            let selectedIsWidest = childFrame.width >= widestSiblingWidth - Self.alignmentTolerance
+
+            if selectedIsWidest {
+                let groupFrame = union(of: siblingFrames.map(\.frame)) ?? childFrame
+                let movementWidth = availableAlignmentWidth(for: parentPath, contentWidth: contentWidth, frames: frames)
+                return (
+                    targetRef: ZoneAlignmentTargetRef(path: parentPath, kind: .group),
+                    frame: groupFrame,
+                    movementWidth: movementWidth,
+                    currentAlignment: resolvedAlignment(for: parentZone, kind: .group)
+                )
+            }
+
+            let childTargetZone = content.zone(at: childPath)
+            let childTargetKind: ZoneAlignmentTargetKind = childTargetZone?.isLeaf == false ? .group : .leaf
+            let movementWidth = availableAlignmentWidth(for: childPath, contentWidth: contentWidth, frames: frames)
+            return (
+                targetRef: ZoneAlignmentTargetRef(path: childPath, kind: childTargetKind),
+                frame: childFrame,
+                movementWidth: movementWidth,
+                currentAlignment: resolvedAlignment(for: childTargetZone ?? tappedZone, kind: childTargetKind)
+            )
+        }
+
+        if let childContext = nearestAlignmentGroupContext(
+            for: tappedPath,
+            frames: frames
+        ) {
+            let childPath = childContext.childPath
+            let childFrame = childContext.childFrame
+            let childTargetZone = content.zone(at: childPath)
+            let childTargetKind: ZoneAlignmentTargetKind = childTargetZone?.isLeaf == false ? .group : .leaf
+            let movementWidth = availableAlignmentWidth(for: childPath, contentWidth: contentWidth, frames: frames)
+            return (
+                targetRef: ZoneAlignmentTargetRef(path: childPath, kind: childTargetKind),
+                frame: childFrame,
+                movementWidth: movementWidth,
+                currentAlignment: resolvedAlignment(for: childTargetZone ?? tappedZone, kind: childTargetKind)
+            )
+        }
+
+        let movementWidth = availableAlignmentWidth(for: tappedPath, contentWidth: contentWidth, frames: frames)
+        return (
+            targetRef: ZoneAlignmentTargetRef(path: tappedPath, kind: .leaf),
+            frame: leafFrame,
+            movementWidth: movementWidth,
+            currentAlignment: resolvedAlignment(for: tappedZone, kind: .leaf)
+        )
+    }
+
+    private func resolvedGroupMoveContext(
+        for tappedPath: ZonePath,
+        frames: [ZoneEditorResolvedZoneFrame]
+    ) -> ZoneAlignmentGroupContext? {
+        var promotedContext: ZoneAlignmentGroupContext?
+
+        for context in alignmentGroupContexts(for: tappedPath, frames: frames) {
+            guard childIsWidestInGroup(context) else {
+                break
+            }
+
+            promotedContext = context
+        }
+
+        return promotedContext
+    }
+
+    private func childIsWidestInGroup(_ context: ZoneAlignmentGroupContext) -> Bool {
+        let widestSiblingWidth = context.siblingFrames.map(\.frame.width).max() ?? context.childFrame.width
+        return context.childFrame.width >= widestSiblingWidth - Self.alignmentTolerance
+    }
+
+    private func nearestAlignmentGroupContext(
+        for tappedPath: ZonePath,
+        frames: [ZoneEditorResolvedZoneFrame]
+    ) -> ZoneAlignmentGroupContext? {
+        alignmentGroupContexts(for: tappedPath, frames: frames).first
+    }
+
+    private func alignmentGroupContexts(
+        for tappedPath: ZonePath,
+        frames: [ZoneEditorResolvedZoneFrame]
+    ) -> [ZoneAlignmentGroupContext] {
+        var contexts: [ZoneAlignmentGroupContext] = []
+        var candidatePath = tappedPath.parent
+
+        while let parentPath = candidatePath {
+            defer { candidatePath = parentPath.parent }
+
+            guard let parentZone = content.zone(at: parentPath),
+                  parentZone.direction == .vertical,
+                  let siblings = parentZone.children,
+                  siblings.count > 1,
+                  let childPath = directChildPath(of: tappedPath, relativeTo: parentPath),
+                  let childFrame = frame(forSubtree: childPath, in: frames) else {
+                continue
+            }
+
+            let siblingFrames = siblingFrames(
+                in: frames,
+                under: parentPath,
+                directChildCount: siblings.count
+            )
+            guard siblingFrames.count > 1 else {
+                continue
+            }
+
+            contexts.append(
+                ZoneAlignmentGroupContext(
+                    parentPath: parentPath,
+                    parentZone: parentZone,
+                    childPath: childPath,
+                    childFrame: childFrame,
+                    siblingFrames: siblingFrames
+                )
+            )
+        }
+
+        return contexts
+    }
+
+    private func resolvedAlignment(for zone: ZoneModel, kind: ZoneAlignmentTargetKind) -> ZoneBlockAlignment {
+        if zone.blockAlignment != .auto {
+            return zone.blockAlignment
+        }
+
+        switch kind {
+        case .group:
+            return .center
+        case .leaf:
+            return content.rootZone.leafCount == 1 ? .center : .leading
+        }
+    }
+
+    private func availableAlignmentWidth(
+        for path: ZonePath,
+        contentWidth: CGFloat,
+        frames: [ZoneEditorResolvedZoneFrame]
+    ) -> CGFloat {
+        guard let parentPath = path.parent else {
+            return contentWidth
+        }
+
+        if let parentFrame = frame(forSubtree: parentPath, in: frames) {
+            return max(parentFrame.width, 1)
+        }
+
+        return contentWidth
+    }
+
+    private func frame(for path: ZonePath, in frames: [ZoneEditorResolvedZoneFrame]) -> CGRect? {
+        frames.first { $0.path == path }?.frame
+    }
+
+    private func frame(forSubtree path: ZonePath, in frames: [ZoneEditorResolvedZoneFrame]) -> CGRect? {
+        union(of: frames.compactMap { frame in
+            frame.path.indices.starts(with: path.indices) ? frame.frame : nil
+        })
+    }
+
+    private func siblingFrames(
+        in frames: [ZoneEditorResolvedZoneFrame],
+        under parentPath: ZonePath,
+        directChildCount: Int
+    ) -> [ZoneEditorResolvedZoneFrame] {
+        let directChildPaths = (0..<directChildCount).map { parentPath.appending($0) }
+
+        return directChildPaths.compactMap { childPath in
+            guard let childFrame = frame(forSubtree: childPath, in: frames) else { return nil }
+            return ZoneEditorResolvedZoneFrame(path: childPath, zoneID: content.zone(at: childPath)?.id ?? UUID(), frame: childFrame)
+        }
+    }
+
+    private func directChildPath(of path: ZonePath, relativeTo parentPath: ZonePath) -> ZonePath? {
+        guard path.indices.count > parentPath.indices.count else { return nil }
+        let nextIndex = path.indices[parentPath.indices.count]
+        return parentPath.appending(nextIndex)
+    }
+
+    private func findPath(
+        for id: UUID,
+        in zone: ZoneModel,
+        currentIndices: [Int] = []
+    ) -> ZonePath? {
+        if zone.id == id { return ZonePath(indices: currentIndices) }
+        guard let children = zone.children else { return nil }
+
+        for (index, child) in children.enumerated() {
+            if let found = findPath(for: id, in: child, currentIndices: currentIndices + [index]) {
+                return found
+            }
+        }
+
+        return nil
+    }
+
+    private func union(of frames: [CGRect]) -> CGRect? {
+        guard var first = frames.first else { return nil }
+        for frame in frames.dropFirst() {
+            first = first.union(frame)
+        }
+        return first
+    }
+
+    private func currentFrame(for target: ZoneAlignmentTargetRef) -> CGRect? {
+        switch target.kind {
+        case .leaf:
+            return frame(for: target.path, in: zoneFrames)
+        case .group:
+            return frame(forSubtree: target.path, in: zoneFrames)
+        }
+    }
+
+    private func clampedMenuX(anchorX: CGFloat, menuWidth: CGFloat, contentWidth: CGFloat) -> CGFloat {
+        let sidePadding: CGFloat = 6
+        let maxX = max(contentWidth - menuWidth - sidePadding, sidePadding)
+        return min(max(anchorX - (menuWidth / 2), sidePadding), maxX)
+    }
+
+    private func debugSummary(for state: ZoneAlignmentMenuState, action: String) -> String {
+        "align \(action) path=\(state.target.path.id) kind=\(state.target.kind.debugName) frame=\(Int(state.frame.width))x\(Int(state.frame.height))@\(Int(state.frame.minX)),\(Int(state.frame.minY)) cur=\(state.currentAlignment.rawValue) moveW=\(Int(state.movementWidth))"
+    }
+
+    private func performAlignmentAction(_ direction: ZoneAlignmentDirection) {
+        guard let menuState = alignmentMenuState else { return }
+
+        let nextAlignment = nextAlignment(
+            from: menuState.currentAlignment,
+            direction: direction
+        )
+        let canMove = menuState.frame.width < menuState.movementWidth - Self.alignmentTolerance
+
+        guard canMove, let nextAlignment else {
+            triggerAlignmentWiggle(for: menuState.target)
+            ZoneEditorDebugStore.shared.recordAlignment(
+                debugSummary(for: menuState, action: "wiggle \(direction)")
+            )
+            UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+            return
+        }
+
+        freezeFrameUpdatesDuringAlignment()
+
+        withAnimation(.easeOut(duration: 0.22)) {
+            content.updateZone(at: menuState.target.path) { zone in
+                zone.blockAlignment = nextAlignment
+            }
+        }
+
+        if var updatedMenuState = alignmentMenuState {
+            updatedMenuState.currentAlignment = nextAlignment
+            alignmentMenuState = updatedMenuState
+        }
+        ZoneEditorDebugStore.shared.recordAlignment(
+            debugSummary(
+                for: ZoneAlignmentMenuState(
+                    target: menuState.target,
+                    tappedPath: menuState.tappedPath,
+                    frame: menuState.frame,
+                    anchor: menuState.anchor,
+                    movementWidth: menuState.movementWidth,
+                    currentAlignment: nextAlignment
+                ),
+                action: "set \(direction)"
+            )
+        )
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    private func nextAlignment(
+        from currentAlignment: ZoneBlockAlignment,
+        direction: ZoneAlignmentDirection
+    ) -> ZoneBlockAlignment? {
+        let order: [ZoneBlockAlignment] = [.leading, .center, .trailing]
+        guard let currentIndex = order.firstIndex(of: currentAlignment == .auto ? .leading : currentAlignment) else {
+            return nil
+        }
+
+        switch direction {
+        case .left:
+            guard currentIndex > 0 else { return nil }
+            return order[currentIndex - 1]
+        case .right:
+            guard currentIndex < order.count - 1 else { return nil }
+            return order[currentIndex + 1]
+        }
+    }
+
+    private func triggerAlignmentWiggle(for target: ZoneAlignmentTargetRef) {
+        alignmentWiggleTask?.cancel()
+        alignmentWiggleTarget = target
+        alignmentWiggleOffset = 0
+
+        let offsets: [CGFloat] = [0, -6, 5, -3, 2, 0]
+        alignmentWiggleTask = Task { @MainActor in
+            for offset in offsets {
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: 0.045)) {
+                    alignmentWiggleOffset = offset
+                }
+                try? await Task.sleep(for: .milliseconds(40))
+            }
+            guard !Task.isCancelled else { return }
+            alignmentWiggleTarget = nil
+            alignmentWiggleOffset = 0
+        }
     }
 
     @discardableResult
@@ -904,6 +1730,7 @@ private struct ZoneEditorScrollViewLocator: UIViewRepresentable {
     final class ResolverView: UIView {
         var onResolve: ((UIScrollView?) -> Void)?
         private weak var resolvedScrollView: UIScrollView?
+        private var isResolveScheduled = false
 
         override init(frame: CGRect) {
             super.init(frame: frame)
@@ -927,8 +1754,11 @@ private struct ZoneEditorScrollViewLocator: UIViewRepresentable {
         }
 
         func resolveSoon() {
+            guard !isResolveScheduled else { return }
+            isResolveScheduled = true
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
+                self.isResolveScheduled = false
                 let scrollView = self.resolveScrollView()
                 guard self.resolvedScrollView !== scrollView else { return }
                 self.resolvedScrollView = scrollView

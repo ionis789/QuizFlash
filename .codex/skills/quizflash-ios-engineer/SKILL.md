@@ -29,6 +29,8 @@ Treat data-heavy render paths as a known QuizFlash failure mode. The Home perfor
 
 When animation or interaction lag survives an initial optimization, lead with an explicit debugging protocol instead of passively waiting for another symptom report. Add narrowly scoped DEBUG-only visual instrumentation when useful, tell the user exactly what gesture/video to capture, and explain which metrics will confirm or reject the current hypothesis.
 
+Golden debug rule: after any failed behavioral fix, or whenever more than one plausible root cause remains, `MUST NOT` make another behavioral fix from inference alone. Stop, say explicitly that the current evidence is insufficient for a safe fix, and add or request deterministic diagnostics that will identify the owning layer before changing behavior again. For UI/interaction bugs this means instrumenting the actual event/state path (hit testing, gesture recognizers, focus, keyboard, presentation flags, layout frames, async tasks, persistence writes as relevant), then using the resulting log/video/screenshot to choose exactly one fix.
+
 For serious lag, global scroll stutter, slider jank, memory growth, or suspected leaks, use Instruments instead of guessing. Ask for or analyze a `.trace` with Time Profiler + Allocations, inspect the TOC because one trace can contain multiple runs, prioritize app-inclusive stacks and allocation churn, then fix the hot render/data path. Read `references/performance-profiling.md` before giving profiling instructions or interpreting a trace.
 
 Do not route per-frame scroll offsets through observed SwiftUI state. Persist scroll restoration offsets in `@ObservationIgnored` view-model storage or other non-observed holders so scroll probes do not invalidate an entire screen on every drag tick.
@@ -112,7 +114,8 @@ Use progressive disclosure for every task, even when the user gives only a bug r
    - Pull only the relevant reference section when the local code does not explain ownership or safety.
 7. `MUST` stop reading once the current hypothesis has enough evidence for a focused patch.
    - Prefer a small patch plus targeted build over a large speculative refactor.
-   - If the same symptom has already resisted two fixes, switch to targeted instrumentation before more behavioral changes.
+   - If the same symptom has already resisted one fix, or if two or more root causes are still plausible, switch to targeted instrumentation before more behavioral changes.
+   - If a user-provided video, screenshot, log, or trace does not prove the owning layer, say that directly and ask for or add the missing deterministic signal instead of guessing.
 8. `SHOULD` extract only a few representative frames from videos unless frame-by-frame timing matters.
    - Use 3-8 frames around the failure and user-provided timestamps when available.
    - Do not transcribe or inspect an entire video unless the bug depends on gesture timing.
@@ -141,6 +144,7 @@ The flashzone content editor is interaction-sensitive and can regress from small
 - Resize handles, debug HUDs, selection outlines, toolbar overlays, and parent gestures must not steal `UITextView` touch handling.
 - Per-caret or per-selection updates must not invalidate the whole content layout. Avoid using cursor changes to update observed state that recomputes sizes.
 - Do not switch between rendered math/rich preview and raw editor metrics inside the editor unless the task explicitly reintroduces compiled preview behavior.
+- After one failed fix in this editor, or whenever tap/focus/menu/keyboard behavior could be owned by multiple layers, do not patch behavior again until DEBUG-only instrumentation proves which layer is responsible. Required signals usually include: tap coordinate and recipient, selected path, focused zone ID, pending focus ID, `UITextView` first-responder state, keyboard visibility/height, toolbar presentation flags, relevant frames, and any gesture/hit-test blockers.
 
 For zone editor bugs, start with the route in `references/task-routing.md` before opening broader DeckEditor files.
 
@@ -191,7 +195,9 @@ QuizFlash flashcards and quiz cards use the same rich content renderer for mixed
 
 ## Debug Escalation
 
-When repeated fixes do not change the user's observed behavior, stop guessing and add targeted instrumentation before making another behavioral change. Prefer DEBUG-only probes that reveal the exact owner of the failure: hit-test recipients, gesture recognizer state, state transitions, async cancellation, persistence writes, or payload shape. Keep probes narrowly scoped, easy to remove, and gated behind existing development/debug settings when practical. If the probe exposes a generally useful diagnostic path, keep it as a development-only tool; otherwise remove it before final delivery. In final reports, state what the instrumentation showed and which assumption it confirmed or disproved.
+When a fix does not change the user's observed behavior, stop guessing immediately. Do not attempt a second behavioral fix unless the new evidence proves a single root cause. Prefer DEBUG-only probes that reveal the exact owner of the failure: hit-test recipients, gesture recognizer state, focus/keyboard transitions, presentation flags, layout frames, state mutations, async cancellation, persistence writes, or payload shape. Keep probes narrowly scoped, easy to remove, and gated behind existing development/debug settings when practical. If the probe exposes a generally useful diagnostic path, keep it as a development-only tool; otherwise remove it before final delivery.
+
+For every debug escalation, state the decision rule before asking for a video or making the next patch: what exact signal will confirm each plausible cause, and which code path will be changed for each outcome. If a video/log is inconclusive, say so plainly and request or add the missing signal. In final reports, state what the instrumentation showed and which assumption it confirmed or disproved.
 
 ## Testing Expectations
 

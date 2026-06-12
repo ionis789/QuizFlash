@@ -75,6 +75,41 @@ struct ZoneEditorNaturalBlockWidthPreferenceKey: PreferenceKey {
     }
 }
 
+enum ZoneAlignmentTargetKind: Equatable {
+    case leaf
+    case group
+
+    var debugName: String {
+        switch self {
+        case .leaf:
+            return "leaf"
+        case .group:
+            return "group"
+        }
+    }
+}
+
+struct ZoneAlignmentTargetRef: Equatable {
+    let path: ZonePath
+    let kind: ZoneAlignmentTargetKind
+}
+
+struct ZoneAlignmentFeedback: Equatable {
+    static let inactive = ZoneAlignmentFeedback(
+        highlightedTarget: nil,
+        wiggleTarget: nil,
+        wiggleOffset: 0
+    )
+
+    let highlightedTarget: ZoneAlignmentTargetRef?
+    let wiggleTarget: ZoneAlignmentTargetRef?
+    let wiggleOffset: CGFloat
+
+    func offset(for target: ZoneAlignmentTargetRef) -> CGFloat {
+        wiggleTarget == target ? wiggleOffset : 0
+    }
+}
+
 // MARK: - Zone Editor View (Recursive)
 
 /// Recursive view that renders a zone tree rooted at `path`.
@@ -92,6 +127,7 @@ struct ZoneEditorView: View {
     var measurementWidth: CGFloat
     var maxEditableZoneHeight: CGFloat?
     var rendersRichText: Bool
+    var alignmentFeedback: ZoneAlignmentFeedback
     var previewDirection: Binding<AddDirection?>
 
     private var zone: ZoneModel? { content.zone(at: path) }
@@ -108,6 +144,7 @@ struct ZoneEditorView: View {
         measurementWidth: CGFloat? = nil,
         maxEditableZoneHeight: CGFloat? = nil,
         rendersRichText: Bool = false,
+        alignmentFeedback: ZoneAlignmentFeedback = .inactive,
         previewDirection: Binding<AddDirection?> = .constant(nil)
     ) {
         self.content = content
@@ -119,6 +156,7 @@ struct ZoneEditorView: View {
         self.measurementWidth = measurementWidth ?? availableWidth
         self.maxEditableZoneHeight = maxEditableZoneHeight
         self.rendersRichText = rendersRichText
+        self.alignmentFeedback = alignmentFeedback
         self.previewDirection = previewDirection
     }
 
@@ -158,7 +196,17 @@ struct ZoneEditorView: View {
         let indexedChildren = Array(children.enumerated())
         let childPaths = indexedChildren.map { path.appending($0.offset).id }
         let groupWidth = verticalGroupWidth(for: children, childPaths: childPaths)
-        let groupLeadingInset = max((availableWidth - groupWidth) / 2, 0)
+        let groupLeadingInset = rendersRichText
+            ? ZoneContentLayoutEngine.blockLeadingInset(
+                for: zone.blockAlignment,
+                blockWidth: groupWidth,
+                availableWidth: availableWidth,
+                defaultAlignment: .center
+            )
+            : 0
+        let groupWiggleOffset = rendersRichText
+            ? alignmentFeedback.offset(for: ZoneAlignmentTargetRef(path: path, kind: .group))
+            : 0
 
         VStack(spacing: 8) {
             ForEach(indexedChildren, id: \.element.id) { index, _ in
@@ -180,6 +228,7 @@ struct ZoneEditorView: View {
                     measurementWidth: measurementWidth,
                     maxEditableZoneHeight: maxEditableZoneHeight,
                     rendersRichText: rendersRichText,
+                    alignmentFeedback: alignmentFeedback,
                     previewDirection: maskedPreviewDirection(for: isChildSelected)
                 )
                 .frame(width: groupWidth, alignment: .topLeading)
@@ -191,10 +240,11 @@ struct ZoneEditorView: View {
             }
         }
         .frame(width: groupWidth, alignment: .topLeading)
-        .offset(x: groupLeadingInset)
+        .offset(x: groupLeadingInset + groupWiggleOffset)
         .frame(width: availableWidth, alignment: .topLeading)
         .fixedSize(horizontal: false, vertical: true)
-        .animation(.easeOut(duration: 0.14), value: groupWidth)
+        .animation(rendersRichText ? .easeOut(duration: 0.14) : nil, value: groupWidth)
+        .animation(rendersRichText ? .easeOut(duration: 0.22) : nil, value: zone.blockAlignment)
         .onPreferenceChange(ZoneEditorNaturalBlockWidthPreferenceKey.self) { widths in
             let directWidths = Dictionary(
                 uniqueKeysWithValues: childPaths.compactMap { childPath -> (String, CGFloat)? in
@@ -236,6 +286,10 @@ struct ZoneEditorView: View {
 
     private func estimatedEditorBlockWidth(for zone: ZoneModel, constrainedTo width: CGFloat) -> CGFloat {
         if zone.isLeaf {
+            if isRawEditableTextZone(zone) {
+                return max(width, minimumEditorTextWidth(constrainedTo: width))
+            }
+
             return ZoneContentEstimator.estimatedBlockWidth(
                 for: normalizedEditorMeasurementZone(zone),
                 fontScale: fontScale,
@@ -248,6 +302,19 @@ struct ZoneEditorView: View {
         return children
             .map { estimatedEditorBlockWidth(for: $0, constrainedTo: width) }
             .max() ?? 1
+    }
+
+    private func isRawEditableTextZone(_ zone: ZoneModel) -> Bool {
+        switch zone.contentType {
+        case .empty, .text, .code:
+            return !rendersRichText
+        case .image, .sketch:
+            return false
+        }
+    }
+
+    private func minimumEditorTextWidth(constrainedTo width: CGFloat) -> CGFloat {
+        min(max(72, width * 0.18), width)
     }
 
     private func normalizedEditorMeasurementZone(_ zone: ZoneModel) -> ZoneModel {
@@ -899,13 +966,16 @@ struct ZoneContentView: View {
 
                 if shouldUseInteractiveTextSurface {
                     textEditorCore(maxVisibleTextHeight: maxVisibleTextHeight)
-                        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .frame(width: rawTextSurfaceWidth, alignment: .topLeading)
+                        .frame(maxHeight: .infinity, alignment: .topLeading)
                 } else if zone?.text.isEmpty ?? true {
                     emptyZonePreview
-                        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .frame(width: rawTextSurfaceWidth, alignment: .topLeading)
+                        .frame(maxHeight: .infinity, alignment: .topLeading)
                 } else {
                     rawTextPreview
-                        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: topAlignmentFor(zone))
+                        .frame(width: rawTextSurfaceWidth, alignment: topAlignmentFor(zone))
+                        .frame(maxHeight: .infinity, alignment: topAlignmentFor(zone))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -938,9 +1008,15 @@ struct ZoneContentView: View {
         zone.hasBullet && !zone.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var rawTextSurfaceWidth: CGFloat {
+        let bulletWidth = shouldShowBullet ? editorBulletSize + 8 : 0
+        return max(availableWidth - bulletWidth, 1)
+    }
+
     private var emptyZonePreview: some View {
         RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
             .fill(Color.clear)
+            .frame(minWidth: minimumResizableWidth, maxWidth: .infinity)
             .frame(height: minimumResizableHeight)
             .contentShape(Rectangle())
     }

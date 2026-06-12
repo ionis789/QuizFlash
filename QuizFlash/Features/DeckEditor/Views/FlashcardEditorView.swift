@@ -347,7 +347,7 @@ struct FlashcardEditorView: View {
     }
 
     private var isFloatingFormatBarVisible: Bool {
-        isFloatingFormatBarPresented || (showsRenderedContent && selectedPath != nil)
+        isFloatingFormatBarPresented && selectedPath != nil
     }
 
     private var floatingFormatBarScale: CGFloat {

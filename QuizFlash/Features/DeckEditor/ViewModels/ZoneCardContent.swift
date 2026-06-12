@@ -96,8 +96,11 @@ final class ZoneCardContent {
     ///   - direction: The direction from which the new zone is added.
     /// - Returns: The `UUID` of the newly created zone (used to drive focus after insertion).
     @discardableResult
-    func addZone(relativeTo path: ZonePath, direction: AddDirection) -> UUID {
-        let newZone = ZoneModel.empty()
+    func addZone(
+        relativeTo path: ZonePath,
+        direction: AddDirection,
+        newZone: ZoneModel = .empty()
+    ) -> UUID {
         let newZoneID = newZone.id
 
         if path.indices.isEmpty {
@@ -157,7 +160,7 @@ final class ZoneCardContent {
             return rootZone.id
         }
 
-        return addZone(relativeTo: path ?? .root, direction: direction)
+        return addZone(relativeTo: path ?? .root, direction: direction, newZone: .text())
     }
 
     // MARK: - Duplicate And Move

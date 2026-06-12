@@ -74,7 +74,6 @@ final class FullHitTextView: UITextView {
 
 // MARK: - Zone Editor Debug Store
 
-@Observable
 @MainActor
 final class ZoneEditorDebugStore {
     static let shared = ZoneEditorDebugStore()
@@ -88,6 +87,7 @@ final class ZoneEditorDebugStore {
     private(set) var canvasLine: String = "canvas idle"
     private(set) var toolbarLine: String = "toolbar idle"
     private(set) var tapLine: String = "tap idle"
+    private(set) var alignmentLine: String = "align idle"
     private(set) var caretLine: String = "caret idle"
 
     private init() { }
@@ -102,6 +102,7 @@ final class ZoneEditorDebugStore {
             canvasLine,
             toolbarLine,
             tapLine,
+            alignmentLine,
             caretLine
         ]
     }
@@ -112,7 +113,10 @@ final class ZoneEditorDebugStore {
     }
 
     func updateFocusManager(focusedZoneID: UUID?, pendingZoneID: UUID?, retainKeyboard: Bool) {
-        focusLine = "focus manager focused=\(shortID(focusedZoneID)) pending=\(shortID(pendingZoneID)) retain=\(retainKeyboard ? "1" : "0")"
+        setLine(
+            &focusLine,
+            "focus manager focused=\(shortID(focusedZoneID)) pending=\(shortID(pendingZoneID)) retain=\(retainKeyboard ? "1" : "0")"
+        )
     }
 
     func updateTextView(
@@ -123,7 +127,10 @@ final class ZoneEditorDebugStore {
         requestedFirstResponder: Bool,
         textLength: Int
     ) {
-        textViewLine = "text mounted=\(flag(mountedFocused)) swiftFR=\(flag(textViewFirstResponder)) uiFR=\(flag(uiViewFirstResponder)) request=\(flag(requestedFirstResponder)) len=\(textLength) zone=\(shortID(zoneID))"
+        setLine(
+            &textViewLine,
+            "text mounted=\(flag(mountedFocused)) swiftFR=\(flag(textViewFirstResponder)) uiFR=\(flag(uiViewFirstResponder)) request=\(flag(requestedFirstResponder)) len=\(textLength) zone=\(shortID(zoneID))"
+        )
     }
 
     func updateSelectedZone(
@@ -137,7 +144,10 @@ final class ZoneEditorDebugStore {
         fixedWidth: CGFloat?,
         fixedHeight: CGFloat?
     ) {
-        selectedZoneLine = "zone path=\(pathID) id=\(shortID(zoneID)) type=\(contentType) size=\(sizeMode) block=\(blockAlignment) text=\(textAlignment) y=\(verticalAlignment) fixed=\(format(fixedWidth))x\(format(fixedHeight))"
+        setLine(
+            &selectedZoneLine,
+            "zone path=\(pathID) id=\(shortID(zoneID)) type=\(contentType) size=\(sizeMode) block=\(blockAlignment) text=\(textAlignment) y=\(verticalAlignment) fixed=\(format(fixedWidth))x\(format(fixedHeight))"
+        )
     }
 
     func updateSelectedLayout(
@@ -147,7 +157,10 @@ final class ZoneEditorDebugStore {
         renderedSize: CGSize,
         isSelected: Bool
     ) {
-        selectedLayoutLine = "layout block=\(format(blockSize.width))x\(format(blockSize.height)) contentW=\(format(contentWidth)) lead=\(format(leadingInset)) measured=\(format(renderedSize.width))x\(format(renderedSize.height)) selected=\(flag(isSelected))"
+        setLine(
+            &selectedLayoutLine,
+            "layout block=\(format(blockSize.width))x\(format(blockSize.height)) contentW=\(format(contentWidth)) lead=\(format(leadingInset)) measured=\(format(renderedSize.width))x\(format(renderedSize.height)) selected=\(flag(isSelected))"
+        )
     }
 
     func updateCanvas(
@@ -163,7 +176,10 @@ final class ZoneEditorDebugStore {
         } else {
             frameText = "nil"
         }
-        canvasLine = "canvas card=\(format(cardSize.width))x\(format(cardSize.height)) content=\(format(contentSize.width))x\(format(contentSize.height)) selectedFrame=\(frameText) keyboard=\(flag(keyboardVisible)):\(format(keyboardHeight))"
+        setLine(
+            &canvasLine,
+            "canvas card=\(format(cardSize.width))x\(format(cardSize.height)) content=\(format(contentSize.width))x\(format(contentSize.height)) selectedFrame=\(frameText) keyboard=\(flag(keyboardVisible)):\(format(keyboardHeight))"
+        )
     }
 
     func updateToolbar(
@@ -174,21 +190,37 @@ final class ZoneEditorDebugStore {
         toolbarOpacity: Double,
         topUpdateCount: Int
     ) {
-        toolbarLine = "toolbar vis=\(flag(isVisible)) kb=\(format(keyboardHeight)) top=\(format(toolbarTopY)) scale=\(format(toolbarScale)) op=\(format(CGFloat(toolbarOpacity))) topUpdates=\(topUpdateCount)"
+        setLine(
+            &toolbarLine,
+            "toolbar vis=\(flag(isVisible)) kb=\(format(keyboardHeight)) top=\(format(toolbarTopY)) scale=\(format(toolbarScale)) op=\(format(CGFloat(toolbarOpacity))) topUpdates=\(topUpdateCount)"
+        )
     }
 
     func recordTap(_ value: String) {
-        tapLine = value
+        setLine(&tapLine, value)
+        recordEvent(value)
+    }
+
+    func recordAlignment(_ value: String) {
+        setLine(&alignmentLine, value)
         recordEvent(value)
     }
 
     func recordFocusEvent(_ value: String, zoneID: UUID?) {
-        focusLine = "\(value) zone=\(shortID(zoneID))"
+        setLine(&focusLine, "\(value) zone=\(shortID(zoneID))")
         recordEvent(value)
     }
 
     func recordCaret(zoneID: UUID?, selectedRange: NSRange, anchorY: CGFloat, windowRect: CGRect) {
-        caretLine = "caret zone=\(shortID(zoneID)) loc=\(selectedRange.location) len=\(selectedRange.length) anchorY=\(format(anchorY)) windowY=\(format(windowRect.maxY))"
+        setLine(
+            &caretLine,
+            "caret zone=\(shortID(zoneID)) loc=\(selectedRange.location) len=\(selectedRange.length) anchorY=\(format(anchorY)) windowY=\(format(windowRect.maxY))"
+        )
+    }
+
+    private func setLine(_ storage: inout String, _ value: String) {
+        guard storage != value else { return }
+        storage = value
     }
 
     private func shortID(_ id: UUID?) -> String {
@@ -221,6 +253,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     var contentInset: UIEdgeInsets = .zero
     var maximumVisibleHeight: CGFloat?
     var forcedLineBreakTintColor: UIColor = .systemPurple
+    fileprivate var lastAppliedStylingSignature: ZoneTextViewStylingSignature?
     
     private var lastText: String = ""
     private var lastAcceptedText: String = ""
@@ -236,6 +269,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     private var lastReportedCaretWindowRect: CGRect?
     private var caretReportGeneration = 0
     private var waitsForSettledTextLayoutCaret = false
+    fileprivate var focusSyncState: FocusSyncState = .idle
     
     override init() {
         super.init()
@@ -358,6 +392,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     
     func textViewDidChangeSelection(_ textView: UITextView) {
         guard !isUpdating else { return }
+        guard textView.isFirstResponder else { return }
 
         guard !waitsForSettledTextLayoutCaret else {
             reportCursorPosition(from: textView, includeCaretAnchor: false)
@@ -370,6 +405,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
     
     func textViewDidBeginEditing(_ textView: UITextView) {
+        focusSyncState = .idle
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didBegin", zoneID: zoneID)
         if let zoneID {
             Task { @MainActor in
@@ -386,6 +422,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
     
     func textViewDidEndEditing(_ textView: UITextView) {
+        focusSyncState = .idle
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didEnd", zoneID: zoneID)
         onFocusChange?(false)
     }
@@ -523,6 +560,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     private func scheduleSettledCaretReport(from textView: UITextView) {
+        guard textView.isFirstResponder else { return }
         caretReportGeneration += 1
         let generation = caretReportGeneration
 
@@ -726,6 +764,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         )
         context.coordinator.rememberAcceptedText(text, selectedRange: textView.selectedRange)
         updateStyling(of: textView)
+        context.coordinator.lastAppliedStylingSignature = stylingSignatureForCurrentState
         
         return textView
     }
@@ -744,23 +783,31 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.maximumVisibleHeight = maximumVisibleHeight
         context.coordinator.forcedLineBreakTintColor = forcedLineBreakTintColor
         (textView as? FullHitTextView)?.usesCompactCaret = true
-        ZoneEditorDebugStore.shared.updateTextView(
-            zoneID: zoneID,
-            mountedFocused: isFirstResponder,
-            textViewFirstResponder: textView.isFirstResponder,
-            uiViewFirstResponder: textView.isFirstResponder,
-            requestedFirstResponder: isFirstResponder,
-            textLength: (ZoneTextViewEmptyCaret.modelText(from: textView.text ?? "") as NSString).length
-        )
+        if AppFeatures.current.showsVisualDebugOverlays {
+            ZoneEditorDebugStore.shared.updateTextView(
+                zoneID: zoneID,
+                mountedFocused: isFirstResponder,
+                textViewFirstResponder: textView.isFirstResponder,
+                uiViewFirstResponder: textView.isFirstResponder,
+                requestedFirstResponder: isFirstResponder,
+                textLength: (ZoneTextViewEmptyCaret.modelText(from: textView.text ?? "") as NSString).length
+            )
+        }
 
         let displayText = ZoneTextViewEmptyCaret.displayText(for: text)
+        let stylingSignature = stylingSignatureForCurrentState
+        let needsStylingUpdate = context.coordinator.lastAppliedStylingSignature != stylingSignature
+
         guard textView.text != displayText else {
-            updateStyling(of: textView)
+            if needsStylingUpdate {
+                updateStyling(of: textView)
+                context.coordinator.lastAppliedStylingSignature = stylingSignature
+            }
             context.coordinator.rememberAcceptedText(text, selectedRange: textView.selectedRange)
             syncFocus(textView: textView, isFirstResponder: isFirstResponder, context: context)
             return
         }
-        
+
         let selectedRange = ZoneTextViewEmptyCaret.modelRange(
             from: textView.selectedRange,
             displayText: textView.text ?? ""
@@ -774,19 +821,26 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             modelText: text
         )
         if selectedRange.location != NSNotFound &&
-           displayRange.location <= (displayText as NSString).length {
+           displayRange.location <= (displayText as NSString).length &&
+           textView.selectedRange != displayRange {
             textView.selectedRange = displayRange
         }
-        
-        updateStyling(of: textView)
+
+        if needsStylingUpdate || displayText.contains(ZoneForcedLineBreak.marker) {
+            updateStyling(of: textView)
+            context.coordinator.lastAppliedStylingSignature = stylingSignature
+        }
         context.coordinator.rememberAcceptedText(text, selectedRange: textView.selectedRange)
         syncFocus(textView: textView, isFirstResponder: isFirstResponder, context: context)
     }
     
     private func syncFocus(textView: UITextView, isFirstResponder: Bool, context: Context) {
         if isFirstResponder && !textView.isFirstResponder {
+            guard context.coordinator.focusSyncState != .becomingFirstResponder else { return }
+            context.coordinator.focusSyncState = .becomingFirstResponder
             DispatchQueue.main.async {
                 let manager = ZoneFocusManager.shared
+                defer { context.coordinator.focusSyncState = .idle }
                 guard manager.focusedZoneID == self.zoneID || manager.pendingFocusZoneID == self.zoneID else {
                     return
                 }
@@ -800,8 +854,11 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         }
 
         if !isFirstResponder && textView.isFirstResponder {
+            guard context.coordinator.focusSyncState != .resigningFirstResponder else { return }
+            context.coordinator.focusSyncState = .resigningFirstResponder
             DispatchQueue.main.async {
                 let manager = ZoneFocusManager.shared
+                defer { context.coordinator.focusSyncState = .idle }
                 guard !manager.shouldRetainKeyboard,
                       manager.focusedZoneID != self.zoneID,
                       manager.pendingFocusZoneID != self.zoneID else {
@@ -832,12 +889,22 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     }
     
     private func updateStyling(of textView: UITextView) {
-        textView.font = font
-        textView.textColor = textColor
-        textView.tintColor = cursorTintColor
+        if textView.font != font {
+            textView.font = font
+        }
+        if textView.textColor != textColor {
+            textView.textColor = textColor
+        }
+        if textView.tintColor != cursorTintColor {
+            textView.tintColor = cursorTintColor
+        }
         textView.typingAttributes = textAttributes
-        textView.textContainerInset = contentInset
-        textView.textAlignment = textAlignment
+        if textView.textContainerInset != contentInset {
+            textView.textContainerInset = contentInset
+        }
+        if textView.textAlignment != textAlignment {
+            textView.textAlignment = textAlignment
+        }
 
         let fullRange = NSRange(location: 0, length: textView.textStorage.length)
         if fullRange.length > 0 {
@@ -866,6 +933,40 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             .paragraphStyle: paragraphStyle
         ]
     }
+
+    private var stylingSignatureForCurrentState: ZoneTextViewStylingSignature {
+        ZoneTextViewStylingSignature(
+            fontName: font.fontName,
+            fontSize: font.pointSize,
+            fontTraits: font.fontDescriptor.symbolicTraits.rawValue,
+            textAlignment: textAlignment.rawValue,
+            lineSpacing: lineSpacing,
+            contentInsetTop: contentInset.top,
+            contentInsetLeft: contentInset.left,
+            contentInsetBottom: contentInset.bottom,
+            contentInsetRight: contentInset.right,
+            isPlaceholderDisplay: text.isEmpty
+        )
+    }
+}
+
+fileprivate enum FocusSyncState {
+    case idle
+    case becomingFirstResponder
+    case resigningFirstResponder
+}
+
+fileprivate struct ZoneTextViewStylingSignature: Equatable {
+    let fontName: String
+    let fontSize: CGFloat
+    let fontTraits: UInt32
+    let textAlignment: Int
+    let lineSpacing: CGFloat
+    let contentInsetTop: CGFloat
+    let contentInsetLeft: CGFloat
+    let contentInsetBottom: CGFloat
+    let contentInsetRight: CGFloat
+    let isPlaceholderDisplay: Bool
 }
 
 private extension CGRect {
