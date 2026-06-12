@@ -499,9 +499,20 @@ private struct ZoneContentTreePreview: View {
                 }
                 .frame(width: groupWidth, alignment: .topLeading)
                 .overlay {
-                    if let groupTarget,
-                       alignmentFeedback.highlightedTarget == groupTarget {
-                        zoneAlignmentHighlight()
+                    ZStack {
+                        if showsDebugGuides {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(
+                                    Color.red.opacity(0.95),
+                                    style: StrokeStyle(lineWidth: 1.8, dash: [8, 5])
+                                )
+                                .allowsHitTesting(false)
+                        }
+
+                        if let groupTarget,
+                           alignmentFeedback.highlightedTarget == groupTarget {
+                            zoneAlignmentHighlight()
+                        }
                     }
                 }
                 .offset(x: groupWiggleOffset)
@@ -569,16 +580,15 @@ private struct ZoneContentTreePreview: View {
     }
 
     private func verticalGroupWidth(for children: [ZoneModel], childPaths: [String]) -> CGFloat {
-        let estimatedWidth = estimatedVerticalGroupWidth(for: children)
-
         if measuredDirectChildWidths.count == childPaths.count {
             let measuredWidth = childPaths
                 .compactMap { measuredDirectChildWidths[$0] }
                 .max() ?? 1
 
-            return min(max(ceil(max(measuredWidth, estimatedWidth)), 1), availableWidth)
+            return min(max(ceil(measuredWidth), 1), availableWidth)
         }
 
+        let estimatedWidth = estimatedVerticalGroupWidth(for: children)
         return min(max(ceil(estimatedWidth), 1), availableWidth)
     }
 
@@ -732,11 +742,7 @@ private struct ZoneContentLeafPreview: View {
                     .onGeometryChange(for: CGSize.self) { proxy in
                         CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
                     } action: { newSize in
-                        if layout.usesIntrinsicTextMeasurement {
-                            updateRenderedContentHeight(newSize.height)
-                        } else {
-                            updateRenderedContentSize(newSize)
-                        }
+                        updateRenderedContentSize(newSize)
                     }
             }
             .frame(width: layout.blockSize.width, height: layout.blockSize.height, alignment: .topLeading)
@@ -1046,18 +1052,6 @@ private struct ZoneContentLeafPreview: View {
         if abs(renderedContentSize.width - clampedSize.width) > 0.5
             || abs(renderedContentSize.height - clampedSize.height) > 0.5 {
             renderedContentSize = clampedSize
-        }
-    }
-
-    private func updateRenderedContentHeight(_ newHeight: CGFloat) {
-        guard newHeight > 0 else { return }
-        guard isValidRenderedHeight(newHeight) else { return }
-        let clampedHeight = max(ceil(newHeight), 1)
-        if abs(renderedContentSize.height - clampedHeight) > 0.5 {
-            renderedContentSize = CGSize(
-                width: isValidRenderedWidth(renderedContentSize.width) ? renderedContentSize.width : 0,
-                height: clampedHeight
-            )
         }
     }
 
@@ -1806,47 +1800,28 @@ enum ZoneContentEstimator {
             let bulletInset = zone.hasBullet && !displayText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? bulletWidth + bulletSpacing
                 : 0
+            let textWidth = max(availableWidth - horizontalInsets - bulletInset, 1)
+            let measuredSize: CGSize
+
             if let codeLiteral = singleInlineCodeLiteral(in: displayText) {
-                let textWidth = max(availableWidth - horizontalInsets - bulletInset, 1)
-                let codeSize = measuredInlineCodeSize(
+                measuredSize = measuredInlineCodeSize(
                     codeLiteral,
                     zone: zone,
                     fontScale: fontScale,
                     availableWidth: textWidth
                 )
-
-                return CGSize(
-                    width: min(ceil(codeSize.width + horizontalInsets + bulletInset), availableWidth),
-                    height: ceil(codeSize.height + textVerticalPadding)
-                )
-            }
-
-            if MathTextSanitizer.containsMath(displayText) {
-                let textWidth = max(availableWidth - horizontalInsets - bulletInset, 1)
-                let textSize = measuredTextSize(
+            } else {
+                measuredSize = measuredTextSize(
                     displayText,
                     zone: zone,
                     fontScale: fontScale,
                     availableWidth: textWidth
                 )
-
-                return CGSize(
-                    width: availableWidth,
-                    height: ceil(textSize.height + textVerticalPadding)
-                )
             }
 
-            let textWidth = max(availableWidth - horizontalInsets - bulletInset, 1)
-            let textSize = measuredTextSize(
-                displayText,
-                zone: zone,
-                fontScale: fontScale,
-                availableWidth: textWidth
-            )
-
             return CGSize(
-                width: min(ceil(textSize.width + horizontalInsets + bulletInset), availableWidth),
-                height: ceil(textSize.height + textVerticalPadding)
+                width: min(ceil(measuredSize.width + horizontalInsets + bulletInset), availableWidth),
+                height: ceil(measuredSize.height + textVerticalPadding)
             )
 
         case .code:

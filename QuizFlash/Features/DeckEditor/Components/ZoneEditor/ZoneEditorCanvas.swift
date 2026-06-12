@@ -873,6 +873,14 @@ struct ZoneEditorCanvas: View {
         guard let tappedZone = content.zone(at: tappedPath) else { return nil }
         guard let leafFrame = frame(for: tappedPath, in: frames) else { return nil }
 
+        if let singleZoneGroupTarget = singleZoneGroupTarget(
+            for: tappedPath,
+            contentWidth: contentWidth,
+            frames: frames
+        ) {
+            return singleZoneGroupTarget
+        }
+
         if let groupContext = resolvedGroupMoveContext(
             for: tappedPath,
             frames: frames
@@ -930,6 +938,33 @@ struct ZoneEditorCanvas: View {
             frame: leafFrame,
             movementWidth: movementWidth,
             currentAlignment: resolvedAlignment(for: tappedZone, kind: .leaf)
+        )
+    }
+
+    private func singleZoneGroupTarget(
+        for tappedPath: ZonePath,
+        contentWidth: CGFloat,
+        frames: [ZoneEditorResolvedZoneFrame]
+    ) -> (
+        targetRef: ZoneAlignmentTargetRef,
+        frame: CGRect,
+        movementWidth: CGFloat,
+        currentAlignment: ZoneBlockAlignment
+    )? {
+        let rootZone = content.rootZone
+        guard !rootZone.isLeaf,
+              rootZone.direction == .vertical,
+              rootZone.leafCount == 1,
+              content.zone(at: tappedPath)?.isLeaf == true,
+              let rootFrame = frame(forSubtree: .root, in: frames) else {
+            return nil
+        }
+
+        return (
+            targetRef: ZoneAlignmentTargetRef(path: .root, kind: .group),
+            frame: rootFrame,
+            movementWidth: contentWidth,
+            currentAlignment: resolvedAlignment(for: rootZone, kind: .group)
         )
     }
 
