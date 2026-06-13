@@ -842,7 +842,11 @@ struct ZoneEditorCanvas: View {
             return
         }
 
-        commitResolvedZoneFrames(frames, contentWidth: contentWidth, refreshMenu: alignmentMenuState != nil)
+        commitResolvedZoneFrames(
+            frames,
+            contentWidth: contentWidth,
+            refreshMenu: alignmentMenuState != nil && alignmentWiggleTarget == nil
+        )
     }
 
     private func commitResolvedZoneFrames(

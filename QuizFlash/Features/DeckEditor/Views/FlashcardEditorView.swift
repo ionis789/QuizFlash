@@ -591,6 +591,7 @@ struct FlashcardEditorView: View {
                     safeTopInset: safeTopInset
                 )
             }
+            .transition(editorModeTransition(insertingRenderedContent: true))
         } else {
             editorCanvas(
                 content: currentContent,
@@ -599,7 +600,22 @@ struct FlashcardEditorView: View {
                 safeTopInset: safeTopInset,
                 rendersRichText: false
             )
+            .transition(editorModeTransition(insertingRenderedContent: false))
         }
+    }
+
+    private var editorModeAnimation: Animation {
+        .smooth(duration: UIConstants.Animation.medium, extraBounce: 0)
+    }
+
+    private func editorModeTransition(insertingRenderedContent: Bool) -> AnyTransition {
+        let incomingScale: CGFloat = insertingRenderedContent ? 1.012 : 0.988
+        let outgoingScale: CGFloat = insertingRenderedContent ? 0.988 : 1.012
+
+        return .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: incomingScale, anchor: .top)),
+            removal: .opacity.combined(with: .scale(scale: outgoingScale, anchor: .top))
+        )
     }
 
     private func renderedEditorCanvas(
@@ -1025,7 +1041,7 @@ struct FlashcardEditorView: View {
             zoneController.updateFocusedZone(nil)
         }
 
-        withTransaction(Transaction(animation: nil)) {
+        withTransaction(Transaction(animation: editorModeAnimation)) {
             showsRenderedContent = targetMode
         }
     }

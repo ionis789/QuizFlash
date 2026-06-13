@@ -886,9 +886,13 @@ private struct ZoneContentLeafPreview: View {
                 RoundedRectangle(cornerRadius: ZoneContentMetrics.zoneCornerRadius, style: .continuous)
                     .fill(zoneSurfaceFill)
                     .overlay {
+                        RoundedRectangle(cornerRadius: ZoneContentMetrics.zoneCornerRadius, style: .continuous)
+                            .stroke(Color.white.opacity(0.10), lineWidth: 0.8)
+                    }
+                    .overlay {
                         if let tint {
                             RoundedRectangle(cornerRadius: ZoneContentMetrics.zoneCornerRadius, style: .continuous)
-                                .strokeBorder(tint.opacity(0.86), style: zoneHighlightStrokeStyle)
+                                .stroke(tint.opacity(0.86), style: zoneHighlightStrokeStyle)
                         }
                     }
                     .shadow(color: tint?.opacity(0.16) ?? .clear, radius: tint == nil ? 0 : 3)
@@ -1238,7 +1242,7 @@ enum ZoneContentMetrics {
     static let childSpacing: CGFloat = 12
     static let textVerticalPadding: CGFloat = 24
     static let textHorizontalPadding: CGFloat = 24
-    static let zoneCornerRadius: CGFloat = 24
+    static let zoneCornerRadius: CGFloat = 18
     static let highlightedHorizontalPadding: CGFloat = textHorizontalPadding
     static let bulletWidth: CGFloat = 6
     static let bulletSpacing: CGFloat = 8
