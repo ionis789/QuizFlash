@@ -576,23 +576,7 @@ struct FlashcardEditorView: View {
 
     @ViewBuilder
     private func editorArea(safeTopInset: CGFloat) -> some View {
-        if showsRenderedContent {
-            ZStack {
-                renderedEditorCanvas(
-                    content: frontZoneContent,
-                    selectedPath: frontSelectedPathBinding,
-                    side: 0,
-                    safeTopInset: safeTopInset
-                )
-                renderedEditorCanvas(
-                    content: backZoneContent,
-                    selectedPath: backSelectedPathBinding,
-                    side: 1,
-                    safeTopInset: safeTopInset
-                )
-            }
-            .transition(editorModeTransition(insertingRenderedContent: true))
-        } else {
+        ZStack {
             editorCanvas(
                 content: currentContent,
                 selectedPath: selectedPathBinding,
@@ -600,22 +584,32 @@ struct FlashcardEditorView: View {
                 safeTopInset: safeTopInset,
                 rendersRichText: false
             )
-            .transition(editorModeTransition(insertingRenderedContent: false))
+            .opacity(showsRenderedContent ? 0 : 1)
+            .allowsHitTesting(!showsRenderedContent)
+            .accessibilityHidden(showsRenderedContent)
+
+            renderedEditorCanvas(
+                content: frontZoneContent,
+                selectedPath: frontSelectedPathBinding,
+                side: 0,
+                safeTopInset: safeTopInset
+            )
+            .opacity(showsRenderedContent && activeSide == 0 ? 1 : 0)
+            .allowsHitTesting(showsRenderedContent && activeSide == 0)
+            .accessibilityHidden(!showsRenderedContent || activeSide != 0)
+            .zIndex(showsRenderedContent && activeSide == 0 ? 1 : 0)
+
+            renderedEditorCanvas(
+                content: backZoneContent,
+                selectedPath: backSelectedPathBinding,
+                side: 1,
+                safeTopInset: safeTopInset
+            )
+            .opacity(showsRenderedContent && activeSide == 1 ? 1 : 0)
+            .allowsHitTesting(showsRenderedContent && activeSide == 1)
+            .accessibilityHidden(!showsRenderedContent || activeSide != 1)
+            .zIndex(showsRenderedContent && activeSide == 1 ? 1 : 0)
         }
-    }
-
-    private var editorModeAnimation: Animation {
-        .smooth(duration: UIConstants.Animation.medium, extraBounce: 0)
-    }
-
-    private func editorModeTransition(insertingRenderedContent: Bool) -> AnyTransition {
-        let incomingScale: CGFloat = insertingRenderedContent ? 1.012 : 0.988
-        let outgoingScale: CGFloat = insertingRenderedContent ? 0.988 : 1.012
-
-        return .asymmetric(
-            insertion: .opacity.combined(with: .scale(scale: incomingScale, anchor: .top)),
-            removal: .opacity.combined(with: .scale(scale: outgoingScale, anchor: .top))
-        )
     }
 
     private func renderedEditorCanvas(
@@ -1041,7 +1035,7 @@ struct FlashcardEditorView: View {
             zoneController.updateFocusedZone(nil)
         }
 
-        withTransaction(Transaction(animation: editorModeAnimation)) {
+        withTransaction(Transaction(animation: .smooth(duration: UIConstants.Animation.medium, extraBounce: 0))) {
             showsRenderedContent = targetMode
         }
     }

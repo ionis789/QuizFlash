@@ -73,6 +73,26 @@ struct MixedMathGestureDebugSnapshot: Equatable {
     let regionCount: Int
 }
 
+struct MixedMathRenderStatusDebug: Equatable {
+    let stage: String
+    let contentLength: Int
+    let childCount: Int
+    let textLength: Int
+    let bodyWidth: CGFloat
+    let bodyHeight: CGFloat
+    let contentWidth: CGFloat
+    let contentHeight: CGFloat
+    let contentScrollWidth: CGFloat
+    let contentScrollHeight: CGFloat
+    let inlineCodeCount: Int
+    let mathCount: Int
+    let displayMathCount: Int
+    let inlineCodeScrollCount: Int
+    let inlineMathScrollCount: Int
+    let layoutMetricReportCount: Int
+    let lineDebugReportCount: Int
+}
+
 private var quizFlashHorizontalOverflowAssociationKey: UInt8 = 0
 private var quizFlashScrollableMathInteractionRegionsAssociationKey: UInt8 = 0
 
@@ -170,6 +190,7 @@ struct MixedMathTextView: View {
     var onRenderedLineDebugChange: (([MixedMathRenderedLineDebug]) -> Void)? = nil
     var onScrollableDebugChange: (([MixedMathScrollableDebug]) -> Void)? = nil
     var onGestureDebugChange: ((MixedMathGestureDebugSnapshot) -> Void)? = nil
+    var onRenderStatusDebugChange: ((MixedMathRenderStatusDebug) -> Void)? = nil
     var showsRenderDebugBounds: Bool = false
     var onTap: (() -> Void)? = nil
 
@@ -180,6 +201,7 @@ struct MixedMathTextView: View {
     @State private var renderedLineDebug: [MixedMathRenderedLineDebug] = []
     @State private var scrollableDebug: [MixedMathScrollableDebug] = []
     @State private var gestureDebug: MixedMathGestureDebugSnapshot?
+    @State private var renderStatusDebug: MixedMathRenderStatusDebug?
 
     var body: some View {
         let clean = MathTextSanitizer.heal(text)
@@ -202,6 +224,7 @@ struct MixedMathTextView: View {
         )
         let reportsRenderedLineDebug = onRenderedLineDebugChange != nil
         let reportsScrollableDebug = onScrollableDebugChange != nil
+        let reportsRenderStatusDebug = onRenderStatusDebugChange != nil
 
         if usesWebRendering {
             MathWebView(
@@ -220,9 +243,11 @@ struct MixedMathTextView: View {
                 renderedLineDebug: $renderedLineDebug,
                 scrollableDebug: $scrollableDebug,
                 gestureDebug: $gestureDebug,
+                renderStatusDebug: $renderStatusDebug,
                 reportsIntrinsicContentWidth: intrinsicWidthLimit != nil,
                 reportsRenderedLineDebug: reportsRenderedLineDebug,
                 reportsScrollableDebug: reportsScrollableDebug,
+                reportsRenderStatusDebug: reportsRenderStatusDebug,
                 intrinsicMeasurementWidthLimit: intrinsicMeasurementWidthLimit,
                 showsRenderDebugBounds: showsRenderDebugBounds,
                 horizontalOverflowState: $horizontalOverflowState,
@@ -248,6 +273,9 @@ struct MixedMathTextView: View {
             .onChange(of: horizontalOverflowState) { _, _ in
                 reportIntrinsicContentSize()
             }
+            .onAppear {
+                reportIntrinsicContentSize()
+            }
             .onChange(of: renderedLineDebug) { _, newValue in
                 onRenderedLineDebugChange?(newValue)
             }
@@ -257,6 +285,10 @@ struct MixedMathTextView: View {
             .onChange(of: gestureDebug) { _, newValue in
                 guard let newValue else { return }
                 onGestureDebugChange?(newValue)
+            }
+            .onChange(of: renderStatusDebug) { _, newValue in
+                guard let newValue else { return }
+                onRenderStatusDebugChange?(newValue)
             }
             .overlay {
                 if shouldShowHorizontalOverflowHint {
@@ -686,9 +718,11 @@ struct MathWebView: UIViewRepresentable {
     @Binding var renderedLineDebug: [MixedMathRenderedLineDebug]
     @Binding var scrollableDebug: [MixedMathScrollableDebug]
     @Binding var gestureDebug: MixedMathGestureDebugSnapshot?
+    @Binding var renderStatusDebug: MixedMathRenderStatusDebug?
     let reportsIntrinsicContentWidth: Bool
     let reportsRenderedLineDebug: Bool
     let reportsScrollableDebug: Bool
+    let reportsRenderStatusDebug: Bool
     let intrinsicMeasurementWidthLimit: CGFloat?
     let showsRenderDebugBounds: Bool
     @Binding var horizontalOverflowState: HorizontalOverflowState
@@ -706,9 +740,11 @@ struct MathWebView: UIViewRepresentable {
             renderedLineDebug: $renderedLineDebug,
             scrollableDebug: $scrollableDebug,
             gestureDebug: $gestureDebug,
+            renderStatusDebug: $renderStatusDebug,
             reportsIntrinsicContentWidth: reportsIntrinsicContentWidth,
             reportsRenderedLineDebug: reportsRenderedLineDebug,
             reportsScrollableDebug: reportsScrollableDebug,
+            reportsRenderStatusDebug: reportsRenderStatusDebug,
             horizontalOverflowState: $horizontalOverflowState,
             onTap: onTap
         )
@@ -727,6 +763,7 @@ struct MathWebView: UIViewRepresentable {
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "widthUpdate")
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "lineDebugUpdate")
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "scrollableDebugUpdate")
+        uiView.configuration.userContentController.removeScriptMessageHandler(forName: "renderStatusUpdate")
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "overflowUpdate")
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "tapUpdate")
 
@@ -741,6 +778,7 @@ struct MathWebView: UIViewRepresentable {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "widthUpdate")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "lineDebugUpdate")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "scrollableDebugUpdate")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "renderStatusUpdate")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "overflowUpdate")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "tapUpdate")
         let scriptHandlerWrapper = WeakScriptMessageHandler(delegate: context.coordinator)
@@ -751,6 +789,9 @@ struct MathWebView: UIViewRepresentable {
         }
         if reportsScrollableDebug {
             webView.configuration.userContentController.add(scriptHandlerWrapper, name: "scrollableDebugUpdate")
+        }
+        if reportsRenderStatusDebug {
+            webView.configuration.userContentController.add(scriptHandlerWrapper, name: "renderStatusUpdate")
         }
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "overflowUpdate")
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "tapUpdate")
@@ -776,6 +817,7 @@ struct MathWebView: UIViewRepresentable {
         context.coordinator.reportsIntrinsicContentWidth = reportsIntrinsicContentWidth
         context.coordinator.configureLineDebugHandler(on: webView, enabled: reportsRenderedLineDebug)
         context.coordinator.configureScrollableDebugHandler(on: webView, enabled: reportsScrollableDebug)
+        context.coordinator.configureRenderStatusDebugHandler(on: webView, enabled: reportsRenderStatusDebug)
         webView.quizflashHasHorizontalOverflow = horizontalOverflowState.hasOverflow
         applyInteractivity(to: webView)
         configurePanRecognizers(on: webView, coordinator: context.coordinator)
@@ -1074,6 +1116,10 @@ struct MathWebView: UIViewRepresentable {
         };
         
         let updateTimeout;
+        const renderDebugState = {
+            layoutMetricReportCount: 0,
+            lineDebugReportCount: 0
+        };
         let tapMovementLimit = 10;
         let tapDurationLimit = 450;
         let syntheticClickSuppressionWindow = 650;
@@ -1127,6 +1173,7 @@ struct MathWebView: UIViewRepresentable {
             classifyInlineMathFlow(contentDiv);
             bindNonBreakingHyphenatedWords(contentDiv);
             clearTimeout(updateTimeout);
+            reportRenderStatus('post-dom');
             schedulePostRenderLayoutPass(contentDiv, renderToken);
         }
 
@@ -1276,10 +1323,13 @@ struct MathWebView: UIViewRepresentable {
         function schedulePostRenderLayoutPass(contentDiv, renderToken) {
             const run = () => {
                 if (!isActiveRender(renderToken)) { return; }
+                reportRenderStatus('pre-layout');
                 prepareOverflowContainers();
                 stabilizeScrollableMathBounds(contentDiv);
                 reportLayoutMetrics();
+                reportRenderStatus('post-metrics');
                 reportLineDebug();
+                reportRenderStatus('post-line-debug');
                 reportOverflow();
             };
 
@@ -1292,10 +1342,12 @@ struct MathWebView: UIViewRepresentable {
 
         function prepareOverflowContainers() {
             const contentDiv = document.getElementById('content');
+            unwrapForcedInlineCodeLineBreaks(contentDiv);
             unwrapInlineBoundaryContainers(contentDiv);
             unwrapInlineOverflowContainers(contentDiv);
             unwrapInlineCodeOverflowContainers(contentDiv);
             bindInlineTrailingPunctuation(contentDiv);
+            stabilizeInlineCodeLineBreaks(contentDiv);
 
             const overflowTargets = Array.from(contentDiv.querySelectorAll('.katex-display'));
 
@@ -1486,10 +1538,49 @@ struct MathWebView: UIViewRepresentable {
 
             if (intrinsicWidth > maxInlineWidth + tolerance) { return true; }
             if (visualWidth > maxInlineWidth + tolerance) { return true; }
-            if (rect.left < contentRect.left - tolerance) { return true; }
-            if (rect.right > contentRect.right + tolerance) { return true; }
 
             return false;
+        }
+
+        function stabilizeInlineCodeLineBreaks(contentDiv) {
+            if (!contentDiv) { return; }
+
+            const tolerance = 1;
+            const maxAttempts = 3;
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                const contentRect = contentDiv.getBoundingClientRect();
+                const maxInlineWidth = Math.max(contentRect.width, 1);
+                let changed = false;
+
+                const inlineCode = Array.from(contentDiv.querySelectorAll('code.inline-code'))
+                    .filter(node => !node.closest('.inline-code-scroll'));
+
+                inlineCode.forEach(node => {
+                    const rects = Array.from(node.getClientRects())
+                        .filter(rect => rect.width > 0.5 && rect.height > 0.5);
+                    if (rects.length === 0) { return; }
+
+                    const rect = rects[rects.length - 1];
+                    const intrinsicWidth = intrinsicElementVisualWidth(node);
+                    if (intrinsicWidth > maxInlineWidth + tolerance) { return; }
+                    if (rect.right <= contentRect.right + tolerance) { return; }
+
+                    const previous = node.previousSibling;
+                    if (
+                        previous
+                        && previous.nodeType === Node.ELEMENT_NODE
+                        && previous.dataset
+                        && previous.dataset.qfInlineCodeBreak === '1'
+                    ) { return; }
+
+                    const forcedBreak = document.createElement('br');
+                    forcedBreak.dataset.qfInlineCodeBreak = '1';
+                    node.parentNode.insertBefore(forcedBreak, node);
+                    changed = true;
+                });
+
+                if (!changed) { break; }
+            }
         }
 
         function intrinsicElementVisualWidth(node) {
@@ -1603,6 +1694,14 @@ struct MathWebView: UIViewRepresentable {
                     parent.insertBefore(wrapper.firstChild, wrapper);
                 }
                 parent.removeChild(wrapper);
+            });
+        }
+
+        function unwrapForcedInlineCodeLineBreaks(contentDiv) {
+            if (!contentDiv) { return; }
+
+            Array.from(contentDiv.querySelectorAll('br[data-qf-inline-code-break="1"]')).forEach(node => {
+                node.parentNode.removeChild(node);
             });
         }
 
@@ -1752,6 +1851,7 @@ struct MathWebView: UIViewRepresentable {
         function reportLayoutMetrics() {
             const el = document.getElementById('content');
             if (!el) { return; }
+            renderDebugState.layoutMetricReportCount += 1;
             const intrinsicMeasurementWidthLimit = parseFloat(document.body.dataset.intrinsicMeasurementWidthLimit || '0') || 0;
             let bounds = intrinsicMeasurementWidthLimit > 0
                 ? measuredVisualContentBoundsAtWidth(el, intrinsicMeasurementWidthLimit)
@@ -1779,6 +1879,7 @@ struct MathWebView: UIViewRepresentable {
 
         function reportLineDebug() {
             if (!window.webkit || !window.webkit.messageHandlers.lineDebugUpdate) { return; }
+            renderDebugState.lineDebugReportCount += 1;
             const el = document.getElementById('content');
             if (!el) { return; }
 
@@ -1914,6 +2015,34 @@ struct MathWebView: UIViewRepresentable {
                 }));
 
             window.webkit.messageHandlers.lineDebugUpdate.postMessage(payloadWithRenderToken(payload));
+        }
+
+        function reportRenderStatus(stage) {
+            if (!window.webkit || !window.webkit.messageHandlers.renderStatusUpdate) { return; }
+            const el = document.getElementById('content');
+            if (!el) { return; }
+
+            const bodyRect = document.body.getBoundingClientRect();
+            const contentRect = el.getBoundingClientRect();
+            window.webkit.messageHandlers.renderStatusUpdate.postMessage(payloadWithRenderToken({
+                stage: stage || 'unknown',
+                contentLength: (el.innerHTML || '').length,
+                childCount: el.childElementCount || 0,
+                textLength: (el.textContent || '').length,
+                bodyWidth: Math.ceil(bodyRect.width || 0),
+                bodyHeight: Math.ceil(bodyRect.height || 0),
+                contentWidth: Math.ceil(contentRect.width || 0),
+                contentHeight: Math.ceil(contentRect.height || 0),
+                contentScrollWidth: Math.ceil(el.scrollWidth || 0),
+                contentScrollHeight: Math.ceil(el.scrollHeight || 0),
+                inlineCodeCount: el.querySelectorAll('code.inline-code').length,
+                mathCount: el.querySelectorAll('.katex').length,
+                displayMathCount: el.querySelectorAll('.katex-display').length,
+                inlineCodeScrollCount: el.querySelectorAll('.inline-code-scroll').length,
+                inlineMathScrollCount: el.querySelectorAll('.katex-inline-scroll').length,
+                layoutMetricReportCount: renderDebugState.layoutMetricReportCount,
+                lineDebugReportCount: renderDebugState.lineDebugReportCount
+            }));
         }
 
         function measuredVisualContentBoundsAtWidth(source, width) {
@@ -2173,9 +2302,11 @@ struct MathWebView: UIViewRepresentable {
         @Binding var renderedLineDebug: [MixedMathRenderedLineDebug]
         @Binding var scrollableDebug: [MixedMathScrollableDebug]
         @Binding var gestureDebug: MixedMathGestureDebugSnapshot?
+        @Binding var renderStatusDebug: MixedMathRenderStatusDebug?
         var reportsIntrinsicContentWidth: Bool
         private var reportsRenderedLineDebug: Bool
         private var reportsScrollableDebug: Bool
+        private var reportsRenderStatusDebug: Bool
         @Binding var horizontalOverflowState: HorizontalOverflowState
         weak var webView: WKWebView? // WEAK reference to break the retain cycle
         var lastRenderedSignature: String = ""
@@ -2190,9 +2321,11 @@ struct MathWebView: UIViewRepresentable {
             renderedLineDebug: Binding<[MixedMathRenderedLineDebug]>,
             scrollableDebug: Binding<[MixedMathScrollableDebug]>,
             gestureDebug: Binding<MixedMathGestureDebugSnapshot?>,
+            renderStatusDebug: Binding<MixedMathRenderStatusDebug?>,
             reportsIntrinsicContentWidth: Bool,
             reportsRenderedLineDebug: Bool,
             reportsScrollableDebug: Bool,
+            reportsRenderStatusDebug: Bool,
             horizontalOverflowState: Binding<HorizontalOverflowState>,
             onTap: (() -> Void)?
         ) {
@@ -2201,9 +2334,11 @@ struct MathWebView: UIViewRepresentable {
             _renderedLineDebug = renderedLineDebug
             _scrollableDebug = scrollableDebug
             _gestureDebug = gestureDebug
+            _renderStatusDebug = renderStatusDebug
             self.reportsIntrinsicContentWidth = reportsIntrinsicContentWidth
             self.reportsRenderedLineDebug = reportsRenderedLineDebug
             self.reportsScrollableDebug = reportsScrollableDebug
+            self.reportsRenderStatusDebug = reportsRenderStatusDebug
             _horizontalOverflowState = horizontalOverflowState
             self.onTap = onTap
         }
@@ -2252,6 +2387,12 @@ struct MathWebView: UIViewRepresentable {
                 let rows = payload.compactMap(Self.scrollableDebug(from:))
                 Task { @MainActor in
                     self.scrollableDebug = rows
+                }
+
+            case "renderStatusUpdate":
+                guard let payload = renderDictionary(from: message.body) else { return }
+                Task { @MainActor in
+                    self.renderStatusDebug = Self.renderStatusDebug(from: payload)
                 }
 
             case "overflowUpdate":
@@ -2418,11 +2559,41 @@ struct MathWebView: UIViewRepresentable {
             )
         }
 
+        nonisolated private static func renderStatusDebug(from payload: [String: Any]) -> MixedMathRenderStatusDebug {
+            MixedMathRenderStatusDebug(
+                stage: payload["stage"] as? String ?? "unknown",
+                contentLength: intValue(payload["contentLength"]),
+                childCount: intValue(payload["childCount"]),
+                textLength: intValue(payload["textLength"]),
+                bodyWidth: cgFloatValue(payload["bodyWidth"]),
+                bodyHeight: cgFloatValue(payload["bodyHeight"]),
+                contentWidth: cgFloatValue(payload["contentWidth"]),
+                contentHeight: cgFloatValue(payload["contentHeight"]),
+                contentScrollWidth: cgFloatValue(payload["contentScrollWidth"]),
+                contentScrollHeight: cgFloatValue(payload["contentScrollHeight"]),
+                inlineCodeCount: intValue(payload["inlineCodeCount"]),
+                mathCount: intValue(payload["mathCount"]),
+                displayMathCount: intValue(payload["displayMathCount"]),
+                inlineCodeScrollCount: intValue(payload["inlineCodeScrollCount"]),
+                inlineMathScrollCount: intValue(payload["inlineMathScrollCount"]),
+                layoutMetricReportCount: intValue(payload["layoutMetricReportCount"]),
+                lineDebugReportCount: intValue(payload["lineDebugReportCount"])
+            )
+        }
+
         nonisolated private static func cgFloatValue(_ value: Any?) -> CGFloat {
             if let value = value as? CGFloat { return value }
             if let value = value as? Double { return CGFloat(value) }
             if let value = value as? Int { return CGFloat(value) }
             if let value = value as? NSNumber { return CGFloat(truncating: value) }
+            return 0
+        }
+
+        nonisolated private static func intValue(_ value: Any?) -> Int {
+            if let value = value as? Int { return value }
+            if let value = value as? Double { return Int(value) }
+            if let value = value as? CGFloat { return Int(value) }
+            if let value = value as? NSNumber { return value.intValue }
             return 0
         }
 
@@ -2456,6 +2627,22 @@ struct MathWebView: UIViewRepresentable {
 
             let scriptHandlerWrapper = WeakScriptMessageHandler(delegate: self)
             webView.configuration.userContentController.add(scriptHandlerWrapper, name: "scrollableDebugUpdate")
+        }
+
+        func configureRenderStatusDebugHandler(on webView: WKWebView, enabled: Bool) {
+            guard reportsRenderStatusDebug != enabled else { return }
+            reportsRenderStatusDebug = enabled
+            webView.configuration.userContentController.removeScriptMessageHandler(forName: "renderStatusUpdate")
+
+            guard enabled else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.renderStatusDebug = nil
+                }
+                return
+            }
+
+            let scriptHandlerWrapper = WeakScriptMessageHandler(delegate: self)
+            webView.configuration.userContentController.add(scriptHandlerWrapper, name: "renderStatusUpdate")
         }
 
         /// Safely evaluates JS once the `updateMathContent` function exists.

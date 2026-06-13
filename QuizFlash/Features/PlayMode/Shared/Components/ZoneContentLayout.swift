@@ -72,6 +72,7 @@ struct ZoneContentLeafLayoutDebugSnapshot: Equatable {
     let renderedTokenLines: [MixedMathRenderedLineDebug]
     let renderedScrollableMath: [MixedMathScrollableDebug]
     let mathGestureDebug: MixedMathGestureDebugSnapshot?
+    let renderStatusDebug: MixedMathRenderStatusDebug?
     let textPreview: String
     let fullText: String
 }
@@ -708,6 +709,7 @@ private struct ZoneContentLeafPreview: View {
     @State private var renderedTokenLines: [MixedMathRenderedLineDebug] = []
     @State private var renderedScrollableMath: [MixedMathScrollableDebug] = []
     @State private var mathGestureDebug: MixedMathGestureDebugSnapshot?
+    @State private var renderStatusDebug: MixedMathRenderStatusDebug?
 
     var body: some View {
         let resolvedLayoutZone = layoutZone
@@ -778,6 +780,7 @@ private struct ZoneContentLeafPreview: View {
             renderedTokenLines = []
             renderedScrollableMath = []
             mathGestureDebug = nil
+            renderStatusDebug = nil
         }
     }
 
@@ -989,6 +992,11 @@ private struct ZoneContentLeafPreview: View {
                 mathGestureDebug = snapshot
             }
             : nil
+        let renderStatusDebugHandler: ((MixedMathRenderStatusDebug) -> Void)? = collectsDebugMetrics
+            ? { snapshot in
+                renderStatusDebug = snapshot
+            }
+            : nil
         let showsBullet = zone.hasBullet
             && !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
@@ -1027,6 +1035,7 @@ private struct ZoneContentLeafPreview: View {
                     onRenderedLineDebugChange: renderedLineDebugHandler,
                     onScrollableDebugChange: scrollableDebugHandler,
                     onGestureDebugChange: gestureDebugHandler,
+                    onRenderStatusDebugChange: renderStatusDebugHandler,
                     showsRenderDebugBounds: showsDebugGuides || collectsDebugMetrics,
                     onTap: richContentTapHandler
                 )
@@ -1193,6 +1202,7 @@ private struct ZoneContentLeafPreview: View {
             renderedTokenLines: containsMath || containsInlineCode ? renderedTokenLines : [],
             renderedScrollableMath: containsMath || containsInlineCode ? renderedScrollableMath : [],
             mathGestureDebug: containsMath || containsInlineCode ? mathGestureDebug : nil,
+            renderStatusDebug: containsMath || containsInlineCode ? renderStatusDebug : nil,
             textPreview: Self.preview(displayText),
             fullText: displayText
         )

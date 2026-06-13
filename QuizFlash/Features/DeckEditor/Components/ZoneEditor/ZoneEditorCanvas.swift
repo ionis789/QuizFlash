@@ -627,19 +627,6 @@ struct ZoneEditorCanvas: View {
                 }
             )
             .frame(width: layout.availableContentWidth, alignment: .topLeading)
-            .onGeometryChange(for: CGSize.self) { proxy in
-                CGSize(
-                    width: ceil(proxy.size.width),
-                    height: ceil(proxy.size.height)
-                )
-            } action: { newSize in
-                guard newSize.width > 0, newSize.height > 0 else { return }
-                let oldSize = renderMeasuredContentSize
-                if abs(oldSize.width - newSize.width) > 0.5
-                    || abs(oldSize.height - newSize.height) > 0.5 {
-                    renderMeasuredContentSize = newSize
-                }
-            }
             .padding(.top, layout.verticalPadding + layout.contentTopInset)
             .padding(.leading, layout.horizontalPadding)
             .padding(.bottom, layout.verticalPadding + layout.contentBottomInset)
@@ -837,6 +824,8 @@ struct ZoneEditorCanvas: View {
             return
         }
 
+        updateRenderMeasuredContentSize(from: frames, contentWidth: contentWidth)
+
         guard !alignmentFrameGate.isFrozen else {
             alignmentFrameGate.pendingFrames = frames
             return
@@ -847,6 +836,24 @@ struct ZoneEditorCanvas: View {
             contentWidth: contentWidth,
             refreshMenu: alignmentMenuState != nil && alignmentWiggleTarget == nil
         )
+    }
+
+    private func updateRenderMeasuredContentSize(
+        from frames: [ZoneEditorResolvedZoneFrame],
+        contentWidth: CGFloat
+    ) {
+        guard !frames.isEmpty else { return }
+
+        let minY = frames.map(\.frame.minY).min() ?? 0
+        let maxY = frames.map(\.frame.maxY).max() ?? 0
+        let measuredHeight = ceil(max(maxY - minY, 1))
+        let measuredSize = CGSize(width: max(contentWidth, 1), height: measuredHeight)
+        let oldSize = renderMeasuredContentSize
+
+        if abs(oldSize.width - measuredSize.width) > 0.5
+            || abs(oldSize.height - measuredSize.height) > 0.5 {
+            renderMeasuredContentSize = measuredSize
+        }
     }
 
     private func commitResolvedZoneFrames(

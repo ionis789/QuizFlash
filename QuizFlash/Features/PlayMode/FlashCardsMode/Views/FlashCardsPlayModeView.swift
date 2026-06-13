@@ -1428,6 +1428,7 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         let renderedTokenLines = tokenDebugLines(for: leaf.renderedTokenLines)
         let renderedScrollableMath = scrollableMathDebugLines(for: leaf.renderedScrollableMath)
         let mathGestureDebug = gestureDebugLine(for: leaf.mathGestureDebug)
+        let renderStatusDebug = renderStatusDebugLine(for: leaf.renderStatusDebug)
 
         return [
             "- \(leaf.path) id=\(leaf.zoneID.uuidString)",
@@ -1447,6 +1448,8 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
             renderedTokenLines.isEmpty ? "    <none>" : renderedTokenLines,
             "  renderedScrollableMath:",
             renderedScrollableMath.isEmpty ? "    <none>" : renderedScrollableMath,
+            "  renderStatusDebug:",
+            renderStatusDebug,
             "  mathGestureDebug:",
             mathGestureDebug,
             "  preview=\"\(leaf.textPreview)\"",
@@ -1496,6 +1499,12 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         guard let snapshot else { return "    <none>" }
 
         return "    decision=\(snapshot.decision) reason=\"\(snapshot.reason)\" direction=\"\(snapshot.direction)\" location=(x:\(metric(snapshot.location.x)), y:\(metric(snapshot.location.y))) h=\(metric(snapshot.horizontalMagnitude)) v=\(metric(snapshot.verticalMagnitude)) canLeft=\(snapshot.canScrollLeft) canRight=\(snapshot.canScrollRight) regions=\(snapshot.regionCount)"
+    }
+
+    private static func renderStatusDebugLine(for snapshot: MixedMathRenderStatusDebug?) -> String {
+        guard let snapshot else { return "    <none>" }
+
+        return "    stage=\(snapshot.stage) contentLen=\(snapshot.contentLength) childCount=\(snapshot.childCount) textLen=\(snapshot.textLength) body=\(metric(snapshot.bodyWidth))x\(metric(snapshot.bodyHeight)) content=\(metric(snapshot.contentWidth))x\(metric(snapshot.contentHeight)) scroll=\(metric(snapshot.contentScrollWidth))x\(metric(snapshot.contentScrollHeight)) inlineCode=\(snapshot.inlineCodeCount) math=\(snapshot.mathCount) displayMath=\(snapshot.displayMathCount) codeScroll=\(snapshot.inlineCodeScrollCount) inlineMathScroll=\(snapshot.inlineMathScrollCount) layoutReports=\(snapshot.layoutMetricReportCount) lineReports=\(snapshot.lineDebugReportCount)"
     }
 
     private static func cardGestureDebugLine(for snapshot: SwipeTouchDebugSnapshot?) -> String {

@@ -103,15 +103,23 @@ enum ZoneContentLayoutEngine {
             }
             return measuredContentSize.width > 0
                 ? measuredContentSize.width
-                : estimatedSize.width
+            : estimatedSize.width
         }()
         let measuredHeight: CGFloat = {
             if usesMediaIntrinsicLayout {
                 return estimatedSize.height
             }
-            return measuredContentSize.height > 0
-                ? measuredContentSize.height
-                : estimatedSize.height
+
+            let fallbackHeight = fallbackIntrinsicTextHeight(
+                for: zone,
+                spec: spec,
+                estimatedHeight: estimatedSize.height
+            )
+            if measuredContentSize.height <= 0 {
+                return fallbackHeight
+            }
+
+            return measuredContentSize.height
         }()
         let naturalWidth = min(
             max(ceil(measuredWidth), minimumAutoWidth(for: zone, spec: spec)),
@@ -136,7 +144,7 @@ enum ZoneContentLayoutEngine {
         let contentLayoutWidth = max(resolvedWidth, 1)
         let textWidthLimit = intrinsicMeasurement
             ? max(contentLayoutWidth - textHorizontalInsets - bulletHorizontalInset, 1)
-            : nil
+        : nil
 
         return ZoneContentLayoutResult(
             estimatedContentSize: roundedSize(estimatedSize),
@@ -190,7 +198,7 @@ enum ZoneContentLayoutEngine {
             let fixedHeight = max(ceil(zone.fixedHeight ?? measuredHeight), 1)
             let resolvedHeight = fixedHeightCanScaleContent(for: zone)
                 ? fixedHeight
-                : max(fixedHeight, contentHeight)
+            : max(fixedHeight, contentHeight)
             return min(resolvedHeight, maximumFixedHeight(forAvailableWidth: availableWidth))
         }
     }
@@ -237,6 +245,27 @@ enum ZoneContentLayoutEngine {
         return !previewText.isEmpty && !previewText.hasPrefix("```")
     }
 
+    private static func fallbackIntrinsicTextHeight(
+        for zone: ZoneModel,
+        spec: ZoneContentLayoutSpec,
+        estimatedHeight: CGFloat
+    ) -> CGFloat {
+        guard usesIntrinsicTextMeasurement(for: zone) else {
+            return estimatedHeight
+        }
+
+        let previewText = ZoneForcedLineBreak.renderText(
+            MathTextSanitizer.stripTerminalZonePeriodPreservingWhitespace(zone.text)
+        )
+        let richTextNeedsWebMeasurement = MathTextSanitizer.containsMath(previewText)
+            || MathTextSanitizer.containsInlineCode(previewText)
+        guard richTextNeedsWebMeasurement else {
+            return estimatedHeight
+        }
+
+        return ceil(estimatedHeight)
+    }
+
     private static func horizontalTextInsets(for zone: ZoneModel) -> CGFloat {
         switch zone.contentType {
         case .empty, .text, .code:
@@ -249,7 +278,7 @@ enum ZoneContentLayoutEngine {
     private static func bulletInset(for zone: ZoneModel) -> CGFloat {
         zone.hasBullet && !zone.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? ZoneContentMetrics.bulletWidth + ZoneContentMetrics.bulletSpacing
-            : 0
+        : 0
     }
 
     private static func minimumAutoWidth(
