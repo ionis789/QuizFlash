@@ -1047,6 +1047,7 @@ private struct QuizModeSessionView: View {
             "  type=\(leaf.contentType.rawValue) hasContent=\(leaf.hasContent) math=\(leaf.containsMath) inlineCode=\(leaf.containsInlineCode)",
             "  availableWidth=\(metric(leaf.availableWidth)) estimated=\(size(leaf.estimatedSize)) rendered=\(size(leaf.renderedContentSize))",
             "  block=\(size(leaf.blockSize)) leadingInset=\(metric(leaf.leadingInset)) rightSpaceAfterBlock=\(metric(rightSpaceAfterBlock))",
+            "  measurements updates=\(leaf.measurementUpdateCount) resets=\(leaf.measurementResetCount) rawMeasured=\(size(leaf.rawMeasuredContentSize)) frameH=\(leaf.contentFrameHeight.map(metric) ?? "nil") slack=\(metric(leaf.blockHeightSlack))",
             "  contentLayoutWidth=\(metric(leaf.contentLayoutWidth)) textWidthLimit=\(metric(textWidthLimit)) remainingTextWidthAfterWidestLine=\(metric(remainingTextWidth))",
             "  textInsets=\(metric(leaf.textHorizontalInsets)) bulletInset=\(metric(leaf.bulletHorizontalInset)) intrinsicText=\(leaf.usesIntrinsicTextMeasurement)",
             "  sizeMode=\(leaf.zoneSizeMode.rawValue) blockAlignment=\(leaf.zoneBlockAlignment.rawValue) textAlignment=\(leaf.zoneTextAlignment.rawValue) autoBlockCentering=\(leaf.usesNaturalBlockCentering)",

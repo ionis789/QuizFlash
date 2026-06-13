@@ -166,7 +166,13 @@ final class ZoneEditorDebugStore {
     func updateCanvas(
         cardSize: CGSize,
         contentSize: CGSize,
+        scrollOffsetY: CGFloat,
+        contentTopInset: CGFloat,
+        contentBodyHeight: CGFloat,
+        scrollContentHeight: CGFloat,
+        selectedPathID: String?,
         selectedFrame: CGRect?,
+        resolvedFrameCount: Int,
         keyboardVisible: Bool,
         keyboardHeight: CGFloat
     ) {
@@ -178,7 +184,7 @@ final class ZoneEditorDebugStore {
         }
         setLine(
             &canvasLine,
-            "canvas card=\(format(cardSize.width))x\(format(cardSize.height)) content=\(format(contentSize.width))x\(format(contentSize.height)) selectedFrame=\(frameText) keyboard=\(flag(keyboardVisible)):\(format(keyboardHeight))"
+            "canvas offset=\(format(scrollOffsetY)) top=\(format(contentTopInset)) body=\(format(contentBodyHeight)) scroll=\(format(scrollContentHeight)) card=\(format(cardSize.width))x\(format(cardSize.height)) content=\(format(contentSize.width))x\(format(contentSize.height)) selected=\(selectedPathID ?? "nil") frames=\(resolvedFrameCount) frame=\(frameText) keyboard=\(flag(keyboardVisible)):\(format(keyboardHeight))"
         )
     }
 

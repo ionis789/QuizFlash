@@ -133,6 +133,7 @@ struct ZoneEditorView: View {
     private var zone: ZoneModel? { content.zone(at: path) }
     private var isSelected: Bool { selectedPath == path }
     @State private var measuredDirectChildWidths: [String: CGFloat] = [:]
+    private static let editorZoneSpacing: CGFloat = ZoneContentMetrics.childSpacing
 
     init(
         content: ZoneCardContent,
@@ -208,7 +209,7 @@ struct ZoneEditorView: View {
             ? alignmentFeedback.offset(for: ZoneAlignmentTargetRef(path: path, kind: .group))
             : 0
 
-        VStack(spacing: 8) {
+        VStack(spacing: Self.editorZoneSpacing) {
             ForEach(indexedChildren, id: \.element.id) { index, _ in
                 let childPath = path.appending(index)
                 let isChildSelected = (selectedPath == childPath)
@@ -452,9 +453,7 @@ struct ZoneContentView: View {
             let visualOutset = visualZoneOutset(for: zone)
             let contentFrameHeight = contentFrameHeight(for: layoutZone, layout: layout)
             let contentPlacement = contentPlacement(
-                for: layoutZone,
-                layout: layout,
-                measuredContentSize: measuredContentSize
+                layout: layout
             )
 
             ZStack(alignment: .topLeading) {
@@ -727,29 +726,8 @@ struct ZoneContentView: View {
         }
     }
 
-    private func contentPlacement(
-        for zone: ZoneModel,
-        layout: ZoneContentLayoutResult,
-        measuredContentSize: CGSize
-    ) -> (leadingInset: CGFloat, width: CGFloat) {
-        guard isTextResizableZone(zone),
-              zone.sizeMode == .auto,
-              !zone.text.isEmpty else {
-            return (layout.leadingInset, layout.contentLayoutWidth)
-        }
-
-        let roundedSlack = min(
-            max(layout.blockSize.width - measuredContentSize.width, 0),
-            1
-        )
-        guard roundedSlack > 0 else {
-            return (layout.leadingInset, layout.contentLayoutWidth)
-        }
-
-        return (
-            leadingInset: layout.leadingInset + roundedSlack / 2,
-            width: max(layout.contentLayoutWidth - roundedSlack, 1)
-        )
+    private func contentPlacement(layout: ZoneContentLayoutResult) -> (leadingInset: CGFloat, width: CGFloat) {
+        (layout.leadingInset, layout.contentLayoutWidth)
     }
 
     private func stableMinimumAutoWidth(for zone: ZoneModel) -> CGFloat {

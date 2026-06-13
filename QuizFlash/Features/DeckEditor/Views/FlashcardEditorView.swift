@@ -52,8 +52,10 @@ struct FlashcardEditorView: View {
     @State private var floatingFormatBarPresentationTask: Task<Void, Never>?
     @State private var keyboardDebugRevision = 0
     @State private var toolbarVisibilityDebugRevision = 0
-    @State private var editorScrollOffsetY: CGFloat = 0
     @State private var showsRenderedContent = false
+    @State private var showsEditorDebugOverlays = true
+    @State private var scrollRestorationRequest: ZoneEditorScrollRestorationRequest?
+    @State private var scrollTransition = FlashcardEditorScrollTransitionState()
 
 
     // Visual-only ghost preview. The model changes only after the user commits.
@@ -244,6 +246,7 @@ struct FlashcardEditorView: View {
                     .zIndex(20)
                 floatingFormatBar
                 floatingFormatBarDebugOverlay
+                editorDebugVisibilityButton(safeBottomInset: safeBottomInset)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -421,7 +424,42 @@ struct FlashcardEditorView: View {
 
     private var showsEditorPerformanceDebug: Bool {
         AppFeatures.current.showsVisualDebugOverlays
+            && showsEditorDebugOverlays
             && developmentPreferences.zoneEditorDebugHUDEnabled
+    }
+
+    @ViewBuilder
+    private func editorDebugVisibilityButton(safeBottomInset: CGFloat) -> some View {
+        if AppFeatures.current.showsVisualDebugOverlays {
+            VStack {
+                Spacer(minLength: 0)
+                HStack {
+                    Spacer(minLength: 0)
+                    Button {
+                        showsEditorDebugOverlays.toggle()
+                    } label: {
+                        Image(systemName: showsEditorDebugOverlays ? "eye.fill" : "eye.slash.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(showsEditorDebugOverlays ? Color.orange : Color.secondary)
+                            .frame(width: 32, height: 32)
+                            .background(.black.opacity(0.78), in: Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.12), lineWidth: 0.75)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(
+                        showsEditorDebugOverlays
+                            ? "Hide debug overlays"
+                            : "Show debug overlays"
+                    )
+                    .padding(.trailing, 12)
+                    .padding(.bottom, max(safeBottomInset, 8) + 4)
+                }
+            }
+            .zIndex(60)
+        }
     }
 
     private var toolbarPerformanceSnapshot: EditorToolbarPerformanceOverlay.Snapshot {
@@ -536,10 +574,64 @@ struct FlashcardEditorView: View {
         )
     }
 
+    @ViewBuilder
     private func editorArea(safeTopInset: CGFloat) -> some View {
+        if showsRenderedContent {
+            ZStack {
+                renderedEditorCanvas(
+                    content: frontZoneContent,
+                    selectedPath: frontSelectedPathBinding,
+                    side: 0,
+                    safeTopInset: safeTopInset
+                )
+                renderedEditorCanvas(
+                    content: backZoneContent,
+                    selectedPath: backSelectedPathBinding,
+                    side: 1,
+                    safeTopInset: safeTopInset
+                )
+            }
+        } else {
+            editorCanvas(
+                content: currentContent,
+                selectedPath: selectedPathBinding,
+                side: activeSide,
+                safeTopInset: safeTopInset,
+                rendersRichText: false
+            )
+        }
+    }
+
+    private func renderedEditorCanvas(
+        content: ZoneCardContent,
+        selectedPath: Binding<ZonePath?>,
+        side: Int,
+        safeTopInset: CGFloat
+    ) -> some View {
+        editorCanvas(
+            content: content,
+            selectedPath: selectedPath,
+            side: side,
+            safeTopInset: safeTopInset,
+            rendersRichText: true
+        )
+        .opacity(activeSide == side ? 1 : 0)
+        .allowsHitTesting(activeSide == side)
+        .disabled(activeSide != side)
+        .accessibilityHidden(activeSide != side)
+        .zIndex(activeSide == side ? 1 : 0)
+    }
+
+    private func editorCanvas(
+        content: ZoneCardContent,
+        selectedPath: Binding<ZonePath?>,
+        side: Int,
+        safeTopInset: CGFloat,
+        rendersRichText: Bool
+    ) -> some View {
         ZoneEditorCanvas(
-            content: currentContent,
-            selectedPath: selectedPathBinding,
+            content: content,
+            selectedPath: selectedPath,
             previewDirection: $previewDirection,
             highlightContext: highlightContext,
             fontScale: editorTextScale,
@@ -548,17 +640,31 @@ struct FlashcardEditorView: View {
             bottomAccessoryHeight: floatingToolbarAccessoryHeight,
             bottomAccessoryTopY: keyboardMonitor.isVisible ? floatingFormatBarRenderedTopY : nil,
             scrollResetToken: activeSide,
-            rendersRichText: showsRenderedContent,
-            onScrollOffsetChange: handleEditorScrollOffsetChange,
-            onEmptySpaceTap: handleCanvasEmptySpaceTap
+            scrollRestorationRequest: activeSide == side ? scrollRestorationRequest : nil,
+            rendersRichText: rendersRichText,
+            showsDebugOverlays: showsEditorDebugOverlays && activeSide == side,
+            onScrollOffsetChange: { offsetY in
+                guard activeSide == side else { return }
+                handleEditorScrollOffsetChange(offsetY)
+            },
+            onEmptySpaceTap: { context in
+                guard activeSide == side else { return }
+                handleCanvasEmptySpaceTap(context)
+            },
+            onScrollRestorationApplied: {
+                guard activeSide == side else { return }
+                handleScrollRestorationApplied()
+            }
         )
     }
 
     private func handleEditorScrollOffsetChange(_ offsetY: CGFloat) {
-        guard abs(editorScrollOffsetY - offsetY) > 1 else { return }
-        withTransaction(Transaction(animation: nil)) {
-            editorScrollOffsetY = offsetY
-        }
+        scrollTransition.currentNormalizedOffsetY = offsetY
+    }
+
+    private func handleScrollRestorationApplied() {
+        scrollTransition.restoringAfterModeSwitch = false
+        scrollRestorationRequest = nil
     }
 
     private func handleCanvasEmptySpaceTap(_ context: ZoneEditorCanvasTapContext) {
@@ -903,11 +1009,24 @@ struct FlashcardEditorView: View {
 
     private func toggleRenderedContent() {
         guard hasSavableContent else { return }
-        showsRenderedContent.toggle()
-        if showsRenderedContent {
+        let targetMode = !showsRenderedContent
+
+        scrollTransition.currentMode = showsRenderedContent
+        scrollTransition.targetMode = targetMode
+        scrollTransition.restoringAfterModeSwitch = true
+        scrollRestorationRequest = ZoneEditorScrollRestorationRequest(
+            normalizedOffsetY: scrollTransition.currentNormalizedOffsetY,
+            targetRenderedMode: targetMode
+        )
+
+        if targetMode {
             focusManager.forceReleaseKeyboard()
             zoneController.forceReleaseKeyboard()
             zoneController.updateFocusedZone(nil)
+        }
+
+        withTransaction(Transaction(animation: nil)) {
+            showsRenderedContent = targetMode
         }
     }
 
@@ -1236,4 +1355,16 @@ private final class EditorToolbarPerformanceOverlayView: UIView {
     private func format(_ value: CGFloat) -> String {
         String(format: "%.0f", Double(value))
     }
+}
+
+struct ZoneEditorScrollRestorationRequest: Equatable {
+    let normalizedOffsetY: CGFloat
+    let targetRenderedMode: Bool
+}
+
+private final class FlashcardEditorScrollTransitionState {
+    var currentNormalizedOffsetY: CGFloat = 0
+    var currentMode: Bool = false
+    var targetMode: Bool = false
+    var restoringAfterModeSwitch = false
 }

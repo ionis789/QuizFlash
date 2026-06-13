@@ -35,12 +35,17 @@ struct ZoneContentLeafLayoutDebugSnapshot: Equatable {
     let availableWidth: CGFloat
     let estimatedSize: CGSize
     let renderedContentSize: CGSize
+    let measurementUpdateCount: Int
+    let measurementResetCount: Int
+    let rawMeasuredContentSize: CGSize
     let blockSize: CGSize
     let leadingInset: CGFloat
+    let contentFrameHeight: CGFloat?
     let contentLayoutWidth: CGFloat
     let textWidthLimit: CGFloat?
     let textHorizontalInsets: CGFloat
     let bulletHorizontalInset: CGFloat
+    let blockHeightSlack: CGFloat
     let usesIntrinsicTextMeasurement: Bool
     let zoneSizeMode: ZoneSizeMode
     let zoneBlockAlignment: ZoneBlockAlignment
@@ -332,6 +337,7 @@ struct ZoneContentRenderView: View {
     let collectsDebugMetrics: Bool
     var leafTapBehavior: ZoneContentLeafTapBehavior = .all
     var onTap: (() -> Void)?
+    var onZoneTap: ((UUID) -> Void)?
     var onRootBlockWidthChange: ((CGFloat) -> Void)?
 
     var body: some View {
@@ -352,7 +358,8 @@ struct ZoneContentRenderView: View {
             alignmentFeedback: alignmentFeedback,
             collectsDebugMetrics: collectsDebugMetrics,
             leafTapBehavior: leafTapBehavior,
-            onTap: onTap
+            onTap: onTap,
+            onZoneTap: onZoneTap
         )
         .frame(width: max(availableWidth, 1), alignment: .topLeading)
         .onPreferenceChange(ZoneContentWidthPreferenceKey.self) { widths in
@@ -392,6 +399,7 @@ private struct ZoneContentTreePreview: View {
     let collectsDebugMetrics: Bool
     let leafTapBehavior: ZoneContentLeafTapBehavior
     var onTap: (() -> Void)?
+    var onZoneTap: ((UUID) -> Void)?
 
     @State private var measuredDirectChildWidths: [String: CGFloat] = [:]
 
@@ -414,7 +422,8 @@ private struct ZoneContentTreePreview: View {
                 alignmentFeedback: alignmentFeedback,
                 collectsDebugMetrics: collectsDebugMetrics,
                 leafTapBehavior: leafTapBehavior,
-                onTap: onTap
+                onTap: onTap,
+                onZoneTap: onZoneTap
             )
         } else {
             containerPreview
@@ -451,7 +460,8 @@ private struct ZoneContentTreePreview: View {
                         alignmentFeedback: alignmentFeedback,
                         collectsDebugMetrics: collectsDebugMetrics,
                         leafTapBehavior: leafTapBehavior,
-                        onTap: onTap
+                        onTap: onTap,
+                        onZoneTap: onZoneTap
                     )
                     .frame(width: childWidth, alignment: .topLeading)
                 }
@@ -492,7 +502,8 @@ private struct ZoneContentTreePreview: View {
                             alignmentFeedback: alignmentFeedback,
                             collectsDebugMetrics: collectsDebugMetrics,
                             leafTapBehavior: leafTapBehavior,
-                            onTap: onTap
+                            onTap: onTap,
+                            onZoneTap: onZoneTap
                         )
                         .frame(width: groupWidth, alignment: .topLeading)
                     }
@@ -691,6 +702,7 @@ private struct ZoneContentLeafPreview: View {
     let collectsDebugMetrics: Bool
     let leafTapBehavior: ZoneContentLeafTapBehavior
     var onTap: (() -> Void)?
+    var onZoneTap: ((UUID) -> Void)?
 
     @State private var renderedContentSize: CGSize = .zero
     @State private var renderedTokenLines: [MixedMathRenderedLineDebug] = []
@@ -709,7 +721,6 @@ private struct ZoneContentLeafPreview: View {
             ),
             measuredContentSize: renderedContentSize
         )
-
         HStack(spacing: 0) {
             Color.clear.frame(width: layout.leadingInset)
 
@@ -1013,7 +1024,7 @@ private struct ZoneContentLeafPreview: View {
                     onScrollableDebugChange: scrollableDebugHandler,
                     onGestureDebugChange: gestureDebugHandler,
                     showsRenderDebugBounds: showsDebugGuides || collectsDebugMetrics,
-                    onTap: leafTapBehavior.allowsRichContentTap ? onTap : nil
+                    onTap: richContentTapHandler
                 )
                 .padding(.vertical, textVerticalPadding / 2)
                 .padding(.horizontal, layout.textHorizontalInsets / 2)
@@ -1032,7 +1043,7 @@ private struct ZoneContentLeafPreview: View {
                             )
                         )
                     },
-                    onTap: leafTapBehavior.allowsPlainTextTap ? onTap : nil
+                    onTap: plainTextTapHandler
                 )
                 .padding(.vertical, textVerticalPadding / 2)
                 .padding(.horizontal, layout.textHorizontalInsets / 2)
@@ -1053,6 +1064,21 @@ private struct ZoneContentLeafPreview: View {
             || abs(renderedContentSize.height - clampedSize.height) > 0.5 {
             renderedContentSize = clampedSize
         }
+    }
+
+    private func handleTap() {
+        onZoneTap?(zone.id)
+        onTap?()
+    }
+
+    private var richContentTapHandler: (() -> Void)? {
+        guard leafTapBehavior.allowsRichContentTap else { return nil }
+        return { handleTap() }
+    }
+
+    private var plainTextTapHandler: (() -> Void)? {
+        guard leafTapBehavior.allowsPlainTextTap else { return nil }
+        return { handleTap() }
     }
 
     private func isValidRenderedMeasurement(_ size: CGSize) -> Bool {
@@ -1126,12 +1152,17 @@ private struct ZoneContentLeafPreview: View {
             availableWidth: ceil(availableWidth),
             estimatedSize: layout.estimatedContentSize,
             renderedContentSize: roundedSize(renderedContentSize),
+            measurementUpdateCount: 0,
+            measurementResetCount: 0,
+            rawMeasuredContentSize: .zero,
             blockSize: layout.blockSize,
             leadingInset: layout.leadingInset,
+            contentFrameHeight: contentFrameHeight(for: layout),
             contentLayoutWidth: layout.contentLayoutWidth,
             textWidthLimit: layout.textWidthLimit,
             textHorizontalInsets: layout.textHorizontalInsets,
             bulletHorizontalInset: layout.bulletHorizontalInset,
+            blockHeightSlack: max(layout.blockSize.height - renderedContentSize.height, 0),
             usesIntrinsicTextMeasurement: layout.usesIntrinsicTextMeasurement,
             zoneSizeMode: layoutZone.sizeMode,
             zoneBlockAlignment: layoutZone.blockAlignment,
