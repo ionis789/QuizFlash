@@ -54,14 +54,14 @@ struct MathTextSanitizer {
         katexExtraMacros
             .sorted { $0.key < $1.key }
             .map { key, value in
-                let escapedKey = key
-                    .replacingOccurrences(of: "\\", with: "\\\\")
-                    .replacingOccurrences(of: "\"", with: "\\\"")
-                let escapedValue = value
-                    .replacingOccurrences(of: "\\", with: "\\\\")
-                    .replacingOccurrences(of: "\"", with: "\\\"")
-                return "            \"\(escapedKey)\": \"\(escapedValue)\""
-            }
+            let escapedKey = key
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+            let escapedValue = value
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+            return "            \"\(escapedKey)\": \"\(escapedValue)\""
+        }
             .joined(separator: ",\n")
     }
 
@@ -74,7 +74,7 @@ struct MathTextSanitizer {
             let autoRenderURL = Bundle.main.url(forResource: "auto-render.min", withExtension: "js"),
             let rawCSS = try? String(contentsOf: cssURL),
             let embeddedCSS = rewrittenKatexCSS(rawCSS)
-        else {
+            else {
             return nil
         }
 
@@ -116,7 +116,7 @@ struct MathTextSanitizer {
 
         while cursor < source.endIndex {
             if source[cursor] == "`",
-               let closing = source[source.index(after: cursor)...].firstIndex(of: "`") {
+                let closing = source[source.index(after: cursor)...].firstIndex(of: "`") {
                 let innerRange = source.index(after: cursor)..<closing
                 let inner = String(source[innerRange])
                 result += "`\(normalizedCodeLiteral(inner))`"
@@ -133,9 +133,9 @@ struct MathTextSanitizer {
         let collapsedLines = result
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { line in
-                line.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-                    .trimmingCharacters(in: .whitespaces)
-            }
+            line.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespaces)
+        }
             .joined(separator: "\n")
 
         return collapsedLines.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -157,7 +157,7 @@ struct MathTextSanitizer {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard
             let regex = try? NSRegularExpression(pattern: #"(?<!\.)\.(?=\s*$)"#)
-        else {
+            else {
             return trimmed
         }
 
@@ -172,7 +172,7 @@ struct MathTextSanitizer {
     nonisolated static func stripTerminalZonePeriodPreservingWhitespace(_ input: String) -> String {
         guard
             let regex = try? NSRegularExpression(pattern: #"(?<!\.)\.(?=\s*$)"#)
-        else {
+            else {
             return input
         }
 
@@ -306,7 +306,7 @@ struct MathTextSanitizer {
             guard
                 let fullRange = Range(match.range, in: rewritten),
                 let fileNameRange = Range(match.range(at: 2), in: rewritten)
-            else { continue }
+                else { continue }
 
             let fileName = String(rewritten[fileNameRange])
             let nsFileName = fileName as NSString
@@ -314,10 +314,10 @@ struct MathTextSanitizer {
             let fileExtension = nsFileName.pathExtension
 
             guard
-                !resourceName.isEmpty,
+            !resourceName.isEmpty,
                 !fileExtension.isEmpty,
                 let resolvedURL = Bundle.main.url(forResource: resourceName, withExtension: fileExtension)
-            else {
+                else {
                 continue
             }
 
@@ -396,8 +396,8 @@ struct MathTextSanitizer {
         return trimmed.unicodeScalars.contains { scalar in
             switch scalar.value {
             case 0x2200...0x22FF, // mathematical operators
-                 0x2100...0x214F, // letterlike symbols
-                 0x2190...0x21FF: // arrows
+             0x2100...0x214F, // letterlike symbols
+             0x2190...0x21FF: // arrows
                 return true
             default:
                 return false
@@ -779,7 +779,7 @@ struct MathTextSanitizer {
         let matches = regex.matches(in: result, range: NSRange(result.startIndex..., in: result))
         for match in matches.reversed() {
             guard let fullRange = Range(match.range, in: result),
-                  let innerRange = Range(match.range(at: 1), in: result) else { continue }
+                let innerRange = Range(match.range(at: 1), in: result) else { continue }
             let inner = String(result[innerRange])
             if inner.unicodeScalars.contains(where: { invalidChars.contains($0) }) {
                 result.replaceSubrange(fullRange, with: inner)

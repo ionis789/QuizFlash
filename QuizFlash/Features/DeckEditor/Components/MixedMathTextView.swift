@@ -93,6 +93,24 @@ struct MixedMathRenderStatusDebug: Equatable {
     let lineDebugReportCount: Int
 }
 
+struct MixedMathNativeRenderDebug: Equatable {
+    var webViewID = "unassigned"
+    var checkoutSource = "unknown"
+    var checkoutCount = 0
+    var stage = "idle"
+    var renderToken = "none"
+    var readinessChecks = 0
+    var didFinishCount = 0
+    var javaScriptExecutionCount = 0
+    var heightMessageCount = 0
+    var widthMessageCount = 0
+    var renderStatusMessageCount = 0
+    var lastHeight: CGFloat = 0
+    var lastWidth: CGFloat = 0
+    var lastError = "none"
+    var events: [String] = []
+}
+
 private var quizFlashHorizontalOverflowAssociationKey: UInt8 = 0
 private var quizFlashScrollableMathInteractionRegionsAssociationKey: UInt8 = 0
 
@@ -105,6 +123,9 @@ struct ScrollableMathInteractionRegion: Equatable {
 private final class MathWKWebView: WKWebView {
     var allowsFullQuizFlashInteraction = true
     var scrollableInteractionRegions: [ScrollableMathInteractionRegion] = []
+    let quizFlashDebugID = String(UUID().uuidString.prefix(8))
+    var quizFlashCheckoutSource = "created"
+    var quizFlashCheckoutCount = 0
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         guard super.point(inside: point, with: event) else { return false }
@@ -191,6 +212,7 @@ struct MixedMathTextView: View {
     var onScrollableDebugChange: (([MixedMathScrollableDebug]) -> Void)? = nil
     var onGestureDebugChange: ((MixedMathGestureDebugSnapshot) -> Void)? = nil
     var onRenderStatusDebugChange: ((MixedMathRenderStatusDebug) -> Void)? = nil
+    var onNativeRenderDebugChange: ((MixedMathNativeRenderDebug) -> Void)? = nil
     var showsRenderDebugBounds: Bool = false
     var onTap: (() -> Void)? = nil
 
@@ -202,6 +224,7 @@ struct MixedMathTextView: View {
     @State private var scrollableDebug: [MixedMathScrollableDebug] = []
     @State private var gestureDebug: MixedMathGestureDebugSnapshot?
     @State private var renderStatusDebug: MixedMathRenderStatusDebug?
+    @State private var nativeRenderDebug = MixedMathNativeRenderDebug()
 
     var body: some View {
         let clean = MathTextSanitizer.heal(text)
@@ -244,6 +267,7 @@ struct MixedMathTextView: View {
                 scrollableDebug: $scrollableDebug,
                 gestureDebug: $gestureDebug,
                 renderStatusDebug: $renderStatusDebug,
+                nativeRenderDebug: $nativeRenderDebug,
                 reportsIntrinsicContentWidth: intrinsicWidthLimit != nil,
                 reportsRenderedLineDebug: reportsRenderedLineDebug,
                 reportsScrollableDebug: reportsScrollableDebug,
@@ -289,6 +313,9 @@ struct MixedMathTextView: View {
             .onChange(of: renderStatusDebug) { _, newValue in
                 guard let newValue else { return }
                 onRenderStatusDebugChange?(newValue)
+            }
+            .onChange(of: nativeRenderDebug) { _, newValue in
+                onNativeRenderDebugChange?(newValue)
             }
             .overlay {
                 if shouldShowHorizontalOverflowHint {
@@ -637,7 +664,16 @@ class MathWebViewPool {
     /// Returns a pre-warmed WebView from the pool (zero allocation cost),
     /// or creates a new one on demand if the pool is exhausted.
     func dequeue() -> WKWebView {
-        pool.popLast() ?? create()
+        let webView: WKWebView
+        if let pooledWebView = pool.popLast() {
+            webView = pooledWebView
+            (webView as? MathWKWebView)?.quizFlashCheckoutSource = "pool"
+        } else {
+            webView = create()
+            (webView as? MathWKWebView)?.quizFlashCheckoutSource = "new"
+        }
+        (webView as? MathWKWebView)?.quizFlashCheckoutCount += 1
+        return webView
     }
 
     /// Returns a WebView to the pool after clearing its state.
@@ -719,6 +755,7 @@ struct MathWebView: UIViewRepresentable {
     @Binding var scrollableDebug: [MixedMathScrollableDebug]
     @Binding var gestureDebug: MixedMathGestureDebugSnapshot?
     @Binding var renderStatusDebug: MixedMathRenderStatusDebug?
+    @Binding var nativeRenderDebug: MixedMathNativeRenderDebug
     let reportsIntrinsicContentWidth: Bool
     let reportsRenderedLineDebug: Bool
     let reportsScrollableDebug: Bool
@@ -741,6 +778,7 @@ struct MathWebView: UIViewRepresentable {
             scrollableDebug: $scrollableDebug,
             gestureDebug: $gestureDebug,
             renderStatusDebug: $renderStatusDebug,
+            nativeRenderDebug: $nativeRenderDebug,
             reportsIntrinsicContentWidth: reportsIntrinsicContentWidth,
             reportsRenderedLineDebug: reportsRenderedLineDebug,
             reportsScrollableDebug: reportsScrollableDebug,
@@ -757,6 +795,7 @@ struct MathWebView: UIViewRepresentable {
         coordinator.cancelPendingUpdate()
         coordinator.invalidateRender()
         coordinator.webView = nil
+        uiView.navigationDelegate = nil
 
         // 2. Remove the script message handler to break the JS context retain cycle
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "heightUpdate")
@@ -797,6 +836,8 @@ struct MathWebView: UIViewRepresentable {
         webView.configuration.userContentController.add(scriptHandlerWrapper, name: "tapUpdate")
 
         context.coordinator.webView = webView
+        webView.navigationDelegate = context.coordinator
+        context.coordinator.attach(webView: webView)
         context.coordinator.lastRenderedSignature = renderSignature
         context.coordinator.onTap = onTap
         webView.quizflashHasHorizontalOverflow = false
@@ -2296,13 +2337,14 @@ struct MathWebView: UIViewRepresentable {
         return value.count > 18 ? "inline-code--breakable-token" : "inline-code--atomic"
     }
 
-    class Coordinator: NSObject, WKScriptMessageHandler, UIGestureRecognizerDelegate {
+    class Coordinator: NSObject, WKScriptMessageHandler, UIGestureRecognizerDelegate, WKNavigationDelegate {
         @Binding var contentHeight: CGFloat
         @Binding var intrinsicContentWidth: CGFloat
         @Binding var renderedLineDebug: [MixedMathRenderedLineDebug]
         @Binding var scrollableDebug: [MixedMathScrollableDebug]
         @Binding var gestureDebug: MixedMathGestureDebugSnapshot?
         @Binding var renderStatusDebug: MixedMathRenderStatusDebug?
+        @Binding var nativeRenderDebug: MixedMathNativeRenderDebug
         var reportsIntrinsicContentWidth: Bool
         private var reportsRenderedLineDebug: Bool
         private var reportsScrollableDebug: Bool
@@ -2312,6 +2354,7 @@ struct MathWebView: UIViewRepresentable {
         var lastRenderedSignature: String = ""
         var onTap: (() -> Void)?
         private var updateRetryTask: Task<Void, Never>?
+        private var pendingRenderUpdate: (js: String, renderToken: String)?
         private var lastTapEmissionTime: TimeInterval = 0
         private var activeRenderToken = UUID().uuidString
 
@@ -2322,6 +2365,7 @@ struct MathWebView: UIViewRepresentable {
             scrollableDebug: Binding<[MixedMathScrollableDebug]>,
             gestureDebug: Binding<MixedMathGestureDebugSnapshot?>,
             renderStatusDebug: Binding<MixedMathRenderStatusDebug?>,
+            nativeRenderDebug: Binding<MixedMathNativeRenderDebug>,
             reportsIntrinsicContentWidth: Bool,
             reportsRenderedLineDebug: Bool,
             reportsScrollableDebug: Bool,
@@ -2335,6 +2379,7 @@ struct MathWebView: UIViewRepresentable {
             _scrollableDebug = scrollableDebug
             _gestureDebug = gestureDebug
             _renderStatusDebug = renderStatusDebug
+            _nativeRenderDebug = nativeRenderDebug
             self.reportsIntrinsicContentWidth = reportsIntrinsicContentWidth
             self.reportsRenderedLineDebug = reportsRenderedLineDebug
             self.reportsScrollableDebug = reportsScrollableDebug
@@ -2347,14 +2392,41 @@ struct MathWebView: UIViewRepresentable {
             updateRetryTask?.cancel()
         }
 
+        func attach(webView: WKWebView) {
+            guard let mathWebView = webView as? MathWKWebView else {
+                recordNativeEvent("attach non-MathWKWebView", stage: "attached")
+                return
+            }
+
+            nativeRenderDebug.webViewID = mathWebView.quizFlashDebugID
+            nativeRenderDebug.checkoutSource = mathWebView.quizFlashCheckoutSource
+            nativeRenderDebug.checkoutCount = mathWebView.quizFlashCheckoutCount
+            recordNativeEvent(
+                "attach source=\(mathWebView.quizFlashCheckoutSource) checkout=\(mathWebView.quizFlashCheckoutCount)",
+                stage: "attached"
+            )
+        }
+
         func beginRender() -> String {
             let token = UUID().uuidString
             activeRenderToken = token
+            nativeRenderDebug.renderToken = String(token.prefix(8))
+            nativeRenderDebug.readinessChecks = 0
+            nativeRenderDebug.javaScriptExecutionCount = 0
+            nativeRenderDebug.heightMessageCount = 0
+            nativeRenderDebug.widthMessageCount = 0
+            nativeRenderDebug.renderStatusMessageCount = 0
+            nativeRenderDebug.lastHeight = 0
+            nativeRenderDebug.lastWidth = 0
+            nativeRenderDebug.lastError = "none"
+            nativeRenderDebug.events = []
+            recordNativeEvent("begin render", stage: "render-begun")
             return token
         }
 
         func invalidateRender() {
             activeRenderToken = UUID().uuidString
+            pendingRenderUpdate = nil
         }
 
         func userContentController(
@@ -2365,6 +2437,9 @@ struct MathWebView: UIViewRepresentable {
             case "heightUpdate":
                 guard let h = renderCGFloat(from: message.body), h > 0 else { return }
                 Task { @MainActor in
+                    self.nativeRenderDebug.heightMessageCount += 1
+                    self.nativeRenderDebug.lastHeight = h
+                    self.recordNativeEvent("height message \(Int(h.rounded()))", stage: "height-received")
                     self.contentHeight = h
                 }
 
@@ -2372,6 +2447,9 @@ struct MathWebView: UIViewRepresentable {
                 guard reportsIntrinsicContentWidth else { return }
                 guard let w = renderCGFloat(from: message.body), w > 0 else { return }
                 Task { @MainActor in
+                    self.nativeRenderDebug.widthMessageCount += 1
+                    self.nativeRenderDebug.lastWidth = w
+                    self.recordNativeEvent("width message \(Int(w.rounded()))", stage: "width-received")
                     self.intrinsicContentWidth = w
                 }
 
@@ -2392,6 +2470,11 @@ struct MathWebView: UIViewRepresentable {
             case "renderStatusUpdate":
                 guard let payload = renderDictionary(from: message.body) else { return }
                 Task { @MainActor in
+                    self.nativeRenderDebug.renderStatusMessageCount += 1
+                    self.recordNativeEvent(
+                        "render status \(payload["stage"] as? String ?? "unknown")",
+                        stage: "status-received"
+                    )
                     self.renderStatusDebug = Self.renderStatusDebug(from: payload)
                 }
 
@@ -2649,33 +2732,80 @@ struct MathWebView: UIViewRepresentable {
         /// This fixes the race condition where `evaluateJavaScript` fires before baseHTMLTemplate is fully loaded in new pooled webviews.
         func applyUpdate(js: String, renderToken: String, retries: Int = 15) {
             updateRetryTask?.cancel()
+            pendingRenderUpdate = (js, renderToken)
+            recordNativeEvent("update queued retries=\(retries)", stage: "update-queued")
             attemptUpdate(js: js, renderToken: renderToken, retries: retries)
         }
 
         func cancelPendingUpdate() {
             updateRetryTask?.cancel()
             updateRetryTask = nil
+            pendingRenderUpdate = nil
         }
 
         private func attemptUpdate(js: String, renderToken: String, retries: Int) {
             guard renderToken == activeRenderToken else { return }
             guard let webView = webView else { return }
-            webView.evaluateJavaScript("typeof updateMathContent") { [weak self] result, _ in
+            nativeRenderDebug.readinessChecks += 1
+            recordNativeEvent("readiness check retriesLeft=\(retries)", stage: "checking-ready")
+            webView.evaluateJavaScript("typeof updateMathContent") { [weak self] result, error in
                 guard let self else { return }
                 guard renderToken == self.activeRenderToken else { return }
                 if let str = result as? String, str == "function" {
-                    webView.evaluateJavaScript(js) { [weak self] _, _ in
+                    self.recordNativeEvent("renderer ready", stage: "renderer-ready")
+                    webView.evaluateJavaScript(js) { [weak self] _, executionError in
                         guard let self else { return }
+                        guard renderToken == self.activeRenderToken else { return }
+                        if let executionError {
+                            self.nativeRenderDebug.lastError = executionError.localizedDescription
+                            self.recordNativeEvent("JS error \(executionError.localizedDescription)", stage: "js-error")
+                            return
+                        }
+                        self.nativeRenderDebug.javaScriptExecutionCount += 1
+                        self.recordNativeEvent("updateMathContent executed", stage: "js-executed")
+                        if self.pendingRenderUpdate?.renderToken == renderToken {
+                            self.pendingRenderUpdate = nil
+                        }
                         self.scheduleLayoutMetricReports(renderToken: renderToken)
                     }
                 } else if retries > 0 {
+                    if let error {
+                        self.nativeRenderDebug.lastError = error.localizedDescription
+                    }
                     self.updateRetryTask?.cancel()
                     self.updateRetryTask = Task { @MainActor [weak self] in
                         try? await Task.sleep(for: .milliseconds(50))
                         guard let self, !Task.isCancelled else { return }
                         self.attemptUpdate(js: js, renderToken: renderToken, retries: retries - 1)
                     }
+                } else {
+                    self.nativeRenderDebug.lastError = error?.localizedDescription ?? "renderer unavailable"
+                    self.recordNativeEvent("readiness exhausted", stage: "readiness-failed")
                 }
+            }
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
+            nativeRenderDebug.didFinishCount += 1
+            recordNativeEvent("navigation didFinish", stage: "navigation-finished")
+            guard let pendingRenderUpdate,
+                  pendingRenderUpdate.renderToken == activeRenderToken
+            else {
+                return
+            }
+
+            attemptUpdate(
+                js: pendingRenderUpdate.js,
+                renderToken: pendingRenderUpdate.renderToken,
+                retries: 15
+            )
+        }
+
+        private func recordNativeEvent(_ event: String, stage: String) {
+            nativeRenderDebug.stage = stage
+            nativeRenderDebug.events.append(event)
+            if nativeRenderDebug.events.count > 18 {
+                nativeRenderDebug.events.removeFirst(nativeRenderDebug.events.count - 18)
             }
         }
 

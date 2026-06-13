@@ -21,6 +21,7 @@ For video-heavy UI debugging, extract a few representative frames first and use 
 
 ## Escalation Triggers
 
+- Read `advanced-debugging.md` whenever the user requests advanced/detailed debugging, asks for a complete construction/event flow, one fix has failed, or multiple layers remain plausible.
 - Read `project-map.md` only when ownership, placement, or feature boundaries are unclear.
 - Read the relevant parts of `architecture.md` only when the task touches:
   - SwiftData fetches, saves, model graph access, or memory-sensitive reads
@@ -78,7 +79,7 @@ Use this route for zone-based editing issues: caret placement, long-press select
 - Do not open `MixedMathTextView.swift` for raw editor bugs unless the issue explicitly involves compiled math/rich preview or play-mode rendering.
 - Do not read `project-map.md` or `architecture.md` for local cursor, focus, resize, or outline bugs unless the fix crosses shared sheet/navigation/long-scroll infrastructure.
 - Keep UIKit wrapper and SwiftUI container reads paired. Most bugs here come from a contract mismatch between `UITextView` behavior, SwiftUI frame updates, focus state, and gesture hit testing.
-- If the same class of editor bug has already been patched repeatedly, add temporary instrumentation or a debug overlay before making another blind layout tweak.
+- If one fix has failed or the user asks for advanced debugging, read `advanced-debugging.md` and instrument the full event/state/measurement/invalidation flow before another behavioral change.
 - Preserve these invariants while fixing:
   - Focus/unfocus must not change text width, line wrapping, padding, or zone position.
   - Simple tap places the caret; native selection starts only from long press, drag handles, or double tap.

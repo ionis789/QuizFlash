@@ -1,6 +1,6 @@
 ---
 name: quizflash-ios-engineer
-description: Project-specific engineering guide for QuizFlash, a SwiftUI flashcard app targeting iOS 17+ with Swift 6, SwiftData, and `@Observable`. Use when Codex writes, reviews, debugs, or refactors code in this repository, especially for SwiftUI views, view models, SwiftData models, background fetch actors, navigation, theming, memory/performance work, and QuizFlash file-format or output conventions.
+description: Project-specific engineering guide for QuizFlash, a SwiftUI flashcard app targeting iOS 17+ with Swift 6, SwiftData, and `@Observable`. Use when Codex writes, reviews, debugs, or refactors code in this repository, especially for SwiftUI, SwiftData, navigation, performance, editor/play rendering, or when the user requests advanced debugging, detailed diagnostics, construction flow, event flow, or tester-provided debug output.
 ---
 
 # QuizFlash iOS Engineer
@@ -30,6 +30,8 @@ Treat data-heavy render paths as a known QuizFlash failure mode. The Home perfor
 When animation or interaction lag survives an initial optimization, lead with an explicit debugging protocol instead of passively waiting for another symptom report. Add narrowly scoped DEBUG-only visual instrumentation when useful, tell the user exactly what gesture/video to capture, and explain which metrics will confirm or reject the current hypothesis.
 
 Golden debug rule: after any failed behavioral fix, or whenever more than one plausible root cause remains, `MUST NOT` make another behavioral fix from inference alone. Stop, say explicitly that the current evidence is insufficient for a safe fix, and add or request deterministic diagnostics that will identify the owning layer before changing behavior again. For UI/interaction bugs this means instrumenting the actual event/state path (hit testing, gesture recognizers, focus, keyboard, presentation flags, layout frames, async tasks, persistence writes as relevant), then using the resulting log/video/screenshot to choose exactly one fix.
+
+Treat the user's phrases `debug avansat`, `debug detaliat`, `flow complet`, `construction flow`, or equivalent as an explicit protocol request. `MUST` read `references/advanced-debugging.md` before editing behavior. Build a persistent, exportable timeline that records inputs, ownership boundaries, state transitions, measurements, invalidations, fallbacks, acceptance/rejection decisions, and final applied values. A final-state snapshot alone is insufficient. The user acts as the runtime tester: provide a precise reproduction request, receive the exported output, compare failing and working paths, and patch only the layer proven by the trace.
 
 For serious lag, global scroll stutter, slider jank, memory growth, or suspected leaks, use Instruments instead of guessing. Ask for or analyze a `.trace` with Time Profiler + Allocations, inspect the TOC because one trace can contain multiple runs, prioritize app-inclusive stacks and allocation churn, then fix the hot render/data path. Read `references/performance-profiling.md` before giving profiling instructions or interpreting a trace.
 
@@ -195,9 +197,9 @@ QuizFlash flashcards and quiz cards use the same rich content renderer for mixed
 
 ## Debug Escalation
 
-When a fix does not change the user's observed behavior, stop guessing immediately. Do not attempt a second behavioral fix unless the new evidence proves a single root cause. Prefer DEBUG-only probes that reveal the exact owner of the failure: hit-test recipients, gesture recognizer state, focus/keyboard transitions, presentation flags, layout frames, state mutations, async cancellation, persistence writes, or payload shape. Keep probes narrowly scoped, easy to remove, and gated behind existing development/debug settings when practical. If the probe exposes a generally useful diagnostic path, keep it as a development-only tool; otherwise remove it before final delivery.
+When a fix does not change the user's observed behavior, stop guessing immediately. Do not attempt a second behavioral fix unless the new evidence proves a single root cause. Read and follow `references/advanced-debugging.md`. Prefer DEBUG-only probes that reveal the exact owner of the failure: hit-test recipients, gesture recognizer state, focus/keyboard transitions, presentation flags, layout frames, state mutations, measurement acceptance, invalidation/reset causes, async cancellation, persistence writes, or payload shape. Keep probes narrowly scoped, easy to remove, and gated behind existing development/debug settings when practical. If the probe exposes a generally useful diagnostic path, keep it as a development-only tool; otherwise remove it before final delivery.
 
-For every debug escalation, state the decision rule before asking for a video or making the next patch: what exact signal will confirm each plausible cause, and which code path will be changed for each outcome. If a video/log is inconclusive, say so plainly and request or add the missing signal. In final reports, state what the instrumentation showed and which assumption it confirmed or disproved.
+For every debug escalation, state the decision rule before asking for a video or making the next patch: what exact signal will confirm each plausible cause, and which code path will be changed for each outcome. Instrument the complete lifecycle, not only the suspected endpoint. Preserve a bounded event history before the debug panel is opened so initialization failures are not lost. Compare one failing instance with one working sibling under the same inputs. If a video/log is inconclusive, say so plainly and request or add the missing signal. In final reports, state what the instrumentation showed, which layer owned the defect, and which assumptions were disproved.
 
 ## Testing Expectations
 
@@ -235,6 +237,7 @@ For every debug escalation, state the decision rule before asking for a video or
 - `references/project-map.md`: Real repo layout, important files, and common starting points.
 - `references/architecture.md`: Project rules for architecture, concurrency, SwiftData safety, navigation, design tokens, code style, and review checks.
 - `references/performance-profiling.md`: Instruments capture/export/interpretation protocol for Time Profiler, Allocations, hangs, and QuizFlash hot-path fixes.
+- `references/advanced-debugging.md`: Mandatory deterministic instrumentation and tester-collaboration protocol for hard or repeatedly failing bugs.
 - `references/examples/ViewModel.swift.example`: Canonical QuizFlash-flavored view-model skeleton for new code.
 - `references/examples/View.swift.example`: Canonical QuizFlash-flavored root-view skeleton for new screens.
 - `references/component-catalog.md`: Reusable UI inventory; check this before creating a new component.

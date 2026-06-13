@@ -1429,6 +1429,10 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         let renderedScrollableMath = scrollableMathDebugLines(for: leaf.renderedScrollableMath)
         let mathGestureDebug = gestureDebugLine(for: leaf.mathGestureDebug)
         let renderStatusDebug = renderStatusDebugLine(for: leaf.renderStatusDebug)
+        let nativeRenderDebug = nativeRenderDebugLines(for: leaf.nativeRenderDebug)
+        let measurementEvents = leaf.measurementEvents.isEmpty
+            ? "    <none>"
+            : leaf.measurementEvents.map { "    \($0)" }.joined(separator: "\n")
 
         return [
             "- \(leaf.path) id=\(leaf.zoneID.uuidString)",
@@ -1436,6 +1440,9 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
             "  availableWidth=\(metric(leaf.availableWidth)) estimated=\(size(leaf.estimatedSize)) rendered=\(size(leaf.renderedContentSize))",
             "  block=\(size(leaf.blockSize)) leadingInset=\(metric(leaf.leadingInset)) rightSpaceAfterBlock=\(metric(rightSpaceAfterBlock))",
             "  measurements updates=\(leaf.measurementUpdateCount) resets=\(leaf.measurementResetCount) rawMeasured=\(size(leaf.rawMeasuredContentSize)) frameH=\(leaf.contentFrameHeight.map(metric) ?? "nil") slack=\(metric(leaf.blockHeightSlack))",
+            "  lastMeasurement source=\(leaf.lastMeasurementSource) decision=\"\(leaf.lastMeasurementDecision)\"",
+            "  measurementFlow:",
+            measurementEvents,
             "  contentLayoutWidth=\(metric(leaf.contentLayoutWidth)) textWidthLimit=\(metric(textWidthLimit)) remainingTextWidthAfterWidestLine=\(metric(remainingTextWidth))",
             "  textInsets=\(metric(leaf.textHorizontalInsets)) bulletInset=\(metric(leaf.bulletHorizontalInset)) intrinsicText=\(leaf.usesIntrinsicTextMeasurement)",
             "  sizeMode=\(leaf.zoneSizeMode.rawValue) blockAlignment=\(leaf.zoneBlockAlignment.rawValue) textAlignment=\(leaf.zoneTextAlignment.rawValue) autoBlockCentering=\(leaf.usesNaturalBlockCentering)",
@@ -1450,6 +1457,8 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
             renderedScrollableMath.isEmpty ? "    <none>" : renderedScrollableMath,
             "  renderStatusDebug:",
             renderStatusDebug,
+            "  nativeRenderPipeline:",
+            nativeRenderDebug,
             "  mathGestureDebug:",
             mathGestureDebug,
             "  preview=\"\(leaf.textPreview)\"",
@@ -1505,6 +1514,15 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         guard let snapshot else { return "    <none>" }
 
         return "    stage=\(snapshot.stage) contentLen=\(snapshot.contentLength) childCount=\(snapshot.childCount) textLen=\(snapshot.textLength) body=\(metric(snapshot.bodyWidth))x\(metric(snapshot.bodyHeight)) content=\(metric(snapshot.contentWidth))x\(metric(snapshot.contentHeight)) scroll=\(metric(snapshot.contentScrollWidth))x\(metric(snapshot.contentScrollHeight)) inlineCode=\(snapshot.inlineCodeCount) math=\(snapshot.mathCount) displayMath=\(snapshot.displayMathCount) codeScroll=\(snapshot.inlineCodeScrollCount) inlineMathScroll=\(snapshot.inlineMathScrollCount) layoutReports=\(snapshot.layoutMetricReportCount) lineReports=\(snapshot.lineDebugReportCount)"
+    }
+
+    private static func nativeRenderDebugLines(for snapshot: MixedMathNativeRenderDebug?) -> String {
+        guard let snapshot else { return "    <none>" }
+
+        let header = "    webView=\(snapshot.webViewID) source=\(snapshot.checkoutSource) checkout=\(snapshot.checkoutCount) stage=\(snapshot.stage) token=\(snapshot.renderToken) readiness=\(snapshot.readinessChecks) didFinish=\(snapshot.didFinishCount) jsExec=\(snapshot.javaScriptExecutionCount) heightMsg=\(snapshot.heightMessageCount)(\(metric(snapshot.lastHeight))) widthMsg=\(snapshot.widthMessageCount)(\(metric(snapshot.lastWidth))) statusMsg=\(snapshot.renderStatusMessageCount) error=\"\(snapshot.lastError)\""
+        guard !snapshot.events.isEmpty else { return header }
+        return ([header, "    events:"] + snapshot.events.map { "      - \($0)" })
+            .joined(separator: "\n")
     }
 
     private static func cardGestureDebugLine(for snapshot: SwipeTouchDebugSnapshot?) -> String {

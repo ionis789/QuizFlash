@@ -73,6 +73,10 @@ struct ZoneContentLeafLayoutDebugSnapshot: Equatable {
     let renderedScrollableMath: [MixedMathScrollableDebug]
     let mathGestureDebug: MixedMathGestureDebugSnapshot?
     let renderStatusDebug: MixedMathRenderStatusDebug?
+    let nativeRenderDebug: MixedMathNativeRenderDebug?
+    let lastMeasurementSource: String
+    let lastMeasurementDecision: String
+    let measurementEvents: [String]
     let textPreview: String
     let fullText: String
 }
@@ -162,6 +166,24 @@ private struct ZoneContentLeafMeasurementIdentity: Equatable {
     let textVerticalPadding: CGFloat
     let textHorizontalPaddingOverride: CGFloat?
     let availableWidth: CGFloat
+
+    func matchesContent(of other: Self) -> Bool {
+        id == other.id
+            && contentType == other.contentType
+            && text == other.text
+            && textStyle == other.textStyle
+            && textAlignment == other.textAlignment
+            && sizeMode == other.sizeMode
+            && fixedWidth == other.fixedWidth
+            && fixedHeight == other.fixedHeight
+            && isBold == other.isBold
+            && isItalic == other.isItalic
+            && hasBullet == other.hasBullet
+            && fontFamily == other.fontFamily
+            && fontScale == other.fontScale
+            && textVerticalPadding == other.textVerticalPadding
+            && textHorizontalPaddingOverride == other.textHorizontalPaddingOverride
+    }
 }
 
 private enum ZoneContentDisplayTextNormalizer {
@@ -710,6 +732,13 @@ private struct ZoneContentLeafPreview: View {
     @State private var renderedScrollableMath: [MixedMathScrollableDebug] = []
     @State private var mathGestureDebug: MixedMathGestureDebugSnapshot?
     @State private var renderStatusDebug: MixedMathRenderStatusDebug?
+    @State private var nativeRenderDebug: MixedMathNativeRenderDebug?
+    @State private var measurementUpdateCount = 0
+    @State private var measurementResetCount = 0
+    @State private var rawMeasuredContentSize: CGSize = .zero
+    @State private var lastMeasurementSource = "none"
+    @State private var lastMeasurementDecision = "none"
+    @State private var measurementEvents: [String] = []
 
     var body: some View {
         let resolvedLayoutZone = layoutZone
@@ -755,7 +784,7 @@ private struct ZoneContentLeafPreview: View {
                     .onGeometryChange(for: CGSize.self) { proxy in
                         CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
                     } action: { newSize in
-                        updateRenderedContentSize(newSize)
+                        updateRenderedContentSize(newSize, source: "swiftui-geometry")
                     }
             }
             .frame(width: layout.blockSize.width, height: layout.blockSize.height, alignment: .topLeading)
@@ -775,12 +804,25 @@ private struct ZoneContentLeafPreview: View {
             key: ZoneContentWidthPreferenceKey.self,
             value: [path: layout.blockSize.width]
         )
-        .onChange(of: measurementIdentity) { _, _ in
+        .onChange(of: measurementIdentity) { oldIdentity, newIdentity in
+            guard !oldIdentity.matchesContent(of: newIdentity) else {
+                appendMeasurementEvent(
+                    "width changed \(Int(oldIdentity.availableWidth)) -> \(Int(newIdentity.availableWidth)); preserved \(debugSize(renderedContentSize))"
+                )
+                return
+            }
+
+            measurementResetCount += 1
+            rawMeasuredContentSize = .zero
+            lastMeasurementSource = "identity-reset"
+            lastMeasurementDecision = "cleared"
+            appendMeasurementEvent("identity reset")
             renderedContentSize = .zero
             renderedTokenLines = []
             renderedScrollableMath = []
             mathGestureDebug = nil
             renderStatusDebug = nil
+            nativeRenderDebug = nil
         }
     }
 
@@ -978,25 +1020,17 @@ private struct ZoneContentLeafPreview: View {
             1
         )
         let renderedLineDebugHandler: (([MixedMathRenderedLineDebug]) -> Void)? = collectsDebugMetrics
-            ? { lines in
-                renderedTokenLines = lines
-            }
+            ? { lines in renderedTokenLines = lines }
             : nil
         let scrollableDebugHandler: (([MixedMathScrollableDebug]) -> Void)? = collectsDebugMetrics
-            ? { rows in
-                renderedScrollableMath = rows
-            }
+            ? { rows in renderedScrollableMath = rows }
             : nil
         let gestureDebugHandler: ((MixedMathGestureDebugSnapshot) -> Void)? = collectsDebugMetrics
-            ? { snapshot in
-                mathGestureDebug = snapshot
-            }
+            ? { snapshot in mathGestureDebug = snapshot }
             : nil
-        let renderStatusDebugHandler: ((MixedMathRenderStatusDebug) -> Void)? = collectsDebugMetrics
-            ? { snapshot in
-                renderStatusDebug = snapshot
-            }
-            : nil
+        let renderStatusDebugHandler: ((MixedMathRenderStatusDebug) -> Void)? = { snapshot in
+            renderStatusDebug = snapshot
+        }
         let showsBullet = zone.hasBullet
             && !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
@@ -1029,13 +1063,17 @@ private struct ZoneContentLeafPreview: View {
                             CGSize(
                                 width: ceil(size.width + layout.textHorizontalInsets + layout.bulletHorizontalInset),
                                 height: ceil(size.height + textVerticalPadding)
-                            )
+                            ),
+                            source: "web-intrinsic"
                         )
                     },
                     onRenderedLineDebugChange: renderedLineDebugHandler,
                     onScrollableDebugChange: scrollableDebugHandler,
                     onGestureDebugChange: gestureDebugHandler,
                     onRenderStatusDebugChange: renderStatusDebugHandler,
+                    onNativeRenderDebugChange: { snapshot in
+                        nativeRenderDebug = snapshot
+                    },
                     showsRenderDebugBounds: showsDebugGuides || collectsDebugMetrics,
                     onTap: richContentTapHandler
                 )
@@ -1053,7 +1091,8 @@ private struct ZoneContentLeafPreview: View {
                             CGSize(
                                 width: ceil(size.width + layout.textHorizontalInsets + layout.bulletHorizontalInset),
                                 height: ceil(size.height + textVerticalPadding)
-                            )
+                            ),
+                            source: "plain-intrinsic"
                         )
                     },
                     onTap: plainTextTapHandler
@@ -1065,9 +1104,18 @@ private struct ZoneContentLeafPreview: View {
         .frame(width: layout.contentLayoutWidth, alignment: .topLeading)
     }
 
-    private func updateRenderedContentSize(_ newSize: CGSize) {
-        guard newSize.width > 0, newSize.height > 0 else { return }
-        guard isValidRenderedMeasurement(newSize) else { return }
+    private func updateRenderedContentSize(_ newSize: CGSize, source: String) {
+        measurementUpdateCount += 1
+        rawMeasuredContentSize = newSize
+        lastMeasurementSource = source
+        guard newSize.width > 0, newSize.height > 0 else {
+            recordMeasurementDecision("rejected non-positive", size: newSize, source: source)
+            return
+        }
+        guard isValidRenderedMeasurement(newSize) else {
+            recordMeasurementDecision("rejected validation", size: newSize, source: source)
+            return
+        }
         let clampedSize = CGSize(
             width: min(max(ceil(newSize.width), 1), availableWidth),
             height: max(ceil(newSize.height), 1)
@@ -1075,8 +1123,27 @@ private struct ZoneContentLeafPreview: View {
 
         if abs(renderedContentSize.width - clampedSize.width) > 0.5
             || abs(renderedContentSize.height - clampedSize.height) > 0.5 {
+            recordMeasurementDecision("accepted -> \(debugSize(clampedSize))", size: newSize, source: source)
             renderedContentSize = clampedSize
+        } else {
+            recordMeasurementDecision("unchanged", size: newSize, source: source)
         }
+    }
+
+    private func recordMeasurementDecision(_ decision: String, size: CGSize, source: String) {
+        lastMeasurementDecision = decision
+        appendMeasurementEvent("\(source) \(debugSize(size)) \(decision)")
+    }
+
+    private func appendMeasurementEvent(_ event: String) {
+        measurementEvents.append(event)
+        if measurementEvents.count > 12 {
+            measurementEvents.removeFirst(measurementEvents.count - 12)
+        }
+    }
+
+    private func debugSize(_ size: CGSize) -> String {
+        "\(Int(size.width.rounded()))x\(Int(size.height.rounded()))"
     }
 
     private func handleTap() {
@@ -1165,9 +1232,9 @@ private struct ZoneContentLeafPreview: View {
             availableWidth: ceil(availableWidth),
             estimatedSize: layout.estimatedContentSize,
             renderedContentSize: roundedSize(renderedContentSize),
-            measurementUpdateCount: 0,
-            measurementResetCount: 0,
-            rawMeasuredContentSize: .zero,
+            measurementUpdateCount: measurementUpdateCount,
+            measurementResetCount: measurementResetCount,
+            rawMeasuredContentSize: roundedSize(rawMeasuredContentSize),
             blockSize: layout.blockSize,
             leadingInset: layout.leadingInset,
             contentFrameHeight: contentFrameHeight(for: layout),
@@ -1203,6 +1270,10 @@ private struct ZoneContentLeafPreview: View {
             renderedScrollableMath: containsMath || containsInlineCode ? renderedScrollableMath : [],
             mathGestureDebug: containsMath || containsInlineCode ? mathGestureDebug : nil,
             renderStatusDebug: containsMath || containsInlineCode ? renderStatusDebug : nil,
+            nativeRenderDebug: containsMath || containsInlineCode ? nativeRenderDebug : nil,
+            lastMeasurementSource: lastMeasurementSource,
+            lastMeasurementDecision: lastMeasurementDecision,
+            measurementEvents: measurementEvents,
             textPreview: Self.preview(displayText),
             fullText: displayText
         )

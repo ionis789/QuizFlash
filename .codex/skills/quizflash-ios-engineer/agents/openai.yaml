@@ -1,4 +1,4 @@
 interface:
   display_name: "QuizFlash iOS Engineer"
   short_description: "QuizFlash SwiftUI and SwiftData coding guide"
-  default_prompt: "Use $quizflash-ios-engineer to implement or review a change in the QuizFlash iOS app. Read references/task-routing.md first, start with the target file and paired owner file, and load project-map or architecture only on demand. After code changes, prefer build-install-launch on the wired device iPhoneIS when connected; otherwise build and run on the active simulator."
+  default_prompt: "Use $quizflash-ios-engineer to implement, review, or debug QuizFlash. Read references/task-routing.md first. When advanced debugging is requested or a fix has failed, read references/advanced-debugging.md and instrument an exportable end-to-end decision flow before changing behavior again. After code changes, prefer build-install-launch on iPhoneIS when connected; otherwise use the active simulator."
