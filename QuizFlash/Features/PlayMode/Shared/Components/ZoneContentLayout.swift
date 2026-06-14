@@ -235,8 +235,8 @@ private enum ZoneContentDisplayTextNormalizer {
 
         return paragraphs
             .map { paragraph in
-                paragraph.replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
-            }
+            paragraph.replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
+        }
             .filter { !$0.isEmpty }
             .joined(separator: "\n\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -251,14 +251,26 @@ private struct ZoneContentContainerMeasurementIdentity: Equatable {
     let availableWidth: CGFloat
 }
 
+enum ZoneContentDebugGuideStyle: Equatable {
+    case debug
+    case editorRender
+}
+
 @ViewBuilder
-private func zoneAlignmentHighlight(cornerRadius: CGFloat = 16) -> some View {
+private func zoneAlignmentHighlight(
+    cornerRadius: CGFloat = 16,
+    lineWidth: CGFloat = 1.6,
+    shadowRadius: CGFloat = 8
+) -> some View {
     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        .stroke(
+        .strokeBorder(
             ThemeManager.shared.accentColor.color.opacity(0.78),
-            style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round)
+            lineWidth: lineWidth
         )
-        .shadow(color: ThemeManager.shared.accentColor.color.opacity(0.24), radius: 8)
+        .shadow(
+            color: ThemeManager.shared.accentColor.color.opacity(0.24),
+            radius: shadowRadius
+        )
         .allowsHitTesting(false)
         .transition(.opacity.combined(with: .scale(scale: 0.985)))
 }
@@ -354,6 +366,7 @@ struct ZoneContentRenderView: View {
     var showsCodeBlockZoneSurfaces: Bool = false
     var usesBorderOnlyZoneHighlights: Bool = false
     var zoneHighlightStrokeStyle: StrokeStyle = StrokeStyle(lineWidth: 2)
+    var debugGuideStyle: ZoneContentDebugGuideStyle = .debug
     var textVerticalPadding: CGFloat = ZoneContentMetrics.textVerticalPadding
     var textHorizontalPaddingOverride: CGFloat? = nil
     var alignmentFeedback: ZoneAlignmentFeedback = .inactive
@@ -367,6 +380,8 @@ struct ZoneContentRenderView: View {
         ZoneContentTreePreview(
             zone: zone,
             path: "root",
+            suppressOwnEditorRenderGuide: false,
+            representsSelectedGroupGuide: false,
             fontScale: fontScale,
             availableWidth: max(availableWidth, 1),
             centersLeafBlocks: centersLeafBlocks,
@@ -376,6 +391,7 @@ struct ZoneContentRenderView: View {
             showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
             usesBorderOnlyZoneHighlights: usesBorderOnlyZoneHighlights,
             zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
+            debugGuideStyle: debugGuideStyle,
             textVerticalPadding: textVerticalPadding,
             textHorizontalPaddingOverride: textHorizontalPaddingOverride,
             alignmentFeedback: alignmentFeedback,
@@ -384,8 +400,8 @@ struct ZoneContentRenderView: View {
             onTap: onTap,
             onZoneTap: onZoneTap
         )
-        .frame(width: max(availableWidth, 1), alignment: .topLeading)
-        .onPreferenceChange(ZoneContentWidthPreferenceKey.self) { widths in
+            .frame(width: max(availableWidth, 1), alignment: .topLeading)
+            .onPreferenceChange(ZoneContentWidthPreferenceKey.self) { widths in
             guard let width = widths["root"], width > 0 else { return }
             onRootBlockWidthChange?(ceil(width))
         }
@@ -407,6 +423,8 @@ private enum ZoneContentRenderPolicy {
 private struct ZoneContentTreePreview: View {
     let zone: ZoneModel
     let path: String
+    let suppressOwnEditorRenderGuide: Bool
+    let representsSelectedGroupGuide: Bool
     let fontScale: CGFloat
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
@@ -416,6 +434,7 @@ private struct ZoneContentTreePreview: View {
     let showsCodeBlockZoneSurfaces: Bool
     let usesBorderOnlyZoneHighlights: Bool
     let zoneHighlightStrokeStyle: StrokeStyle
+    let debugGuideStyle: ZoneContentDebugGuideStyle
     let textVerticalPadding: CGFloat
     let textHorizontalPaddingOverride: CGFloat?
     let alignmentFeedback: ZoneAlignmentFeedback
@@ -431,6 +450,8 @@ private struct ZoneContentTreePreview: View {
             ZoneContentLeafPreview(
                 zone: zone,
                 path: path,
+                suppressOwnEditorRenderGuide: suppressOwnEditorRenderGuide,
+                representsSelectedGroupGuide: representsSelectedGroupGuide,
                 fontScale: fontScale,
                 availableWidth: availableWidth,
                 centersLeafBlocks: centersLeafBlocks,
@@ -440,6 +461,7 @@ private struct ZoneContentTreePreview: View {
                 showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
                 usesBorderOnlyZoneHighlights: usesBorderOnlyZoneHighlights,
                 zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
+                debugGuideStyle: debugGuideStyle,
                 textVerticalPadding: textVerticalPadding,
                 textHorizontalPaddingOverride: textHorizontalPaddingOverride,
                 alignmentFeedback: alignmentFeedback,
@@ -469,6 +491,8 @@ private struct ZoneContentTreePreview: View {
                     ZoneContentTreePreview(
                         zone: child,
                         path: "\(path).\(index)",
+                        suppressOwnEditorRenderGuide: false,
+                        representsSelectedGroupGuide: false,
                         fontScale: fontScale,
                         availableWidth: childWidth,
                         centersLeafBlocks: centersLeafBlocks,
@@ -478,6 +502,7 @@ private struct ZoneContentTreePreview: View {
                         showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
                         usesBorderOnlyZoneHighlights: usesBorderOnlyZoneHighlights,
                         zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
+                        debugGuideStyle: debugGuideStyle,
                         textVerticalPadding: textVerticalPadding,
                         textHorizontalPaddingOverride: textHorizontalPaddingOverride,
                         alignmentFeedback: alignmentFeedback,
@@ -486,10 +511,10 @@ private struct ZoneContentTreePreview: View {
                         onTap: onTap,
                         onZoneTap: onZoneTap
                     )
-                    .frame(width: childWidth, alignment: .topLeading)
+                        .frame(width: childWidth, alignment: .topLeading)
                 }
             }
-            .frame(width: availableWidth, alignment: .topLeading)
+                .frame(width: availableWidth, alignment: .topLeading)
         } else {
             let childPaths = indexedChildren.map { "\(path).\($0.offset)" }
             let containerIdentity = verticalContainerMeasurementIdentity(for: children)
@@ -511,6 +536,14 @@ private struct ZoneContentTreePreview: View {
                         ZoneContentTreePreview(
                             zone: child,
                             path: "\(path).\(index)",
+                            suppressOwnEditorRenderGuide: shouldSuppressGuide(
+                                for: child,
+                                childPath: "\(path).\(index)",
+                                childCount: children.count,
+                                groupWidth: groupWidth
+                            ),
+                            representsSelectedGroupGuide: children.count == 1
+                                && alignmentFeedback.highlightedTarget == groupTarget,
                             fontScale: fontScale,
                             availableWidth: groupWidth,
                             centersLeafBlocks: centersLeafBlocks,
@@ -520,6 +553,7 @@ private struct ZoneContentTreePreview: View {
                             showsCodeBlockZoneSurfaces: showsCodeBlockZoneSurfaces,
                             usesBorderOnlyZoneHighlights: usesBorderOnlyZoneHighlights,
                             zoneHighlightStrokeStyle: zoneHighlightStrokeStyle,
+                            debugGuideStyle: debugGuideStyle,
                             textVerticalPadding: textVerticalPadding,
                             textHorizontalPaddingOverride: textHorizontalPaddingOverride,
                             alignmentFeedback: alignmentFeedback,
@@ -528,35 +562,49 @@ private struct ZoneContentTreePreview: View {
                             onTap: onTap,
                             onZoneTap: onZoneTap
                         )
-                        .frame(width: groupWidth, alignment: .topLeading)
+                            .frame(width: groupWidth, alignment: .topLeading)
                     }
                 }
-                .frame(width: groupWidth, alignment: .topLeading)
-                .overlay {
+                    .frame(width: groupWidth, alignment: .topLeading)
+                    .overlay {
                     ZStack {
-                        if showsDebugGuides {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(
-                                    Color.red.opacity(0.95),
-                                    style: StrokeStyle(lineWidth: 1.8, dash: [8, 5])
-                                )
-                                .allowsHitTesting(false)
-                        }
-
                         if let groupTarget,
-                           alignmentFeedback.highlightedTarget == groupTarget {
-                            zoneAlignmentHighlight()
+                           children.count > 1,
+                           !suppressOwnEditorRenderGuide {
+                            let isSelected = alignmentFeedback.highlightedTarget == groupTarget
+
+                            if isSelected {
+                                zoneAlignmentHighlight(
+                                    cornerRadius: groupDebugGuideCornerRadius,
+                                    lineWidth: 1.6,
+                                    shadowRadius: 8
+                                )
+                                    .padding(groupDebugGuideInsets)
+                            } else if showsDebugGuides {
+                                RoundedRectangle(
+                                    cornerRadius: groupDebugGuideCornerRadius,
+                                    style: .continuous
+                                )
+                                    .strokeBorder(
+                                        groupDebugGuideColor,
+                                        style: StrokeStyle(lineWidth: 1.4, dash: [8, 5])
+                                    )
+                                    .padding(groupDebugGuideInsets)
+                                    .allowsHitTesting(false)
+                            }
                         }
                     }
+
+                        .animation(.easeInOut(duration: 0.22), value: alignmentFeedback.highlightedTarget)
                 }
-                .offset(x: groupWiggleOffset)
+                    .offset(x: groupWiggleOffset)
 
                 Color.clear.frame(width: max(availableWidth - groupLeadingInset - groupWidth, 0))
             }
-            .frame(width: availableWidth, alignment: .topLeading)
-            .animation(.easeOut(duration: 0.22), value: groupLeadingInset)
-            .animation(.easeOut(duration: 0.22), value: groupWidth)
-            .onPreferenceChange(ZoneContentWidthPreferenceKey.self) { widths in
+                .frame(width: availableWidth, alignment: .topLeading)
+                .animation(.easeOut(duration: 0.22), value: groupLeadingInset)
+                .animation(.easeOut(duration: 0.22), value: groupWidth)
+                .onPreferenceChange(ZoneContentWidthPreferenceKey.self) { widths in
                 let directWidths: [String: CGFloat] = Dictionary(
                     uniqueKeysWithValues: zip(childPaths, children).compactMap { childPath, child -> (String, CGFloat)? in
                         guard let width = widths[childPath], width > 0 else {
@@ -585,10 +633,10 @@ private struct ZoneContentTreePreview: View {
 
                 measuredDirectChildWidths = directWidths
             }
-            .onChange(of: containerIdentity) { _, _ in
+                .onChange(of: containerIdentity) { _, _ in
                 measuredDirectChildWidths = [:]
             }
-            .preference(
+                .preference(
                 key: ZoneContentWidthPreferenceKey.self,
                 value: [path: groupWidth]
             )
@@ -626,17 +674,39 @@ private struct ZoneContentTreePreview: View {
         return min(max(ceil(estimatedWidth), 1), availableWidth)
     }
 
+    private func shouldSuppressGuide(
+        for child: ZoneModel,
+        childPath: String,
+        childCount: Int,
+        groupWidth: CGFloat
+    ) -> Bool {
+        guard debugGuideStyle == .editorRender, childCount > 1 else {
+            return false
+        }
+
+        let childWidth = measuredDirectChildWidths[childPath]
+            ?? ZoneContentEstimator.estimatedBlockWidth(
+                for: child,
+                fontScale: fontScale,
+                availableWidth: availableWidth,
+                textVerticalPadding: textVerticalPadding,
+                textHorizontalPaddingOverride: textHorizontalPaddingOverride
+            )
+
+        return childWidth >= groupWidth - 1
+    }
+
     private func estimatedVerticalGroupWidth(for children: [ZoneModel]) -> CGFloat {
         let widestChild = children
             .map {
-                ZoneContentEstimator.estimatedBlockWidth(
-                    for: $0,
-                    fontScale: fontScale,
-                    availableWidth: availableWidth,
-                    textVerticalPadding: textVerticalPadding,
-                    textHorizontalPaddingOverride: textHorizontalPaddingOverride
-                )
-            }
+            ZoneContentEstimator.estimatedBlockWidth(
+                for: $0,
+                fontScale: fontScale,
+                availableWidth: availableWidth,
+                textVerticalPadding: textVerticalPadding,
+                textHorizontalPaddingOverride: textHorizontalPaddingOverride
+            )
+        }
             .max() ?? availableWidth
 
         return min(max(ceil(widestChild), 1), availableWidth)
@@ -703,6 +773,34 @@ private struct ZoneContentTreePreview: View {
     private var resolvedTextHorizontalPadding: CGFloat {
         textHorizontalPaddingOverride ?? ZoneContentMetrics.textHorizontalPadding
     }
+
+    private var groupDebugGuideColor: Color {
+        switch debugGuideStyle {
+        case .debug:
+            Color.red.opacity(0.95)
+        case .editorRender:
+            Color.gray.opacity(0.58)
+        }
+    }
+
+    private var groupDebugGuideCornerRadius: CGFloat {
+        ZoneContentMetrics.zoneCornerRadius + ZoneContentMetrics.childSpacing
+    }
+
+    private var groupDebugGuideInsets: EdgeInsets {
+        switch debugGuideStyle {
+        case .debug:
+            return EdgeInsets()
+        case .editorRender:
+            let horizontalOutset = FlashcardPlayLayoutTuning.cardToContentHorizontalPaddingCompact
+            return EdgeInsets(
+                top: -ZoneContentMetrics.childSpacing,
+                leading: -horizontalOutset,
+                bottom: -ZoneContentMetrics.childSpacing,
+                trailing: -horizontalOutset
+            )
+        }
+    }
 }
 
 // MARK: - Zone Content Leaf Preview
@@ -710,6 +808,8 @@ private struct ZoneContentTreePreview: View {
 private struct ZoneContentLeafPreview: View {
     let zone: ZoneModel
     let path: String
+    let suppressOwnEditorRenderGuide: Bool
+    let representsSelectedGroupGuide: Bool
     let fontScale: CGFloat
     let availableWidth: CGFloat
     let centersLeafBlocks: Bool
@@ -719,6 +819,7 @@ private struct ZoneContentLeafPreview: View {
     let showsCodeBlockZoneSurfaces: Bool
     let usesBorderOnlyZoneHighlights: Bool
     let zoneHighlightStrokeStyle: StrokeStyle
+    let debugGuideStyle: ZoneContentDebugGuideStyle
     let textVerticalPadding: CGFloat
     let textHorizontalPaddingOverride: CGFloat?
     let alignmentFeedback: ZoneAlignmentFeedback
@@ -759,52 +860,57 @@ private struct ZoneContentLeafPreview: View {
                 renderBlockBounds(layout: layout)
                 zoneBlockSurface(layout: layout)
 
-                if let leafTarget,
-                   alignmentFeedback.highlightedTarget == leafTarget {
+                if debugGuideStyle != .editorRender,
+                    let leafTarget,
+                    alignmentFeedback.highlightedTarget == leafTarget {
                     zoneAlignmentHighlight()
                         .frame(width: layout.blockSize.width, height: layout.blockSize.height)
                 }
 
-                if showsDebugGuides {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                if showsDebugGuides && !suppressOwnEditorRenderGuide {
+                    RoundedRectangle(
+                        cornerRadius: ZoneContentMetrics.zoneCornerRadius,
+                        style: .continuous
+                    )
                         .stroke(
-                            Color.orange.opacity(0.95),
-                            style: StrokeStyle(lineWidth: 1.6, dash: [5, 4])
-                        )
+                        leafDebugGuideColor,
+                        style: leafDebugGuideStrokeStyle
+                    )
                         .frame(width: layout.blockSize.width, height: layout.blockSize.height)
                         .allowsHitTesting(false)
+                        .animation(.easeInOut(duration: 0.18), value: isLeafAlignmentTarget)
                 }
 
                 leafContent(layout: layout)
                     .frame(
-                        width: layout.contentLayoutWidth,
-                        height: contentFrameHeight(for: layout),
-                        alignment: contentAlignment(for: resolvedLayoutZone)
-                    )
+                    width: layout.contentLayoutWidth,
+                    height: contentFrameHeight(for: layout),
+                    alignment: contentAlignment(for: resolvedLayoutZone)
+                )
                     .onGeometryChange(for: CGSize.self) { proxy in
-                        CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
-                    } action: { newSize in
-                        updateRenderedContentSize(newSize, source: "swiftui-geometry")
-                    }
+                    CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
+                } action: { newSize in
+                    updateRenderedContentSize(newSize, source: "swiftui-geometry")
+                }
             }
-            .frame(width: layout.blockSize.width, height: layout.blockSize.height, alignment: .topLeading)
-            .offset(x: leafWiggleOffset)
+                .frame(width: layout.blockSize.width, height: layout.blockSize.height, alignment: .topLeading)
+                .offset(x: leafWiggleOffset)
 
             Color.clear.frame(width: max(availableWidth - layout.leadingInset - layout.blockSize.width, 0))
         }
-        .frame(width: availableWidth, height: layout.blockSize.height, alignment: .topLeading)
-        .animation(.easeOut(duration: 0.22), value: layout.leadingInset)
-        .preference(
+            .frame(width: availableWidth, height: layout.blockSize.height, alignment: .topLeading)
+            .animation(.easeOut(duration: 0.22), value: layout.leadingInset)
+            .preference(
             key: ZoneContentLeafDebugPreferenceKey.self,
             value: collectsDebugMetrics
                 ? [debugSnapshot(layout: layout, layoutZone: resolvedLayoutZone)]
-                : []
+            : []
         )
-        .preference(
+            .preference(
             key: ZoneContentWidthPreferenceKey.self,
             value: [path: layout.blockSize.width]
         )
-        .onChange(of: measurementIdentity) { oldIdentity, newIdentity in
+            .onChange(of: measurementIdentity) { oldIdentity, newIdentity in
             guard !oldIdentity.matchesContent(of: newIdentity) else {
                 appendMeasurementEvent(
                     "width changed \(Int(oldIdentity.availableWidth)) -> \(Int(newIdentity.availableWidth)); preserved \(debugSize(renderedContentSize))"
@@ -830,18 +936,18 @@ private struct ZoneContentLeafPreview: View {
         Color.clear
             .frame(width: layout.blockSize.width, height: layout.blockSize.height)
             .background(
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: ZoneContentRenderBlockBoundsPreferenceKey.self,
-                        value: [
-                            ZoneContentRenderBlockBounds(
-                                zoneID: zone.id,
-                                frame: proxy.frame(in: .named(ZoneContentRenderCoordinateSpace.name))
-                            )
-                        ]
-                    )
-                }
-            )
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: ZoneContentRenderBlockBoundsPreferenceKey.self,
+                    value: [
+                        ZoneContentRenderBlockBounds(
+                            zoneID: zone.id,
+                            frame: proxy.frame(in: .named(ZoneContentRenderCoordinateSpace.name))
+                        )
+                    ]
+                )
+            }
+        )
             .allowsHitTesting(false)
     }
 
@@ -851,6 +957,37 @@ private struct ZoneContentLeafPreview: View {
 
     private var leafTarget: ZoneAlignmentTargetRef? {
         zonePath.map { ZoneAlignmentTargetRef(path: $0, kind: .leaf) }
+    }
+
+    private var isLeafAlignmentTarget: Bool {
+        if representsSelectedGroupGuide {
+            return true
+        }
+
+        guard let leafTarget else { return false }
+        return alignmentFeedback.highlightedTarget == leafTarget
+    }
+
+    private var leafDebugGuideColor: Color {
+        switch debugGuideStyle {
+        case .debug:
+            Color.orange.opacity(0.95)
+        case .editorRender:
+            isLeafAlignmentTarget
+                ? ThemeManager.shared.accentColor.color.opacity(0.9)
+            : Color.gray.opacity(0.58)
+        }
+    }
+
+    private var leafDebugGuideStrokeStyle: StrokeStyle {
+        switch debugGuideStyle {
+        case .debug:
+            StrokeStyle(lineWidth: 1.6, dash: [5, 4])
+        case .editorRender:
+            isLeafAlignmentTarget
+                ? StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)
+            : StrokeStyle(lineWidth: 1.6, dash: [5, 4])
+        }
     }
 
     private var zonePath: ZonePath? {
@@ -931,15 +1068,15 @@ private struct ZoneContentLeafPreview: View {
                 RoundedRectangle(cornerRadius: ZoneContentMetrics.zoneCornerRadius, style: .continuous)
                     .fill(zoneSurfaceFill)
                     .overlay {
-                        RoundedRectangle(cornerRadius: ZoneContentMetrics.zoneCornerRadius, style: .continuous)
-                            .stroke(Color.white.opacity(0.10), lineWidth: 0.8)
-                    }
+                    RoundedRectangle(cornerRadius: ZoneContentMetrics.zoneCornerRadius, style: .continuous)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 0.8)
+                }
                     .overlay {
-                        if let tint {
-                            RoundedRectangle(cornerRadius: ZoneContentMetrics.zoneCornerRadius, style: .continuous)
-                                .stroke(tint.opacity(0.86), style: zoneHighlightStrokeStyle)
-                        }
+                    if let tint {
+                        RoundedRectangle(cornerRadius: ZoneContentMetrics.zoneCornerRadius, style: .continuous)
+                            .stroke(tint.opacity(0.86), style: zoneHighlightStrokeStyle)
                     }
+                }
                     .shadow(color: tint?.opacity(0.16) ?? .clear, radius: tint == nil ? 0 : 3)
                     .frame(width: layout.blockSize.width, height: layout.blockSize.height)
                     .allowsHitTesting(false)
@@ -1021,13 +1158,13 @@ private struct ZoneContentLeafPreview: View {
         )
         let renderedLineDebugHandler: (([MixedMathRenderedLineDebug]) -> Void)? = collectsDebugMetrics
             ? { lines in renderedTokenLines = lines }
-            : nil
+        : nil
         let scrollableDebugHandler: (([MixedMathScrollableDebug]) -> Void)? = collectsDebugMetrics
             ? { rows in renderedScrollableMath = rows }
-            : nil
+        : nil
         let gestureDebugHandler: ((MixedMathGestureDebugSnapshot) -> Void)? = collectsDebugMetrics
             ? { snapshot in mathGestureDebug = snapshot }
-            : nil
+        : nil
         let renderStatusDebugHandler: ((MixedMathRenderStatusDebug) -> Void)? = { snapshot in
             renderStatusDebug = snapshot
         }
@@ -1039,9 +1176,9 @@ private struct ZoneContentLeafPreview: View {
                 Circle()
                     .fill(zone.textColor.color)
                     .frame(
-                        width: ZoneContentMetrics.bulletWidth,
-                        height: ZoneContentMetrics.bulletWidth
-                    )
+                    width: ZoneContentMetrics.bulletWidth,
+                    height: ZoneContentMetrics.bulletWidth
+                )
                     .padding(.top, 8)
             }
 
@@ -1077,8 +1214,8 @@ private struct ZoneContentLeafPreview: View {
                     showsRenderDebugBounds: showsDebugGuides || collectsDebugMetrics,
                     onTap: richContentTapHandler
                 )
-                .padding(.vertical, textVerticalPadding / 2)
-                .padding(.horizontal, layout.textHorizontalInsets / 2)
+                    .padding(.vertical, textVerticalPadding / 2)
+                    .padding(.horizontal, layout.textHorizontalInsets / 2)
             } else {
                 ZoneContentPlainTextBlockView(
                     text: previewText,
@@ -1097,11 +1234,11 @@ private struct ZoneContentLeafPreview: View {
                     },
                     onTap: plainTextTapHandler
                 )
-                .padding(.vertical, textVerticalPadding / 2)
-                .padding(.horizontal, layout.textHorizontalInsets / 2)
+                    .padding(.vertical, textVerticalPadding / 2)
+                    .padding(.horizontal, layout.textHorizontalInsets / 2)
             }
         }
-        .frame(width: layout.contentLayoutWidth, alignment: .topLeading)
+            .frame(width: layout.contentLayoutWidth, alignment: .topLeading)
     }
 
     private func updateRenderedContentSize(_ newSize: CGSize, source: String) {
@@ -1183,7 +1320,7 @@ private struct ZoneContentLeafPreview: View {
     private var minimumValidRenderedWidth: CGFloat {
         let bulletInset = zone.hasBullet
             ? ZoneContentMetrics.bulletWidth + ZoneContentMetrics.bulletSpacing
-            : 0
+        : 0
         return min(
             max(resolvedTextHorizontalPadding + bulletInset + 8, 1),
             availableWidth
@@ -1210,19 +1347,19 @@ private struct ZoneContentLeafPreview: View {
         let effectiveTextWidthLimit = layout.textWidthLimit ?? max(layout.contentLayoutWidth, 1)
         let estimatedLineWidths = zone.contentType == .text
             ? ZoneContentEstimator.debugLineWidths(
-                for: zone,
-                fontScale: fontScale,
-                availableWidth: effectiveTextWidthLimit
-            )
-            : []
+            for: zone,
+            fontScale: fontScale,
+            availableWidth: effectiveTextWidthLimit
+        )
+        : []
         let renderedLineLayout = zone.contentType == .text && !containsMath && !containsInlineCode
             ? ZoneContentPlainTextLayoutMeasurer.layout(
-                text: displayText,
-                zone: zone,
-                fontScale: fontScale,
-                availableWidth: effectiveTextWidthLimit
-            )
-            : .empty
+            text: displayText,
+            zone: zone,
+            fontScale: fontScale,
+            availableWidth: effectiveTextWidthLimit
+        )
+        : .empty
 
         return ZoneContentLeafLayoutDebugSnapshot(
             path: path,
@@ -1357,12 +1494,12 @@ private struct ZoneContentPlainTextBlockView: View {
                     .frame(width: line.width, alignment: .leading)
             }
         }
-        .frame(width: max(availableWidth, layout.size.width), alignment: frameAlignment)
-        .zoneContentPlainTextTap(onTap)
-        .onAppear {
+            .frame(width: max(availableWidth, layout.size.width), alignment: frameAlignment)
+            .zoneContentPlainTextTap(onTap)
+            .onAppear {
             onIntrinsicContentSizeChange?(layout.size)
         }
-        .onChange(of: layout.size) { _, newSize in
+            .onChange(of: layout.size) { _, newSize in
             onIntrinsicContentSizeChange?(newSize)
         }
     }
@@ -1428,7 +1565,7 @@ private enum ZoneContentPlainTextLayoutMeasurer {
 
                     let candidate = current.isEmpty
                         ? [nextToken]
-                        : current + [nextToken]
+                    : current + [nextToken]
                     let candidateWidth = measuredWidth(for: normalizedLineTokens(candidate))
 
                     if !current.isEmpty, candidateWidth > widthLimit {
@@ -1597,7 +1734,7 @@ private enum ZoneContentPlainTextLayoutMeasurer {
     ) -> [NSAttributedString.Key: Any] {
         let weight = fontWeight(for: zone, emphasized: emphasized)
         return [
-            .font: uiFont(for: zone, fontScale: fontScale, weight: weight)
+                .font: uiFont(for: zone, fontScale: fontScale, weight: weight)
         ]
     }
 
@@ -1727,7 +1864,7 @@ private struct ZoneContentPlainTextToken: Equatable {
         text.map { character in
             character == " " ? "\u{00A0}" : String(character)
         }
-        .joined()
+            .joined()
     }
 
     func replacingText(_ value: String) -> ZoneContentPlainTextToken {
@@ -1862,14 +1999,14 @@ enum ZoneContentEstimator {
         case .vertical:
             return children
                 .map {
-                    estimatedBlockWidth(
-                        for: $0,
-                        fontScale: fontScale,
-                        availableWidth: clampedWidth,
-                        textVerticalPadding: textVerticalPadding,
-                        textHorizontalPaddingOverride: textHorizontalPaddingOverride
-                    )
-                }
+                estimatedBlockWidth(
+                    for: $0,
+                    fontScale: fontScale,
+                    availableWidth: clampedWidth,
+                    textVerticalPadding: textVerticalPadding,
+                    textHorizontalPaddingOverride: textHorizontalPaddingOverride
+                )
+            }
                 .max() ?? 1
 
         case .horizontal:
@@ -1880,7 +2017,7 @@ enum ZoneContentEstimator {
                 textVerticalPadding: textVerticalPadding,
                 textHorizontalPaddingOverride: textHorizontalPaddingOverride
             )
-            .width
+                .width
         }
     }
 
@@ -1896,7 +2033,7 @@ enum ZoneContentEstimator {
             fontScale: fontScale,
             availableWidth: availableWidth
         )
-        .lineWidths
+            .lineWidths
     }
 
     private static func estimatedLeafSize(
@@ -1915,7 +2052,7 @@ enum ZoneContentEstimator {
             let horizontalInsets = textHorizontalPaddingOverride ?? textHorizontalPadding
             let bulletInset = zone.hasBullet && !displayText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? bulletWidth + bulletSpacing
-                : 0
+            : 0
             let textWidth = max(availableWidth - horizontalInsets - bulletInset, 1)
             let measuredSize: CGSize
 
@@ -1967,10 +2104,10 @@ enum ZoneContentEstimator {
 
     private static func imageHeightRatio(for data: Data?) -> CGFloat {
         guard let data,
-              let image = UIImage(data: data),
-              image.size.width > 0,
-              image.size.height > 0
-        else {
+            let image = UIImage(data: data),
+            image.size.width > 0,
+            image.size.height > 0
+            else {
             return 0.66
         }
 
@@ -1995,7 +2132,7 @@ enum ZoneContentEstimator {
             fontScale: fontScale,
             availableWidth: availableWidth
         )
-        .size
+            .size
     }
 
     private static func singleInlineCodeLiteral(in text: String) -> String? {
@@ -2003,7 +2140,7 @@ enum ZoneContentEstimator {
             let regex = try? NSRegularExpression(pattern: #"^`([^`]+)`$"#),
             let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
             let range = Range(match.range(at: 1), in: text)
-        else {
+            else {
             return nil
         }
 
@@ -2095,13 +2232,13 @@ enum ZoneContentEstimator {
             )
             let resolvedWidth = preferredWidth <= availableWidth
                 ? max(lineLayout.size.width, preferredWidth)
-                : lineLayout.size.width
+            : lineLayout.size.width
 
             return TextLayoutMeasurement(
                 size: CGSize(width: ceil(resolvedWidth), height: lineLayout.size.height),
                 lineWidths: preferredWidth <= availableWidth
                     ? [ceil(preferredWidth)]
-                    : lineLayout.lines.map(\.width)
+                : lineLayout.lines.map(\.width)
             )
         }
 
@@ -2123,12 +2260,12 @@ enum ZoneContentEstimator {
     ) -> CGFloat {
         text.components(separatedBy: .newlines)
             .map {
-                measuredPreferredInlineMarkdownLineWidth(
-                    $0,
-                    zone: zone,
-                    fontScale: fontScale
-                )
-            }
+            measuredPreferredInlineMarkdownLineWidth(
+                $0,
+                zone: zone,
+                fontScale: fontScale
+            )
+        }
             .max() ?? 1
     }
 
@@ -2288,13 +2425,13 @@ enum ZoneContentEstimator {
         paragraphStyle.lineBreakMode = .byWordWrapping
 
         return [
-            .font: font(
+                .font: font(
                 for: zone,
                 fontScale: fontScale,
                 emphasized: emphasized,
                 monospaced: monospaced
             ),
-            .paragraphStyle: paragraphStyle
+                .paragraphStyle: paragraphStyle
         ]
     }
 

@@ -112,16 +112,21 @@ struct ZoneEditorCanvas: View {
     @State private var renderLayoutDebugSnapshot: ZoneEditorLayoutDebugSnapshot?
     @State private var lastLayoutDebugSnapshotTime: CFTimeInterval = 0
     @State private var windowTouchDebugLines: [String] = []
+    @State private var interactionTrace: [String] = []
+    @State private var interactionTraceIndex = 0
+    @State private var lastAlignmentMenuInteractionTime: CFTimeInterval = 0
 
     private var focusManager: ZoneFocusManager { ZoneFocusManager.shared }
 
     private static let coordinateSpaceName = "ZoneEditorCanvasContent"
     private static let alignmentTolerance: CGFloat = 1
     private static let alignmentMenuSize = CGSize(width: 104, height: 44)
+    private static let alignmentMenuVerticalSpacing: CGFloat = 28
+    private static let bottomScrollInset: CGFloat = 120
     private static let renderHitSlop: CGFloat = 8
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
-    private var renderScreenHorizontalPadding: CGFloat {
+    private var screenToCardHorizontalPadding: CGFloat {
         isCompact
             ? FlashcardPlayLayoutTuning.screenToCardHorizontalPaddingCompact
             : FlashcardPlayLayoutTuning.screenToCardHorizontalPaddingRegular
@@ -175,46 +180,44 @@ struct ZoneEditorCanvas: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let horizontalInset: CGFloat = renderScreenHorizontalPadding
-            let maxEditorWidth: CGFloat = isCompact ? .infinity : 620
-            let proposedWidth = max(geometry.size.width - (horizontalInset * 2), 1)
-            let cardWidth = min(proposedWidth, maxEditorWidth)
+            let externalHorizontalPadding = screenToCardHorizontalPadding
+            let cardWidth = max(geometry.size.width - (externalHorizontalPadding * 2), 1)
             let editorViewportHeight = max(geometry.size.height - (UIConstants.Spacing.small * 2), 1)
             let surfaceHorizontalPadding = contentHorizontalPadding
             let surfaceVerticalPadding = contentVerticalPadding
             let contentWidth = max(cardWidth - (surfaceHorizontalPadding * 2), 1)
-            let contentHeight = max(editorViewportHeight - (surfaceVerticalPadding * 2), 1)
-            let scrollBottomAvoidanceInset = keyboardMonitor.isVisible
-                ? max(keyboardMonitor.visibleHeight + activeBottomChromeClearance, 160)
-                : 0
-            let idleBottomCreationInset = max(editorViewportHeight * 0.45, 260)
-            let bottomCreationTapInset = keyboardMonitor.isVisible
-                ? scrollBottomAvoidanceInset
-                : idleBottomCreationInset
+            let contentViewportHeight = max(
+                editorViewportHeight - topContentInset - (surfaceVerticalPadding * 2),
+                1
+            )
+            let contentHeight = contentViewportHeight
+            let bottomScrollInset = Self.bottomScrollInset
+            let minimumScrollContentHeight = editorViewportHeight
 
             ScrollViewReader { _ in
                 ScrollView(.vertical, showsIndicators: false) {
                     zoneContentSurface(
                         contentWidth: contentWidth,
                         contentHeight: contentHeight,
-                        bottomCreationTapInset: bottomCreationTapInset
+                        bottomScrollInset: bottomScrollInset
                     )
                     .padding(.horizontal, surfaceHorizontalPadding)
                     .padding(.top, surfaceVerticalPadding + topContentInset)
                     .padding(.bottom, surfaceVerticalPadding)
                     .frame(width: cardWidth, alignment: .topLeading)
-                    .frame(minHeight: editorViewportHeight + topContentInset + bottomCreationTapInset, alignment: .topLeading)
+                    .frame(minHeight: minimumScrollContentHeight, alignment: .topLeading)
                 }
                 .background {
                     ZoneEditorScrollViewLocator { scrollView in
                         scrollDriver.attach(scrollView)
                         scrollDriver.setTopInset(0)
-                        scrollDriver.resetBottomInset()
+                        refreshBottomScrollInset()
                         scrollDriver.setScrollOffsetHandler(handleScrollOffsetChange)
-                    configureTapProbe()
+                        configureTapProbe()
                     }
                 }
                 .scrollDismissesKeyboard(.never)
+                .scrollClipDisabled()
                 .frame(width: cardWidth, height: editorViewportHeight, alignment: .topLeading)
                 .background(windowTouchProbeBackground)
                 .overlay(alignment: .topLeading) {
@@ -231,7 +234,7 @@ struct ZoneEditorCanvas: View {
                     viewportScreenFrame = newFrame
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .padding(.horizontal, horizontalInset)
+                .padding(.horizontal, externalHorizontalPadding)
                 .padding(.top, UIConstants.Spacing.small)
                 .padding(.bottom, UIConstants.Spacing.small)
                 .onChange(of: selectedPath) { _, newPath in
@@ -257,7 +260,7 @@ struct ZoneEditorCanvas: View {
                     let oldHeight = lastKeyboardVisibleHeight
                     lastKeyboardVisibleHeight = newHeight
                     scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
-                    scrollDriver.resetBottomInset()
+                    refreshBottomScrollInset()
 
                     if newHeight <= 1, !keyboardMonitor.isVisible {
                         cancelCaretAvoidanceScroll()
@@ -271,7 +274,7 @@ struct ZoneEditorCanvas: View {
                 }
                 .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
                     lastKeyboardVisibleHeight = keyboardMonitor.visibleHeight
-                    scrollDriver.resetBottomInset()
+                    refreshBottomScrollInset()
                     if isVisible {
                         scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
@@ -326,13 +329,13 @@ struct ZoneEditorCanvas: View {
                     )
                 }
                 .onChange(of: bottomAccessoryTopY) { _, _ in
-                    scrollDriver.resetBottomInset()
+                    refreshBottomScrollInset()
                     if shouldMaintainKeyboardAvoidance {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     }
                 }
                 .onChange(of: bottomAccessoryHeight) { _, _ in
-                    scrollDriver.resetBottomInset()
+                    refreshBottomScrollInset()
                     if shouldMaintainKeyboardAvoidance {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     }
@@ -341,7 +344,7 @@ struct ZoneEditorCanvas: View {
                     cancelCaretAvoidanceScroll()
                     clearActiveCaretGeometry()
                     dismissAlignmentMenu()
-                    scrollDriver.resetBottomInset()
+                    refreshBottomScrollInset()
                     scrollDriver.resetToTop()
                 }
                 .onChange(of: scrollRestorationRequest) { _, request in
@@ -377,7 +380,7 @@ struct ZoneEditorCanvas: View {
                     )
                 }
                 .onAppear {
-                    scrollDriver.resetBottomInset()
+                    refreshBottomScrollInset()
                     pendingScrollRestorationRequest = scrollRestorationRequest
                     updateCanvasDebug(
                         cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
@@ -440,15 +443,16 @@ struct ZoneEditorCanvas: View {
     private func zoneContentSurface(
         contentWidth: CGFloat,
         contentHeight: CGFloat,
-        bottomCreationTapInset: CGFloat
+        bottomScrollInset: CGFloat
     ) -> some View {
         let layout = contentLayoutMetrics(
             contentSize: CGSize(width: contentWidth, height: contentHeight)
         )
         let tappableContentSize = CGSize(
             width: contentWidth,
-            height: contentHeight + bottomCreationTapInset
+            height: contentHeight + bottomScrollInset
         )
+        let surfaceHeight = max(contentHeight, layout.scrollContentHeight)
 
         return VStack(alignment: .leading, spacing: 0) {
             Group {
@@ -492,7 +496,7 @@ struct ZoneEditorCanvas: View {
                     }
                 }
             }
-            .frame(width: contentWidth, height: contentHeight, alignment: .topLeading)
+            .frame(width: contentWidth, height: surfaceHeight, alignment: .topLeading)
             .contentShape(Rectangle())
             .simultaneousGesture(
                 emptySpaceTapGesture(contentSize: tappableContentSize),
@@ -502,10 +506,16 @@ struct ZoneEditorCanvas: View {
                 usefulSurfaceDebugOutline
             }
 
-            Color.clear
-                .frame(width: contentWidth, height: contentHeight + bottomCreationTapInset)
-                .contentShape(Rectangle())
-                .gesture(emptySpaceTapGesture(contentSize: tappableContentSize))
+            if rendersRichText {
+                Color.clear
+                    .frame(width: contentWidth, height: bottomScrollInset)
+                    .allowsHitTesting(false)
+            } else {
+                Color.clear
+                    .frame(width: contentWidth, height: bottomScrollInset)
+                    .contentShape(Rectangle())
+                    .gesture(emptySpaceTapGesture(contentSize: tappableContentSize))
+            }
         }
         .frame(width: contentWidth, alignment: .topLeading)
         .coordinateSpace(name: Self.coordinateSpaceName)
@@ -618,7 +628,8 @@ struct ZoneEditorCanvas: View {
                 fontScale: fontScale,
                 availableWidth: layout.availableContentWidth,
                 centersLeafBlocks: faceVerticalAlignment == .center,
-                showsDebugGuides: showsGridDebugOverlay,
+                showsDebugGuides: true,
+                debugGuideStyle: .editorRender,
                 alignmentFeedback: alignmentFeedback,
                 collectsDebugMetrics: false,
                 leafTapBehavior: .all,
@@ -650,17 +661,52 @@ struct ZoneEditorCanvas: View {
     }
 
     private func handleEmptySpaceTap(location: CGPoint, contentSize: CGSize) {
+        if rendersRichText {
+            guard !zoneFrames.contains(where: { $0.frame.contains(location) }) else {
+                lastTapDebugLine = "render tap zone-owned"
+                ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
+                return
+            }
+
+            if let groupHit = renderedAlignmentGroupHit(
+                at: location,
+                contentWidth: contentSize.width,
+                frames: zoneFrames
+            ) {
+                selectedPath = nil
+                focusManager.forceReleaseKeyboard()
+                ZoneController.shared.forceReleaseKeyboard()
+                ZoneController.shared.updateFocusedZone(nil)
+                lastTapDebugLine = "render tap group path=\(groupHit.path.id)"
+                ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
+                recordInteractionTrace(
+                    "GROUP HIT path=\(groupHit.path.id) point=\(tracePoint(location)) frame=\(traceRect(groupHit.hitFrame))"
+                )
+                presentAlignmentMenu(
+                    for: groupHit.path,
+                    contentWidth: contentSize.width,
+                    preferredAnchor: location
+                )
+                return
+            }
+
+            if alignmentMenuState != nil {
+                dismissAlignmentMenu()
+                lastTapDebugLine = "tap dismiss alignment menu"
+                ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
+                return
+            }
+
+            lastTapDebugLine = "render tap empty x=\(Int(location.x)) y=\(Int(location.y))"
+            ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
+            selectedPath = nil
+            return
+        }
+
         if alignmentMenuState != nil {
             dismissAlignmentMenu()
             lastTapDebugLine = "tap dismiss alignment menu"
             ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
-            return
-        }
-
-        if rendersRichText {
-            lastTapDebugLine = "render tap empty x=\(Int(location.x)) y=\(Int(location.y))"
-            ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
-            selectedPath = nil
             return
         }
 
@@ -681,7 +727,11 @@ struct ZoneEditorCanvas: View {
         )
     }
 
-    private func handleRenderedZoneTap(_ zoneID: UUID, contentWidth: CGFloat) {
+    private func handleRenderedZoneTap(
+        _ zoneID: UUID,
+        contentWidth: CGFloat,
+        tapLocation: CGPoint? = nil
+    ) {
         guard rendersRichText,
               let path = findPath(for: zoneID, in: content.rootZone) else {
             lastTapDebugLine = "render leaf tap unresolved zone=\(zoneID.uuidString.prefix(6))"
@@ -695,7 +745,7 @@ struct ZoneEditorCanvas: View {
         ZoneController.shared.updateFocusedZone(nil)
         lastTapDebugLine = "render leaf tap path=\(path.id) zone=\(zoneID.uuidString.prefix(6))"
         ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
-        presentAlignmentMenu(for: path, contentWidth: contentWidth)
+        presentAlignmentMenu(for: path, contentWidth: contentWidth, preferredAnchor: tapLocation)
     }
 
     @ViewBuilder
@@ -710,9 +760,16 @@ struct ZoneEditorCanvas: View {
                         )
                         .contentShape(Rectangle())
                         .position(x: resolvedFrame.frame.midX, y: resolvedFrame.frame.midY)
-                        .onTapGesture {
-                            handleRenderedZoneTap(resolvedFrame.zoneID, contentWidth: contentWidth)
-                        }
+                        .gesture(
+                            SpatialTapGesture(coordinateSpace: .named(Self.coordinateSpaceName))
+                                .onEnded { value in
+                                    handleRenderedZoneTap(
+                                        resolvedFrame.zoneID,
+                                        contentWidth: contentWidth,
+                                        tapLocation: value.location
+                                    )
+                                }
+                        )
                 }
             }
             .allowsHitTesting(true)
@@ -765,15 +822,29 @@ struct ZoneEditorCanvas: View {
         presentAlignmentMenu(for: tappedPath, contentWidth: contentWidth)
     }
 
-    private func presentAlignmentMenu(for tappedPath: ZonePath, contentWidth: CGFloat) {
-        guard let state = resolvedAlignmentMenuState(for: tappedPath, contentWidth: contentWidth, frames: zoneFrames) else {
+    private func presentAlignmentMenu(
+        for tappedPath: ZonePath,
+        contentWidth: CGFloat,
+        preferredAnchor: CGPoint? = nil
+    ) {
+        guard let state = resolvedAlignmentMenuState(
+            for: tappedPath,
+            contentWidth: contentWidth,
+            frames: zoneFrames,
+            preferredAnchor: preferredAnchor
+        ) else {
             ZoneEditorDebugStore.shared.recordAlignment("align resolve failed tapped=\(tappedPath.id)")
+            recordInteractionTrace("MENU resolve-failed path=\(tappedPath.id) frames=\(zoneFrames.count)")
             return
         }
 
+        lastAlignmentMenuInteractionTime = CACurrentMediaTime()
         withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
             alignmentMenuState = state
         }
+        recordInteractionTrace(
+            "MENU present path=\(tappedPath.id) frame=\(traceRect(state.frame)) anchor=\(tracePoint(state.anchor))"
+        )
         ZoneEditorDebugStore.shared.recordAlignment(debugSummary(for: state, action: "present"))
     }
 
@@ -782,7 +853,8 @@ struct ZoneEditorCanvas: View {
               let refreshedState = resolvedAlignmentMenuState(
                 for: currentState.tappedPath,
                 contentWidth: contentWidth,
-                frames: frames
+                frames: frames,
+                preferredAnchor: currentState.anchor
               ) else {
             if alignmentMenuState != nil {
                 dismissAlignmentMenu()
@@ -797,6 +869,7 @@ struct ZoneEditorCanvas: View {
 
     private func dismissAlignmentMenu() {
         guard alignmentMenuState != nil else { return }
+        recordInteractionTrace("MENU dismiss")
         withAnimation(.easeOut(duration: 0.16)) {
             alignmentMenuState = nil
         }
@@ -805,6 +878,10 @@ struct ZoneEditorCanvas: View {
         alignmentWiggleTarget = nil
         alignmentWiggleOffset = 0
         thawFrameUpdates()
+    }
+
+    private func refreshBottomScrollInset() {
+        scrollDriver.setBottomInset(Self.bottomScrollInset)
     }
 
     @ViewBuilder
@@ -924,8 +1001,11 @@ struct ZoneEditorCanvas: View {
     private func alignmentMenu(for menuState: ZoneAlignmentMenuState, contentWidth: CGFloat) -> some View {
         let menuWidth = Self.alignmentMenuSize.width
         let menuHeight = Self.alignmentMenuSize.height
-        let x = clampedMenuX(anchorX: menuState.anchor.x, menuWidth: menuWidth, contentWidth: contentWidth)
-        let y = max(menuState.anchor.y + 8, 0)
+        let position = alignmentMenuPosition(for: menuState, contentWidth: contentWidth)
+        let transitionAnchor = UnitPoint(
+            x: min(max((menuState.anchor.x - position.x) / menuWidth, 0), 1),
+            y: (menuState.anchor.y - position.y) / menuHeight
+        )
 
         return HStack(spacing: 4) {
             alignmentMenuButton(systemName: "chevron.left") {
@@ -948,8 +1028,8 @@ struct ZoneEditorCanvas: View {
                 .stroke(Color.primary.opacity(0.12), lineWidth: 0.75)
         )
         .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 8)
-        .offset(x: x, y: y)
-        .transition(.scale(scale: 0.82, anchor: .top).combined(with: .opacity))
+        .offset(x: position.x, y: position.y)
+        .transition(.scale(scale: 0.82, anchor: transitionAnchor).combined(with: .opacity))
         .zIndex(4)
     }
 
@@ -957,7 +1037,10 @@ struct ZoneEditorCanvas: View {
         systemName: String,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        Button {
+            lastAlignmentMenuInteractionTime = CACurrentMediaTime()
+            action()
+        } label: {
             Image(systemName: systemName)
                 .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(Color.primary)
@@ -970,20 +1053,43 @@ struct ZoneEditorCanvas: View {
     private func resolvedAlignmentMenuState(
         for tappedPath: ZonePath,
         contentWidth: CGFloat,
-        frames: [ZoneEditorResolvedZoneFrame]
+        frames: [ZoneEditorResolvedZoneFrame],
+        preferredAnchor: CGPoint? = nil
     ) -> ZoneAlignmentMenuState? {
         guard let target = resolveAlignmentTarget(for: tappedPath, contentWidth: contentWidth, frames: frames) else {
             return nil
         }
+        let anchor = preferredAnchor ?? CGPoint(x: target.frame.midX, y: target.frame.maxY)
 
         return ZoneAlignmentMenuState(
             target: target.targetRef,
             tappedPath: tappedPath,
             frame: target.frame,
-            anchor: CGPoint(x: target.frame.midX, y: target.frame.maxY),
+            anchor: anchor,
             movementWidth: target.movementWidth,
             currentAlignment: target.currentAlignment
         )
+    }
+
+    private func alignmentMenuPosition(
+        for menuState: ZoneAlignmentMenuState,
+        contentWidth: CGFloat
+    ) -> CGPoint {
+        let menuWidth = Self.alignmentMenuSize.width
+        let menuHeight = Self.alignmentMenuSize.height
+        let x = clampedMenuX(
+            anchorX: menuState.anchor.x,
+            menuWidth: menuWidth,
+            contentWidth: contentWidth
+        )
+        let preferredY = menuState.anchor.y + Self.alignmentMenuVerticalSpacing
+        let minY: CGFloat = 0
+        let maxY = max(viewportScreenFrame.height - menuHeight - 8, minY)
+        let y = preferredY <= maxY
+            ? max(preferredY, minY)
+            : max(menuState.anchor.y - menuHeight - Self.alignmentMenuVerticalSpacing, minY)
+
+        return CGPoint(x: x, y: y)
     }
 
     private func resolveAlignmentTarget(
@@ -997,6 +1103,22 @@ struct ZoneEditorCanvas: View {
         currentAlignment: ZoneBlockAlignment
     )? {
         guard let tappedZone = content.zone(at: tappedPath) else { return nil }
+
+        if !tappedZone.isLeaf,
+           tappedZone.direction == .vertical,
+           let groupFrame = frame(forSubtree: tappedPath, in: frames) {
+            return (
+                targetRef: ZoneAlignmentTargetRef(path: tappedPath, kind: .group),
+                frame: groupFrame,
+                movementWidth: availableAlignmentWidth(
+                    for: tappedPath,
+                    contentWidth: contentWidth,
+                    frames: frames
+                ),
+                currentAlignment: resolvedAlignment(for: tappedZone, kind: .group)
+            )
+        }
+
         guard let leafFrame = frame(for: tappedPath, in: frames) else { return nil }
 
         if let singleZoneGroupTarget = singleZoneGroupTarget(
@@ -1202,6 +1324,65 @@ struct ZoneEditorCanvas: View {
         union(of: frames.compactMap { frame in
             frame.path.indices.starts(with: path.indices) ? frame.frame : nil
         })
+    }
+
+    private func renderedAlignmentGroupHit(
+        at point: CGPoint,
+        contentWidth: CGFloat,
+        frames: [ZoneEditorResolvedZoneFrame]
+    ) -> (path: ZonePath, hitFrame: CGRect)? {
+        var candidatePaths = Set<ZonePath>()
+
+        for frame in frames {
+            var candidatePath = frame.path.parent
+            while let path = candidatePath {
+                candidatePaths.insert(path)
+                candidatePath = path.parent
+            }
+        }
+
+        return candidatePaths.compactMap { path -> (path: ZonePath, hitFrame: CGRect)? in
+            guard let zone = content.zone(at: path),
+                  !zone.isLeaf,
+                  zone.direction == .vertical,
+                  renderedDirectChildCount(under: path, frames: frames) > 1,
+                  let contentFrame = frame(forSubtree: path, in: frames) else {
+                return nil
+            }
+
+            let expandedFrame = contentFrame.insetBy(
+                dx: -contentHorizontalPadding,
+                dy: -ZoneContentMetrics.childSpacing
+            )
+            let minX = max(expandedFrame.minX, 0)
+            let maxX = min(expandedFrame.maxX, contentWidth)
+            let hitFrame = CGRect(
+                x: minX,
+                y: expandedFrame.minY,
+                width: max(maxX - minX, 0),
+                height: expandedFrame.height
+            )
+
+            guard hitFrame.contains(point) else { return nil }
+            return (path, hitFrame)
+        }
+        .min {
+            ($0.hitFrame.width * $0.hitFrame.height)
+                < ($1.hitFrame.width * $1.hitFrame.height)
+        }
+    }
+
+    private func renderedDirectChildCount(
+        under path: ZonePath,
+        frames: [ZoneEditorResolvedZoneFrame]
+    ) -> Int {
+        Set(frames.compactMap { frame -> Int? in
+            guard frame.path.indices.starts(with: path.indices),
+                  frame.path.indices.count > path.indices.count else {
+                return nil
+            }
+            return frame.path.indices[path.indices.count]
+        }).count
     }
 
     private func siblingFrames(
@@ -1579,12 +1760,31 @@ struct ZoneEditorCanvas: View {
     }
 
     private func handleUIKitTapProbe(_ snapshot: ZoneEditorTapProbeSnapshot) {
-        let localPoint = snapshot.contentPoint
+        let localPoint = CGPoint(
+            x: snapshot.contentPoint.x - contentHorizontalPadding,
+            y: snapshot.contentPoint.y - contentVerticalPadding - topContentInset
+        )
         let candidateFrames = zoneFrames
             .filter { $0.frame.insetBy(dx: -Self.renderHitSlop, dy: -Self.renderHitSlop).contains(localPoint) }
         let matchedPath = candidateFrames
             .min { ($0.frame.width * $0.frame.height) < ($1.frame.width * $1.frame.height) }?
             .path.id ?? "nil"
+        let tappedAlignmentMenu = alignmentMenuFrame?
+            .insetBy(dx: -4, dy: -4)
+            .contains(localPoint) ?? false
+        let wouldDismiss = alignmentMenuState != nil
+            && candidateFrames.isEmpty
+            && !tappedAlignmentMenu
+
+        recordInteractionTrace(
+            "SCROLL TAP raw=\(tracePoint(snapshot.contentPoint)) local=\(tracePoint(localPoint)) hit=\(snapshot.hitViewName)"
+        )
+        recordInteractionTrace(
+            "CLASSIFY menu=\(alignmentMenuState == nil ? "closed" : "open") menuFrame=\(alignmentMenuFrame.map(traceRect) ?? "nil") inMenu=\(tappedAlignmentMenu ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) decision=\(wouldDismiss ? "WOULD_DISMISS" : "KEEP")"
+        )
+
+        guard showsDebugTools else { return }
+
         let line = "probe tap content=\(Int(localPoint.x)),\(Int(localPoint.y)) window=\(Int(snapshot.windowPoint.x)),\(Int(snapshot.windowPoint.y)) scroll=\(Int(scrollDriver.currentNormalizedOffsetY)) hit=\(snapshot.hitViewName) super=\(snapshot.hitSuperviewName) frames=\(zoneFrames.count) match=\(matchedPath) swift=\(lastTapDebugLine)"
         lastTapDebugLine = line
         ZoneEditorDebugStore.shared.recordTap(line)
@@ -1599,9 +1799,64 @@ struct ZoneEditorCanvas: View {
         scrollDriver.setTapProbeHandler(handleUIKitTapProbe)
     }
 
+    private var alignmentMenuFrame: CGRect? {
+        guard let menuState = alignmentMenuState else { return nil }
+
+        return CGRect(
+            x: alignmentMenuPosition(
+                for: menuState,
+                contentWidth: viewportScreenFrame.width - (contentHorizontalPadding * 2)
+            ).x,
+            y: alignmentMenuPosition(
+                for: menuState,
+                contentWidth: viewportScreenFrame.width - (contentHorizontalPadding * 2)
+            ).y,
+            width: Self.alignmentMenuSize.width,
+            height: Self.alignmentMenuSize.height
+        )
+    }
+
     private func handleWindowTouchProbe(_ snapshot: ZoneEditorWindowTouchSnapshot) {
         let selected = selectedPath?.id ?? "nil"
         let rootID = content.rootZone.id.uuidString.prefix(6)
+        let contentPoint = CGPoint(
+            x: snapshot.viewportPoint.x - contentHorizontalPadding,
+            y: snapshot.viewportPoint.y
+                + scrollDriver.currentNormalizedOffsetY
+                - contentVerticalPadding
+                - topContentInset
+        )
+        let candidateFrames = zoneFrames.filter {
+            $0.frame
+                .insetBy(dx: -Self.renderHitSlop, dy: -Self.renderHitSlop)
+                .contains(contentPoint)
+        }
+        let groupHit = renderedAlignmentGroupHit(
+            at: contentPoint,
+            contentWidth: max(
+                viewportScreenFrame.width - (contentHorizontalPadding * 2),
+                1
+            ),
+            frames: zoneFrames
+        )
+        let tappedAlignmentMenu = alignmentMenuFrame?
+            .insetBy(dx: -24, dy: -24)
+            .contains(contentPoint) ?? false
+        let isCompletedTap = snapshot.phase.contains("ended/") && snapshot.phase.hasSuffix("/now")
+        let recentlyInteractedWithMenu = CACurrentMediaTime() - lastAlignmentMenuInteractionTime < 0.35
+        let shouldSelectGroup = isCompletedTap
+            && snapshot.isTapLike
+            && !tappedAlignmentMenu
+            && candidateFrames.isEmpty
+            && groupHit != nil
+        let shouldDismiss = isCompletedTap
+            && snapshot.isTapLike
+            && !recentlyInteractedWithMenu
+            && alignmentMenuState != nil
+            && !tappedAlignmentMenu
+            && candidateFrames.isEmpty
+            && groupHit == nil
+
         windowTouchDebugLines = [
             "WIN \(snapshot.phase) p=\(Int(snapshot.windowPoint.x)),\(Int(snapshot.windowPoint.y)) viewport=\(snapshot.viewportDescription)",
             "HIT \(snapshot.hitViewDescription)",
@@ -1611,10 +1866,82 @@ struct ZoneEditorCanvas: View {
         ZoneEditorDebugStore.shared.recordTap(
             "window \(snapshot.phase) hit=\(snapshot.hitViewName) gestures=\(snapshot.gestureCount)"
         )
+        recordInteractionTrace(
+            "WINDOW \(snapshot.phase) point=\(tracePoint(snapshot.windowPoint)) hit=\(snapshot.hitViewName) tapLike=\(snapshot.isTapLike ? 1 : 0) gestures=\(snapshot.gestureCount)"
+        )
+        recordInteractionTrace(
+            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") decision=\(shouldSelectGroup ? "SELECT_GROUP" : shouldDismiss ? "DISMISS" : "KEEP")"
+        )
+
+        if shouldSelectGroup, let groupHit {
+            selectedPath = nil
+            focusManager.forceReleaseKeyboard()
+            ZoneController.shared.forceReleaseKeyboard()
+            ZoneController.shared.updateFocusedZone(nil)
+            lastTapDebugLine = "window tap group path=\(groupHit.path.id)"
+            ZoneEditorDebugStore.shared.recordTap(lastTapDebugLine)
+            presentAlignmentMenu(
+                for: groupHit.path,
+                contentWidth: max(
+                    viewportScreenFrame.width - (contentHorizontalPadding * 2),
+                    1
+                ),
+                preferredAnchor: contentPoint
+            )
+        } else if shouldDismiss {
+            dismissAlignmentMenu()
+        }
+    }
+
+    private func recordInteractionTrace(_ event: String) {
+        guard showsDebugTools else { return }
+        interactionTraceIndex += 1
+        let line = "#\(interactionTraceIndex) \(event)"
+        guard interactionTrace.last != line else { return }
+        interactionTrace.append(line)
+        if interactionTrace.count > 24 {
+            interactionTrace.removeFirst(interactionTrace.count - 24)
+        }
+    }
+
+    private func tracePoint(_ point: CGPoint) -> String {
+        "\(Int(point.x)),\(Int(point.y))"
+    }
+
+    private func traceRect(_ rect: CGRect) -> String {
+        "\(Int(rect.minX)),\(Int(rect.minY)),\(Int(rect.width))x\(Int(rect.height))"
+    }
+
+    private var interactionTraceReport: String {
+        let menu = alignmentMenuState.map {
+            "open path=\($0.tappedPath.id) frame=\(traceRect($0.frame)) anchor=\(tracePoint($0.anchor))"
+        } ?? "closed"
+        let frames = zoneFrames
+            .map { "\($0.path.id)=\(traceRect($0.frame))" }
+            .joined(separator: "\n")
+
+        return """
+        QuizFlash Zone Editor Tap Debug
+        timestamp: \(ISO8601DateFormatter().string(from: Date()))
+        mode: \(rendersRichText ? "render" : "raw")
+        menu: \(menu)
+        viewport: \(traceRect(viewportScreenFrame))
+        scrollY: \(Int(scrollDriver.currentNormalizedOffsetY))
+        tapProbe: \(scrollDriver.tapProbeStatus)
+        padding: \(Int(contentHorizontalPadding)),\(Int(contentVerticalPadding))
+        topContentInset: \(Int(topContentInset))
+        selectedPath: \(selectedPath?.id ?? "nil")
+
+        ZONE FRAMES
+        \(frames.isEmpty ? "<none>" : frames)
+
+        EVENT FLOW
+        \(interactionTrace.isEmpty ? "<none>" : interactionTrace.joined(separator: "\n"))
+        """
     }
 
     private var windowTouchProbeBackground: AnyView {
-        guard rendersRichText && showsDebugTools else {
+        guard rendersRichText else {
             return AnyView(Color.clear)
         }
 
@@ -1646,6 +1973,18 @@ struct ZoneEditorCanvas: View {
                 .buttonStyle(.plain)
 
                 if developmentPreferences.zoneEditorDebugHUDEnabled {
+                    Button {
+                        UIPasteboard.general.string = interactionTraceReport
+                    } label: {
+                        Text("COPY TAP")
+                            .font(.caption2.monospaced().weight(.bold))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(Color.orange, in: Capsule(style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text(selectedDebugLine)
                         Text(lastTapDebugLine.isEmpty ? "tap idle" : lastTapDebugLine)
@@ -1656,6 +1995,9 @@ struct ZoneEditorCanvas: View {
                             Text("rect \(Int(selectedFrame.width))x\(Int(selectedFrame.height)) @ \(Int(selectedFrame.minX)),\(Int(selectedFrame.minY))")
                         }
                         ForEach(Array(debugStore.hudLines.enumerated()), id: \.offset) { _, line in
+                            Text(line)
+                        }
+                        ForEach(interactionTrace.suffix(8), id: \.self) { line in
                             Text(line)
                         }
                     }
@@ -1808,6 +2150,7 @@ private final class ZoneEditorScrollDriver {
     private var onScrollOffsetChange: ((CGFloat) -> Void)?
     private var lastReportedScrollOffsetY: CGFloat?
     private var tapProbe: ZoneEditorTapProbe?
+    private(set) var tapProbeStatus = "not-configured"
     private(set) var currentNormalizedOffsetY: CGFloat = 0
 
     func attach(_ scrollView: UIScrollView?) {
@@ -1835,6 +2178,7 @@ private final class ZoneEditorScrollDriver {
         currentNormalizedOffsetY = 0
         tapProbe?.detach()
         tapProbe = nil
+        tapProbeStatus = "detached"
         scrollView = nil
     }
 
@@ -1845,25 +2189,33 @@ private final class ZoneEditorScrollDriver {
         }
     }
 
-    func setTapProbeHandler(_ handler: ((ZoneEditorTapProbeSnapshot) -> Void)?) {
-        guard let scrollView else { return }
+    @discardableResult
+    func setTapProbeHandler(_ handler: ((ZoneEditorTapProbeSnapshot) -> Void)?) -> String {
+        guard let scrollView else {
+            tapProbeStatus = "no-scroll-view"
+            return tapProbeStatus
+        }
 
         guard let handler else {
             tapProbe?.detach()
             tapProbe = nil
-            return
+            tapProbeStatus = "detached"
+            return tapProbeStatus
         }
 
         if let tapProbe {
             tapProbe.onTap = handler
             tapProbe.attach(to: scrollView)
-            return
+            tapProbeStatus = "reused-attached"
+            return tapProbeStatus
         }
 
         let probe = ZoneEditorTapProbe()
         probe.onTap = handler
         probe.attach(to: scrollView)
         tapProbe = probe
+        tapProbeStatus = "created-attached"
+        return tapProbeStatus
     }
 
     func setTopInset(_ inset: CGFloat) {
@@ -1877,12 +2229,13 @@ private final class ZoneEditorScrollDriver {
         applyContentInsetsIfNeeded()
     }
 
-    func resetBottomInset() {
-        guard abs(pendingBottomInset) > 0.5
-                || abs(scrollView?.contentInset.bottom ?? 0) > 0.5
+    func setBottomInset(_ inset: CGFloat) {
+        let resolvedInset = max(inset, 0)
+        guard abs(pendingBottomInset - resolvedInset) > 0.5
+                || abs((scrollView?.contentInset.bottom ?? 0) - resolvedInset) > 0.5
         else { return }
 
-        pendingBottomInset = 0
+        pendingBottomInset = resolvedInset
         applyContentInsetsIfNeeded()
     }
 
@@ -2224,6 +2577,8 @@ private final class ZoneEditorTapProbe: NSObject, UIGestureRecognizerDelegate {
 private struct ZoneEditorWindowTouchSnapshot {
     let phase: String
     let windowPoint: CGPoint
+    let viewportPoint: CGPoint
+    let isTapLike: Bool
     let viewportDescription: String
     let hitViewName: String
     let hitViewDescription: String
@@ -2284,8 +2639,8 @@ private struct ZoneEditorWindowTouchProbe: UIViewRepresentable {
 
         private weak var window: UIWindow?
         private var viewportFrame: CGRect = .zero
-        private lazy var recognizer = ZoneEditorPassiveTouchRecognizer { [weak self] phase, point in
-            self?.record(phase: phase, windowPoint: point)
+        private lazy var recognizer = ZoneEditorPassiveTouchRecognizer { [weak self] phase, point, isTapLike in
+            self?.record(phase: phase, windowPoint: point, isTapLike: isTapLike)
         }
 
         init(onSnapshot: @escaping (ZoneEditorWindowTouchSnapshot) -> Void) {
@@ -2311,21 +2666,25 @@ private struct ZoneEditorWindowTouchProbe: UIViewRepresentable {
             viewportFrame = view.convert(view.bounds, to: window)
         }
 
-        private func record(phase: String, windowPoint: CGPoint) {
-            guard let window, viewportFrame.contains(windowPoint) else { return }
-            publishSnapshot(phase: "\(phase)/now", windowPoint: windowPoint)
+        private func record(phase: String, windowPoint: CGPoint, isTapLike: Bool) {
+            guard window != nil, viewportFrame.contains(windowPoint) else { return }
+            publishSnapshot(phase: "\(phase)/now", windowPoint: windowPoint, isTapLike: isTapLike)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
-                self?.publishSnapshot(phase: "\(phase)/60ms", windowPoint: windowPoint)
+                self?.publishSnapshot(phase: "\(phase)/60ms", windowPoint: windowPoint, isTapLike: isTapLike)
             }
         }
 
-        private func publishSnapshot(phase: String, windowPoint: CGPoint) {
+        private func publishSnapshot(phase: String, windowPoint: CGPoint, isTapLike: Bool) {
             guard let window else { return }
             let hitView = window.hitTest(windowPoint, with: nil)
             let chain = viewChain(startingAt: hitView)
             let gestures = gestureDescriptions(startingAt: hitView)
             let localPoint = hitView.map { $0.convert(windowPoint, from: window) } ?? .zero
             let hitFrame = hitView.map { $0.convert($0.bounds, to: window) } ?? .zero
+            let viewportPoint = CGPoint(
+                x: windowPoint.x - viewportFrame.minX,
+                y: windowPoint.y - viewportFrame.minY
+            )
             let gestureLines = gestures.isEmpty
                 ? ["G none"]
                 : gestures.enumerated().map { index, description in
@@ -2336,6 +2695,8 @@ private struct ZoneEditorWindowTouchProbe: UIViewRepresentable {
                 ZoneEditorWindowTouchSnapshot(
                     phase: phase,
                     windowPoint: windowPoint,
+                    viewportPoint: viewportPoint,
+                    isTapLike: isTapLike,
                     viewportDescription: rectDescription(viewportFrame),
                     hitViewName: hitView.map { shortTypeName($0) } ?? "nil",
                     hitViewDescription: "\(hitView.map { shortTypeName($0) } ?? "nil") local=\(Int(localPoint.x)),\(Int(localPoint.y)) frame=\(rectDescription(hitFrame))",
@@ -2395,11 +2756,13 @@ private struct ZoneEditorWindowTouchProbe: UIViewRepresentable {
 }
 
 private final class ZoneEditorPassiveTouchRecognizer: UIGestureRecognizer {
-    private let onFinished: (String, CGPoint) -> Void
+    private let onFinished: (String, CGPoint, Bool) -> Void
     private var initialPoint: CGPoint?
+    private var maxMovement: CGFloat = 0
     private var initialHitName = "nil"
+    private static let tapMovementTolerance: CGFloat = 8
 
-    init(onFinished: @escaping (String, CGPoint) -> Void) {
+    init(onFinished: @escaping (String, CGPoint, Bool) -> Void) {
         self.onFinished = onFinished
         super.init(target: nil, action: nil)
         cancelsTouchesInView = false
@@ -2410,7 +2773,19 @@ private final class ZoneEditorPassiveTouchRecognizer: UIGestureRecognizer {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         guard let touch = touches.first, let view else { return }
         initialPoint = touch.location(in: view)
+        maxMovement = 0
         initialHitName = touch.view.map { String(describing: type(of: $0)) } ?? "nil"
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let touch = touches.first,
+              let view,
+              let initialPoint else { return }
+
+        let point = touch.location(in: view)
+        let dx = point.x - initialPoint.x
+        let dy = point.y - initialPoint.y
+        maxMovement = max(maxMovement, sqrt((dx * dx) + (dy * dy)))
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
@@ -2419,19 +2794,29 @@ private final class ZoneEditorPassiveTouchRecognizer: UIGestureRecognizer {
             return
         }
         let point = touch.location(in: view)
-        onFinished("ended/\(initialHitName)", point)
+        if let initialPoint {
+            let dx = point.x - initialPoint.x
+            let dy = point.y - initialPoint.y
+            maxMovement = max(maxMovement, sqrt((dx * dx) + (dy * dy)))
+        }
+        onFinished(
+            "ended/\(initialHitName)",
+            point,
+            maxMovement <= Self.tapMovementTolerance
+        )
         state = .failed
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
         if let point = initialPoint {
-            onFinished("cancelled/\(initialHitName)", point)
+            onFinished("cancelled/\(initialHitName)", point, false)
         }
         state = .failed
     }
 
     override func reset() {
         initialPoint = nil
+        maxMovement = 0
         initialHitName = "nil"
         super.reset()
     }
