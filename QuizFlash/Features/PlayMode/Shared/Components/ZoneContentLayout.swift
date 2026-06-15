@@ -836,7 +836,9 @@ private struct ZoneContentTreePreview: View {
     }
 
     private var groupDebugGuideCornerRadius: CGFloat {
-        ZoneContentMetrics.zoneCornerRadius + ZoneContentMetrics.childSpacing
+        ZoneContentMetrics.zoneCornerRadius
+            + ZoneContentMetrics.childSpacing
+            + ZoneContentMetrics.groupGuideVisualPadding
     }
 
     private var groupDebugGuideInsets: EdgeInsets {
@@ -846,10 +848,10 @@ private struct ZoneContentTreePreview: View {
         case .editorRender:
             let horizontalOutset = FlashcardPlayLayoutTuning.cardToContentHorizontalPaddingCompact
             return EdgeInsets(
-                top: -ZoneContentMetrics.childSpacing,
-                leading: -horizontalOutset,
-                bottom: -ZoneContentMetrics.childSpacing,
-                trailing: -horizontalOutset
+                top: -(ZoneContentMetrics.childSpacing + ZoneContentMetrics.groupGuideVisualPadding),
+                leading: -(horizontalOutset + ZoneContentMetrics.groupGuideVisualPadding),
+                bottom: -(ZoneContentMetrics.childSpacing + ZoneContentMetrics.groupGuideVisualPadding),
+                trailing: -(horizontalOutset + ZoneContentMetrics.groupGuideVisualPadding)
             )
         }
     }
@@ -1562,6 +1564,7 @@ enum ZoneContentMetrics {
     static let textVerticalPadding: CGFloat = 24
     static let textHorizontalPadding: CGFloat = 24
     static let zoneCornerRadius: CGFloat = 38
+    static let groupGuideVisualPadding: CGFloat = 10
     static let highlightedHorizontalPadding: CGFloat = textHorizontalPadding
     static let bulletWidth: CGFloat = 6
     static let bulletSpacing: CGFloat = 8
