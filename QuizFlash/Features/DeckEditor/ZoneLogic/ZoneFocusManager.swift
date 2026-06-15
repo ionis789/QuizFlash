@@ -57,18 +57,26 @@ final class ZoneFocusManager {
     
     /// Requests focus for a specific zone
     func requestFocus(for zoneID: UUID) {
-        pendingFocusZoneID = zoneID
-        focusedZoneID = zoneID
+        retainKeyboardForTextFocusTransfer(to: zoneID)
         ZoneEditorDebugStore.shared.recordFocusEvent("manager requestFocus", zoneID: zoneID)
         reportDebugState()
-        
-        // Post notification for UIKit components
-        NotificationCenter.default.post(
-            name: .zoneFocusRequest,
-            object: zoneID
-        )
-        
-        // Also post focus notification
+
+        postFocusRequest(for: zoneID)
+    }
+
+    /// Prepares a UIKit text focus transfer without letting the keyboard resign between text views.
+    func retainKeyboardForTextFocusTransfer(to zoneID: UUID) {
+        keyboardRetainTask?.cancel()
+        shouldRetainKeyboard = true
+        pendingFocusZoneID = zoneID
+        focusedZoneID = zoneID
+        ZoneEditorDebugStore.shared.recordFocusEvent("manager retainTransfer", zoneID: zoneID)
+        reportDebugState()
+    }
+
+    private func postFocusRequest(for zoneID: UUID) {
+        NotificationCenter.default.post(name: .zoneFocusRequest, object: zoneID)
+
         focusNotificationTask?.cancel()
         focusNotificationTask = Task { @MainActor in
             for delay in [0, 16, 48, 96] {

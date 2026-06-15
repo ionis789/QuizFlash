@@ -17,6 +17,16 @@ enum ZoneForcedLineBreak {
             .replacingOccurrences(of: marker, with: "\n")
     }
 
+    nonisolated static func editorDisplayText(_ text: String) -> String {
+        normalizeCarriageReturns(in: text)
+            .replacingOccurrences(of: marker, with: marker + "\n")
+    }
+
+    nonisolated static func editorModelText(_ text: String) -> String {
+        normalizeCarriageReturns(in: text)
+            .replacingOccurrences(of: marker + "\n", with: marker)
+    }
+
     nonisolated static func normalizeCarriageReturns(in text: String) -> String {
         text
             .replacingOccurrences(of: "\r\n", with: "\n")

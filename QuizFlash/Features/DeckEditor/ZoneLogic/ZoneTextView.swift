@@ -12,11 +12,13 @@ private enum ZoneTextViewEmptyCaret {
     static let placeholder = "\u{200B}"
 
     static func displayText(for modelText: String) -> String {
-        modelText.isEmpty ? placeholder : modelText
+        guard !modelText.isEmpty else { return placeholder }
+        return ZoneForcedLineBreak.editorDisplayText(modelText)
     }
 
     static func modelText(from displayText: String) -> String {
-        displayText.replacingOccurrences(of: placeholder, with: "")
+        ZoneForcedLineBreak.editorModelText(displayText)
+            .replacingOccurrences(of: placeholder, with: "")
     }
 
     static func isPlaceholderDisplay(_ displayText: String?) -> Bool {
@@ -35,19 +37,42 @@ private enum ZoneTextViewEmptyCaret {
         let selectedText = nsText.substring(with: NSRange(location: clampedLocation, length: clampedEnd - clampedLocation))
         let placeholdersBefore = placeholderCount(in: prefix)
         let placeholdersInSelection = placeholderCount(in: selectedText)
+        let visualBreaksBefore = visualLineBreakCount(in: prefix)
+        let visualBreaksInSelection = visualLineBreakCount(in: selectedText)
 
         return NSRange(
-            location: max(clampedLocation - placeholdersBefore, 0),
-            length: max((clampedEnd - clampedLocation) - placeholdersInSelection, 0)
+            location: max(clampedLocation - placeholdersBefore - visualBreaksBefore, 0),
+            length: max((clampedEnd - clampedLocation) - placeholdersInSelection - visualBreaksInSelection, 0)
         )
     }
 
     static func displayRange(fromModelRange range: NSRange, modelText: String) -> NSRange {
-        modelText.isEmpty ? NSRange(location: 0, length: 0) : range
+        guard !modelText.isEmpty else { return NSRange(location: 0, length: 0) }
+
+        let nsText = modelText as NSString
+        let clampedLocation = min(max(range.location, 0), nsText.length)
+        let clampedEnd = min(max(range.location + range.length, clampedLocation), nsText.length)
+        let prefix = nsText.substring(to: clampedLocation)
+        let selectedText = nsText.substring(with: NSRange(location: clampedLocation, length: clampedEnd - clampedLocation))
+        let markersBefore = markerCount(in: prefix)
+        let markersInSelection = markerCount(in: selectedText)
+
+        return NSRange(
+            location: clampedLocation + markersBefore,
+            length: (clampedEnd - clampedLocation) + markersInSelection
+        )
     }
 
     private static func placeholderCount(in text: String) -> Int {
         text.components(separatedBy: placeholder).count - 1
+    }
+
+    private static func visualLineBreakCount(in text: String) -> Int {
+        text.components(separatedBy: ZoneForcedLineBreak.marker + "\n").count - 1
+    }
+
+    private static func markerCount(in text: String) -> Int {
+        text.components(separatedBy: ZoneForcedLineBreak.marker).count - 1
     }
 }
 
@@ -121,6 +146,9 @@ final class ZoneEditorDebugStore {
     private(set) var caretLine: String = "caret idle"
     private(set) var layoutEvents: [String] = []
     private var layoutEventIndex = 0
+    private var eventCounters: [String: Int] = [:]
+    private var skippedEventCounters: [String: Int] = [:]
+    private var isRecordingEnabled = false
     private let startedAt = Date()
 
     private init() { }
@@ -140,9 +168,25 @@ final class ZoneEditorDebugStore {
         ]
     }
 
+    var compactHudLines: [String] {
+        [
+            "#\(eventIndex) \(lastEvent)",
+            focusLine,
+            textViewLine,
+            canvasLine,
+            toolbarLine,
+            caretLine,
+            "rates \(counterSummary)"
+        ]
+    }
+
     func recordEvent(_ value: String) {
         eventIndex += 1
         lastEvent = value
+    }
+
+    func setLayoutRecordingEnabled(_ isEnabled: Bool) {
+        isRecordingEnabled = isEnabled
     }
 
     func recordLayoutEvent(
@@ -151,7 +195,16 @@ final class ZoneEditorDebugStore {
         pathID: String? = nil,
         details: String
     ) {
-        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+        guard AppFeatures.current.showsVisualDebugOverlays, isRecordingEnabled else { return }
+
+        eventCounters[stage, default: 0] += 1
+        if shouldThrottleLayoutEvent(stage) {
+            let count = eventCounters[stage, default: 0]
+            if count > 3 && !count.isMultiple(of: 20) {
+                skippedEventCounters[stage, default: 0] += 1
+                return
+            }
+        }
 
         layoutEventIndex += 1
         let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1_000)
@@ -164,11 +217,61 @@ final class ZoneEditorDebugStore {
     }
 
     var layoutTraceReport: String {
-        layoutEvents.isEmpty ? "<none>" : layoutEvents.joined(separator: "\n")
+        let counters = counterReport
+        let events = layoutEvents.isEmpty ? "<none>" : layoutEvents.joined(separator: "\n")
+        return """
+        COUNTERS
+        \(counters)
+
+        EVENTS
+        \(events)
+        """
     }
 
     var latestLayoutLines: [String] {
         Array(layoutEvents.suffix(4))
+    }
+
+    private var counterSummary: String {
+        let hot = eventCounters
+            .sorted { lhs, rhs in
+                if lhs.value == rhs.value { return lhs.key < rhs.key }
+                return lhs.value > rhs.value
+            }
+            .prefix(4)
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: " ")
+        return hot.isEmpty ? "none" : hot
+    }
+
+    private var counterReport: String {
+        guard !eventCounters.isEmpty else { return "<none>" }
+        return eventCounters
+            .sorted { lhs, rhs in
+                if lhs.value == rhs.value { return lhs.key < rhs.key }
+                return lhs.value > rhs.value
+            }
+            .map { key, value in
+                let skipped = skippedEventCounters[key, default: 0]
+                return skipped > 0 ? "\(key): \(value) skipped=\(skipped)" : "\(key): \(value)"
+            }
+            .joined(separator: "\n")
+    }
+
+    private func shouldThrottleLayoutEvent(_ stage: String) -> Bool {
+        switch stage {
+        case "ui-update",
+             "ui-sync",
+             "ui-sizeThatFits",
+             "layout block",
+             "group-layout",
+             "group-preference-ignored",
+             "scroll-skip",
+             "scroll-schedule-skip":
+            return true
+        default:
+            return false
+        }
     }
 
     func updateFocusManager(focusedZoneID: UUID?, pendingZoneID: UUID?, retainKeyboard: Bool) {
@@ -281,6 +384,37 @@ final class ZoneEditorDebugStore {
             &caretLine,
             "caret zone=\(shortID(zoneID)) loc=\(selectedRange.location) len=\(selectedRange.length) anchorY=\(format(anchorY)) windowY=\(format(windowRect.maxY))"
         )
+        recordLayoutEvent(
+            "caret-geometry",
+            zoneID: zoneID,
+            details: "range=\(selectedRange.location):\(selectedRange.length) anchorY=\(format(anchorY)) rect=\(format(windowRect.minX)),\(format(windowRect.minY)),\(format(windowRect.width))x\(format(windowRect.height))"
+        )
+    }
+
+    func recordTextSync(
+        _ stage: String,
+        zoneID: UUID?,
+        modelLength: Int,
+        uiLength: Int,
+        lastAcceptedLength: Int,
+        isUpdating: Bool,
+        isFirstResponder: Bool,
+        selectedRange: NSRange,
+        action: String
+    ) {
+        recordLayoutEvent(
+            stage,
+            zoneID: zoneID,
+            details: "modelLen=\(modelLength) uiLen=\(uiLength) acceptedLen=\(lastAcceptedLength) updating=\(flag(isUpdating)) fr=\(flag(isFirstResponder)) selected=\(selectedRange.location):\(selectedRange.length) action=\(action)"
+        )
+    }
+
+    func recordScrollDecision(
+        _ stage: String,
+        zoneID: UUID?,
+        details: String
+    ) {
+        recordLayoutEvent(stage, zoneID: zoneID, details: details)
     }
 
     private func setLine(_ storage: inout String, _ value: String) {
@@ -431,6 +565,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     func textViewShouldBeginEditing(_ textView: UITextView) -> Bool {
         if let zoneID {
             postWillFocusNotification(for: zoneID)
+            ZoneFocusManager.shared.retainKeyboardForTextFocusTransfer(to: zoneID)
         }
         return true
     }
@@ -504,6 +639,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     private func postWillFocusNotification(for zoneID: UUID) {
+        ZoneFocusManager.shared.retainKeyboardForTextFocusTransfer(to: zoneID)
         NotificationCenter.default.post(
             name: .zoneEditorWillFocusTextView,
             object: zoneID
@@ -574,6 +710,22 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             displayText: ZoneTextViewEmptyCaret.displayText(for: modelText)
         )
         lastText = modelText
+    }
+
+    func shouldDeferModelSync(modelText: String, uiModelText: String, textView: UITextView) -> Bool {
+        guard textView.isFirstResponder,
+              !isUpdating,
+              uiModelText != modelText,
+              lastAcceptedText == uiModelText,
+              lastAcceptedText != modelText else {
+            return false
+        }
+
+        return true
+    }
+
+    var lastAcceptedTextLength: Int {
+        (lastAcceptedText as NSString).length
     }
 
     private func normalizePlaceholderIfNeeded(in textView: UITextView) {
@@ -698,21 +850,33 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         let currentText = ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text)
             ? ""
             : (textView.text ?? "")
-        let textLength = (currentText as NSString).length
+        let currentModelText = ZoneTextViewEmptyCaret.modelText(from: currentText)
+        let currentDisplayText = ZoneTextViewEmptyCaret.displayText(for: currentModelText)
+        let textLength = (currentDisplayText as NSString).length
         let selectedRange = ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text)
             ? NSRange(location: 0, length: 0)
             : NSRange(
                 location: min(max(textView.selectedRange.location, 0), textLength),
                 length: min(max(textView.selectedRange.length, 0), max(textLength - min(max(textView.selectedRange.location, 0), textLength), 0))
             )
-        let mutable = NSMutableString(string: currentText)
-        mutable.replaceCharacters(in: selectedRange, with: ZoneForcedLineBreak.marker)
+        let selectedModelRange = ZoneTextViewEmptyCaret.modelRange(
+            from: selectedRange,
+            displayText: currentDisplayText
+        )
+        let mutable = NSMutableString(string: currentModelText)
+        mutable.replaceCharacters(in: selectedModelRange, with: ZoneForcedLineBreak.marker)
+        let modelText = mutable as String
+        let displayText = ZoneTextViewEmptyCaret.displayText(for: modelText)
+        let modelCaretRange = NSRange(
+            location: selectedModelRange.location + (ZoneForcedLineBreak.marker as NSString).length,
+            length: 0
+        )
 
         isUpdating = true
-        textView.text = mutable as String
-        textView.selectedRange = NSRange(
-            location: selectedRange.location + (ZoneForcedLineBreak.marker as NSString).length,
-            length: 0
+        textView.text = displayText
+        textView.selectedRange = ZoneTextViewEmptyCaret.displayRange(
+            fromModelRange: modelCaretRange,
+            modelText: modelText
         )
         isUpdating = false
 
@@ -882,13 +1046,49 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         let displayText = ZoneTextViewEmptyCaret.displayText(for: text)
         let stylingSignature = stylingSignatureForCurrentState
         let needsStylingUpdate = context.coordinator.lastAppliedStylingSignature != stylingSignature
+        let uiModelText = ZoneTextViewEmptyCaret.modelText(from: textView.text ?? "")
 
         guard textView.text != displayText else {
             if needsStylingUpdate {
                 updateStyling(of: textView)
                 context.coordinator.lastAppliedStylingSignature = stylingSignature
             }
+            ZoneEditorDebugStore.shared.recordTextSync(
+                "ui-sync",
+                zoneID: zoneID,
+                modelLength: (text as NSString).length,
+                uiLength: (uiModelText as NSString).length,
+                lastAcceptedLength: context.coordinator.lastAcceptedTextLength,
+                isUpdating: context.coordinator.isUpdating,
+                isFirstResponder: textView.isFirstResponder,
+                selectedRange: textView.selectedRange,
+                action: "unchanged"
+            )
             context.coordinator.rememberAcceptedText(text, selectedRange: textView.selectedRange)
+            syncFocus(textView: textView, isFirstResponder: isFirstResponder, context: context)
+            return
+        }
+
+        if context.coordinator.shouldDeferModelSync(
+            modelText: text,
+            uiModelText: uiModelText,
+            textView: textView
+        ) {
+            if needsStylingUpdate {
+                updateStyling(of: textView)
+                context.coordinator.lastAppliedStylingSignature = stylingSignature
+            }
+            ZoneEditorDebugStore.shared.recordTextSync(
+                "ui-sync",
+                zoneID: zoneID,
+                modelLength: (text as NSString).length,
+                uiLength: (uiModelText as NSString).length,
+                lastAcceptedLength: context.coordinator.lastAcceptedTextLength,
+                isUpdating: context.coordinator.isUpdating,
+                isFirstResponder: textView.isFirstResponder,
+                selectedRange: textView.selectedRange,
+                action: "defer-live-ui"
+            )
             syncFocus(textView: textView, isFirstResponder: isFirstResponder, context: context)
             return
         }
@@ -915,6 +1115,17 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             updateStyling(of: textView)
             context.coordinator.lastAppliedStylingSignature = stylingSignature
         }
+        ZoneEditorDebugStore.shared.recordTextSync(
+            "ui-sync",
+            zoneID: zoneID,
+            modelLength: (text as NSString).length,
+            uiLength: (uiModelText as NSString).length,
+            lastAcceptedLength: context.coordinator.lastAcceptedTextLength,
+            isUpdating: context.coordinator.isUpdating,
+            isFirstResponder: textView.isFirstResponder,
+            selectedRange: textView.selectedRange,
+            action: "apply-model"
+        )
         context.coordinator.rememberAcceptedText(text, selectedRange: textView.selectedRange)
         syncFocus(textView: textView, isFirstResponder: isFirstResponder, context: context)
     }
@@ -939,20 +1150,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         }
 
         if !isFirstResponder && textView.isFirstResponder {
-            guard context.coordinator.focusSyncState != .resigningFirstResponder else { return }
-            context.coordinator.focusSyncState = .resigningFirstResponder
-            DispatchQueue.main.async {
-                let manager = ZoneFocusManager.shared
-                defer { context.coordinator.focusSyncState = .idle }
-                guard !manager.shouldRetainKeyboard,
-                      manager.focusedZoneID != self.zoneID,
-                      manager.pendingFocusZoneID != self.zoneID else {
-                    return
-                }
-                if manager.focusedZoneID != self.zoneID {
-                    textView.resignFirstResponder()
-                }
-            }
+            ZoneEditorDebugStore.shared.recordFocusEvent("sync keepFR for transfer", zoneID: zoneID)
         }
     }
     

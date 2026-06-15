@@ -302,13 +302,21 @@ struct FlashcardEditorView: View {
             Button(localized("Cancel"), role: .cancel) { }
         }
         .onAppear {
+            configureZoneEditorDebugRecording()
             if selectedPath == nil {
                 selectedPath = Self.initialSelectedPath(in: currentContent.rootZone)
             }
             focusManager.forceReleaseKeyboard()
         }
         .onDisappear {
+            ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(false)
             cancelScheduledEditorTasks()
+        }
+        .onChange(of: showsEditorDebugOverlays) { _, _ in
+            configureZoneEditorDebugRecording()
+        }
+        .onChange(of: developmentPreferences.zoneEditorDebugHUDEnabled) { _, _ in
+            configureZoneEditorDebugRecording()
         }
     }
 
@@ -426,6 +434,10 @@ struct FlashcardEditorView: View {
         AppFeatures.current.showsVisualDebugOverlays
             && showsEditorDebugOverlays
             && developmentPreferences.zoneEditorDebugHUDEnabled
+    }
+
+    private func configureZoneEditorDebugRecording() {
+        ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(showsEditorPerformanceDebug)
     }
 
     @ViewBuilder

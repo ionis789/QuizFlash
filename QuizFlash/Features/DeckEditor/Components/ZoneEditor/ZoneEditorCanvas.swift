@@ -123,7 +123,6 @@ struct ZoneEditorCanvas: View {
     private static let alignmentTolerance: CGFloat = 1
     private static let alignmentMenuSize = CGSize(width: 104, height: 44)
     private static let alignmentMenuVerticalSpacing: CGFloat = 28
-    private static let bottomScrollInset: CGFloat = 120
     private static let renderHitSlop: CGFloat = 8
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
@@ -192,7 +191,7 @@ struct ZoneEditorCanvas: View {
                 1
             )
             let contentHeight = contentViewportHeight
-            let bottomScrollInset = Self.bottomScrollInset
+            let bottomScrollInset = dynamicBottomScrollInset
             let minimumScrollContentHeight = editorViewportHeight
 
             ScrollViewReader { _ in
@@ -239,18 +238,16 @@ struct ZoneEditorCanvas: View {
                 .padding(.top, UIConstants.Spacing.small)
                 .padding(.bottom, UIConstants.Spacing.small)
                 .onChange(of: selectedPath) { _, newPath in
+                    if activeCaretPathID != newPath?.id {
+                        clearActiveCaretGeometry()
+                    }
                     if newPath == nil {
                         cancelCaretAvoidanceScroll()
-                        clearActiveCaretGeometry()
                         dismissAlignmentMenu()
                     } else {
-                        scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
                         if keyboardMonitor.isVisible {
                             scheduleCaretAvoidanceScroll(delay: .milliseconds(16))
                         }
-                    }
-                    if activeCaretPathID != newPath?.id {
-                        clearActiveCaretGeometry()
                     }
                     updateCanvasDebug(
                         cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
@@ -260,7 +257,6 @@ struct ZoneEditorCanvas: View {
                 .onChange(of: keyboardMonitor.visibleHeight) { _, newHeight in
                     let oldHeight = lastKeyboardVisibleHeight
                     lastKeyboardVisibleHeight = newHeight
-                    scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
                     refreshBottomScrollInset()
 
                     if newHeight <= 1, !keyboardMonitor.isVisible {
@@ -277,7 +273,6 @@ struct ZoneEditorCanvas: View {
                     lastKeyboardVisibleHeight = keyboardMonitor.visibleHeight
                     refreshBottomScrollInset()
                     if isVisible {
-                        scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     } else {
                         cancelCaretAvoidanceScroll()
@@ -291,9 +286,6 @@ struct ZoneEditorCanvas: View {
                     )
                 }
                 .onChange(of: focusManager.focusedZoneID) { _, focusedID in
-                    if focusedID != nil {
-                        scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
-                    }
                     if let focusedID,
                        let selectedPath,
                        content.zone(at: selectedPath)?.id == focusedID,
@@ -308,7 +300,6 @@ struct ZoneEditorCanvas: View {
                     )
                 }
                 .onChange(of: focusManager.pendingFocusZoneID) { _, _ in
-                    scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
                     updateCanvasDebug(
                         cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
                         contentSize: CGSize(width: contentWidth, height: contentHeight)
@@ -427,7 +418,7 @@ struct ZoneEditorCanvas: View {
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .zoneEditorWillFocusTextView)) { _ in
-                    scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
+                    scrollDriver.releaseOffsetLock()
                 }
                 .onDisappear {
                     scheduledBottomChromeScrollTask?.cancel()
@@ -885,7 +876,7 @@ struct ZoneEditorCanvas: View {
     }
 
     private func refreshBottomScrollInset() {
-        scrollDriver.setBottomInset(Self.bottomScrollInset)
+        scrollDriver.setBottomInset(dynamicBottomScrollInset)
     }
 
     @ViewBuilder
@@ -1545,7 +1536,7 @@ struct ZoneEditorCanvas: View {
             return scrollActiveCaretAboveBottomChromeIfNeeded()
         }
 
-        return false
+        return scrollSelectedZoneFrameAboveBottomChromeIfNeeded()
     }
 
     @discardableResult
@@ -1553,9 +1544,23 @@ struct ZoneEditorCanvas: View {
         guard activeCaretPathID == selectedPath?.id,
               keyboardMonitor.isVisible,
               isKeyboardAvoidanceChromeReady
-        else { return false }
+        else {
+            debugStore.recordScrollDecision(
+                "scroll-skip",
+                zoneID: selectedZone?.id,
+                details: "reason=not-ready activePath=\(activeCaretPathID ?? "nil") selectedPath=\(selectedPath?.id ?? "nil") keyboard=\(keyboardMonitor.isVisible ? 1 : 0) chrome=\(isKeyboardAvoidanceChromeReady ? 1 : 0)"
+            )
+            return false
+        }
 
-        guard let caretWindowRect = activeCaretWindowRect else { return false }
+        guard let caretWindowRect = activeCaretWindowRect else {
+            debugStore.recordScrollDecision(
+                "scroll-skip",
+                zoneID: selectedZone?.id,
+                details: "reason=no-caret-rect"
+            )
+            return false
+        }
 
         let didScroll = scrollDriver.scrollWindowRectAboveBottomChromeIfNeeded(
             windowRect: caretWindowRect,
@@ -1564,7 +1569,8 @@ struct ZoneEditorCanvas: View {
             bottomAccessoryHeight: bottomAccessoryHeight,
             bottomBuffer: caretBottomChromeBuffer,
             animationDuration: caretScrollAnimationDuration,
-            animationOptions: keyboardMonitor.animationOptions
+            animationOptions: keyboardMonitor.animationOptions,
+            zoneID: selectedZone?.id
         )
         if didScroll {
             activeCaretWindowRect = nil
@@ -1572,18 +1578,52 @@ struct ZoneEditorCanvas: View {
         return didScroll
     }
 
+    @discardableResult
+    private func scrollSelectedZoneFrameAboveBottomChromeIfNeeded() -> Bool {
+        guard keyboardMonitor.isVisible,
+              let selectedFrame,
+              let selectedZoneID = selectedZone?.id else {
+            debugStore.recordScrollDecision(
+                "scroll-skip",
+                zoneID: selectedZone?.id,
+                details: "reason=no-selected-frame"
+            )
+            return false
+        }
+
+        return scrollDriver.scrollContentRectAboveBottomChromeIfNeeded(
+            contentRect: selectedFrame,
+            contentTopOffset: contentVerticalPadding + topContentInset,
+            bottomChromeTopY: bottomAccessoryTopY,
+            keyboardHeight: keyboardMonitor.visibleHeight,
+            bottomAccessoryHeight: bottomAccessoryHeight,
+            bottomBuffer: caretBottomChromeBuffer,
+            animationDuration: caretScrollAnimationDuration,
+            animationOptions: keyboardMonitor.animationOptions,
+            zoneID: selectedZoneID
+        )
+    }
+
     private func scheduleCaretAvoidanceScroll(
         delay: Duration = .milliseconds(120)
     ) {
         scheduledBottomChromeScrollTask?.cancel()
-        guard shouldMaintainKeyboardAvoidance else { return }
+        guard shouldMaintainKeyboardAvoidance else {
+            debugStore.recordScrollDecision(
+                "scroll-schedule-skip",
+                zoneID: selectedZone?.id,
+                details: "reason=shouldMaintainKeyboardAvoidance-false keyboard=\(keyboardMonitor.isVisible ? 1 : 0) focused=\(shortID(focusManager.focusedZoneID)) selected=\(shortID(selectedZone?.id))"
+            )
+            return
+        }
 
+        scrollDriver.releaseOffsetLock()
         scheduledBottomChromeScrollTask = Task { @MainActor in
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled, shouldMaintainKeyboardAvoidance else { return }
 
             let didScroll = scrollFocusedEditingContentAboveBottomChromeIfNeeded()
-            if !didScroll, hasActiveCaretGeometryForSelection {
+            if !didScroll {
                 try? await Task.sleep(for: .milliseconds(80))
                 guard !Task.isCancelled, shouldMaintainKeyboardAvoidance else { return }
                 _ = scrollFocusedEditingContentAboveBottomChromeIfNeeded()
@@ -1604,6 +1644,16 @@ struct ZoneEditorCanvas: View {
     private var hasActiveCaretGeometryForSelection: Bool {
         activeCaretPathID == selectedPath?.id
             && activeCaretWindowRect != nil
+    }
+
+    private var selectedZone: ZoneModel? {
+        guard let selectedPath else { return nil }
+        return content.zone(at: selectedPath)
+    }
+
+    private func shortID(_ id: UUID?) -> String {
+        guard let id else { return "nil" }
+        return String(id.uuidString.prefix(6))
     }
 
     private func cancelCaretAvoidanceScroll() {
@@ -1633,11 +1683,32 @@ struct ZoneEditorCanvas: View {
     }
 
     private var activeBottomChromeClearance: CGFloat {
-        max(bottomAccessoryHeight, 0) + (keyboardMonitor.isVisible ? caretBottomChromeBuffer + 80 : 48)
+        dynamicBottomScrollInset
     }
 
     private var caretBottomChromeBuffer: CGFloat {
-        88
+        UIConstants.Spacing.standard
+    }
+
+    private var dynamicBottomScrollInset: CGFloat {
+        let viewportBottomY = viewportScreenFrame.height > 0
+            ? viewportScreenFrame.maxY
+            : UIScreen.main.bounds.maxY
+        let chromeTopY = bottomAccessoryTopY ?? fallbackBottomChromeTopY(viewportBottomY: viewportBottomY)
+        let chromeClearance = chromeTopY.map { max(viewportBottomY - $0, 0) } ?? max(bottomAccessoryHeight, 0)
+        let keyboardClearance = keyboardMonitor.isVisible ? max(keyboardMonitor.visibleHeight, 0) : 0
+        return max(
+            chromeClearance,
+            keyboardClearance + max(bottomAccessoryHeight, 0),
+            max(bottomAccessoryHeight, 0)
+        ) + caretBottomChromeBuffer
+    }
+
+    private func fallbackBottomChromeTopY(viewportBottomY: CGFloat) -> CGFloat? {
+        guard keyboardMonitor.isVisible || bottomAccessoryHeight > 0 else { return nil }
+        return viewportBottomY
+            - max(keyboardMonitor.visibleHeight, 0)
+            - max(bottomAccessoryHeight, 0)
     }
 
     private var caretScrollAnimationDuration: TimeInterval {
@@ -1997,20 +2068,10 @@ struct ZoneEditorCanvas: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(selectedDebugLine)
-                        Text(lastTapDebugLine.isEmpty ? "tap idle" : lastTapDebugLine)
-                        ForEach(Array(windowTouchDebugLines.enumerated()), id: \.offset) { _, line in
-                            Text(line)
-                        }
                         if let selectedFrame {
                             Text("rect \(Int(selectedFrame.width))x\(Int(selectedFrame.height)) @ \(Int(selectedFrame.minX)),\(Int(selectedFrame.minY))")
                         }
-                        ForEach(Array(debugStore.hudLines.enumerated()), id: \.offset) { _, line in
-                            Text(line)
-                        }
-                        ForEach(debugStore.latestLayoutLines, id: \.self) { line in
-                            Text(line)
-                        }
-                        ForEach(interactionTrace.suffix(8), id: \.self) { line in
+                        ForEach(Array(debugStore.compactHudLines.enumerated()), id: \.offset) { _, line in
                             Text(line)
                         }
                     }
@@ -2381,6 +2442,10 @@ private final class ZoneEditorScrollDriver {
         }
     }
 
+    func releaseOffsetLock() {
+        clearOffsetLock()
+    }
+
     @discardableResult
     func scrollWindowRectAboveBottomChromeIfNeeded(
         windowRect: CGRect,
@@ -2389,7 +2454,8 @@ private final class ZoneEditorScrollDriver {
         bottomAccessoryHeight: CGFloat,
         bottomBuffer: CGFloat,
         animationDuration: TimeInterval,
-        animationOptions: UIView.AnimationOptions
+        animationOptions: UIView.AnimationOptions,
+        zoneID: UUID?
     ) -> Bool {
         guard let scrollView,
               scrollView.window != nil,
@@ -2397,7 +2463,14 @@ private final class ZoneEditorScrollDriver {
               scrollView.contentSize.height
                 + scrollView.adjustedContentInset.top
                 + scrollView.adjustedContentInset.bottom > scrollView.bounds.height
-        else { return false }
+        else {
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-skip",
+                zoneID: zoneID,
+                details: "reason=not-scrollable rect=\(debugRect(windowRect)) keyboard=\(debugValue(keyboardHeight)) accessory=\(debugValue(bottomAccessoryHeight)) buffer=\(debugValue(bottomBuffer))"
+            )
+            return false
+        }
 
         scrollView.layoutIfNeeded()
 
@@ -2410,12 +2483,31 @@ private final class ZoneEditorScrollDriver {
             bottomBuffer: bottomBuffer
         )
         let overlap = windowRect.maxY - visibleBottomY
-        guard overlap > 0 else { return false }
+        guard overlap > 0 else {
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-skip",
+                zoneID: zoneID,
+                details: "reason=visible rect=\(debugRect(windowRect)) visibleBottom=\(debugValue(visibleBottomY)) overlap=\(debugValue(overlap)) offset=\(debugValue(currentY)) inset=\(debugInsets(scrollView.adjustedContentInset)) content=\(debugSize(scrollView.contentSize)) bounds=\(debugSize(scrollView.bounds.size))"
+            )
+            return false
+        }
 
         let targetY = clampedOffsetY(currentY + overlap, in: scrollView)
-        guard abs(targetY - currentY) > 0.5 else { return false }
+        guard abs(targetY - currentY) > 0.5 else {
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-skip",
+                zoneID: zoneID,
+                details: "reason=clamped rect=\(debugRect(windowRect)) visibleBottom=\(debugValue(visibleBottomY)) overlap=\(debugValue(overlap)) current=\(debugValue(currentY)) target=\(debugValue(targetY)) inset=\(debugInsets(scrollView.adjustedContentInset)) content=\(debugSize(scrollView.contentSize)) bounds=\(debugSize(scrollView.bounds.size))"
+            )
+            return false
+        }
 
         clearOffsetLock()
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-apply",
+            zoneID: zoneID,
+            details: "rect=\(debugRect(windowRect)) visibleBottom=\(debugValue(visibleBottomY)) overlap=\(debugValue(overlap)) current=\(debugValue(currentY)) target=\(debugValue(targetY)) chromeTop=\(debugOptionalValue(bottomChromeTopY)) keyboard=\(debugValue(keyboardHeight)) accessory=\(debugValue(bottomAccessoryHeight)) buffer=\(debugValue(bottomBuffer)) inset=\(debugInsets(scrollView.adjustedContentInset)) content=\(debugSize(scrollView.contentSize)) bounds=\(debugSize(scrollView.bounds.size))"
+        )
         setContentOffset(
             CGPoint(x: scrollView.contentOffset.x, y: targetY),
             in: scrollView,
@@ -2423,6 +2515,57 @@ private final class ZoneEditorScrollDriver {
             options: animationOptions
         )
         return true
+    }
+
+    @discardableResult
+    func scrollContentRectAboveBottomChromeIfNeeded(
+        contentRect: CGRect,
+        contentTopOffset: CGFloat,
+        bottomChromeTopY: CGFloat?,
+        keyboardHeight: CGFloat,
+        bottomAccessoryHeight: CGFloat,
+        bottomBuffer: CGFloat,
+        animationDuration: TimeInterval,
+        animationOptions: UIView.AnimationOptions,
+        zoneID: UUID?
+    ) -> Bool {
+        guard let scrollView, scrollView.window != nil else {
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-skip",
+                zoneID: zoneID,
+                details: "reason=no-scroll-view contentRect=\(debugRect(contentRect))"
+            )
+            return false
+        }
+
+        scrollView.layoutIfNeeded()
+        let contentY = contentRect.maxY + contentTopOffset
+        let boundsY = contentY - scrollView.contentOffset.y
+        let bottomPoint = CGPoint(x: scrollView.bounds.midX, y: boundsY)
+        let bottomPointInWindow = scrollView.convert(bottomPoint, to: nil)
+        let windowRect = CGRect(
+            x: bottomPointInWindow.x,
+            y: bottomPointInWindow.y - max(contentRect.height, 1),
+            width: max(contentRect.width, 1),
+            height: max(contentRect.height, 1)
+        )
+
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-frame-candidate",
+            zoneID: zoneID,
+            details: "contentRect=\(debugRect(contentRect)) topOffset=\(debugValue(contentTopOffset)) windowRect=\(debugRect(windowRect)) offset=\(debugValue(scrollView.contentOffset.y))"
+        )
+
+        return scrollWindowRectAboveBottomChromeIfNeeded(
+            windowRect: windowRect,
+            bottomChromeTopY: bottomChromeTopY,
+            keyboardHeight: keyboardHeight,
+            bottomAccessoryHeight: bottomAccessoryHeight,
+            bottomBuffer: bottomBuffer,
+            animationDuration: animationDuration,
+            animationOptions: animationOptions,
+            zoneID: zoneID
+        )
     }
 
     private func setContentOffset(
@@ -2590,6 +2733,27 @@ private final class ZoneEditorScrollDriver {
             scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom
         )
         return min(max(offsetY, minOffsetY), maxOffsetY)
+    }
+
+    private func debugRect(_ rect: CGRect) -> String {
+        "\(debugValue(rect.minX)),\(debugValue(rect.minY)),\(debugValue(rect.width))x\(debugValue(rect.height))"
+    }
+
+    private func debugSize(_ size: CGSize) -> String {
+        "\(debugValue(size.width))x\(debugValue(size.height))"
+    }
+
+    private func debugInsets(_ insets: UIEdgeInsets) -> String {
+        "\(debugValue(insets.top)),\(debugValue(insets.left)),\(debugValue(insets.bottom)),\(debugValue(insets.right))"
+    }
+
+    private func debugOptionalValue(_ value: CGFloat?) -> String {
+        value.map(debugValue) ?? "nil"
+    }
+
+    private func debugValue(_ value: CGFloat) -> String {
+        guard value.isFinite else { return value.description }
+        return String(format: "%.1f", Double(value))
     }
 }
 

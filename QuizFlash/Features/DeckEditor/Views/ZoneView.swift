@@ -923,7 +923,8 @@ struct ZoneContentView: View {
         let textForMeasurement = preservesTrailingBlankLines
             ? zone.text
             : textWithoutTrailingBlankLines(zone.text)
-        let rawText = textForMeasurement.isEmpty ? " " : textForMeasurement
+        let editorText = ZoneForcedLineBreak.editorDisplayText(textForMeasurement)
+        let rawText = editorText.isEmpty ? " " : editorText
         let measuredText = rawText.hasSuffix("\n") ? rawText + " " : rawText
         let textStorage = NSTextStorage(
             attributedString: NSAttributedString(
@@ -1251,7 +1252,9 @@ struct ZoneContentView: View {
                 focusManager.updateFocusedZone(zoneID)
                 zoneController.updateFocusedZone(zoneID)
             }
-        } else if focusManager.focusedZoneID == currentZoneID {
+        } else if focusManager.focusedZoneID == currentZoneID,
+                  !focusManager.shouldRetainKeyboard,
+                  focusManager.pendingFocusZoneID == nil {
             focusManager.updateFocusedZone(nil)
             zoneController.updateFocusedZone(nil)
         }
