@@ -113,7 +113,7 @@ struct FlashCardsPlayModeView: View {
     private var scoreZoneBottomPadding: CGFloat { isCompact ? 10 : 16 }
     private var cardBottomReserve: CGFloat { flipPerspectiveBottomClearance }
     private var bottomChromeHeight: CGFloat { scoreZoneHeight + scoreZoneBottomPadding + 6 }
-    private var preloadBufferDepth: Int { 2 }
+    private var preloadBufferDepth: Int { 1 }
     private var promotedCardScale: CGFloat { 0.952 }
     private var promotedCardSpring: Animation { .spring(response: 0.36, dampingFraction: 0.84) }
     private var resolvedDeckTitle: String {
@@ -1373,6 +1373,13 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         lines.append("centeredTopInset: \(metric(snapshot.centeredTopInset))")
         lines.append("scrollContentHeight: \(metric(snapshot.scrollContentHeight))")
         lines.append("")
+        lines.append("FACE / SCROLL TIMELINE")
+        if snapshot.faceDebugEvents.isEmpty {
+            lines.append("    <none>")
+        } else {
+            lines.append(contentsOf: snapshot.faceDebugEvents.map { "    \($0)" })
+        }
+        lines.append("")
         lines.append("CARD GESTURE DEBUG")
         lines.append(cardGestureDebugLine(for: SwipeTouchDebugStore.latest))
         lines.append("")
@@ -1519,7 +1526,7 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
     private static func nativeRenderDebugLines(for snapshot: MixedMathNativeRenderDebug?) -> String {
         guard let snapshot else { return "    <none>" }
 
-        let header = "    webView=\(snapshot.webViewID) source=\(snapshot.checkoutSource) checkout=\(snapshot.checkoutCount) stage=\(snapshot.stage) token=\(snapshot.renderToken) readiness=\(snapshot.readinessChecks) didFinish=\(snapshot.didFinishCount) jsExec=\(snapshot.javaScriptExecutionCount) heightMsg=\(snapshot.heightMessageCount)(\(metric(snapshot.lastHeight))) widthMsg=\(snapshot.widthMessageCount)(\(metric(snapshot.lastWidth))) statusMsg=\(snapshot.renderStatusMessageCount) error=\"\(snapshot.lastError)\""
+        let header = "    webView=\(snapshot.webViewID) source=\(snapshot.checkoutSource) checkout=\(snapshot.checkoutCount) window=\(snapshot.windowAttached ? 1 : 0) hidden=\(snapshot.isHidden ? 1 : 0) alpha=\(metric(snapshot.alpha)) layerOpacity=\(metric(CGFloat(snapshot.layerOpacity))) effectiveOpacity=\(metric(CGFloat(snapshot.effectiveOpacity))) frame=\(rect(snapshot.frame)) bounds=\(rect(snapshot.bounds)) intersectsWindow=\(snapshot.intersectsWindow ? 1 : 0) stage=\(snapshot.stage) token=\(snapshot.renderToken) readiness=\(snapshot.readinessChecks) didFinish=\(snapshot.didFinishCount) jsExec=\(snapshot.javaScriptExecutionCount) heightMsg=\(snapshot.heightMessageCount)(\(metric(snapshot.lastHeight))) widthMsg=\(snapshot.widthMessageCount)(\(metric(snapshot.lastWidth))) statusMsg=\(snapshot.renderStatusMessageCount) error=\"\(snapshot.lastError)\""
         guard !snapshot.events.isEmpty else { return header }
         return ([header, "    events:"] + snapshot.events.map { "      - \($0)" })
             .joined(separator: "\n")
@@ -1553,7 +1560,15 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
     }
 
     private static func metric(_ value: CGFloat) -> String {
-        Double(value).formatted(.number.precision(.fractionLength(0...1)))
+        let rounded = value.rounded()
+        if abs(value - rounded) < 0.05 {
+            return "\(Int(rounded))"
+        }
+        return String(format: "%.1f", Double(value))
+    }
+
+    private static func rect(_ value: CGRect) -> String {
+        "\(metric(value.minX)),\(metric(value.minY)),\(metric(value.width))x\(metric(value.height))"
     }
 }
 

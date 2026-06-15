@@ -24,6 +24,7 @@ struct ZoneContentLayoutDebugSnapshot: Equatable {
     let contentFitsVertically: Bool
     let centeredTopInset: CGFloat
     let scrollContentHeight: CGFloat
+    let faceDebugEvents: [String]
     let leafSnapshots: [ZoneContentLeafLayoutDebugSnapshot]
 }
 
@@ -92,7 +93,7 @@ struct ZoneContentLeafDebugPreferenceKey: PreferenceKey {
     }
 }
 
-struct ZoneContentRenderBlockBounds {
+struct ZoneContentRenderBlockBounds: Equatable {
     let zoneID: UUID
     let frame: CGRect
 }
@@ -235,8 +236,8 @@ private enum ZoneContentDisplayTextNormalizer {
 
         return paragraphs
             .map { paragraph in
-            paragraph.replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
-        }
+                paragraph.replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
+            }
             .filter { !$0.isEmpty }
             .joined(separator: "\n\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -254,6 +255,17 @@ private struct ZoneContentContainerMeasurementIdentity: Equatable {
 enum ZoneContentDebugGuideStyle: Equatable {
     case debug
     case editorRender
+}
+
+private struct ZoneContentSurfaceCornerRadiusKey: EnvironmentKey {
+    static let defaultValue = ZoneContentMetrics.zoneCornerRadius
+}
+
+extension EnvironmentValues {
+    var zoneContentSurfaceCornerRadius: CGFloat {
+        get { self[ZoneContentSurfaceCornerRadiusKey.self] }
+        set { self[ZoneContentSurfaceCornerRadiusKey.self] = newValue }
+    }
 }
 
 @ViewBuilder
@@ -295,8 +307,11 @@ struct ZoneContentLayout {
 
     var contentBodyHeight: CGFloat {
         let estimatedHeight = max(ceil(estimatedContentSize.height), 1)
-        if measuredContentSize.height > 0 {
-            return max(ceil(measuredContentSize.height), 1)
+        let measuredHeight = ceil(measuredContentSize.height)
+        let minimumPlausibleMeasuredHeight = max(1, estimatedHeight * 0.25)
+
+        if measuredHeight >= minimumPlausibleMeasuredHeight {
+            return max(measuredHeight, 1)
         }
 
         return estimatedHeight
@@ -410,13 +425,22 @@ struct ZoneContentRenderView: View {
 
 // MARK: - Zone Content Zone Preview
 
-private enum ZoneContentRenderPolicy {
+enum ZoneContentRenderPolicy {
     nonisolated static func shouldRender(_ zone: ZoneModel) -> Bool {
         if zone.hasContent || zone.highlightColor != .none || zone.sizeMode == .fixed {
             return true
         }
 
         return zone.children?.contains(where: shouldRender) ?? false
+    }
+
+    nonisolated static func renderableLeafCount(in zone: ZoneModel) -> Int {
+        guard shouldRender(zone) else { return 0 }
+        guard !zone.isLeaf else { return 1 }
+
+        return zone.children?.reduce(into: 0) { count, child in
+            count += renderableLeafCount(in: child)
+        } ?? 0
     }
 }
 
@@ -662,15 +686,19 @@ private struct ZoneContentTreePreview: View {
     }
 
     private func verticalGroupWidth(for children: [ZoneModel], childPaths: [String]) -> CGFloat {
+        let estimatedWidth = estimatedVerticalGroupWidth(for: children)
+
         if measuredDirectChildWidths.count == childPaths.count {
             let measuredWidth = childPaths
                 .compactMap { measuredDirectChildWidths[$0] }
                 .max() ?? 1
 
-            return min(max(ceil(measuredWidth), 1), availableWidth)
+            let resolvedWidth = children.allSatisfy(requiresIntrinsicTextWidthFloor(for:))
+                ? max(measuredWidth, estimatedWidth)
+                : measuredWidth
+            return min(max(ceil(resolvedWidth), 1), availableWidth)
         }
 
-        let estimatedWidth = estimatedVerticalGroupWidth(for: children)
         return min(max(ceil(estimatedWidth), 1), availableWidth)
     }
 
@@ -721,11 +749,22 @@ private struct ZoneContentTreePreview: View {
             guard child.hasContent else { return 1 }
 
             switch child.contentType {
-            case .text, .code, .empty:
+            case .text where requiresIntrinsicTextWidthFloor(for: child):
+                let estimatedWidth = ZoneContentEstimator.estimatedBlockWidth(
+                    for: child,
+                    fontScale: fontScale,
+                    availableWidth: availableWidth,
+                    textVerticalPadding: textVerticalPadding,
+                    textHorizontalPaddingOverride: textHorizontalPaddingOverride
+                )
                 return min(
-                    max(resolvedTextHorizontalPadding + 8, 1),
+                    max(ceil(estimatedWidth), resolvedTextHorizontalPadding + 8, 1),
                     availableWidth
                 )
+            case .text, .code:
+                return min(max(resolvedTextHorizontalPadding + 8, 1), availableWidth)
+            case .empty:
+                return min(max(resolvedTextHorizontalPadding + 8, 1), availableWidth)
             case .image, .sketch:
                 return 1
             }
@@ -737,6 +776,18 @@ private struct ZoneContentTreePreview: View {
             .max() ?? 1
 
         return min(max(childMinimum, 1), availableWidth)
+    }
+
+    private func requiresIntrinsicTextWidthFloor(for child: ZoneModel) -> Bool {
+        guard child.contentType == .text else { return false }
+        let previewText = ZoneContentDisplayTextNormalizer.textZoneDisplayText(child.text)
+        guard !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+
+        let healedText = MathTextSanitizer.heal(previewText)
+        return !MathTextSanitizer.containsMath(healedText)
+            && !MathTextSanitizer.containsInlineCode(healedText)
     }
 
     private func verticalContainerMeasurementIdentity(for children: [ZoneModel]) -> ZoneContentContainerMeasurementIdentity {
@@ -806,6 +857,8 @@ private struct ZoneContentTreePreview: View {
 // MARK: - Zone Content Leaf Preview
 
 private struct ZoneContentLeafPreview: View {
+    @Environment(\.zoneContentSurfaceCornerRadius) private var zoneSurfaceCornerRadius
+
     let zone: ZoneModel
     let path: String
     let suppressOwnEditorRenderGuide: Bool
@@ -869,7 +922,7 @@ private struct ZoneContentLeafPreview: View {
 
                 if showsDebugGuides && !suppressOwnEditorRenderGuide {
                     RoundedRectangle(
-                        cornerRadius: ZoneContentMetrics.zoneCornerRadius,
+                        cornerRadius: zoneSurfaceCornerRadius,
                         style: .continuous
                     )
                         .stroke(
@@ -912,23 +965,18 @@ private struct ZoneContentLeafPreview: View {
         )
             .onChange(of: measurementIdentity) { oldIdentity, newIdentity in
             guard !oldIdentity.matchesContent(of: newIdentity) else {
+                if shouldResetPreservedMeasurement(forAvailableWidth: newIdentity.availableWidth) {
+                    resetRenderedMeasurements(reason: "width floor reset")
+                    return
+                }
+
                 appendMeasurementEvent(
                     "width changed \(Int(oldIdentity.availableWidth)) -> \(Int(newIdentity.availableWidth)); preserved \(debugSize(renderedContentSize))"
                 )
                 return
             }
 
-            measurementResetCount += 1
-            rawMeasuredContentSize = .zero
-            lastMeasurementSource = "identity-reset"
-            lastMeasurementDecision = "cleared"
-            appendMeasurementEvent("identity reset")
-            renderedContentSize = .zero
-            renderedTokenLines = []
-            renderedScrollableMath = []
-            mathGestureDebug = nil
-            renderStatusDebug = nil
-            nativeRenderDebug = nil
+            resetRenderedMeasurements(reason: "identity reset")
         }
     }
 
@@ -1065,15 +1113,15 @@ private struct ZoneContentLeafPreview: View {
                 EmptyView()
             } else {
                 let tint = zone.highlightColor.zoneSurfaceTint
-                RoundedRectangle(cornerRadius: ZoneContentMetrics.zoneCornerRadius, style: .continuous)
+                RoundedRectangle(cornerRadius: zoneSurfaceCornerRadius, style: .continuous)
                     .fill(zoneSurfaceFill)
                     .overlay {
-                    RoundedRectangle(cornerRadius: ZoneContentMetrics.zoneCornerRadius, style: .continuous)
+                    RoundedRectangle(cornerRadius: zoneSurfaceCornerRadius, style: .continuous)
                         .stroke(Color.white.opacity(0.10), lineWidth: 0.8)
                 }
                     .overlay {
                     if let tint {
-                        RoundedRectangle(cornerRadius: ZoneContentMetrics.zoneCornerRadius, style: .continuous)
+                        RoundedRectangle(cornerRadius: zoneSurfaceCornerRadius, style: .continuous)
                             .stroke(tint.opacity(0.86), style: zoneHighlightStrokeStyle)
                     }
                 }
@@ -1267,6 +1315,47 @@ private struct ZoneContentLeafPreview: View {
         }
     }
 
+    private func shouldResetPreservedMeasurement(forAvailableWidth availableWidth: CGFloat) -> Bool {
+        guard renderedContentSize.width > 0 else { return false }
+
+        if !requiresIntrinsicTextWidthFloor {
+            return renderedContentSize.width <= 1.5 && availableWidth > 1.5
+        }
+
+        let minimumWidth = ZoneContentEstimator.estimatedBlockWidth(
+            for: layoutZone,
+            fontScale: fontScale,
+            availableWidth: max(availableWidth, 1),
+            textVerticalPadding: textVerticalPadding,
+            textHorizontalPaddingOverride: textHorizontalPaddingOverride
+        )
+
+        return renderedContentSize.width + 0.5 < minimumWidth
+    }
+
+    private var requiresIntrinsicTextWidthFloor: Bool {
+        guard zone.contentType == .text else { return false }
+        let previewText = displayText(for: zone)
+        guard !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        let healedText = MathTextSanitizer.heal(previewText)
+        return !MathTextSanitizer.containsMath(healedText)
+            && !MathTextSanitizer.containsInlineCode(healedText)
+    }
+
+    private func resetRenderedMeasurements(reason: String) {
+        measurementResetCount += 1
+        rawMeasuredContentSize = .zero
+        lastMeasurementSource = "identity-reset"
+        lastMeasurementDecision = "cleared"
+        appendMeasurementEvent(reason)
+        renderedContentSize = .zero
+        renderedTokenLines = []
+        renderedScrollableMath = []
+        mathGestureDebug = nil
+        renderStatusDebug = nil
+        nativeRenderDebug = nil
+    }
+
     private func recordMeasurementDecision(_ decision: String, size: CGSize, source: String) {
         lastMeasurementDecision = decision
         appendMeasurementEvent("\(source) \(debugSize(size)) \(decision)")
@@ -1321,8 +1410,19 @@ private struct ZoneContentLeafPreview: View {
         let bulletInset = zone.hasBullet
             ? ZoneContentMetrics.bulletWidth + ZoneContentMetrics.bulletSpacing
         : 0
+        let estimatedWidth: CGFloat = {
+            guard requiresIntrinsicTextWidthFloor else { return 1 }
+            return ZoneContentEstimator.estimatedBlockWidth(
+                for: layoutZone,
+                fontScale: fontScale,
+                availableWidth: max(availableWidth, 1),
+                textVerticalPadding: textVerticalPadding,
+                textHorizontalPaddingOverride: textHorizontalPaddingOverride
+            )
+        }()
+
         return min(
-            max(resolvedTextHorizontalPadding + bulletInset + 8, 1),
+            max(ceil(estimatedWidth), resolvedTextHorizontalPadding + bulletInset + 8, 1),
             availableWidth
         )
     }
@@ -1460,7 +1560,7 @@ enum ZoneContentMetrics {
     static let childSpacing: CGFloat = 12
     static let textVerticalPadding: CGFloat = 24
     static let textHorizontalPadding: CGFloat = 24
-    static let zoneCornerRadius: CGFloat = 18
+    static let zoneCornerRadius: CGFloat = 38
     static let highlightedHorizontalPadding: CGFloat = textHorizontalPadding
     static let bulletWidth: CGFloat = 6
     static let bulletSpacing: CGFloat = 8
@@ -1886,6 +1986,11 @@ enum ZoneContentEstimator {
     private static let highlightedHorizontalPadding = ZoneContentMetrics.highlightedHorizontalPadding
     private static let bulletWidth = ZoneContentMetrics.bulletWidth
     private static let bulletSpacing = ZoneContentMetrics.bulletSpacing
+    private static let estimatedSizeCache: NSCache<NSString, NSValue> = {
+        let cache = NSCache<NSString, NSValue>()
+        cache.countLimit = 512
+        return cache
+    }()
 
     static func estimatedSize(
         for zone: ZoneModel,
@@ -1895,24 +2000,35 @@ enum ZoneContentEstimator {
         textHorizontalPaddingOverride: CGFloat? = nil
     ) -> CGSize {
         let clampedWidth = max(availableWidth, 1)
+        let cacheKey = estimatedSizeCacheKey(
+            for: zone,
+            fontScale: fontScale,
+            availableWidth: clampedWidth,
+            textVerticalPadding: textVerticalPadding,
+            textHorizontalPaddingOverride: textHorizontalPaddingOverride
+        )
+
+        if let cachedSize = estimatedSizeCache.object(forKey: cacheKey)?.cgSizeValue {
+            return cachedSize
+        }
 
         guard ZoneContentRenderPolicy.shouldRender(zone) else {
-            return CGSize(width: 1, height: 36)
+            return cacheEstimatedSize(CGSize(width: 1, height: 36), for: cacheKey)
         }
 
         if zone.isLeaf {
-            return estimatedLeafSize(
+            return cacheEstimatedSize(estimatedLeafSize(
                 for: zone,
                 fontScale: fontScale,
                 availableWidth: clampedWidth,
                 textVerticalPadding: textVerticalPadding,
                 textHorizontalPaddingOverride: textHorizontalPaddingOverride
-            )
+            ), for: cacheKey)
         }
 
         let children = zone.children?.filter(ZoneContentRenderPolicy.shouldRender) ?? []
         guard !children.isEmpty else {
-            return CGSize(width: 1, height: 36)
+            return cacheEstimatedSize(CGSize(width: 1, height: 36), for: cacheKey)
         }
 
         switch zone.direction {
@@ -1930,10 +2046,10 @@ enum ZoneContentEstimator {
                 + (CGFloat(max(children.count - 1, 0)) * childSpacing)
             let widestChild = childSizes.map(\.width).max() ?? 1
 
-            return CGSize(
+            return cacheEstimatedSize(CGSize(
                 width: min(ceil(widestChild), clampedWidth),
                 height: ceil(totalHeight)
-            )
+            ), for: cacheKey)
 
         case .horizontal:
             let spacingTotal = CGFloat(max(children.count - 1, 0)) * childSpacing
@@ -1950,11 +2066,69 @@ enum ZoneContentEstimator {
             let totalWidth = childSizes.reduce(CGFloat(0)) { $0 + $1.width } + spacingTotal
             let tallestChild = childSizes.map(\.height).max() ?? 1
 
-            return CGSize(
+            return cacheEstimatedSize(CGSize(
                 width: min(ceil(totalWidth), clampedWidth),
                 height: ceil(tallestChild)
-            )
+            ), for: cacheKey)
         }
+    }
+
+    private static func cacheEstimatedSize(_ size: CGSize, for key: NSString) -> CGSize {
+        estimatedSizeCache.setObject(NSValue(cgSize: size), forKey: key)
+        return size
+    }
+
+    nonisolated private static func estimatedSizeCacheKey(
+        for zone: ZoneModel,
+        fontScale: CGFloat,
+        availableWidth: CGFloat,
+        textVerticalPadding: CGFloat,
+        textHorizontalPaddingOverride: CGFloat?
+    ) -> NSString {
+        [
+            "estimate",
+            roundedCacheComponent(fontScale),
+            roundedCacheComponent(availableWidth),
+            roundedCacheComponent(textVerticalPadding),
+            textHorizontalPaddingOverride.map(roundedCacheComponent) ?? "nil",
+            zoneCacheFingerprint(zone)
+        ]
+            .joined(separator: "|") as NSString
+    }
+
+    nonisolated private static func roundedCacheComponent(_ value: CGFloat) -> String {
+        String(format: "%.2f", Double(value))
+    }
+
+    nonisolated private static func zoneCacheFingerprint(_ zone: ZoneModel) -> String {
+        var parts: [String] = [
+            zone.id.uuidString,
+            String(describing: zone.contentType),
+            zone.codeLanguage ?? "",
+            zone.text,
+            String(describing: zone.textStyle),
+            String(describing: zone.textAlignment),
+            String(describing: zone.sizeMode),
+            String(describing: zone.blockAlignment),
+            zone.fixedWidth.map(roundedCacheComponent) ?? "nil",
+            zone.fixedHeight.map(roundedCacheComponent) ?? "nil",
+            String(describing: zone.verticalAlignment),
+            String(describing: zone.textColor),
+            String(zone.isBold),
+            String(zone.isItalic),
+            String(zone.hasBullet),
+            String(describing: zone.fontFamily),
+            String(describing: zone.highlightColor),
+            roundedCacheComponent(zone.imageScale),
+            String(describing: zone.direction),
+            zone.imageData.map { "\($0.count):\($0.hashValue)" } ?? "nil"
+        ]
+
+        if let children = zone.children, !children.isEmpty {
+            parts.append(contentsOf: children.map(zoneCacheFingerprint))
+        }
+
+        return parts.joined(separator: "\u{1F}")
     }
 
     static func estimatedBlockWidth(

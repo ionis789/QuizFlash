@@ -97,6 +97,14 @@ struct MixedMathNativeRenderDebug: Equatable {
     var webViewID = "unassigned"
     var checkoutSource = "unknown"
     var checkoutCount = 0
+    var windowAttached = false
+    var isHidden = false
+    var alpha: CGFloat = 0
+    var layerOpacity: Float = 0
+    var effectiveOpacity: Float = 0
+    var frame: CGRect = .zero
+    var bounds: CGRect = .zero
+    var intersectsWindow = false
     var stage = "idle"
     var renderToken = "none"
     var readinessChecks = 0
@@ -109,6 +117,12 @@ struct MixedMathNativeRenderDebug: Equatable {
     var lastWidth: CGFloat = 0
     var lastError = "none"
     var events: [String] = []
+}
+
+extension Notification.Name {
+    static let quizFlashMixedMathVisibilityProbe = Notification.Name(
+        "QuizFlash.MixedMathVisibilityProbe"
+    )
 }
 
 private var quizFlashHorizontalOverflowAssociationKey: UInt8 = 0
@@ -2357,6 +2371,8 @@ struct MathWebView: UIViewRepresentable {
         private var pendingRenderUpdate: (js: String, renderToken: String)?
         private var lastTapEmissionTime: TimeInterval = 0
         private var activeRenderToken = UUID().uuidString
+        private var visibilityProbeObserver: NSObjectProtocol?
+        private var visibilityProbeTask: Task<Void, Never>?
 
         init(
             contentHeight: Binding<CGFloat>,
@@ -2386,10 +2402,23 @@ struct MathWebView: UIViewRepresentable {
             self.reportsRenderStatusDebug = reportsRenderStatusDebug
             _horizontalOverflowState = horizontalOverflowState
             self.onTap = onTap
+            super.init()
+            visibilityProbeObserver = NotificationCenter.default.addObserver(
+                forName: .quizFlashMixedMathVisibilityProbe,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                let reason = notification.userInfo?["reason"] as? String ?? "unknown"
+                self?.scheduleVisibilityProbes(reason: reason)
+            }
         }
 
         deinit {
             updateRetryTask?.cancel()
+            visibilityProbeTask?.cancel()
+            if let visibilityProbeObserver {
+                NotificationCenter.default.removeObserver(visibilityProbeObserver)
+            }
         }
 
         func attach(webView: WKWebView) {
@@ -2802,11 +2831,134 @@ struct MathWebView: UIViewRepresentable {
         }
 
         private func recordNativeEvent(_ event: String, stage: String) {
+            refreshNativeViewState()
             nativeRenderDebug.stage = stage
             nativeRenderDebug.events.append(event)
             if nativeRenderDebug.events.count > 18 {
                 nativeRenderDebug.events.removeFirst(nativeRenderDebug.events.count - 18)
             }
+        }
+
+        private func scheduleVisibilityProbes(reason: String) {
+            visibilityProbeTask?.cancel()
+            probeVisibility(reason: "\(reason) immediate")
+            visibilityProbeTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(220))
+                guard !Task.isCancelled else { return }
+                self?.refreshPresentationIfVisible(reason: "\(reason) +220ms")
+                try? await Task.sleep(for: .milliseconds(280))
+                guard !Task.isCancelled else { return }
+                self?.refreshPresentationIfVisible(reason: "\(reason) +500ms")
+            }
+        }
+
+        private func probeVisibility(reason: String) {
+            refreshNativeViewState()
+            let state = nativeRenderDebug
+            recordNativeEvent(
+                "visibility \(reason) window=\(state.windowAttached ? 1 : 0) hidden=\(state.isHidden ? 1 : 0) alpha=\(debugMetric(state.alpha)) layer=\(debugMetric(CGFloat(state.layerOpacity))) effective=\(debugMetric(CGFloat(state.effectiveOpacity))) frame=\(debugRect(state.frame)) intersects=\(state.intersectsWindow ? 1 : 0)",
+                stage: "visibility-probe"
+            )
+        }
+
+        private func refreshPresentationIfVisible(reason: String) {
+            probeVisibility(reason: reason)
+            guard let webView else { return }
+
+            let state = nativeRenderDebug
+            guard state.windowAttached,
+                  !state.isHidden,
+                  state.intersectsWindow,
+                  state.effectiveOpacity > 0.5,
+                  state.bounds.width > 1,
+                  state.bounds.height > 1 else {
+                recordNativeEvent(
+                    "presentation refresh skipped \(reason) effective=\(debugMetric(CGFloat(state.effectiveOpacity)))",
+                    stage: "presentation-refresh-skipped"
+                )
+                return
+            }
+
+            webView.setNeedsLayout()
+            webView.layoutIfNeeded()
+            webView.scrollView.setNeedsLayout()
+            webView.scrollView.layoutIfNeeded()
+            webView.layer.setNeedsDisplay()
+            webView.scrollView.layer.setNeedsDisplay()
+
+            let repaintJavaScript = """
+            (() => {
+                const node = document.getElementById('content') || document.body;
+                if (!node) return false;
+                const previousTransform = node.style.transform;
+                node.style.transform = 'translateZ(0.001px)';
+                void node.offsetHeight;
+                requestAnimationFrame(() => {
+                    node.style.transform = previousTransform;
+                    void node.offsetHeight;
+                });
+                return true;
+            })();
+            """
+
+            webView.evaluateJavaScript(repaintJavaScript) { [weak self] _, error in
+                guard let self else { return }
+                if let error {
+                    self.nativeRenderDebug.lastError = error.localizedDescription
+                    self.recordNativeEvent(
+                        "presentation refresh failed \(reason): \(error.localizedDescription)",
+                        stage: "presentation-refresh-error"
+                    )
+                } else {
+                    self.recordNativeEvent(
+                        "presentation refresh executed \(reason)",
+                        stage: "presentation-refreshed"
+                    )
+                }
+            }
+        }
+
+        private func refreshNativeViewState() {
+            guard let webView else { return }
+            if let mathWebView = webView as? MathWKWebView {
+                nativeRenderDebug.webViewID = mathWebView.quizFlashDebugID
+                nativeRenderDebug.checkoutSource = mathWebView.quizFlashCheckoutSource
+                nativeRenderDebug.checkoutCount = mathWebView.quizFlashCheckoutCount
+            }
+            nativeRenderDebug.windowAttached = webView.window != nil
+            nativeRenderDebug.isHidden = webView.isHidden
+            nativeRenderDebug.alpha = webView.alpha
+            nativeRenderDebug.layerOpacity = webView.layer.opacity
+            nativeRenderDebug.effectiveOpacity = effectiveOpacity(of: webView)
+            nativeRenderDebug.frame = webView.frame
+            nativeRenderDebug.bounds = webView.bounds
+            if let window = webView.window {
+                let frameInWindow = webView.convert(webView.bounds, to: window)
+                nativeRenderDebug.intersectsWindow = window.bounds.intersects(frameInWindow)
+            } else {
+                nativeRenderDebug.intersectsWindow = false
+            }
+        }
+
+        private func effectiveOpacity(of view: UIView) -> Float {
+            var opacity: Float = 1
+            var currentView: UIView? = view
+
+            while let viewInHierarchy = currentView {
+                guard !viewInHierarchy.isHidden else { return 0 }
+                opacity *= viewInHierarchy.layer.opacity
+                currentView = viewInHierarchy.superview
+            }
+
+            return opacity
+        }
+
+        private func debugMetric(_ value: CGFloat) -> String {
+            String(format: "%.2f", Double(value))
+        }
+
+        private func debugRect(_ rect: CGRect) -> String {
+            "\(debugMetric(rect.minX)),\(debugMetric(rect.minY)),\(debugMetric(rect.width))x\(debugMetric(rect.height))"
         }
 
         private func scheduleLayoutMetricReports(renderToken: String) {

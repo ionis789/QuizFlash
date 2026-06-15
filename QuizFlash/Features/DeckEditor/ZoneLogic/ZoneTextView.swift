@@ -55,6 +55,7 @@ private enum ZoneTextViewEmptyCaret {
 /// Custom UITextView that keeps selection stable inside the editor surface.
 final class FullHitTextView: UITextView {
     var usesCompactCaret: Bool = true
+    var debugZoneID: UUID?
 
     override func caretRect(for position: UITextPosition) -> CGRect {
         var rect = super.caretRect(for: position)
@@ -69,6 +70,35 @@ final class FullHitTextView: UITextView {
             return self
         }
         return super.hitTest(point, with: event)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+
+        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+        layoutManager.ensureLayout(for: textContainer)
+        let usedRect = layoutManager.usedRect(for: textContainer)
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            "ui-layout",
+            zoneID: debugZoneID,
+            details: "frame=\(debugRect(frame)) bounds=\(debugSize(bounds.size)) containerW=\(debugValue(textContainer.size.width)) used=\(debugSize(usedRect.size)) inset=\(debugInsets(textContainerInset)) len=\((text as NSString?)?.length ?? 0) fr=\(isFirstResponder ? 1 : 0)"
+        )
+    }
+
+    private func debugRect(_ rect: CGRect) -> String {
+        "\(debugValue(rect.minX)),\(debugValue(rect.minY)),\(debugValue(rect.width))x\(debugValue(rect.height))"
+    }
+
+    private func debugSize(_ size: CGSize) -> String {
+        "\(debugValue(size.width))x\(debugValue(size.height))"
+    }
+
+    private func debugInsets(_ insets: UIEdgeInsets) -> String {
+        "\(debugValue(insets.top)),\(debugValue(insets.left)),\(debugValue(insets.bottom)),\(debugValue(insets.right))"
+    }
+
+    private func debugValue(_ value: CGFloat) -> String {
+        String(format: "%.1f", Double(value))
     }
 }
 
@@ -89,6 +119,9 @@ final class ZoneEditorDebugStore {
     private(set) var tapLine: String = "tap idle"
     private(set) var alignmentLine: String = "align idle"
     private(set) var caretLine: String = "caret idle"
+    private(set) var layoutEvents: [String] = []
+    private var layoutEventIndex = 0
+    private let startedAt = Date()
 
     private init() { }
 
@@ -110,6 +143,32 @@ final class ZoneEditorDebugStore {
     func recordEvent(_ value: String) {
         eventIndex += 1
         lastEvent = value
+    }
+
+    func recordLayoutEvent(
+        _ stage: String,
+        zoneID: UUID?,
+        pathID: String? = nil,
+        details: String
+    ) {
+        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+
+        layoutEventIndex += 1
+        let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1_000)
+        let path = pathID.map { " path=\($0)" } ?? ""
+        let line = "L\(layoutEventIndex) +\(elapsedMS)ms \(stage) zone=\(shortID(zoneID))\(path) \(details)"
+        layoutEvents.append(line)
+        if layoutEvents.count > 160 {
+            layoutEvents.removeFirst(layoutEvents.count - 160)
+        }
+    }
+
+    var layoutTraceReport: String {
+        layoutEvents.isEmpty ? "<none>" : layoutEvents.joined(separator: "\n")
+    }
+
+    var latestLayoutLines: [String] {
+        Array(layoutEvents.suffix(4))
     }
 
     func updateFocusManager(focusedZoneID: UUID?, pendingZoneID: UUID?, retainKeyboard: Bool) {
@@ -374,6 +433,17 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             postWillFocusNotification(for: zoneID)
         }
         return true
+    }
+
+    func textView(
+        _ textView: UITextView,
+        shouldChangeTextIn range: NSRange,
+        replacementText text: String
+    ) -> Bool {
+        guard text == "\n" else { return true }
+
+        insertForcedLineBreak(in: textView)
+        return false
     }
 
     func textViewDidChange(_ textView: UITextView) {
@@ -714,8 +784,10 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         // Use custom class that detects tap everywhere
         let textView = FullHitTextView()
         textView.delegate = context.coordinator
+        textView.debugZoneID = zoneID
         context.coordinator.textView = textView
         context.coordinator.zoneID = zoneID
+        textView.debugZoneID = zoneID
         context.coordinator.font = font
         context.coordinator.lineSpacing = lineSpacing
         context.coordinator.contentInset = contentInset
@@ -790,6 +862,13 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.forcedLineBreakTintColor = forcedLineBreakTintColor
         (textView as? FullHitTextView)?.usesCompactCaret = true
         if AppFeatures.current.showsVisualDebugOverlays {
+            let modelText = ZoneTextViewEmptyCaret.modelText(from: textView.text ?? "")
+            let textLength = (modelText as NSString).length
+            ZoneEditorDebugStore.shared.recordLayoutEvent(
+                "ui-update",
+                zoneID: zoneID,
+                details: "frame=\(debugRect(textView.frame)) bounds=\(debugSize(textView.bounds.size)) containerW=\(debugValue(textView.textContainer.size.width)) requestFR=\(isFirstResponder ? 1 : 0) actualFR=\(textView.isFirstResponder ? 1 : 0) len=\(textLength)"
+            )
             ZoneEditorDebugStore.shared.updateTextView(
                 zoneID: zoneID,
                 mountedFocused: isFirstResponder,
@@ -887,11 +966,37 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         let width = proposal.width ?? UIView.layoutFittingExpandedSize.width
         let targetSize = CGSize(width: width, height: UIView.layoutFittingCompressedSize.height)
         let calculatedSize = uiView.sizeThatFits(targetSize)
-
-        return CGSize(
+        let result = CGSize(
             width: width,
             height: max(ceil(calculatedSize.height), ceil(font.lineHeight))
         )
+
+        if AppFeatures.current.showsVisualDebugOverlays {
+            ZoneEditorDebugStore.shared.recordLayoutEvent(
+                "ui-sizeThatFits",
+                zoneID: zoneID,
+                details: "proposal=\(debugOptionalValue(proposal.width))x\(debugOptionalValue(proposal.height)) target=\(debugSize(targetSize)) calculated=\(debugSize(calculatedSize)) result=\(debugSize(result)) frame=\(debugRect(uiView.frame))"
+            )
+        }
+
+        return result
+    }
+
+    private func debugRect(_ rect: CGRect) -> String {
+        "\(debugValue(rect.minX)),\(debugValue(rect.minY)),\(debugValue(rect.width))x\(debugValue(rect.height))"
+    }
+
+    private func debugSize(_ size: CGSize) -> String {
+        "\(debugValue(size.width))x\(debugValue(size.height))"
+    }
+
+    private func debugOptionalValue(_ value: CGFloat?) -> String {
+        value.map(debugValue) ?? "nil"
+    }
+
+    private func debugValue(_ value: CGFloat) -> String {
+        guard value.isFinite else { return value.description }
+        return String(format: "%.1f", Double(value))
     }
     
     private func updateStyling(of textView: UITextView) {

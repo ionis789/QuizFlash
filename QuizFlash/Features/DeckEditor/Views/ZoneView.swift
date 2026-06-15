@@ -208,6 +208,10 @@ struct ZoneEditorView: View {
         let groupWiggleOffset = rendersRichText
             ? alignmentFeedback.offset(for: ZoneAlignmentTargetRef(path: path, kind: .group))
             : 0
+        let groupDebugSignature = groupLayoutDebugSignature(
+            groupWidth: groupWidth,
+            childPaths: childPaths
+        )
 
         VStack(spacing: Self.editorZoneSpacing) {
             ForEach(indexedChildren, id: \.element.id) { index, _ in
@@ -247,6 +251,19 @@ struct ZoneEditorView: View {
         .animation(rendersRichText ? .easeOut(duration: 0.14) : nil, value: groupWidth)
         .animation(rendersRichText ? .easeOut(duration: 0.22) : nil, value: zone.blockAlignment)
         .onPreferenceChange(ZoneEditorNaturalBlockWidthPreferenceKey.self) { widths in
+            guard rendersRichText else {
+                ZoneEditorDebugStore.shared.recordLayoutEvent(
+                    "group-preference-ignored",
+                    zoneID: zone.id,
+                    pathID: path.id,
+                    details: "mode=raw available=\(debugValue(availableWidth)) group=\(debugValue(groupWidth)) incoming=\(debugWidths(widths, paths: childPaths))"
+                )
+                if !measuredDirectChildWidths.isEmpty {
+                    measuredDirectChildWidths = [:]
+                }
+                return
+            }
+
             let directWidths = Dictionary(
                 uniqueKeysWithValues: childPaths.compactMap { childPath -> (String, CGFloat)? in
                     guard let width = widths[childPath], width > 0 else { return nil }
@@ -255,6 +272,12 @@ struct ZoneEditorView: View {
             )
 
             guard directWidths.count == childPaths.count else {
+                ZoneEditorDebugStore.shared.recordLayoutEvent(
+                    "group-preference-incomplete",
+                    zoneID: zone.id,
+                    pathID: path.id,
+                    details: "available=\(debugValue(availableWidth)) direct=\(debugWidths(directWidths, paths: childPaths))"
+                )
                 if !measuredDirectChildWidths.isEmpty {
                     measuredDirectChildWidths = [:]
                 }
@@ -262,14 +285,55 @@ struct ZoneEditorView: View {
             }
 
             guard directWidths != measuredDirectChildWidths else { return }
+            ZoneEditorDebugStore.shared.recordLayoutEvent(
+                "group-preference-accepted",
+                zoneID: zone.id,
+                pathID: path.id,
+                details: "available=\(debugValue(availableWidth)) old=\(debugWidths(measuredDirectChildWidths, paths: childPaths)) new=\(debugWidths(directWidths, paths: childPaths))"
+            )
             measuredDirectChildWidths = directWidths
         }
         .onChange(of: verticalGroupIdentity(for: children)) { _, _ in
+            ZoneEditorDebugStore.shared.recordLayoutEvent(
+                "group-cache-reset",
+                zoneID: zone.id,
+                pathID: path.id,
+                details: "reason=children"
+            )
             measuredDirectChildWidths = [:]
+        }
+        .onChange(of: rendersRichText) { _, _ in
+            ZoneEditorDebugStore.shared.recordLayoutEvent(
+                "group-cache-reset",
+                zoneID: zone.id,
+                pathID: path.id,
+                details: "reason=mode mode=\(rendersRichText ? "rich" : "raw")"
+            )
+            measuredDirectChildWidths = [:]
+        }
+        .onAppear {
+            reportGroupLayout(
+                reason: "appear",
+                zoneID: zone.id,
+                groupWidth: groupWidth,
+                childPaths: childPaths
+            )
+        }
+        .onChange(of: groupDebugSignature) { _, _ in
+            reportGroupLayout(
+                reason: "state-change",
+                zoneID: zone.id,
+                groupWidth: groupWidth,
+                childPaths: childPaths
+            )
         }
     }
 
     private func verticalGroupWidth(for children: [ZoneModel], childPaths: [String]) -> CGFloat {
+        guard rendersRichText else {
+            return max(availableWidth, 1)
+        }
+
         if measuredDirectChildWidths.count == childPaths.count {
             let measuredWidth = childPaths
                 .compactMap { measuredDirectChildWidths[$0] }
@@ -286,36 +350,15 @@ struct ZoneEditorView: View {
     }
 
     private func estimatedEditorBlockWidth(for zone: ZoneModel, constrainedTo width: CGFloat) -> CGFloat {
-        if zone.isLeaf {
-            if isRawEditableTextZone(zone) {
-                return max(width, minimumEditorTextWidth(constrainedTo: width))
-            }
-
-            return ZoneContentEstimator.estimatedBlockWidth(
-                for: normalizedEditorMeasurementZone(zone),
-                fontScale: fontScale,
-                availableWidth: width
-            )
-        }
-
-        let children = zone.children ?? []
-        guard !children.isEmpty else { return 1 }
-        return children
-            .map { estimatedEditorBlockWidth(for: $0, constrainedTo: width) }
-            .max() ?? 1
-    }
-
-    private func isRawEditableTextZone(_ zone: ZoneModel) -> Bool {
-        switch zone.contentType {
-        case .empty, .text, .code:
-            return !rendersRichText
-        case .image, .sketch:
-            return false
-        }
-    }
-
-    private func minimumEditorTextWidth(constrainedTo width: CGFloat) -> CGFloat {
-        min(max(72, width * 0.18), width)
+        ZoneEditorInitialBlockWidthResolver.resolve(
+            zone: normalizedEditorMeasurementZone(zone),
+            fontScale: fontScale,
+            availableWidth: width,
+            usesFullWidthEditableText: !rendersRichText,
+            minimumEmptyTextWidth: rendersRichText
+                ? 1
+                : width
+        )
     }
 
     private func normalizedEditorMeasurementZone(_ zone: ZoneModel) -> ZoneModel {
@@ -330,6 +373,33 @@ struct ZoneEditorView: View {
     private func verticalGroupIdentity(for children: [ZoneModel]) -> String {
         children.map(\.id.uuidString)
         .joined(separator: "||")
+    }
+
+    private func reportGroupLayout(
+        reason: String,
+        zoneID: UUID,
+        groupWidth: CGFloat,
+        childPaths: [String]
+    ) {
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            "group-layout",
+            zoneID: zoneID,
+            pathID: path.id,
+            details: "reason=\(reason) mode=\(rendersRichText ? "rich" : "raw") available=\(debugValue(availableWidth)) measurement=\(debugValue(measurementWidth)) applied=\(debugValue(groupWidth)) cache=\(debugWidths(measuredDirectChildWidths, paths: childPaths))"
+        )
+    }
+
+    private func groupLayoutDebugSignature(groupWidth: CGFloat, childPaths: [String]) -> String {
+        "\(rendersRichText)|\(availableWidth)|\(measurementWidth)|\(groupWidth)|\(debugWidths(measuredDirectChildWidths, paths: childPaths))"
+    }
+
+    private func debugWidths(_ widths: [String: CGFloat], paths: [String]) -> String {
+        let values = paths.map { "\($0)=\(debugValue(widths[$0] ?? -1))" }
+        return values.isEmpty ? "<none>" : values.joined(separator: ",")
+    }
+
+    private func debugValue(_ value: CGFloat) -> String {
+        String(format: "%.1f", Double(value))
     }
 
     private func maskedPreviewDirection(for isChildSelected: Bool) -> Binding<AddDirection?> {
@@ -354,6 +424,71 @@ struct ZoneEditorView: View {
         )
         if !wasSelected {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+    }
+}
+
+enum ZoneEditorInitialBlockWidthResolver {
+    static func resolve(
+        zone: ZoneModel,
+        fontScale: CGFloat,
+        availableWidth: CGFloat,
+        usesFullWidthEditableText: Bool,
+        minimumEmptyTextWidth: CGFloat
+    ) -> CGFloat {
+        let clampedWidth = max(availableWidth, 1)
+
+        if zone.isLeaf {
+            if usesFullWidthEditableText,
+               zone.sizeMode == .auto,
+               isEditableTextZone(zone) {
+                return clampedWidth
+            }
+
+            if zone.sizeMode == .auto, isEmptyEditableTextZone(zone) {
+                return min(max(minimumEmptyTextWidth, 1), clampedWidth)
+            }
+
+            return ZoneContentEstimator.estimatedBlockWidth(
+                for: zone,
+                fontScale: fontScale,
+                availableWidth: clampedWidth
+            )
+        }
+
+        let children = zone.children ?? []
+        guard !children.isEmpty else { return 1 }
+
+        return children
+            .map {
+                resolve(
+                    zone: $0,
+                    fontScale: fontScale,
+                    availableWidth: clampedWidth,
+                    usesFullWidthEditableText: usesFullWidthEditableText,
+                    minimumEmptyTextWidth: minimumEmptyTextWidth
+                )
+            }
+            .max() ?? 1
+    }
+
+    private static func isEditableTextZone(_ zone: ZoneModel) -> Bool {
+        switch zone.contentType {
+        case .empty, .text, .code:
+            return true
+        case .image, .sketch:
+            return false
+        }
+    }
+
+    private static func isEmptyEditableTextZone(_ zone: ZoneModel) -> Bool {
+        switch zone.contentType {
+        case .empty:
+            return true
+        case .text, .code:
+            return zone.text.isEmpty
+        case .image, .sketch:
+            return false
         }
     }
 }
@@ -475,6 +610,12 @@ struct ZoneContentView: View {
                     .onGeometryChange(for: CGSize.self) { proxy in
                         CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
                     } action: { newSize in
+                        ZoneEditorDebugStore.shared.recordLayoutEvent(
+                            "leaf-geometry",
+                            zoneID: zone.id,
+                            pathID: path.id,
+                            details: "new=\(debugSize(newSize)) available=\(debugValue(availableWidth)) contentW=\(debugValue(contentPlacement.width)) intrinsic=\(layout.usesIntrinsicTextMeasurement ? 1 : 0)"
+                        )
                         if !layout.usesIntrinsicTextMeasurement {
                             updateRenderedContentSize(newSize)
                         }
@@ -516,25 +657,25 @@ struct ZoneContentView: View {
             .onAppear {
                 syncFocusState(with: focusManager.focusedZoneID)
                 activatePendingFocusIfNeeded(focusManager.pendingFocusZoneID)
-                reportDebugZoneState(zone: zone, layout: layout)
+                reportDebugZoneState(zone: zone, layout: layout, reason: "appear")
             }
             .onChange(of: zoneDebugSignature(zone: zone, layout: layout)) { _, _ in
-                reportDebugZoneState(zone: zone, layout: layout)
+                reportDebugZoneState(zone: zone, layout: layout, reason: "state-change")
             }
             .onChange(of: isTextViewFirstResponder) { _, _ in
-                reportDebugZoneState(zone: zone, layout: layout)
+                reportDebugZoneState(zone: zone, layout: layout, reason: "first-responder")
             }
             .onChange(of: isFocused) { _, focused in
                 handleMountedFocusStateChange(focused)
-                reportDebugZoneState(zone: zone, layout: layout)
+                reportDebugZoneState(zone: zone, layout: layout, reason: "focus")
             }
             .onChange(of: focusManager.focusedZoneID) { _, focusedID in
                 syncFocusState(with: focusedID)
-                reportDebugZoneState(zone: zone, layout: layout)
+                reportDebugZoneState(zone: zone, layout: layout, reason: "focus-manager")
             }
             .onChange(of: focusManager.pendingFocusZoneID) { _, pendingID in
                 activatePendingFocusIfNeeded(pendingID)
-                reportDebugZoneState(zone: zone, layout: layout)
+                reportDebugZoneState(zone: zone, layout: layout, reason: "pending-focus")
             }
             .fullScreenCover(isPresented: $isCroppingImage) {
                 if let data = zone.imageData, let img = UIImage(data: data) {
@@ -704,8 +845,11 @@ struct ZoneContentView: View {
         case .fillWidth:
             return maxMeasurementWidth
         case .auto:
+            if !rendersRichText {
+                return maxMeasurementWidth
+            }
             if layoutZone.text.isEmpty {
-                return stableEmptyTextWidth(for: zone, constrainedTo: maxMeasurementWidth)
+                return maxMeasurementWidth
             }
             return rawTextMeasurementWidth(for: layoutZone, constrainedTo: maxMeasurementWidth)
         }
@@ -1169,7 +1313,11 @@ struct ZoneContentView: View {
 
     // MARK: - Debug Reporting
 
-    private func reportDebugZoneState(zone: ZoneModel, layout: ZoneContentLayoutResult) {
+    private func reportDebugZoneState(
+        zone: ZoneModel,
+        layout: ZoneContentLayoutResult,
+        reason: String
+    ) {
         ZoneEditorDebugStore.shared.updateFocusManager(
             focusedZoneID: focusManager.focusedZoneID,
             pendingZoneID: focusManager.pendingFocusZoneID,
@@ -1201,6 +1349,20 @@ struct ZoneContentView: View {
             renderedSize: renderedContentSize,
             isSelected: isSelected
         )
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            "leaf-layout",
+            zoneID: zone.id,
+            pathID: path.id,
+            details: "reason=\(reason) mode=\(rendersRichText ? "rich" : "raw") available=\(debugValue(availableWidth)) measurement=\(debugValue(measurementWidth)) textLen=\((zone.text as NSString).length) sizeMode=\(zone.sizeMode.rawValue) measured=\(debugSize(measuredLayoutContentSize(for: zone, layoutZone: normalizedLayoutZone(zone)))) block=\(debugSize(layout.blockSize)) contentW=\(debugValue(layout.contentLayoutWidth)) lead=\(debugValue(layout.leadingInset)) rendered=\(debugSize(renderedContentSize)) selected=\(isSelected ? 1 : 0) focused=\(isFocused ? 1 : 0) uiFR=\(isTextViewFirstResponder ? 1 : 0)"
+        )
+    }
+
+    private func debugSize(_ size: CGSize) -> String {
+        "\(debugValue(size.width))x\(debugValue(size.height))"
+    }
+
+    private func debugValue(_ value: CGFloat) -> String {
+        String(format: "%.1f", Double(value))
     }
 
     private func zoneDebugSignature(zone: ZoneModel, layout: ZoneContentLayoutResult) -> String {
@@ -1314,7 +1476,7 @@ struct ZoneContentView: View {
     }
 
     private var zoneCornerRadius: CGFloat {
-        18
+        ZoneContentMetrics.zoneCornerRadius
     }
 
     private func visualZoneOutset(for zone: ZoneModel?) -> (horizontal: CGFloat, vertical: CGFloat) {

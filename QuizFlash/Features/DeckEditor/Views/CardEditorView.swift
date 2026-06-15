@@ -8,10 +8,19 @@
 import SwiftUI
 
 struct CardEditorView: View {
+    @Environment(AppPreferences.self) private var appPreferences
+
     let destination: CardEditorDestination
     var searchQuery: String? = nil
     var textSizeOverride: FlashcardTextSize? = nil
     var onSave: (DraftCardContent) -> Void
+
+    private var resolvedTextSize: FlashcardTextSize {
+        CardEditorTextSizeResolver.resolve(
+            override: textSizeOverride,
+            defaultTextSize: appPreferences.defaultTextSize
+        )
+    }
 
     var body: some View {
         switch destination.kind {
@@ -29,7 +38,7 @@ struct CardEditorView: View {
             frontZone: content.frontZone,
             backZone: content.backZone,
             searchQuery: searchQuery,
-            textSize: textSizeOverride ?? .large
+            textSize: resolvedTextSize
         ) { frontZone, backZone in
             onSave(
                 .flashcard(
@@ -58,7 +67,8 @@ struct CardEditorView: View {
     private var quizEditor: some View {
         QuizCardEditorView(
             initialContent: resolvedQuizContent,
-            searchQuery: searchQuery
+            searchQuery: searchQuery,
+            textSize: resolvedTextSize
         ) { content in
             onSave(.quiz(content))
         }
@@ -78,4 +88,13 @@ struct CardEditorView: View {
         }
     }
 
+}
+
+enum CardEditorTextSizeResolver {
+    static func resolve(
+        override: FlashcardTextSize?,
+        defaultTextSize: FlashcardTextSize
+    ) -> FlashcardTextSize {
+        override ?? defaultTextSize
+    }
 }

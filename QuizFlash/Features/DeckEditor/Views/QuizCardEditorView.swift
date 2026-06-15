@@ -34,6 +34,7 @@ struct QuizCardEditorView: View {
     @State private var pendingDeleteChoiceID: UUID?
     @State private var pendingDeleteTask: Task<Void, Never>?
 
+    private let textSize: FlashcardTextSize
     private let onSave: (QuizCardContent) -> Void
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -46,6 +47,7 @@ struct QuizCardEditorView: View {
     private var zoneController = ZoneController.shared
     private var locale: Locale { appPreferences.resolvedLocale }
     private var isCompact: Bool { horizontalSizeClass == .compact }
+    private var editorTextScale: CGFloat { CGFloat(textSize.playModeScale) }
     private var topChromeHorizontalInset: CGFloat {
         isCompact ? UIConstants.Layout.compactScreenEdgeInset : UIConstants.Layout.screenEdgeInset
     }
@@ -68,8 +70,10 @@ struct QuizCardEditorView: View {
     init(
         initialContent: QuizCardContent,
         searchQuery: String? = nil,
+        textSize: FlashcardTextSize,
         onSave: @escaping (QuizCardContent) -> Void
     ) {
+        self.textSize = textSize
         _questionContent = State(initialValue: ZoneCardContent(rootZone: initialContent.questionZone))
 
         var seededChoices = initialContent.choices.map {
@@ -249,7 +253,8 @@ struct QuizCardEditorView: View {
         ) { safeArea in
             CardPreviewModeView(
                 content: .quiz(currentQuizContent),
-                safeAreaInsets: safeArea
+                safeAreaInsets: safeArea,
+                textSize: textSize
             )
         } background: {
             Color.clear
@@ -368,6 +373,7 @@ struct QuizCardEditorView: View {
             content: questionContent,
             selectedPath: binding(for: .question),
             highlightContext: highlightContext,
+            fontScale: editorTextScale,
             previewDirection: $previewDirection
         ) {
             activateEditor(.question)
@@ -398,6 +404,7 @@ struct QuizCardEditorView: View {
                         canMoveDown: index < choices.count - 1,
                         choice: choice,
                         highlightContext: highlightContext,
+                        fontScale: editorTextScale,
                         previewDirection: $previewDirection,
                         onActivate: {
                             activateEditor(.choice(choice.id))
@@ -544,6 +551,7 @@ struct QuizCardEditorView: View {
                         content: explanationContent,
                         selectedPath: binding(for: .explanation),
                         highlightContext: highlightContext,
+                        fontScale: editorTextScale,
                         previewDirection: $previewDirection,
                         trailingContent: {
                             Button(role: .destructive) {
@@ -923,6 +931,7 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
     let content: ZoneCardContent
     @Binding var selectedPath: ZonePath?
     var highlightContext: HighlightContext?
+    let fontScale: CGFloat
     @Binding var previewDirection: AddDirection?
     @ViewBuilder var trailingContent: () -> TrailingContent
     let onActivate: () -> Void
@@ -935,6 +944,7 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
         content: ZoneCardContent,
         selectedPath: Binding<ZonePath?>,
         highlightContext: HighlightContext?,
+        fontScale: CGFloat,
         previewDirection: Binding<AddDirection?>,
         @ViewBuilder trailingContent: @escaping () -> TrailingContent = { EmptyView() },
         onActivate: @escaping () -> Void
@@ -944,6 +954,7 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
         self.content = content
         self._selectedPath = selectedPath
         self.highlightContext = highlightContext
+        self.fontScale = fontScale
         self._previewDirection = previewDirection
         self.trailingContent = trailingContent
         self.onActivate = onActivate
@@ -971,6 +982,7 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
                 path: .root,
                 selectedPath: $selectedPath,
                 highlightContext: highlightContext,
+                fontScale: fontScale,
                 previewDirection: $previewDirection
             )
                 .frame(minHeight: 88, alignment: .top)
@@ -999,6 +1011,7 @@ private struct QuizChoiceCard: View {
     let canMoveDown: Bool
     @Bindable var choice: QuizChoiceEditorItem
     var highlightContext: HighlightContext?
+    let fontScale: CGFloat
     @Binding var previewDirection: AddDirection?
     let onActivate: () -> Void
     let onMoveUp: () -> Void
@@ -1023,6 +1036,7 @@ private struct QuizChoiceCard: View {
                 path: .root,
                 selectedPath: $choice.selectedPath,
                 highlightContext: highlightContext,
+                fontScale: fontScale,
                 previewDirection: $previewDirection
             )
                 .frame(minHeight: 72, alignment: .top)

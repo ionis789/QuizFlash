@@ -106,6 +106,7 @@ struct ZoneEditorCanvas: View {
     @State private var alignmentFrameUpdateTask: Task<Void, Never>?
     @State private var alignmentFrameGate = ZoneAlignmentFrameGate()
     @State private var renderMeasuredContentSize: CGSize = .zero
+    @State private var renderLeafDebugSnapshots: [ZoneContentLeafLayoutDebugSnapshot] = []
     @State private var pendingScrollRestorationRequest: ZoneEditorScrollRestorationRequest?
     @State private var viewportScreenFrame: CGRect = .zero
     @State private var rawLayoutDebugSnapshot: ZoneEditorLayoutDebugSnapshot?
@@ -631,13 +632,16 @@ struct ZoneEditorCanvas: View {
                 showsDebugGuides: true,
                 debugGuideStyle: .editorRender,
                 alignmentFeedback: alignmentFeedback,
-                collectsDebugMetrics: false,
+                collectsDebugMetrics: showsDebugTools,
                 leafTapBehavior: .all,
                 onZoneTap: { zoneID in
                     handleRenderedZoneTap(zoneID, contentWidth: layout.containerSize.width)
                 }
             )
             .frame(width: layout.availableContentWidth, alignment: .topLeading)
+            .onPreferenceChange(ZoneContentLeafDebugPreferenceKey.self) { snapshots in
+                renderLeafDebugSnapshots = snapshots.sorted { $0.path < $1.path }
+            }
             .padding(.top, layout.verticalPadding + layout.contentTopInset)
             .padding(.leading, layout.horizontalPadding)
             .padding(.bottom, layout.verticalPadding + layout.contentBottomInset)
@@ -1921,7 +1925,7 @@ struct ZoneEditorCanvas: View {
             .joined(separator: "\n")
 
         return """
-        QuizFlash Zone Editor Tap Debug
+        QuizFlash Zone Editor Debug
         timestamp: \(ISO8601DateFormatter().string(from: Date()))
         mode: \(rendersRichText ? "render" : "raw")
         menu: \(menu)
@@ -1935,8 +1939,14 @@ struct ZoneEditorCanvas: View {
         ZONE FRAMES
         \(frames.isEmpty ? "<none>" : frames)
 
+        RENDER LEAF METRICS
+        \(renderLeafDebugReport)
+
         EVENT FLOW
         \(interactionTrace.isEmpty ? "<none>" : interactionTrace.joined(separator: "\n"))
+
+        LAYOUT / RENDER TIMELINE
+        \(debugStore.layoutTraceReport)
         """
     }
 
@@ -1976,7 +1986,7 @@ struct ZoneEditorCanvas: View {
                     Button {
                         UIPasteboard.general.string = interactionTraceReport
                     } label: {
-                        Text("COPY TAP")
+                        Text("COPY DEBUG")
                             .font(.caption2.monospaced().weight(.bold))
                             .foregroundStyle(.black)
                             .padding(.horizontal, 7)
@@ -1995,6 +2005,9 @@ struct ZoneEditorCanvas: View {
                             Text("rect \(Int(selectedFrame.width))x\(Int(selectedFrame.height)) @ \(Int(selectedFrame.minX)),\(Int(selectedFrame.minY))")
                         }
                         ForEach(Array(debugStore.hudLines.enumerated()), id: \.offset) { _, line in
+                            Text(line)
+                        }
+                        ForEach(debugStore.latestLayoutLines, id: \.self) { line in
                             Text(line)
                         }
                         ForEach(interactionTrace.suffix(8), id: \.self) { line in
@@ -2037,6 +2050,71 @@ struct ZoneEditorCanvas: View {
     private var selectedFrame: CGRect? {
         guard let selectedPath else { return nil }
         return zoneFrames.first { $0.path == selectedPath }?.frame
+    }
+
+    private var renderLeafDebugReport: String {
+        guard rendersRichText else { return "<raw mode>" }
+        guard !renderLeafDebugSnapshots.isEmpty else { return "<none captured>" }
+
+        return renderLeafDebugSnapshots
+            .flatMap(Self.renderLeafLines(for:))
+            .joined(separator: "\n")
+    }
+
+    nonisolated private static func renderLeafLines(for leaf: ZoneContentLeafLayoutDebugSnapshot) -> [String] {
+        let textWidthLimit = leaf.textWidthLimit ?? leaf.contentLayoutWidth
+        let maxEstimatedLine = leaf.estimatedLineWidths.max() ?? 0
+        let remainingTextWidth = max(textWidthLimit - maxEstimatedLine, 0)
+        let measurementEvents = leaf.measurementEvents.isEmpty
+            ? "    <none>"
+            : leaf.measurementEvents.map { "    \($0)" }.joined(separator: "\n")
+        let estimatedLineWidths = leaf.estimatedLineWidths.map(metric).joined(separator: ", ")
+        let renderedLineWidths = leaf.renderedLineWidths.map(metric).joined(separator: ", ")
+        let renderedLines = leaf.renderedLineTexts.enumerated()
+            .map { index, text in
+                let width = index < leaf.renderedLineWidths.count ? leaf.renderedLineWidths[index] : 0
+                return "    \(index + 1). [\(metric(width))] \"\(singleLinePreview(text, limit: 120))\""
+            }
+            .joined(separator: "\n")
+
+        return [
+            "- \(leaf.path) id=\(leaf.zoneID.uuidString)",
+            "  type=\(leaf.contentType.rawValue) chars=\(leaf.textCharacterCount) hasContent=\(leaf.hasContent) math=\(leaf.containsMath) inlineCode=\(leaf.containsInlineCode)",
+            "  availableWidth=\(metric(leaf.availableWidth)) estimated=\(size(leaf.estimatedSize)) rendered=\(size(leaf.renderedContentSize)) rawMeasured=\(size(leaf.rawMeasuredContentSize))",
+            "  block=\(size(leaf.blockSize)) leadingInset=\(metric(leaf.leadingInset)) contentLayoutWidth=\(metric(leaf.contentLayoutWidth)) textWidthLimit=\(metric(textWidthLimit)) remainingTextWidthAfterWidestLine=\(metric(remainingTextWidth))",
+            "  textInsets=\(metric(leaf.textHorizontalInsets)) bulletInset=\(metric(leaf.bulletHorizontalInset)) intrinsicText=\(leaf.usesIntrinsicTextMeasurement)",
+            "  measurements updates=\(leaf.measurementUpdateCount) resets=\(leaf.measurementResetCount) last=\(leaf.lastMeasurementSource) \"\(leaf.lastMeasurementDecision)\"",
+            "  measurementFlow:",
+            measurementEvents,
+            "  estimatedLineWidths=[\(estimatedLineWidths)] renderedLineWidths=[\(renderedLineWidths)]",
+            "  renderedLines:",
+            renderedLines.isEmpty ? "    <none>" : renderedLines,
+            "  preview=\"\(leaf.textPreview)\"",
+            "  fullText:",
+            leaf.fullText.isEmpty ? "  <empty>" : indentMultiline(leaf.fullText, prefix: "  | ")
+        ]
+    }
+
+    nonisolated private static func singleLinePreview(_ value: String, limit: Int) -> String {
+        let collapsed = value
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard collapsed.count > limit else { return collapsed }
+        return String(collapsed.prefix(limit)) + "..."
+    }
+
+    nonisolated private static func indentMultiline(_ value: String, prefix: String) -> String {
+        value.components(separatedBy: .newlines)
+            .map { prefix + $0 }
+            .joined(separator: "\n")
+    }
+
+    nonisolated private static func size(_ size: CGSize) -> String {
+        "\(metric(size.width)) x \(metric(size.height))"
+    }
+
+    nonisolated private static func metric(_ value: CGFloat) -> String {
+        Double(value).formatted(.number.precision(.fractionLength(0...1)))
     }
 
     private func attemptPendingScrollRestoration(

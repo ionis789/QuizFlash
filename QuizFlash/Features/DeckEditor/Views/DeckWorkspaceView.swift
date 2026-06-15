@@ -86,6 +86,20 @@ struct DeckWorkspaceView: View {
     var destinationTitle: String {
         viewModel.selectedFolder?.title ?? localized("Library")
     }
+
+    private func resolvedEditorTextSize(for kind: CardKind) -> FlashcardTextSize {
+        guard let settings = viewModel.deckToEdit?.playModeSettings else {
+            return appPreferences.defaultTextSize
+        }
+
+        switch kind {
+        case .flashcard:
+            return settings.flashcardSettings.textSize
+        case .quiz:
+            return settings.quizSettings.textSize
+        }
+    }
+
     var draftDeckContentSummary: DraftDeckContentSummary {
         derivedDeckState.contentSummary
     }
@@ -547,7 +561,10 @@ struct DeckWorkspaceView: View {
             Text(localized("This permanently deletes the deck and all its cards."))
         }
         .fullScreenCover(item: $viewModel.cardEditorDestination) { destination in
-            CardEditorView(destination: destination) { content in
+            CardEditorView(
+                destination: destination,
+                textSizeOverride: resolvedEditorTextSize(for: destination.kind)
+            ) { content in
                 handleCardEditorSave(destination: destination, content: content)
             }
         }
