@@ -805,17 +805,27 @@ struct FlashcardEditorView: View {
 
     private func deleteSelectedZone(at path: ZonePath) {
         let nextSelectedZoneID = focusTargetAfterDeletingZone(at: path)
+        var selectedNeighborPath: ZonePath?
 
         withAnimation(zoneListMutationAnimation) {
             currentContent.deleteZone(at: path)
             previewDirection = nil
-            selectedPath = nextSelectedZoneID.flatMap {
+            selectedNeighborPath = nextSelectedZoneID.flatMap {
                 findPath(for: $0, in: currentContent.rootZone)
             }
+            selectedPath = selectedNeighborPath
         }
 
-        focusManager.forceReleaseKeyboard()
-        zoneController.updateFocusedZone(nil)
+        if selectedNeighborPath != nil {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(90))
+                focusManager.forceReleaseKeyboard()
+                zoneController.updateFocusedZone(nil)
+            }
+        } else {
+            focusManager.forceReleaseKeyboard()
+            zoneController.updateFocusedZone(nil)
+        }
     }
 
     private func insertForcedLineBreak(at path: ZonePath) {
