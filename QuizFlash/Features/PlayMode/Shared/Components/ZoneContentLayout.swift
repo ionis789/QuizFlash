@@ -46,18 +46,13 @@ struct ZoneContentLeafLayoutDebugSnapshot: Equatable {
     let contentLayoutWidth: CGFloat
     let textWidthLimit: CGFloat?
     let textHorizontalInsets: CGFloat
-    let bulletHorizontalInset: CGFloat
     let blockHeightSlack: CGFloat
     let usesIntrinsicTextMeasurement: Bool
     let zoneSizeMode: ZoneSizeMode
-    let zoneBlockAlignment: ZoneBlockAlignment
-    let zoneTextAlignment: TextBlockAlignment
-    let usesNaturalBlockCentering: Bool
     let textStyle: TextBlockStyle
     let fontFamily: FontFamily
     let isBold: Bool
     let isItalic: Bool
-    let hasBullet: Bool
     let highlightColor: HighlightColor
     let containsMath: Bool
     let containsInlineCode: Bool
@@ -156,13 +151,11 @@ private struct ZoneContentLeafMeasurementIdentity: Equatable {
     let contentType: ZoneContentType
     let text: String
     let textStyle: TextBlockStyle
-    let textAlignment: TextBlockAlignment
     let sizeMode: ZoneSizeMode
     let fixedWidth: CGFloat?
     let fixedHeight: CGFloat?
     let isBold: Bool
     let isItalic: Bool
-    let hasBullet: Bool
     let fontFamily: FontFamily
     let fontScale: CGFloat
     let textVerticalPadding: CGFloat
@@ -174,13 +167,11 @@ private struct ZoneContentLeafMeasurementIdentity: Equatable {
             && contentType == other.contentType
             && text == other.text
             && textStyle == other.textStyle
-            && textAlignment == other.textAlignment
             && sizeMode == other.sizeMode
             && fixedWidth == other.fixedWidth
             && fixedHeight == other.fixedHeight
             && isBold == other.isBold
             && isItalic == other.isItalic
-            && hasBullet == other.hasBullet
             && fontFamily == other.fontFamily
             && fontScale == other.fontScale
             && textVerticalPadding == other.textVerticalPadding
@@ -546,11 +537,11 @@ private struct ZoneContentTreePreview: View {
             let groupWidth = verticalGroupWidth(for: children, childPaths: childPaths)
             let groupTarget = zonePath.map { ZoneAlignmentTargetRef(path: $0, kind: .group) }
             let groupWiggleOffset = groupTarget.map { alignmentFeedback.offset(for: $0) } ?? 0
+            let resolvedGroupAlignment: ZoneBlockAlignment = zone.blockAlignment == .auto ? .center : zone.blockAlignment
             let groupLeadingInset = ZoneContentLayoutEngine.blockLeadingInset(
-                for: zone.blockAlignment,
+                for: resolvedGroupAlignment,
                 blockWidth: groupWidth,
-                availableWidth: availableWidth,
-                defaultAlignment: .center
+                availableWidth: availableWidth
             )
 
             HStack(spacing: 0) {
@@ -807,13 +798,11 @@ private struct ZoneContentTreePreview: View {
             contentType: child.contentType,
             text: child.text,
             textStyle: child.textStyle,
-            textAlignment: child.textAlignment,
             sizeMode: child.sizeMode,
             fixedWidth: child.fixedWidth.map(ceil),
             fixedHeight: child.fixedHeight.map(ceil),
             isBold: child.isBold,
             isItalic: child.isItalic,
-            hasBullet: child.hasBullet,
             fontFamily: child.fontFamily,
             fontScale: fontScale,
             textVerticalPadding: ceil(textVerticalPadding),
@@ -1073,7 +1062,6 @@ private struct ZoneContentLeafPreview: View {
 
     private var layoutZone: ZoneModel {
         var layoutZone = zone
-        layoutZone.textAlignment = .leading
 
         if layoutZone.blockAlignment == .auto {
             layoutZone.blockAlignment = path == "root" ? .center : .leading
@@ -1091,13 +1079,11 @@ private struct ZoneContentLeafPreview: View {
             contentType: zone.contentType,
             text: zone.text,
             textStyle: zone.textStyle,
-            textAlignment: zone.textAlignment,
             sizeMode: zone.sizeMode,
             fixedWidth: zone.fixedWidth.map(ceil),
             fixedHeight: zone.fixedHeight.map(ceil),
             isBold: zone.isBold,
             isItalic: zone.isItalic,
-            hasBullet: zone.hasBullet,
             fontFamily: zone.fontFamily,
             fontScale: fontScale,
             textVerticalPadding: ceil(textVerticalPadding),
@@ -1202,7 +1188,7 @@ private struct ZoneContentLeafPreview: View {
             || MathTextSanitizer.containsInlineCode(semanticText)
         let textWidthLimit = layout.textWidthLimit ?? max(layout.contentLayoutWidth, 1)
         let intrinsicMeasurementTextWidthLimit = max(
-            availableWidth - layout.textHorizontalInsets - layout.bulletHorizontalInset,
+            availableWidth - layout.textHorizontalInsets,
             1
         )
         let renderedLineDebugHandler: (([MixedMathRenderedLineDebug]) -> Void)? = collectsDebugMetrics
@@ -1217,20 +1203,7 @@ private struct ZoneContentLeafPreview: View {
         let renderStatusDebugHandler: ((MixedMathRenderStatusDebug) -> Void)? = { snapshot in
             renderStatusDebug = snapshot
         }
-        let showsBullet = zone.hasBullet
-            && !previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-
-        return HStack(alignment: .top, spacing: showsBullet ? ZoneContentMetrics.bulletSpacing : 0) {
-            if showsBullet {
-                Circle()
-                    .fill(zone.textColor.color)
-                    .frame(
-                    width: ZoneContentMetrics.bulletWidth,
-                    height: ZoneContentMetrics.bulletWidth
-                )
-                    .padding(.top, 8)
-            }
-
+        return HStack(alignment: .top, spacing: 0) {
             if usesMathRenderer {
                 MixedMathTextView(
                     text: previewText,
@@ -1247,7 +1220,7 @@ private struct ZoneContentLeafPreview: View {
                     onIntrinsicContentSizeChange: { size in
                         updateRenderedContentSize(
                             CGSize(
-                                width: ceil(size.width + layout.textHorizontalInsets + layout.bulletHorizontalInset),
+                                width: ceil(size.width + layout.textHorizontalInsets),
                                 height: ceil(size.height + textVerticalPadding)
                             ),
                             source: "web-intrinsic"
@@ -1275,7 +1248,7 @@ private struct ZoneContentLeafPreview: View {
                     onIntrinsicContentSizeChange: { size in
                         updateRenderedContentSize(
                             CGSize(
-                                width: ceil(size.width + layout.textHorizontalInsets + layout.bulletHorizontalInset),
+                                width: ceil(size.width + layout.textHorizontalInsets),
                                 height: ceil(size.height + textVerticalPadding)
                             ),
                             source: "plain-intrinsic"
@@ -1408,9 +1381,6 @@ private struct ZoneContentLeafPreview: View {
     }
 
     private var minimumValidRenderedWidth: CGFloat {
-        let bulletInset = zone.hasBullet
-            ? ZoneContentMetrics.bulletWidth + ZoneContentMetrics.bulletSpacing
-        : 0
         let estimatedWidth: CGFloat = {
             guard requiresIntrinsicTextWidthFloor else { return 1 }
             return ZoneContentEstimator.estimatedBlockWidth(
@@ -1423,7 +1393,7 @@ private struct ZoneContentLeafPreview: View {
         }()
 
         return min(
-            max(ceil(estimatedWidth), resolvedTextHorizontalPadding + bulletInset + 8, 1),
+            max(ceil(estimatedWidth), resolvedTextHorizontalPadding + 8, 1),
             availableWidth
         )
     }
@@ -1479,18 +1449,13 @@ private struct ZoneContentLeafPreview: View {
             contentLayoutWidth: layout.contentLayoutWidth,
             textWidthLimit: layout.textWidthLimit,
             textHorizontalInsets: layout.textHorizontalInsets,
-            bulletHorizontalInset: layout.bulletHorizontalInset,
             blockHeightSlack: max(layout.blockSize.height - renderedContentSize.height, 0),
             usesIntrinsicTextMeasurement: layout.usesIntrinsicTextMeasurement,
             zoneSizeMode: layoutZone.sizeMode,
-            zoneBlockAlignment: layoutZone.blockAlignment,
-            zoneTextAlignment: layoutZone.textAlignment,
-            usesNaturalBlockCentering: layout.usesAutoBlockCentering,
             textStyle: zone.textStyle,
             fontFamily: zone.fontFamily,
             isBold: zone.isBold,
             isItalic: zone.isItalic,
-            hasBullet: zone.hasBullet,
             highlightColor: zone.highlightColor,
             containsMath: containsMath,
             containsInlineCode: containsInlineCode,
@@ -1563,7 +1528,7 @@ enum ZoneContentMetrics {
     static let textHorizontalPadding: CGFloat = 24
     static let zoneCornerRadius: CGFloat = 38
     static let groupGuideHorizontalPadding: CGFloat = 8
-    static let groupGuideVerticalPadding: CGFloat = 6
+    static let groupGuideVerticalPadding: CGFloat = 2
     static let highlightedHorizontalPadding: CGFloat = textHorizontalPadding
     static let bulletWidth: CGFloat = 6
     static let bulletSpacing: CGFloat = 8
@@ -2110,16 +2075,13 @@ enum ZoneContentEstimator {
             zone.codeLanguage ?? "",
             zone.text,
             String(describing: zone.textStyle),
-            String(describing: zone.textAlignment),
             String(describing: zone.sizeMode),
-            String(describing: zone.blockAlignment),
             zone.fixedWidth.map(roundedCacheComponent) ?? "nil",
             zone.fixedHeight.map(roundedCacheComponent) ?? "nil",
             String(describing: zone.verticalAlignment),
             String(describing: zone.textColor),
             String(zone.isBold),
             String(zone.isItalic),
-            String(zone.hasBullet),
             String(describing: zone.fontFamily),
             String(describing: zone.highlightColor),
             roundedCacheComponent(zone.imageScale),
@@ -2227,10 +2189,7 @@ enum ZoneContentEstimator {
         case .text:
             let displayText = ZoneContentDisplayTextNormalizer.textZoneDisplayText(zone.text)
             let horizontalInsets = textHorizontalPaddingOverride ?? textHorizontalPadding
-            let bulletInset = zone.hasBullet && !displayText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? bulletWidth + bulletSpacing
-            : 0
-            let textWidth = max(availableWidth - horizontalInsets - bulletInset, 1)
+            let textWidth = max(availableWidth - horizontalInsets, 1)
             let measuredSize: CGSize
 
             if let codeLiteral = singleInlineCodeLiteral(in: displayText) {
@@ -2250,7 +2209,7 @@ enum ZoneContentEstimator {
             }
 
             return CGSize(
-                width: min(ceil(measuredSize.width + horizontalInsets + bulletInset), availableWidth),
+                width: min(ceil(measuredSize.width + horizontalInsets), availableWidth),
                 height: ceil(measuredSize.height + textVerticalPadding)
             )
 

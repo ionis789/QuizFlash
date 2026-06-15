@@ -1008,7 +1008,7 @@ private struct QuizModeSessionView: View {
     private static func zoneTreeLines(for zone: ZoneModel, path: String, depth: Int) -> [String] {
         let indent = String(repeating: "  ", count: depth)
         if zone.isLeaf {
-            var line = "\(indent)- \(path) leaf type=\(zone.contentType.rawValue) hasContent=\(zone.hasContent) sizeMode=\(zone.sizeMode.rawValue) blockAlignment=\(zone.blockAlignment.rawValue) textAlignment=\(zone.textAlignment.rawValue) verticalAlignment=\(zone.verticalAlignment.rawValue)"
+            var line = "\(indent)- \(path) leaf type=\(zone.contentType.rawValue) hasContent=\(zone.hasContent) sizeMode=\(zone.sizeMode.rawValue) verticalAlignment=\(zone.verticalAlignment.rawValue)"
             if zone.contentType == .text || zone.contentType == .code {
                 line += " rawChars=\(zone.text.count) rawLines=\(max(zone.text.components(separatedBy: .newlines).count, 1)) preview=\"\(singleLinePreview(zone.text, limit: 140))\""
             }
@@ -1050,9 +1050,9 @@ private struct QuizModeSessionView: View {
             "  block=\(size(leaf.blockSize)) leadingInset=\(metric(leaf.leadingInset)) rightSpaceAfterBlock=\(metric(rightSpaceAfterBlock))",
             "  measurements updates=\(leaf.measurementUpdateCount) resets=\(leaf.measurementResetCount) rawMeasured=\(size(leaf.rawMeasuredContentSize)) frameH=\(leaf.contentFrameHeight.map(metric) ?? "nil") slack=\(metric(leaf.blockHeightSlack))",
             "  contentLayoutWidth=\(metric(leaf.contentLayoutWidth)) textWidthLimit=\(metric(textWidthLimit)) remainingTextWidthAfterWidestLine=\(metric(remainingTextWidth))",
-            "  textInsets=\(metric(leaf.textHorizontalInsets)) bulletInset=\(metric(leaf.bulletHorizontalInset)) intrinsicText=\(leaf.usesIntrinsicTextMeasurement)",
-            "  sizeMode=\(leaf.zoneSizeMode.rawValue) blockAlignment=\(leaf.zoneBlockAlignment.rawValue) textAlignment=\(leaf.zoneTextAlignment.rawValue) autoBlockCentering=\(leaf.usesNaturalBlockCentering)",
-            "  style=\(leaf.textStyle.rawValue) font=\(leaf.fontFamily.rawValue) bold=\(leaf.isBold) italic=\(leaf.isItalic) bullet=\(leaf.hasBullet) highlight=\(leaf.highlightColor.rawValue)",
+            "  textInsets=\(metric(leaf.textHorizontalInsets)) intrinsicText=\(leaf.usesIntrinsicTextMeasurement)",
+            "  sizeMode=\(leaf.zoneSizeMode.rawValue)",
+            "  style=\(leaf.textStyle.rawValue) font=\(leaf.fontFamily.rawValue) bold=\(leaf.isBold) italic=\(leaf.isItalic) highlight=\(leaf.highlightColor.rawValue)",
             "  rawChars=\(leaf.rawTextCharacterCount) rawExplicitLines=\(leaf.rawTextLineCount) displayChars=\(leaf.textCharacterCount) displayExplicitLines=\(leaf.textLineCount)",
             "  estimatedLineWidths=[\(lineWidths)] renderedLineWidths=[\(renderedLineWidths)]",
             "  rawText:",

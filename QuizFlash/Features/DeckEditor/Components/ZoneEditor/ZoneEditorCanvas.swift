@@ -221,6 +221,10 @@ struct ZoneEditorCanvas: View {
                         } else {
                             scrollDriver.resetBottomInset()
                         }
+                        if let scrollRestorationRequest,
+                           scrollRestorationRequest.targetRenderedMode == rendersRichText {
+                            scrollDriver.restoreNormalizedOffset(scrollRestorationRequest.normalizedOffsetY)
+                        }
                         scrollDriver.setScrollOffsetHandler(handleScrollOffsetChange)
                         configureTapProbe()
                     }
@@ -805,16 +809,12 @@ struct ZoneEditorCanvas: View {
                         )
                         .contentShape(Rectangle())
                         .position(x: resolvedFrame.frame.midX, y: resolvedFrame.frame.midY)
-                        .gesture(
-                            SpatialTapGesture(coordinateSpace: .named(Self.coordinateSpaceName))
-                                .onEnded { value in
-                                    handleRenderedZoneTap(
-                                        resolvedFrame.zoneID,
-                                        contentWidth: contentWidth,
-                                        tapLocation: value.location
-                                    )
-                                }
-                        )
+                        .onTapGesture {
+                            handleRenderedZoneTap(
+                                resolvedFrame.zoneID,
+                                contentWidth: contentWidth
+                            )
+                        }
                 }
             }
             .allowsHitTesting(true)
@@ -1898,18 +1898,12 @@ struct ZoneEditorCanvas: View {
         let matchedPath = candidateFrames
             .min { ($0.frame.width * $0.frame.height) < ($1.frame.width * $1.frame.height) }?
             .path.id ?? "nil"
-        let tappedAlignmentMenu = alignmentMenuFrame?
-            .insetBy(dx: -4, dy: -4)
-            .contains(localPoint) ?? false
-        let wouldDismiss = alignmentMenuState != nil
-            && candidateFrames.isEmpty
-            && !tappedAlignmentMenu
 
         recordInteractionTrace(
             "SCROLL TAP raw=\(tracePoint(snapshot.contentPoint)) local=\(tracePoint(localPoint)) hit=\(snapshot.hitViewName)"
         )
         recordInteractionTrace(
-            "CLASSIFY menu=\(alignmentMenuState == nil ? "closed" : "open") menuFrame=\(alignmentMenuFrame.map(traceRect) ?? "nil") inMenu=\(tappedAlignmentMenu ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) decision=\(wouldDismiss ? "WOULD_DISMISS" : "KEEP")"
+            "CLASSIFY candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) decision=KEEP"
         )
 
         guard showsDebugTools else { return }
@@ -1960,6 +1954,9 @@ struct ZoneEditorCanvas: View {
                 .insetBy(dx: -Self.renderHitSlop, dy: -Self.renderHitSlop)
                 .contains(contentPoint)
         }
+        let tappedFrame = candidateFrames.min {
+            ($0.frame.width * $0.frame.height) < ($1.frame.width * $1.frame.height)
+        }
         let groupHit = renderedAlignmentGroupHit(
             at: contentPoint,
             contentWidth: max(
@@ -1973,11 +1970,6 @@ struct ZoneEditorCanvas: View {
             .contains(contentPoint) ?? false
         let isCompletedTap = snapshot.phase.contains("ended/") && snapshot.phase.hasSuffix("/now")
         let recentlyInteractedWithMenu = CACurrentMediaTime() - lastAlignmentMenuInteractionTime < 0.35
-        let shouldSelectGroup = isCompletedTap
-            && snapshot.isTapLike
-            && !tappedAlignmentMenu
-            && candidateFrames.isEmpty
-            && groupHit != nil
         let shouldDismiss = isCompletedTap
             && snapshot.isTapLike
             && !recentlyInteractedWithMenu
@@ -1985,6 +1977,11 @@ struct ZoneEditorCanvas: View {
             && !tappedAlignmentMenu
             && candidateFrames.isEmpty
             && groupHit == nil
+        let shouldSelectGroup = isCompletedTap
+            && snapshot.isTapLike
+            && !tappedAlignmentMenu
+            && candidateFrames.isEmpty
+            && groupHit != nil
 
         windowTouchDebugLines = [
             "WIN \(snapshot.phase) p=\(Int(snapshot.windowPoint.x)),\(Int(snapshot.windowPoint.y)) viewport=\(snapshot.viewportDescription)",
@@ -1999,7 +1996,7 @@ struct ZoneEditorCanvas: View {
             "WINDOW \(snapshot.phase) point=\(tracePoint(snapshot.windowPoint)) hit=\(snapshot.hitViewName) tapLike=\(snapshot.isTapLike ? 1 : 0) gestures=\(snapshot.gestureCount)"
         )
         recordInteractionTrace(
-            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") decision=\(shouldSelectGroup ? "SELECT_GROUP" : shouldDismiss ? "DISMISS" : "KEEP")"
+            "WINDOW CLASSIFY viewport=\(tracePoint(snapshot.viewportPoint)) content=\(tracePoint(contentPoint)) menu=\(alignmentMenuState == nil ? "closed" : "open") inMenu=\(tappedAlignmentMenu ? 1 : 0) recentMenu=\(recentlyInteractedWithMenu ? 1 : 0) completed=\(isCompletedTap ? 1 : 0) candidates=\(candidateFrames.map(\.path.id).joined(separator: ",")) group=\(groupHit?.path.id ?? "nil") decision=\(shouldSelectGroup ? "SELECT_GROUP" : isCompletedTap && tappedFrame != nil && !tappedAlignmentMenu ? "SELECT" : shouldDismiss ? "DISMISS" : "KEEP")"
         )
 
         if shouldSelectGroup, let groupHit {
@@ -2017,9 +2014,31 @@ struct ZoneEditorCanvas: View {
                 ),
                 preferredAnchor: contentPoint
             )
-        } else if shouldDismiss {
-            dismissAlignmentMenu()
+            recordInteractionTrace(
+                "WINDOW SELECT_GROUP path=\(groupHit.path.id) frame=\(traceRect(groupHit.hitFrame))"
+            )
+            return
         }
+
+        guard isCompletedTap,
+              snapshot.isTapLike,
+              !tappedAlignmentMenu,
+              let tappedFrame,
+              content.zone(at: tappedFrame.path) != nil else {
+            if shouldDismiss {
+                dismissAlignmentMenu()
+            }
+            return
+        }
+
+        handleRenderedZoneTap(
+            tappedFrame.zoneID,
+            contentWidth: max(viewportScreenFrame.width - (contentHorizontalPadding * 2), 1),
+            tapLocation: contentPoint
+        )
+        recordInteractionTrace(
+            "WINDOW SELECT path=\(tappedFrame.path.id) frame=\(traceRect(tappedFrame.frame))"
+        )
     }
 
     private func recordInteractionTrace(_ event: String) {
@@ -2159,7 +2178,7 @@ struct ZoneEditorCanvas: View {
             return "selected nil"
         }
 
-        return "selected \(selectedPath.id) size=\(zone.sizeMode.rawValue) block=\(zone.blockAlignment.rawValue) text=\(zone.textAlignment.rawValue)"
+        return "selected \(selectedPath.id) size=\(zone.sizeMode.rawValue)"
     }
 
     private var selectedFrame: CGRect? {
@@ -2197,7 +2216,7 @@ struct ZoneEditorCanvas: View {
             "  type=\(leaf.contentType.rawValue) chars=\(leaf.textCharacterCount) hasContent=\(leaf.hasContent) math=\(leaf.containsMath) inlineCode=\(leaf.containsInlineCode)",
             "  availableWidth=\(metric(leaf.availableWidth)) estimated=\(size(leaf.estimatedSize)) rendered=\(size(leaf.renderedContentSize)) rawMeasured=\(size(leaf.rawMeasuredContentSize))",
             "  block=\(size(leaf.blockSize)) leadingInset=\(metric(leaf.leadingInset)) contentLayoutWidth=\(metric(leaf.contentLayoutWidth)) textWidthLimit=\(metric(textWidthLimit)) remainingTextWidthAfterWidestLine=\(metric(remainingTextWidth))",
-            "  textInsets=\(metric(leaf.textHorizontalInsets)) bulletInset=\(metric(leaf.bulletHorizontalInset)) intrinsicText=\(leaf.usesIntrinsicTextMeasurement)",
+            "  textInsets=\(metric(leaf.textHorizontalInsets)) intrinsicText=\(leaf.usesIntrinsicTextMeasurement)",
             "  measurements updates=\(leaf.measurementUpdateCount) resets=\(leaf.measurementResetCount) last=\(leaf.lastMeasurementSource) \"\(leaf.lastMeasurementDecision)\"",
             "  measurementFlow:",
             measurementEvents,

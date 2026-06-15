@@ -44,7 +44,6 @@ struct ZoneContentLayoutResult: Equatable {
     let contentLayoutWidth: CGFloat
     let textWidthLimit: CGFloat?
     let textHorizontalInsets: CGFloat
-    let bulletHorizontalInset: CGFloat
     let usesIntrinsicTextMeasurement: Bool
     let usesAutoBlockCentering: Bool
     let resolvedTextAlignment: TextBlockAlignment
@@ -66,18 +65,16 @@ enum ZoneContentLayoutEngine {
     static func blockLeadingInset(
         for alignment: ZoneBlockAlignment,
         blockWidth: CGFloat,
-        availableWidth: CGFloat,
-        defaultAlignment: ZoneBlockAlignment = .leading
+        availableWidth: CGFloat
     ) -> CGFloat {
-        let resolvedAlignment = alignment == .auto ? defaultAlignment : alignment
-
-        switch resolvedAlignment {
+        let remaining = max(availableWidth - blockWidth, 0)
+        switch alignment {
         case .leading, .auto:
             return 0
         case .center:
-            return max((availableWidth - blockWidth) / 2, 0)
+            return remaining / 2
         case .trailing:
-            return max(availableWidth - blockWidth, 0)
+            return remaining
         }
     }
 
@@ -94,7 +91,6 @@ enum ZoneContentLayoutEngine {
             textHorizontalPaddingOverride: spec.textHorizontalPaddingOverride
         )
         let textHorizontalInsets = spec.textHorizontalPaddingOverride ?? horizontalTextInsets(for: zone)
-        let bulletHorizontalInset = bulletInset(for: zone)
         let intrinsicMeasurement = usesIntrinsicTextMeasurement(for: zone)
         let usesMediaIntrinsicLayout = usesMediaIntrinsicLayout(for: zone)
         let measuredWidth: CGFloat = {
@@ -143,7 +139,7 @@ enum ZoneContentLayoutEngine {
         )
         let contentLayoutWidth = max(resolvedWidth, 1)
         let textWidthLimit = intrinsicMeasurement
-            ? max(contentLayoutWidth - textHorizontalInsets - bulletHorizontalInset, 1)
+            ? max(contentLayoutWidth - textHorizontalInsets, 1)
         : nil
 
         return ZoneContentLayoutResult(
@@ -154,7 +150,6 @@ enum ZoneContentLayoutEngine {
             contentLayoutWidth: ceil(contentLayoutWidth),
             textWidthLimit: textWidthLimit.map(ceil),
             textHorizontalInsets: ceil(textHorizontalInsets),
-            bulletHorizontalInset: ceil(bulletHorizontalInset),
             usesIntrinsicTextMeasurement: intrinsicMeasurement,
             usesAutoBlockCentering: false,
             resolvedTextAlignment: .leading
@@ -273,12 +268,6 @@ enum ZoneContentLayoutEngine {
         case .image, .sketch:
             return 0
         }
-    }
-
-    private static func bulletInset(for zone: ZoneModel) -> CGFloat {
-        zone.hasBullet && !zone.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? ZoneContentMetrics.bulletWidth + ZoneContentMetrics.bulletSpacing
-        : 0
     }
 
     private static func minimumAutoWidth(

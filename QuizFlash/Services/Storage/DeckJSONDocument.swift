@@ -219,7 +219,6 @@ nonisolated struct DeckJSONZoneDTO: Codable, Sendable {
     var codeLanguage: String?
     var mediaBase64: Data?
     var textStyle: TextBlockStyle
-    var textAlignment: TextBlockAlignment
     var sizeMode: ZoneSizeMode
     var blockAlignment: ZoneBlockAlignment
     var verticalAlignment: ZoneVerticalAlignment
@@ -228,7 +227,6 @@ nonisolated struct DeckJSONZoneDTO: Codable, Sendable {
     var textColor: TextBlockColor
     var isBold: Bool
     var isItalic: Bool
-    var hasBullet: Bool
     var fontFamily: FontFamily
     var highlightColor: HighlightColor
     var imageScale: Double
@@ -242,7 +240,6 @@ nonisolated struct DeckJSONZoneDTO: Codable, Sendable {
         case codeLanguage
         case mediaBase64
         case textStyle
-        case textAlignment
         case sizeMode
         case blockAlignment
         case verticalAlignment
@@ -251,7 +248,6 @@ nonisolated struct DeckJSONZoneDTO: Codable, Sendable {
         case textColor
         case isBold
         case isItalic
-        case hasBullet
         case fontFamily
         case highlightColor
         case imageScale
@@ -266,7 +262,6 @@ nonisolated struct DeckJSONZoneDTO: Codable, Sendable {
         codeLanguage: String? = nil,
         mediaBase64: Data? = nil,
         textStyle: TextBlockStyle = .body,
-        textAlignment: TextBlockAlignment = .leading,
         sizeMode: ZoneSizeMode = .auto,
         blockAlignment: ZoneBlockAlignment = .auto,
         verticalAlignment: ZoneVerticalAlignment = .auto,
@@ -275,7 +270,6 @@ nonisolated struct DeckJSONZoneDTO: Codable, Sendable {
         textColor: TextBlockColor = .primary,
         isBold: Bool = false,
         isItalic: Bool = false,
-        hasBullet: Bool = false,
         fontFamily: FontFamily = .system,
         highlightColor: HighlightColor = .none,
         imageScale: Double = 1.0,
@@ -288,7 +282,6 @@ nonisolated struct DeckJSONZoneDTO: Codable, Sendable {
         self.codeLanguage = codeLanguage
         self.mediaBase64 = mediaBase64
         self.textStyle = textStyle
-        self.textAlignment = textAlignment
         self.sizeMode = sizeMode
         self.blockAlignment = blockAlignment
         self.verticalAlignment = verticalAlignment
@@ -297,7 +290,6 @@ nonisolated struct DeckJSONZoneDTO: Codable, Sendable {
         self.textColor = textColor
         self.isBold = isBold
         self.isItalic = isItalic
-        self.hasBullet = hasBullet
         self.fontFamily = fontFamily
         self.highlightColor = highlightColor
         self.imageScale = imageScale
@@ -313,7 +305,6 @@ nonisolated struct DeckJSONZoneDTO: Codable, Sendable {
         codeLanguage = try container.decodeIfPresent(String.self, forKey: .codeLanguage)
         mediaBase64 = try container.decodeIfPresent(Data.self, forKey: .mediaBase64)
         textStyle = try container.decodeIfPresent(TextBlockStyle.self, forKey: .textStyle) ?? .body
-        textAlignment = try container.decodeIfPresent(TextBlockAlignment.self, forKey: .textAlignment) ?? .leading
         sizeMode = try container.decodeIfPresent(ZoneSizeMode.self, forKey: .sizeMode) ?? .auto
         blockAlignment = try container.decodeIfPresent(ZoneBlockAlignment.self, forKey: .blockAlignment) ?? .auto
         verticalAlignment = try container.decodeIfPresent(ZoneVerticalAlignment.self, forKey: .verticalAlignment) ?? .auto
@@ -322,7 +313,6 @@ nonisolated struct DeckJSONZoneDTO: Codable, Sendable {
         textColor = try container.decodeIfPresent(TextBlockColor.self, forKey: .textColor) ?? .primary
         isBold = try container.decodeIfPresent(Bool.self, forKey: .isBold) ?? false
         isItalic = try container.decodeIfPresent(Bool.self, forKey: .isItalic) ?? false
-        hasBullet = try container.decodeIfPresent(Bool.self, forKey: .hasBullet) ?? false
         fontFamily = try container.decodeIfPresent(FontFamily.self, forKey: .fontFamily) ?? .system
         highlightColor = try container.decodeIfPresent(HighlightColor.self, forKey: .highlightColor) ?? .none
         imageScale = try container.decodeIfPresent(Double.self, forKey: .imageScale) ?? 1.0
@@ -338,7 +328,6 @@ nonisolated struct DeckJSONZoneDTO: Codable, Sendable {
         try container.encodeIfPresent(codeLanguage, forKey: .codeLanguage)
         try container.encodeIfPresent(mediaBase64, forKey: .mediaBase64)
         try container.encode(textStyle, forKey: .textStyle)
-        try container.encode(textAlignment, forKey: .textAlignment)
         try container.encode(sizeMode, forKey: .sizeMode)
         try container.encode(blockAlignment, forKey: .blockAlignment)
         try container.encode(verticalAlignment, forKey: .verticalAlignment)
@@ -347,7 +336,6 @@ nonisolated struct DeckJSONZoneDTO: Codable, Sendable {
         try container.encode(textColor, forKey: .textColor)
         try container.encode(isBold, forKey: .isBold)
         try container.encode(isItalic, forKey: .isItalic)
-        try container.encode(hasBullet, forKey: .hasBullet)
         try container.encode(fontFamily, forKey: .fontFamily)
         try container.encode(highlightColor, forKey: .highlightColor)
         try container.encode(imageScale, forKey: .imageScale)
@@ -480,7 +468,6 @@ extension DeckJSONZoneDTO {
                 id: zone.id,
                 type: .container,
                 textStyle: zone.textStyle,
-                textAlignment: zone.textAlignment,
                 sizeMode: zone.sizeMode,
                 blockAlignment: zone.blockAlignment,
                 verticalAlignment: zone.verticalAlignment,
@@ -489,7 +476,6 @@ extension DeckJSONZoneDTO {
                 textColor: zone.textColor,
                 isBold: zone.isBold,
                 isItalic: zone.isItalic,
-                hasBullet: zone.hasBullet,
                 fontFamily: zone.fontFamily,
                 highlightColor: zone.highlightColor,
                 imageScale: Double(zone.imageScale),
@@ -505,7 +491,6 @@ extension DeckJSONZoneDTO {
             codeLanguage: zone.codeLanguage,
             mediaBase64: zone.imageData,
             textStyle: zone.textStyle,
-            textAlignment: zone.textAlignment,
             sizeMode: zone.sizeMode,
             blockAlignment: zone.blockAlignment,
             verticalAlignment: zone.verticalAlignment,
@@ -514,7 +499,6 @@ extension DeckJSONZoneDTO {
             textColor: zone.textColor,
             isBold: zone.isBold,
             isItalic: zone.isItalic,
-            hasBullet: zone.hasBullet,
             fontFamily: zone.fontFamily,
             highlightColor: zone.highlightColor,
             imageScale: Double(zone.imageScale)
@@ -538,7 +522,6 @@ extension DeckJSONZoneDTO {
             text: text ?? "",
             imageData: mediaBase64,
             textStyle: textStyle,
-            textAlignment: textAlignment,
             sizeMode: sizeMode,
             blockAlignment: blockAlignment,
             verticalAlignment: verticalAlignment,
@@ -547,7 +530,6 @@ extension DeckJSONZoneDTO {
             textColor: textColor,
             isBold: isBold,
             isItalic: isItalic,
-            hasBullet: hasBullet,
             fontFamily: fontFamily,
             highlightColor: highlightColor,
             imageScale: CGFloat(imageScale),

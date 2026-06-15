@@ -1435,7 +1435,7 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
     private static func zoneTreeLines(for zone: ZoneModel, path: String, depth: Int) -> [String] {
         let indent = String(repeating: "  ", count: depth)
         if zone.isLeaf {
-            var line = "\(indent)- \(path) leaf type=\(zone.contentType.rawValue) hasContent=\(zone.hasContent) sizeMode=\(zone.sizeMode.rawValue) blockAlignment=\(zone.blockAlignment.rawValue) textAlignment=\(zone.textAlignment.rawValue)"
+            var line = "\(indent)- \(path) leaf type=\(zone.contentType.rawValue) hasContent=\(zone.hasContent) sizeMode=\(zone.sizeMode.rawValue)"
             if zone.contentType == .text || zone.contentType == .code {
                 line += " chars=\(zone.text.count) preview=\"\(singleLinePreview(zone.text, limit: 120))\""
             }
@@ -1484,9 +1484,9 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
             "  measurementFlow:",
             measurementEvents,
             "  contentLayoutWidth=\(metric(leaf.contentLayoutWidth)) textWidthLimit=\(metric(textWidthLimit)) remainingTextWidthAfterWidestLine=\(metric(remainingTextWidth))",
-            "  textInsets=\(metric(leaf.textHorizontalInsets)) bulletInset=\(metric(leaf.bulletHorizontalInset)) intrinsicText=\(leaf.usesIntrinsicTextMeasurement)",
-            "  sizeMode=\(leaf.zoneSizeMode.rawValue) blockAlignment=\(leaf.zoneBlockAlignment.rawValue) textAlignment=\(leaf.zoneTextAlignment.rawValue) autoBlockCentering=\(leaf.usesNaturalBlockCentering)",
-            "  style=\(leaf.textStyle.rawValue) font=\(leaf.fontFamily.rawValue) bold=\(leaf.isBold) italic=\(leaf.isItalic) bullet=\(leaf.hasBullet) highlight=\(leaf.highlightColor.rawValue)",
+            "  textInsets=\(metric(leaf.textHorizontalInsets)) intrinsicText=\(leaf.usesIntrinsicTextMeasurement)",
+            "  sizeMode=\(leaf.zoneSizeMode.rawValue)",
+            "  style=\(leaf.textStyle.rawValue) font=\(leaf.fontFamily.rawValue) bold=\(leaf.isBold) italic=\(leaf.isItalic) highlight=\(leaf.highlightColor.rawValue)",
             "  chars=\(leaf.textCharacterCount) explicitLines=\(leaf.textLineCount) estimatedLineWidths=[\(lineWidths)]",
             "  renderedLineWidths=[\(renderedLineWidths)]",
             "  renderedLines:",

@@ -300,15 +300,13 @@ final class ZoneEditorDebugStore {
         zoneID: UUID?,
         contentType: String,
         sizeMode: String,
-        blockAlignment: String,
-        textAlignment: String,
         verticalAlignment: String,
         fixedWidth: CGFloat?,
         fixedHeight: CGFloat?
     ) {
         setLine(
             &selectedZoneLine,
-            "zone path=\(pathID) id=\(shortID(zoneID)) type=\(contentType) size=\(sizeMode) block=\(blockAlignment) text=\(textAlignment) y=\(verticalAlignment) fixed=\(format(fixedWidth))x\(format(fixedHeight))"
+            "zone path=\(pathID) id=\(shortID(zoneID)) type=\(contentType) size=\(sizeMode) y=\(verticalAlignment) fixed=\(format(fixedWidth))x\(format(fixedHeight))"
         )
     }
 
@@ -448,6 +446,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
     var font: UIFont = .preferredFont(forTextStyle: .body)
+    var textColor: UIColor = .label
     var lineSpacing: CGFloat = 0
     var contentInset: UIEdgeInsets = .zero
     var maximumVisibleHeight: CGFloat?
@@ -578,6 +577,11 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         shouldChangeTextIn range: NSRange,
         replacementText text: String
     ) -> Bool {
+        if text.isEmpty,
+           handleForcedLineBreakBackspace(in: textView, range: range) {
+            return false
+        }
+
         guard text == "\n" else { return true }
 
         insertForcedLineBreak(in: textView)
@@ -598,6 +602,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
 
         lastText = modelText
         rememberAcceptedText(modelText, selectedRange: textView.selectedRange)
+        resetTextStyling(in: textView)
         waitsForSettledTextLayoutCaret = true
         onTextChange?(modelText)
         reportCursorPosition(from: textView, includeCaretAnchor: false)
@@ -607,6 +612,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     func textViewDidChangeSelection(_ textView: UITextView) {
         guard !isUpdating else { return }
         guard textView.isFirstResponder else { return }
+        normalizeTypingAttributes(in: textView)
 
         guard !waitsForSettledTextLayoutCaret else {
             reportCursorPosition(from: textView, includeCaretAnchor: false)
@@ -919,6 +925,72 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
 
         return true
     }
+
+    private func handleForcedLineBreakBackspace(in textView: UITextView, range: NSRange) -> Bool {
+        guard range.length == 1,
+              !ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text),
+              let displayText = textView.text else {
+            return false
+        }
+
+        let nsText = displayText as NSString
+        guard range.location >= 0,
+              range.location + range.length <= nsText.length else {
+            return false
+        }
+
+        let marker = ZoneForcedLineBreak.marker as NSString
+        let deletedText = nsText.substring(with: range)
+
+        if deletedText == "\n",
+           range.location >= marker.length,
+           nsText.substring(with: NSRange(location: range.location - marker.length, length: marker.length)) == marker as String {
+            textView.selectedRange = NSRange(location: range.location, length: 0)
+            reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
+            return true
+        }
+
+        if deletedText == marker as String,
+           range.location + marker.length < nsText.length,
+           nsText.substring(with: NSRange(location: range.location + marker.length, length: 1)) == "\n" {
+            let mutable = NSMutableString(string: displayText)
+            mutable.deleteCharacters(in: NSRange(location: range.location, length: marker.length + 1))
+            let nextDisplayText = mutable as String
+
+            isUpdating = true
+            textView.text = nextDisplayText.isEmpty ? ZoneTextViewEmptyCaret.placeholder : nextDisplayText
+            textView.selectedRange = NSRange(location: min(range.location, (textView.text as NSString?)?.length ?? 0), length: 0)
+            isUpdating = false
+
+            resetTextStyling(in: textView)
+            textViewDidChange(textView)
+            reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
+            return true
+        }
+
+        return false
+    }
+
+    private func normalizeTypingAttributes(in textView: UITextView) {
+        textView.typingAttributes = textAttributes
+    }
+
+    private func resetTextStyling(in textView: UITextView) {
+        textView.typingAttributes = textAttributes
+        let fullRange = NSRange(location: 0, length: textView.textStorage.length)
+        guard fullRange.length > 0 else { return }
+
+        var attributes = textAttributes
+        if ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text) {
+            attributes[.foregroundColor] = UIColor.clear
+        }
+        textView.textStorage.setAttributes(attributes, range: fullRange)
+        ZoneForcedLineBreak.applyMarkerStyle(
+            to: textView.textStorage,
+            baseAttributes: textAttributes,
+            markerColor: forcedLineBreakTintColor
+        )
+    }
     
     private func calculateLineInfo(from text: String, location: Int) -> (lineIndex: Int, totalLines: Int) {
         let lines = ZoneForcedLineBreak.renderText(text).components(separatedBy: "\n")
@@ -950,7 +1022,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
 
         return [
             .font: font,
-            .foregroundColor: textView?.textColor ?? UIColor.label,
+            .foregroundColor: textColor,
             .paragraphStyle: paragraphStyle
         ]
     }
@@ -988,6 +1060,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.zoneID = zoneID
         textView.debugZoneID = zoneID
         context.coordinator.font = font
+        context.coordinator.textColor = textColor
         context.coordinator.lineSpacing = lineSpacing
         context.coordinator.contentInset = contentInset
         context.coordinator.maximumVisibleHeight = maximumVisibleHeight
@@ -1055,6 +1128,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         context.coordinator.onCommit = onCommit
         context.coordinator.onFocusChange = onFocusChange
         context.coordinator.font = font
+        context.coordinator.textColor = textColor
         context.coordinator.lineSpacing = lineSpacing
         context.coordinator.contentInset = contentInset
         context.coordinator.maximumVisibleHeight = maximumVisibleHeight
@@ -1306,6 +1380,8 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             fontName: font.fontName,
             fontSize: font.pointSize,
             fontTraits: font.fontDescriptor.symbolicTraits.rawValue,
+            textColorSignature: colorSignature(textColor),
+            markerColorSignature: colorSignature(forcedLineBreakTintColor),
             textAlignment: textAlignment.rawValue,
             lineSpacing: lineSpacing,
             contentInsetTop: contentInset.top,
@@ -1314,6 +1390,18 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             contentInsetRight: contentInset.right,
             isPlaceholderDisplay: text.isEmpty
         )
+    }
+
+    private func colorSignature(_ color: UIColor) -> String {
+        let resolved = color.resolvedColor(with: UITraitCollection.current)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        if resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+            return "\(red):\(green):\(blue):\(alpha)"
+        }
+        return resolved.description
     }
 }
 
@@ -1327,6 +1415,8 @@ fileprivate struct ZoneTextViewStylingSignature: Equatable {
     let fontName: String
     let fontSize: CGFloat
     let fontTraits: UInt32
+    let textColorSignature: String
+    let markerColorSignature: String
     let textAlignment: Int
     let lineSpacing: CGFloat
     let contentInsetTop: CGFloat

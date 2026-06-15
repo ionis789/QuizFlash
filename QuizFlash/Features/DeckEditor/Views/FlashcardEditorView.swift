@@ -43,6 +43,7 @@ struct FlashcardEditorView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var isPhotoPickerPresented = false
     @State private var scheduledFocusTask: Task<Void, Never>?
+    @State private var scheduledRenderToggleTask: Task<Void, Never>?
     @State private var showSaveErrorAlert = false
     @State private var saveErrorMessage = ""
     @State private var floatingFormatBarTopY: CGFloat?
@@ -333,26 +334,15 @@ struct FlashcardEditorView: View {
                         .padding(.horizontal, isCompact ? 16 : topChromeHorizontalInset)
                         .padding(.bottom, floatingToolbarBaseBottomInset)
                         .offset(y: floatingFormatBarYOffset)
-                        .bottomChromeVisibility(
-                            isFloatingFormatBarVisible,
-                            hiddenOffset: floatingFormatBarHiddenOffset
+                        .modifier(
+                            EditorKeyboardAccessoryVisibilityModifier(
+                                isVisible: isFloatingFormatBarVisible,
+                                hiddenOffset: floatingFormatBarHiddenOffset
+                            )
                         )
                         .accessibilityHidden(!isFloatingFormatBarVisible)
-                        .background {
-                            if isFloatingFormatBarVisible {
-                                GeometryReader { proxy in
-                                    Color.clear.preference(
-                                        key: FloatingFormatBarTopPreferenceKey.self,
-                                        value: proxy.frame(in: .global).minY
-                                    )
-                                }
-                            }
-                        }
                 }
                 .ignoresSafeArea(.keyboard, edges: .bottom)
-                .onPreferenceChange(FloatingFormatBarTopPreferenceKey.self) { topY in
-                    handleFloatingFormatBarTopChange(topY)
-                }
             }
         }
         .zIndex(30)
@@ -397,7 +387,7 @@ struct FlashcardEditorView: View {
 
     private var floatingToolbarBaseBottomInset: CGFloat {
         keyboardMonitor.isVisible || isFloatingFormatBarPresented
-            ? 2
+            ? 0
             : UIConstants.Spacing.standard
     }
 
@@ -491,44 +481,23 @@ struct FlashcardEditorView: View {
         )
     }
 
-    private func handleFloatingFormatBarTopChange(_ topY: CGFloat?) {
-        guard isFloatingFormatBarVisible else { return }
-        guard let topY else { return }
-
-        if let floatingFormatBarTopY, abs(floatingFormatBarTopY - topY) < 0.5 {
-            return
-        }
-
-        floatingFormatBarTopY = topY
-        floatingFormatBarTopUpdateCount += 1
-        updateToolbarDebugLine()
-    }
-
     private func updateFloatingFormatBarPresentation(isKeyboardVisible: Bool) {
         floatingFormatBarPresentationTask?.cancel()
+        floatingFormatBarPresentationTask = nil
 
         if isKeyboardVisible {
             updateFloatingFormatBarKeyboardHeight()
-            floatingFormatBarPresentationTask = Task { @MainActor in
-                await Task.yield()
-                guard !Task.isCancelled, keyboardMonitor.isVisible else { return }
-                withBottomChromeAnimation {
-                    isFloatingFormatBarPresented = true
-                }
-                updateToolbarDebugLine()
+            withAnimation(.easeOut(duration: 0.10)) {
+                isFloatingFormatBarPresented = true
             }
+            updateToolbarDebugLine()
         } else {
-            withBottomChromeAnimation {
+            withAnimation(.easeOut(duration: 0.08)) {
                 isFloatingFormatBarPresented = false
                 floatingFormatBarKeyboardHeight = 0
             }
             floatingFormatBarTopY = nil
-
-            floatingFormatBarPresentationTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(220))
-                guard !Task.isCancelled, !keyboardMonitor.isVisible else { return }
-                updateToolbarDebugLine()
-            }
+            updateToolbarDebugLine()
         }
     }
 
@@ -648,7 +617,7 @@ struct FlashcardEditorView: View {
             verticalAlignmentFallback: verticalAlignmentFallback,
             topContentInset: editorTopContentInset(safeTopInset: safeTopInset),
             bottomAccessoryHeight: floatingToolbarAccessoryHeight,
-            bottomAccessoryTopY: keyboardMonitor.isVisible ? floatingFormatBarRenderedTopY : nil,
+            bottomAccessoryTopY: nil,
             scrollResetToken: activeSide,
             scrollRestorationRequest: activeSide == side ? scrollRestorationRequest : nil,
             rendersRichText: rendersRichText,
@@ -695,8 +664,6 @@ struct FlashcardEditorView: View {
             currentContent.updateZone(at: .root) { zone in
                 zone.contentType = .text
                 zone.sizeMode = .auto
-                zone.blockAlignment = .auto
-                zone.textAlignment = .leading
             }
             focusManager.requestFocus(for: currentContent.rootZone.id)
             return
@@ -1074,6 +1041,24 @@ struct FlashcardEditorView: View {
     private func toggleRenderedContent() {
         guard hasSavableContent else { return }
         let targetMode = !showsRenderedContent
+        scheduledRenderToggleTask?.cancel()
+
+        if targetMode, keyboardMonitor.isVisible {
+            prepareForRenderModeKeyboardDismiss()
+            scheduledRenderToggleTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(260))
+                guard !Task.isCancelled else { return }
+                applyRenderedContentMode(targetMode)
+                scheduledRenderToggleTask = nil
+            }
+            return
+        }
+
+        applyRenderedContentMode(targetMode)
+    }
+
+    private func applyRenderedContentMode(_ targetMode: Bool) {
+        guard showsRenderedContent != targetMode else { return }
 
         scrollTransition.currentMode = showsRenderedContent
         scrollTransition.targetMode = targetMode
@@ -1084,14 +1069,22 @@ struct FlashcardEditorView: View {
         )
 
         if targetMode {
-            focusManager.forceReleaseKeyboard()
-            zoneController.forceReleaseKeyboard()
-            zoneController.updateFocusedZone(nil)
+            prepareForRenderModeKeyboardDismiss()
         }
 
         withTransaction(Transaction(animation: .smooth(duration: UIConstants.Animation.medium, extraBounce: 0))) {
             showsRenderedContent = targetMode
         }
+    }
+
+    private func prepareForRenderModeKeyboardDismiss() {
+        suppressCanvasEmptyTapUntil = CFAbsoluteTimeGetCurrent() + 0.9
+        cancelScheduledEditorTasks()
+        focusManager.suppressFocusRequests(for: 0.9)
+        zoneController.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
+        selectedPath = nil
+        previewDirection = nil
     }
 
     private func closeEditor() {
@@ -1117,7 +1110,8 @@ struct FlashcardEditorView: View {
         scheduledFocusTask = nil
         previewDirection = nil
         selectedPath = nil
-        focusManager.forceReleaseKeyboard()
+        suppressCanvasEmptyTapUntil = CFAbsoluteTimeGetCurrent() + 0.9
+        focusManager.suppressFocusRequests(for: 0.9)
         zoneController.forceReleaseKeyboard()
         zoneController.updateFocusedZone(nil)
     }
@@ -1239,11 +1233,17 @@ struct FlashcardEditorView: View {
 
 }
 
-private struct FloatingFormatBarTopPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat?
+private struct EditorKeyboardAccessoryVisibilityModifier: ViewModifier {
+    let isVisible: Bool
+    let hiddenOffset: CGFloat
 
-    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
-        value = nextValue() ?? value
+    func body(content: Content) -> some View {
+        content
+            .opacity(isVisible ? 1 : 0)
+            .offset(y: isVisible ? 0 : hiddenOffset)
+            .scaleEffect(isVisible ? 1 : 0.99, anchor: .bottom)
+            .allowsHitTesting(isVisible)
+            .animation(.easeOut(duration: 0.12), value: isVisible)
     }
 }
 

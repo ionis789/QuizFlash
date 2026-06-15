@@ -197,12 +197,12 @@ struct ZoneEditorView: View {
         let indexedChildren = Array(children.enumerated())
         let childPaths = indexedChildren.map { path.appending($0.offset).id }
         let groupWidth = verticalGroupWidth(for: children, childPaths: childPaths)
+        let resolvedGroupAlignment: ZoneBlockAlignment = zone.blockAlignment == .auto ? .center : zone.blockAlignment
         let groupLeadingInset = rendersRichText
             ? ZoneContentLayoutEngine.blockLeadingInset(
-                for: zone.blockAlignment,
+                for: resolvedGroupAlignment,
                 blockWidth: groupWidth,
-                availableWidth: availableWidth,
-                defaultAlignment: .center
+                availableWidth: availableWidth
             )
             : 0
         let groupWiggleOffset = rendersRichText
@@ -249,7 +249,7 @@ struct ZoneEditorView: View {
         .frame(width: availableWidth, alignment: .topLeading)
         .fixedSize(horizontal: false, vertical: true)
         .animation(rendersRichText ? .easeOut(duration: 0.14) : nil, value: groupWidth)
-        .animation(rendersRichText ? .easeOut(duration: 0.22) : nil, value: zone.blockAlignment)
+        .animation(rendersRichText ? .easeOut(duration: 0.22) : nil, value: resolvedGroupAlignment)
         .onPreferenceChange(ZoneEditorNaturalBlockWidthPreferenceKey.self) { widths in
             guard rendersRichText else {
                 ZoneEditorDebugStore.shared.recordLayoutEvent(
@@ -362,12 +362,7 @@ struct ZoneEditorView: View {
     }
 
     private func normalizedEditorMeasurementZone(_ zone: ZoneModel) -> ZoneModel {
-        var layoutZone = zone
-        layoutZone.textAlignment = .leading
-        if layoutZone.blockAlignment == .auto {
-            layoutZone.blockAlignment = .leading
-        }
-        return layoutZone
+        zone
     }
 
     private func verticalGroupIdentity(for children: [ZoneModel]) -> String {
@@ -425,7 +420,7 @@ struct ZoneEditorView: View {
             userInfo: [ZoneEditorCaretScrollNotification.pathIDKey: path.id]
         )
         if !wasSelected {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.35)
         }
     }
 }
@@ -597,9 +592,12 @@ struct ZoneContentView: View {
                 blockFrameReporter(layout: layout, zone: zone)
                 blockSurface(layout: layout, zone: zone)
 
-                if isSelected {
-                    selectionOutline(layout: layout, zone: zone, active: isTextViewFirstResponder)
-                }
+                selectionOutline(
+                    layout: layout,
+                    zone: zone,
+                    active: isTextViewFirstResponder,
+                    visible: isSelected
+                )
 
                 contentView(maxVisibleTextHeight: contentFrameHeight ?? maximumResizableHeight)
                     .frame(
@@ -694,7 +692,12 @@ struct ZoneContentView: View {
         }
     }
 
-    private func selectionOutline(layout: ZoneContentLayoutResult, zone: ZoneModel, active: Bool) -> some View {
+    private func selectionOutline(
+        layout: ZoneContentLayoutResult,
+        zone: ZoneModel,
+        active: Bool,
+        visible: Bool
+    ) -> some View {
         let outset = visualZoneOutset(for: zone)
 
         return RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
@@ -707,6 +710,9 @@ struct ZoneContentView: View {
                 height: layout.blockSize.height + (outset.vertical * 2)
             )
             .offset(x: layout.leadingInset - outset.horizontal, y: -outset.vertical)
+            .opacity(visible ? 1 : 0)
+            .animation(.easeInOut(duration: 0.16), value: visible)
+            .animation(.easeInOut(duration: 0.12), value: active)
             .allowsHitTesting(false)
     }
 
@@ -756,7 +762,6 @@ struct ZoneContentView: View {
             if layoutZone.blockAlignment == .auto {
                 layoutZone.blockAlignment = content.rootZone.leafCount == 1 ? .center : .leading
             }
-            layoutZone.textAlignment = .leading
             layoutZone.fixedWidth = nil
             layoutZone.fixedHeight = nil
             return layoutZone
@@ -912,11 +917,8 @@ struct ZoneContentView: View {
         width: CGFloat,
         preservesTrailingBlankLines: Bool = false
     ) -> CGSize {
-        let bulletOffset = shouldShowBullet(for: zone)
-            ? ZoneContentMetrics.bulletWidth + ZoneContentMetrics.bulletSpacing
-            : 0
         let horizontalPadding = editorTextHorizontalPadding(for: zone) * 2
-        let textViewWidth = max(width - bulletOffset - horizontalPadding, 1)
+        let textViewWidth = max(width - horizontalPadding, 1)
         let textInsets = editorTextContentInsets(for: zone)
         let textContainerWidth = max(
             textViewWidth - textInsets.left - textInsets.right,
@@ -948,7 +950,7 @@ struct ZoneContentView: View {
         layoutManager.ensureLayout(for: textContainer)
 
         let usedRect = layoutManager.usedRect(for: textContainer)
-        let measuredWidth = usedRect.width + textInsets.left + textInsets.right + horizontalPadding + bulletOffset
+        let measuredWidth = usedRect.width + textInsets.left + textInsets.right + horizontalPadding
         let measuredHeight = ceil(usedRect.height + textInsets.top + textInsets.bottom)
 
         return CGSize(
@@ -1082,13 +1084,6 @@ struct ZoneContentView: View {
             }
 
             HStack(alignment: .top, spacing: 8) {
-                if shouldShowBullet {
-                    Circle()
-                        .fill(zone?.textColor.color ?? .primary)
-                        .frame(width: editorBulletSize, height: editorBulletSize)
-                        .padding(.top, editorBulletTopPadding)
-                }
-
                 if shouldUseInteractiveTextSurface {
                     textEditorCore(maxVisibleTextHeight: maxVisibleTextHeight)
                         .frame(width: rawTextSurfaceWidth, alignment: .topLeading)
@@ -1124,18 +1119,8 @@ struct ZoneContentView: View {
         return true
     }
 
-    private var shouldShowBullet: Bool {
-        guard let zone else { return false }
-        return shouldShowBullet(for: zone)
-    }
-
-    private func shouldShowBullet(for zone: ZoneModel) -> Bool {
-        zone.hasBullet && !zone.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     private var rawTextSurfaceWidth: CGFloat {
-        let bulletWidth = shouldShowBullet ? editorBulletSize + 8 : 0
-        return max(availableWidth - bulletWidth, 1)
+        max(availableWidth, 1)
     }
 
     private var emptyZonePreview: some View {
@@ -1347,8 +1332,6 @@ struct ZoneContentView: View {
             zoneID: zone.id,
             contentType: zone.contentType.rawValue,
             sizeMode: zone.sizeMode.rawValue,
-            blockAlignment: zone.blockAlignment.rawValue,
-            textAlignment: zone.textAlignment.rawValue,
             verticalAlignment: zone.verticalAlignment.rawValue,
             fixedWidth: zone.fixedWidth,
             fixedHeight: zone.fixedHeight
@@ -1382,8 +1365,8 @@ struct ZoneContentView: View {
             zone.id.uuidString,
             zone.contentType.rawValue,
             zone.sizeMode.rawValue,
-            zone.blockAlignment.rawValue,
-            zone.textAlignment.rawValue,
+            "removed",
+            "leading",
             zone.verticalAlignment.rawValue,
             String((zone.text as NSString).length),
             String(Int(zone.fixedWidth ?? -1)),
@@ -1611,15 +1594,6 @@ struct CardFaceView: View {
                 }
                 else {
                     HStack(alignment: .top, spacing: 8) {
-                        if zone.hasBullet {
-                            Circle()
-                                .fill(zone.textColor.color)
-                                .frame(
-                                    width: ZoneContentMetrics.bulletWidth,
-                                    height: ZoneContentMetrics.bulletWidth
-                                )
-                                .padding(.top, previewBulletTopPadding(for: zone))
-                        }
                         MixedMathTextView(
                             text: previewText,
                             fontSize: fontSizeFor(zone),
@@ -1645,9 +1619,9 @@ struct CardFaceView: View {
                 }
             }
         case .image:
-            if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: zone.textAlignment, cornerRadius: 10) }
+            if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: .leading, cornerRadius: 10) }
         case .sketch:
-            if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: zone.textAlignment, cornerRadius: 10, isSketch: true) }
+            if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: .leading, cornerRadius: 10, isSketch: true) }
         }
     }
 
@@ -1664,11 +1638,6 @@ struct CardFaceView: View {
 
     private func fontSizeFor(_ zone: ZoneModel) -> CGFloat {
         ZoneTextTypography.fontSize(for: zone.textStyle, fontScale: fontScale)
-    }
-
-    private func previewBulletTopPadding(for zone: ZoneModel) -> CGFloat {
-        let lineHeight = ZoneTextTypography.uiFont(for: zone, fontScale: fontScale).lineHeight
-        return 4 + max((lineHeight - ZoneContentMetrics.bulletWidth) / 2, 0)
     }
 
     @ViewBuilder

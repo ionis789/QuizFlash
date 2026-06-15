@@ -119,9 +119,6 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     /// The text size/weight style applied to this zone.
     var textStyle: TextBlockStyle = .body
 
-    /// The horizontal text alignment applied to this zone.
-    var textAlignment: TextBlockAlignment = .leading
-
     /// The size mode applied to this zone's layout rectangle.
     var sizeMode: ZoneSizeMode = .auto
 
@@ -145,9 +142,6 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
 
     /// Whether text in this zone is italic.
     var isItalic: Bool = false
-
-    /// Whether this zone shows a leading bullet point.
-    var hasBullet: Bool = false
 
     /// The font family applied to this zone.
     var fontFamily: FontFamily = .system
@@ -238,7 +232,6 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         text: String = "",
         imageData: Data? = nil,
         textStyle: TextBlockStyle = .body,
-        textAlignment: TextBlockAlignment = .leading,
         sizeMode: ZoneSizeMode = .auto,
         blockAlignment: ZoneBlockAlignment = .auto,
         verticalAlignment: ZoneVerticalAlignment = .auto,
@@ -247,7 +240,6 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         textColor: TextBlockColor = .primary,
         isBold: Bool = false,
         isItalic: Bool = false,
-        hasBullet: Bool = false,
         fontFamily: FontFamily = .system,
         highlightColor: HighlightColor = .none,
         imageScale: CGFloat = 1.0,
@@ -260,7 +252,6 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         self.text = text
         self.imageData = imageData
         self.textStyle = textStyle
-        self.textAlignment = textAlignment
         self.sizeMode = sizeMode
         self.blockAlignment = blockAlignment
         self.verticalAlignment = verticalAlignment
@@ -269,7 +260,6 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         self.textColor = textColor
         self.isBold = isBold
         self.isItalic = isItalic
-        self.hasBullet = hasBullet
         self.fontFamily = fontFamily
         self.highlightColor = highlightColor
         self.imageScale = imageScale
@@ -286,7 +276,6 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         case text
         case imageData
         case textStyle
-        case textAlignment
         case sizeMode
         case blockAlignment
         case verticalAlignment
@@ -295,7 +284,6 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         case textColor
         case isBold
         case isItalic
-        case hasBullet
         case fontFamily
         case highlightColor
         case imageScale
@@ -306,9 +294,6 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     /// Decodes a zone while migrating pre-layout-mode cards safely.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let decodedTextAlignment = try container.decodeIfPresent(TextBlockAlignment.self, forKey: .textAlignment) ?? .leading
-        let decodedSizeMode = try container.decodeIfPresent(ZoneSizeMode.self, forKey: .sizeMode)
-        let decodedBlockAlignment = try container.decodeIfPresent(ZoneBlockAlignment.self, forKey: .blockAlignment)
 
         self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         self.contentType = try container.decodeIfPresent(ZoneContentType.self, forKey: .contentType) ?? .empty
@@ -316,29 +301,19 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
         self.text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
         self.imageData = try container.decodeIfPresent(Data.self, forKey: .imageData)
         self.textStyle = try container.decodeIfPresent(TextBlockStyle.self, forKey: .textStyle) ?? .body
-        self.textAlignment = decodedTextAlignment
-        self.sizeMode = decodedSizeMode ?? Self.migratedSizeMode(from: decodedTextAlignment)
-        self.blockAlignment = decodedBlockAlignment ?? Self.migratedBlockAlignment(from: decodedTextAlignment)
+        self.sizeMode = try container.decodeIfPresent(ZoneSizeMode.self, forKey: .sizeMode) ?? .auto
+        self.blockAlignment = try container.decodeIfPresent(ZoneBlockAlignment.self, forKey: .blockAlignment) ?? .auto
         self.verticalAlignment = try container.decodeIfPresent(ZoneVerticalAlignment.self, forKey: .verticalAlignment) ?? .auto
         self.fixedWidth = try container.decodeIfPresent(CGFloat.self, forKey: .fixedWidth)
         self.fixedHeight = try container.decodeIfPresent(CGFloat.self, forKey: .fixedHeight)
         self.textColor = try container.decodeIfPresent(TextBlockColor.self, forKey: .textColor) ?? .primary
         self.isBold = try container.decodeIfPresent(Bool.self, forKey: .isBold) ?? false
         self.isItalic = try container.decodeIfPresent(Bool.self, forKey: .isItalic) ?? false
-        self.hasBullet = try container.decodeIfPresent(Bool.self, forKey: .hasBullet) ?? false
         self.fontFamily = try container.decodeIfPresent(FontFamily.self, forKey: .fontFamily) ?? .system
         self.highlightColor = try container.decodeIfPresent(HighlightColor.self, forKey: .highlightColor) ?? .none
         self.imageScale = try container.decodeIfPresent(CGFloat.self, forKey: .imageScale) ?? 1.0
         self.children = try container.decodeIfPresent([ZoneModel].self, forKey: .children)
         self.direction = try container.decodeIfPresent(ZoneDirection.self, forKey: .direction) ?? .horizontal
-    }
-
-    private static func migratedSizeMode(from oldAlignment: TextBlockAlignment) -> ZoneSizeMode {
-        oldAlignment == .leading ? .auto : .fillWidth
-    }
-
-    private static func migratedBlockAlignment(from oldAlignment: TextBlockAlignment) -> ZoneBlockAlignment {
-        oldAlignment == .leading ? .auto : .leading
     }
 
     // MARK: - Factory Methods

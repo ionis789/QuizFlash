@@ -92,7 +92,7 @@ struct EditorFormatMenuBar: View {
         .background(
             Capsule(style: .continuous)
                 .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                .shadow(color: .black.opacity(0.10), radius: 4, y: 2)
         )
         .overlay(
             Capsule(style: .continuous)
@@ -183,67 +183,9 @@ struct EditorFormatMenuBar: View {
     // MARK: - Text Tools
     private var textTools: some View {
         HStack(spacing: 16) {
-            forcedLineBreakButton
-            paragraphMenu
             typographyMenu
             textColorMenu
             backgroundColorMenu
-        }
-    }
-
-    private var forcedLineBreakButton: some View {
-        ToolbarButton(
-            icon: "return",
-            tint: accent,
-            accessibilityLabel: localized("Force Line Break"),
-            action: onInsertForcedLineBreak
-        )
-    }
-
-    private var paragraphMenu: some View {
-        Menu {
-            Section {
-                Button {
-                    content.updateZone(at: path) {
-                        $0.blockAlignment = .leading
-                        $0.textAlignment = .leading
-                    }
-                } label: {
-                    menuRow(title: localized("Align Left"), systemImage: "text.alignleft", isSelected: effectiveBlockAlignment == .leading)
-                }
-
-                Button {
-                    content.updateZone(at: path) {
-                        $0.blockAlignment = .center
-                        $0.textAlignment = .leading
-                    }
-                } label: {
-                    menuRow(title: localized("Align Center"), systemImage: "text.aligncenter", isSelected: effectiveBlockAlignment == .center)
-                }
-
-                Button {
-                    content.updateZone(at: path) {
-                        $0.blockAlignment = .trailing
-                        $0.textAlignment = .leading
-                    }
-                } label: {
-                    menuRow(title: localized("Align Right"), systemImage: "text.alignright", isSelected: effectiveBlockAlignment == .trailing)
-                }
-            }
-
-            Section {
-                Button {
-                    content.updateZone(at: path) { $0.hasBullet.toggle() }
-                } label: {
-                    menuRow(title: localized("Bullet List"), systemImage: "list.bullet", isSelected: zone?.hasBullet == true)
-                }
-            }
-        } label: {
-            ToolbarIconLabel(
-                icon: paragraphMenuIcon,
-                isActive: isParagraphMenuActive,
-                accessibilityLabel: localized("Text Lines")
-            )
         }
     }
 
@@ -416,36 +358,10 @@ struct EditorFormatMenuBar: View {
         }
     }
 
-    private var paragraphMenuIcon: String {
-        if zone?.hasBullet == true { return "list.bullet" }
-        switch effectiveBlockAlignment {
-        case .leading: return "text.alignleft"
-        case .center: return "text.aligncenter"
-        case .trailing: return "text.alignright"
-        }
-    }
-
     private var typographyMenuIcon: String {
         if zone?.isBold == true { return "bold" }
         if zone?.isItalic == true { return "italic" }
         return zone?.fontFamily.icon ?? "textformat"
-    }
-
-    private var isParagraphMenuActive: Bool {
-        zone?.hasBullet == true || effectiveBlockAlignment != .leading
-    }
-
-    private var effectiveBlockAlignment: TextBlockAlignment {
-        switch zone?.blockAlignment ?? .leading {
-        case .leading:
-            return .leading
-        case .auto:
-            return content.rootZone.leafCount == 1 ? .center : .leading
-        case .center:
-            return .center
-        case .trailing:
-            return .trailing
-        }
     }
 
     private var isTypographyMenuActive: Bool {
