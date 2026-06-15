@@ -131,15 +131,6 @@ struct FlashcardEditorView: View {
         guard activeSide == 1 else { return baseX }
         return baseX + sideSwitchSegmentWidth + UIConstants.Spacing.medium
     }
-    private var renderSwitchWidth: CGFloat {
-        UIConstants.Size.actionButton * 2
-    }
-    private var renderSwitchSegmentWidth: CGFloat {
-        (renderSwitchWidth - UIConstants.Spacing.standard * 2 - UIConstants.Spacing.medium) / 2
-    }
-    private var renderSwitchIndicatorX: CGFloat {
-        UIConstants.Spacing.standard + renderSwitchSegmentWidth + UIConstants.Spacing.medium + (renderSwitchSegmentWidth - sideSwitchIndicatorWidth) / 2
-    }
     private var editorTextScale: CGFloat {
         CGFloat(textSize.playModeScale)
     }
@@ -913,26 +904,19 @@ struct FlashcardEditorView: View {
 
             Spacer(minLength: 0)
 
-            HStack(spacing: UIConstants.Spacing.small) {
-                sideSwitch
-                renderSwitch
-            }
+            previewTopButton
 
             Spacer(minLength: 0)
 
-            Button(action: saveCard) {
-                ChromeSoftCircleSymbol(
-                    systemName: "checkmark",
-                    size: UIConstants.Size.actionButton,
-                    symbolSize: UIConstants.Size.navigationChromeIcon,
-                    tint: canSave ? Color.black.opacity(0.78) : .secondary,
-                    backgroundTint: canSave ? successAccent : topChromeDisabledFill
-                )
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSave)
-            .opacity(canSave ? 1 : 0.55)
-            .accessibilityLabel(localized("Save"))
+            sideSwitch
+
+            Spacer(minLength: 0)
+
+            renderTopButton
+
+            Spacer(minLength: 0)
+
+            saveTopButton
         }
         .topNavigationChrome(horizontalInset: topChromeHorizontalInset)
     }
@@ -947,6 +931,54 @@ struct FlashcardEditorView: View {
             tint: topChromeUtilityForeground,
             backgroundTint: topChromeUtilityFill
         )
+    }
+
+    private var previewTopButton: some View {
+        Button(action: openPreview) {
+            ChromeSoftCircleSymbol(
+                systemName: "eye",
+                size: UIConstants.Size.actionButton,
+                symbolSize: UIConstants.Size.navigationChromeIcon,
+                tint: hasSavableContent ? topChromeUtilityForeground : .secondary,
+                backgroundTint: topChromeUtilityFill
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!hasSavableContent)
+        .opacity(hasSavableContent ? 1 : 0.55)
+        .accessibilityLabel(localized("Preview"))
+    }
+
+    private var renderTopButton: some View {
+        Button(action: toggleRenderedContent) {
+            ChromeSoftCircleSymbol(
+                systemName: "wand.and.stars",
+                size: UIConstants.Size.actionButton,
+                symbolSize: UIConstants.Size.navigationChromeIcon,
+                tint: hasSavableContent ? topChromeUtilityForeground : .secondary,
+                backgroundTint: showsRenderedContent ? accent.opacity(0.28) : topChromeUtilityFill
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!hasSavableContent)
+        .opacity(hasSavableContent ? 1 : 0.55)
+        .accessibilityLabel(localized("Render"))
+    }
+
+    private var saveTopButton: some View {
+        Button(action: saveCard) {
+            ChromeSoftCircleSymbol(
+                systemName: "checkmark",
+                size: UIConstants.Size.actionButton,
+                symbolSize: UIConstants.Size.navigationChromeIcon,
+                tint: canSave ? Color.black.opacity(0.78) : .secondary,
+                backgroundTint: canSave ? successAccent : topChromeDisabledFill
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!canSave)
+        .opacity(canSave ? 1 : 0.55)
+        .accessibilityLabel(localized("Save"))
     }
 
     private var sideSwitch: some View {
@@ -980,61 +1012,6 @@ struct FlashcardEditorView: View {
         )
         .accessibilityLabel(activeSideTitle)
         .accessibilityAddTraits(.isButton)
-    }
-
-    private var renderSwitch: some View {
-        ZStack(alignment: .bottomLeading) {
-            HStack(spacing: UIConstants.Spacing.medium) {
-                renderSwitchButton(
-                    systemName: "eye",
-                    accessibilityLabel: localized("Preview"),
-                    action: openPreview
-                )
-
-                renderSwitchButton(
-                    systemName: "wand.and.stars",
-                    accessibilityLabel: localized("Render"),
-                    action: toggleRenderedContent
-                )
-            }
-            .padding(.horizontal, UIConstants.Spacing.standard)
-
-            if showsRenderedContent {
-                Capsule(style: .continuous)
-                    .fill(accent)
-                    .frame(width: sideSwitchIndicatorWidth, height: 3)
-                    .offset(x: renderSwitchIndicatorX, y: -8)
-                    .animation(.tabItemSpring, value: showsRenderedContent)
-            }
-        }
-        .frame(width: renderSwitchWidth, height: UIConstants.Size.actionButton)
-        .contentShape(Rectangle())
-        .background(
-            Capsule(style: .continuous)
-                .fill(topChromeUtilityFill)
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .stroke(topChromeUtilityBorder, lineWidth: 0.75)
-        )
-        .disabled(!hasSavableContent)
-        .opacity(hasSavableContent ? 1 : 0.55)
-    }
-
-    private func renderSwitchButton(
-        systemName: String,
-        accessibilityLabel: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: UIConstants.Size.navigationChromeIcon, weight: .semibold))
-                .foregroundStyle(hasSavableContent ? topChromeUtilityForeground : .secondary)
-                .frame(width: renderSwitchSegmentWidth, height: UIConstants.Size.actionButton)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel)
     }
 
     private func sideSwitchSegment(title: String, isSelected: Bool) -> some View {
