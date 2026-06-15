@@ -804,10 +804,29 @@ struct FlashcardEditorView: View {
     }
 
     private func deleteSelectedZone(at path: ZonePath) {
-        currentContent.deleteZone(at: path)
-        focusManager.forceReleaseKeyboard()
-        selectedPath = nil
-        previewDirection = nil
+        let nextFocusZoneID = focusTargetAfterDeletingZone(at: path)
+        if let nextFocusZoneID {
+            _ = focusManager.retainKeyboardForTextFocusTransfer(to: nextFocusZoneID)
+        }
+
+        withAnimation(zoneListMutationAnimation) {
+            currentContent.deleteZone(at: path)
+            previewDirection = nil
+            selectedPath = nextFocusZoneID.flatMap {
+                findPath(for: $0, in: currentContent.rootZone)
+            }
+        }
+
+        guard let nextFocusZoneID,
+              let nextPath = selectedPath,
+              isTextFocusableZone(at: nextPath) else {
+            focusManager.forceReleaseKeyboard()
+            zoneController.updateFocusedZone(nil)
+            return
+        }
+
+        focusManager.requestFocus(for: nextFocusZoneID)
+        zoneController.updateFocusedZone(nextFocusZoneID)
     }
 
     private func insertForcedLineBreak(at path: ZonePath) {
@@ -851,9 +870,7 @@ struct FlashcardEditorView: View {
     private func insertTextZoneWithFocus(relativeTo path: ZonePath?, direction: AddDirection) {
         var newZoneID: UUID?
 
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
+        withAnimation(zoneListMutationAnimation) {
             newZoneID = currentContent.addTextZone(relativeTo: path, direction: direction)
             if let newID = newZoneID, let newPath = findPath(for: newID, in: currentContent.rootZone) {
                 selectedPath = newPath
@@ -864,6 +881,36 @@ struct FlashcardEditorView: View {
             focusManager.requestFocus(for: id)
         }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    private var zoneListMutationAnimation: Animation {
+        .smooth(duration: 0.18, extraBounce: 0)
+    }
+
+    private func focusTargetAfterDeletingZone(at path: ZonePath) -> UUID? {
+        guard let parentPath = path.parent,
+              let childIndex = path.lastIndex,
+              let siblings = currentContent.zone(at: parentPath)?.children,
+              siblings.indices.contains(childIndex) else {
+            return nil
+        }
+
+        let lowerIndex = childIndex + 1
+        if siblings.indices.contains(lowerIndex) {
+            return siblings[lowerIndex].id
+        }
+
+        let upperIndex = childIndex - 1
+        if siblings.indices.contains(upperIndex) {
+            return siblings[upperIndex].id
+        }
+
+        return nil
+    }
+
+    private func isTextFocusableZone(at path: ZonePath) -> Bool {
+        guard let zone = currentContent.zone(at: path), zone.isLeaf else { return false }
+        return zone.contentType == .text || zone.contentType == .empty || zone.contentType == .code
     }
 
     private func scheduleFocusAction(after delay: Duration, _ action: @escaping @MainActor () -> Void) {

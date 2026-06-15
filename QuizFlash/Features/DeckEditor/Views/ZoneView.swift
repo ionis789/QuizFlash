@@ -416,7 +416,9 @@ struct ZoneEditorView: View {
 
     private func selectZone() {
         let wasSelected = selectedPath == path
-        selectedPath = path
+        withAnimation(.easeOut(duration: 0.12)) {
+            selectedPath = path
+        }
         NotificationCenter.default.post(
             name: .zoneEditorZoneTapped,
             object: nil,
