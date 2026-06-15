@@ -836,9 +836,7 @@ private struct ZoneContentTreePreview: View {
     }
 
     private var groupDebugGuideCornerRadius: CGFloat {
-        ZoneContentMetrics.zoneCornerRadius
-            + ZoneContentMetrics.childSpacing
-            + ZoneContentMetrics.groupGuideVerticalPadding
+        ZoneContentMetrics.zoneCornerRadius + 8
     }
 
     private var groupDebugGuideInsets: EdgeInsets {
