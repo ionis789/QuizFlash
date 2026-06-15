@@ -397,7 +397,7 @@ struct FlashcardEditorView: View {
 
     private var floatingToolbarBaseBottomInset: CGFloat {
         keyboardMonitor.isVisible || isFloatingFormatBarPresented
-            ? 4
+            ? 2
             : UIConstants.Spacing.standard
     }
 
