@@ -8,6 +8,14 @@ import UIKit
 
 // MARK: - Card Preview Mode View
 
+#if DEBUG
+private func cardPreviewDebugLog(_ message: String) {
+    let line = "[CardPreviewModeView] \(message)"
+    print(line)
+    NSLog("%@", line)
+}
+#endif
+
 /// Immersive preview surface for supported persisted card kinds.
 struct CardPreviewModeView: View {
     @Environment(AppPreferences.self) private var appPreferences
@@ -144,12 +152,20 @@ struct CardPreviewModeView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .onAppear {
+#if DEBUG
+            cardPreviewDebugLog("appear isSheet=\(isSheetPresentation) supportsFlip=\(supportsFlip)")
+#endif
             if isFlashcardSheetPresentation {
                 ZoneFocusManager.shared.forceReleaseKeyboard()
                 ZoneController.shared.forceReleaseKeyboard()
                 ZoneController.shared.updateFocusedZone(nil)
             }
         }
+#if DEBUG
+        .onDisappear {
+            cardPreviewDebugLog("disappear isSheet=\(isSheetPresentation) supportsFlip=\(supportsFlip)")
+        }
+#endif
     }
 
     @ViewBuilder
@@ -502,12 +518,12 @@ struct CardPreviewModeView: View {
     private func handleDone() {
         if let fullScreenSheetDismiss {
 #if DEBUG
-            print("[CardPreviewModeView] handleDone using fullScreenSheetDismiss supportsFlip=\(supportsFlip)")
+            cardPreviewDebugLog("handleDone using fullScreenSheetDismiss supportsFlip=\(supportsFlip)")
 #endif
             fullScreenSheetDismiss()
         } else {
 #if DEBUG
-            print("[CardPreviewModeView] handleDone using environment dismiss supportsFlip=\(supportsFlip)")
+            cardPreviewDebugLog("handleDone using environment dismiss supportsFlip=\(supportsFlip)")
 #endif
             dismiss()
         }
