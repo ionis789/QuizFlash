@@ -56,6 +56,7 @@ struct FlashcardEditorView: View {
     @State private var showsEditorDebugOverlays = true
     @State private var scrollRestorationRequest: ZoneEditorScrollRestorationRequest?
     @State private var scrollTransition = FlashcardEditorScrollTransitionState()
+    @State private var suppressCanvasEmptyTapUntil: CFAbsoluteTime = 0
 
 
     // Visual-only ghost preview. The model changes only after the user commits.
@@ -396,7 +397,7 @@ struct FlashcardEditorView: View {
 
     private var floatingToolbarBaseBottomInset: CGFloat {
         keyboardMonitor.isVisible || isFloatingFormatBarPresented
-            ? UIConstants.Spacing.tiny
+            ? 4
             : UIConstants.Spacing.standard
     }
 
@@ -588,7 +589,22 @@ struct FlashcardEditorView: View {
 
     @ViewBuilder
     private func editorArea(safeTopInset: CGFloat) -> some View {
-        ZStack {
+        if showsRenderedContent {
+            ZStack {
+                renderedEditorCanvas(
+                    content: frontZoneContent,
+                    selectedPath: frontSelectedPathBinding,
+                    side: 0,
+                    safeTopInset: safeTopInset
+                )
+                renderedEditorCanvas(
+                    content: backZoneContent,
+                    selectedPath: backSelectedPathBinding,
+                    side: 1,
+                    safeTopInset: safeTopInset
+                )
+            }
+        } else {
             editorCanvas(
                 content: currentContent,
                 selectedPath: selectedPathBinding,
@@ -596,31 +612,6 @@ struct FlashcardEditorView: View {
                 safeTopInset: safeTopInset,
                 rendersRichText: false
             )
-            .opacity(showsRenderedContent ? 0 : 1)
-            .allowsHitTesting(!showsRenderedContent)
-            .accessibilityHidden(showsRenderedContent)
-
-            renderedEditorCanvas(
-                content: frontZoneContent,
-                selectedPath: frontSelectedPathBinding,
-                side: 0,
-                safeTopInset: safeTopInset
-            )
-            .opacity(showsRenderedContent && activeSide == 0 ? 1 : 0)
-            .allowsHitTesting(showsRenderedContent && activeSide == 0)
-            .accessibilityHidden(!showsRenderedContent || activeSide != 0)
-            .zIndex(showsRenderedContent && activeSide == 0 ? 1 : 0)
-
-            renderedEditorCanvas(
-                content: backZoneContent,
-                selectedPath: backSelectedPathBinding,
-                side: 1,
-                safeTopInset: safeTopInset
-            )
-            .opacity(showsRenderedContent && activeSide == 1 ? 1 : 0)
-            .allowsHitTesting(showsRenderedContent && activeSide == 1)
-            .accessibilityHidden(!showsRenderedContent || activeSide != 1)
-            .zIndex(showsRenderedContent && activeSide == 1 ? 1 : 0)
         }
     }
 
@@ -690,6 +681,8 @@ struct FlashcardEditorView: View {
     }
 
     private func handleCanvasEmptySpaceTap(_ context: ZoneEditorCanvasTapContext) {
+        guard !shouldSuppressCanvasEmptyTap() else { return }
+
         focusManager.prepareForZoneInsertion()
 
         if !currentContent.rootZone.hasContent,
@@ -713,6 +706,7 @@ struct FlashcardEditorView: View {
         }
 
         let insertion = insertionPoint(for: context)
+        guard insertion.allowsInsertion else { return }
 
         if let emptyPath = blockingEmptyTextZonePath(
             relativeTo: insertion.path,
@@ -728,11 +722,17 @@ struct FlashcardEditorView: View {
     }
 
     private func dismissFloatingFormatMenu() {
-        focusManager.forceReleaseKeyboard()
+        suppressCanvasEmptyTapUntil = CFAbsoluteTimeGetCurrent() + 0.9
+        cancelScheduledEditorTasks()
+        focusManager.suppressFocusRequests(for: 0.9)
         zoneController.forceReleaseKeyboard()
         zoneController.updateFocusedZone(nil)
         selectedPath = nil
         previewDirection = nil
+    }
+
+    private func shouldSuppressCanvasEmptyTap() -> Bool {
+        CFAbsoluteTimeGetCurrent() < suppressCanvasEmptyTapUntil
     }
 
     private func blockingEmptyTextZonePath(
@@ -828,7 +828,7 @@ struct FlashcardEditorView: View {
         )
     }
 
-    private func insertionPoint(for context: ZoneEditorCanvasTapContext) -> (path: ZonePath, direction: AddDirection) {
+    private func insertionPoint(for context: ZoneEditorCanvasTapContext) -> (path: ZonePath, direction: AddDirection, allowsInsertion: Bool) {
         let sortedFrames = context.zoneFrames
             .filter { currentContent.zone(at: $0.path) != nil }
             .sorted {
@@ -839,20 +839,16 @@ struct FlashcardEditorView: View {
             }
 
         guard let first = sortedFrames.first else {
-            return (.root, .down)
+            return (.root, .down, true)
         }
 
-        if context.location.y < first.frame.midY {
-            return (first.path, .up)
+        let last = sortedFrames.last ?? first
+        let bottomTapSlop: CGFloat = 24
+        guard context.location.y >= last.frame.maxY - bottomTapSlop else {
+            return (last.path, .down, false)
         }
 
-        for frame in sortedFrames {
-            if context.location.y < frame.frame.midY {
-                return (frame.path, .up)
-            }
-        }
-
-        return (sortedFrames.last?.path ?? .root, .down)
+        return (last.path, .down, true)
     }
 
     private func insertTextZoneWithFocus(relativeTo path: ZonePath?, direction: AddDirection) {

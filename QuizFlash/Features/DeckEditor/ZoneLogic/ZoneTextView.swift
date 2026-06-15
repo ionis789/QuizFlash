@@ -563,9 +563,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     static let doubleTapPassthroughRecognizerName = "ZoneTextViewDoubleTapPassthroughRecognizer"
 
     func textViewShouldBeginEditing(_ textView: UITextView) -> Bool {
+        guard !ZoneFocusManager.shared.isSuppressingFocusRequests else {
+            ZoneEditorDebugStore.shared.recordFocusEvent("textView shouldBegin ignored", zoneID: zoneID)
+            return false
+        }
         if let zoneID {
             postWillFocusNotification(for: zoneID)
-            ZoneFocusManager.shared.retainKeyboardForTextFocusTransfer(to: zoneID)
         }
         return true
     }
@@ -639,7 +642,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     private func postWillFocusNotification(for zoneID: UUID) {
-        ZoneFocusManager.shared.retainKeyboardForTextFocusTransfer(to: zoneID)
+        guard ZoneFocusManager.shared.retainKeyboardForTextFocusTransfer(to: zoneID) else { return }
         NotificationCenter.default.post(
             name: .zoneEditorWillFocusTextView,
             object: zoneID
@@ -863,6 +866,15 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             from: selectedRange,
             displayText: currentDisplayText
         )
+        guard canInsertForcedLineBreak(
+            in: currentModelText,
+            selectedRange: selectedModelRange
+        ) else {
+            UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+            reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
+            return
+        }
+
         let mutable = NSMutableString(string: currentModelText)
         mutable.replaceCharacters(in: selectedModelRange, with: ZoneForcedLineBreak.marker)
         let modelText = mutable as String
@@ -883,6 +895,29 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         applyForcedLineBreakMarkerStyle(to: textView)
         textViewDidChange(textView)
         reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
+    }
+
+    private func canInsertForcedLineBreak(in text: String, selectedRange: NSRange) -> Bool {
+        let marker = ZoneForcedLineBreak.marker as NSString
+        let nsText = text as NSString
+        let location = min(max(selectedRange.location, 0), nsText.length)
+        let end = min(max(selectedRange.location + selectedRange.length, location), nsText.length)
+
+        if location >= marker.length {
+            let previousRange = NSRange(location: location - marker.length, length: marker.length)
+            if nsText.substring(with: previousRange) == marker as String {
+                return false
+            }
+        }
+
+        if end + marker.length <= nsText.length {
+            let nextRange = NSRange(location: end, length: marker.length)
+            if nsText.substring(with: nextRange) == marker as String {
+                return false
+            }
+        }
+
+        return true
     }
     
     private func calculateLineInfo(from text: String, location: Int) -> (lineIndex: Int, totalLines: Int) {
@@ -1137,6 +1172,10 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             DispatchQueue.main.async {
                 let manager = ZoneFocusManager.shared
                 defer { context.coordinator.focusSyncState = .idle }
+                guard !manager.isSuppressingFocusRequests else {
+                    ZoneEditorDebugStore.shared.recordFocusEvent("sync become ignored", zoneID: zoneID)
+                    return
+                }
                 guard manager.focusedZoneID == self.zoneID || manager.pendingFocusZoneID == self.zoneID else {
                     return
                 }
@@ -1150,7 +1189,26 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         }
 
         if !isFirstResponder && textView.isFirstResponder {
-            ZoneEditorDebugStore.shared.recordFocusEvent("sync keepFR for transfer", zoneID: zoneID)
+            let manager = ZoneFocusManager.shared
+            guard !manager.shouldRetainKeyboard,
+                  manager.focusedZoneID == nil,
+                  manager.pendingFocusZoneID == nil else {
+                ZoneEditorDebugStore.shared.recordFocusEvent("sync keepFR for transfer", zoneID: zoneID)
+                return
+            }
+            guard context.coordinator.focusSyncState != .resigningFirstResponder else { return }
+            context.coordinator.focusSyncState = .resigningFirstResponder
+            DispatchQueue.main.async {
+                defer { context.coordinator.focusSyncState = .idle }
+                guard ZoneFocusManager.shared.focusedZoneID == nil,
+                      ZoneFocusManager.shared.pendingFocusZoneID == nil,
+                      !ZoneFocusManager.shared.shouldRetainKeyboard,
+                      textView.isFirstResponder else {
+                    return
+                }
+                ZoneEditorDebugStore.shared.recordFocusEvent("sync resign explicit", zoneID: zoneID)
+                textView.resignFirstResponder()
+            }
         }
     }
     

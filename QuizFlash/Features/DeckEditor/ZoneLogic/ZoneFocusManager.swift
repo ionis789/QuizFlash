@@ -46,17 +46,25 @@ final class ZoneFocusManager {
     
     /// Flag to retain keyboard during operations
     var shouldRetainKeyboard: Bool = false
+
+    /// True while an explicit keyboard dismiss is settling and stale UIKit focus callbacks must be ignored.
+    var isSuppressingFocusRequests: Bool {
+        CFAbsoluteTimeGetCurrent() < suppressFocusRequestsUntil
+    }
     
     // MARK: - Private State
     
     private var keyboardRetainTask: Task<Void, Never>?
     private var focusRetentionTask: Task<Void, Never>?
     private var focusNotificationTask: Task<Void, Never>?
+    private var focusSuppressionTask: Task<Void, Never>?
+    private var suppressFocusRequestsUntil: CFAbsoluteTime = 0
     
     // MARK: - Focus Management
     
     /// Requests focus for a specific zone
     func requestFocus(for zoneID: UUID) {
+        guard canAcceptFocusRequest("manager requestFocus ignored", zoneID: zoneID) else { return }
         retainKeyboardForTextFocusTransfer(to: zoneID)
         ZoneEditorDebugStore.shared.recordFocusEvent("manager requestFocus", zoneID: zoneID)
         reportDebugState()
@@ -65,13 +73,16 @@ final class ZoneFocusManager {
     }
 
     /// Prepares a UIKit text focus transfer without letting the keyboard resign between text views.
-    func retainKeyboardForTextFocusTransfer(to zoneID: UUID) {
+    @discardableResult
+    func retainKeyboardForTextFocusTransfer(to zoneID: UUID) -> Bool {
+        guard canAcceptFocusRequest("manager retainTransfer ignored", zoneID: zoneID) else { return false }
         keyboardRetainTask?.cancel()
         shouldRetainKeyboard = true
         pendingFocusZoneID = zoneID
         focusedZoneID = zoneID
         ZoneEditorDebugStore.shared.recordFocusEvent("manager retainTransfer", zoneID: zoneID)
         reportDebugState()
+        return true
     }
 
     private func postFocusRequest(for zoneID: UUID) {
@@ -97,6 +108,7 @@ final class ZoneFocusManager {
 
     /// Completes a pending focus request once UIKit confirms first-responder state.
     func completeFocus(for zoneID: UUID) {
+        guard canAcceptFocusRequest("manager completeFocus ignored", zoneID: zoneID) else { return }
         focusNotificationTask?.cancel()
         focusNotificationTask = nil
         if focusedZoneID != zoneID {
@@ -120,6 +132,10 @@ final class ZoneFocusManager {
 
     /// Updates the currently focused zone
     func updateFocusedZone(_ zoneID: UUID?) {
+        if let zoneID,
+           !canAcceptFocusRequest("manager updateFocused ignored", zoneID: zoneID) {
+            return
+        }
         guard focusedZoneID != zoneID else { return }
         focusedZoneID = zoneID
         ZoneEditorDebugStore.shared.recordFocusEvent("manager updateFocused", zoneID: zoneID)
@@ -130,6 +146,11 @@ final class ZoneFocusManager {
     
     /// Prepares for zone insertion - retains keyboard
     func prepareForZoneInsertion() {
+        guard !isSuppressingFocusRequests else {
+            ZoneEditorDebugStore.shared.recordFocusEvent("manager prepareInsertion ignored", zoneID: nil)
+            clearFocusStateForDismiss()
+            return
+        }
         keyboardRetainTask?.cancel()
         shouldRetainKeyboard = true
         reportDebugState()
@@ -142,19 +163,42 @@ final class ZoneFocusManager {
             try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled else { return }
             await MainActor.run {
+                guard !self.isSuppressingFocusRequests else {
+                    self.shouldRetainKeyboard = false
+                    self.reportDebugState()
+                    return
+                }
                 self.shouldRetainKeyboard = false
                 self.reportDebugState()
             }
         }
     }
+
+    /// Temporarily blocks stale UIKit/SwiftUI focus callbacks while the user-requested keyboard dismiss settles.
+    func suppressFocusRequests(for duration: TimeInterval) {
+        suppressFocusRequestsUntil = max(
+            suppressFocusRequestsUntil,
+            CFAbsoluteTimeGetCurrent() + duration
+        )
+        focusSuppressionTask?.cancel()
+        focusSuppressionTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(duration))
+            guard !Task.isCancelled else { return }
+            self.reportDebugState()
+        }
+        ZoneEditorDebugStore.shared.recordFocusEvent("manager suppressFocusRequests", zoneID: nil)
+        forceReleaseKeyboard()
+    }
     
     /// Force releases keyboard immediately
     func forceReleaseKeyboard() {
         focusNotificationTask?.cancel()
+        focusNotificationTask = nil
         keyboardRetainTask?.cancel()
-        pendingFocusZoneID = nil
-        focusedZoneID = nil
-        shouldRetainKeyboard = false
+        keyboardRetainTask = nil
+        focusRetentionTask?.cancel()
+        focusRetentionTask = nil
+        clearFocusStateForDismiss()
         ZoneEditorDebugStore.shared.recordFocusEvent("manager forceRelease", zoneID: nil)
         reportDebugState()
         UIApplication.shared.sendAction(
@@ -193,6 +237,22 @@ final class ZoneFocusManager {
             pendingZoneID: pendingFocusZoneID,
             retainKeyboard: shouldRetainKeyboard
         )
+    }
+
+    private func canAcceptFocusRequest(_ ignoredEvent: String, zoneID: UUID) -> Bool {
+        guard !isSuppressingFocusRequests else {
+            ZoneEditorDebugStore.shared.recordFocusEvent(ignoredEvent, zoneID: zoneID)
+            clearFocusStateForDismiss()
+            reportDebugState()
+            return false
+        }
+        return true
+    }
+
+    private func clearFocusStateForDismiss() {
+        pendingFocusZoneID = nil
+        focusedZoneID = nil
+        shouldRetainKeyboard = false
     }
 }
 

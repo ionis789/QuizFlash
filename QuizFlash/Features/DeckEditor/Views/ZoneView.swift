@@ -1244,6 +1244,12 @@ struct ZoneContentView: View {
         }
 
         if focused {
+            guard !focusManager.isSuppressingFocusRequests else {
+                isTextViewFirstResponder = false
+                isFocused = false
+                ZoneEditorDebugStore.shared.recordFocusEvent("zone focus ignored during dismiss", zoneID: currentZoneID)
+                return
+            }
             highlightContext?.dismiss()
             if !isSelected {
                 onSelect()

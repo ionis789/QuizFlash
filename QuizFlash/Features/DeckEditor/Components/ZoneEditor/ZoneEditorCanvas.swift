@@ -191,7 +191,12 @@ struct ZoneEditorCanvas: View {
                 1
             )
             let contentHeight = contentViewportHeight
-            let bottomScrollInset = dynamicBottomScrollInset
+            let rawKeyboardCreationInset = keyboardMonitor.isVisible
+                ? max(keyboardMonitor.visibleHeight + legacyRawBottomChromeClearance, 160)
+                : max(editorViewportHeight * 0.45, 260)
+            let bottomScrollInset = rendersRichText
+                ? dynamicBottomScrollInset
+                : rawKeyboardCreationInset
             let minimumScrollContentHeight = editorViewportHeight
 
             ScrollViewReader { _ in
@@ -211,7 +216,11 @@ struct ZoneEditorCanvas: View {
                     ZoneEditorScrollViewLocator { scrollView in
                         scrollDriver.attach(scrollView)
                         scrollDriver.setTopInset(0)
-                        refreshBottomScrollInset()
+                        if rendersRichText {
+                            refreshBottomScrollInset()
+                        } else {
+                            scrollDriver.resetBottomInset()
+                        }
                         scrollDriver.setScrollOffsetHandler(handleScrollOffsetChange)
                         configureTapProbe()
                     }
@@ -245,6 +254,9 @@ struct ZoneEditorCanvas: View {
                         cancelCaretAvoidanceScroll()
                         dismissAlignmentMenu()
                     } else {
+                        if !rendersRichText {
+                            scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
+                        }
                         if keyboardMonitor.isVisible {
                             scheduleCaretAvoidanceScroll(delay: .milliseconds(16))
                         }
@@ -257,7 +269,12 @@ struct ZoneEditorCanvas: View {
                 .onChange(of: keyboardMonitor.visibleHeight) { _, newHeight in
                     let oldHeight = lastKeyboardVisibleHeight
                     lastKeyboardVisibleHeight = newHeight
-                    refreshBottomScrollInset()
+                    if rendersRichText {
+                        refreshBottomScrollInset()
+                    } else {
+                        scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
+                        scrollDriver.resetBottomInset()
+                    }
 
                     if newHeight <= 1, !keyboardMonitor.isVisible {
                         cancelCaretAvoidanceScroll()
@@ -271,8 +288,15 @@ struct ZoneEditorCanvas: View {
                 }
                 .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
                     lastKeyboardVisibleHeight = keyboardMonitor.visibleHeight
-                    refreshBottomScrollInset()
+                    if rendersRichText {
+                        refreshBottomScrollInset()
+                    } else {
+                        scrollDriver.resetBottomInset()
+                    }
                     if isVisible {
+                        if !rendersRichText {
+                            scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
+                        }
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     } else {
                         cancelCaretAvoidanceScroll()
@@ -286,6 +310,9 @@ struct ZoneEditorCanvas: View {
                     )
                 }
                 .onChange(of: focusManager.focusedZoneID) { _, focusedID in
+                    if !rendersRichText, focusedID != nil {
+                        scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
+                    }
                     if let focusedID,
                        let selectedPath,
                        content.zone(at: selectedPath)?.id == focusedID,
@@ -300,6 +327,9 @@ struct ZoneEditorCanvas: View {
                     )
                 }
                 .onChange(of: focusManager.pendingFocusZoneID) { _, _ in
+                    if !rendersRichText {
+                        scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
+                    }
                     updateCanvasDebug(
                         cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
                         contentSize: CGSize(width: contentWidth, height: contentHeight)
@@ -321,13 +351,21 @@ struct ZoneEditorCanvas: View {
                     )
                 }
                 .onChange(of: bottomAccessoryTopY) { _, _ in
-                    refreshBottomScrollInset()
+                    if rendersRichText {
+                        refreshBottomScrollInset()
+                    } else {
+                        scrollDriver.resetBottomInset()
+                    }
                     if shouldMaintainKeyboardAvoidance {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     }
                 }
                 .onChange(of: bottomAccessoryHeight) { _, _ in
-                    refreshBottomScrollInset()
+                    if rendersRichText {
+                        refreshBottomScrollInset()
+                    } else {
+                        scrollDriver.resetBottomInset()
+                    }
                     if shouldMaintainKeyboardAvoidance {
                         scheduleCaretAvoidanceScroll(delay: .milliseconds(24))
                     }
@@ -336,7 +374,11 @@ struct ZoneEditorCanvas: View {
                     cancelCaretAvoidanceScroll()
                     clearActiveCaretGeometry()
                     dismissAlignmentMenu()
-                    refreshBottomScrollInset()
+                    if rendersRichText {
+                        refreshBottomScrollInset()
+                    } else {
+                        scrollDriver.resetBottomInset()
+                    }
                     scrollDriver.resetToTop()
                 }
                 .onChange(of: scrollRestorationRequest) { _, request in
@@ -372,7 +414,11 @@ struct ZoneEditorCanvas: View {
                     )
                 }
                 .onAppear {
-                    refreshBottomScrollInset()
+                    if rendersRichText {
+                        refreshBottomScrollInset()
+                    } else {
+                        scrollDriver.resetBottomInset()
+                    }
                     pendingScrollRestorationRequest = scrollRestorationRequest
                     updateCanvasDebug(
                         cardSize: CGSize(width: cardWidth, height: editorViewportHeight),
@@ -418,7 +464,11 @@ struct ZoneEditorCanvas: View {
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .zoneEditorWillFocusTextView)) { _ in
-                    scrollDriver.releaseOffsetLock()
+                    if rendersRichText {
+                        scrollDriver.releaseOffsetLock()
+                    } else {
+                        scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
+                    }
                 }
                 .onDisappear {
                     scheduledBottomChromeScrollTask?.cancel()
@@ -1686,8 +1736,12 @@ struct ZoneEditorCanvas: View {
         dynamicBottomScrollInset
     }
 
+    private var legacyRawBottomChromeClearance: CGFloat {
+        max(bottomAccessoryHeight, 0) + (keyboardMonitor.isVisible ? caretBottomChromeBuffer + 80 : 48)
+    }
+
     private var caretBottomChromeBuffer: CGFloat {
-        UIConstants.Spacing.standard
+        100
     }
 
     private var dynamicBottomScrollInset: CGFloat {
@@ -2376,6 +2430,10 @@ private final class ZoneEditorScrollDriver {
 
         pendingBottomInset = resolvedInset
         applyContentInsetsIfNeeded()
+    }
+
+    func resetBottomInset() {
+        setBottomInset(0)
     }
 
     func resetToTop() {
