@@ -169,12 +169,13 @@ struct EditorFormatMenuBar: View {
     private var zoneOperationsMenu: some View {
         Menu {
             Button(role: .destructive, action: onDeleteZone) {
-                Label(localized("Delete"), systemImage: "trash")
+                Label(localized("Are you sure?"), systemImage: "trash")
             }
         } label: {
             ToolbarIconLabel(
-                icon: "ellipsis.circle",
-                accessibilityLabel: localized("More Options")
+                icon: "trash",
+                tint: .red,
+                accessibilityLabel: localized("Delete")
             )
         }
     }
