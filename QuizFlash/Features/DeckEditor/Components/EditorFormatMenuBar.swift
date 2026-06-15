@@ -18,7 +18,6 @@ struct EditorFormatMenuBar: View {
     var onChoosePhoto: () -> Void
     var onSketch: () -> Void
     var onInsertForcedLineBreak: () -> Void
-    var onDuplicateZone: () -> Void
     var onDeleteZone: () -> Void
     var canPreview: Bool
     var showsPrimaryActions: Bool
@@ -32,7 +31,6 @@ struct EditorFormatMenuBar: View {
         onChoosePhoto: @escaping () -> Void,
         onSketch: @escaping () -> Void,
         onInsertForcedLineBreak: @escaping () -> Void = { },
-        onDuplicateZone: @escaping () -> Void = { },
         onDeleteZone: @escaping () -> Void = { },
         canPreview: Bool,
         showsPrimaryActions: Bool = true,
@@ -45,7 +43,6 @@ struct EditorFormatMenuBar: View {
         self.onChoosePhoto = onChoosePhoto
         self.onSketch = onSketch
         self.onInsertForcedLineBreak = onInsertForcedLineBreak
-        self.onDuplicateZone = onDuplicateZone
         self.onDeleteZone = onDeleteZone
         self.canPreview = canPreview
         self.showsPrimaryActions = showsPrimaryActions
@@ -171,10 +168,6 @@ struct EditorFormatMenuBar: View {
 
     private var zoneOperationsMenu: some View {
         Menu {
-            Button(action: onDuplicateZone) {
-                Label(localized("Duplicate"), systemImage: "doc.on.doc")
-            }
-
             Button(role: .destructive, action: onDeleteZone) {
                 Label(localized("Delete"), systemImage: "trash")
             }
@@ -475,14 +468,13 @@ struct EditorFormatMenuBar: View {
 // MARK: - Zone Management Floating Button
 
 /// Focus-scoped zone menu for operations that affect the selected zone's
-/// rectangle, order, duplication, or removal.
+/// rectangle, order, or removal.
 struct ZoneManagementFloatingButton: View {
     @Environment(AppPreferences.self) private var appPreferences
 
     let content: ZoneCardContent
     let path: ZonePath
     var onSplit: () -> Void
-    var onDuplicate: () -> Void
     var onMoveUp: () -> Void
     var onMoveDown: () -> Void
     var onClose: () -> Void
@@ -497,7 +489,6 @@ struct ZoneManagementFloatingButton: View {
         content: ZoneCardContent,
         path: ZonePath,
         onSplit: @escaping () -> Void,
-        onDuplicate: @escaping () -> Void,
         onMoveUp: @escaping () -> Void,
         onMoveDown: @escaping () -> Void,
         onClose: @escaping () -> Void
@@ -505,7 +496,6 @@ struct ZoneManagementFloatingButton: View {
         self.content = content
         self.path = path
         self.onSplit = onSplit
-        self.onDuplicate = onDuplicate
         self.onMoveUp = onMoveUp
         self.onMoveDown = onMoveDown
         self.onClose = onClose
@@ -540,9 +530,6 @@ struct ZoneManagementFloatingButton: View {
                 }
                 Button(action: onMoveDown) {
                     Label(localized("Move Down"), systemImage: "arrow.down")
-                }
-                Button(action: onDuplicate) {
-                    Label(localized("Duplicate"), systemImage: "doc.on.doc")
                 }
 
                 Button(role: .destructive) {

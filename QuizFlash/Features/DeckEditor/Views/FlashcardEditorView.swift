@@ -569,9 +569,6 @@ struct FlashcardEditorView: View {
             onInsertForcedLineBreak: {
                 insertForcedLineBreak(at: path)
             },
-            onDuplicateZone: {
-                duplicateSelectedZone()
-            },
             onDeleteZone: {
                 deleteSelectedZone(at: path)
             },
@@ -1077,26 +1074,6 @@ struct FlashcardEditorView: View {
     }
 
     // MARK: - Zone Operations
-
-    private func duplicateSelectedZone() {
-        guard let path = selectedPath else { return }
-
-        var newZoneID: UUID?
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            newZoneID = currentContent.duplicateZone(at: path)
-            if let newID = newZoneID,
-               let newPath = findPath(for: newID, in: currentContent.rootZone) {
-                selectedPath = newPath
-            }
-        }
-
-        scheduleFocusAction(after: .milliseconds(120)) {
-            if let id = newZoneID {
-                focusManager.requestFocus(for: id)
-            }
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        }
-    }
 
     // MARK: - Photo/Sketch
 

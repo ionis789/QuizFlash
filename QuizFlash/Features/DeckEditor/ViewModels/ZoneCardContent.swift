@@ -163,31 +163,7 @@ final class ZoneCardContent {
         return addZone(relativeTo: path ?? .root, direction: direction, newZone: .text())
     }
 
-    // MARK: - Duplicate And Move
-
-    /// Duplicates the zone at `path` immediately after the original in vertical order.
-    @discardableResult
-    func duplicateZone(at path: ZonePath) -> UUID? {
-        guard var copiedZone = zone(at: path) else { return nil }
-        copiedZone.regenerateIDsRecursively()
-
-        if path.indices.isEmpty {
-            let preservedVerticalAlignment = rootZone.verticalAlignment
-            rootZone = .container(direction: .vertical, children: [rootZone, copiedZone])
-            rootZone.verticalAlignment = preservedVerticalAlignment
-            return copiedZone.id
-        }
-
-        guard let parentPath = path.parent, let childIndex = path.lastIndex else { return nil }
-        updateZone(at: parentPath) { parent in
-            var kids = parent.children ?? []
-            guard childIndex < kids.count else { return }
-            kids.insert(copiedZone, at: childIndex + 1)
-            parent.children = kids
-        }
-
-        return copiedZone.id
-    }
+    // MARK: - Move
 
     /// Moves the zone at `path` one slot up within its parent container.
     @discardableResult
