@@ -25,7 +25,6 @@ struct CardPreviewModeView: View {
 
     @State private var isFlipped = false
     @State private var topChromeHeight: CGFloat = 0
-    @State private var isDismissing = false
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -48,7 +47,6 @@ struct CardPreviewModeView: View {
     private var playCardBottomReserve: CGFloat { playFlipPerspectiveBottomClearance }
     private var playBottomChromeHeight: CGFloat { playScoreZoneHeight + playScoreZoneBottomPadding + 6 }
     private var playHeaderBottomPadding: CGFloat { isCompact ? 16 : 18 }
-    private var dismissCardAnimation: Animation { .smooth(duration: 0.22, extraBounce: 0) }
 
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
@@ -204,10 +202,6 @@ struct CardPreviewModeView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .padding(.top, headerHeight)
                 .padding(.bottom, cardBottomPadding + playCardBottomReserve)
-                .opacity(isDismissing ? 0 : 1)
-                .scaleEffect(isDismissing ? 0.965 : 1)
-                .offset(y: isDismissing ? max(geo.size.height * 0.08, 64) : 0)
-                .animation(dismissCardAnimation, value: isDismissing)
         }
     }
 
@@ -231,10 +225,6 @@ struct CardPreviewModeView: View {
             flashcardPreviewCard(flashcardContent)
                 .frame(width: cardSize.width, height: cardSize.height)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                .opacity(isDismissing ? 0 : 1)
-                .scaleEffect(isDismissing ? 0.965 : 1)
-                .offset(y: isDismissing ? max(geo.size.height * 0.08, 64) : 0)
-                .animation(dismissCardAnimation, value: isDismissing)
         }
     }
 
@@ -510,14 +500,7 @@ struct CardPreviewModeView: View {
     }
 
     private func handleDone() {
-        guard !isDismissing else { return }
-        if let fullScreenSheetDismiss, supportsFlip {
-            isDismissing = true
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(160))
-                fullScreenSheetDismiss()
-            }
-        } else if let fullScreenSheetDismiss {
+        if let fullScreenSheetDismiss {
             fullScreenSheetDismiss()
         } else {
             dismiss()
