@@ -5,13 +5,8 @@
 
 import SwiftUI
 import UIKit
-import OSLog
 
 private let fullScreenSheetDismissVerticalBias: CGFloat = 1.2
-private let fullScreenSheetLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
-    category: "FullScreenSheet"
-)
 
 private func fullScreenSheetHasDownwardDismissIntent(
     _ pan: UIPanGestureRecognizer,
@@ -936,8 +931,8 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         onDismissStart()
 
 #if DEBUG
-        fullScreenSheetLogger.debug(
-            "dismiss start distance=\(dismissalDistance, privacy: .public) window=\(windowSize.debugDescription, privacy: .public) offset=\(offset, privacy: .public) presentation=\(presentationProgress, privacy: .public) childCount=\(activeChildPresentationIDs.count, privacy: .public)"
+        print(
+            "[FullScreenSheet] dismiss start distance=\(dismissalDistance) window=\(windowSize.debugDescription) offset=\(offset) presentation=\(presentationProgress) childCount=\(activeChildPresentationIDs.count)"
         )
 #endif
 
@@ -948,8 +943,8 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))
 #if DEBUG
-            fullScreenSheetLogger.debug(
-                "dismiss commit distance=\(dismissalDistance, privacy: .public) offset=\(offset, privacy: .public) durationMs=\(animationDurationMilliseconds, privacy: .public)"
+            print(
+                "[FullScreenSheet] dismiss commit distance=\(dismissalDistance) offset=\(offset) durationMs=\(animationDurationMilliseconds)"
             )
 #endif
             var tx = Transaction()
