@@ -221,7 +221,7 @@ final class ZoneCardContent {
             guard var kids = parent.children, childIndex < kids.count else { return }
             kids.remove(at: childIndex)
             if kids.count == 1      { parent = kids[0] }
-            else if kids.isEmpty    { parent = .empty() }
+            else if kids.isEmpty    { parent = .text() }
             else                    { parent.children = kids }
         }
         restoreStableAuthoringRootIfNeeded()
