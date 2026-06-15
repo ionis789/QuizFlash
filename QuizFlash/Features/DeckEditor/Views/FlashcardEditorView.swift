@@ -806,6 +806,11 @@ struct FlashcardEditorView: View {
     private func deleteSelectedZone(at path: ZonePath) {
         let nextSelectedZoneID = focusTargetAfterDeletingZone(at: path)
         var selectedNeighborPath: ZonePath?
+        let shouldKeepKeyboardActive = keyboardMonitor.isVisible && nextSelectedZoneID != nil
+
+        if shouldKeepKeyboardActive, let nextSelectedZoneID {
+            _ = focusManager.retainKeyboardForTextFocusTransfer(to: nextSelectedZoneID)
+        }
 
         withAnimation(zoneListMutationAnimation) {
             currentContent.deleteZone(at: path)
@@ -816,10 +821,11 @@ struct FlashcardEditorView: View {
             selectedPath = selectedNeighborPath
         }
 
-        if selectedNeighborPath != nil {
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(90))
-                focusManager.forceReleaseKeyboard()
+        if let nextSelectedZoneID, selectedNeighborPath != nil {
+            if shouldKeepKeyboardActive {
+                focusManager.requestFocus(for: nextSelectedZoneID)
+                zoneController.updateFocusedZone(nextSelectedZoneID)
+            } else {
                 zoneController.updateFocusedZone(nil)
             }
         } else {
