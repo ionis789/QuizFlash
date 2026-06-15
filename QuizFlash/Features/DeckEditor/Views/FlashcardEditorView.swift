@@ -804,29 +804,18 @@ struct FlashcardEditorView: View {
     }
 
     private func deleteSelectedZone(at path: ZonePath) {
-        let nextFocusZoneID = focusTargetAfterDeletingZone(at: path)
-        if let nextFocusZoneID {
-            _ = focusManager.retainKeyboardForTextFocusTransfer(to: nextFocusZoneID)
-        }
+        let nextSelectedZoneID = focusTargetAfterDeletingZone(at: path)
 
         withAnimation(zoneListMutationAnimation) {
             currentContent.deleteZone(at: path)
             previewDirection = nil
-            selectedPath = nextFocusZoneID.flatMap {
+            selectedPath = nextSelectedZoneID.flatMap {
                 findPath(for: $0, in: currentContent.rootZone)
             }
         }
 
-        guard let nextFocusZoneID,
-              let nextPath = selectedPath,
-              isTextFocusableZone(at: nextPath) else {
-            focusManager.forceReleaseKeyboard()
-            zoneController.updateFocusedZone(nil)
-            return
-        }
-
-        focusManager.requestFocus(for: nextFocusZoneID)
-        zoneController.updateFocusedZone(nextFocusZoneID)
+        focusManager.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
     }
 
     private func insertForcedLineBreak(at path: ZonePath) {
@@ -906,11 +895,6 @@ struct FlashcardEditorView: View {
         }
 
         return nil
-    }
-
-    private func isTextFocusableZone(at path: ZonePath) -> Bool {
-        guard let zone = currentContent.zone(at: path), zone.isLeaf else { return false }
-        return zone.contentType == .text || zone.contentType == .empty || zone.contentType == .code
     }
 
     private func scheduleFocusAction(after delay: Duration, _ action: @escaping @MainActor () -> Void) {
