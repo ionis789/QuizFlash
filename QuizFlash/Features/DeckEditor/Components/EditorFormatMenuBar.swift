@@ -257,7 +257,6 @@ struct EditorFormatMenuBar: View {
         } label: {
             ToolbarIconLabel(
                 icon: "paintbrush.pointed",
-                isActive: zone?.textColor != .primary,
                 tint: zone?.textColor.color ?? .primary,
                 accessibilityLabel: localized("Text Color")
             )
