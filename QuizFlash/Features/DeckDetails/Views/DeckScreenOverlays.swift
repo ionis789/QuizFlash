@@ -27,13 +27,6 @@ extension DeckContentView {
         }
 
         prepareFlashcardsPlayModeIfNeeded()
-        guard let preparedFlashcardsPlayModeViewModel,
-              preparedFlashcardsPlayModeViewModel.isSessionStarted,
-              !preparedFlashcardsPlayModeViewModel.cards.isEmpty else {
-            presentsFlashcardsAfterPreparation = true
-            return
-        }
-
         selectedPlayMode = mode
     }
 
@@ -60,26 +53,18 @@ extension DeckContentView {
         flashcardsPreparationTask = Task { @MainActor in
             await sessionViewModel.startSession(container: context.container)
             flashcardsPreparationTask = nil
-
-            guard presentsFlashcardsAfterPreparation else { return }
-            presentsFlashcardsAfterPreparation = false
-            if sessionViewModel.isSessionStarted, !sessionViewModel.cards.isEmpty {
-                selectedPlayMode = .flashcards
-            }
         }
     }
 
     func resetPreparedFlashcardsPlayMode() {
         flashcardsPreparationTask?.cancel()
         flashcardsPreparationTask = nil
-        presentsFlashcardsAfterPreparation = false
         preparedFlashcardsPlayModeViewModel = nil
     }
 
     func cancelPreparedFlashcardsPlayMode() {
         flashcardsPreparationTask?.cancel()
         flashcardsPreparationTask = nil
-        presentsFlashcardsAfterPreparation = false
         preparedFlashcardsPlayModeViewModel?.tearDown()
         preparedFlashcardsPlayModeViewModel = nil
     }

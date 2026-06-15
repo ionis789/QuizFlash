@@ -46,6 +46,9 @@ final class FlashCardsPlayModeViewModel {
     /// Whether `startSession(container:)` has been called at least once.
     var isSessionStarted: Bool = false
 
+    /// Prevents overlapping session bootstrap work while the initial batch loads.
+    @ObservationIgnored private var isStartingSession: Bool = false
+
     /// Whether every playable flashcard payload for this session has been decoded.
     var hasLoadedAllCards: Bool = false
 
@@ -155,7 +158,9 @@ final class FlashCardsPlayModeViewModel {
     ///
     /// - Parameter container: The `ModelContainer` from the SwiftUI environment.
     func startSession(container: ModelContainer) async {
-        guard !isSessionStarted else { return }
+        guard !isSessionStarted, !isStartingSession else { return }
+        isStartingSession = true
+        defer { isStartingSession = false }
         self.container = container
         self.persistenceService = PlaySessionPersistenceService(container: container)
         MathWebViewPool.shared.prewarm(count: 2, initialDelayMilliseconds: 0)

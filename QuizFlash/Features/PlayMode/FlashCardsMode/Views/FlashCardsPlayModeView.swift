@@ -72,7 +72,7 @@ struct FlashCardsPlayModeView: View {
     @State private var editingCard: CardModel?
     @State private var showsDeveloperPanel = false
     @State private var developerSwipeDebugState = PlayModeDeveloperSwipeDebugState()
-    @State private var currentLayoutDebugSnapshot: ZoneContentLayoutDebugSnapshot?
+    @State private var currentLayoutDebugSnapshotsByFace: [String: ZoneContentLayoutDebugSnapshot] = [:]
     @State private var currentLayoutDebugCardID: PersistentIdentifier?
     @State private var didCopyFloatingLayoutDebug = false
     @State private var debugCardCaptureState = DebugCardCaptureState.idle
@@ -113,7 +113,7 @@ struct FlashCardsPlayModeView: View {
     private var scoreZoneBottomPadding: CGFloat { isCompact ? 10 : 16 }
     private var cardBottomReserve: CGFloat { flipPerspectiveBottomClearance }
     private var bottomChromeHeight: CGFloat { scoreZoneHeight + scoreZoneBottomPadding + 6 }
-    private var preloadBufferDepth: Int { 1 }
+    private var preloadBufferDepth: Int { 2 }
     private var promotedCardScale: CGFloat { 0.952 }
     private var promotedCardSpring: Animation { .spring(response: 0.36, dampingFraction: 0.84) }
     private var resolvedDeckTitle: String {
@@ -236,7 +236,7 @@ struct FlashCardsPlayModeView: View {
             startupDebugState.record("currentIndex \(viewModel.currentIndex)")
 #endif
             liveSwipeFeedbackSnapshot = .idle
-            currentLayoutDebugSnapshot = nil
+            currentLayoutDebugSnapshotsByFace = [:]
             currentLayoutDebugCardID = nil
             debugCardCaptureState = .idle
             resetLiveSwipeFeedback()
@@ -550,14 +550,18 @@ struct FlashCardsPlayModeView: View {
         )
     }
 
+    private var currentLayoutDebugSnapshot: ZoneContentLayoutDebugSnapshot? {
+        guard currentLayoutDebugCardID == currentPlayableCard?.id else { return nil }
+        return currentLayoutDebugSnapshotsByFace[currentVisibleFaceDebugTitle]
+    }
+
     private func updateCurrentLayoutDebugSnapshot(
         _ snapshot: ZoneContentLayoutDebugSnapshot,
         cardID: PersistentIdentifier
     ) {
         guard currentPlayableCard?.id == cardID else { return }
-        guard snapshot.face == currentVisibleFaceDebugTitle else { return }
-        currentLayoutDebugSnapshot = snapshot
         currentLayoutDebugCardID = cardID
+        currentLayoutDebugSnapshotsByFace[snapshot.face] = snapshot
     }
 
     // MARK: - Header
@@ -971,7 +975,7 @@ struct FlashCardsPlayModeView: View {
             showsDeveloperPanel.toggle()
             if !showsDeveloperPanel {
                 developerSwipeDebugState.reset()
-                currentLayoutDebugSnapshot = nil
+                currentLayoutDebugSnapshotsByFace = [:]
                 currentLayoutDebugCardID = nil
             }
         }
@@ -981,7 +985,7 @@ struct FlashCardsPlayModeView: View {
         withAnimation(.circularProgressSpring) {
             showsDeveloperPanel = false
             developerSwipeDebugState.reset()
-            currentLayoutDebugSnapshot = nil
+            currentLayoutDebugSnapshotsByFace = [:]
             currentLayoutDebugCardID = nil
         }
     }
@@ -1368,10 +1372,14 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         lines.append("availableContentSize: \(size(snapshot.availableContentSize))")
         lines.append("estimatedContentSize: \(size(snapshot.estimatedContentSize))")
         lines.append("measuredContentSize: \(size(snapshot.measuredContentSize))")
+        lines.append("measurementSource: \(snapshot.measurementSource)")
         lines.append("contentBodyHeight: \(metric(snapshot.contentBodyHeight))")
         lines.append("contentFitsVertically: \(snapshot.contentFitsVertically)")
         lines.append("centeredTopInset: \(metric(snapshot.centeredTopInset))")
         lines.append("scrollContentHeight: \(metric(snapshot.scrollContentHeight))")
+        lines.append("")
+        lines.append("SCROLL DECISION")
+        appendScrollDecisionLines(to: &lines, snapshot: snapshot)
         lines.append("")
         lines.append("FACE / SCROLL TIMELINE")
         if snapshot.faceDebugEvents.isEmpty {
@@ -1397,6 +1405,31 @@ nonisolated private enum FlashcardLayoutDebugReportFormatter {
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    private static func appendScrollDecisionLines(
+        to lines: inout [String],
+        snapshot: ZoneContentLayoutDebugSnapshot
+    ) {
+        let leafBlockSum = snapshot.leafSnapshots.reduce(CGFloat(0)) { partial, leaf in
+            partial + leaf.blockSize.height
+        }
+        let spacingTotal = CGFloat(max(snapshot.leafSnapshots.count - 1, 0)) * ZoneContentMetrics.childSpacing
+        let leafBodyHeight = leafBlockSum + spacingTotal
+        let leafScrollHeight = snapshot.verticalPadding + leafBodyHeight + snapshot.verticalPadding
+        let availableHeight = snapshot.availableContentSize.height
+        let scrollEnabled = !snapshot.contentFitsVertically
+
+        lines.append("availableHeight: \(metric(availableHeight))")
+        lines.append("estimatedHeight: \(metric(snapshot.estimatedContentSize.height))")
+        lines.append("rootGeometryHeight: \(snapshot.measurementSource == "root-geometry" ? metric(snapshot.measuredContentSize.height) : "fallback-only")")
+        lines.append("leafBlockSum: \(metric(leafBlockSum))")
+        lines.append("spacingTotal: \(metric(spacingTotal))")
+        lines.append("leafBodyHeight: \(metric(leafBodyHeight))")
+        lines.append("leafScrollHeight: \(metric(leafScrollHeight))")
+        lines.append("appliedBodyHeight: \(metric(snapshot.contentBodyHeight))")
+        lines.append("source: \(snapshot.measurementSource)")
+        lines.append("scrollEnabled: \(scrollEnabled)")
     }
 
     private static func zoneTreeLines(for zone: ZoneModel, path: String, depth: Int) -> [String] {

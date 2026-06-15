@@ -44,6 +44,53 @@ private struct StaticSwapTransitionModifier: ViewModifier {
     }
 }
 
+private struct StaticSwapFaceStateModifier: ViewModifier {
+    let isVisible: Bool
+    let textMotion: FlashcardStaticSwapTextMotion
+    let insertionDirection: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(scale)
+            .opacity(isVisible ? 1 : 0.001)
+            .blur(radius: blurRadius)
+            .offset(y: verticalOffset)
+            .allowsHitTesting(isVisible)
+            .accessibilityHidden(!isVisible)
+    }
+
+    private var scale: CGFloat {
+        guard textMotion == .animated else { return 1 }
+        return isVisible ? 1 : 0.972
+    }
+
+    private var blurRadius: CGFloat {
+        guard textMotion == .animated else { return 0 }
+        return isVisible ? 0 : 6
+    }
+
+    private var verticalOffset: CGFloat {
+        guard textMotion == .animated else { return 0 }
+        return isVisible ? 0 : 8 * insertionDirection
+    }
+}
+
+private extension View {
+    func staticSwapFaceState(
+        isVisible: Bool,
+        textMotion: FlashcardStaticSwapTextMotion,
+        insertionDirection: CGFloat
+    ) -> some View {
+        modifier(
+            StaticSwapFaceStateModifier(
+                isVisible: isVisible,
+                textMotion: textMotion,
+                insertionDirection: insertionDirection
+            )
+        )
+    }
+}
+
 private extension AnyTransition {
     static var flashcardStaticSwap: AnyTransition {
             .asymmetric(
@@ -245,6 +292,8 @@ struct FlipCard: View {
 
     @State private var latestFrontLayoutDebugSnapshot: ZoneContentLayoutDebugSnapshot?
     @State private var latestBackLayoutDebugSnapshot: ZoneContentLayoutDebugSnapshot?
+    @State private var frontMeasurementSource = "none"
+    @State private var backMeasurementSource = "none"
     @State private var frontFaceDebugEvents: [String] = []
     @State private var backFaceDebugEvents: [String] = []
     @State private var faceDebugStartDate = Date()
@@ -392,24 +441,22 @@ struct FlipCard: View {
     }
 
     private var staticSwapBody: some View {
-        Group {
-            if staticSwapTextMotion == .animated {
-                ZStack {
-                    if isFlipped {
-                        cardFace(zone: backZone, marker: .answer, contentSize: $backContentSize)
-                            .id("back-face")
-                            .transition(.flashcardStaticSwap)
-                    } else {
-                        cardFace(zone: frontZone, marker: .question, contentSize: $frontContentSize)
-                            .id("front-face")
-                            .transition(.flashcardStaticSwap)
-                    }
-                }
-            } else if isFlipped {
-                cardFace(zone: backZone, marker: .answer, contentSize: $backContentSize)
-            } else {
-                cardFace(zone: frontZone, marker: .question, contentSize: $frontContentSize)
-            }
+        ZStack {
+            cardFace(zone: backZone, marker: .answer, contentSize: $backContentSize)
+                .staticSwapFaceState(
+                    isVisible: isFlipped,
+                    textMotion: staticSwapTextMotion,
+                    insertionDirection: 1
+                )
+                .zIndex(isFlipped ? 2 : 1)
+
+            cardFace(zone: frontZone, marker: .question, contentSize: $frontContentSize)
+                .staticSwapFaceState(
+                    isVisible: !isFlipped,
+                    textMotion: staticSwapTextMotion,
+                    insertionDirection: -1
+                )
+                .zIndex(isFlipped ? 1 : 2)
         }
     }
 
@@ -560,6 +607,17 @@ struct FlipCard: View {
         }
 
         let oldSize = contentSize.wrappedValue
+        let oldSource = measurementSource(for: marker)
+        if source == "root-geometry",
+           oldSource == "leaf-block-bounds",
+           oldSize.height > 0 {
+            recordFaceDebugEvent(
+                marker,
+                "geometry ignored root-fallback-after-leaf raw=\(debugSize(newSize)) old=\(debugSize(oldSize))"
+            )
+            return
+        }
+
         if source == "root-geometry",
            oldSize.height > 0,
            newSize.height > oldSize.height * 1.5,
@@ -571,6 +629,7 @@ struct FlipCard: View {
         if abs(oldSize.width - newSize.width) > 0.5
             || abs(oldSize.height - newSize.height) > 0.5 {
             contentSize.wrappedValue = newSize
+            setMeasurementSource(source, for: marker)
             recordFaceDebugEvent(marker, "geometry accepted source=\(source) old=\(debugSize(oldSize)) new=\(debugSize(newSize)) minH=\(debugMetric(minimumMeasuredHeight))")
         } else {
             recordFaceDebugEvent(marker, "geometry unchanged source=\(source) raw=\(debugSize(newSize)) old=\(debugSize(oldSize))")
@@ -772,6 +831,8 @@ struct FlipCard: View {
     private func resetFaceMeasurements(clearDebugEvents: Bool = false) {
         frontContentSize = .zero
         backContentSize = .zero
+        frontMeasurementSource = "none"
+        backMeasurementSource = "none"
         latestFrontLayoutDebugSnapshot = nil
         latestBackLayoutDebugSnapshot = nil
         if clearDebugEvents {
@@ -824,6 +885,7 @@ struct FlipCard: View {
             availableContentSize: roundedSize(layout.debugAvailableFrame),
             estimatedContentSize: roundedSize(layout.estimatedContentSize),
             measuredContentSize: roundedSize(layout.measuredContentSize),
+            measurementSource: measurementSource(for: marker),
             contentBodyHeight: ceil(layout.contentBodyHeight),
             contentFitsVertically: layout.contentFitsVertically,
             centeredTopInset: ceil(layout.centeredTopInset),
@@ -839,9 +901,7 @@ struct FlipCard: View {
             latestBackLayoutDebugSnapshot = snapshot
         }
 
-        if marker == visibleMarker {
-            onLayoutDebugSnapshot?(snapshot)
-        }
+        onLayoutDebugSnapshot?(snapshot)
     }
 
     private func publishStoredLayoutDebugSnapshot() {
@@ -865,6 +925,24 @@ struct FlipCard: View {
 
     private func scrollContainerIdentity(_ marker: FaceMarker) -> String {
         "\(contentIdentity)-\(marker.debugTitle)-scroll"
+    }
+
+    private func measurementSource(for marker: FaceMarker) -> String {
+        switch marker {
+        case .question:
+            return frontMeasurementSource
+        case .answer:
+            return backMeasurementSource
+        }
+    }
+
+    private func setMeasurementSource(_ source: String, for marker: FaceMarker) {
+        switch marker {
+        case .question:
+            frontMeasurementSource = source
+        case .answer:
+            backMeasurementSource = source
+        }
     }
 
     @ViewBuilder

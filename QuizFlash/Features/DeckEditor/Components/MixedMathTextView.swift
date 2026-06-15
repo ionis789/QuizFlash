@@ -2796,6 +2796,7 @@ struct MathWebView: UIViewRepresentable {
                             self.pendingRenderUpdate = nil
                         }
                         self.scheduleLayoutMetricReports(renderToken: renderToken)
+                        self.scheduleVisibilityProbes(reason: "render update")
                     }
                 } else if retries > 0 {
                     if let error {
@@ -2866,10 +2867,13 @@ struct MathWebView: UIViewRepresentable {
             guard let webView else { return }
 
             let state = nativeRenderDebug
+            let hasRenderableAlpha = state.alpha > 0
+                && state.layerOpacity > 0
+                && state.effectiveOpacity > 0
             guard state.windowAttached,
                   !state.isHidden,
                   state.intersectsWindow,
-                  state.effectiveOpacity > 0.5,
+                  hasRenderableAlpha,
                   state.bounds.width > 1,
                   state.bounds.height > 1 else {
                 recordNativeEvent(

@@ -20,6 +20,7 @@ struct ZoneContentLayoutDebugSnapshot: Equatable {
     let availableContentSize: CGSize
     let estimatedContentSize: CGSize
     let measuredContentSize: CGSize
+    let measurementSource: String
     let contentBodyHeight: CGFloat
     let contentFitsVertically: Bool
     let centeredTopInset: CGFloat
@@ -1557,7 +1558,7 @@ private struct ZoneContentLeafPreview: View {
 // MARK: - Zone Content Content Metrics
 
 enum ZoneContentMetrics {
-    static let childSpacing: CGFloat = 12
+    nonisolated static let childSpacing: CGFloat = 12
     static let textVerticalPadding: CGFloat = 24
     static let textHorizontalPadding: CGFloat = 24
     static let zoneCornerRadius: CGFloat = 38
