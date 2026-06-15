@@ -36,7 +36,11 @@ struct CardPreviewModeView: View {
     private var isSheetPresentation: Bool { fullScreenSheetDismiss != nil }
     private var isFlashcardSheetPresentation: Bool { isSheetPresentation && supportsFlip }
     private var playChromeButtonSize: CGFloat { isCompact ? 54 : UIConstants.Size.actionButton }
-    private var playSurfaceHorizontalPadding: CGFloat { isCompact ? 12 : 24 }
+    private var playSurfaceHorizontalPadding: CGFloat {
+        isCompact
+            ? FlashcardPlayLayoutTuning.screenToCardHorizontalPaddingCompact
+            : FlashcardPlayLayoutTuning.screenToCardHorizontalPaddingRegular
+    }
     private var playFlipPerspectiveBottomClearance: CGFloat { isCompact ? 14 : 22 }
     private var playScoreZoneHeight: CGFloat { isCompact ? 44 : 52 }
     private var playScoreZoneBottomPadding: CGFloat { isCompact ? 10 : 16 }
@@ -113,16 +117,6 @@ struct CardPreviewModeView: View {
                 : (isLandscape ? geo.size.width * 0.15 : 40)
             let contentTopInset = isFlashcardSheetPresentation ? 0 : topChromeHeight + UIConstants.Spacing.medium
             let contentBottomPadding = isFlashcardSheetPresentation ? 0 : max(resolvedSafeBottomInset, UIConstants.Spacing.standard)
-            let previewCardMaxWidth = resolvedPreviewCardMaxWidth(
-                containerWidth: geo.size.width,
-                horizontalInset: contentHorizontalInset
-            )
-            let previewCardHeight = resolvedPreviewCardHeight(
-                containerSize: geo.size,
-                contentTopInset: contentTopInset,
-                bottomPadding: contentBottomPadding,
-                cardMaxWidth: previewCardMaxWidth
-            )
 
             ZStack(alignment: .top) {
                 if fullScreenSheetDismiss == nil {
@@ -138,8 +132,6 @@ struct CardPreviewModeView: View {
                 }
 
                 previewSurface(
-                    previewCardMaxWidth: previewCardMaxWidth,
-                    previewCardHeight: previewCardHeight,
                     contentTopInset: contentTopInset,
                     horizontalInset: contentHorizontalInset,
                     bottomPadding: contentBottomPadding
@@ -168,8 +160,6 @@ struct CardPreviewModeView: View {
 
     @ViewBuilder
     private func previewSurface(
-        previewCardMaxWidth: CGFloat,
-        previewCardHeight: CGFloat,
         contentTopInset: CGFloat,
         horizontalInset: CGFloat,
         bottomPadding: CGFloat
@@ -179,16 +169,7 @@ struct CardPreviewModeView: View {
             if isSheetPresentation {
                 sheetFlashcardPreviewSurface(flashcardContent)
             } else {
-                ZStack(alignment: .bottom) {
-                    flashcardPreviewCard(flashcardContent)
-                        .frame(maxWidth: previewCardMaxWidth)
-                        .frame(height: previewCardHeight)
-                        .padding(.horizontal, horizontalInset)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                        .padding(.top, contentTopInset)
-                        .padding(.bottom, bottomPadding)
-
-                }
+                playMatchedFlashcardPreviewSurface(flashcardContent)
             }
         default:
             ScrollView {
@@ -206,11 +187,45 @@ struct CardPreviewModeView: View {
     }
 
     @ViewBuilder
+    private func playMatchedFlashcardPreviewSurface(_ flashcardContent: FlashcardCardContent) -> some View {
+        GeometryReader { geo in
+            let safeTopInset = resolvedPlayTopSafeInset(
+                geometrySafeTop: geo.safeAreaInsets.top,
+                containerHeight: geo.size.height
+            )
+            let safeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
+            let bottomControlInset = max(safeBottomInset - 6, 10)
+            let cardBottomPadding = playBottomChromeHeight + bottomControlInset
+            let headerHeight = resolvedPlayHeaderHeight(safeTopInset: safeTopInset)
+            let cardSize = resolvedPlayFlashcardSize(
+                containerSize: geo.size,
+                headerHeight: headerHeight,
+                cardBottomPadding: cardBottomPadding
+            )
+
+            flashcardPreviewCard(flashcardContent)
+                .frame(width: cardSize.width, height: cardSize.height)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.top, headerHeight)
+                .padding(.bottom, cardBottomPadding + playCardBottomReserve)
+        }
+    }
+
+    @ViewBuilder
     private func sheetFlashcardPreviewSurface(_ flashcardContent: FlashcardCardContent) -> some View {
         GeometryReader { geo in
-            let cardSize = resolvedSheetFlashcardSize(
+            let safeTopInset = resolvedPlayTopSafeInset(
+                geometrySafeTop: geo.safeAreaInsets.top,
+                containerHeight: geo.size.height
+            )
+            let safeBottomInset = max(safeAreaInsets.bottom, geo.safeAreaInsets.bottom)
+            let bottomControlInset = max(safeBottomInset - 6, 10)
+            let cardBottomPadding = playBottomChromeHeight + bottomControlInset
+            let headerHeight = resolvedPlayHeaderHeight(safeTopInset: safeTopInset)
+            let cardSize = resolvedPlayFlashcardSize(
                 containerSize: geo.size,
-                geometrySafeAreaInsets: geo.safeAreaInsets
+                headerHeight: headerHeight,
+                cardBottomPadding: cardBottomPadding
             )
 
             flashcardPreviewCard(flashcardContent)
@@ -234,44 +249,11 @@ struct CardPreviewModeView: View {
         .onTapGesture(perform: togglePreviewFlip)
     }
 
-    private func resolvedPreviewCardMaxWidth(containerWidth: CGFloat, horizontalInset: CGFloat) -> CGFloat {
-        let availableWidth = max(containerWidth - (horizontalInset * 2), 1)
-        guard !isCompact else { return availableWidth }
-        return min(availableWidth, UIConstants.isPad ? 640 : 560)
-    }
-
-    private func resolvedPreviewCardHeight(
+    private func resolvedPlayFlashcardSize(
         containerSize: CGSize,
-        contentTopInset: CGFloat,
-        bottomPadding: CGFloat,
-        cardMaxWidth: CGFloat
-    ) -> CGFloat {
-        let availableHeight = max(
-            containerSize.height - contentTopInset - bottomPadding - UIConstants.Spacing.standard,
-            UIConstants.Size.cardMinHeight
-        )
-        let targetAspect: CGFloat = isCompact ? 1.48 : 1.36
-        let targetHeight = cardMaxWidth * targetAspect
-        let minimumHeight = min(availableHeight, UIConstants.isPad ? 420 : 360)
-        return min(max(targetHeight, minimumHeight), availableHeight)
-    }
-
-    private func resolvedSheetFlashcardSize(
-        containerSize: CGSize,
-        geometrySafeAreaInsets: EdgeInsets
+        headerHeight: CGFloat,
+        cardBottomPadding: CGFloat
     ) -> CGSize {
-        let safeTopInset = resolvedPlayTopSafeInset(
-            geometrySafeTop: geometrySafeAreaInsets.top,
-            containerHeight: containerSize.height
-        )
-        let safeBottomInset = max(safeAreaInsets.bottom, geometrySafeAreaInsets.bottom)
-        let bottomControlInset = max(safeBottomInset - 6, 10)
-        let cardBottomPadding = playBottomChromeHeight + bottomControlInset
-        let headerHeight = safeTopInset
-            + UIConstants.Layout.deckNavigationTopPadding
-            + playChromeButtonSize
-            + playHeaderBottomPadding
-
         let width = max(containerSize.width - (playSurfaceHorizontalPadding * 2), 1)
         let height = max(
             containerSize.height - headerHeight - cardBottomPadding - playCardBottomReserve,
@@ -279,6 +261,13 @@ struct CardPreviewModeView: View {
         )
 
         return CGSize(width: width, height: height)
+    }
+
+    private func resolvedPlayHeaderHeight(safeTopInset: CGFloat) -> CGFloat {
+        safeTopInset
+            + UIConstants.Layout.deckNavigationTopPadding
+            + playChromeButtonSize
+            + playHeaderBottomPadding
     }
 
     private func resolvedPlayTopSafeInset(geometrySafeTop: CGFloat, containerHeight: CGFloat) -> CGFloat {
