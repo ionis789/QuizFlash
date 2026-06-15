@@ -5,6 +5,7 @@
 
 import SwiftUI
 import UIKit
+import OSLog
 
 // MARK: - Card Preview Mode View
 
@@ -25,6 +26,11 @@ struct CardPreviewModeView: View {
 
     @State private var isFlipped = false
     @State private var topChromeHeight: CGFloat = 0
+
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
+        category: "CardPreviewModeView"
+    )
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -501,8 +507,14 @@ struct CardPreviewModeView: View {
 
     private func handleDone() {
         if let fullScreenSheetDismiss {
+#if DEBUG
+            Self.logger.debug("handleDone using fullScreenSheetDismiss supportsFlip=\(supportsFlip, privacy: .public)")
+#endif
             fullScreenSheetDismiss()
         } else {
+#if DEBUG
+            Self.logger.debug("handleDone using environment dismiss supportsFlip=\(supportsFlip, privacy: .public)")
+#endif
             dismiss()
         }
     }

@@ -5,8 +5,13 @@
 
 import SwiftUI
 import UIKit
+import OSLog
 
 private let fullScreenSheetDismissVerticalBias: CGFloat = 1.2
+private let fullScreenSheetLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "QuizFlash",
+    category: "FullScreenSheet"
+)
 
 private func fullScreenSheetHasDownwardDismissIntent(
     _ pan: UIPanGestureRecognizer,
@@ -930,12 +935,23 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         scrollDisabled = true
         onDismissStart()
 
+#if DEBUG
+        fullScreenSheetLogger.debug(
+            "dismiss start distance=\(dismissalDistance, privacy: .public) window=\(windowSize.debugDescription, privacy: .public) offset=\(offset, privacy: .public) presentation=\(presentationProgress, privacy: .public) childCount=\(activeChildPresentationIDs.count, privacy: .public)"
+        )
+#endif
+
         withAnimation(dismissalAnimation) {
             offset = dismissalDistance
         }
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))
+#if DEBUG
+            fullScreenSheetLogger.debug(
+                "dismiss commit distance=\(dismissalDistance, privacy: .public) offset=\(offset, privacy: .public) durationMs=\(animationDurationMilliseconds, privacy: .public)"
+            )
+#endif
             var tx = Transaction()
             tx.disablesAnimations = true
             withTransaction(tx) { onDismiss() }
