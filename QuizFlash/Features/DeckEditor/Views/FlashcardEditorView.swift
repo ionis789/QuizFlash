@@ -829,7 +829,9 @@ struct FlashcardEditorView: View {
                 zoneController.updateFocusedZone(nil)
             }
         } else {
-            focusManager.forceReleaseKeyboard()
+            suppressCanvasEmptyTapUntil = CFAbsoluteTimeGetCurrent() + 0.9
+            focusManager.suppressFocusRequests(for: 0.9)
+            zoneController.forceReleaseKeyboard()
             zoneController.updateFocusedZone(nil)
         }
     }
