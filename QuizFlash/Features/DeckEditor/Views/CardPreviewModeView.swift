@@ -50,11 +50,12 @@ struct CardPreviewModeView: View {
     private var playCardBottomReserve: CGFloat { playFlipPerspectiveBottomClearance }
     private var playBottomChromeHeight: CGFloat { playScoreZoneHeight + playScoreZoneBottomPadding + 6 }
     private var playHeaderBottomPadding: CGFloat { isCompact ? 16 : 18 }
+    private var previewDismissDuration: Double { UIConstants.Animation.medium * 1.24 }
     private var previewDismissAnimation: Animation {
-        .smooth(duration: UIConstants.Animation.medium * 1.05, extraBounce: 0)
+        .smooth(duration: previewDismissDuration, extraBounce: 0)
     }
     private var previewDismissDelayMilliseconds: Int {
-        Int((UIConstants.Animation.medium * 1.05) * 1_000)
+        Int((previewDismissDuration * 1_000).rounded(.up)) + 24
     }
 
     private func localized(_ value: String.LocalizationValue) -> String {
