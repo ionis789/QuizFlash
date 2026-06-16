@@ -1132,6 +1132,17 @@ struct FlashcardEditorView: View {
 
     // MARK: - Photo/Sketch
 
+    private func prepareForMediaZoneSelection() {
+        scheduledFocusTask?.cancel()
+        scheduledFocusTask = nil
+        previewDirection = nil
+        suppressCanvasEmptyTapUntil = CFAbsoluteTimeGetCurrent() + 0.35
+        focusManager.suppressFocusRequests(for: 0.35)
+        focusManager.forceReleaseKeyboard()
+        zoneController.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
+    }
+
     private func addPhoto(_ item: PhotosPickerItem?) {
         guard let item else { return }
         let targetPath = selectedPath
@@ -1141,15 +1152,19 @@ struct FlashcardEditorView: View {
                 let compressedData = data.compressedImageData(maxDimension: 1200, compressionQuality: 0.7) ?? data
 
                 await MainActor.run {
+                    var mediaPath: ZonePath?
                     if let path = targetPath, currentContent.zone(at: path) != nil {
                         currentContent.updateZone(at: path) { zone in
                             zone = .image(data: compressedData)
                         }
+                        mediaPath = path
                     } else {
                         let newZone = ZoneModel.image(data: compressedData)
                         let newZoneID = currentContent.addZone(relativeTo: .root, direction: .down, newZone: newZone)
-                        selectedPath = findPath(for: newZoneID, in: currentContent.rootZone)
+                        mediaPath = findPath(for: newZoneID, in: currentContent.rootZone)
                     }
+                    prepareForMediaZoneSelection()
+                    selectedPath = mediaPath
                 }
             }
             selectedPhoto = nil
@@ -1161,15 +1176,19 @@ struct FlashcardEditorView: View {
 
         Task {
             await MainActor.run {
+                var mediaPath: ZonePath?
                 if let path = targetPath, currentContent.zone(at: path) != nil {
                     currentContent.updateZone(at: path) { zone in
                         zone = .sketch(data: data)
                     }
+                    mediaPath = path
                 } else {
                     let newZone = ZoneModel.sketch(data: data)
                     let newZoneID = currentContent.addZone(relativeTo: .root, direction: .down, newZone: newZone)
-                    selectedPath = findPath(for: newZoneID, in: currentContent.rootZone)
+                    mediaPath = findPath(for: newZoneID, in: currentContent.rootZone)
                 }
+                prepareForMediaZoneSelection()
+                selectedPath = mediaPath
             }
         }
     }

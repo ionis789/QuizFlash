@@ -637,8 +637,6 @@ struct ZoneContentView: View {
                     let type = zone.contentType
 
                     if rendersRichText || (type != .text && type != .empty && type != .code) {
-                        onSelect()
-                        ZoneEditorDebugStore.shared.recordTap("tap zone path=\(path.id) type=\(zone.contentType.rawValue)")
                         if rendersRichText || zone.isEditorMediaLeaf {
                             focusManager.forceReleaseKeyboard()
                             zoneController.forceReleaseKeyboard()
@@ -647,6 +645,8 @@ struct ZoneContentView: View {
                             focusManager.updateFocusedZone(zone.id)
                             zoneController.updateFocusedZone(zone.id)
                         }
+                        onSelect()
+                        ZoneEditorDebugStore.shared.recordTap("tap zone path=\(path.id) type=\(zone.contentType.rawValue)")
                         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                     }
                 },
