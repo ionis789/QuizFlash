@@ -198,8 +198,11 @@ struct ZoneEditorCanvas: View {
             let rawKeyboardCreationInset = keyboardMonitor.isVisible
                 ? max(keyboardMonitor.visibleHeight, 0) + max(bottomAccessoryHeight, 0)
                 : max(rawBottomAccessoryInset, rawContentGrowthInset)
-            let requestedBottomScrollInset = rendersRichText
+            let renderRequestedBottomScrollInset = dynamicBottomScrollInset > 0
                 ? dynamicBottomScrollInset
+                : rawContentGrowthInset
+            let requestedBottomScrollInset = rendersRichText
+                ? renderRequestedBottomScrollInset
                 : rawKeyboardCreationInset
             let bottomScrollInset = contentNeedsBottomScrollInset(
                 contentWidth: contentWidth,
