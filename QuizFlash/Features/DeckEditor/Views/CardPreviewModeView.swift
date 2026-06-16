@@ -128,7 +128,9 @@ struct CardPreviewModeView: View {
 
             ZStack(alignment: .top) {
                 if fullScreenSheetDismiss == nil || isFlashcardSheetPresentation {
-                    CardPreviewModeBackground().ignoresSafeArea()
+                    CardPreviewModeBackground()
+                        .opacity(isFlashcardSheetPresentation ? 0.94 : 1)
+                        .ignoresSafeArea()
                 }
 
                 if isFlashcardSheetPresentation {
