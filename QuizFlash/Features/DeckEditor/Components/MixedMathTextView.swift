@@ -262,6 +262,7 @@ struct MixedMathTextView: View {
         let reportsRenderedLineDebug = onRenderedLineDebugChange != nil
         let reportsScrollableDebug = onScrollableDebugChange != nil
         let reportsRenderStatusDebug = onRenderStatusDebugChange != nil
+        let reportsNativeRenderDebug = onNativeRenderDebugChange != nil
 
         if usesWebRendering {
             MathWebView(
@@ -281,7 +282,9 @@ struct MixedMathTextView: View {
                 scrollableDebug: $scrollableDebug,
                 gestureDebug: $gestureDebug,
                 renderStatusDebug: $renderStatusDebug,
-                nativeRenderDebug: $nativeRenderDebug,
+                nativeRenderDebug: reportsNativeRenderDebug
+                    ? $nativeRenderDebug
+                    : .constant(MixedMathNativeRenderDebug()),
                 reportsIntrinsicContentWidth: intrinsicWidthLimit != nil,
                 reportsRenderedLineDebug: reportsRenderedLineDebug,
                 reportsScrollableDebug: reportsScrollableDebug,
@@ -644,10 +647,10 @@ class MathWebViewPool {
         prewarmTasks.forEach { $0.cancel() }
     }
 
-    // Maximum number of idle WebViews kept alive between uses.
-    // Increased to 12 to support scrolling through grid view with KaTeX
-    // while maintaining a stable process limit.
-    private static let maxPoolSize = 12
+    // Maximum number of idle WebViews kept alive between uses. Rich preview
+    // cards can mount many math leaves at once; keeping the pool large enough
+    // avoids recreating WKWebViews during repeated preview open/close cycles.
+    private static let maxPoolSize = 48
 
     private var pool: [WKWebView] = []
     private var isPrewarmed = false

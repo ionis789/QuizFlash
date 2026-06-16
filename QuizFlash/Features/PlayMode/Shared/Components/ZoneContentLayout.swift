@@ -1200,9 +1200,9 @@ private struct ZoneContentLeafPreview: View {
         let gestureDebugHandler: ((MixedMathGestureDebugSnapshot) -> Void)? = collectsDebugMetrics
             ? { snapshot in mathGestureDebug = snapshot }
         : nil
-        let renderStatusDebugHandler: ((MixedMathRenderStatusDebug) -> Void)? = { snapshot in
-            renderStatusDebug = snapshot
-        }
+        let renderStatusDebugHandler: ((MixedMathRenderStatusDebug) -> Void)? = collectsDebugMetrics
+            ? { snapshot in renderStatusDebug = snapshot }
+        : nil
         return HStack(alignment: .top, spacing: 0) {
             if usesMathRenderer {
                 MixedMathTextView(
@@ -1230,9 +1230,9 @@ private struct ZoneContentLeafPreview: View {
                     onScrollableDebugChange: scrollableDebugHandler,
                     onGestureDebugChange: gestureDebugHandler,
                     onRenderStatusDebugChange: renderStatusDebugHandler,
-                    onNativeRenderDebugChange: { snapshot in
+                    onNativeRenderDebugChange: collectsDebugMetrics ? { snapshot in
                         nativeRenderDebug = snapshot
-                    },
+                    } : nil,
                     showsRenderDebugBounds: showsDebugGuides || collectsDebugMetrics,
                     onTap: richContentTapHandler
                 )
