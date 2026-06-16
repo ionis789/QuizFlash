@@ -97,8 +97,8 @@ enum UIConstants {
         static let actionButtonCompact: CGFloat = 28
         /// 32 pt — standard square action button size.
         static let actionButtonMedium: CGFloat = 32
-        /// 50 pt — standard square action button size.
-        static let actionButton: CGFloat = 50
+        /// 42 pt — standard square action button size.
+        static let actionButton: CGFloat = 42
         /// 50 pt — standard tappable button height.
         static let buttonHeight: CGFloat = 50
         /// 50 pt — standard height for adaptive glass capsules.

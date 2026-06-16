@@ -39,10 +39,10 @@ struct QuizCardEditorView: View {
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var successAccent: Color { ThemeManager.shared.successPrimary }
-    private var topChromeUtilityFill: Color { Color(uiColor: .secondarySystemFill) }
+    private var topChromeUtilityFill: Color { Color(uiColor: .secondarySystemBackground) }
     private var topChromeUtilityBorder: Color { Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.10) }
     private var topChromeUtilityForeground: Color { accent }
-    private var topChromeDisabledFill: Color { Color(uiColor: .tertiarySystemFill) }
+    private var topChromeDisabledFill: Color { Color(uiColor: .tertiarySystemBackground) }
     private var focusManager = ZoneFocusManager.shared
     private var zoneController = ZoneController.shared
     private var locale: Locale { appPreferences.resolvedLocale }
@@ -328,13 +328,12 @@ struct QuizCardEditorView: View {
                     systemName: "checkmark",
                     size: UIConstants.Size.actionButton,
                     symbolSize: UIConstants.Size.navigationChromeIcon,
-                    tint: canSave ? Color.black.opacity(0.78) : .secondary,
+                    tint: canSave ? .black : .secondary,
                     backgroundTint: canSave ? successAccent : topChromeDisabledFill
                 )
             }
                 .buttonStyle(.plain)
                 .disabled(!canSave)
-                .opacity(canSave ? 1 : 0.55)
                 .accessibilityLabel(localized("Save"))
         }
             .topNavigationChrome(horizontalInset: topChromeHorizontalInset)

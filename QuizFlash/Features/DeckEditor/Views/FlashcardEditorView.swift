@@ -65,10 +65,10 @@ struct FlashcardEditorView: View {
 
     private var accent: Color { ThemeManager.shared.accentColor.color }
     private var successAccent: Color { ThemeManager.shared.successPrimary }
-    private var topChromeUtilityFill: Color { Color(uiColor: .secondarySystemFill) }
+    private var topChromeUtilityFill: Color { Color(uiColor: .secondarySystemBackground) }
     private var topChromeUtilityBorder: Color { Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.10) }
     private var topChromeUtilityForeground: Color { accent }
-    private var topChromeDisabledFill: Color { Color(uiColor: .tertiarySystemFill) }
+    private var topChromeDisabledFill: Color { Color(uiColor: .tertiarySystemBackground) }
     private var currentContent: ZoneCardContent { activeSide == 0 ? frontZoneContent : backZoneContent }
     private var selectedPath: ZonePath? {
         get { activeSide == 0 ? frontSelectedPath : backSelectedPath }
@@ -946,7 +946,6 @@ struct FlashcardEditorView: View {
         }
         .buttonStyle(.plain)
         .disabled(!hasSavableContent)
-        .opacity(hasSavableContent ? 1 : 0.55)
         .accessibilityLabel(localized("Preview"))
     }
 
@@ -956,13 +955,12 @@ struct FlashcardEditorView: View {
                 systemName: "wand.and.stars",
                 size: UIConstants.Size.actionButton,
                 symbolSize: UIConstants.Size.navigationChromeIcon,
-                tint: hasSavableContent ? topChromeUtilityForeground : .secondary,
-                backgroundTint: showsRenderedContent ? accent.opacity(0.28) : topChromeUtilityFill
+                tint: hasSavableContent ? (showsRenderedContent ? .black : topChromeUtilityForeground) : .secondary,
+                backgroundTint: showsRenderedContent ? accent : topChromeUtilityFill
             )
         }
         .buttonStyle(.plain)
         .disabled(!hasSavableContent)
-        .opacity(hasSavableContent ? 1 : 0.55)
         .accessibilityLabel(localized("Render"))
     }
 
@@ -972,13 +970,12 @@ struct FlashcardEditorView: View {
                 systemName: "checkmark",
                 size: UIConstants.Size.actionButton,
                 symbolSize: UIConstants.Size.navigationChromeIcon,
-                tint: canSave ? Color.black.opacity(0.78) : .secondary,
+                tint: canSave ? .black : .secondary,
                 backgroundTint: canSave ? successAccent : topChromeDisabledFill
             )
         }
         .buttonStyle(.plain)
         .disabled(!canSave)
-        .opacity(canSave ? 1 : 0.55)
         .accessibilityLabel(localized("Save"))
     }
 
