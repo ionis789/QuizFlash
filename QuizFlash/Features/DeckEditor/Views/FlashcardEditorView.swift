@@ -533,10 +533,33 @@ struct FlashcardEditorView: View {
             } else {
                 floatingFormatBarKeyboardHeight = 0
             }
-            withAnimation(.easeOut(duration: 0.10)) {
-                isFloatingFormatBarPresented = true
+
+            guard !isFloatingFormatBarPresented else {
+                updateToolbarDebugLine()
+                return
             }
-            updateToolbarDebugLine()
+
+            if isKeyboardVisible, !selectedZoneIsMedia {
+                let delay = EditorKeyboardAccessoryMotion.keyboardAppearMenuDelay(
+                    keyboardDuration: keyboardMonitor.animationDuration
+                )
+                floatingFormatBarPresentationTask = Task { @MainActor in
+                    try? await Task.sleep(for: delay)
+                    guard !Task.isCancelled,
+                          keyboardMonitor.isVisible,
+                          !selectedZoneIsMedia else { return }
+                    updateFloatingFormatBarKeyboardHeight()
+                    withAnimation(EditorKeyboardAccessoryMotion.animation) {
+                        isFloatingFormatBarPresented = true
+                    }
+                    updateToolbarDebugLine()
+                }
+            } else {
+                withAnimation(EditorKeyboardAccessoryMotion.animation) {
+                    isFloatingFormatBarPresented = true
+                }
+                updateToolbarDebugLine()
+            }
         } else {
             withAnimation(EditorKeyboardAccessoryMotion.animation) {
                 isFloatingFormatBarPresented = false
@@ -1500,7 +1523,12 @@ struct FlashcardEditorView: View {
 private enum EditorKeyboardAccessoryMotion {
     static let animation: Animation = .snappy(duration: 0.18, extraBounce: 0.02)
     static let cleanupDelay: Duration = .milliseconds(190)
-    static let keyboardDismissDelay: Duration = .milliseconds(220)
+    static let keyboardDismissDelay: Duration = .milliseconds(180)
+
+    static func keyboardAppearMenuDelay(keyboardDuration: TimeInterval) -> Duration {
+        let clampedDuration = min(max(keyboardDuration, 0.16), 0.30)
+        return .milliseconds(Int((clampedDuration * 1000).rounded()))
+    }
 }
 
 private struct EditorKeyboardAccessoryVisibilityModifier: ViewModifier {
