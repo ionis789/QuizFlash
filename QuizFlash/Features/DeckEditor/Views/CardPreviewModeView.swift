@@ -53,6 +53,9 @@ struct CardPreviewModeView: View {
     private var previewDismissAnimation: Animation {
         .smooth(duration: UIConstants.Animation.medium * 1.05, extraBounce: 0)
     }
+    private var previewDismissDelayMilliseconds: Int {
+        Int((UIConstants.Animation.medium * 1.05) * 1_000)
+    }
 
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
@@ -538,7 +541,7 @@ struct CardPreviewModeView: View {
         }
 
         previewDismissTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(70))
+            try? await Task.sleep(for: .milliseconds(previewDismissDelayMilliseconds))
             guard !Task.isCancelled else { return }
             dismiss()
         }
