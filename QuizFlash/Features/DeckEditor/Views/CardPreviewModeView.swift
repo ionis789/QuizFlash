@@ -127,10 +127,8 @@ struct CardPreviewModeView: View {
             let dismissDistance = max(geo.size.height, 1)
 
             ZStack(alignment: .top) {
-                if fullScreenSheetDismiss == nil || isFlashcardSheetPresentation {
-                    CardPreviewModeBackground()
-                        .opacity(isFlashcardSheetPresentation ? 0.94 : 1)
-                        .ignoresSafeArea()
+                if fullScreenSheetDismiss == nil {
+                    CardPreviewModeBackground().ignoresSafeArea()
                 }
 
                 if isFlashcardSheetPresentation {
