@@ -1200,7 +1200,7 @@ struct FlashcardEditorView: View {
         var mediaPath: ZonePath?
 
         if let targetPath,
-           targetZone?.isEditorMediaLeaf == true {
+           canReplaceWithMedia(targetZone) {
             currentContent.updateZone(at: targetPath) { zone in
                 zone = newZone
             }
@@ -1220,6 +1220,20 @@ struct FlashcardEditorView: View {
         prepareForMediaZoneSelection()
         selectedPath = mediaPath
         return mediaPath
+    }
+
+    private func canReplaceWithMedia(_ zone: ZoneModel?) -> Bool {
+        guard let zone, zone.isLeaf else { return false }
+        if zone.isEditorMediaLeaf { return true }
+
+        switch zone.contentType {
+        case .empty:
+            return true
+        case .text, .code:
+            return zone.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .image, .sketch:
+            return true
+        }
     }
 
     private func recordMediaImportDebug(
@@ -1253,13 +1267,24 @@ struct FlashcardEditorView: View {
 
         Task {
             if let data = try? await item.loadTransferable(type: Data.self) {
-                let compressedData = data.compressedImageData(maxDimension: 1200, compressionQuality: 0.7) ?? data
+                let compressedData = await Task.detached(priority: .userInitiated) {
+                    data.compressedImageData(maxDimension: 1200, compressionQuality: 0.7) ?? data
+                }.value
 
                 await MainActor.run {
                     _ = insertOrReplaceMediaZone(
                         targetPath: targetPath,
                         newZone: .image(data: compressedData),
                         source: "photo"
+                    )
+                }
+            } else {
+                await MainActor.run {
+                    ZoneEditorDebugStore.shared.recordLayoutEvent(
+                        "media-import-failed",
+                        zoneID: targetPath.flatMap { currentContent.zone(at: $0)?.id },
+                        pathID: targetPath?.id,
+                        details: "source=photo activeSide=\(activeSide) root=\(zoneDebugSummary(currentContent.rootZone))"
                     )
                 }
             }

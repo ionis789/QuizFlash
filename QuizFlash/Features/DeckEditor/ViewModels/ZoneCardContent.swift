@@ -49,6 +49,12 @@ final class ZoneCardContent {
             normalizedRoot.wrapLeafInStableAuthoringRootIfNeeded()
         }
         self.rootZone = normalizedRoot
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            "zone-content-init",
+            zoneID: normalizedRoot.id,
+            pathID: ZonePath.root.id,
+            details: "stable=\(stableAuthoringRoot ? 1 : 0) root=\(rootDebugSummary(normalizedRoot))"
+        )
     }
 
     // MARK: - Read

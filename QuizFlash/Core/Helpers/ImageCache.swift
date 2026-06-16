@@ -135,7 +135,7 @@ extension Data {
     ///   - maxDimension: The maximum pixel dimension (width or height) of the output. Defaults to `1200`.
     ///   - compressionQuality: JPEG quality in `[0, 1]`. Defaults to `0.7`.
     /// - Returns: Compressed JPEG data, or `nil` if the input cannot be decoded as an image.
-    func compressedImageData(maxDimension: CGFloat = 1200, compressionQuality: CGFloat = 0.7) -> Data? {
+    nonisolated func compressedImageData(maxDimension: CGFloat = 1200, compressionQuality: CGFloat = 0.7) -> Data? {
         guard let uiImage = UIImage(data: self) else { return nil }
 
         let size = uiImage.size
