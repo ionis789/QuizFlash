@@ -239,6 +239,18 @@ struct QuizCardEditorView: View {
         .onChange(of: selectedPhoto) { _, item in
             addPhoto(item)
         }
+        .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
+            recordToolbarLifecycle(
+                "keyboard-visible-change",
+                details: "visible=\(debugFlag(isVisible)) \(toolbarLifecycleDetails())"
+            )
+        }
+        .onChange(of: keyboardMonitor.visibleHeight) { _, height in
+            recordToolbarLifecycle(
+                "keyboard-height-change",
+                details: "height=\(debugValue(height)) \(toolbarLifecycleDetails())"
+            )
+        }
         .fullScreenCover(isPresented: $showSketchModal) {
             CanvasModalView { data in
                 addSketch(data)
@@ -303,14 +315,63 @@ struct QuizCardEditorView: View {
                 dismissFormatBar()
             }
         )
+        .onAppear {
+            recordToolbarLifecycle("formatbar-appear", details: "path=\(path.id) \(toolbarLifecycleDetails())")
+        }
+        .onDisappear {
+            recordToolbarLifecycle("formatbar-disappear", details: "path=\(path.id) \(toolbarLifecycleDetails())")
+        }
     }
 
     private func dismissFormatBar() {
+        recordToolbarLifecycle("dismiss-request", details: toolbarLifecycleDetails())
         focusManager.forceReleaseKeyboard()
         zoneController.forceReleaseKeyboard()
         zoneController.updateFocusedZone(nil)
         currentSelectedPath = nil
         previewDirection = nil
+        recordToolbarLifecycle("dismiss-complete", details: toolbarLifecycleDetails())
+    }
+
+    private func recordToolbarLifecycle(_ stage: String, details: String) {
+        ZoneEditorDebugStore.shared.recordToolbarLifecycle(
+            editor: "quiz",
+            stage: stage,
+            zoneID: currentSelectedZoneID,
+            pathID: currentSelectedPath?.id,
+            details: details
+        )
+    }
+
+    private var currentSelectedZoneID: UUID? {
+        guard let content = currentContent,
+              let path = currentSelectedPath else {
+            return nil
+        }
+        return content.zone(at: path)?.id
+    }
+
+    private func toolbarLifecycleDetails() -> String {
+        "target=\(debugTargetID(activeEditor)) kb=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) dur=\(String(format: "%.3f", keyboardMonitor.animationDuration)) visible=\(debugFlag(isFormatBarVisible)) selected=\(currentSelectedPath?.id ?? "nil")"
+    }
+
+    private func debugTargetID(_ target: QuizEditorTarget) -> String {
+        switch target {
+        case .question:
+            return "question"
+        case .choice(let id):
+            return "choice:\(String(id.uuidString.prefix(6)))"
+        case .explanation:
+            return "explanation"
+        }
+    }
+
+    private func debugFlag(_ value: Bool) -> String {
+        value ? "1" : "0"
+    }
+
+    private func debugValue(_ value: CGFloat) -> String {
+        String(format: "%.1f", value)
     }
 
     private var topChrome: some View {

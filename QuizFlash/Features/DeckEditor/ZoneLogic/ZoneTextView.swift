@@ -145,7 +145,9 @@ final class ZoneEditorDebugStore {
     private(set) var alignmentLine: String = "align idle"
     private(set) var caretLine: String = "caret idle"
     private(set) var layoutEvents: [String] = []
+    private(set) var toolbarLifecycleEvents: [String] = []
     private var layoutEventIndex = 0
+    private var toolbarLifecycleEventIndex = 0
     private var eventCounters: [String: Int] = [:]
     private var skippedEventCounters: [String: Int] = [:]
     private var isRecordingEnabled = false
@@ -219,9 +221,13 @@ final class ZoneEditorDebugStore {
     var layoutTraceReport: String {
         let counters = counterReport
         let events = layoutEvents.isEmpty ? "<none>" : layoutEvents.joined(separator: "\n")
+        let toolbarEvents = toolbarLifecycleEvents.isEmpty ? "<none>" : toolbarLifecycleEvents.joined(separator: "\n")
         return """
         COUNTERS
         \(counters)
+
+        KEYBOARD / TOOLBAR LIFECYCLE
+        \(toolbarEvents)
 
         EVENTS
         \(events)
@@ -414,6 +420,26 @@ final class ZoneEditorDebugStore {
         details: String
     ) {
         recordLayoutEvent(stage, zoneID: zoneID, details: details)
+    }
+
+    func recordToolbarLifecycle(
+        editor: String,
+        stage: String,
+        zoneID: UUID?,
+        pathID: String?,
+        details: String
+    ) {
+        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+
+        toolbarLifecycleEventIndex += 1
+        eventCounters["toolbar.\(stage)", default: 0] += 1
+        let elapsedMS = Int(Date().timeIntervalSince(startedAt) * 1_000)
+        let path = pathID.map { " path=\($0)" } ?? ""
+        let line = "T\(toolbarLifecycleEventIndex) +\(elapsedMS)ms \(editor).\(stage) zone=\(shortID(zoneID))\(path) \(details)"
+        toolbarLifecycleEvents.append(line)
+        if toolbarLifecycleEvents.count > 160 {
+            toolbarLifecycleEvents.removeFirst(toolbarLifecycleEvents.count - 160)
+        }
     }
 
     private func setLine(_ storage: inout String, _ value: String) {

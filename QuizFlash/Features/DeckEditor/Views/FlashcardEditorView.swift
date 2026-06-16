@@ -270,10 +270,18 @@ struct FlashcardEditorView: View {
         .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
             keyboardDebugRevision += 1
             toolbarVisibilityDebugRevision += 1
+            recordToolbarLifecycle(
+                "keyboard-visible-change",
+                details: "visible=\(debugFlag(isVisible)) \(toolbarLifecycleDetails())"
+            )
             updateFloatingFormatBarPresentation(isKeyboardVisible: isVisible)
             updateToolbarDebugLine()
         }
         .onChange(of: keyboardMonitor.visibleHeight) { _, _ in
+            recordToolbarLifecycle(
+                "keyboard-height-change",
+                details: "height=\(debugValue(keyboardMonitor.visibleHeight)) \(toolbarLifecycleDetails())"
+            )
             updateFloatingFormatBarKeyboardHeight()
             updateToolbarDebugLine()
         }
@@ -524,7 +532,14 @@ struct FlashcardEditorView: View {
     }
 
     private func updateFloatingFormatBarPresentation(isKeyboardVisible: Bool) {
+        recordToolbarLifecycle(
+            "presentation-request",
+            details: "keyboardVisible=\(debugFlag(isKeyboardVisible)) \(toolbarLifecycleDetails())"
+        )
         floatingFormatBarPresentationTask?.cancel()
+        if floatingFormatBarPresentationTask != nil {
+            recordToolbarLifecycle("presentation-task-cancel", details: toolbarLifecycleDetails())
+        }
         floatingFormatBarPresentationTask = nil
 
         if isKeyboardVisible || selectedZoneIsMedia {
@@ -535,6 +550,7 @@ struct FlashcardEditorView: View {
             }
 
             guard !isFloatingFormatBarPresented else {
+                recordToolbarLifecycle("presentation-skip-already-presented", details: toolbarLifecycleDetails())
                 updateToolbarDebugLine()
                 return
             }
@@ -543,27 +559,42 @@ struct FlashcardEditorView: View {
                 let delay = EditorKeyboardAccessoryMotion.keyboardAppearMenuDelay(
                     keyboardDuration: keyboardMonitor.animationDuration
                 )
+                recordToolbarLifecycle(
+                    "appear-schedule",
+                    details: "delay=\(debugDuration(delay)) keyboardDuration=\(String(format: "%.3f", keyboardMonitor.animationDuration)) \(toolbarLifecycleDetails())"
+                )
                 floatingFormatBarPresentationTask = Task { @MainActor in
                     try? await Task.sleep(for: delay)
                     guard !Task.isCancelled,
                           keyboardMonitor.isVisible,
-                          !selectedZoneIsMedia else { return }
+                          !selectedZoneIsMedia else {
+                        recordToolbarLifecycle("appear-schedule-rejected", details: toolbarLifecycleDetails())
+                        return
+                    }
                     updateFloatingFormatBarKeyboardHeight()
+                    recordToolbarLifecycle("appear-animation-start", details: toolbarLifecycleDetails())
                     withAnimation(EditorKeyboardAccessoryMotion.animation) {
                         isFloatingFormatBarPresented = true
                     }
+                    toolbarVisibilityDebugRevision += 1
+                    recordToolbarLifecycle("appear-presented", details: toolbarLifecycleDetails())
                     updateToolbarDebugLine()
                 }
             } else {
+                recordToolbarLifecycle("appear-immediate-start", details: toolbarLifecycleDetails())
                 withAnimation(EditorKeyboardAccessoryMotion.animation) {
                     isFloatingFormatBarPresented = true
                 }
+                toolbarVisibilityDebugRevision += 1
+                recordToolbarLifecycle("appear-immediate-presented", details: toolbarLifecycleDetails())
                 updateToolbarDebugLine()
             }
         } else {
+            recordToolbarLifecycle("hide-animation-start", details: toolbarLifecycleDetails())
             withAnimation(EditorKeyboardAccessoryMotion.animation) {
                 isFloatingFormatBarPresented = false
             }
+            toolbarVisibilityDebugRevision += 1
             floatingFormatBarPresentationTask = Task { @MainActor in
                 try? await Task.sleep(for: EditorKeyboardAccessoryMotion.cleanupDelay)
                 guard !Task.isCancelled else { return }
@@ -571,6 +602,7 @@ struct FlashcardEditorView: View {
                     floatingFormatBarKeyboardHeight = 0
                     floatingFormatBarTopY = nil
                 }
+                recordToolbarLifecycle("hide-cleanup", details: toolbarLifecycleDetails())
                 updateToolbarDebugLine()
             }
             updateToolbarDebugLine()
@@ -582,15 +614,19 @@ struct FlashcardEditorView: View {
 
         if selectedZoneIsMedia {
             prepareForMediaZoneSelection()
+            recordToolbarLifecycle("media-selection-present", details: "source=\(source) \(toolbarLifecycleDetails())")
             withAnimation(.easeOut(duration: 0.10)) {
                 isFloatingFormatBarPresented = true
                 floatingFormatBarKeyboardHeight = 0
             }
+            toolbarVisibilityDebugRevision += 1
         } else if !keyboardMonitor.isVisible {
+            recordToolbarLifecycle("selection-hide-no-keyboard", details: "source=\(source) \(toolbarLifecycleDetails())")
             withAnimation(EditorKeyboardAccessoryMotion.animation) {
                 isFloatingFormatBarPresented = false
                 floatingFormatBarKeyboardHeight = 0
             }
+            toolbarVisibilityDebugRevision += 1
         }
 
         ZoneEditorDebugStore.shared.recordLayoutEvent(
@@ -604,14 +640,23 @@ struct FlashcardEditorView: View {
 
     private func updateFloatingFormatBarKeyboardHeight() {
         guard keyboardMonitor.isVisible else {
+            recordToolbarLifecycle("height-skip-keyboard-hidden", details: toolbarLifecycleDetails())
             return
         }
         let height = keyboardMonitor.visibleHeight
-        guard abs(floatingFormatBarKeyboardHeight - height) > 0.5 else { return }
+        guard abs(floatingFormatBarKeyboardHeight - height) > 0.5 else {
+            recordToolbarLifecycle("height-skip-same", details: "candidate=\(debugValue(height)) \(toolbarLifecycleDetails())")
+            return
+        }
 
+        let oldHeight = floatingFormatBarKeyboardHeight
         withTransaction(Transaction(animation: nil)) {
             floatingFormatBarKeyboardHeight = height
         }
+        recordToolbarLifecycle(
+            "height-applied",
+            details: "from=\(debugValue(oldHeight)) to=\(debugValue(height)) \(toolbarLifecycleDetails())"
+        )
     }
 
     private func updateToolbarDebugLine() {
@@ -625,6 +670,38 @@ struct FlashcardEditorView: View {
             toolbarOpacity: floatingFormatBarOpacity,
             topUpdateCount: floatingFormatBarTopUpdateCount
         )
+    }
+
+    private func recordToolbarLifecycle(_ stage: String, details: String) {
+        ZoneEditorDebugStore.shared.recordToolbarLifecycle(
+            editor: "flashcard",
+            stage: stage,
+            zoneID: selectedPath.flatMap { currentContent.zone(at: $0)?.id },
+            pathID: selectedPath?.id,
+            details: details
+        )
+    }
+
+    private func toolbarLifecycleDetails() -> String {
+        "kb=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) dur=\(String(format: "%.3f", keyboardMonitor.animationDuration)) presented=\(debugFlag(isFloatingFormatBarPresented)) visible=\(debugFlag(isFloatingFormatBarVisible)) media=\(debugFlag(selectedZoneIsMedia)) barH=\(debugValue(floatingFormatBarKeyboardHeight)) top=\(debugOptionalValue(floatingFormatBarTopY)) opacity=\(String(format: "%.2f", floatingFormatBarOpacity)) task=\(floatingFormatBarPresentationTask == nil ? "nil" : "active") rev=\(toolbarVisibilityDebugRevision)"
+    }
+
+    private func debugFlag(_ value: Bool) -> String {
+        value ? "1" : "0"
+    }
+
+    private func debugValue(_ value: CGFloat) -> String {
+        String(format: "%.1f", value)
+    }
+
+    private func debugOptionalValue(_ value: CGFloat?) -> String {
+        value.map(debugValue) ?? "nil"
+    }
+
+    private func debugDuration(_ duration: Duration) -> String {
+        let components = duration.components
+        let milliseconds = components.seconds * 1_000 + components.attoseconds / 1_000_000_000_000_000
+        return "\(milliseconds)ms"
     }
 
     private func recordEditorLifecycle(_ stage: String, details: String) -> Void {
@@ -807,20 +884,31 @@ struct FlashcardEditorView: View {
     }
 
     private func dismissFloatingFormatMenu() {
+        recordToolbarLifecycle("dismiss-request", details: toolbarLifecycleDetails())
         suppressCanvasEmptyTapUntil = CFAbsoluteTimeGetCurrent() + 0.9
         scheduledFocusTask?.cancel()
         scheduledFocusTask = nil
         floatingFormatBarPresentationTask?.cancel()
+        if floatingFormatBarPresentationTask != nil {
+            recordToolbarLifecycle("dismiss-cancel-presentation-task", details: toolbarLifecycleDetails())
+        }
         floatingFormatBarPresentationTask = nil
         focusManager.suppressFocusRequests(for: 0.9, releasesKeyboard: false)
+        recordToolbarLifecycle("dismiss-fade-start", details: toolbarLifecycleDetails())
         withAnimation(EditorKeyboardAccessoryMotion.animation) {
             isFloatingFormatBarPresented = false
         }
+        toolbarVisibilityDebugRevision += 1
         updateToolbarDebugLine()
 
         floatingFormatBarPresentationTask = Task { @MainActor in
+            recordToolbarLifecycle(
+                "dismiss-keyboard-release-scheduled",
+                details: "delay=\(debugDuration(EditorKeyboardAccessoryMotion.keyboardDismissDelay)) \(toolbarLifecycleDetails())"
+            )
             try? await Task.sleep(for: EditorKeyboardAccessoryMotion.keyboardDismissDelay)
             guard !Task.isCancelled else { return }
+            recordToolbarLifecycle("dismiss-keyboard-release-start", details: toolbarLifecycleDetails())
             focusManager.forceReleaseKeyboard()
             zoneController.forceReleaseKeyboard()
             zoneController.updateFocusedZone(nil)
@@ -830,6 +918,8 @@ struct FlashcardEditorView: View {
                 floatingFormatBarKeyboardHeight = 0
                 floatingFormatBarTopY = nil
             }
+            toolbarVisibilityDebugRevision += 1
+            recordToolbarLifecycle("dismiss-complete", details: toolbarLifecycleDetails())
             updateToolbarDebugLine()
         }
     }
