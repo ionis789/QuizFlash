@@ -543,11 +543,18 @@ struct FlashcardEditorView: View {
             }
             updateToolbarDebugLine()
         } else {
-            withAnimation(.easeOut(duration: 0.08)) {
+            withAnimation(.easeOut(duration: 0.14)) {
                 isFloatingFormatBarPresented = false
-                floatingFormatBarKeyboardHeight = 0
             }
-            floatingFormatBarTopY = nil
+            floatingFormatBarPresentationTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled else { return }
+                withTransaction(Transaction(animation: nil)) {
+                    floatingFormatBarKeyboardHeight = 0
+                    floatingFormatBarTopY = nil
+                }
+                updateToolbarDebugLine()
+            }
             updateToolbarDebugLine()
         }
     }
@@ -579,11 +586,6 @@ struct FlashcardEditorView: View {
 
     private func updateFloatingFormatBarKeyboardHeight() {
         guard keyboardMonitor.isVisible else {
-            if floatingFormatBarKeyboardHeight != 0 {
-                withTransaction(Transaction(animation: nil)) {
-                    floatingFormatBarKeyboardHeight = 0
-                }
-            }
             return
         }
         let height = keyboardMonitor.visibleHeight

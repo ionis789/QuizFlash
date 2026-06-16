@@ -331,7 +331,7 @@ struct ZoneEditorCanvas: View {
                     } else {
                         cancelCaretAvoidanceScroll()
                         if selectedPath == nil {
-                            scrollDriver.resetToTop()
+                            scrollDriver.resetToTop(duration: 0.22)
                         }
                     }
                     updateCanvasDebug(
@@ -2563,19 +2563,31 @@ private final class ZoneEditorScrollDriver {
         setBottomInset(0)
     }
 
-    func resetToTop() {
+    func resetToTop(duration: TimeInterval = 0) {
         guard let scrollView else { return }
         lockedOffset = nil
-        scrollView.layer.removeAllAnimations()
         let minOffsetY = -scrollView.adjustedContentInset.top
         guard abs(scrollView.contentOffset.y - minOffsetY) > 0.5 else { return }
-        UIView.performWithoutAnimation {
-            scrollView.setContentOffset(
-                CGPoint(x: scrollView.contentOffset.x, y: minOffsetY),
-                animated: false
-            )
-            scrollView.layoutIfNeeded()
+        guard duration > 0.02 else {
+            scrollView.layer.removeAllAnimations()
+            UIView.performWithoutAnimation {
+                scrollView.setContentOffset(
+                    CGPoint(x: scrollView.contentOffset.x, y: minOffsetY),
+                    animated: false
+                )
+                scrollView.layoutIfNeeded()
+            }
+            reportScrollOffset(in: scrollView, force: true)
+            return
         }
+
+        clearOffsetLock()
+        setContentOffset(
+            CGPoint(x: scrollView.contentOffset.x, y: minOffsetY),
+            in: scrollView,
+            duration: duration,
+            options: [.curveEaseOut]
+        )
         reportScrollOffset(in: scrollView, force: true)
     }
 
