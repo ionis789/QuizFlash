@@ -368,8 +368,7 @@ struct FlashcardEditorView: View {
                         .offset(y: floatingFormatBarYOffset)
                         .modifier(
                             EditorKeyboardAccessoryVisibilityModifier(
-                                isVisible: isFloatingFormatBarVisible,
-                                hiddenOffset: floatingFormatBarHiddenOffset
+                                isVisible: isFloatingFormatBarVisible
                             )
                         )
                         .accessibilityHidden(!isFloatingFormatBarVisible)
@@ -396,10 +395,6 @@ struct FlashcardEditorView: View {
 
     private var floatingFormatBarOpacity: Double {
         isFloatingFormatBarVisible ? 1 : 0
-    }
-
-    private var floatingFormatBarHiddenOffset: CGFloat {
-        80
     }
 
     private var formatBarPath: ZonePath? {
@@ -543,11 +538,11 @@ struct FlashcardEditorView: View {
             }
             updateToolbarDebugLine()
         } else {
-            withAnimation(.easeOut(duration: 0.14)) {
+            withAnimation(.easeOut(duration: 0.08)) {
                 isFloatingFormatBarPresented = false
             }
             floatingFormatBarPresentationTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(150))
+                try? await Task.sleep(for: .milliseconds(90))
                 guard !Task.isCancelled else { return }
                 withTransaction(Transaction(animation: nil)) {
                     floatingFormatBarKeyboardHeight = 0
@@ -790,12 +785,29 @@ struct FlashcardEditorView: View {
 
     private func dismissFloatingFormatMenu() {
         suppressCanvasEmptyTapUntil = CFAbsoluteTimeGetCurrent() + 0.9
-        cancelScheduledEditorTasks()
+        scheduledFocusTask?.cancel()
+        scheduledFocusTask = nil
+        floatingFormatBarPresentationTask?.cancel()
+        floatingFormatBarPresentationTask = nil
         focusManager.suppressFocusRequests(for: 0.9)
-        zoneController.forceReleaseKeyboard()
-        zoneController.updateFocusedZone(nil)
-        selectedPath = nil
-        previewDirection = nil
+        withAnimation(.easeOut(duration: 0.07)) {
+            isFloatingFormatBarPresented = false
+        }
+        updateToolbarDebugLine()
+
+        floatingFormatBarPresentationTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(75))
+            guard !Task.isCancelled else { return }
+            zoneController.forceReleaseKeyboard()
+            zoneController.updateFocusedZone(nil)
+            selectedPath = nil
+            previewDirection = nil
+            withTransaction(Transaction(animation: nil)) {
+                floatingFormatBarKeyboardHeight = 0
+                floatingFormatBarTopY = nil
+            }
+            updateToolbarDebugLine()
+        }
     }
 
     private func shouldSuppressCanvasEmptyTap() -> Bool {
@@ -1486,15 +1498,12 @@ struct FlashcardEditorView: View {
 
 private struct EditorKeyboardAccessoryVisibilityModifier: ViewModifier {
     let isVisible: Bool
-    let hiddenOffset: CGFloat
 
     func body(content: Content) -> some View {
         content
             .opacity(isVisible ? 1 : 0)
-            .offset(y: isVisible ? 0 : hiddenOffset)
-            .scaleEffect(isVisible ? 1 : 0.99, anchor: .bottom)
             .allowsHitTesting(isVisible)
-            .animation(.easeOut(duration: 0.12), value: isVisible)
+            .animation(.easeOut(duration: 0.08), value: isVisible)
     }
 }
 
