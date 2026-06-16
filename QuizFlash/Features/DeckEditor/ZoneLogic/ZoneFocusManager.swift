@@ -175,7 +175,7 @@ final class ZoneFocusManager {
     }
 
     /// Temporarily blocks stale UIKit/SwiftUI focus callbacks while the user-requested keyboard dismiss settles.
-    func suppressFocusRequests(for duration: TimeInterval) {
+    func suppressFocusRequests(for duration: TimeInterval, releasesKeyboard: Bool = true) {
         suppressFocusRequestsUntil = max(
             suppressFocusRequestsUntil,
             CFAbsoluteTimeGetCurrent() + duration
@@ -187,7 +187,9 @@ final class ZoneFocusManager {
             self.reportDebugState()
         }
         ZoneEditorDebugStore.shared.recordFocusEvent("manager suppressFocusRequests", zoneID: nil)
-        forceReleaseKeyboard()
+        if releasesKeyboard {
+            forceReleaseKeyboard()
+        }
     }
     
     /// Force releases keyboard immediately

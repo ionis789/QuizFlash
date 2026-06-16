@@ -789,7 +789,7 @@ struct FlashcardEditorView: View {
         scheduledFocusTask = nil
         floatingFormatBarPresentationTask?.cancel()
         floatingFormatBarPresentationTask = nil
-        focusManager.suppressFocusRequests(for: 0.9)
+        focusManager.suppressFocusRequests(for: 0.9, releasesKeyboard: false)
         withAnimation(EditorKeyboardAccessoryMotion.animation) {
             isFloatingFormatBarPresented = false
         }
@@ -798,6 +798,7 @@ struct FlashcardEditorView: View {
         floatingFormatBarPresentationTask = Task { @MainActor in
             try? await Task.sleep(for: EditorKeyboardAccessoryMotion.keyboardDismissDelay)
             guard !Task.isCancelled else { return }
+            focusManager.forceReleaseKeyboard()
             zoneController.forceReleaseKeyboard()
             zoneController.updateFocusedZone(nil)
             selectedPath = nil
@@ -1499,7 +1500,7 @@ struct FlashcardEditorView: View {
 private enum EditorKeyboardAccessoryMotion {
     static let animation: Animation = .snappy(duration: 0.18, extraBounce: 0.02)
     static let cleanupDelay: Duration = .milliseconds(190)
-    static let keyboardDismissDelay: Duration = .milliseconds(190)
+    static let keyboardDismissDelay: Duration = .milliseconds(220)
 }
 
 private struct EditorKeyboardAccessoryVisibilityModifier: ViewModifier {
