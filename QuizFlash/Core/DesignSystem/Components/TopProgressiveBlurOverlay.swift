@@ -231,8 +231,9 @@ private final class StableVariableBlurUIView: UIVisualEffectView {
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         configureFilterIfNeeded()
+        let previousScale = currentDisplayScale
         updateBackdropScale()
-        refreshMaskImage(force: true)
+        refreshMaskImage(force: abs(previousScale - currentDisplayScale) > 0.001)
     }
 
     override func layoutSubviews() {

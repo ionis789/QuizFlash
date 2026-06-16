@@ -1597,6 +1597,20 @@ private extension View {
 }
 
 private enum ZoneContentPlainTextLayoutMeasurer {
+    private final class LineLayoutBox {
+        let value: ZoneContentPlainTextLineLayout
+
+        init(_ value: ZoneContentPlainTextLineLayout) {
+            self.value = value
+        }
+    }
+
+    private static let layoutCache: NSCache<NSString, LineLayoutBox> = {
+        let cache = NSCache<NSString, LineLayoutBox>()
+        cache.countLimit = 384
+        return cache
+    }()
+
     static func layout(
         text rawText: String,
         zone: ZoneModel,
@@ -1605,11 +1619,25 @@ private enum ZoneContentPlainTextLayoutMeasurer {
     ) -> ZoneContentPlainTextLineLayout {
         let text = rawText.replacingOccurrences(of: "\r\n", with: "\n")
         let widthLimit = max(availableWidth, 1)
+        let cacheKey = layoutCacheKey(
+            text: text,
+            zone: zone,
+            fontScale: fontScale,
+            availableWidth: widthLimit
+        )
+
+        if let cachedLayout = layoutCache.object(forKey: cacheKey)?.value {
+            return cachedLayout
+        }
+
         let lineSpacing = max(floor(fontSize(for: zone) * fontScale * 0.26), 6)
 
         guard !text.isEmpty else {
             let emptyLine = ZoneContentPlainTextLine(tokens: [], width: 1, height: lineHeight(for: zone, fontScale: fontScale))
-            return ZoneContentPlainTextLineLayout(lines: [emptyLine], lineSpacing: lineSpacing)
+            return cacheLayout(
+                ZoneContentPlainTextLineLayout(lines: [emptyLine], lineSpacing: lineSpacing),
+                for: cacheKey
+            )
         }
 
         let sourceLines = text.components(separatedBy: .newlines)
@@ -1663,7 +1691,41 @@ private enum ZoneContentPlainTextLayoutMeasurer {
             output.append(ZoneContentPlainTextLine(tokens: [], width: 1, height: lineHeight(for: zone, fontScale: fontScale)))
         }
 
-        return ZoneContentPlainTextLineLayout(lines: output, lineSpacing: lineSpacing)
+        return cacheLayout(
+            ZoneContentPlainTextLineLayout(lines: output, lineSpacing: lineSpacing),
+            for: cacheKey
+        )
+    }
+
+    private static func cacheLayout(
+        _ layout: ZoneContentPlainTextLineLayout,
+        for key: NSString
+    ) -> ZoneContentPlainTextLineLayout {
+        layoutCache.setObject(LineLayoutBox(layout), forKey: key)
+        return layout
+    }
+
+    private static func layoutCacheKey(
+        text: String,
+        zone: ZoneModel,
+        fontScale: CGFloat,
+        availableWidth: CGFloat
+    ) -> NSString {
+        [
+            "plain",
+            text,
+            String(describing: zone.textStyle),
+            String(zone.isBold),
+            String(zone.isItalic),
+            String(describing: zone.fontFamily),
+            roundedCacheComponent(fontScale),
+            roundedCacheComponent(availableWidth)
+        ]
+            .joined(separator: "\u{1F}") as NSString
+    }
+
+    private static func roundedCacheComponent(_ value: CGFloat) -> String {
+        String(format: "%.2f", Double(value))
     }
 
     private static func tokens(
@@ -1959,6 +2021,11 @@ enum ZoneContentEstimator {
         cache.countLimit = 512
         return cache
     }()
+    private static let estimatedBlockWidthCache: NSCache<NSString, NSNumber> = {
+        let cache = NSCache<NSString, NSNumber>()
+        cache.countLimit = 512
+        return cache
+    }()
 
     static func estimatedSize(
         for zone: ZoneModel,
@@ -2104,9 +2171,20 @@ enum ZoneContentEstimator {
         textHorizontalPaddingOverride: CGFloat? = nil
     ) -> CGFloat {
         let clampedWidth = max(availableWidth, 1)
+        let cacheKey = estimatedBlockWidthCacheKey(
+            for: zone,
+            fontScale: fontScale,
+            availableWidth: clampedWidth,
+            textVerticalPadding: textVerticalPadding,
+            textHorizontalPaddingOverride: textHorizontalPaddingOverride
+        )
+
+        if let cachedWidth = estimatedBlockWidthCache.object(forKey: cacheKey) {
+            return CGFloat(truncating: cachedWidth)
+        }
 
         guard ZoneContentRenderPolicy.shouldRender(zone) else {
-            return 1
+            return cacheEstimatedBlockWidth(1, for: cacheKey)
         }
 
         if zone.isLeaf {
@@ -2128,15 +2206,20 @@ enum ZoneContentEstimator {
                 measuredContentSize: measuredSize
             )
 
-            return min(max(ceil(layout.blockSize.width), 1), clampedWidth)
+            return cacheEstimatedBlockWidth(
+                min(max(ceil(layout.blockSize.width), 1), clampedWidth),
+                for: cacheKey
+            )
         }
 
         let children = zone.children?.filter(ZoneContentRenderPolicy.shouldRender) ?? []
-        guard !children.isEmpty else { return 1 }
+        guard !children.isEmpty else {
+            return cacheEstimatedBlockWidth(1, for: cacheKey)
+        }
 
         switch zone.direction {
         case .vertical:
-            return children
+            return cacheEstimatedBlockWidth(children
                 .map {
                 estimatedBlockWidth(
                     for: $0,
@@ -2146,18 +2229,41 @@ enum ZoneContentEstimator {
                     textHorizontalPaddingOverride: textHorizontalPaddingOverride
                 )
             }
-                .max() ?? 1
+                .max() ?? 1, for: cacheKey)
 
         case .horizontal:
-            return estimatedSize(
+            return cacheEstimatedBlockWidth(estimatedSize(
                 for: zone,
                 fontScale: fontScale,
                 availableWidth: clampedWidth,
                 textVerticalPadding: textVerticalPadding,
                 textHorizontalPaddingOverride: textHorizontalPaddingOverride
             )
-                .width
+                .width, for: cacheKey)
         }
+    }
+
+    private static func cacheEstimatedBlockWidth(_ width: CGFloat, for key: NSString) -> CGFloat {
+        estimatedBlockWidthCache.setObject(NSNumber(value: Double(width)), forKey: key)
+        return width
+    }
+
+    nonisolated private static func estimatedBlockWidthCacheKey(
+        for zone: ZoneModel,
+        fontScale: CGFloat,
+        availableWidth: CGFloat,
+        textVerticalPadding: CGFloat,
+        textHorizontalPaddingOverride: CGFloat?
+    ) -> NSString {
+        [
+            "blockWidth",
+            roundedCacheComponent(fontScale),
+            roundedCacheComponent(availableWidth),
+            roundedCacheComponent(textVerticalPadding),
+            textHorizontalPaddingOverride.map(roundedCacheComponent) ?? "nil",
+            zoneCacheFingerprint(zone)
+        ]
+            .joined(separator: "|") as NSString
     }
 
     static func debugLineWidths(
@@ -2272,15 +2378,13 @@ enum ZoneContentEstimator {
     }
 
     private static func singleInlineCodeLiteral(in text: String) -> String? {
-        guard
-            let regex = try? NSRegularExpression(pattern: #"^`([^`]+)`$"#),
-            let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-            let range = Range(match.range(at: 1), in: text)
-            else {
+        guard text.first == "`", text.last == "`", text.count > 2 else {
             return nil
         }
 
-        return String(text[range]).replacingOccurrences(of: "\r\n", with: "\n")
+        let inner = text.dropFirst().dropLast()
+        guard !inner.contains("`") else { return nil }
+        return String(inner).replacingOccurrences(of: "\r\n", with: "\n")
     }
 
     private static func measuredInlineCodeSize(

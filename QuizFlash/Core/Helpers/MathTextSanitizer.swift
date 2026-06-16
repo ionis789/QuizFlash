@@ -199,10 +199,25 @@ struct MathTextSanitizer {
     }
 
     nonisolated static func containsInlineCode(_ text: String) -> Bool {
-        let pattern = "`[^`]+`"
-        return (try? NSRegularExpression(pattern: pattern))
-            .map { $0.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil }
-            ?? false
+        guard text.contains("`") else { return false }
+
+        var isInsideCode = false
+        var hasCodeCharacter = false
+
+        for character in text {
+            if character == "`" {
+                if isInsideCode, hasCodeCharacter {
+                    return true
+                }
+
+                isInsideCode = true
+                hasCodeCharacter = false
+            } else if isInsideCode {
+                hasCodeCharacter = true
+            }
+        }
+
+        return false
     }
 
     /// Returns true when the text contains display math that may overflow the
