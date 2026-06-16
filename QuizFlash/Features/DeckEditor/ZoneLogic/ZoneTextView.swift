@@ -211,8 +211,8 @@ final class ZoneEditorDebugStore {
         let path = pathID.map { " path=\($0)" } ?? ""
         let line = "L\(layoutEventIndex) +\(elapsedMS)ms \(stage) zone=\(shortID(zoneID))\(path) \(details)"
         layoutEvents.append(line)
-        if layoutEvents.count > 160 {
-            layoutEvents.removeFirst(layoutEvents.count - 160)
+        if layoutEvents.count > 260 {
+            layoutEvents.removeFirst(layoutEvents.count - 260)
         }
     }
 
@@ -266,6 +266,7 @@ final class ZoneEditorDebugStore {
              "layout block",
              "group-layout",
              "group-preference-ignored",
+             "editor-body",
              "scroll-skip",
              "scroll-schedule-skip":
             return true

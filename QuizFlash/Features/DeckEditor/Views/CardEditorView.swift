@@ -23,6 +23,7 @@ struct CardEditorView: View {
     }
 
     var body: some View {
+        let _ = recordCardEditorLifecycle("card-editor-body")
         switch destination.kind {
         case .flashcard:
             flashcardEditor
@@ -86,6 +87,15 @@ struct CardEditorView: View {
             }
             return .empty
         }
+    }
+
+    private func recordCardEditorLifecycle(_ stage: String) {
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            stage,
+            zoneID: destination.draftCard?.id,
+            pathID: destination.id,
+            details: "kind=\(destination.kind.rawValue) textSize=\(resolvedTextSize.rawValue) search=\(searchQuery == nil ? 0 : 1)"
+        )
     }
 
 }

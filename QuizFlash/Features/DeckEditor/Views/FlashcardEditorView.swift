@@ -58,6 +58,7 @@ struct FlashcardEditorView: View {
     @State private var scrollRestorationRequest: ZoneEditorScrollRestorationRequest?
     @State private var scrollTransition = FlashcardEditorScrollTransitionState()
     @State private var suppressCanvasEmptyTapUntil: CFAbsoluteTime = 0
+    @State private var editorSessionID = UUID()
 
 
     // Visual-only ghost preview. The model changes only after the user commits.
@@ -227,6 +228,7 @@ struct FlashcardEditorView: View {
 
     var body: some View {
         GeometryReader { proxy in
+            let _ = recordEditorLifecycle("editor-body", details: "safe=\(Int(proxy.safeAreaInsets.top)),\(Int(proxy.safeAreaInsets.bottom))")
             let safeTopInset = proxy.safeAreaInsets.top
             let safeBottomInset = proxy.safeAreaInsets.bottom
 
@@ -253,7 +255,13 @@ struct FlashcardEditorView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhoto, matching: .images)
-        .onChange(of: selectedPhoto) { _, item in addPhoto(item) }
+        .onChange(of: selectedPhoto) { _, item in
+            recordEditorLifecycle(
+                "photo-selection-change",
+                details: "hasItem=\(item == nil ? 0 : 1) selected=\(selectedPath?.id ?? "nil")"
+            )
+            addPhoto(item)
+        }
         .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
             keyboardDebugRevision += 1
             toolbarVisibilityDebugRevision += 1
@@ -312,12 +320,14 @@ struct FlashcardEditorView: View {
         }
         .onAppear {
             configureZoneEditorDebugRecording()
+            recordEditorLifecycle("editor-appear", details: "destination=flashcard")
             if selectedPath == nil {
                 selectedPath = Self.initialSelectedPath(in: currentContent.rootZone)
             }
             focusManager.forceReleaseKeyboard()
         }
         .onDisappear {
+            recordEditorLifecycle("editor-disappear", details: "destination=flashcard")
             ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(false)
             cancelScheduledEditorTasks()
         }
@@ -569,6 +579,23 @@ struct FlashcardEditorView: View {
             toolbarOpacity: floatingFormatBarOpacity,
             topUpdateCount: floatingFormatBarTopUpdateCount
         )
+    }
+
+    private func recordEditorLifecycle(_ stage: String, details: String) -> Void {
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            stage,
+            zoneID: currentContent.rootZone.id,
+            pathID: selectedPath?.id,
+            details: "session=\(shortDebugID(editorSessionID)) activeSide=\(activeSide) frontObj=\(contentObjectDebugID(frontZoneContent)) backObj=\(contentObjectDebugID(backZoneContent)) selected=\(selectedPath?.id ?? "nil") front=\(zoneDebugSummary(frontZoneContent.rootZone)) back=\(zoneDebugSummary(backZoneContent.rootZone)) \(details)"
+        )
+    }
+
+    private func contentObjectDebugID(_ content: ZoneCardContent) -> String {
+        String(ObjectIdentifier(content).hashValue, radix: 16)
+    }
+
+    private func shortDebugID(_ id: UUID) -> String {
+        String(id.uuidString.prefix(6))
     }
 
     @ViewBuilder
@@ -1264,18 +1291,64 @@ struct FlashcardEditorView: View {
     private func addPhoto(_ item: PhotosPickerItem?) {
         guard let item else { return }
         let targetPath = selectedPath
+        let importID = UUID()
+        let importStart = CFAbsoluteTimeGetCurrent()
+        recordMediaImportPhase(
+            "photo-import-start",
+            importID: importID,
+            targetPath: targetPath,
+            details: "targetType=\(targetPath.flatMap { currentContent.zone(at: $0)?.contentType.rawValue } ?? "nil")"
+        )
 
         Task {
+            let loadStart = CFAbsoluteTimeGetCurrent()
+            await MainActor.run {
+                recordMediaImportPhase(
+                    "photo-load-start",
+                    importID: importID,
+                    targetPath: targetPath,
+                    details: "elapsed=\(formatMilliseconds(since: importStart))"
+                )
+            }
             if let data = try? await item.loadTransferable(type: Data.self) {
+                let loadMS = elapsedMilliseconds(since: loadStart)
+                await MainActor.run {
+                    recordMediaImportPhase(
+                        "photo-load-end",
+                        importID: importID,
+                        targetPath: targetPath,
+                        details: "bytes=\(data.count) loadMs=\(loadMS) elapsed=\(formatMilliseconds(since: importStart))"
+                    )
+                }
+                let compressStart = CFAbsoluteTimeGetCurrent()
                 let compressedData = await Task.detached(priority: .userInitiated) {
                     data.compressedImageData(maxDimension: 1200, compressionQuality: 0.7) ?? data
                 }.value
+                let compressMS = elapsedMilliseconds(since: compressStart)
 
                 await MainActor.run {
+                    recordMediaImportPhase(
+                        "photo-compress-end",
+                        importID: importID,
+                        targetPath: targetPath,
+                        details: "input=\(data.count) output=\(compressedData.count) compressMs=\(compressMS) elapsed=\(formatMilliseconds(since: importStart))"
+                    )
+                    recordMediaImportPhase(
+                        "photo-apply-start",
+                        importID: importID,
+                        targetPath: targetPath,
+                        details: "rootBefore=\(zoneDebugSummary(currentContent.rootZone))"
+                    )
                     _ = insertOrReplaceMediaZone(
                         targetPath: targetPath,
                         newZone: .image(data: compressedData),
                         source: "photo"
+                    )
+                    recordMediaImportPhase(
+                        "photo-apply-end",
+                        importID: importID,
+                        targetPath: selectedPath,
+                        details: "rootAfter=\(zoneDebugSummary(currentContent.rootZone)) totalMs=\(elapsedMilliseconds(since: importStart))"
                     )
                 }
             } else {
@@ -1286,10 +1359,46 @@ struct FlashcardEditorView: View {
                         pathID: targetPath?.id,
                         details: "source=photo activeSide=\(activeSide) root=\(zoneDebugSummary(currentContent.rootZone))"
                     )
+                    recordMediaImportPhase(
+                        "photo-load-failed",
+                        importID: importID,
+                        targetPath: targetPath,
+                        details: "elapsed=\(formatMilliseconds(since: importStart))"
+                    )
                 }
             }
-            selectedPhoto = nil
+            await MainActor.run {
+                recordMediaImportPhase(
+                    "photo-selection-clear",
+                    importID: importID,
+                    targetPath: selectedPath,
+                    details: "elapsed=\(formatMilliseconds(since: importStart))"
+                )
+                selectedPhoto = nil
+            }
         }
+    }
+
+    private func recordMediaImportPhase(
+        _ stage: String,
+        importID: UUID,
+        targetPath: ZonePath?,
+        details: String
+    ) {
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            stage,
+            zoneID: targetPath.flatMap { currentContent.zone(at: $0)?.id },
+            pathID: targetPath?.id,
+            details: "import=\(shortDebugID(importID)) session=\(shortDebugID(editorSessionID)) activeSide=\(activeSide) \(details)"
+        )
+    }
+
+    private func elapsedMilliseconds(since start: CFAbsoluteTime) -> Int {
+        Int((CFAbsoluteTimeGetCurrent() - start) * 1_000)
+    }
+
+    private func formatMilliseconds(since start: CFAbsoluteTime) -> String {
+        "\(elapsedMilliseconds(since: start))ms"
     }
 
     private func addSketch(_ data: Data) {
