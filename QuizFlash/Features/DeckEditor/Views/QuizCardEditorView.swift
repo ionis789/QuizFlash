@@ -33,6 +33,11 @@ struct QuizCardEditorView: View {
     @State private var markedCorrectIndicatorTask: Task<Void, Never>?
     @State private var pendingDeleteChoiceID: UUID?
     @State private var pendingDeleteTask: Task<Void, Never>?
+    @State private var floatingFormatBarKeyboardHeight: CGFloat = 0
+    @State private var isFloatingFormatBarPresented = false
+    @State private var floatingFormatBarPresentationTask: Task<Void, Never>?
+    @State private var keyboardDebugRevision = 0
+    @State private var toolbarVisibilityDebugRevision = 0
 
     private let textSize: FlashcardTextSize
     private let onSave: (QuizCardContent) -> Void
@@ -51,11 +56,9 @@ struct QuizCardEditorView: View {
     private var topChromeHorizontalInset: CGFloat {
         isCompact ? UIConstants.Layout.compactScreenEdgeInset : UIConstants.Layout.screenEdgeInset
     }
-    private var isFormatBarVisible: Bool {
-        keyboardMonitor.isVisible && currentContent != nil && currentSelectedPath != nil
-    }
+    private var isFormatBarVisible: Bool { isFloatingFormatBarVisible }
     private var bottomContentPadding: CGFloat {
-        isFormatBarVisible ? 148 : 96
+        isFloatingFormatBarVisible ? 148 : 96
     }
 
     private func localized(_ value: String.LocalizationValue) -> String {
@@ -224,32 +227,30 @@ struct QuizCardEditorView: View {
 
                 topChrome
                     .zIndex(20)
+
+                floatingFormatBar
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .safeAreaInset(edge: .bottom) {
-            if isFormatBarVisible, let content = currentContent, let path = currentSelectedPath {
-                formatBar(content: content, path: path)
-                    .padding(.horizontal, UIConstants.Spacing.standard)
-                    .padding(.bottom, UIConstants.Spacing.tiny)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
         .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhoto, matching: .images)
         .onChange(of: selectedPhoto) { _, item in
             addPhoto(item)
         }
         .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
+            keyboardDebugRevision += 1
+            toolbarVisibilityDebugRevision += 1
             recordToolbarLifecycle(
                 "keyboard-visible-change",
                 details: "visible=\(debugFlag(isVisible)) \(toolbarLifecycleDetails())"
             )
+            updateFloatingFormatBarPresentation(isKeyboardVisible: isVisible)
         }
-        .onChange(of: keyboardMonitor.visibleHeight) { _, height in
+        .onChange(of: keyboardMonitor.visibleHeight) { _, _ in
             recordToolbarLifecycle(
                 "keyboard-height-change",
-                details: "height=\(debugValue(height)) \(toolbarLifecycleDetails())"
+                details: "height=\(debugValue(keyboardMonitor.visibleHeight)) \(toolbarLifecycleDetails())"
             )
+            updateFloatingFormatBarKeyboardHeight()
         }
         .fullScreenCover(isPresented: $showSketchModal) {
             CanvasModalView { data in
@@ -291,7 +292,91 @@ struct QuizCardEditorView: View {
             markedCorrectIndicatorTask = nil
             pendingDeleteTask?.cancel()
             pendingDeleteTask = nil
+            floatingFormatBarPresentationTask?.cancel()
+            floatingFormatBarPresentationTask = nil
         }
+    }
+
+    @ViewBuilder
+    private var floatingFormatBar: some View {
+        ZStack {
+            if let content = currentContent, let path = formatBarPath {
+                VStack {
+                    Spacer(minLength: 0)
+
+                    formatBar(content: content, path: path)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, isCompact ? 16 : topChromeHorizontalInset)
+                        .padding(.bottom, floatingToolbarBaseBottomInset)
+                        .offset(y: floatingFormatBarYOffset)
+                        .modifier(
+                            EditorKeyboardAccessoryVisibilityModifier(
+                                isVisible: isFloatingFormatBarVisible
+                            )
+                        )
+                        .accessibilityHidden(!isFloatingFormatBarVisible)
+                }
+                .ignoresSafeArea(.keyboard, edges: .bottom)
+            }
+        }
+        .zIndex(30)
+    }
+
+    private var isFloatingFormatBarVisible: Bool {
+        guard isFloatingFormatBarPresented,
+              let content = currentContent,
+              let path = currentSelectedPath,
+              let selectedZone = content.zone(at: path) else {
+            return false
+        }
+
+        return selectedZone.isEditorMediaLeaf || keyboardMonitor.isVisible
+    }
+
+    private var floatingFormatBarOpacity: Double {
+        isFloatingFormatBarVisible ? 1 : 0
+    }
+
+    private var formatBarPath: ZonePath? {
+        guard let content = currentContent else { return nil }
+        if let selectedPath = currentSelectedPath, content.zone(at: selectedPath) != nil {
+            return selectedPath
+        }
+
+        return firstLeafPath(in: content.rootZone, currentPath: .root) ?? .root
+    }
+
+    private func firstLeafPath(in zone: ZoneModel, currentPath: ZonePath) -> ZonePath? {
+        guard !zone.isLeaf else { return currentPath }
+        guard let children = zone.children else { return nil }
+
+        for (index, child) in children.enumerated() {
+            if let path = firstLeafPath(in: child, currentPath: currentPath.appending(index)) {
+                return path
+            }
+        }
+
+        return nil
+    }
+
+    private var floatingToolbarBaseBottomInset: CGFloat {
+        keyboardMonitor.isVisible || isFloatingFormatBarPresented
+            ? 0
+            : UIConstants.Spacing.standard
+    }
+
+    private var floatingFormatBarYOffset: CGFloat {
+        -floatingFormatBarKeyboardHeight
+    }
+
+    private var selectedZoneIsMedia: Bool {
+        guard let content = currentContent,
+              let path = currentSelectedPath,
+              let selectedZone = content.zone(at: path) else {
+            return false
+        }
+
+        return selectedZone.isEditorMediaLeaf
     }
 
     @ViewBuilder
@@ -325,12 +410,139 @@ struct QuizCardEditorView: View {
 
     private func dismissFormatBar() {
         recordToolbarLifecycle("dismiss-request", details: toolbarLifecycleDetails())
-        focusManager.forceReleaseKeyboard()
-        zoneController.forceReleaseKeyboard()
-        zoneController.updateFocusedZone(nil)
-        currentSelectedPath = nil
-        previewDirection = nil
-        recordToolbarLifecycle("dismiss-complete", details: toolbarLifecycleDetails())
+        floatingFormatBarPresentationTask?.cancel()
+        if floatingFormatBarPresentationTask != nil {
+            recordToolbarLifecycle("dismiss-cancel-presentation-task", details: toolbarLifecycleDetails())
+        }
+        floatingFormatBarPresentationTask = nil
+        focusManager.suppressFocusRequests(for: 0.9, releasesKeyboard: false)
+        recordToolbarLifecycle("dismiss-fade-start", details: toolbarLifecycleDetails())
+        withAnimation(EditorKeyboardAccessoryMotion.dismissAnimation) {
+            isFloatingFormatBarPresented = false
+        }
+        toolbarVisibilityDebugRevision += 1
+
+        floatingFormatBarPresentationTask = Task { @MainActor in
+            recordToolbarLifecycle(
+                "dismiss-keyboard-release-scheduled",
+                details: "delay=\(debugDuration(EditorKeyboardAccessoryMotion.keyboardDismissDelay)) \(toolbarLifecycleDetails())"
+            )
+            try? await Task.sleep(for: EditorKeyboardAccessoryMotion.keyboardDismissDelay)
+            guard !Task.isCancelled else { return }
+            recordToolbarLifecycle("dismiss-keyboard-release-start", details: toolbarLifecycleDetails())
+            focusManager.forceReleaseKeyboard()
+            zoneController.forceReleaseKeyboard()
+            zoneController.updateFocusedZone(nil)
+            currentSelectedPath = nil
+            previewDirection = nil
+            withTransaction(Transaction(animation: nil)) {
+                floatingFormatBarKeyboardHeight = 0
+            }
+            toolbarVisibilityDebugRevision += 1
+            recordToolbarLifecycle("dismiss-complete", details: toolbarLifecycleDetails())
+        }
+    }
+
+    private func updateFloatingFormatBarPresentation(isKeyboardVisible: Bool) {
+        recordToolbarLifecycle(
+            "presentation-request",
+            details: "keyboardVisible=\(debugFlag(isKeyboardVisible)) \(toolbarLifecycleDetails())"
+        )
+        floatingFormatBarPresentationTask?.cancel()
+        if floatingFormatBarPresentationTask != nil {
+            recordToolbarLifecycle("presentation-task-cancel", details: toolbarLifecycleDetails())
+        }
+        floatingFormatBarPresentationTask = nil
+
+        if isKeyboardVisible || selectedZoneIsMedia {
+            if isKeyboardVisible {
+                updateFloatingFormatBarKeyboardHeight()
+            } else {
+                floatingFormatBarKeyboardHeight = 0
+            }
+
+            guard !isFloatingFormatBarPresented else {
+                recordToolbarLifecycle("presentation-skip-already-presented", details: toolbarLifecycleDetails())
+                return
+            }
+
+            if isKeyboardVisible, !selectedZoneIsMedia {
+                let delay = EditorKeyboardAccessoryMotion.keyboardAppearMenuDelay(
+                    keyboardDuration: keyboardMonitor.animationDuration
+                )
+                recordToolbarLifecycle(
+                    "appear-schedule",
+                    details: "delay=\(debugDuration(delay)) keyboardDuration=\(String(format: "%.3f", keyboardMonitor.animationDuration)) \(toolbarLifecycleDetails())"
+                )
+                floatingFormatBarPresentationTask = Task { @MainActor in
+                    try? await Task.sleep(for: delay)
+                    guard !Task.isCancelled,
+                          keyboardMonitor.isVisible,
+                          !selectedZoneIsMedia else {
+                        recordToolbarLifecycle("appear-schedule-rejected", details: toolbarLifecycleDetails())
+                        return
+                    }
+                    updateFloatingFormatBarKeyboardHeight()
+                    recordToolbarLifecycle("appear-animation-start", details: toolbarLifecycleDetails())
+                    withAnimation(EditorKeyboardAccessoryMotion.appearAnimation) {
+                        isFloatingFormatBarPresented = true
+                    }
+                    toolbarVisibilityDebugRevision += 1
+                    recordToolbarLifecycle("appear-presented", details: toolbarLifecycleDetails())
+                }
+            } else {
+                recordToolbarLifecycle("appear-immediate-start", details: toolbarLifecycleDetails())
+                withAnimation(EditorKeyboardAccessoryMotion.appearAnimation) {
+                    isFloatingFormatBarPresented = true
+                }
+                toolbarVisibilityDebugRevision += 1
+                recordToolbarLifecycle("appear-immediate-presented", details: toolbarLifecycleDetails())
+            }
+        } else {
+            recordToolbarLifecycle("hide-animation-start", details: toolbarLifecycleDetails())
+            withAnimation(EditorKeyboardAccessoryMotion.dismissAnimation) {
+                isFloatingFormatBarPresented = false
+            }
+            toolbarVisibilityDebugRevision += 1
+            floatingFormatBarPresentationTask = Task { @MainActor in
+                try? await Task.sleep(for: EditorKeyboardAccessoryMotion.cleanupDelay)
+                guard !Task.isCancelled else { return }
+                withTransaction(Transaction(animation: nil)) {
+                    floatingFormatBarKeyboardHeight = 0
+                }
+                recordToolbarLifecycle("hide-cleanup", details: toolbarLifecycleDetails())
+            }
+        }
+    }
+
+    private func handleSelectedPathChange(source: String) {
+        toolbarVisibilityDebugRevision += 1
+        recordToolbarLifecycle(
+            "selection-change",
+            details: "source=\(source) \(toolbarLifecycleDetails())"
+        )
+        updateFloatingFormatBarPresentation(isKeyboardVisible: keyboardMonitor.isVisible)
+    }
+
+    private func updateFloatingFormatBarKeyboardHeight() {
+        guard keyboardMonitor.isVisible else {
+            recordToolbarLifecycle("height-skip-keyboard-hidden", details: toolbarLifecycleDetails())
+            return
+        }
+        let height = keyboardMonitor.visibleHeight
+        guard abs(floatingFormatBarKeyboardHeight - height) > 0.5 else {
+            recordToolbarLifecycle("height-skip-same", details: "candidate=\(debugValue(height)) \(toolbarLifecycleDetails())")
+            return
+        }
+
+        let oldHeight = floatingFormatBarKeyboardHeight
+        withTransaction(Transaction(animation: nil)) {
+            floatingFormatBarKeyboardHeight = height
+        }
+        recordToolbarLifecycle(
+            "height-applied",
+            details: "from=\(debugValue(oldHeight)) to=\(debugValue(height)) \(toolbarLifecycleDetails())"
+        )
     }
 
     private func recordToolbarLifecycle(_ stage: String, details: String) {
@@ -352,7 +564,7 @@ struct QuizCardEditorView: View {
     }
 
     private func toolbarLifecycleDetails() -> String {
-        "target=\(debugTargetID(activeEditor)) kb=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) dur=\(String(format: "%.3f", keyboardMonitor.animationDuration)) visible=\(debugFlag(isFormatBarVisible)) selected=\(currentSelectedPath?.id ?? "nil")"
+        "target=\(debugTargetID(activeEditor)) kb=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) dur=\(String(format: "%.3f", keyboardMonitor.animationDuration)) presented=\(debugFlag(isFloatingFormatBarPresented)) visible=\(debugFlag(isFloatingFormatBarVisible)) media=\(debugFlag(selectedZoneIsMedia)) barH=\(debugValue(floatingFormatBarKeyboardHeight)) opacity=\(String(format: "%.2f", floatingFormatBarOpacity)) task=\(floatingFormatBarPresentationTask == nil ? "nil" : "active") rev=\(toolbarVisibilityDebugRevision) selected=\(currentSelectedPath?.id ?? "nil")"
     }
 
     private func debugTargetID(_ target: QuizEditorTarget) -> String {
@@ -372,6 +584,12 @@ struct QuizCardEditorView: View {
 
     private func debugValue(_ value: CGFloat) -> String {
         String(format: "%.1f", value)
+    }
+
+    private func debugDuration(_ duration: Duration) -> String {
+        let components = duration.components
+        let milliseconds = components.seconds * 1_000 + components.attoseconds / 1_000_000_000_000_000
+        return "\(milliseconds)ms"
     }
 
     private var topChrome: some View {
@@ -468,6 +686,9 @@ struct QuizCardEditorView: View {
                         previewDirection: $previewDirection,
                         onActivate: {
                             activateEditor(.choice(choice.id))
+                        },
+                        onSelectionChange: {
+                            handleSelectedPathChange(source: "choice:\(String(choice.id.uuidString.prefix(6)))")
                         },
                         onMoveUp: {
                             moveChoice(choice.id, direction: -1)
@@ -696,20 +917,33 @@ struct QuizCardEditorView: View {
         }
     }
 
-    private func setSelectedPath(_ path: ZonePath?, for target: QuizEditorTarget) {
+    private func setSelectedPath(
+        _ path: ZonePath?,
+        for target: QuizEditorTarget,
+        recordsSelection: Bool = true
+    ) {
         switch target {
         case .question:
             questionSelectedPath = path
+            if recordsSelection {
+                handleSelectedPathChange(source: "question")
+            }
         case .choice(let choiceID):
             choice(for: choiceID)?.selectedPath = path
+            if recordsSelection {
+                handleSelectedPathChange(source: "choice:\(String(choiceID.uuidString.prefix(6)))")
+            }
         case .explanation:
             explanationSelectedPath = path
+            if recordsSelection {
+                handleSelectedPathChange(source: "explanation")
+            }
         }
     }
 
     private func activateEditor(_ target: QuizEditorTarget) {
         if activeEditor != target {
-            setSelectedPath(nil, for: activeEditor)
+            setSelectedPath(nil, for: activeEditor, recordsSelection: false)
             previewDirection = nil
         }
 
@@ -717,6 +951,8 @@ struct QuizCardEditorView: View {
 
         if selectedPath(for: target) == nil {
             setSelectedPath(.root, for: target)
+        } else {
+            handleSelectedPathChange(source: "activate:\(debugTargetID(target))")
         }
     }
 
@@ -963,6 +1199,35 @@ private enum QuizEditorStyle {
     static let buttonCornerRadius: CGFloat = 22
 }
 
+private enum EditorKeyboardAccessoryMotion {
+    static let appearAnimation: Animation = .easeOut(duration: 0.12)
+    static let dismissAnimation: Animation = .easeOut(duration: 0.10)
+    static let cleanupDelay: Duration = .milliseconds(140)
+    static let keyboardDismissDelay: Duration = .milliseconds(105)
+
+    static func keyboardAppearMenuDelay(keyboardDuration: TimeInterval) -> Duration {
+        .milliseconds(35)
+    }
+}
+
+private struct EditorKeyboardAccessoryVisibilityModifier: ViewModifier {
+    let isVisible: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isVisible ? 1 : 0.001)
+            .blur(radius: isVisible ? 0 : 4)
+            .scaleEffect(isVisible ? 1 : 0.985, anchor: .bottom)
+            .allowsHitTesting(isVisible)
+            .animation(
+                isVisible
+                    ? EditorKeyboardAccessoryMotion.appearAnimation
+                    : EditorKeyboardAccessoryMotion.dismissAnimation,
+                value: isVisible
+            )
+    }
+}
+
 /// One mutable answer editor state inside the quiz authoring surface.
 @Observable
 private final class QuizChoiceEditorItem: Identifiable {
@@ -1074,6 +1339,7 @@ private struct QuizChoiceCard: View {
     let fontScale: CGFloat
     @Binding var previewDirection: AddDirection?
     let onActivate: () -> Void
+    let onSelectionChange: () -> Void
     let onMoveUp: () -> Void
     let onMoveDown: () -> Void
 
@@ -1108,6 +1374,9 @@ private struct QuizChoiceCard: View {
         )
             .onTapGesture {
             onActivate()
+        }
+            .onChange(of: choice.selectedPath) { _, _ in
+            onSelectionChange()
         }
     }
 
