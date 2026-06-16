@@ -703,7 +703,7 @@ struct ZoneContentView: View {
         return RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
             .stroke(
                 isMedia ? accent.opacity(0.86) : (active ? accent.opacity(0.35) : Color.gray.opacity(0.18)),
-                lineWidth: isMedia ? 1.6 : 1
+                style: StrokeStyle(lineWidth: isMedia ? 1.6 : 1, dash: isMedia ? [5, 4] : [])
             )
             .frame(
                 width: layout.blockSize.width + (outset.horizontal * 2),
@@ -1521,7 +1521,8 @@ struct ZoneContentView: View {
                 cacheID: zone.id.uuidString,
                 scale: zone.imageScale,
                 alignment: .center,
-                cornerRadius: 10
+                cornerRadius: 10,
+                displaySize: ZoneMediaMetrics.displaySize(for: zone, availableWidth: availableWidth)
             )
                 .contentShape(Rectangle())
                 .simultaneousGesture(
@@ -1545,6 +1546,7 @@ struct ZoneContentView: View {
                 scale: zone.imageScale,
                 alignment: .center,
                 cornerRadius: 10,
+                displaySize: ZoneMediaMetrics.displaySize(for: zone, availableWidth: availableWidth),
                 isSketch: true
             )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -1686,6 +1688,7 @@ struct CachedImageView: View {
     let scale: CGFloat
     let alignment: TextBlockAlignment
     let cornerRadius: CGFloat
+    var displaySize: CGSize?
     var isSketch: Bool = false
     var releasesImageOnDisappear: Bool = false
 
@@ -1699,18 +1702,7 @@ struct CachedImageView: View {
     var body: some View {
         Group {
             if let image = uiImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .background {
-                        if isSketch {
-                            RoundedRectangle(cornerRadius: cornerRadius)
-                                .fill(colorScheme == .dark ? Color.black : Color.white)
-                        }
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-                    .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+                renderedImage(image)
             } else { ProgressView().frame(height: 100) }
         }
             .task(id: resolvedCacheID) { loadImage() }
@@ -1726,6 +1718,27 @@ struct CachedImageView: View {
         Task.detached {
             let optimizedImage = await ImageCache.shared.image(for: data, id: id, targetSize: CGSize(width: 800, height: 800), scale: 1.0)
             await MainActor.run { self.uiImage = optimizedImage ?? UIImage(data: data) }
+        }
+    }
+
+    @ViewBuilder
+    private func renderedImage(_ image: UIImage) -> some View {
+        let imageView = Image(uiImage: image)
+            .resizable()
+            .scaledToFit()
+            .background {
+                if isSketch {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .fill(colorScheme == .dark ? Color.black : Color.white)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+
+        if let displaySize {
+            imageView.frame(width: displaySize.width, height: displaySize.height, alignment: .center)
+        } else {
+            imageView.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
     }
 }

@@ -109,6 +109,35 @@ enum ZoneContentRenderCoordinateSpace {
     static let name = "ZoneContentRenderSurface"
 }
 
+enum ZoneMediaMetrics {
+    static func displaySize(for zone: ZoneModel, availableWidth: CGFloat) -> CGSize {
+        let clampedAvailableWidth = max(availableWidth, 1)
+        let ratio = imageHeightRatio(for: zone.imageData)
+        let width: CGFloat
+
+        if let fixedWidth = zone.fixedWidth {
+            width = min(max(ceil(fixedWidth), 1), clampedAvailableWidth)
+        } else if let fixedHeight = zone.fixedHeight {
+            width = min(max(ceil(fixedHeight / ratio), 1), clampedAvailableWidth)
+        } else {
+            width = min(clampedAvailableWidth, max(clampedAvailableWidth * zone.imageScale, 1))
+        }
+
+        return CGSize(width: width, height: max(ceil(width * ratio), 1))
+    }
+
+    static func imageHeightRatio(for data: Data?) -> CGFloat {
+        guard let data,
+              let image = UIImage(data: data),
+              image.size.width > 0,
+              image.size.height > 0 else {
+            return 0.66
+        }
+
+        return max(image.size.height / image.size.width, 0.05)
+    }
+}
+
 private struct ZoneContentWidthPreferenceKey: PreferenceKey {
     static var defaultValue: [String: CGFloat] { [:] }
 
@@ -1027,9 +1056,12 @@ private struct ZoneContentLeafPreview: View {
     private var leafDebugGuideStrokeStyle: StrokeStyle {
         switch debugGuideStyle {
         case .debug:
-            StrokeStyle(lineWidth: 1.6, dash: [5, 4])
+            return StrokeStyle(lineWidth: 1.6, dash: [5, 4])
         case .editorRender:
-            isLeafAlignmentTarget
+            if zone.isEditorMediaLeaf {
+                return StrokeStyle(lineWidth: 1.6, dash: [5, 4])
+            }
+            return isLeafAlignmentTarget
                 ? StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)
             : StrokeStyle(lineWidth: 1.6, dash: [5, 4])
         }
@@ -1169,7 +1201,8 @@ private struct ZoneContentLeafPreview: View {
                     data: data,
                     scale: zone.imageScale,
                     alignment: .leading,
-                    cornerRadius: 10
+                    cornerRadius: 10,
+                    displaySize: ZoneMediaMetrics.displaySize(for: zone, availableWidth: layout.contentLayoutWidth)
                 )
             }
 
@@ -1180,6 +1213,7 @@ private struct ZoneContentLeafPreview: View {
                     scale: zone.imageScale,
                     alignment: .leading,
                     cornerRadius: 10,
+                    displaySize: ZoneMediaMetrics.displaySize(for: zone, availableWidth: layout.contentLayoutWidth),
                     isSketch: true
                 )
             }
@@ -2340,27 +2374,8 @@ enum ZoneContentEstimator {
             )
 
         case .image, .sketch:
-            let imageWidth = min(
-                availableWidth,
-                max(availableWidth * zone.imageScale, 1)
-            )
-            return CGSize(
-                width: imageWidth,
-                height: imageWidth * imageHeightRatio(for: zone.imageData)
-            )
+            return ZoneMediaMetrics.displaySize(for: zone, availableWidth: availableWidth)
         }
-    }
-
-    private static func imageHeightRatio(for data: Data?) -> CGFloat {
-        guard let data,
-            let image = UIImage(data: data),
-            image.size.width > 0,
-            image.size.height > 0
-            else {
-            return 0.66
-        }
-
-        return max(image.size.height / image.size.width, 0.05)
     }
 
     private static func measuredTextSize(
