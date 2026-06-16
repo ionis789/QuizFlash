@@ -538,11 +538,11 @@ struct FlashcardEditorView: View {
             }
             updateToolbarDebugLine()
         } else {
-            withAnimation(.easeOut(duration: 0.08)) {
+            withAnimation(EditorKeyboardAccessoryMotion.animation) {
                 isFloatingFormatBarPresented = false
             }
             floatingFormatBarPresentationTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(90))
+                try? await Task.sleep(for: EditorKeyboardAccessoryMotion.cleanupDelay)
                 guard !Task.isCancelled else { return }
                 withTransaction(Transaction(animation: nil)) {
                     floatingFormatBarKeyboardHeight = 0
@@ -564,7 +564,7 @@ struct FlashcardEditorView: View {
                 floatingFormatBarKeyboardHeight = 0
             }
         } else if !keyboardMonitor.isVisible {
-            withAnimation(.easeOut(duration: 0.08)) {
+            withAnimation(EditorKeyboardAccessoryMotion.animation) {
                 isFloatingFormatBarPresented = false
                 floatingFormatBarKeyboardHeight = 0
             }
@@ -790,13 +790,13 @@ struct FlashcardEditorView: View {
         floatingFormatBarPresentationTask?.cancel()
         floatingFormatBarPresentationTask = nil
         focusManager.suppressFocusRequests(for: 0.9)
-        withAnimation(.easeOut(duration: 0.07)) {
+        withAnimation(EditorKeyboardAccessoryMotion.animation) {
             isFloatingFormatBarPresented = false
         }
         updateToolbarDebugLine()
 
         floatingFormatBarPresentationTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(75))
+            try? await Task.sleep(for: EditorKeyboardAccessoryMotion.keyboardDismissDelay)
             guard !Task.isCancelled else { return }
             zoneController.forceReleaseKeyboard()
             zoneController.updateFocusedZone(nil)
@@ -1496,14 +1496,22 @@ struct FlashcardEditorView: View {
 
 }
 
+private enum EditorKeyboardAccessoryMotion {
+    static let animation: Animation = .snappy(duration: 0.18, extraBounce: 0.02)
+    static let cleanupDelay: Duration = .milliseconds(190)
+    static let keyboardDismissDelay: Duration = .milliseconds(190)
+}
+
 private struct EditorKeyboardAccessoryVisibilityModifier: ViewModifier {
     let isVisible: Bool
 
     func body(content: Content) -> some View {
         content
-            .opacity(isVisible ? 1 : 0)
+            .opacity(isVisible ? 1 : 0.001)
+            .blur(radius: isVisible ? 0 : 6)
+            .scaleEffect(isVisible ? 1 : 0.972, anchor: .bottom)
             .allowsHitTesting(isVisible)
-            .animation(.easeOut(duration: 0.08), value: isVisible)
+            .animation(EditorKeyboardAccessoryMotion.animation, value: isVisible)
     }
 }
 
