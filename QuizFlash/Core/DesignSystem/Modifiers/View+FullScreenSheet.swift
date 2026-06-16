@@ -8,14 +8,6 @@ import UIKit
 
 private let fullScreenSheetDismissVerticalBias: CGFloat = 1.2
 
-#if DEBUG
-private func fullScreenSheetDebugLog(_ message: String) {
-    let line = "[FullScreenSheet] \(message)"
-    print(line)
-    NSLog("%@", line)
-}
-#endif
-
 private func fullScreenSheetHasDownwardDismissIntent(
     _ pan: UIPanGestureRecognizer,
     in view: UIView?
@@ -938,23 +930,12 @@ private struct FullScreenSheetContainer<Content: View, Background: View>: View {
         scrollDisabled = true
         onDismissStart()
 
-#if DEBUG
-        fullScreenSheetDebugLog(
-            "dismiss start distance=\(dismissalDistance) window=\(windowSize.debugDescription) offset=\(offset) presentation=\(presentationProgress) childCount=\(activeChildPresentationIDs.count)"
-        )
-#endif
-
         withAnimation(dismissalAnimation) {
             offset = dismissalDistance
         }
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(animationDurationMilliseconds))
-#if DEBUG
-            fullScreenSheetDebugLog(
-                "dismiss commit distance=\(dismissalDistance) offset=\(offset) durationMs=\(animationDurationMilliseconds)"
-            )
-#endif
             var tx = Transaction()
             tx.disablesAnimations = true
             withTransaction(tx) { onDismiss() }

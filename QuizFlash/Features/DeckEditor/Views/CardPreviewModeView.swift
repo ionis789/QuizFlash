@@ -8,14 +8,6 @@ import UIKit
 
 // MARK: - Card Preview Mode View
 
-#if DEBUG
-private func cardPreviewDebugLog(_ message: String) {
-    let line = "[CardPreviewModeView] \(message)"
-    print(line)
-    NSLog("%@", line)
-}
-#endif
-
 /// Immersive preview surface for supported persisted card kinds.
 struct CardPreviewModeView: View {
     @Environment(AppPreferences.self) private var appPreferences
@@ -25,6 +17,7 @@ struct CardPreviewModeView: View {
     let leadingAccessory: AnyView
     let contentAlignment: FlashcardContentAlignment
     let textSize: FlashcardTextSize
+    let onDismiss: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
@@ -41,7 +34,7 @@ struct CardPreviewModeView: View {
         showsLeadingAccessory ? (isCompact ? 160 : 188) : (isCompact ? 88 : 104)
     }
     private var locale: Locale { appPreferences.resolvedLocale }
-    private var isSheetPresentation: Bool { fullScreenSheetDismiss != nil }
+    private var isSheetPresentation: Bool { fullScreenSheetDismiss != nil || onDismiss != nil }
     private var isFlashcardSheetPresentation: Bool { isSheetPresentation && supportsFlip }
     private var playChromeButtonSize: CGFloat { isCompact ? 54 : UIConstants.Size.actionButton }
     private var playSurfaceHorizontalPadding: CGFloat {
@@ -78,6 +71,7 @@ struct CardPreviewModeView: View {
         leadingAccessory: AnyView = AnyView(EmptyView()),
         contentAlignment: FlashcardContentAlignment = .center,
         textSize: FlashcardTextSize = .large,
+        onDismiss: (() -> Void)? = nil
     ) {
         self.content = content
         self.safeAreaInsets = safeAreaInsets
@@ -85,6 +79,7 @@ struct CardPreviewModeView: View {
         self.leadingAccessory = leadingAccessory
         self.contentAlignment = contentAlignment
         self.textSize = textSize
+        self.onDismiss = onDismiss
     }
 
     init(
@@ -92,7 +87,8 @@ struct CardPreviewModeView: View {
         back: ZoneCardContent,
         safeAreaInsets: UIEdgeInsets = .zero,
         contentAlignment: FlashcardContentAlignment = .center,
-        textSize: FlashcardTextSize = .large
+        textSize: FlashcardTextSize = .large,
+        onDismiss: (() -> Void)? = nil
     ) {
         self.init(
             content: .flashcard(
@@ -105,7 +101,8 @@ struct CardPreviewModeView: View {
             ),
             safeAreaInsets: safeAreaInsets,
             contentAlignment: contentAlignment,
-            textSize: textSize
+            textSize: textSize,
+            onDismiss: onDismiss
         )
     }
 
@@ -152,20 +149,12 @@ struct CardPreviewModeView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .onAppear {
-#if DEBUG
-            cardPreviewDebugLog("appear isSheet=\(isSheetPresentation) supportsFlip=\(supportsFlip)")
-#endif
             if isFlashcardSheetPresentation {
                 ZoneFocusManager.shared.forceReleaseKeyboard()
                 ZoneController.shared.forceReleaseKeyboard()
                 ZoneController.shared.updateFocusedZone(nil)
             }
         }
-#if DEBUG
-        .onDisappear {
-            cardPreviewDebugLog("disappear isSheet=\(isSheetPresentation) supportsFlip=\(supportsFlip)")
-        }
-#endif
     }
 
     @ViewBuilder
@@ -517,14 +506,10 @@ struct CardPreviewModeView: View {
 
     private func handleDone() {
         if let fullScreenSheetDismiss {
-#if DEBUG
-            cardPreviewDebugLog("handleDone using fullScreenSheetDismiss supportsFlip=\(supportsFlip)")
-#endif
             fullScreenSheetDismiss()
+        } else if let onDismiss {
+            onDismiss()
         } else {
-#if DEBUG
-            cardPreviewDebugLog("handleDone using environment dismiss supportsFlip=\(supportsFlip)")
-#endif
             dismiss()
         }
     }
