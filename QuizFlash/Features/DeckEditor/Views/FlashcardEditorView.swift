@@ -14,6 +14,14 @@ import UIKit
 
 // MARK: - Flashcard Editor View
 
+#if DEBUG
+private func flashcardEditorPreviewDebugLog(_ message: String) {
+    let line = "[FlashcardEditorView] \(message)"
+    print(line)
+    NSLog("%@", line)
+}
+#endif
+
 struct FlashcardEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -1037,6 +1045,9 @@ struct FlashcardEditorView: View {
     }
 
     private func openPreview() {
+#if DEBUG
+        flashcardEditorPreviewDebugLog("openPreview requested hasSavableContent=\(hasSavableContent) showPreview=\(showPreview)")
+#endif
         guard hasSavableContent else { return }
         focusManager.forceReleaseKeyboard()
         zoneController.forceReleaseKeyboard()
@@ -1044,6 +1055,9 @@ struct FlashcardEditorView: View {
         selectedPath = nil
         previewDirection = nil
         showPreview = true
+#if DEBUG
+        flashcardEditorPreviewDebugLog("openPreview committed showPreview=\(showPreview)")
+#endif
     }
 
     private func toggleRenderedContent() {

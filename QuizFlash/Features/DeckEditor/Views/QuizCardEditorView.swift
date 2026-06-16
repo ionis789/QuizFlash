@@ -8,6 +8,14 @@
 import SwiftUI
 import PhotosUI
 
+#if DEBUG
+private func quizEditorPreviewDebugLog(_ message: String) {
+    let line = "[QuizCardEditorView] \(message)"
+    print(line)
+    NSLog("%@", line)
+}
+#endif
+
 /// A type-aware editor for manual quiz authoring inside the deck editor flow.
 struct QuizCardEditorView: View {
     @Environment(\.dismiss) private var dismiss
@@ -842,6 +850,9 @@ struct QuizCardEditorView: View {
     }
 
     private func openPreview() {
+#if DEBUG
+        quizEditorPreviewDebugLog("openPreview requested hasQuestionContent=\(questionContent.hasContent) choicesWithContent=\(choices.filter { $0.content.hasContent }.count) showPreview=\(showPreview)")
+#endif
         guard questionContent.hasContent || choices.contains(where: { $0.content.hasContent }) else { return }
         focusManager.forceReleaseKeyboard()
         zoneController.forceReleaseKeyboard()
@@ -849,6 +860,9 @@ struct QuizCardEditorView: View {
         currentSelectedPath = nil
         previewDirection = nil
         showPreview = true
+#if DEBUG
+        quizEditorPreviewDebugLog("openPreview committed showPreview=\(showPreview)")
+#endif
     }
 
     private func closeEditor() {
