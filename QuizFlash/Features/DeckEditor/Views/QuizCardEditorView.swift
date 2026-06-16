@@ -7,6 +7,7 @@
 
 import SwiftUI
 import PhotosUI
+import UIKit
 
 /// A type-aware editor for manual quiz authoring inside the deck editor flow.
 struct QuizCardEditorView: View {
@@ -229,6 +230,7 @@ struct QuizCardEditorView: View {
                     .zIndex(20)
 
                 floatingFormatBar
+                copyDebugButton(safeTopInset: safeTopInset)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -616,6 +618,46 @@ struct QuizCardEditorView: View {
                 .accessibilityLabel(localized("Save"))
         }
             .topNavigationChrome(horizontalInset: topChromeHorizontalInset)
+    }
+
+    @ViewBuilder
+    private func copyDebugButton(safeTopInset: CGFloat) -> some View {
+        if AppFeatures.current.showsVisualDebugOverlays {
+            VStack {
+                HStack {
+                    Spacer(minLength: 0)
+                    Button {
+                        UIPasteboard.general.string = quizDebugReport
+                    } label: {
+                        Text("COPY DEBUG")
+                            .font(.caption2.monospaced().weight(.bold))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(Color.orange, in: Capsule(style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Copy quiz editor debug")
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.top, safeTopInset + UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + 8)
+            .padding(.trailing, topChromeHorizontalInset)
+            .zIndex(60)
+        }
+    }
+
+    private var quizDebugReport: String {
+        """
+        QuizFlash Quiz Editor Debug
+        timestamp: \(ISO8601DateFormatter().string(from: Date()))
+        target: \(debugTargetID(activeEditor))
+        selectedPath: \(currentSelectedPath?.id ?? "nil")
+
+        LAYOUT / RENDER TIMELINE
+        \(ZoneEditorDebugStore.shared.layoutTraceReport)
+        """
     }
 
     private var closeTopButton: some View {
