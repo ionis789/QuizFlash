@@ -350,7 +350,13 @@ struct FlashcardEditorView: View {
     }
 
     private var isFloatingFormatBarVisible: Bool {
-        isFloatingFormatBarPresented && selectedPath != nil
+        guard isFloatingFormatBarPresented,
+              let selectedPath,
+              let selectedZone = currentContent.zone(at: selectedPath) else {
+            return false
+        }
+
+        return !selectedZone.isEditorMediaLeaf
     }
 
     private var floatingFormatBarScale: CGFloat {

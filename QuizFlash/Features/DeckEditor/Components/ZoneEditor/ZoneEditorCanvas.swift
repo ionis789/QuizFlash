@@ -123,10 +123,11 @@ struct ZoneEditorCanvas: View {
     private static let alignmentTolerance: CGFloat = 1
     private static let alignmentMenuSize = CGSize(width: 104, height: 44)
     private static let alignmentMenuVerticalSpacing: CGFloat = 28
-    private static let mediaSizeMenuSize = CGSize(width: 244, height: 52)
+    private static let mediaSizeMenuSize = CGSize(width: 150, height: 82)
     private static let mediaSizeMenuVerticalSpacing: CGFloat = 14
     private static let mediaSizeRange: ClosedRange<Double> = 5...100
     private static let mediaSizeStep: Double = 5
+    private static let mediaSizeIncrement: Double = 10
     private static let mediaHeightPerSizeUnit: CGFloat = 4
     private static let renderHitSlop: CGFloat = 8
 
@@ -1126,26 +1127,31 @@ struct ZoneEditorCanvas: View {
         let position = mediaSizeMenuPosition(for: frame, contentWidth: contentWidth)
         let percent = mediaSizePercent(for: zone)
 
-        return HStack(spacing: 10) {
-            Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.purple.opacity(0.95))
-                .frame(width: 24, height: 24)
-
-            Slider(
-                value: mediaSizeBinding(for: path),
-                in: Self.mediaSizeRange,
-                step: Self.mediaSizeStep
-            )
-            .tint(Color.purple.opacity(0.95))
-
+        return VStack(spacing: 7) {
             Text("\(Int(percent))")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(Color.primary.opacity(0.9))
                 .monospacedDigit()
-                .frame(width: 30, alignment: .trailing)
+                .contentTransition(.numericText(value: percent))
+                .animation(.smooth(duration: 0.16, extraBounce: 0), value: percent)
+
+            HStack(spacing: 6) {
+                mediaSizeButton(systemName: "minus") {
+                    adjustMediaSize(by: -Self.mediaSizeIncrement, at: path)
+                }
+
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.purple.opacity(0.95))
+                    .frame(width: 32, height: 32)
+
+                mediaSizeButton(systemName: "plus") {
+                    adjustMediaSize(by: Self.mediaSizeIncrement, at: path)
+                }
+            }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .frame(width: menuWidth, height: menuHeight)
         .background(.ultraThinMaterial, in: Capsule(style: .continuous))
         .overlay(
@@ -1157,15 +1163,20 @@ struct ZoneEditorCanvas: View {
         .transition(.scale(scale: 0.94, anchor: .bottom).combined(with: .opacity))
     }
 
-    private func mediaSizeBinding(for path: ZonePath) -> Binding<Double> {
-        Binding<Double>(
-            get: {
-                mediaSizePercent(for: content.zone(at: path))
-            },
-            set: { newValue in
-                applyMediaSizePercent(newValue, to: path)
-            }
-        )
+    private func mediaSizeButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Color.primary)
+                .frame(width: 38, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func adjustMediaSize(by delta: Double, at path: ZonePath) {
+        let currentPercent = mediaSizePercent(for: content.zone(at: path))
+        applyMediaSizePercent(currentPercent + delta, to: path)
     }
 
     private func mediaSizePercent(for zone: ZoneModel?) -> Double {

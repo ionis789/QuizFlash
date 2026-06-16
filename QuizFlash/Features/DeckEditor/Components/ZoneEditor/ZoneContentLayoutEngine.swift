@@ -171,6 +171,9 @@ enum ZoneContentLayoutEngine {
         case .fillWidth:
             return availableWidth
         case .fixed:
+            if zone.isEditorMediaLeaf, zone.fixedWidth == nil {
+                return availableWidth
+            }
             return min(max(ceil(zone.fixedWidth ?? naturalWidth), 1), availableWidth)
         }
     }

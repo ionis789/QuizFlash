@@ -639,7 +639,7 @@ struct ZoneContentView: View {
                     if rendersRichText || (type != .text && type != .empty && type != .code) {
                         onSelect()
                         ZoneEditorDebugStore.shared.recordTap("tap zone path=\(path.id) type=\(zone.contentType.rawValue)")
-                        if rendersRichText {
+                        if rendersRichText || zone.isEditorMediaLeaf {
                             focusManager.forceReleaseKeyboard()
                             zoneController.forceReleaseKeyboard()
                             zoneController.updateFocusedZone(nil)
