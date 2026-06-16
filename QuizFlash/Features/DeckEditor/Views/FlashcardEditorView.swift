@@ -781,6 +781,7 @@ struct FlashcardEditorView: View {
         let nextSelectedZoneID = focusTargetAfterDeletingZone(at: path)
         var selectedNeighborPath: ZonePath?
         let shouldKeepKeyboardActive = keyboardMonitor.isVisible && nextSelectedZoneID != nil
+        let deletedZoneID = currentContent.zone(at: path)?.id
 
         if shouldKeepKeyboardActive, let nextSelectedZoneID {
             _ = focusManager.retainKeyboardForTextFocusTransfer(to: nextSelectedZoneID)
@@ -794,6 +795,12 @@ struct FlashcardEditorView: View {
             }
             selectedPath = selectedNeighborPath
         }
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            "zone-delete",
+            zoneID: deletedZoneID,
+            pathID: path.id,
+            details: "activeSide=\(activeSide) next=\(selectedNeighborPath?.id ?? "nil") root=\(zoneDebugSummary(currentContent.rootZone))"
+        )
 
         if let nextSelectedZoneID, selectedNeighborPath != nil {
             if shouldKeepKeyboardActive {
@@ -1136,11 +1143,67 @@ struct FlashcardEditorView: View {
         scheduledFocusTask?.cancel()
         scheduledFocusTask = nil
         previewDirection = nil
-        suppressCanvasEmptyTapUntil = CFAbsoluteTimeGetCurrent() + 0.35
-        focusManager.suppressFocusRequests(for: 0.35)
+        suppressCanvasEmptyTapUntil = CFAbsoluteTimeGetCurrent() + 0.9
+        focusManager.suppressFocusRequests(for: 0.9)
         focusManager.forceReleaseKeyboard()
         zoneController.forceReleaseKeyboard()
         zoneController.updateFocusedZone(nil)
+    }
+
+    private func insertOrReplaceMediaZone(
+        targetPath: ZonePath?,
+        newZone: ZoneModel,
+        source: String
+    ) -> ZonePath? {
+        let targetZone = targetPath.flatMap { currentContent.zone(at: $0) }
+        var mediaPath: ZonePath?
+
+        if let targetPath,
+           targetZone?.isEditorMediaLeaf == true {
+            currentContent.updateZone(at: targetPath) { zone in
+                zone = newZone
+            }
+            mediaPath = targetPath
+            recordMediaImportDebug(source: source, action: "replace", path: targetPath, zoneID: newZone.id)
+        } else {
+            let referencePath = targetPath.flatMap { currentContent.zone(at: $0) == nil ? nil : $0 } ?? .root
+            let newZoneID = currentContent.addZone(
+                relativeTo: referencePath,
+                direction: .down,
+                newZone: newZone
+            )
+            mediaPath = findPath(for: newZoneID, in: currentContent.rootZone)
+            recordMediaImportDebug(source: source, action: "insert", path: mediaPath, zoneID: newZoneID)
+        }
+
+        prepareForMediaZoneSelection()
+        selectedPath = mediaPath
+        return mediaPath
+    }
+
+    private func recordMediaImportDebug(
+        source: String,
+        action: String,
+        path: ZonePath?,
+        zoneID: UUID
+    ) {
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            "media-import",
+            zoneID: zoneID,
+            pathID: path?.id,
+            details: "source=\(source) action=\(action) activeSide=\(activeSide) root=\(zoneDebugSummary(currentContent.rootZone))"
+        )
+    }
+
+    private func zoneDebugSummary(_ zone: ZoneModel) -> String {
+        if zone.isLeaf {
+            return "\(zone.contentType.rawValue)#\(zone.id.uuidString.prefix(6))"
+        }
+
+        let childSummary = (zone.children ?? [])
+            .map { "\($0.contentType.rawValue)#\($0.id.uuidString.prefix(6))" }
+            .joined(separator: ",")
+        return "\(zone.direction.rawValue)[\(childSummary)]"
     }
 
     private func addPhoto(_ item: PhotosPickerItem?) {
@@ -1152,19 +1215,11 @@ struct FlashcardEditorView: View {
                 let compressedData = data.compressedImageData(maxDimension: 1200, compressionQuality: 0.7) ?? data
 
                 await MainActor.run {
-                    var mediaPath: ZonePath?
-                    if let path = targetPath, currentContent.zone(at: path) != nil {
-                        currentContent.updateZone(at: path) { zone in
-                            zone = .image(data: compressedData)
-                        }
-                        mediaPath = path
-                    } else {
-                        let newZone = ZoneModel.image(data: compressedData)
-                        let newZoneID = currentContent.addZone(relativeTo: .root, direction: .down, newZone: newZone)
-                        mediaPath = findPath(for: newZoneID, in: currentContent.rootZone)
-                    }
-                    prepareForMediaZoneSelection()
-                    selectedPath = mediaPath
+                    _ = insertOrReplaceMediaZone(
+                        targetPath: targetPath,
+                        newZone: .image(data: compressedData),
+                        source: "photo"
+                    )
                 }
             }
             selectedPhoto = nil
@@ -1176,19 +1231,11 @@ struct FlashcardEditorView: View {
 
         Task {
             await MainActor.run {
-                var mediaPath: ZonePath?
-                if let path = targetPath, currentContent.zone(at: path) != nil {
-                    currentContent.updateZone(at: path) { zone in
-                        zone = .sketch(data: data)
-                    }
-                    mediaPath = path
-                } else {
-                    let newZone = ZoneModel.sketch(data: data)
-                    let newZoneID = currentContent.addZone(relativeTo: .root, direction: .down, newZone: newZone)
-                    mediaPath = findPath(for: newZoneID, in: currentContent.rootZone)
-                }
-                prepareForMediaZoneSelection()
-                selectedPath = mediaPath
+                _ = insertOrReplaceMediaZone(
+                    targetPath: targetPath,
+                    newZone: .sketch(data: data),
+                    source: "sketch"
+                )
             }
         }
     }

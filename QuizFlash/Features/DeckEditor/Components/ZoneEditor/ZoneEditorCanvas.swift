@@ -264,10 +264,23 @@ struct ZoneEditorCanvas: View {
                         cancelCaretAvoidanceScroll()
                         dismissAlignmentMenu()
                     } else {
-                        if !rendersRichText {
+                        let selectedZone = newPath.flatMap { content.zone(at: $0) }
+                        if selectedZone?.isEditorMediaLeaf == true {
+                            cancelCaretAvoidanceScroll()
+                            clearActiveCaretGeometry()
+                            focusManager.suppressFocusRequests(for: 0.9)
+                            ZoneController.shared.forceReleaseKeyboard()
+                            ZoneController.shared.updateFocusedZone(nil)
+                            debugStore.recordLayoutEvent(
+                                "media-select",
+                                zoneID: selectedZone?.id,
+                                pathID: newPath?.id,
+                                details: "source=selectedPath mode=\(rendersRichText ? "render" : "raw")"
+                            )
+                        } else if !rendersRichText {
                             scrollDriver.preserveCurrentOffsetDuringNonUserFocus()
                         }
-                        if keyboardMonitor.isVisible {
+                        if keyboardMonitor.isVisible, selectedZone?.isEditorMediaLeaf != true {
                             scheduleCaretAvoidanceScroll(delay: .milliseconds(16))
                         }
                     }
