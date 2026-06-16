@@ -700,10 +700,10 @@ struct ZoneContentView: View {
         let outset = visualZoneOutset(for: zone)
         let isMedia = zone.isEditorMediaLeaf
 
-        return RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
+        return RoundedRectangle(cornerRadius: selectionOutlineCornerRadius(for: zone), style: .continuous)
             .stroke(
                 isMedia ? accent.opacity(0.86) : (active ? accent.opacity(0.35) : Color.gray.opacity(0.18)),
-                style: StrokeStyle(lineWidth: isMedia ? 1.6 : 1, dash: isMedia ? [5, 4] : [])
+                lineWidth: isMedia ? 1.6 : 1
             )
             .frame(
                 width: layout.blockSize.width + (outset.horizontal * 2),
@@ -1489,6 +1489,15 @@ struct ZoneContentView: View {
         }
 
         return (horizontal: 0, vertical: 0)
+    }
+
+    private func selectionOutlineCornerRadius(for zone: ZoneModel) -> CGFloat {
+        guard zone.isEditorMediaLeaf else {
+            return zoneCornerRadius
+        }
+
+        let outset = visualZoneOutset(for: zone)
+        return 10 + max(outset.horizontal, outset.vertical)
     }
 
     private var zoneTextHorizontalPadding: CGFloat {

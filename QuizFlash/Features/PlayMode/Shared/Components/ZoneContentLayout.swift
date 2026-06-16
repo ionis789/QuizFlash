@@ -946,20 +946,6 @@ private struct ZoneContentLeafPreview: View {
                         .frame(width: layout.blockSize.width, height: layout.blockSize.height)
                 }
 
-                if showsDebugGuides && !suppressOwnEditorRenderGuide {
-                    RoundedRectangle(
-                        cornerRadius: zoneSurfaceCornerRadius,
-                        style: .continuous
-                    )
-                        .stroke(
-                        leafDebugGuideColor,
-                        style: leafDebugGuideStrokeStyle
-                    )
-                        .frame(width: layout.blockSize.width, height: layout.blockSize.height)
-                        .allowsHitTesting(false)
-                        .animation(.easeInOut(duration: 0.18), value: isLeafAlignmentTarget)
-                }
-
                 leafContent(layout: layout)
                     .frame(
                     width: layout.contentLayoutWidth,
@@ -970,6 +956,20 @@ private struct ZoneContentLeafPreview: View {
                     CGSize(width: ceil(proxy.size.width), height: ceil(proxy.size.height))
                 } action: { newSize in
                     updateRenderedContentSize(newSize, source: "swiftui-geometry")
+                }
+
+                if showsDebugGuides && !suppressOwnEditorRenderGuide {
+                    RoundedRectangle(
+                        cornerRadius: leafDebugGuideCornerRadius,
+                        style: .continuous
+                    )
+                        .stroke(
+                            leafDebugGuideColor,
+                            style: leafDebugGuideStrokeStyle
+                        )
+                        .frame(width: layout.blockSize.width, height: layout.blockSize.height)
+                        .allowsHitTesting(false)
+                        .animation(.easeInOut(duration: 0.18), value: isLeafAlignmentTarget)
                 }
             }
                 .frame(width: layout.blockSize.width, height: layout.blockSize.height, alignment: .topLeading)
@@ -1065,6 +1065,10 @@ private struct ZoneContentLeafPreview: View {
                 ? StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)
             : StrokeStyle(lineWidth: 1.6, dash: [5, 4])
         }
+    }
+
+    private var leafDebugGuideCornerRadius: CGFloat {
+        zone.isEditorMediaLeaf ? 10 : zoneSurfaceCornerRadius
     }
 
     private var zonePath: ZonePath? {
