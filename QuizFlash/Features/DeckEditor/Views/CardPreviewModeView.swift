@@ -17,7 +17,6 @@ struct CardPreviewModeView: View {
     let leadingAccessory: AnyView
     let contentAlignment: FlashcardContentAlignment
     let textSize: FlashcardTextSize
-    let onDismiss: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fullScreenSheetDismiss) private var fullScreenSheetDismiss
@@ -26,6 +25,9 @@ struct CardPreviewModeView: View {
 
     @State private var isFlipped = false
     @State private var topChromeHeight: CGFloat = 0
+    @State private var previewDismissOffsetY: CGFloat = 0
+    @State private var isPreviewDismissInFlight = false
+    @State private var previewDismissTask: Task<Void, Never>?
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
     private var accent: Color { ThemeManager.shared.accentColor.color }
@@ -34,7 +36,7 @@ struct CardPreviewModeView: View {
         showsLeadingAccessory ? (isCompact ? 160 : 188) : (isCompact ? 88 : 104)
     }
     private var locale: Locale { appPreferences.resolvedLocale }
-    private var isSheetPresentation: Bool { fullScreenSheetDismiss != nil || onDismiss != nil }
+    private var isSheetPresentation: Bool { fullScreenSheetDismiss != nil }
     private var isFlashcardSheetPresentation: Bool { isSheetPresentation && supportsFlip }
     private var playChromeButtonSize: CGFloat { isCompact ? 54 : UIConstants.Size.actionButton }
     private var playSurfaceHorizontalPadding: CGFloat {
@@ -48,6 +50,9 @@ struct CardPreviewModeView: View {
     private var playCardBottomReserve: CGFloat { playFlipPerspectiveBottomClearance }
     private var playBottomChromeHeight: CGFloat { playScoreZoneHeight + playScoreZoneBottomPadding + 6 }
     private var playHeaderBottomPadding: CGFloat { isCompact ? 16 : 18 }
+    private var previewDismissAnimation: Animation {
+        .smooth(duration: UIConstants.Animation.medium * 1.05, extraBounce: 0)
+    }
 
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
@@ -71,7 +76,6 @@ struct CardPreviewModeView: View {
         leadingAccessory: AnyView = AnyView(EmptyView()),
         contentAlignment: FlashcardContentAlignment = .center,
         textSize: FlashcardTextSize = .large,
-        onDismiss: (() -> Void)? = nil
     ) {
         self.content = content
         self.safeAreaInsets = safeAreaInsets
@@ -79,7 +83,6 @@ struct CardPreviewModeView: View {
         self.leadingAccessory = leadingAccessory
         self.contentAlignment = contentAlignment
         self.textSize = textSize
-        self.onDismiss = onDismiss
     }
 
     init(
@@ -87,8 +90,7 @@ struct CardPreviewModeView: View {
         back: ZoneCardContent,
         safeAreaInsets: UIEdgeInsets = .zero,
         contentAlignment: FlashcardContentAlignment = .center,
-        textSize: FlashcardTextSize = .large,
-        onDismiss: (() -> Void)? = nil
+        textSize: FlashcardTextSize = .large
     ) {
         self.init(
             content: .flashcard(
@@ -101,8 +103,7 @@ struct CardPreviewModeView: View {
             ),
             safeAreaInsets: safeAreaInsets,
             contentAlignment: contentAlignment,
-            textSize: textSize,
-            onDismiss: onDismiss
+            textSize: textSize
         )
     }
 
@@ -119,6 +120,7 @@ struct CardPreviewModeView: View {
                 : (isLandscape ? geo.size.width * 0.15 : 40)
             let contentTopInset = isFlashcardSheetPresentation ? 0 : topChromeHeight + UIConstants.Spacing.medium
             let contentBottomPadding = isFlashcardSheetPresentation ? 0 : max(resolvedSafeBottomInset, UIConstants.Spacing.standard)
+            let dismissDistance = max(geo.size.height, 1)
 
             ZStack(alignment: .top) {
                 if fullScreenSheetDismiss == nil {
@@ -129,7 +131,7 @@ struct CardPreviewModeView: View {
                     Color.clear
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            handleDone()
+                            handleDone(previewDismissDistance: dismissDistance)
                         }
                 }
 
@@ -147,6 +149,7 @@ struct CardPreviewModeView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .offset(y: previewDismissOffsetY)
         }
         .onAppear {
             if isFlashcardSheetPresentation {
@@ -154,6 +157,9 @@ struct CardPreviewModeView: View {
                 ZoneController.shared.forceReleaseKeyboard()
                 ZoneController.shared.updateFocusedZone(nil)
             }
+        }
+        .onDisappear {
+            previewDismissTask?.cancel()
         }
     }
 
@@ -346,7 +352,7 @@ struct CardPreviewModeView: View {
     }
 
     private var doneButton: some View {
-        Button(action: handleDone) {
+        Button(action: { handleDone() }) {
             Image(systemName: "checkmark")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(accent)
@@ -504,12 +510,36 @@ struct CardPreviewModeView: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func handleDone() {
+    private func handleDone(previewDismissDistance: CGFloat? = nil) {
         if let fullScreenSheetDismiss {
+            if isFlashcardSheetPresentation {
+                animatePreviewDismiss(
+                    distance: previewDismissDistance ?? 900,
+                    dismiss: fullScreenSheetDismiss
+                )
+                return
+            }
             fullScreenSheetDismiss()
-        } else if let onDismiss {
-            onDismiss()
         } else {
+            dismiss()
+        }
+    }
+
+    private func animatePreviewDismiss(
+        distance: CGFloat,
+        dismiss: FullScreenSheetDismissAction
+    ) {
+        guard !isPreviewDismissInFlight else { return }
+        isPreviewDismissInFlight = true
+        previewDismissTask?.cancel()
+
+        withAnimation(previewDismissAnimation) {
+            previewDismissOffsetY = max(distance, 1)
+        }
+
+        previewDismissTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(70))
+            guard !Task.isCancelled else { return }
             dismiss()
         }
     }

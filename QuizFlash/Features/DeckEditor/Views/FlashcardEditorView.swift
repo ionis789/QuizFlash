@@ -265,14 +265,22 @@ struct FlashcardEditorView: View {
             updateToolbarDebugLine()
         }
         .fullScreenCover(isPresented: $showSketchModal) { CanvasModalView { data in addSketch(data) } }
-        .fullScreenCover(isPresented: $showPreview) {
+        .fullScreenSheet(
+            isPresented: $showPreview,
+            configuration: .sheet(
+                heightMode: .fullScreen,
+                showsDefaultTopProgressiveBlur: false
+            )
+        ) { safeArea in
             CardPreviewModeView(
                 front: frontZoneContent,
                 back: backZoneContent,
+                safeAreaInsets: safeArea,
                 contentAlignment: contentAlignment,
-                textSize: textSize,
-                onDismiss: { showPreview = false }
+                textSize: textSize
             )
+        } background: {
+            Color.clear
         }
         .animation(.spring(response: 0.2, dampingFraction: 0.7), value: previewDirection)
         .alert(localized("Save Error"), isPresented: $showSaveErrorAlert) {

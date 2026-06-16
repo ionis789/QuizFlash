@@ -208,17 +208,17 @@ struct QuizCardEditorView: View {
                                 .foregroundStyle(.red)
                         }
                     }
-                        .padding(.horizontal, UIConstants.Spacing.large)
-                        .padding(.top, UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + UIConstants.Spacing.large)
-                        .padding(.bottom, bottomContentPadding)
+                    .padding(.horizontal, UIConstants.Spacing.large)
+                    .padding(.top, UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + UIConstants.Spacing.large)
+                    .padding(.bottom, bottomContentPadding)
                 }
-                    .scrollDismissesKeyboard(.interactively)
-                    .screenEdgeShadow(
+                .scrollDismissesKeyboard(.interactively)
+                .screenEdgeShadow(
                     topHeight: editorTopBlurHeight(safeTopInset: safeTopInset),
                     debugScreenID: "quiz.editor",
                     style: .progressiveBlur()
                 )
-                    .onScrollViewEmptySpaceTap(isActive: isFormatBarVisible) {
+                .onScrollViewEmptySpaceTap(isActive: isFormatBarVisible) {
                     dismissFormatBar()
                 }
 
@@ -226,8 +226,8 @@ struct QuizCardEditorView: View {
                     .zIndex(20)
             }
         }
-            .toolbar(.hidden, for: .navigationBar)
-            .safeAreaInset(edge: .bottom) {
+        .toolbar(.hidden, for: .navigationBar)
+        .safeAreaInset(edge: .bottom) {
             if isFormatBarVisible, let content = currentContent, let path = currentSelectedPath {
                 formatBar(content: content, path: path)
                     .padding(.horizontal, UIConstants.Spacing.standard)
@@ -235,29 +235,37 @@ struct QuizCardEditorView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-            .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhoto, matching: .images)
-            .onChange(of: selectedPhoto) { _, item in
+        .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhoto, matching: .images)
+        .onChange(of: selectedPhoto) { _, item in
             addPhoto(item)
         }
-            .fullScreenCover(isPresented: $showSketchModal) {
+        .fullScreenCover(isPresented: $showSketchModal) {
             CanvasModalView { data in
                 addSketch(data)
             }
         }
-            .fullScreenCover(isPresented: $showPreview) {
+        .fullScreenSheet(
+            isPresented: $showPreview,
+            configuration: .sheet(
+                heightMode: .fullScreen,
+                showsDefaultTopProgressiveBlur: false
+            )
+        ) { safeArea in
             CardPreviewModeView(
                 content: .quiz(currentQuizContent),
-                textSize: textSize,
-                onDismiss: { showPreview = false }
+                safeAreaInsets: safeArea,
+                textSize: textSize
             )
+        } background: {
+            Color.clear
         }
-            .animation(.spring(response: 0.3, dampingFraction: 0.82), value: currentSelectedPath)
-            .animation(.spring(response: 0.3, dampingFraction: 0.82), value: keyboardMonitor.isVisible)
-            .animation(.spring(response: 0.25, dampingFraction: 0.8), value: previewDirection)
-            .swipeBack(enabled: canUseInteractiveDismiss) {
+        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: currentSelectedPath)
+        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: keyboardMonitor.isVisible)
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: previewDirection)
+        .swipeBack(enabled: canUseInteractiveDismiss) {
             dismiss()
         }
-            .task {
+        .task {
             if questionSelectedPath == nil {
                 questionSelectedPath = .root
             }
@@ -266,7 +274,7 @@ struct QuizCardEditorView: View {
                 requestFocus(for: questionContent.rootZone.id, delaySeconds: 0.35)
             }
         }
-            .onDisappear {
+        .onDisappear {
             markedCorrectIndicatorTask?.cancel()
             markedCorrectIndicatorTask = nil
             pendingDeleteTask?.cancel()
