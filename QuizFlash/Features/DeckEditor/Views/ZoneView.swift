@@ -515,7 +515,6 @@ struct ZoneContentView: View {
 
     @State private var isFocused: Bool = false
     @State private var isCroppingImage: Bool = false
-    @State private var isPressingImage: Bool = false
     @State private var renderedContentSize: CGSize = .zero
     @State private var lastPostedCaretAnchorY: CGFloat?
     @State private var isTextViewFirstResponder: Bool = false
@@ -699,11 +698,12 @@ struct ZoneContentView: View {
         visible: Bool
     ) -> some View {
         let outset = visualZoneOutset(for: zone)
+        let isMedia = zone.isEditorMediaLeaf
 
         return RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
             .stroke(
-                active ? accent.opacity(0.35) : Color.gray.opacity(0.18),
-                lineWidth: 1
+                isMedia ? accent.opacity(0.86) : (active ? accent.opacity(0.35) : Color.gray.opacity(0.18)),
+                lineWidth: isMedia ? 1.6 : 1
             )
             .frame(
                 width: layout.blockSize.width + (outset.horizontal * 2),
@@ -1474,9 +1474,12 @@ struct ZoneContentView: View {
     }
 
     private func visualZoneOutset(for zone: ZoneModel?) -> (horizontal: CGFloat, vertical: CGFloat) {
-        guard let zone,
-              isTextResizableZone(zone) else {
+        guard let zone else {
             return (horizontal: 0, vertical: 0)
+        }
+
+        if zone.isEditorMediaLeaf {
+            return (horizontal: 4, vertical: 4)
         }
 
         return (horizontal: 0, vertical: 0)
@@ -1506,26 +1509,21 @@ struct ZoneContentView: View {
     // MARK: - Image View
     @ViewBuilder
     private var imageView: some View {
-        if let data = zone?.imageData, let img = UIImage(data: data) {
-            Image(uiImage: img)
-                .resizable()
-                .scaledToFit()
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .scaleEffect(isPressingImage ? 0.95 : 1.0)
-                .opacity(isPressingImage ? 0.85 : 1.0)
-                .shadow(color: .black.opacity(isPressingImage ? 0.0 : 0.08), radius: 4, y: 2)
+        if let zone, let data = zone.imageData {
+            CachedImageView(
+                data: data,
+                cacheID: zone.id.uuidString,
+                scale: zone.imageScale,
+                alignment: .center,
+                cornerRadius: 10
+            )
                 .contentShape(Rectangle())
-                .onLongPressGesture(
-                    minimumDuration: 0.5,
-                    perform: {
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 0.55, maximumDistance: 12)
+                        .onEnded { _ in
                         UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
                         isCroppingImage = true
-                    },
-                    onPressingChanged: { isPressing in
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            self.isPressingImage = isPressing
                         }
-                    }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
@@ -1534,12 +1532,15 @@ struct ZoneContentView: View {
     // MARK: - Sketch View
     @ViewBuilder
     private var sketchView: some View {
-        if let data = zone?.imageData, let img = UIImage(data: data) {
-            Image(uiImage: img)
-                .resizable()
-                .scaledToFit()
-                .background(colorScheme == .dark ? Color.black : Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+        if let zone, let data = zone.imageData {
+            CachedImageView(
+                data: data,
+                cacheID: zone.id.uuidString,
+                scale: zone.imageScale,
+                alignment: .center,
+                cornerRadius: 10,
+                isSketch: true
+            )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
     }
@@ -1675,13 +1676,19 @@ struct CardFaceView: View {
 
 struct CachedImageView: View {
     let data: Data
+    var cacheID: String?
     let scale: CGFloat
     let alignment: TextBlockAlignment
     let cornerRadius: CGFloat
     var isSketch: Bool = false
+    var releasesImageOnDisappear: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var uiImage: UIImage?
+
+    private var resolvedCacheID: String {
+        cacheID ?? "image-\(data.count)"
+    }
 
     var body: some View {
         Group {
@@ -1700,16 +1707,18 @@ struct CachedImageView: View {
                     .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
             } else { ProgressView().frame(height: 100) }
         }
-            .task { loadImage() }
+            .task(id: resolvedCacheID) { loadImage() }
             .onDisappear {
-                // Force release the rendered bitmap memory immediately when the card disappears
-                self.uiImage = nil
+                if releasesImageOnDisappear {
+                    self.uiImage = nil
+                }
             }
     }
 
     private func loadImage() {
+        let id = resolvedCacheID
         Task.detached {
-            let optimizedImage = await ImageCache.shared.image(for: data, id: String(data.hashValue), targetSize: CGSize(width: 800, height: 800), scale: 1.0)
+            let optimizedImage = await ImageCache.shared.image(for: data, id: id, targetSize: CGSize(width: 800, height: 800), scale: 1.0)
             await MainActor.run { self.uiImage = optimizedImage ?? UIImage(data: data) }
         }
     }
