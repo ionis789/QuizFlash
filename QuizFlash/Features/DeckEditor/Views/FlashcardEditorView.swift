@@ -1617,9 +1617,7 @@ private enum EditorKeyboardAccessoryMotion {
     static let keyboardDismissDelay: Duration = .milliseconds(105)
 
     static func keyboardAppearMenuDelay(keyboardDuration: TimeInterval) -> Duration {
-        let clampedDuration = min(max(keyboardDuration, 0.16), 0.30)
-        let delay = max(0.08, clampedDuration - 0.06)
-        return .milliseconds(Int((delay * 1000).rounded()))
+        .milliseconds(35)
     }
 }
 
