@@ -1369,8 +1369,7 @@ private final class SheetHostingController: UIHostingController<AnyView> {
         }
 
         if trackedScrollView == nil {
-            lastReportedTrackedScrollOffset = 0
-            handler?(0)
+            reportTrackedScrollOffset(0)
         }
     }
 
@@ -1446,7 +1445,7 @@ private final class SheetHostingController: UIHostingController<AnyView> {
         lastReportedTrackedScrollOffset = -.greatestFiniteMagnitude
 
         guard let candidate else {
-            trackedScrollOffsetHandler?(0)
+            reportTrackedScrollOffset(0)
             return
         }
 
@@ -1460,6 +1459,10 @@ private final class SheetHostingController: UIHostingController<AnyView> {
 
     private func reportTrackedScrollOffset(from scrollView: UIScrollView) {
         let offset = max(scrollView.contentOffset.y + scrollView.adjustedContentInset.top, 0)
+        reportTrackedScrollOffset(offset)
+    }
+
+    private func reportTrackedScrollOffset(_ offset: CGFloat) {
         guard abs(offset - lastReportedTrackedScrollOffset) > 0.5 else { return }
         lastReportedTrackedScrollOffset = offset
 
