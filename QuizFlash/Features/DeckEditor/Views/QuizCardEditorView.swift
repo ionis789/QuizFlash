@@ -203,7 +203,9 @@ struct QuizCardEditorView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
                         questionSection
+                        quizZoneSeparator
                         answersSection
+                        quizZoneSeparator
                         explanationSection
 
                         if let validationMessage {
@@ -694,10 +696,29 @@ struct QuizCardEditorView: View {
             selectedPath: binding(for: .question),
             highlightContext: highlightContext,
             fontScale: editorTextScale,
+            style: .question,
             previewDirection: $previewDirection
         ) {
             activateEditor(.question)
         }
+    }
+
+    private var quizZoneSeparator: some View {
+        Rectangle()
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color.clear,
+                        Color.primary.opacity(colorScheme == .dark ? 0.20 : 0.12),
+                        Color.clear
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .frame(height: 1)
+            .padding(.horizontal, UIConstants.Spacing.small)
+            .accessibilityHidden(true)
     }
 
     private var answersSection: some View {
@@ -705,7 +726,11 @@ struct QuizCardEditorView: View {
 
             ForEach(Array(choices.enumerated()), id: \.element.id) { index, choice in
 
-                VStack(spacing: UIConstants.Spacing.small) {
+                VStack(spacing: UIConstants.Spacing.standard) {
+                    if index > 0 {
+                        quizZoneSeparator
+                    }
+
                     choiceHeader(
                         index: index,
                         choiceID: choice.id,
@@ -1241,6 +1266,11 @@ private enum QuizEditorStyle {
     static let buttonCornerRadius: CGFloat = 22
 }
 
+private enum QuizZoneSectionStyle {
+    case standard
+    case question
+}
+
 private enum EditorKeyboardAccessoryMotion {
     static let appearAnimation: Animation = .easeOut(duration: 0.12)
     static let dismissAnimation: Animation = .easeOut(duration: 0.10)
@@ -1299,11 +1329,13 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
     @Binding var selectedPath: ZonePath?
     var highlightContext: HighlightContext?
     let fontScale: CGFloat
+    let style: QuizZoneSectionStyle
     @Binding var previewDirection: AddDirection?
     @ViewBuilder var trailingContent: () -> TrailingContent
     let onActivate: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    private var accent: Color { ThemeManager.shared.accentColor.color }
 
     init(
         title: String,
@@ -1312,6 +1344,7 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
         selectedPath: Binding<ZonePath?>,
         highlightContext: HighlightContext?,
         fontScale: CGFloat,
+        style: QuizZoneSectionStyle = .standard,
         previewDirection: Binding<AddDirection?>,
         @ViewBuilder trailingContent: @escaping () -> TrailingContent = { EmptyView() },
         onActivate: @escaping () -> Void
@@ -1322,6 +1355,7 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
         self._selectedPath = selectedPath
         self.highlightContext = highlightContext
         self.fontScale = fontScale
+        self.style = style
         self._previewDirection = previewDirection
         self.trailingContent = trailingContent
         self.onActivate = onActivate
@@ -1359,15 +1393,42 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
             cardBackground,
             in: RoundedRectangle(cornerRadius: QuizEditorStyle.sectionCornerRadius, style: .continuous)
         )
+            .overlay {
+            RoundedRectangle(cornerRadius: QuizEditorStyle.sectionCornerRadius, style: .continuous)
+                .stroke(cardBorder, lineWidth: style == .question ? 1.4 : 0.75)
+        }
             .onTapGesture {
             onActivate()
         }
     }
 
     private var cardBackground: some ShapeStyle {
-        colorScheme == .dark
-            ? AnyShapeStyle(Color.white.opacity(0.055))
-        : AnyShapeStyle(Color.white.opacity(0.94))
+        switch style {
+        case .standard:
+            colorScheme == .dark
+                ? AnyShapeStyle(Color.white.opacity(0.055))
+                : AnyShapeStyle(Color.white.opacity(0.94))
+        case .question:
+            AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        accent.opacity(colorScheme == .dark ? 0.26 : 0.18),
+                        colorScheme == .dark ? Color.white.opacity(0.07) : Color.white.opacity(0.98)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+        }
+    }
+
+    private var cardBorder: Color {
+        switch style {
+        case .standard:
+            return Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.06)
+        case .question:
+            return accent.opacity(colorScheme == .dark ? 0.48 : 0.34)
+        }
     }
 
 }
