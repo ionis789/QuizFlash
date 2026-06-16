@@ -703,7 +703,7 @@ struct ZoneContentView: View {
         return RoundedRectangle(cornerRadius: selectionOutlineCornerRadius(for: zone), style: .continuous)
             .stroke(
                 isMedia ? accent.opacity(0.86) : (active ? accent.opacity(0.35) : Color.gray.opacity(0.18)),
-                lineWidth: isMedia ? 1.6 : 1
+                lineWidth: 1
             )
             .frame(
                 width: layout.blockSize.width + (outset.horizontal * 2),

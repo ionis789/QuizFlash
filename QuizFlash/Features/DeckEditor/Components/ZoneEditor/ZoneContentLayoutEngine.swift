@@ -193,6 +193,10 @@ enum ZoneContentLayoutEngine {
         case .auto, .fillWidth:
             return contentHeight
         case .fixed:
+            if zone.isEditorMediaLeaf {
+                return ZoneMediaMetrics.displaySize(for: zone, availableWidth: availableWidth).height
+            }
+
             let fixedHeight = max(ceil(zone.fixedHeight ?? measuredHeight), 1)
             let resolvedHeight = fixedHeightCanScaleContent(for: zone)
                 ? fixedHeight
