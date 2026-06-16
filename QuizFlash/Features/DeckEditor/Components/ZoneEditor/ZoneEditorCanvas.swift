@@ -2337,6 +2337,10 @@ struct ZoneEditorCanvas: View {
         let layout = contentLayoutMetrics(
             contentSize: CGSize(width: contentWidth, height: contentHeight)
         )
+        let contentBodyHeight = bottomInsetContentBodyHeight(
+            layout: layout,
+            contentWidth: contentWidth
+        )
         let visibleContentHeight = bottomChromeVisibleContentHeight(
             contentHeight: contentHeight,
             contentTopOffset: contentTopOffset
@@ -2345,7 +2349,25 @@ struct ZoneEditorCanvas: View {
             ? visibleContentHeight
             : contentHeight * 0.5
 
-        return ceil(layout.contentBodyHeight) > floor(activationHeight)
+        return ceil(contentBodyHeight) >= floor(activationHeight)
+    }
+
+    private func bottomInsetContentBodyHeight(
+        layout: ZoneContentLayout,
+        contentWidth: CGFloat
+    ) -> CGFloat {
+        guard !rendersRichText else {
+            return layout.contentBodyHeight
+        }
+
+        let measuredFrameHeight = measuredContentBodySize(contentWidth: contentWidth).height
+        let estimatedFrameHeight = ZoneContentEstimator.estimatedSize(
+            for: content.rootZone,
+            fontScale: fontScale,
+            availableWidth: max(contentWidth, 1)
+        ).height
+
+        return max(layout.contentBodyHeight, measuredFrameHeight, estimatedFrameHeight)
     }
 
     private func bottomChromeVisibleContentHeight(
