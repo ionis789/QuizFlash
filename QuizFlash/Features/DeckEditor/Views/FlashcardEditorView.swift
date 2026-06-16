@@ -269,6 +269,7 @@ struct FlashcardEditorView: View {
             isPresented: $showPreview,
             configuration: .sheet(
                 heightMode: .fullScreen,
+                showsBackdropBlur: false,
                 showsDefaultTopProgressiveBlur: false
             )
         ) { safeArea in
