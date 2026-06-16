@@ -736,12 +736,12 @@ struct ZoneContentView: View {
         let highlightTint = zone.highlightColor.zoneSurfaceTint
 
         return ZStack {
-            RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: selectionOutlineCornerRadius(for: zone), style: .continuous)
                 .fill(editorZoneFill(for: zone))
-                .overlay(idleZoneStroke)
+                .overlay(idleZoneStroke(for: zone))
                 .overlay {
                     if let highlightTint {
-                        RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
+                        RoundedRectangle(cornerRadius: selectionOutlineCornerRadius(for: zone), style: .continuous)
                             .stroke(highlightTint.opacity(0.86), lineWidth: 2)
                     }
                 }
@@ -816,6 +816,10 @@ struct ZoneContentView: View {
         for zone: ZoneModel,
         layoutZone: ZoneModel
     ) -> CGSize {
+        if layoutZone.isEditorMediaLeaf {
+            return ZoneMediaMetrics.displaySize(for: layoutZone, availableWidth: availableWidth)
+        }
+
         guard isTextResizableZone(layoutZone) else {
             return renderedContentSize
         }
@@ -866,6 +870,13 @@ struct ZoneContentView: View {
         for layoutZone: ZoneModel,
         measuredContentSize: CGSize
     ) -> CGFloat {
+        if layoutZone.isEditorMediaLeaf {
+            return min(
+                max(ceil(ZoneMediaMetrics.displaySize(for: layoutZone, availableWidth: measurementWidth).width), 1),
+                measurementWidth
+            )
+        }
+
         let minimumWidth = stableMinimumAutoWidth(for: layoutZone)
         switch layoutZone.sizeMode {
         case .fixed:
@@ -882,6 +893,10 @@ struct ZoneContentView: View {
     }
 
     private func stableMinimumAutoWidth(for zone: ZoneModel) -> CGFloat {
+        if zone.isEditorMediaLeaf {
+            return 1
+        }
+
         guard isTextResizableZone(zone), zone.text.isEmpty else {
             return minimumResizableWidth(for: zone)
         }
@@ -1564,9 +1579,9 @@ struct ZoneContentView: View {
 
     // MARK: - Alignment Helper
     @ViewBuilder
-    private var idleZoneStroke: some View {
+    private func idleZoneStroke(for zone: ZoneModel) -> some View {
         if !isSelected {
-            RoundedRectangle(cornerRadius: zoneCornerRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: selectionOutlineCornerRadius(for: zone), style: .continuous)
                 .stroke(Color.white.opacity(0.10), lineWidth: 0.8)
         }
     }

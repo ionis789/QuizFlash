@@ -533,7 +533,11 @@ struct FlashcardEditorView: View {
         floatingFormatBarPresentationTask = nil
 
         if isKeyboardVisible || selectedZoneIsMedia {
-            updateFloatingFormatBarKeyboardHeight()
+            if isKeyboardVisible {
+                updateFloatingFormatBarKeyboardHeight()
+            } else {
+                floatingFormatBarKeyboardHeight = 0
+            }
             withAnimation(.easeOut(duration: 0.10)) {
                 isFloatingFormatBarPresented = true
             }
@@ -574,7 +578,14 @@ struct FlashcardEditorView: View {
     }
 
     private func updateFloatingFormatBarKeyboardHeight() {
-        guard keyboardMonitor.isVisible else { return }
+        guard keyboardMonitor.isVisible else {
+            if floatingFormatBarKeyboardHeight != 0 {
+                withTransaction(Transaction(animation: nil)) {
+                    floatingFormatBarKeyboardHeight = 0
+                }
+            }
+            return
+        }
         let height = keyboardMonitor.visibleHeight
         guard abs(floatingFormatBarKeyboardHeight - height) > 0.5 else { return }
 
