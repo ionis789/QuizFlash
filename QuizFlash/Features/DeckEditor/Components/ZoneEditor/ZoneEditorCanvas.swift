@@ -191,9 +191,12 @@ struct ZoneEditorCanvas: View {
                 1
             )
             let contentHeight = contentViewportHeight
+            let rawBottomAccessoryInset = bottomAccessoryHeight > 0
+                ? max(bottomAccessoryHeight + 48, bottomAccessoryHeight)
+                : 0
             let rawKeyboardCreationInset = keyboardMonitor.isVisible
                 ? max(keyboardMonitor.visibleHeight + legacyRawBottomChromeClearance, 160)
-                : max(editorViewportHeight * 0.45, 260)
+                : rawBottomAccessoryInset
             let bottomScrollInset = rendersRichText
                 ? dynamicBottomScrollInset
                 : rawKeyboardCreationInset
@@ -1758,6 +1761,10 @@ struct ZoneEditorCanvas: View {
     }
 
     private var dynamicBottomScrollInset: CGFloat {
+        guard keyboardMonitor.isVisible || bottomAccessoryHeight > 0 else {
+            return 0
+        }
+
         let viewportBottomY = viewportScreenFrame.height > 0
             ? viewportScreenFrame.maxY
             : UIScreen.main.bounds.maxY
