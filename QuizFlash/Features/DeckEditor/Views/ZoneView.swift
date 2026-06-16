@@ -1720,7 +1720,31 @@ struct CachedImageView: View {
     @State private var uiImage: UIImage?
 
     private var resolvedCacheID: String {
-        cacheID ?? "image-\(data.count)"
+        "\(cacheID ?? "image")-\(dataFingerprint)"
+    }
+
+    private var dataFingerprint: String {
+        guard !data.isEmpty else { return "0" }
+
+        var fingerprint = UInt64(data.count)
+        data.withUnsafeBytes { rawBuffer in
+            let bytes = rawBuffer.bindMemory(to: UInt8.self)
+            guard !bytes.isEmpty else { return }
+
+            let sampleIndices = [
+                0,
+                bytes.count / 3,
+                bytes.count / 2,
+                (bytes.count * 2) / 3,
+                bytes.count - 1
+            ]
+
+            for index in sampleIndices {
+                fingerprint = (fingerprint &* 1_099_511_628_211) ^ UInt64(bytes[index])
+            }
+        }
+
+        return "\(data.count)-\(fingerprint)"
     }
 
     var body: some View {
