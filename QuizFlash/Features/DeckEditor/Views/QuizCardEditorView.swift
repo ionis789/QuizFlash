@@ -58,8 +58,36 @@ struct QuizCardEditorView: View {
         isCompact ? UIConstants.Layout.compactScreenEdgeInset : UIConstants.Layout.screenEdgeInset
     }
     private var isFormatBarVisible: Bool { isFloatingFormatBarVisible }
-    private var bottomContentPadding: CGFloat {
-        isFloatingFormatBarVisible ? 148 : 96
+    private var quizTargetStripHeight: CGFloat { 56 }
+    private var topChromeReservedHeight: CGFloat {
+        UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton
+    }
+    private var floatingToolbarAccessoryHeight: CGFloat {
+        isFloatingFormatBarVisible ? 96 : 0
+    }
+    private var activeEditorScrollToken: Int {
+        switch activeEditor {
+        case .question:
+            return 0
+        case .choice(let choiceID):
+            return (indexOfChoice(choiceID) ?? 0) + 1
+        case .explanation:
+            return 10_000
+        }
+    }
+    private var activeTargetTitle: String {
+        switch activeEditor {
+        case .question:
+            return "Q"
+        case .choice(let choiceID):
+            let index = indexOfChoice(choiceID).map { $0 + 1 } ?? 1
+            return "A\(index)"
+        case .explanation:
+            return "E"
+        }
+    }
+    private var verticalAlignmentFallback: ZoneVerticalAlignment {
+        .top
     }
 
     private func localized(_ value: String.LocalizationValue) -> String {
@@ -200,35 +228,21 @@ struct QuizCardEditorView: View {
             ZStack(alignment: .top) {
                 editorBackground.ignoresSafeArea()
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                        questionSection
-                        answersSection
-                        explanationSection
-
-                        if let validationMessage {
-                            Label(validationMessage, systemImage: "exclamationmark.circle.fill")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.red)
-                        }
-                    }
-                    .padding(.horizontal, UIConstants.Spacing.large)
-                    .padding(.top, UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + UIConstants.Spacing.large)
-                    .padding(.bottom, bottomContentPadding)
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .screenEdgeShadow(
-                    topHeight: editorTopBlurHeight(safeTopInset: safeTopInset),
-                    debugScreenID: "quiz.editor",
-                    style: .progressiveBlur()
-                )
-                .onScrollViewEmptySpaceTap(isActive: isFormatBarVisible) {
-                    dismissFormatBar()
-                }
+                activeEditorCanvas(safeTopInset: safeTopInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .ignoresSafeArea(.container, edges: .vertical)
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
+                    .screenEdgeShadow(
+                        topHeight: editorTopBlurHeight(safeTopInset: safeTopInset),
+                        bottomHeight: 0,
+                        debugScreenID: "quiz.editor",
+                        style: .progressiveBlur()
+                    )
 
                 topChrome
                     .zIndex(20)
 
+                quizTargetStrip(safeTopInset: safeTopInset)
                 floatingFormatBar
                 copyDebugButton(safeTopInset: safeTopInset)
             }
@@ -274,8 +288,6 @@ struct QuizCardEditorView: View {
         } background: {
             Color.clear
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: currentSelectedPath)
-        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: keyboardMonitor.isVisible)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: previewDirection)
         .swipeBack(enabled: canUseInteractiveDismiss) {
             dismiss()
@@ -382,6 +394,51 @@ struct QuizCardEditorView: View {
     }
 
     @ViewBuilder
+    private func activeEditorCanvas(safeTopInset: CGFloat) -> some View {
+        if let content = currentContent {
+            ZoneEditorCanvas(
+                content: content,
+                selectedPath: binding(for: activeEditor),
+                previewDirection: $previewDirection,
+                highlightContext: highlightContext,
+                fontScale: editorTextScale,
+                verticalAlignmentFallback: verticalAlignmentFallback,
+                topContentInset: editorTopContentInset(safeTopInset: safeTopInset),
+                bottomAccessoryHeight: floatingToolbarAccessoryHeight,
+                bottomAccessoryTopY: nil,
+                scrollResetToken: activeEditorScrollToken,
+                rendersRichText: false,
+                showsDebugOverlays: AppFeatures.current.showsVisualDebugOverlays,
+                onScrollOffsetChange: { _ in },
+                onEmptySpaceTap: { _ in
+                    handleCanvasEmptySpaceTap()
+                }
+            )
+        }
+    }
+
+    private func editorTopContentInset(safeTopInset: CGFloat) -> CGFloat {
+        safeTopInset
+            + topChromeReservedHeight
+            + quizTargetStripHeight
+            + UIConstants.Spacing.large
+    }
+
+    private func handleCanvasEmptySpaceTap() {
+        if isFloatingFormatBarVisible {
+            dismissFormatBar()
+            return
+        }
+
+        guard let content = currentContent else { return }
+        let path = currentSelectedPath ?? .root
+        currentSelectedPath = path
+        if let zone = content.zone(at: path) ?? content.zone(at: .root) {
+            focusManager.requestFocus(for: zone.id)
+        }
+    }
+
+    @ViewBuilder
     private func formatBar(content: ZoneCardContent, path: ZonePath) -> some View {
         EditorFormatMenuBar(
             content: content,
@@ -456,6 +513,17 @@ struct QuizCardEditorView: View {
         }
         floatingFormatBarPresentationTask = nil
 
+        guard currentSelectedPath != nil else {
+            recordToolbarLifecycle("presentation-skip-no-selection", details: toolbarLifecycleDetails())
+            if isFloatingFormatBarPresented {
+                withAnimation(EditorKeyboardAccessoryMotion.dismissAnimation) {
+                    isFloatingFormatBarPresented = false
+                }
+                toolbarVisibilityDebugRevision += 1
+            }
+            return
+        }
+
         if isKeyboardVisible || selectedZoneIsMedia {
             if isKeyboardVisible {
                 updateFloatingFormatBarKeyboardHeight()
@@ -518,6 +586,15 @@ struct QuizCardEditorView: View {
     }
 
     private func handleSelectedPathChange(source: String) {
+        guard currentSelectedPath != nil else {
+            toolbarVisibilityDebugRevision += 1
+            recordToolbarLifecycle(
+                "selection-cleared",
+                details: "source=\(source) \(toolbarLifecycleDetails())"
+            )
+            return
+        }
+
         toolbarVisibilityDebugRevision += 1
         recordToolbarLifecycle(
             "selection-change",
@@ -594,9 +671,141 @@ struct QuizCardEditorView: View {
         return "\(milliseconds)ms"
     }
 
+    private func quizTargetStrip(safeTopInset: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: UIConstants.Spacing.tiny) {
+                quizTargetButton(title: "Q", target: .question, isValid: questionContent.hasContent)
+
+                quizTargetSeparator
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: UIConstants.Spacing.tiny) {
+                        ForEach(Array(choices.enumerated()), id: \.element.id) { index, choice in
+                            quizTargetButton(
+                                title: "A\(index + 1)",
+                                target: .choice(choice.id),
+                                isValid: choice.content.hasContent,
+                                isCorrect: choice.isCorrect
+                            )
+                        }
+
+                        Button {
+                            addChoice()
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(accent)
+                                .frame(width: 34, height: 34)
+                                .background(topChromeUtilityFill, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(localized("Add Answer"))
+                    }
+                    .padding(.horizontal, 2)
+                }
+
+                quizTargetSeparator
+
+                if explanationContent == nil {
+                    Button {
+                        addExplanation()
+                    } label: {
+                        Image(systemName: "plus.bubble")
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(accent)
+                            .frame(width: 38, height: 34)
+                            .background(topChromeUtilityFill, in: Capsule(style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(localized("Add Explanation"))
+                } else {
+                    quizTargetButton(
+                        title: "E",
+                        target: .explanation,
+                        isValid: explanationContent?.hasContent == true
+                    )
+                }
+            }
+            .padding(.horizontal, topChromeHorizontalInset)
+            .frame(height: quizTargetStripHeight)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.82),
+                        Color.black.opacity(0.36),
+                        Color.black.opacity(0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+        }
+        .padding(.top, safeTopInset + topChromeReservedHeight)
+        .zIndex(25)
+    }
+
+    private var quizTargetSeparator: some View {
+        Capsule(style: .continuous)
+            .fill(Color.white.opacity(0.18))
+            .frame(width: 1, height: 20)
+            .padding(.horizontal, UIConstants.Spacing.tiny)
+    }
+
+    private func quizTargetButton(
+        title: String,
+        target: QuizEditorTarget,
+        isValid: Bool,
+        isCorrect: Bool = false
+    ) -> some View {
+        let isSelected = activeEditor == target
+        return Button {
+            activateEditor(target)
+        } label: {
+            ZStack(alignment: .bottom) {
+                HStack(spacing: 5) {
+                    Text(title)
+                        .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .black, design: .rounded))
+                        .foregroundStyle(isSelected ? Color.black : Color.primary)
+                        .scaleEffect(isSelected ? 1.08 : 0.94)
+
+                    if isCorrect {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(isSelected ? Color.black.opacity(0.72) : successAccent)
+                    } else if !isValid {
+                        Circle()
+                            .fill(Color.orange)
+                            .frame(width: 5, height: 5)
+                    }
+                }
+                .frame(minWidth: 42, minHeight: 34)
+                .padding(.horizontal, 8)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(isSelected ? accent : topChromeUtilityFill)
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(isSelected ? accent.opacity(0.7) : topChromeUtilityBorder, lineWidth: 0.75)
+                )
+
+                Capsule(style: .continuous)
+                    .fill(isSelected ? Color.black.opacity(0.76) : Color.clear)
+                    .frame(width: 16, height: 3)
+                    .offset(y: 5)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(debugTargetID(target))
+    }
+
     private var topChrome: some View {
         HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
             closeTopButton
+
+            Spacer(minLength: 0)
+
+            activeTargetActions
 
             Spacer(minLength: 0)
 
@@ -621,6 +830,58 @@ struct QuizCardEditorView: View {
     }
 
     @ViewBuilder
+    private var activeTargetActions: some View {
+        switch activeEditor {
+        case .question:
+            Text(activeTargetTitle)
+                .font(.system(size: UIConstants.Size.navigationChromeLabel, weight: .black, design: .rounded))
+                .foregroundStyle(.primary)
+                .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+                .background(topChromeUtilityFill, in: Circle())
+        case .choice(let choiceID):
+            HStack(spacing: UIConstants.Spacing.tiny) {
+                Button {
+                    toggleCorrect(for: choiceID)
+                } label: {
+                    Image(systemName: choice(for: choiceID)?.isCorrect == true ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(choice(for: choiceID)?.isCorrect == true ? successAccent : topChromeUtilityForeground)
+                        .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+                        .background(topChromeUtilityFill, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(localized("Correct"))
+
+                if choices.count > 2 {
+                    Button {
+                        handleDeleteTap(for: choiceID)
+                    } label: {
+                        Image(systemName: pendingDeleteChoiceID == choiceID ? "trash.fill" : "trash")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(pendingDeleteChoiceID == choiceID ? .red : topChromeUtilityForeground)
+                            .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+                            .background(topChromeUtilityFill, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(localized("Delete"))
+                }
+            }
+        case .explanation:
+            Button(role: .destructive) {
+                removeExplanation()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.red)
+                    .frame(width: UIConstants.Size.actionButton, height: UIConstants.Size.actionButton)
+                    .background(topChromeUtilityFill, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(localized("Delete"))
+        }
+    }
+
+    @ViewBuilder
     private func copyDebugButton(safeTopInset: CGFloat) -> some View {
         if AppFeatures.current.showsVisualDebugOverlays {
             VStack {
@@ -642,7 +903,7 @@ struct QuizCardEditorView: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(.top, safeTopInset + UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + 8)
+            .padding(.top, safeTopInset + topChromeReservedHeight + quizTargetStripHeight + 4)
             .padding(.trailing, topChromeHorizontalInset)
             .zIndex(60)
         }
@@ -964,6 +1225,8 @@ struct QuizCardEditorView: View {
         for target: QuizEditorTarget,
         recordsSelection: Bool = true
     ) {
+        guard selectedPath(for: target) != path else { return }
+
         switch target {
         case .question:
             questionSelectedPath = path
