@@ -1211,6 +1211,12 @@ struct ZoneContentView: View {
 
     private func handleMountedFocusStateChange(_ focused: Bool) {
         if focused {
+            guard !focusManager.isSuppressingFocusRequests else {
+                isFocused = false
+                isTextViewFirstResponder = false
+                ZoneEditorDebugStore.shared.recordFocusEvent("mounted focus ignored during dismiss", zoneID: currentZoneID)
+                return
+            }
             highlightContext?.dismiss()
             if !isSelected { onSelect() }
         } else {

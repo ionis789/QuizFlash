@@ -24,6 +24,7 @@ struct FlashcardEditorView: View {
     @Environment(KeyboardMonitor.self) private var keyboardMonitor
 
     var onSaveZones: (ZoneModel, ZoneModel) -> Void
+    var onContentChange: ((ZoneModel, ZoneModel) -> Void)?
     private let contentAlignment: FlashcardContentAlignment
     private let textSize: FlashcardTextSize
 
@@ -173,9 +174,11 @@ struct FlashcardEditorView: View {
         searchQuery: String? = nil,
         contentAlignment: FlashcardContentAlignment = .center,
         textSize: FlashcardTextSize = .large,
+        onContentChange: ((ZoneModel, ZoneModel) -> Void)? = nil,
         onSave: @escaping (ZoneModel, ZoneModel) -> Void
     ) {
         self.onSaveZones = onSave
+        self.onContentChange = onContentChange
         self.contentAlignment = contentAlignment
         self.textSize = textSize
         let frontContent = ZoneCardContent(rootZone: .text(), stableAuthoringRoot: true)
@@ -201,10 +204,12 @@ struct FlashcardEditorView: View {
         searchQuery: String? = nil,
         contentAlignment: FlashcardContentAlignment = .center,
         textSize: FlashcardTextSize = .large,
+        onContentChange: ((ZoneModel, ZoneModel) -> Void)? = nil,
         onSave: @escaping (ZoneModel, ZoneModel) -> Void
     ) {
 
         self.onSaveZones = onSave
+        self.onContentChange = onContentChange
         self.contentAlignment = contentAlignment
         self.textSize = textSize
         let frontContent = ZoneCardContent(rootZone: frontZone, stableAuthoringRoot: true)
@@ -337,6 +342,16 @@ struct FlashcardEditorView: View {
         .onChange(of: developmentPreferences.zoneEditorDebugHUDEnabled) { _, _ in
             configureZoneEditorDebugRecording()
         }
+        .onChange(of: frontZoneContent.rootZone) { _, _ in
+            notifyContentChange()
+        }
+        .onChange(of: backZoneContent.rootZone) { _, _ in
+            notifyContentChange()
+        }
+    }
+
+    private func notifyContentChange() {
+        onContentChange?(frontZoneContent.rootZone, backZoneContent.rootZone)
     }
 
     @ViewBuilder

@@ -14,6 +14,20 @@ struct CardEditorView: View {
     var searchQuery: String? = nil
     var textSizeOverride: FlashcardTextSize? = nil
     var onSave: (DraftCardContent) -> Void
+    @State private var flashcardDraftContent: FlashcardCardContent
+
+    init(
+        destination: CardEditorDestination,
+        searchQuery: String? = nil,
+        textSizeOverride: FlashcardTextSize? = nil,
+        onSave: @escaping (DraftCardContent) -> Void
+    ) {
+        self.destination = destination
+        self.searchQuery = searchQuery
+        self.textSizeOverride = textSizeOverride
+        self.onSave = onSave
+        _flashcardDraftContent = State(initialValue: Self.resolvedFlashcardContent(for: destination))
+    }
 
     private var resolvedTextSize: FlashcardTextSize {
         CardEditorTextSizeResolver.resolve(
@@ -33,13 +47,21 @@ struct CardEditorView: View {
     }
 
     private var flashcardEditor: some View {
-        let content = resolvedFlashcardContent
+        let content = flashcardDraftContent
 
         return FlashcardEditorView(
             frontZone: content.frontZone,
             backZone: content.backZone,
             searchQuery: searchQuery,
-            textSize: resolvedTextSize
+            textSize: resolvedTextSize,
+            onContentChange: { frontZone, backZone in
+                flashcardDraftContent = FlashcardCardContent(
+                    frontZone: frontZone,
+                    backZone: backZone,
+                    frontType: content.frontType,
+                    backType: content.backType
+                )
+            }
         ) { frontZone, backZone in
             onSave(
                 .flashcard(
@@ -54,7 +76,7 @@ struct CardEditorView: View {
         }
     }
 
-    private var resolvedFlashcardContent: FlashcardCardContent {
+    private static func resolvedFlashcardContent(for destination: CardEditorDestination) -> FlashcardCardContent {
         switch destination {
         case .create:
             return .empty
