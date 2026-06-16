@@ -264,6 +264,12 @@ struct FlashcardEditorView: View {
             updateFloatingFormatBarKeyboardHeight()
             updateToolbarDebugLine()
         }
+        .onChange(of: frontSelectedPath) { _, _ in
+            handleSelectedPathChange(source: "front")
+        }
+        .onChange(of: backSelectedPath) { _, _ in
+            handleSelectedPathChange(source: "back")
+        }
         .fullScreenCover(isPresented: $showSketchModal) { CanvasModalView { data in addSketch(data) } }
         .fullScreenSheet(
             isPresented: $showPreview,
@@ -356,7 +362,7 @@ struct FlashcardEditorView: View {
             return false
         }
 
-        return !selectedZone.isEditorMediaLeaf
+        return selectedZone.isEditorMediaLeaf || keyboardMonitor.isVisible
     }
 
     private var floatingFormatBarScale: CGFloat {
@@ -408,6 +414,15 @@ struct FlashcardEditorView: View {
 
     private var floatingToolbarAccessoryHeight: CGFloat {
         isFloatingFormatBarVisible ? 96 : 0
+    }
+
+    private var selectedZoneIsMedia: Bool {
+        guard let selectedPath,
+              let selectedZone = currentContent.zone(at: selectedPath) else {
+            return false
+        }
+
+        return selectedZone.isEditorMediaLeaf
     }
 
     @ViewBuilder
@@ -492,7 +507,7 @@ struct FlashcardEditorView: View {
         floatingFormatBarPresentationTask?.cancel()
         floatingFormatBarPresentationTask = nil
 
-        if isKeyboardVisible {
+        if isKeyboardVisible || selectedZoneIsMedia {
             updateFloatingFormatBarKeyboardHeight()
             withAnimation(.easeOut(duration: 0.10)) {
                 isFloatingFormatBarPresented = true
@@ -506,6 +521,31 @@ struct FlashcardEditorView: View {
             floatingFormatBarTopY = nil
             updateToolbarDebugLine()
         }
+    }
+
+    private func handleSelectedPathChange(source: String) {
+        toolbarVisibilityDebugRevision += 1
+
+        if selectedZoneIsMedia {
+            prepareForMediaZoneSelection()
+            withAnimation(.easeOut(duration: 0.10)) {
+                isFloatingFormatBarPresented = true
+                floatingFormatBarKeyboardHeight = 0
+            }
+        } else if !keyboardMonitor.isVisible {
+            withAnimation(.easeOut(duration: 0.08)) {
+                isFloatingFormatBarPresented = false
+                floatingFormatBarKeyboardHeight = 0
+            }
+        }
+
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            "selection-change",
+            zoneID: selectedPath.flatMap { currentContent.zone(at: $0)?.id },
+            pathID: selectedPath?.id,
+            details: "source=\(source) activeSide=\(activeSide) media=\(selectedZoneIsMedia ? 1 : 0) kb=\(keyboardMonitor.isVisible ? 1 : 0) root=\(zoneDebugSummary(currentContent.rootZone))"
+        )
+        updateToolbarDebugLine()
     }
 
     private func updateFloatingFormatBarKeyboardHeight() {
@@ -551,6 +591,7 @@ struct FlashcardEditorView: View {
             canPreview: hasSavableContent,
             showsPrimaryActions: false,
             showsZoneActions: true,
+            usesMediaZoneToolbar: true,
             onPreview: {
                 openPreview()
             },

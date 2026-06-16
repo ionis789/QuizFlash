@@ -22,6 +22,7 @@ struct EditorFormatMenuBar: View {
     var canPreview: Bool
     var showsPrimaryActions: Bool
     var showsZoneActions: Bool
+    var usesMediaZoneToolbar: Bool
     var onPreview: () -> Void
     var onClose: () -> Void
 
@@ -35,6 +36,7 @@ struct EditorFormatMenuBar: View {
         canPreview: Bool,
         showsPrimaryActions: Bool = true,
         showsZoneActions: Bool = false,
+        usesMediaZoneToolbar: Bool = false,
         onPreview: @escaping () -> Void,
         onClose: @escaping () -> Void
     ) {
@@ -47,6 +49,7 @@ struct EditorFormatMenuBar: View {
         self.canPreview = canPreview
         self.showsPrimaryActions = showsPrimaryActions
         self.showsZoneActions = showsZoneActions
+        self.usesMediaZoneToolbar = usesMediaZoneToolbar
         self.onPreview = onPreview
         self.onClose = onClose
     }
@@ -62,6 +65,9 @@ struct EditorFormatMenuBar: View {
         guard let zone, zone.isLeaf else { return false }
         return zone.contentType == .image || zone.contentType == .sketch
     }
+    private var isMediaToolbar: Bool {
+        usesMediaZoneToolbar && showsMediaTools
+    }
 
     private func localized(_ value: String.LocalizationValue) -> String {
         AppLocalization.string(value, locale: locale)
@@ -75,18 +81,20 @@ struct EditorFormatMenuBar: View {
                 .padding(.trailing, 10)
             }
             
-            Divider()
-                .frame(height: 26)
-            
-            Button { onClose() } label: {
-                Image(systemName: "keyboard.chevron.compact.down")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(accent)
-                    .frame(width: 42, height: 36)
-                    .contentShape(Rectangle())
+            if !isMediaToolbar {
+                Divider()
+                    .frame(height: 26)
+
+                Button { onClose() } label: {
+                    Image(systemName: "keyboard.chevron.compact.down")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(accent)
+                        .frame(width: 42, height: 36)
+                        .contentShape(Rectangle())
+                }
+                .padding(.trailing, 10)
+                .accessibilityLabel(localized("Hide Keyboard"))
             }
-            .padding(.trailing, 10)
-            .accessibilityLabel(localized("Hide Keyboard"))
         }
         .padding(.vertical, 5)
         .background(
@@ -107,13 +115,15 @@ struct EditorFormatMenuBar: View {
                 cardActionTools
             }
 
-            if showsTextTools {
+            if isMediaToolbar {
+                mediaZoneToolbar
+            } else if showsTextTools {
                 textTools
             } else if showsMediaTools {
                 mediaTools
             }
 
-            if showsZoneActions {
+            if showsZoneActions && !isMediaToolbar {
                 zoneActionTools
             }
         }
@@ -286,6 +296,54 @@ struct EditorFormatMenuBar: View {
     }
     
     // MARK: - Media Tools
+    private static let mediaSizeRange: ClosedRange<Double> = 5...100
+    private static let mediaSizeStep: Double = 5
+    private static let mediaSizeIncrement: Double = 10
+    private static let mediaHeightPerSizeUnit: CGFloat = 4
+
+    private var mediaZoneToolbar: some View {
+        HStack(spacing: 14) {
+            mediaSizeButton(systemName: "minus") {
+                adjustMediaSize(by: -Self.mediaSizeIncrement)
+            }
+
+            Text("\(Int(mediaSizePercent))")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .monospacedDigit()
+                .frame(width: 42)
+                .contentTransition(.numericText(value: mediaSizePercent))
+                .animation(.smooth(duration: 0.16, extraBounce: 0), value: mediaSizePercent)
+
+            mediaSizeButton(systemName: "plus") {
+                adjustMediaSize(by: Self.mediaSizeIncrement)
+            }
+
+            Divider()
+                .frame(height: 26)
+
+            Button(role: .destructive, action: onDeleteZone) {
+                Image(systemName: "trash")
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundStyle(.red)
+                    .frame(width: 34, height: 34)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(localized("Delete"))
+        }
+    }
+
+    private func mediaSizeButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(.primary)
+                .frame(width: 34, height: 34)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     private var mediaTools: some View {
         HStack(spacing: 12) {
             Image(systemName: "aspectratio")
@@ -323,6 +381,41 @@ struct EditorFormatMenuBar: View {
                 }
             }
         )
+    }
+
+    private var mediaSizePercent: Double {
+        guard let zone else {
+            return Double(ZoneModel.defaultEditorMediaScale * 100)
+        }
+
+        let scalePercent = Double(zone.imageScale * 100)
+        let heightPercent = zone.fixedHeight.map { Double($0 / Self.mediaHeightPerSizeUnit) }
+        return steppedMediaSizePercent(heightPercent ?? scalePercent)
+    }
+
+    private func adjustMediaSize(by delta: Double) {
+        applyMediaSizePercent(mediaSizePercent + delta)
+    }
+
+    private func applyMediaSizePercent(_ rawPercent: Double) {
+        let percent = steppedMediaSizePercent(rawPercent)
+        let scale = CGFloat(percent / 100)
+        let height = CGFloat(percent) * Self.mediaHeightPerSizeUnit
+
+        withAnimation(.smooth(duration: 0.16, extraBounce: 0)) {
+            content.updateZone(at: path) { zone in
+                guard zone.isEditorMediaLeaf else { return }
+                zone.imageScale = scale
+                zone.sizeMode = .fixed
+                zone.fixedWidth = nil
+                zone.fixedHeight = height
+            }
+        }
+    }
+
+    private func steppedMediaSizePercent(_ rawPercent: Double) -> Double {
+        let stepped = (rawPercent / Self.mediaSizeStep).rounded() * Self.mediaSizeStep
+        return min(max(stepped, Self.mediaSizeRange.lowerBound), Self.mediaSizeRange.upperBound)
     }
 
     private func menuRow(title: String, systemImage: String, isSelected: Bool) -> some View {

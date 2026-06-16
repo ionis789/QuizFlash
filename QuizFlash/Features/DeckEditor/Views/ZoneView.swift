@@ -1619,9 +1619,9 @@ struct CardFaceView: View {
                 }
             }
         case .image:
-            if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: .leading, cornerRadius: 10) }
+            if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: .center, cornerRadius: 10) }
         case .sketch:
-            if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: .leading, cornerRadius: 10, isSketch: true) }
+            if let data = zone.imageData { CachedImageView(data: data, scale: zone.imageScale, alignment: .center, cornerRadius: 10, isSketch: true) }
         }
     }
 

@@ -77,11 +77,14 @@ final class ZoneCardContent {
     ///   - path: The index path to the target zone.
     ///   - update: A closure that receives an `inout ZoneModel` to mutate.
     func updateZone(at path: ZonePath, with update: (inout ZoneModel) -> Void) {
+        let before = rootDebugSummary(rootZone)
         if path.indices.isEmpty {
             update(&rootZone)
+            recordMutation("update-root", path: path, before: before)
             return
         }
         updateZoneRecursive(zone: &rootZone, path: path, pathIndex: 0, update: update)
+        recordMutation("update", path: path, before: before)
     }
 
     // MARK: - Add Zone
@@ -101,6 +104,7 @@ final class ZoneCardContent {
         direction: AddDirection,
         newZone: ZoneModel = .empty()
     ) -> UUID {
+        let before = rootDebugSummary(rootZone)
         let newZoneID = newZone.id
 
         if path.indices.isEmpty {
@@ -113,6 +117,12 @@ final class ZoneCardContent {
                 rootZone = .container(direction: .vertical, children: [oldRoot, newZone])
             }
             rootZone.verticalAlignment = preservedVerticalAlignment
+            recordMutation(
+                "add-root",
+                path: path,
+                before: before,
+                details: "direction=\(direction) new=\(newZone.contentType.rawValue)#\(newZoneID.uuidString.prefix(6))"
+            )
             return newZoneID
         }
 
@@ -144,6 +154,12 @@ final class ZoneCardContent {
                 }
             }
         }
+        recordMutation(
+            "add",
+            path: path,
+            before: before,
+            details: "direction=\(direction) new=\(newZone.contentType.rawValue)#\(newZoneID.uuidString.prefix(6))"
+        )
         return newZoneID
     }
 
@@ -153,10 +169,12 @@ final class ZoneCardContent {
     /// unnecessary container nesting.
     @discardableResult
     func addTextZone(relativeTo path: ZonePath?, direction: AddDirection) -> UUID {
+        let before = rootDebugSummary(rootZone)
         if !rootZone.hasContent, rootZone.isLeaf {
             let preservedVerticalAlignment = rootZone.verticalAlignment
             rootZone = .text()
             rootZone.verticalAlignment = preservedVerticalAlignment
+            recordMutation("reuse-empty-root", path: .root, before: before, details: "direction=\(direction)")
             return rootZone.id
         }
 
@@ -209,11 +227,13 @@ final class ZoneCardContent {
     /// - Parameter path: The index path to the zone to delete. Deleting the root
     ///   replaces the entire tree with an empty text zone.
     func deleteZone(at path: ZonePath) {
+        let before = rootDebugSummary(rootZone)
         guard !path.indices.isEmpty else {
             let preservedVerticalAlignment = rootZone.verticalAlignment
             rootZone = .text()
             rootZone.verticalAlignment = preservedVerticalAlignment
             restoreStableAuthoringRootIfNeeded()
+            recordMutation("delete-root", path: path, before: before)
             return
         }
         guard let parentPath = path.parent, let childIndex = path.lastIndex else { return }
@@ -225,6 +245,7 @@ final class ZoneCardContent {
             else                    { parent.children = kids }
         }
         restoreStableAuthoringRootIfNeeded()
+        recordMutation("delete", path: path, before: before)
     }
 
     // MARK: - Cleanup
@@ -264,6 +285,36 @@ final class ZoneCardContent {
                 update: update
             )
         }
+    }
+
+    private func recordMutation(
+        _ action: String,
+        path: ZonePath,
+        before: String,
+        details: String = ""
+    ) {
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            "zone-content-\(action)",
+            zoneID: zone(at: path)?.id,
+            pathID: path.id,
+            details: "\(details.isEmpty ? "" : "\(details) ")before=\(before) after=\(rootDebugSummary(rootZone))"
+        )
+    }
+
+    private func rootDebugSummary(_ zone: ZoneModel) -> String {
+        if zone.isLeaf {
+            return "\(zone.contentType.rawValue)#\(zone.id.uuidString.prefix(6))"
+        }
+
+        let children = (zone.children ?? [])
+            .prefix(6)
+            .map { child in
+                child.isLeaf
+                    ? "\(child.contentType.rawValue)#\(child.id.uuidString.prefix(6))"
+                    : "\(child.direction.rawValue)#\(child.id.uuidString.prefix(6)):\(child.children?.count ?? 0)"
+            }
+            .joined(separator: ",")
+        return "\(zone.direction.rawValue)#\(zone.id.uuidString.prefix(6))[\(children)]"
     }
 
     private func cleanupRecursive(zone: inout ZoneModel) {

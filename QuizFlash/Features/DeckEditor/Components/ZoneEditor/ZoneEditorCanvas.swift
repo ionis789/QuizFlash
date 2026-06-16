@@ -123,12 +123,6 @@ struct ZoneEditorCanvas: View {
     private static let alignmentTolerance: CGFloat = 1
     private static let alignmentMenuSize = CGSize(width: 104, height: 44)
     private static let alignmentMenuVerticalSpacing: CGFloat = 28
-    private static let mediaSizeMenuSize = CGSize(width: 150, height: 82)
-    private static let mediaSizeMenuVerticalSpacing: CGFloat = 14
-    private static let mediaSizeRange: ClosedRange<Double> = 5...100
-    private static let mediaSizeStep: Double = 5
-    private static let mediaSizeIncrement: Double = 10
-    private static let mediaHeightPerSizeUnit: CGFloat = 4
     private static let renderHitSlop: CGFloat = 8
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
@@ -624,9 +618,6 @@ struct ZoneEditorCanvas: View {
         .overlay(alignment: .topLeading) {
             alignmentOverlay(contentWidth: contentWidth)
         }
-        .overlay(alignment: .topLeading) {
-            mediaSizeOverlay(contentWidth: contentWidth)
-        }
     }
 
     private func renderContentView(contentWidth: CGFloat) -> some View {
@@ -959,18 +950,6 @@ struct ZoneEditorCanvas: View {
         }
     }
 
-    @ViewBuilder
-    private func mediaSizeOverlay(contentWidth: CGFloat) -> some View {
-        if let selectedPath,
-           !rendersRichText,
-           let zone = content.zone(at: selectedPath),
-           zone.isEditorMediaLeaf,
-           let frame = zoneFrames.first(where: { $0.path == selectedPath })?.frame {
-            mediaSizeMenu(for: selectedPath, zone: zone, frame: frame, contentWidth: contentWidth)
-                .zIndex(5)
-        }
-    }
-
     private func handleResolvedZoneFrames(
         _ frames: [ZoneEditorResolvedZoneFrame],
         contentWidth: CGFloat
@@ -1127,119 +1106,6 @@ struct ZoneEditorCanvas: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private func mediaSizeMenu(
-        for path: ZonePath,
-        zone: ZoneModel,
-        frame: CGRect,
-        contentWidth: CGFloat
-    ) -> some View {
-        let menuWidth = Self.mediaSizeMenuSize.width
-        let menuHeight = Self.mediaSizeMenuSize.height
-        let position = mediaSizeMenuPosition(for: frame, contentWidth: contentWidth)
-        let percent = mediaSizePercent(for: zone)
-
-        return VStack(spacing: 7) {
-            Text("\(Int(percent))")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.primary.opacity(0.9))
-                .monospacedDigit()
-                .contentTransition(.numericText(value: percent))
-                .animation(.smooth(duration: 0.16, extraBounce: 0), value: percent)
-
-            HStack(spacing: 6) {
-                mediaSizeButton(systemName: "minus") {
-                    adjustMediaSize(by: -Self.mediaSizeIncrement, at: path)
-                }
-
-                Image(systemName: "photo.on.rectangle.angled")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Color.purple.opacity(0.95))
-                    .frame(width: 32, height: 32)
-
-                mediaSizeButton(systemName: "plus") {
-                    adjustMediaSize(by: Self.mediaSizeIncrement, at: path)
-                }
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .frame(width: menuWidth, height: menuHeight)
-        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-        .overlay(
-            Capsule(style: .continuous)
-                .stroke(Color.primary.opacity(0.12), lineWidth: 0.75)
-        )
-        .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 8)
-        .offset(x: position.x, y: position.y)
-        .transition(.scale(scale: 0.94, anchor: .bottom).combined(with: .opacity))
-    }
-
-    private func mediaSizeButton(systemName: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(Color.primary)
-                .frame(width: 38, height: 32)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func adjustMediaSize(by delta: Double, at path: ZonePath) {
-        let currentPercent = mediaSizePercent(for: content.zone(at: path))
-        applyMediaSizePercent(currentPercent + delta, to: path)
-    }
-
-    private func mediaSizePercent(for zone: ZoneModel?) -> Double {
-        guard let zone else {
-            return Double(ZoneModel.defaultEditorMediaScale * 100)
-        }
-
-        let scalePercent = Double(zone.imageScale * 100)
-        let heightPercent = zone.fixedHeight.map { Double($0 / Self.mediaHeightPerSizeUnit) }
-        let rawPercent = heightPercent ?? scalePercent
-        return steppedMediaSizePercent(rawPercent)
-    }
-
-    private func applyMediaSizePercent(_ rawPercent: Double, to path: ZonePath) {
-        let percent = steppedMediaSizePercent(rawPercent)
-        let scale = CGFloat(percent / 100)
-        let height = CGFloat(percent) * Self.mediaHeightPerSizeUnit
-
-        withAnimation(.smooth(duration: 0.16, extraBounce: 0)) {
-            content.updateZone(at: path) { zone in
-                guard zone.isEditorMediaLeaf else { return }
-                zone.imageScale = scale
-                zone.sizeMode = .fixed
-                zone.fixedWidth = nil
-                zone.fixedHeight = height
-            }
-        }
-    }
-
-    private func steppedMediaSizePercent(_ rawPercent: Double) -> Double {
-        let stepped = (rawPercent / Self.mediaSizeStep).rounded() * Self.mediaSizeStep
-        return min(max(stepped, Self.mediaSizeRange.lowerBound), Self.mediaSizeRange.upperBound)
-    }
-
-    private func mediaSizeMenuPosition(for frame: CGRect, contentWidth: CGFloat) -> CGPoint {
-        let menuWidth = Self.mediaSizeMenuSize.width
-        let menuHeight = Self.mediaSizeMenuSize.height
-        let x = clampedMenuX(
-            anchorX: frame.midX,
-            menuWidth: menuWidth,
-            contentWidth: contentWidth
-        )
-        let preferredY = frame.maxY + Self.mediaSizeMenuVerticalSpacing
-        let minY: CGFloat = 0
-        let maxY = max(viewportScreenFrame.height - menuHeight - 8, minY)
-        let y = preferredY <= maxY
-            ? max(preferredY, minY)
-            : max(frame.minY - menuHeight - Self.mediaSizeMenuVerticalSpacing, minY)
-
-        return CGPoint(x: x, y: y)
     }
 
     private func resolvedAlignmentMenuState(
