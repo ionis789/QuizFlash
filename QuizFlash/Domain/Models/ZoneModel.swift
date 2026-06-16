@@ -167,6 +167,11 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     /// `true` if this zone has no children (i.e., it is a leaf node).
     var isLeaf: Bool { children == nil || children?.isEmpty == true }
 
+    /// `true` when this leaf is editor-owned visual media.
+    var isEditorMediaLeaf: Bool {
+        isLeaf && (contentType == .image || contentType == .sketch)
+    }
+
     /// `true` if this zone (or any descendant) contains author-provided content.
     var hasContent: Bool {
         if !isLeaf { return children?.contains { $0.hasContent } ?? false }
@@ -325,10 +330,31 @@ nonisolated struct ZoneModel: Identifiable, Codable, Equatable, Sendable {
     static func text(_ content: String = "") -> ZoneModel { ZoneModel(contentType: .text, text: content) }
 
     /// Creates an image leaf zone from raw image data.
-    static func image(data: Data) -> ZoneModel { ZoneModel(contentType: .image, imageData: data) }
+    static func image(data: Data) -> ZoneModel {
+        ZoneModel(
+            contentType: .image,
+            imageData: data,
+            sizeMode: .fixed,
+            blockAlignment: .center,
+            fixedHeight: Self.defaultEditorMediaHeight,
+            imageScale: Self.defaultEditorMediaScale
+        )
+    }
 
     /// Creates a sketch leaf zone from raw sketch data.
-    static func sketch(data: Data) -> ZoneModel { ZoneModel(contentType: .sketch, imageData: data) }
+    static func sketch(data: Data) -> ZoneModel {
+        ZoneModel(
+            contentType: .sketch,
+            imageData: data,
+            sizeMode: .fixed,
+            blockAlignment: .center,
+            fixedHeight: Self.defaultEditorMediaHeight,
+            imageScale: Self.defaultEditorMediaScale
+        )
+    }
+
+    static let defaultEditorMediaScale: CGFloat = 0.25
+    static let defaultEditorMediaHeight: CGFloat = 100
 
     /// Creates a code leaf zone with optional language identifier.
     static func code(_ content: String, language: String? = nil) -> ZoneModel {

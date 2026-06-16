@@ -214,7 +214,7 @@ enum ZoneContentLayoutEngine {
     private static func usesMediaIntrinsicLayout(for zone: ZoneModel) -> Bool {
         switch zone.contentType {
         case .image, .sketch:
-            return true
+            return zone.sizeMode != .fixed
         case .empty, .text, .code:
             return false
         }

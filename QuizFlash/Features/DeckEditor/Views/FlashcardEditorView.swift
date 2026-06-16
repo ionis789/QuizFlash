@@ -1137,27 +1137,12 @@ struct FlashcardEditorView: View {
                 await MainActor.run {
                     if let path = targetPath, currentContent.zone(at: path) != nil {
                         currentContent.updateZone(at: path) { zone in
-                            zone.contentType = .image
-                            zone.imageData = compressedData
-                            zone.imageScale = 1.0
-                            zone.sizeMode = .auto
-                            zone.fixedWidth = nil
-                            zone.fixedHeight = nil
+                            zone = .image(data: compressedData)
                         }
                     } else {
-                        currentContent.addZone(relativeTo: .root, direction: .down)
-                        if let children = currentContent.rootZone.children, !children.isEmpty {
-                            let newPath = ZonePath(indices: [children.count - 1])
-                            currentContent.updateZone(at: newPath) { zone in
-                                zone.contentType = .image
-                                zone.imageData = compressedData
-                                zone.imageScale = 1.0
-                                zone.sizeMode = .auto
-                                zone.fixedWidth = nil
-                                zone.fixedHeight = nil
-                            }
-                            selectedPath = newPath
-                        }
+                        let newZone = ZoneModel.image(data: compressedData)
+                        let newZoneID = currentContent.addZone(relativeTo: .root, direction: .down, newZone: newZone)
+                        selectedPath = findPath(for: newZoneID, in: currentContent.rootZone)
                     }
                 }
             }
@@ -1172,27 +1157,12 @@ struct FlashcardEditorView: View {
             await MainActor.run {
                 if let path = targetPath, currentContent.zone(at: path) != nil {
                     currentContent.updateZone(at: path) { zone in
-                        zone.contentType = .sketch
-                        zone.imageData = data
-                        zone.imageScale = 1.0
-                        zone.sizeMode = .auto
-                        zone.fixedWidth = nil
-                        zone.fixedHeight = nil
+                        zone = .sketch(data: data)
                     }
                 } else {
-                    currentContent.addZone(relativeTo: .root, direction: .down)
-                    if let children = currentContent.rootZone.children, !children.isEmpty {
-                        let newPath = ZonePath(indices: [children.count - 1])
-                        currentContent.updateZone(at: newPath) { zone in
-                            zone.contentType = .sketch
-                            zone.imageData = data
-                            zone.imageScale = 1.0
-                            zone.sizeMode = .auto
-                            zone.fixedWidth = nil
-                            zone.fixedHeight = nil
-                        }
-                        selectedPath = newPath
-                    }
+                    let newZone = ZoneModel.sketch(data: data)
+                    let newZoneID = currentContent.addZone(relativeTo: .root, direction: .down, newZone: newZone)
+                    selectedPath = findPath(for: newZoneID, in: currentContent.rootZone)
                 }
             }
         }
