@@ -203,6 +203,7 @@ struct ZoneEditorCanvas: View {
             let bottomScrollInset = contentNeedsBottomScrollInset(
                 contentWidth: contentWidth,
                 contentHeight: contentHeight,
+                contentTopOffset: surfaceVerticalPadding + topContentInset,
                 requestedBottomScrollInset: requestedBottomScrollInset
             ) ? requestedBottomScrollInset : 0
             let minimumScrollContentHeight = editorViewportHeight
@@ -2327,6 +2328,7 @@ struct ZoneEditorCanvas: View {
     private func contentNeedsBottomScrollInset(
         contentWidth: CGFloat,
         contentHeight: CGFloat,
+        contentTopOffset: CGFloat,
         requestedBottomScrollInset: CGFloat
     ) -> Bool {
         guard requestedBottomScrollInset > 0 else { return false }
@@ -2334,9 +2336,46 @@ struct ZoneEditorCanvas: View {
         let layout = contentLayoutMetrics(
             contentSize: CGSize(width: contentWidth, height: contentHeight)
         )
-        let visibleContentHeight = max(contentHeight - requestedBottomScrollInset, 1)
+        let visibleContentHeight = bottomChromeVisibleContentHeight(
+            contentHeight: contentHeight,
+            contentTopOffset: contentTopOffset
+        )
 
         return ceil(layout.contentBodyHeight) > floor(visibleContentHeight)
+    }
+
+    private func bottomChromeVisibleContentHeight(
+        contentHeight: CGFloat,
+        contentTopOffset: CGFloat
+    ) -> CGFloat {
+        guard viewportScreenFrame.height > 0 else {
+            return contentHeight
+        }
+
+        let viewportBottomY = viewportScreenFrame.maxY - caretBottomChromeBuffer
+        let fallbackChromeTopY: CGFloat?
+        if keyboardMonitor.isVisible || bottomAccessoryHeight > 0 {
+            fallbackChromeTopY = UIScreen.main.bounds.maxY
+                - max(keyboardMonitor.visibleHeight, 0)
+                - max(bottomAccessoryHeight, 0)
+        } else {
+            fallbackChromeTopY = nil
+        }
+
+        let chromeTopY: CGFloat?
+        if let bottomAccessoryTopY, let fallbackChromeTopY {
+            chromeTopY = min(bottomAccessoryTopY, fallbackChromeTopY)
+        } else {
+            chromeTopY = bottomAccessoryTopY ?? fallbackChromeTopY
+        }
+
+        let visibleBottomWindowY = chromeTopY.map {
+            min(viewportBottomY, $0 - caretBottomChromeBuffer)
+        } ?? viewportBottomY
+        let contentTopWindowY = viewportScreenFrame.minY + contentTopOffset
+        let visibleContentHeight = visibleBottomWindowY - contentTopWindowY
+
+        return min(max(visibleContentHeight, 1), contentHeight)
     }
 
     private func measuredContentBodySize(contentWidth: CGFloat) -> CGSize {
