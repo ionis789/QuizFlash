@@ -573,7 +573,7 @@ struct FlashcardEditorView: View {
                     }
                     updateFloatingFormatBarKeyboardHeight()
                     recordToolbarLifecycle("appear-animation-start", details: toolbarLifecycleDetails())
-                    withAnimation(EditorKeyboardAccessoryMotion.animation) {
+                    withAnimation(EditorKeyboardAccessoryMotion.appearAnimation) {
                         isFloatingFormatBarPresented = true
                     }
                     toolbarVisibilityDebugRevision += 1
@@ -582,7 +582,7 @@ struct FlashcardEditorView: View {
                 }
             } else {
                 recordToolbarLifecycle("appear-immediate-start", details: toolbarLifecycleDetails())
-                withAnimation(EditorKeyboardAccessoryMotion.animation) {
+                withAnimation(EditorKeyboardAccessoryMotion.appearAnimation) {
                     isFloatingFormatBarPresented = true
                 }
                 toolbarVisibilityDebugRevision += 1
@@ -591,7 +591,7 @@ struct FlashcardEditorView: View {
             }
         } else {
             recordToolbarLifecycle("hide-animation-start", details: toolbarLifecycleDetails())
-            withAnimation(EditorKeyboardAccessoryMotion.animation) {
+            withAnimation(EditorKeyboardAccessoryMotion.dismissAnimation) {
                 isFloatingFormatBarPresented = false
             }
             toolbarVisibilityDebugRevision += 1
@@ -615,14 +615,14 @@ struct FlashcardEditorView: View {
         if selectedZoneIsMedia {
             prepareForMediaZoneSelection()
             recordToolbarLifecycle("media-selection-present", details: "source=\(source) \(toolbarLifecycleDetails())")
-            withAnimation(.easeOut(duration: 0.10)) {
+            withAnimation(EditorKeyboardAccessoryMotion.appearAnimation) {
                 isFloatingFormatBarPresented = true
                 floatingFormatBarKeyboardHeight = 0
             }
             toolbarVisibilityDebugRevision += 1
         } else if !keyboardMonitor.isVisible {
             recordToolbarLifecycle("selection-hide-no-keyboard", details: "source=\(source) \(toolbarLifecycleDetails())")
-            withAnimation(EditorKeyboardAccessoryMotion.animation) {
+            withAnimation(EditorKeyboardAccessoryMotion.dismissAnimation) {
                 isFloatingFormatBarPresented = false
                 floatingFormatBarKeyboardHeight = 0
             }
@@ -895,7 +895,7 @@ struct FlashcardEditorView: View {
         floatingFormatBarPresentationTask = nil
         focusManager.suppressFocusRequests(for: 0.9, releasesKeyboard: false)
         recordToolbarLifecycle("dismiss-fade-start", details: toolbarLifecycleDetails())
-        withAnimation(EditorKeyboardAccessoryMotion.animation) {
+        withAnimation(EditorKeyboardAccessoryMotion.dismissAnimation) {
             isFloatingFormatBarPresented = false
         }
         toolbarVisibilityDebugRevision += 1
@@ -1611,13 +1611,15 @@ struct FlashcardEditorView: View {
 }
 
 private enum EditorKeyboardAccessoryMotion {
-    static let animation: Animation = .snappy(duration: 0.18, extraBounce: 0.02)
-    static let cleanupDelay: Duration = .milliseconds(190)
-    static let keyboardDismissDelay: Duration = .milliseconds(180)
+    static let appearAnimation: Animation = .easeOut(duration: 0.12)
+    static let dismissAnimation: Animation = .easeOut(duration: 0.10)
+    static let cleanupDelay: Duration = .milliseconds(140)
+    static let keyboardDismissDelay: Duration = .milliseconds(105)
 
     static func keyboardAppearMenuDelay(keyboardDuration: TimeInterval) -> Duration {
         let clampedDuration = min(max(keyboardDuration, 0.16), 0.30)
-        return .milliseconds(Int((clampedDuration * 1000).rounded()))
+        let delay = max(0.08, clampedDuration - 0.06)
+        return .milliseconds(Int((delay * 1000).rounded()))
     }
 }
 
@@ -1627,10 +1629,15 @@ private struct EditorKeyboardAccessoryVisibilityModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(isVisible ? 1 : 0.001)
-            .blur(radius: isVisible ? 0 : 6)
-            .scaleEffect(isVisible ? 1 : 0.972, anchor: .bottom)
+            .blur(radius: isVisible ? 0 : 4)
+            .scaleEffect(isVisible ? 1 : 0.985, anchor: .bottom)
             .allowsHitTesting(isVisible)
-            .animation(EditorKeyboardAccessoryMotion.animation, value: isVisible)
+            .animation(
+                isVisible
+                    ? EditorKeyboardAccessoryMotion.appearAnimation
+                    : EditorKeyboardAccessoryMotion.dismissAnimation,
+                value: isVisible
+            )
     }
 }
 
