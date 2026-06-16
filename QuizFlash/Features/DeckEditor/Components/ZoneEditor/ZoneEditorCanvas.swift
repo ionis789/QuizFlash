@@ -197,9 +197,13 @@ struct ZoneEditorCanvas: View {
             let rawKeyboardCreationInset = keyboardMonitor.isVisible
                 ? max(keyboardMonitor.visibleHeight + legacyRawBottomChromeClearance, 160)
                 : rawBottomAccessoryInset
-            let bottomScrollInset = rendersRichText
+            let requestedBottomScrollInset = rendersRichText
                 ? dynamicBottomScrollInset
                 : rawKeyboardCreationInset
+            let bottomScrollInset = contentNeedsBottomScrollInset(
+                contentWidth: contentWidth,
+                contentHeight: contentHeight
+            ) ? requestedBottomScrollInset : 0
             let minimumScrollContentHeight = editorViewportHeight
 
             ScrollViewReader { _ in
@@ -2317,6 +2321,14 @@ struct ZoneEditorCanvas: View {
             measuredContentSize: measuredContentSize,
             verticalAlignment: .top
         )
+    }
+
+    private func contentNeedsBottomScrollInset(contentWidth: CGFloat, contentHeight: CGFloat) -> Bool {
+        let layout = contentLayoutMetrics(
+            contentSize: CGSize(width: contentWidth, height: contentHeight)
+        )
+
+        return ceil(layout.contentBodyHeight) > floor(contentHeight)
     }
 
     private func measuredContentBodySize(contentWidth: CGFloat) -> CGSize {
