@@ -758,7 +758,14 @@ private struct ZoneContentTreePreview: View {
             case .empty:
                 return min(max(resolvedTextHorizontalPadding + 8, 1), availableWidth)
             case .image, .sketch:
-                return 1
+                let estimatedWidth = ZoneContentEstimator.estimatedBlockWidth(
+                    for: child,
+                    fontScale: fontScale,
+                    availableWidth: availableWidth,
+                    textVerticalPadding: textVerticalPadding,
+                    textHorizontalPaddingOverride: textHorizontalPaddingOverride
+                )
+                return min(max(ceil(estimatedWidth), 1), availableWidth)
             }
         }
 
