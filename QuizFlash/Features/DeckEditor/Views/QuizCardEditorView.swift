@@ -39,6 +39,10 @@ struct QuizCardEditorView: View {
     @State private var floatingFormatBarPresentationTask: Task<Void, Never>?
     @State private var keyboardDebugRevision = 0
     @State private var toolbarVisibilityDebugRevision = 0
+    @State private var quizScrollDriver = ZoneEditorScrollDriver()
+    @State private var scheduledCaretScrollTask: Task<Void, Never>?
+    @State private var activeQuizCaretPathID: String?
+    @State private var activeQuizCaretWindowRect: CGRect?
 
     private let textSize: FlashcardTextSize
     private let onSave: (QuizCardContent) -> Void
@@ -201,43 +205,38 @@ struct QuizCardEditorView: View {
             ZStack(alignment: .top) {
                 editorBackground.ignoresSafeArea()
 
-                ScrollViewReader { scrollProxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                            questionSection(availableWidth: contentWidth)
-                                .id(QuizEditorScrollTarget.question)
-                            quizZoneSeparator
-                            answersSection(availableWidth: contentWidth)
-                            quizZoneSeparator
-                            addAnswerButton
-                                .id(QuizEditorScrollTarget.addAnswer)
-                            quizZoneSeparator
-                            explanationSection(availableWidth: contentWidth)
-                                .id(QuizEditorScrollTarget.explanation)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.top, UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + UIConstants.Spacing.large)
-                        .padding(.bottom, bottomContentPadding)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+                        questionSection(availableWidth: contentWidth)
+                        quizZoneSeparator
+                        answersSection(availableWidth: contentWidth)
+                        quizZoneSeparator
+                        addAnswerButton
+                        quizZoneSeparator
+                        explanationSection(availableWidth: contentWidth)
                     }
-                    .scrollDismissesKeyboard(.interactively)
-                    .screenEdgeShadow(
-                        topHeight: editorTopBlurHeight(safeTopInset: safeTopInset),
-                        debugScreenID: "quiz.editor",
-                        style: .progressiveBlur()
-                    )
-                    .onScrollViewEmptySpaceTap(isActive: isFormatBarVisible) {
-                        dismissFormatBar()
+                    .padding(.horizontal, 8)
+                    .padding(.top, UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + UIConstants.Spacing.large)
+                    .padding(.bottom, bottomContentPadding)
+                }
+                .background {
+                    ZoneEditorScrollViewLocator { scrollView in
+                        quizScrollDriver.attach(scrollView)
+                        quizScrollDriver.setTopInset(0)
+                        quizScrollDriver.resetBottomInset()
                     }
-                    .onChange(of: activeEditor) { _, target in
-                        scrollFocusedSectionIfNeeded(target, using: scrollProxy, delay: .milliseconds(120))
-                    }
-                    .onChange(of: currentSelectedPath?.id) { _, _ in
-                        scrollFocusedSectionIfNeeded(activeEditor, using: scrollProxy, delay: .milliseconds(80))
-                    }
-                    .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
-                        guard isVisible else { return }
-                        scrollFocusedSectionIfNeeded(activeEditor, using: scrollProxy, delay: .milliseconds(180))
-                    }
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .screenEdgeShadow(
+                    topHeight: editorTopBlurHeight(safeTopInset: safeTopInset),
+                    debugScreenID: "quiz.editor",
+                    style: .progressiveBlur()
+                )
+                .onScrollViewEmptySpaceTap(isActive: isFormatBarVisible) {
+                    dismissFormatBar()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .zoneEditorCaretMoved)) { notification in
+                    handleCaretMovedNotification(notification)
                 }
 
                 topChrome
@@ -260,6 +259,12 @@ struct QuizCardEditorView: View {
                 details: "visible=\(debugFlag(isVisible)) \(toolbarLifecycleDetails())"
             )
             updateFloatingFormatBarPresentation(isKeyboardVisible: isVisible)
+            if isVisible {
+                scheduleStoredQuizCaretScroll(delay: .milliseconds(24))
+            } else {
+                scheduledCaretScrollTask?.cancel()
+                scheduledCaretScrollTask = nil
+            }
         }
         .onChange(of: keyboardMonitor.visibleHeight) { _, _ in
             recordToolbarLifecycle(
@@ -267,6 +272,7 @@ struct QuizCardEditorView: View {
                 details: "height=\(debugValue(keyboardMonitor.visibleHeight)) \(toolbarLifecycleDetails())"
             )
             updateFloatingFormatBarKeyboardHeight()
+            scheduleStoredQuizCaretScroll(delay: .milliseconds(24))
         }
         .fullScreenCover(isPresented: $showSketchModal) {
             CanvasModalView { data in
@@ -301,6 +307,11 @@ struct QuizCardEditorView: View {
             pendingDeleteTask = nil
             floatingFormatBarPresentationTask?.cancel()
             floatingFormatBarPresentationTask = nil
+            scheduledCaretScrollTask?.cancel()
+            scheduledCaretScrollTask = nil
+            activeQuizCaretPathID = nil
+            activeQuizCaretWindowRect = nil
+            quizScrollDriver.detach()
         }
     }
 
@@ -374,6 +385,10 @@ struct QuizCardEditorView: View {
 
     private var floatingFormatBarYOffset: CGFloat {
         -floatingFormatBarKeyboardHeight
+    }
+
+    private var floatingToolbarAccessoryHeight: CGFloat {
+        isFloatingFormatBarVisible ? 96 : 0
     }
 
     private var selectedZoneIsMedia: Bool {
@@ -593,6 +608,14 @@ struct QuizCardEditorView: View {
         String(format: "%.1f", value)
     }
 
+    private func debugOptionalValue(_ value: CGFloat?) -> String {
+        value.map(debugValue) ?? "nil"
+    }
+
+    private func debugRect(_ rect: CGRect) -> String {
+        "\(debugValue(rect.minX)),\(debugValue(rect.minY)),\(debugValue(rect.width))x\(debugValue(rect.height))"
+    }
+
     private func debugDuration(_ duration: Duration) -> String {
         let components = duration.components
         let milliseconds = components.seconds * 1_000 + components.attoseconds / 1_000_000_000_000_000
@@ -742,7 +765,6 @@ struct QuizCardEditorView: View {
                         }
                     )
                 }
-                .id(QuizEditorScrollTarget.choice(choice.id))
 
                 if index < choices.count - 1 {
                     quizZoneSeparator
@@ -977,43 +999,145 @@ struct QuizCardEditorView: View {
         }
     }
 
-    private func scrollFocusedSectionIfNeeded(
-        _ target: QuizEditorTarget,
-        using scrollProxy: ScrollViewProxy,
-        delay: Duration
-    ) {
-        guard currentSelectedPath != nil else { return }
-        let expectedTarget = scrollTarget(for: target)
+    private func handleCaretMovedNotification(_ notification: Notification) {
+        let notificationPathID = notification.userInfo?[ZoneEditorCaretScrollNotification.pathIDKey] as? String
+        let caretRect = caretWindowRect(from: notification)
+        recordQuizScroll(
+            "quiz.scroll-caret-received",
+            pathID: notificationPathID,
+            details: "rect=\(caretRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
+        )
 
-        Task { @MainActor in
+        guard let notificationPathID,
+              currentSelectedPath?.id == notificationPathID,
+              focusManager.focusedZoneID == currentSelectedZoneID else {
+            recordQuizScroll(
+                "quiz.scroll-skip-not-active-path",
+                pathID: notificationPathID,
+                details: "activeSelected=\(currentSelectedPath?.id ?? "nil") focused=\(shortDebugID(focusManager.focusedZoneID)) currentZone=\(shortDebugID(currentSelectedZoneID)) \(quizScrollDetails(proposedDelta: nil))"
+            )
+            return
+        }
+
+        activeQuizCaretPathID = notificationPathID
+        activeQuizCaretWindowRect = caretRect
+
+        guard keyboardMonitor.isVisible else {
+            recordQuizScroll(
+                "quiz.scroll-skip-visible",
+                pathID: notificationPathID,
+                details: "reason=keyboard-hidden \(quizScrollDetails(proposedDelta: nil))"
+            )
+            return
+        }
+
+        guard let caretRect else {
+            recordQuizScroll(
+                "quiz.scroll-skip-visible",
+                pathID: notificationPathID,
+                details: "reason=no-caret-rect \(quizScrollDetails(proposedDelta: nil))"
+            )
+            return
+        }
+
+        scheduleStoredQuizCaretScroll(delay: .milliseconds(16))
+    }
+
+    private func scheduleStoredQuizCaretScroll(delay: Duration) {
+        guard let pathID = activeQuizCaretPathID,
+              let caretRect = activeQuizCaretWindowRect,
+              currentSelectedPath?.id == pathID,
+              focusManager.focusedZoneID == currentSelectedZoneID,
+              keyboardMonitor.isVisible else { return }
+
+        scheduledCaretScrollTask?.cancel()
+        scheduledCaretScrollTask = Task { @MainActor in
             try? await Task.sleep(for: delay)
-            guard currentSelectedPath != nil,
-                  scrollTarget(for: activeEditor) == expectedTarget else { return }
+            guard !Task.isCancelled,
+                  currentSelectedPath?.id == pathID,
+                  focusManager.focusedZoneID == currentSelectedZoneID,
+                  keyboardMonitor.isVisible else { return }
 
-            withAnimation(.easeInOut(duration: 0.22)) {
-                scrollProxy.scrollTo(expectedTarget, anchor: scrollAnchor(for: target))
-            }
+            scrollQuizCaretDownIfNeeded(caretRect, pathID: pathID)
         }
     }
 
-    private func scrollTarget(for target: QuizEditorTarget) -> QuizEditorScrollTarget {
-        switch target {
-        case .question:
-            return .question
-        case .choice(let choiceID):
-            return .choice(choiceID)
-        case .explanation:
-            return .explanation
+    private func scrollQuizCaretDownIfNeeded(_ caretRect: CGRect, pathID: String) {
+        let visibleBottomY = quizVisibleBottomWindowY()
+        let proposedDelta = caretRect.maxY - visibleBottomY
+        guard proposedDelta > 0 else {
+            let stage = proposedDelta < -140 ? "quiz.scroll-skip-upward" : "quiz.scroll-skip-visible"
+            recordQuizScroll(
+                stage,
+                pathID: pathID,
+                details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+            )
+            return
         }
+
+        let didScroll = quizScrollDriver.scrollWindowRectAboveBottomChromeIfNeeded(
+            windowRect: caretRect,
+            bottomChromeTopY: nil,
+            keyboardHeight: keyboardMonitor.visibleHeight,
+            bottomAccessoryHeight: floatingToolbarAccessoryHeight,
+            bottomBuffer: quizCaretBottomChromeBuffer,
+            animationDuration: quizCaretScrollAnimationDuration,
+            animationOptions: keyboardMonitor.animationOptions,
+            zoneID: currentSelectedZoneID
+        )
+
+        recordQuizScroll(
+            didScroll ? "quiz.scroll-apply-down" : "quiz.scroll-skip-visible",
+            pathID: pathID,
+            details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+        )
     }
 
-    private func scrollAnchor(for target: QuizEditorTarget) -> UnitPoint {
-        switch target {
-        case .question:
-            return .top
-        case .choice, .explanation:
-            return .center
+    private func caretWindowRect(from notification: Notification) -> CGRect? {
+        guard let value = notification.userInfo?[ZoneEditorCaretScrollNotification.caretRectInWindowKey] else {
+            return nil
         }
+
+        if let rectValue = value as? NSValue {
+            return rectValue.cgRectValue
+        }
+
+        return value as? CGRect
+    }
+
+    private func quizVisibleBottomWindowY() -> CGFloat {
+        let viewportBottomY = UIScreen.main.bounds.maxY - quizCaretBottomChromeBuffer
+        let chromeTopY = UIScreen.main.bounds.maxY
+            - max(keyboardMonitor.visibleHeight, 0)
+            - max(floatingToolbarAccessoryHeight, 0)
+        return min(viewportBottomY, chromeTopY - quizCaretBottomChromeBuffer)
+    }
+
+    private var quizCaretBottomChromeBuffer: CGFloat {
+        100
+    }
+
+    private var quizCaretScrollAnimationDuration: TimeInterval {
+        guard keyboardMonitor.isVisible else { return 0.16 }
+        return min(max(keyboardMonitor.animationDuration, 0.12), 0.28)
+    }
+
+    private func recordQuizScroll(_ stage: String, pathID: String?, details: String) {
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            stage,
+            zoneID: currentSelectedZoneID,
+            pathID: pathID,
+            details: details
+        )
+    }
+
+    private func quizScrollDetails(proposedDelta: CGFloat?) -> String {
+        "target=\(debugTargetID(activeEditor)) kb=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) toolbar=\(debugValue(floatingToolbarAccessoryHeight)) offset=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) delta=\(debugOptionalValue(proposedDelta)) selected=\(currentSelectedPath?.id ?? "nil")"
+    }
+
+    private func shortDebugID(_ id: UUID?) -> String {
+        guard let id else { return "nil" }
+        return String(id.uuidString.prefix(6))
     }
 
     private func addChoice() {
@@ -1256,13 +1380,6 @@ struct QuizCardEditorView: View {
 private enum QuizEditorTarget: Equatable {
     case question
     case choice(UUID)
-    case explanation
-}
-
-private enum QuizEditorScrollTarget: Hashable {
-    case question
-    case choice(UUID)
-    case addAnswer
     case explanation
 }
 
