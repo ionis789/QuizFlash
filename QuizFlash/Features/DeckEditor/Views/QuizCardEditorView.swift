@@ -1043,6 +1043,11 @@ struct QuizCardEditorView: View {
             pathID: notificationPathID,
             details: "rect=\(caretRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
         )
+        recordQuizScrollState(
+            "quiz.scroll-state-caret-received",
+            pathID: notificationPathID,
+            extra: "rect=\(caretRect.map(debugRect) ?? "nil")"
+        )
 
         guard let notificationPathID,
               currentSelectedPath?.id == notificationPathID,
@@ -1138,6 +1143,11 @@ struct QuizCardEditorView: View {
                     pathID: activeQuizCaretPathID,
                     details: "pass=\(index + 1) delay=\(debugDuration(delay)) rect=\(activeQuizCaretWindowRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
                 )
+                recordQuizScrollState(
+                    "quiz.scroll-state-run",
+                    pathID: activeQuizCaretPathID,
+                    extra: "pass=\(index + 1) delay=\(debugDuration(delay))"
+                )
 
                 guard let pathID = activeQuizCaretPathID,
                       currentSelectedPath?.id == pathID else {
@@ -1170,6 +1180,13 @@ struct QuizCardEditorView: View {
     private func scrollQuizCaretDownIfNeeded(_ caretRect: CGRect, pathID: String) -> Bool {
         let visibleBottomY = quizVisibleBottomWindowY()
         let proposedDelta = caretRect.maxY - visibleBottomY
+        let probeID = "\(pathID)-\(Int(Date().timeIntervalSince1970 * 1_000))"
+
+        recordQuizScrollState(
+            "quiz.scroll-probe-start",
+            pathID: pathID,
+            extra: "probe=\(probeID) rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta))"
+        )
 
         let resolvedBottomInset = quizScrollDriver.ensureBottomInsetAllowsWindowRectScroll(
             windowRect: caretRect,
@@ -1179,6 +1196,11 @@ struct QuizCardEditorView: View {
             bottomBuffer: quizCaretBottomChromeBuffer,
             minimumBottomInset: bottomContentPadding,
             zoneID: currentSelectedZoneID
+        )
+        recordQuizScrollState(
+            "quiz.scroll-probe-after-inset",
+            pathID: pathID,
+            extra: "probe=\(probeID) resolvedInset=\(debugValue(resolvedBottomInset))"
         )
 
         let didScroll = quizScrollDriver.scrollWindowRectAboveBottomChromeIfNeeded(
@@ -1191,6 +1213,12 @@ struct QuizCardEditorView: View {
             animationOptions: keyboardMonitor.animationOptions,
             zoneID: currentSelectedZoneID
         )
+        recordQuizScrollState(
+            "quiz.scroll-probe-after-request",
+            pathID: pathID,
+            extra: "probe=\(probeID) didScroll=\(debugFlag(didScroll))"
+        )
+        scheduleQuizScrollStateProbe(probeID: probeID, pathID: pathID)
 
         let skippedStage = proposedDelta < -140 ? "quiz.scroll-skip-upward" : "quiz.scroll-skip-visible"
         recordQuizScroll(
@@ -1199,6 +1227,23 @@ struct QuizCardEditorView: View {
             details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) resolvedInset=\(debugValue(resolvedBottomInset)) didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: proposedDelta))"
         )
         return didScroll
+    }
+
+    private func recordQuizScrollState(_ stage: String, pathID: String?, extra: String) {
+        quizScrollDriver.recordDebugSnapshot(
+            stage,
+            zoneID: currentSelectedZoneID,
+            extra: "path=\(pathID ?? "nil") \(extra) \(quizScrollDetails(proposedDelta: nil))"
+        )
+    }
+
+    private func scheduleQuizScrollStateProbe(probeID: String, pathID: String) {
+        quizScrollDriver.scheduleDebugSnapshots(
+            prefix: "quiz.scroll-probe-\(probeID)",
+            delays: [0.016, 0.05, 0.10, 0.18, 0.30, 0.50],
+            zoneID: currentSelectedZoneID,
+            extra: "path=\(pathID) target=\(debugTargetID(activeEditor))"
+        )
     }
 
     private func caretWindowRect(from notification: Notification) -> CGRect? {

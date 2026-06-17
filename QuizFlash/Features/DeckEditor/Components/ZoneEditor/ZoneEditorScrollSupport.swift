@@ -119,6 +119,47 @@ final class ZoneEditorScrollDriver {
         setBottomInset(0)
     }
 
+    func debugSnapshotDetails() -> String {
+        guard let scrollView else { return "scrollView=nil" }
+        return scrollSnapshotDetails(in: scrollView)
+    }
+
+    func recordDebugSnapshot(_ stage: String, zoneID: UUID?, extra: String = "") {
+        guard let scrollView else {
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                stage,
+                zoneID: zoneID,
+                details: "\(extra.isEmpty ? "" : "\(extra) ")scrollView=nil"
+            )
+            return
+        }
+
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            stage,
+            zoneID: zoneID,
+            details: "\(extra.isEmpty ? "" : "\(extra) ")\(scrollSnapshotDetails(in: scrollView))"
+        )
+    }
+
+    func scheduleDebugSnapshots(
+        prefix: String,
+        delays: [TimeInterval],
+        zoneID: UUID?,
+        extra: String = ""
+    ) {
+        for delay in delays {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(delay))
+                guard let self else { return }
+                self.recordDebugSnapshot(
+                    "\(prefix)-\(Int(delay * 1_000))ms",
+                    zoneID: zoneID,
+                    extra: extra
+                )
+            }
+        }
+    }
+
     @discardableResult
     func ensureBottomInsetAllowsWindowRectScroll(
         windowRect: CGRect,
@@ -559,8 +600,43 @@ final class ZoneEditorScrollDriver {
         return min(max(offsetY, minOffsetY), maxOffsetY)
     }
 
+    private func scrollSnapshotDetails(in scrollView: UIScrollView) -> String {
+        let minOffsetY = -scrollView.adjustedContentInset.top
+        let maxOffsetY = max(
+            minOffsetY,
+            scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom
+        )
+        let presentationBounds = scrollView.layer.presentation()?.bounds
+        let animationKeys = scrollView.layer.animationKeys()?.joined(separator: "|") ?? "none"
+
+        return [
+            "id=\(debugObjectID(scrollView))",
+            "offset=\(debugPoint(scrollView.contentOffset))",
+            "normalized=\(debugValue(scrollView.contentOffset.y + scrollView.adjustedContentInset.top))",
+            "min=\(debugValue(minOffsetY))",
+            "max=\(debugValue(maxOffsetY))",
+            "contentInset=\(debugInsets(scrollView.contentInset))",
+            "adjusted=\(debugInsets(scrollView.adjustedContentInset))",
+            "indicator=\(debugInsets(scrollView.verticalScrollIndicatorInsets))",
+            "pending=\(debugValue(pendingTopInset))/\(debugValue(pendingBottomInset))",
+            "applied=\(debugValue(appliedTopInset))/\(debugValue(appliedBottomInset))",
+            "content=\(debugSize(scrollView.contentSize))",
+            "bounds=\(debugRect(scrollView.bounds))",
+            "presentationY=\(debugOptionalValue(presentationBounds?.origin.y))",
+            "tracking=\(scrollView.isTracking ? 1 : 0)",
+            "dragging=\(scrollView.isDragging ? 1 : 0)",
+            "decel=\(scrollView.isDecelerating ? 1 : 0)",
+            "window=\(scrollView.window == nil ? 0 : 1)",
+            "anim=\(animationKeys)"
+        ].joined(separator: " ")
+    }
+
     private func debugRect(_ rect: CGRect) -> String {
         "\(debugValue(rect.minX)),\(debugValue(rect.minY)),\(debugValue(rect.width))x\(debugValue(rect.height))"
+    }
+
+    private func debugPoint(_ point: CGPoint) -> String {
+        "\(debugValue(point.x)),\(debugValue(point.y))"
     }
 
     private func debugSize(_ size: CGSize) -> String {
@@ -578,6 +654,10 @@ final class ZoneEditorScrollDriver {
     private func debugValue(_ value: CGFloat) -> String {
         guard value.isFinite else { return value.description }
         return String(format: "%.1f", Double(value))
+    }
+
+    private func debugObjectID(_ object: AnyObject) -> String {
+        String(describing: ObjectIdentifier(object))
     }
 }
 
