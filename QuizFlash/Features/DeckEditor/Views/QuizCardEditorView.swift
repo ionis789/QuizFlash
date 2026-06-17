@@ -806,10 +806,9 @@ struct QuizCardEditorView: View {
             .frame(width: 26, height: 26)
             .contentShape(Circle())
             .scaleEffect(isPending ? 1.28 : 1)
-            .symbolEffect(.bounce, value: isPending)
         }
         .buttonStyle(.plain)
-        .animation(.spring(response: 0.28, dampingFraction: 0.72), value: isPending)
+        .animation(.easeOut(duration: 0.16), value: isPending)
         .accessibilityLabel(isPending ? localized("Delete?") : localized("Delete"))
     }
 
@@ -1022,7 +1021,7 @@ struct QuizCardEditorView: View {
         }
 
         pendingDeleteTask?.cancel()
-        withAnimation(.spring(response: 0.24, dampingFraction: 0.84)) {
+        withAnimation(.easeOut(duration: 0.16)) {
             pendingDeleteChoiceID = choiceID
         }
 
@@ -1045,7 +1044,7 @@ struct QuizCardEditorView: View {
         }
 
         if animated {
-            withAnimation(.spring(response: 0.24, dampingFraction: 0.84)) {
+            withAnimation(.easeInOut(duration: 0.14)) {
                 clear()
             }
         } else {
@@ -1329,7 +1328,6 @@ private struct QuizChoiceCard: View {
                 previewDirection: $previewDirection
             )
                 .frame(width: availableWidth, alignment: .topLeading)
-                .frame(minHeight: 72, alignment: .top)
         }
             .onTapGesture {
             onActivate()
