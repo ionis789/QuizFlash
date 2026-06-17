@@ -19,10 +19,10 @@ struct QuizCardEditorView: View {
 
     @State private var highlightContext: HighlightContext?
     @State private var questionContent: ZoneCardContent
-    @State private var questionSelectedPath: ZonePath? = .root
+    @State private var questionSelectedPath: ZonePath?
     @State private var choices: [QuizChoiceEditorItem]
     @State private var explanationContent: ZoneCardContent?
-    @State private var explanationSelectedPath: ZonePath? = .root
+    @State private var explanationSelectedPath: ZonePath?
     @State private var isExplanationExpanded: Bool
     @State private var activeEditor: QuizEditorTarget = .question
     @State private var previewDirection: AddDirection? = nil
@@ -85,7 +85,7 @@ struct QuizCardEditorView: View {
                 id: $0.id,
                 content: ZoneCardContent(rootZone: $0.contentZone),
                 isCorrect: $0.isCorrect,
-                selectedPath: .root
+                selectedPath: nil
             )
         }
         if seededChoices.count < 2 {
@@ -201,28 +201,43 @@ struct QuizCardEditorView: View {
             ZStack(alignment: .top) {
                 editorBackground.ignoresSafeArea()
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                        questionSection(availableWidth: contentWidth)
-                        quizZoneSeparator
-                        answersSection(availableWidth: contentWidth)
-                        quizZoneSeparator
-                        addAnswerButton
-                        quizZoneSeparator
-                        explanationSection(availableWidth: contentWidth)
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+                            questionSection(availableWidth: contentWidth)
+                                .id(QuizEditorScrollTarget.question)
+                            quizZoneSeparator
+                            answersSection(availableWidth: contentWidth)
+                            quizZoneSeparator
+                            addAnswerButton
+                                .id(QuizEditorScrollTarget.addAnswer)
+                            quizZoneSeparator
+                            explanationSection(availableWidth: contentWidth)
+                                .id(QuizEditorScrollTarget.explanation)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.top, UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + UIConstants.Spacing.large)
+                        .padding(.bottom, bottomContentPadding)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.top, UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + UIConstants.Spacing.large)
-                    .padding(.bottom, bottomContentPadding)
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .screenEdgeShadow(
-                    topHeight: editorTopBlurHeight(safeTopInset: safeTopInset),
-                    debugScreenID: "quiz.editor",
-                    style: .progressiveBlur()
-                )
-                .onScrollViewEmptySpaceTap(isActive: isFormatBarVisible) {
-                    dismissFormatBar()
+                    .scrollDismissesKeyboard(.interactively)
+                    .screenEdgeShadow(
+                        topHeight: editorTopBlurHeight(safeTopInset: safeTopInset),
+                        debugScreenID: "quiz.editor",
+                        style: .progressiveBlur()
+                    )
+                    .onScrollViewEmptySpaceTap(isActive: isFormatBarVisible) {
+                        dismissFormatBar()
+                    }
+                    .onChange(of: activeEditor) { _, target in
+                        scrollFocusedSectionIfNeeded(target, using: scrollProxy, delay: .milliseconds(120))
+                    }
+                    .onChange(of: currentSelectedPath?.id) { _, _ in
+                        scrollFocusedSectionIfNeeded(activeEditor, using: scrollProxy, delay: .milliseconds(80))
+                    }
+                    .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
+                        guard isVisible else { return }
+                        scrollFocusedSectionIfNeeded(activeEditor, using: scrollProxy, delay: .milliseconds(180))
+                    }
                 }
 
                 topChrome
@@ -278,15 +293,6 @@ struct QuizCardEditorView: View {
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: previewDirection)
         .swipeBack(enabled: canUseInteractiveDismiss) {
             dismiss()
-        }
-        .task {
-            if questionSelectedPath == nil {
-                questionSelectedPath = .root
-            }
-
-            if highlightContext == nil || highlightContext?.isDismissed == true {
-                requestFocus(for: questionContent.rootZone.id, delaySeconds: 0.35)
-            }
         }
         .onDisappear {
             markedCorrectIndicatorTask?.cancel()
@@ -736,6 +742,7 @@ struct QuizCardEditorView: View {
                         }
                     )
                 }
+                .id(QuizEditorScrollTarget.choice(choice.id))
 
                 if index < choices.count - 1 {
                     quizZoneSeparator
@@ -970,6 +977,45 @@ struct QuizCardEditorView: View {
         }
     }
 
+    private func scrollFocusedSectionIfNeeded(
+        _ target: QuizEditorTarget,
+        using scrollProxy: ScrollViewProxy,
+        delay: Duration
+    ) {
+        guard currentSelectedPath != nil else { return }
+        let expectedTarget = scrollTarget(for: target)
+
+        Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            guard currentSelectedPath != nil,
+                  scrollTarget(for: activeEditor) == expectedTarget else { return }
+
+            withAnimation(.easeInOut(duration: 0.22)) {
+                scrollProxy.scrollTo(expectedTarget, anchor: scrollAnchor(for: target))
+            }
+        }
+    }
+
+    private func scrollTarget(for target: QuizEditorTarget) -> QuizEditorScrollTarget {
+        switch target {
+        case .question:
+            return .question
+        case .choice(let choiceID):
+            return .choice(choiceID)
+        case .explanation:
+            return .explanation
+        }
+    }
+
+    private func scrollAnchor(for target: QuizEditorTarget) -> UnitPoint {
+        switch target {
+        case .question:
+            return .top
+        case .choice, .explanation:
+            return .center
+        }
+    }
+
     private func addChoice() {
         let newChoice = QuizChoiceEditorItem()
 
@@ -1087,24 +1133,39 @@ struct QuizCardEditorView: View {
     private func addExplanation() {
         let newExplanationContent = ZoneCardContent(rootZone: .text())
 
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.84)) {
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
             explanationContent = newExplanationContent
             explanationSelectedPath = .root
             isExplanationExpanded = true
             activateEditor(.explanation)
         }
 
-        requestFocus(for: newExplanationContent.rootZone.id)
+        requestFocus(for: newExplanationContent.rootZone.id, delaySeconds: 0.12)
     }
 
     private func removeExplanation() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) {
+        let wasActiveExplanation = activeEditor == .explanation
+
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
             explanationContent = nil
-            explanationSelectedPath = .root
+            explanationSelectedPath = nil
             isExplanationExpanded = false
-            if activeEditor == .explanation {
-                activateEditor(.question)
+            if wasActiveExplanation {
+                activeEditor = .question
+                questionSelectedPath = nil
+                previewDirection = nil
             }
+        }
+
+        if wasActiveExplanation {
+            focusManager.forceReleaseKeyboard()
+            zoneController.forceReleaseKeyboard()
+            zoneController.updateFocusedZone(nil)
+            updateFloatingFormatBarPresentation(isKeyboardVisible: false)
         }
     }
 
@@ -1198,6 +1259,13 @@ private enum QuizEditorTarget: Equatable {
     case explanation
 }
 
+private enum QuizEditorScrollTarget: Hashable {
+    case question
+    case choice(UUID)
+    case addAnswer
+    case explanation
+}
+
 private enum QuizEditorStyle {
     static let buttonCornerRadius: CGFloat = 22
 }
@@ -1263,7 +1331,7 @@ private final class QuizChoiceEditorItem: Identifiable {
         id: UUID = UUID(),
         content: ZoneCardContent = ZoneCardContent(rootZone: .text()),
         isCorrect: Bool = false,
-        selectedPath: ZonePath? = .root
+        selectedPath: ZonePath? = nil
     ) {
         self.id = id
         self.content = content
