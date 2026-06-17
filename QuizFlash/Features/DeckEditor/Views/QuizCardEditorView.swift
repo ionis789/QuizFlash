@@ -806,9 +806,9 @@ struct QuizCardEditorView: View {
                 .foregroundStyle(.red)
             .frame(width: 26, height: 26)
             .contentShape(Circle())
-            .scaleEffect(isPending ? 1.28 : 1)
+            .scaleEffect(isPending ? 1.35 : 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QuizEditorControlButtonStyle(isActive: isPending))
         .animation(.easeOut(duration: 0.16), value: isPending)
         .accessibilityLabel(isPending ? localized("Delete?") : localized("Delete"))
     }
@@ -831,7 +831,7 @@ struct QuizCardEditorView: View {
             .frame(width: 26, height: 26)
             .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QuizEditorControlButtonStyle(isActive: isCorrect))
         .accessibilityLabel(isCorrect ? localized("Correct") : localized("Mark Correct"))
     }
 
@@ -857,7 +857,7 @@ struct QuizCardEditorView: View {
                                 .frame(width: 26, height: 26)
                                 .contentShape(Circle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(QuizEditorControlButtonStyle())
                         .accessibilityLabel(localized("Delete"))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1209,6 +1209,17 @@ private enum QuizEditorTarget: Equatable {
 
 private enum QuizEditorStyle {
     static let buttonCornerRadius: CGFloat = 22
+}
+
+private struct QuizEditorControlButtonStyle: ButtonStyle {
+    var isActive = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(isActive || configuration.isPressed ? 1 : 0.8)
+            .animation(.easeInOut(duration: 0.18), value: configuration.isPressed)
+            .animation(.easeInOut(duration: 0.18), value: isActive)
+    }
 }
 
 private enum EditorKeyboardAccessoryMotion {
