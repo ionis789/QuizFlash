@@ -708,9 +708,10 @@ struct QuizCardEditorView: View {
 
             ForEach(Array(choices.enumerated()), id: \.element.id) { index, choice in
 
-                VStack(spacing: UIConstants.Spacing.standard) {
+                VStack(spacing: 0) {
                     if index > 0 {
                         quizZoneSeparator
+                            .padding(.bottom, UIConstants.Spacing.standard)
                     }
 
                     choiceHeader(
@@ -798,19 +799,16 @@ struct QuizCardEditorView: View {
 
     private func deleteConfirmationButton(isPending: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            ZStack {
-                Circle()
-                    .fill(isPending ? Color.red.opacity(0.18) : Color(uiColor: .tertiarySystemFill))
-
-                Image(systemName: "trash")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.red)
-            }
+            Image(systemName: isPending ? "arrow.up.trash.fill" : "trash.fill")
+                .font(.system(size: isPending ? 18 : 17, weight: .bold))
+                .foregroundStyle(.red)
             .frame(width: 26, height: 26)
             .contentShape(Circle())
+            .scaleEffect(isPending ? 1.18 : 1)
+            .symbolEffect(.bounce, value: isPending)
         }
         .buttonStyle(.plain)
-        .animation(.spring(response: 0.24, dampingFraction: 0.84), value: isPending)
+        .animation(.spring(response: 0.28, dampingFraction: 0.62), value: isPending)
         .accessibilityLabel(isPending ? localized("Delete?") : localized("Delete"))
     }
 
