@@ -1182,7 +1182,8 @@ struct QuizCardEditorView: View {
             bottomBuffer: quizCaretBottomChromeBuffer,
             animationDuration: quizCaretScrollAnimationDuration,
             animationOptions: keyboardMonitor.animationOptions,
-            zoneID: currentSelectedZoneID
+            zoneID: currentSelectedZoneID,
+            enforcesFinalOffset: true
         )
 
         let skippedStage = proposedDelta < -140 ? "quiz.scroll-skip-upward" : "quiz.scroll-skip-visible"
