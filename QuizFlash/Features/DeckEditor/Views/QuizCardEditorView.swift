@@ -236,6 +236,7 @@ struct QuizCardEditorView: View {
                     }
                 }
                 .scrollDismissesKeyboard(.interactively)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
                 .screenEdgeShadow(
                     topHeight: editorTopBlurHeight(safeTopInset: safeTopInset),
                     debugScreenID: "quiz.editor",
