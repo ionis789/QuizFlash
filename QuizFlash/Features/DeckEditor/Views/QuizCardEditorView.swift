@@ -207,6 +207,8 @@ struct QuizCardEditorView: View {
                         quizZoneSeparator
                         answersSection(availableWidth: contentWidth)
                         quizZoneSeparator
+                        addAnswerButton
+                        quizZoneSeparator
                         explanationSection(availableWidth: contentWidth)
                     }
                     .padding(.horizontal, 8)
@@ -705,9 +707,7 @@ struct QuizCardEditorView: View {
 
     private func answersSection(availableWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-
             ForEach(Array(choices.enumerated()), id: \.element.id) { index, choice in
-
                 VStack(spacing: UIConstants.Spacing.standard) {
                     choiceHeader(
                         index: index,
@@ -742,27 +742,28 @@ struct QuizCardEditorView: View {
                         .padding(.vertical, UIConstants.Spacing.standard)
                 }
             }
+        }
+    }
 
-            Button {
-                addChoice()
-            } label: {
-                Label(localized("Add Answer"), systemImage: "plus")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(accent)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, UIConstants.Spacing.standard)
-                    .background(
+    private var addAnswerButton: some View {
+        Button {
+            addChoice()
+        } label: {
+            Label(localized("Add Answer"), systemImage: "plus")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(accent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, UIConstants.Spacing.standard)
+                .background(
                     Color(uiColor: .secondarySystemBackground),
                     in: RoundedRectangle(cornerRadius: QuizEditorStyle.buttonCornerRadius, style: .continuous)
                 )
-                    .overlay {
+                .overlay {
                     RoundedRectangle(cornerRadius: QuizEditorStyle.buttonCornerRadius, style: .continuous)
                         .stroke(accent.opacity(0.18), lineWidth: 1)
                 }
-            }
-                .buttonStyle(.plain)
-                .padding(.top, UIConstants.Spacing.standard)
         }
+        .buttonStyle(.plain)
     }
 
     private func choiceHeader(
@@ -839,25 +840,35 @@ struct QuizCardEditorView: View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             if let explanationContent {
                 if isExplanationExpanded {
+                    HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
+                        Text(localized("Explanation"))
+                            .font(.caption.weight(.heavy))
+                            .textCase(.uppercase)
+                            .foregroundStyle(.secondary)
+
+                        Spacer(minLength: UIConstants.Spacing.standard)
+
+                        Button(role: .destructive) {
+                            removeExplanation()
+                        } label: {
+                            Image(systemName: "trash.fill")
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundStyle(.red)
+                                .frame(width: 26, height: 26)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(localized("Delete"))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
                     QuizZoneSectionCard(
                         content: explanationContent,
                         selectedPath: binding(for: .explanation),
                         highlightContext: highlightContext,
                         fontScale: editorTextScale,
                         availableWidth: availableWidth,
-                        previewDirection: $previewDirection,
-                        trailingContent: {
-                            Button(role: .destructive) {
-                                removeExplanation()
-                            } label: {
-                                Image(systemName: "trash")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(.red)
-                                    .frame(width: 28, height: 28)
-                                    .background(Color.red.opacity(0.08), in: Circle())
-                            }
-                                .buttonStyle(.plain)
-                        }
+                        previewDirection: $previewDirection
                     ) {
                         activateEditor(.explanation)
                     }
