@@ -224,7 +224,7 @@ struct QuizCardEditorView: View {
                     ZoneEditorScrollViewLocator { scrollView in
                         quizScrollDriver.attach(scrollView)
                         quizScrollDriver.setTopInset(0)
-                        quizScrollDriver.resetBottomInset()
+                        quizScrollDriver.resetBottomInset(reason: "quiz.locator-resolve")
                     }
                     GeometryReader { geometry in
                         Color.clear
@@ -276,7 +276,7 @@ struct QuizCardEditorView: View {
             } else {
                 scheduledCaretScrollTask?.cancel()
                 scheduledCaretScrollTask = nil
-                quizScrollDriver.resetBottomInset()
+                quizScrollDriver.resetBottomInset(reason: "quiz.keyboard-hidden")
             }
         }
         .onChange(of: keyboardMonitor.visibleHeight) { _, _ in
