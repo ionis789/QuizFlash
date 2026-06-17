@@ -746,24 +746,30 @@ struct QuizCardEditorView: View {
     }
 
     private var addAnswerButton: some View {
-        Button {
+        addSectionButton(localized("Add Answer"), systemImage: "plus") {
             addChoice()
-        } label: {
-            Label(localized("Add Answer"), systemImage: "plus")
+        }
+    }
+
+    private func addSectionButton(
+        _ title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(accent)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, UIConstants.Spacing.standard)
-                .background(
-                    Color(uiColor: .secondarySystemBackground),
-                    in: RoundedRectangle(cornerRadius: QuizEditorStyle.buttonCornerRadius, style: .continuous)
-                )
+                .padding(.horizontal, UIConstants.Spacing.large)
+                .padding(.vertical, UIConstants.Spacing.small)
+                .background(accent.opacity(0.10), in: Capsule(style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: QuizEditorStyle.buttonCornerRadius, style: .continuous)
+                    Capsule(style: .continuous)
                         .stroke(accent.opacity(0.18), lineWidth: 1)
                 }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(QuizEditorAddButtonStyle())
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func choiceHeader(
@@ -898,24 +904,9 @@ struct QuizCardEditorView: View {
                         .buttonStyle(.plain)
                 }
             } else {
-                Button {
+                addSectionButton(localized("Add Explanation"), systemImage: "plus.bubble") {
                     addExplanation()
-                } label: {
-                    Label(localized("Add Explanation"), systemImage: "plus.bubble")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(accent)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, UIConstants.Spacing.standard)
-                        .background(
-                        Color(uiColor: .secondarySystemBackground),
-                        in: RoundedRectangle(cornerRadius: QuizEditorStyle.buttonCornerRadius, style: .continuous)
-                    )
-                        .overlay {
-                        RoundedRectangle(cornerRadius: QuizEditorStyle.buttonCornerRadius, style: .continuous)
-                            .stroke(accent.opacity(0.18), lineWidth: 1)
-                    }
                 }
-                    .buttonStyle(.plain)
             }
         }
     }
@@ -1219,6 +1210,15 @@ private struct QuizEditorControlButtonStyle: ButtonStyle {
             .opacity(isActive || configuration.isPressed ? 1 : 0.8)
             .animation(.easeInOut(duration: 0.18), value: configuration.isPressed)
             .animation(.easeInOut(duration: 0.18), value: isActive)
+    }
+}
+
+private struct QuizEditorAddButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 1 : 0.9)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.easeInOut(duration: 0.16), value: configuration.isPressed)
     }
 }
 
