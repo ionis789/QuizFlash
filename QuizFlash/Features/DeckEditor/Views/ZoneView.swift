@@ -127,6 +127,7 @@ struct ZoneEditorView: View {
     var measurementWidth: CGFloat
     var maxEditableZoneHeight: CGFloat?
     var rendersRichText: Bool
+    var showsZoneSurfaces: Bool
     var alignmentFeedback: ZoneAlignmentFeedback
     var previewDirection: Binding<AddDirection?>
 
@@ -145,6 +146,7 @@ struct ZoneEditorView: View {
         measurementWidth: CGFloat? = nil,
         maxEditableZoneHeight: CGFloat? = nil,
         rendersRichText: Bool = false,
+        showsZoneSurfaces: Bool = true,
         alignmentFeedback: ZoneAlignmentFeedback = .inactive,
         previewDirection: Binding<AddDirection?> = .constant(nil)
     ) {
@@ -157,6 +159,7 @@ struct ZoneEditorView: View {
         self.measurementWidth = measurementWidth ?? availableWidth
         self.maxEditableZoneHeight = maxEditableZoneHeight
         self.rendersRichText = rendersRichText
+        self.showsZoneSurfaces = showsZoneSurfaces
         self.alignmentFeedback = alignmentFeedback
         self.previewDirection = previewDirection
     }
@@ -183,6 +186,7 @@ struct ZoneEditorView: View {
             measurementWidth: measurementWidth,
             maxEditableZoneHeight: maxEditableZoneHeight,
             rendersRichText: rendersRichText,
+            showsZoneSurfaces: showsZoneSurfaces,
             onSelect: { selectZone() },
             previewDirection: previewDirection
         )
@@ -233,6 +237,7 @@ struct ZoneEditorView: View {
                     measurementWidth: measurementWidth,
                     maxEditableZoneHeight: maxEditableZoneHeight,
                     rendersRichText: rendersRichText,
+                    showsZoneSurfaces: showsZoneSurfaces,
                     alignmentFeedback: alignmentFeedback,
                     previewDirection: maskedPreviewDirection(for: isChildSelected)
                 )
@@ -510,6 +515,7 @@ struct ZoneContentView: View {
     var measurementWidth: CGFloat
     var maxEditableZoneHeight: CGFloat?
     var rendersRichText: Bool
+    var showsZoneSurfaces: Bool
     var onSelect: () -> Void
     @Binding var previewDirection: AddDirection?
 
@@ -540,6 +546,7 @@ struct ZoneContentView: View {
         measurementWidth: CGFloat? = nil,
         maxEditableZoneHeight: CGFloat? = nil,
         rendersRichText: Bool = false,
+        showsZoneSurfaces: Bool = true,
         onSelect: @escaping () -> Void,
         previewDirection: Binding<AddDirection?> = .constant(nil)
     ) {
@@ -552,6 +559,7 @@ struct ZoneContentView: View {
         self.measurementWidth = measurementWidth ?? availableWidth
         self.maxEditableZoneHeight = maxEditableZoneHeight
         self.rendersRichText = rendersRichText
+        self.showsZoneSurfaces = showsZoneSurfaces
         self.onSelect = onSelect
         self._previewDirection = previewDirection
     }
@@ -589,14 +597,18 @@ struct ZoneContentView: View {
 
             ZStack(alignment: .topLeading) {
                 blockFrameReporter(layout: layout, zone: zone)
-                blockSurface(layout: layout, zone: zone)
+                if showsZoneSurfaces {
+                    blockSurface(layout: layout, zone: zone)
+                }
 
-                selectionOutline(
-                    layout: layout,
-                    zone: zone,
-                    active: isTextViewFirstResponder,
-                    visible: isSelected
-                )
+                if showsZoneSurfaces {
+                    selectionOutline(
+                        layout: layout,
+                        zone: zone,
+                        active: isTextViewFirstResponder,
+                        visible: isSelected
+                    )
+                }
 
                 contentView(maxVisibleTextHeight: contentFrameHeight ?? maximumResizableHeight)
                     .frame(

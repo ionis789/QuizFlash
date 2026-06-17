@@ -202,19 +202,14 @@ struct QuizCardEditorView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
+                        questionEntryIndicator
                         questionSection
                         quizZoneSeparator
                         answersSection
                         quizZoneSeparator
                         explanationSection
-
-                        if let validationMessage {
-                            Label(validationMessage, systemImage: "exclamationmark.circle.fill")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.red)
-                        }
                     }
-                    .padding(.horizontal, UIConstants.Spacing.large)
+                    .padding(.horizontal, 8)
                     .padding(.top, UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + UIConstants.Spacing.large)
                     .padding(.bottom, bottomContentPadding)
                 }
@@ -690,34 +685,27 @@ struct QuizCardEditorView: View {
 
     private var questionSection: some View {
         QuizZoneSectionCard(
-            title: localized("QUESTION"),
-            subtitle: localized("Prompt"),
             content: questionContent,
             selectedPath: binding(for: .question),
             highlightContext: highlightContext,
             fontScale: editorTextScale,
-            style: .question,
             previewDirection: $previewDirection
         ) {
             activateEditor(.question)
         }
     }
 
+    private var questionEntryIndicator: some View {
+        Rectangle()
+            .fill(accent)
+            .frame(height: 3)
+            .accessibilityHidden(true)
+    }
+
     private var quizZoneSeparator: some View {
         Rectangle()
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color.clear,
-                        Color.primary.opacity(colorScheme == .dark ? 0.20 : 0.12),
-                        Color.clear
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
+            .fill(Color(uiColor: .separator))
             .frame(height: 1)
-            .padding(.horizontal, UIConstants.Spacing.small)
             .accessibilityHidden(true)
     }
 
@@ -869,33 +857,9 @@ struct QuizCardEditorView: View {
     @ViewBuilder
     private var explanationSection: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-            HStack {
-                HStack(spacing: 2) {
-                    Text(localized("EXPLANATION"))
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-
-                    Text("(" + localized("optional") + ")")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                if explanationContent != nil {
-                    Button(isExplanationExpanded ? localized("Collapse") : localized("Expand")) {
-                        isExplanationExpanded.toggle()
-                    }
-                        .font(.caption.weight(.semibold))
-                        .tint(accent)
-                }
-            }
-
             if let explanationContent {
                 if isExplanationExpanded {
                     QuizZoneSectionCard(
-                        title: localized("EXPLANATION"),
-                        subtitle: localized("Optional rationale"),
                         content: explanationContent,
                         selectedPath: binding(for: .explanation),
                         highlightContext: highlightContext,
@@ -1262,13 +1226,7 @@ private enum QuizEditorTarget: Equatable {
 }
 
 private enum QuizEditorStyle {
-    static let sectionCornerRadius: CGFloat = 30
     static let buttonCornerRadius: CGFloat = 22
-}
-
-private enum QuizZoneSectionStyle {
-    case standard
-    case question
 }
 
 private enum EditorKeyboardAccessoryMotion {
@@ -1323,111 +1281,49 @@ private final class QuizChoiceEditorItem: Identifiable {
 
 /// Shared zone-editor card chrome used by the question and explanation surfaces.
 private struct QuizZoneSectionCard<TrailingContent: View>: View {
-    let title: String
-    let subtitle: String
     let content: ZoneCardContent
     @Binding var selectedPath: ZonePath?
     var highlightContext: HighlightContext?
     let fontScale: CGFloat
-    let style: QuizZoneSectionStyle
     @Binding var previewDirection: AddDirection?
     @ViewBuilder var trailingContent: () -> TrailingContent
     let onActivate: () -> Void
 
-    @Environment(\.colorScheme) private var colorScheme
-    private var accent: Color { ThemeManager.shared.accentColor.color }
-
     init(
-        title: String,
-        subtitle: String,
         content: ZoneCardContent,
         selectedPath: Binding<ZonePath?>,
         highlightContext: HighlightContext?,
         fontScale: CGFloat,
-        style: QuizZoneSectionStyle = .standard,
         previewDirection: Binding<AddDirection?>,
         @ViewBuilder trailingContent: @escaping () -> TrailingContent = { EmptyView() },
         onActivate: @escaping () -> Void
     ) {
-        self.title = title
-        self.subtitle = subtitle
         self.content = content
         self._selectedPath = selectedPath
         self.highlightContext = highlightContext
         self.fontScale = fontScale
-        self.style = style
         self._previewDirection = previewDirection
         self.trailingContent = trailingContent
         self.onActivate = onActivate
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-            HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-
-                    Text(subtitle)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                }
-
-                Spacer()
-                trailingContent()
-            }
-
+        ZStack(alignment: .topTrailing) {
             ZoneEditorView(
                 content: content,
                 path: .root,
                 selectedPath: $selectedPath,
                 highlightContext: highlightContext,
                 fontScale: fontScale,
+                showsZoneSurfaces: false,
                 previewDirection: $previewDirection
             )
                 .frame(minHeight: 88, alignment: .top)
-        }
-            .padding(UIConstants.Spacing.standard)
-            .background(
-            cardBackground,
-            in: RoundedRectangle(cornerRadius: QuizEditorStyle.sectionCornerRadius, style: .continuous)
-        )
-            .overlay {
-            RoundedRectangle(cornerRadius: QuizEditorStyle.sectionCornerRadius, style: .continuous)
-                .stroke(cardBorder, lineWidth: style == .question ? 1.4 : 0.75)
+
+            trailingContent()
         }
             .onTapGesture {
             onActivate()
-        }
-    }
-
-    private var cardBackground: some ShapeStyle {
-        switch style {
-        case .standard:
-            colorScheme == .dark
-                ? AnyShapeStyle(Color.white.opacity(0.055))
-                : AnyShapeStyle(Color.white.opacity(0.94))
-        case .question:
-            AnyShapeStyle(
-                LinearGradient(
-                    colors: [
-                        accent.opacity(colorScheme == .dark ? 0.26 : 0.18),
-                        colorScheme == .dark ? Color.white.opacity(0.07) : Color.white.opacity(0.98)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-        }
-    }
-
-    private var cardBorder: Color {
-        switch style {
-        case .standard:
-            return Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.06)
-        case .question:
-            return accent.opacity(colorScheme == .dark ? 0.48 : 0.34)
         }
     }
 
@@ -1445,8 +1341,6 @@ private struct QuizChoiceCard: View {
     let onSelectionChange: () -> Void
     let onMoveUp: () -> Void
     let onMoveDown: () -> Void
-
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
@@ -1466,27 +1360,17 @@ private struct QuizChoiceCard: View {
                 selectedPath: $choice.selectedPath,
                 highlightContext: highlightContext,
                 fontScale: fontScale,
+                showsZoneSurfaces: false,
                 previewDirection: $previewDirection
             )
                 .frame(minHeight: 72, alignment: .top)
         }
-            .padding(UIConstants.Spacing.standard)
-            .background(
-            cardBackground,
-            in: RoundedRectangle(cornerRadius: QuizEditorStyle.sectionCornerRadius, style: .continuous)
-        )
             .onTapGesture {
             onActivate()
         }
             .onChange(of: choice.selectedPath) { _, _ in
             onSelectionChange()
         }
-    }
-
-    private var cardBackground: some ShapeStyle {
-        colorScheme == .dark
-            ? AnyShapeStyle(Color.white.opacity(0.055))
-        : AnyShapeStyle(Color.white.opacity(0.94))
     }
 
 }
