@@ -162,6 +162,29 @@ nonisolated enum AppPadTabBarPosition: String, CaseIterable, Identifiable, Codab
     }
 }
 
+// MARK: - Zone Surface Style
+
+/// Controls whether zones draw their rounded visual surface.
+nonisolated enum AppZoneSurfaceStyle: String, CaseIterable, Identifiable, Codable, Sendable {
+    case simple
+    case rounded
+
+    var id: String { rawValue }
+
+    func localizedTitle(locale: Locale) -> String {
+        switch self {
+        case .simple:
+            return AppLocalization.string("Simple", locale: locale)
+        case .rounded:
+            return AppLocalization.string("Rounded", locale: locale)
+        }
+    }
+
+    var showsZoneSurfaces: Bool {
+        self == .rounded
+    }
+}
+
 // MARK: - App Preferences Store
 
 /// Shared app preferences consumed by Home, Create Deck, and Settings surfaces.
@@ -178,6 +201,7 @@ final class AppPreferences {
         static let padTabBarPosition = "preferences.navigation.padTabBarPosition"
         static let defaultTextSize = "preferences.editor.defaultTextSize"
         static let defaultTextSizeScaleVersion = "preferences.editor.defaultTextSizeScaleVersion"
+        static let zoneSurfaceStyle = "preferences.editor.zoneSurfaceStyle"
     }
 
     private static let currentTextSizeScaleVersion = 2
@@ -239,6 +263,13 @@ final class AppPreferences {
         }
     }
 
+    /// Visual style used by all zone renderers across editors, previews, and play modes.
+    var zoneSurfaceStyle: AppZoneSurfaceStyle {
+        didSet {
+            userDefaults.set(zoneSurfaceStyle.rawValue, forKey: Keys.zoneSurfaceStyle)
+        }
+    }
+
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.appLanguage = AppLanguagePreference(
@@ -254,6 +285,9 @@ final class AppPreferences {
             rawValue: userDefaults.string(forKey: Keys.padTabBarPosition) ?? ""
         ) ?? .center
         self.defaultTextSize = Self.resolvedDefaultTextSize(from: userDefaults)
+        self.zoneSurfaceStyle = AppZoneSurfaceStyle(
+            rawValue: userDefaults.string(forKey: Keys.zoneSurfaceStyle) ?? ""
+        ) ?? .simple
         userDefaults.set(Self.currentTextSizeScaleVersion, forKey: Keys.defaultTextSizeScaleVersion)
         AppLocalization.applyLanguageOverride(appLanguage)
     }

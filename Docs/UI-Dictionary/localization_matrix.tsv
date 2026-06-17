@@ -47,8 +47,8 @@ key	en	ro	ru
 %d day	%d day	%d zi	%d день
 %d days	%d days	%d zile	%d дней
 %d days ago	%d days ago	acum %d zile	%d дн. назад
-%d deck	%d deck	%d pachet	%d колода
 %d Deck	%d Deck	%d deck	%d колода
+%d deck	%d deck	%d pachet	%d колода
 %d decks	%d decks	%d pachete	%d колод
 %d Decks	%d Decks	%d deckuri	%d колод
 %d flashcards	%d flashcards	%d flashcarduri	%d флэшкарточек
@@ -164,8 +164,8 @@ Card Content	Card Content	Conținut card	Содержимое карточки
 Card Distribution	Card Distribution	Distribuția cardurilor	Распределение карточек
 card moved	card moved	card mutat	карточка пройдена
 Card Text	Card Text	Text card	Текст карточки
-Cards	Cards	Carduri	Карточки
 cards	cards	carduri	карточки
+Cards	Cards	Carduri	Карточки
 Cards Count	Cards Count	Carduri Număr	Количество карт
 cards moved	cards moved	carduri mutate	карточек пройдено
 Cards Settings	Cards Settings	Setări carduri	Настройки карточек
@@ -180,8 +180,8 @@ Choices	Choices	Variante	Варианты
 Choose a comfortable base size for QuizFlash interface text.	Choose a comfortable base size for QuizFlash interface text.	Alege o dimensiune de bază confortabilă pentru textul interfeței QuizFlash.	Выберите удобный базовый размер текста интерфейса QuizFlash.
 Choose a deck	Choose a deck	Alegeți un deck	Выберите колоду
 Choose a language	Choose a language	Alegeți o limbă	Выберите язык
-Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose Card Type	Choose Card Type	Alege tipul cardului	Выбрать тип карточки
+Choose card type	Choose card type	Alege tipul cardului	Выбрать тип карточки
 Choose destination folder, currently %@	Choose destination folder, currently %@	Alege folderul de destinație, acum %@	Выберите папку назначения, сейчас %@
 Choose destination folder, currently Library	Choose destination folder, currently Library	Alege folderul de destinație, acum Bibliotecă	Выберите папку назначения, сейчас Библиотека
 Choose PDF	Choose PDF	Alege PDF	Выбрать PDF
@@ -301,8 +301,8 @@ Full Width	Full Width	Lățime completă	На всю ширину
 Gallery	Gallery	Galerie	Галерея
 Generate	Generate	Genera	Генерировать
 Generate a starter set with AI, or add cards manually.	Generate a starter set with AI, or add cards manually.	Generează un set inițial cu AI sau adaugă carduri manual.	Сгенерируйте стартовый набор с AI или добавьте карточки вручную.
-Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate cards with AI	Generate cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
+Generate Cards with AI	Generate Cards with AI	Generează carduri cu AI	Сгенерировать карточки с AI
 Generate with AI	Generate with AI	Generează cu AI	Сгенерировать с AI
 Generating	Generating	Generare	Генерация
 Generating AI...	Generating AI...	Se generează cu AI...	Генерация AI...
@@ -475,7 +475,6 @@ Preparing source	Preparing source	Se pregătește sursa	Подготовка и�
 Preparing your material	Preparing your material	Pregătirea materialului dvs	Подготовка вашего материала
 PREVIEW	PREVIEW	PREVIZUALIZARE	ПРЕДПРОСМОТР
 Preview	Preview	Previzualizare	Предварительный просмотр
-Render	Render	Randare	Рендер
 Preview Mode	Preview Mode	Modul de previzualizare	Режим предварительного просмотра
 Pro	Pro	Pro	Pro
 Progress and pace.	Progress and pace.	Progres și ritm.	Прогресс и темп.
@@ -503,6 +502,7 @@ Recents	Recents	Recente	Недавние
 Red	Red	Roșu	Красный
 Relearning	Relearning	Reînvățare	Переобучение
 Remap	Remap	Remapează	Переназначить
+Render	Render	Randare	Рендер
 Reset	Reset	Resetează	Сброс
 Reset Simulation	Reset Simulation	Resetați simularea	Сбросить симуляцию
 Resize Zone	Resize Zone	Redimensionează zona	Изменить размер зоны
@@ -622,8 +622,8 @@ This migration slice only enables the shared routing foundation. Flashcard editi
 This permanently deletes the deck and all its cards.	This permanently deletes the deck and all its cards.	Aceasta șterge definitiv deck și toate carduri ale sale.	Это навсегда удалит колоду и все карточки в ней.
 This removes the selected draft cards from the editor. Existing deck data changes only after you save.	This removes the selected draft cards from the editor. Existing deck data changes only after you save.	Aceasta elimină schița selectată carduri din editor. Datele deck existente se modifică numai după ce salvați.	Выбранные черновики карточек будут удалены из редактора. Существующие данные колоды изменяются только после сохранения.
 This usually takes a moment before the first cards start to stream in.	This usually takes a moment before the first cards start to stream in.	De obicei, durează un moment înainte ca primele carduri să înceapă să fie transmise în flux.	Обычно это занимает некоторое время, прежде чем начнут поступать первые карты.
-this week	this week	săptămâna asta	эта неделя
 This Week	This Week	Săptămâna asta	Эта неделя
+this week	this week	săptămâna asta	эта неделя
 Title	Title	Titlu	Заголовок
 To %@	To %@	Pentru %@	В %@
 To goal	To goal	Până la obiectiv	До цели
@@ -656,6 +656,7 @@ Use the current text selection as the omitted answer.	Use the current text selec
 Verbose	Verbose	Detaliat	Подробно
 Vertical Position	Vertical Position	Poziție verticală	Положение по вертикали
 Vision: %@	Vision: %@	Viziune: %@	Видение: %@
+Visual surface only.	Visual surface only.	Doar suprafața vizuală.	Только визуальная поверхность.
 vs same days	vs same days	față de aceleași zile	к тем же дням
 Weakest deck: %@	Weakest deck: %@	Cel mai slab deck: %@	Самая слабая колода: %@.
 Weakest linked deck: %@	Weakest linked deck: %@	Cele mai slabe legături deck: %@	Самая слабая связанная колода: %@
@@ -671,6 +672,7 @@ You can enter either a base URL like https://openrouter.ai/api/v1 or a full endp
 You can stop now and keep the cards already received, or discard this AI batch completely.	You can stop now and keep the cards already received, or discard this AI batch completely.	Puteți să vă opriți acum și să păstrați carduri deja primite sau să renunțați complet la acest lot AI.	Вы можете остановиться сейчас и оставить уже полученные карты или полностью отказаться от этой партии ИИ.
 You have unsaved changes in this deck.	You have unsaved changes in this deck.	Aveți modificări nesalvate în acest deck.	У вас есть несохраненные изменения в этой колоде.
 Your card changes couldn't be saved right now.	Your card changes couldn't be saved right now.	Modificările cardului nu au putut fi salvate acum.	Изменения карточки сейчас не удалось сохранить.
+Zone Style	Zone Style	Stil zone	Стиль зон
 zones(%d)	zones(%d)	zone(%d)	зоны(%d)
 |	|	|	|
 â¢	â¢	â¢	â¢

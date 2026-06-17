@@ -568,6 +568,10 @@ struct ZoneContentView: View {
         AppLocalization.string(value, locale: locale)
     }
 
+    private var effectiveShowsZoneSurfaces: Bool {
+        showsZoneSurfaces && appPreferences.zoneSurfaceStyle.showsZoneSurfaces
+    }
+
     private var shouldShowHighlight: Bool {
         guard let highlightContext = highlightContext, let zone = zone else { return false }
         return highlightContext.shouldHighlight(text: zone.text)
@@ -597,11 +601,11 @@ struct ZoneContentView: View {
 
             ZStack(alignment: .topLeading) {
                 blockFrameReporter(layout: layout, zone: zone)
-                if showsZoneSurfaces {
+                if effectiveShowsZoneSurfaces {
                     blockSurface(layout: layout, zone: zone)
                 }
 
-                if showsZoneSurfaces {
+                if effectiveShowsZoneSurfaces {
                     selectionOutline(
                         layout: layout,
                         zone: zone,

@@ -1315,7 +1315,6 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
                 selectedPath: $selectedPath,
                 highlightContext: highlightContext,
                 fontScale: fontScale,
-                showsZoneSurfaces: false,
                 previewDirection: $previewDirection
             )
                 .frame(minHeight: 88, alignment: .top)
@@ -1360,7 +1359,6 @@ private struct QuizChoiceCard: View {
                 selectedPath: $choice.selectedPath,
                 highlightContext: highlightContext,
                 fontScale: fontScale,
-                showsZoneSurfaces: false,
                 previewDirection: $previewDirection
             )
                 .frame(minHeight: 72, alignment: .top)

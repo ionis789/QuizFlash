@@ -264,6 +264,20 @@ struct SettingsView: View {
 
             settingsBlock {
                 SettingsMenuPickerRow(
+                    icon: "square.dashed",
+                    tint: themeManager.accentColor.color,
+                    title: "Zone Style",
+                    detail: "Visual surface only.",
+                    selection: zoneSurfaceStyleBinding,
+                    options: AppZoneSurfaceStyle.allCases,
+                    titleForOption: { option, locale in
+                        option.localizedTitle(locale: locale)
+                    }
+                )
+            }
+
+            settingsBlock {
+                SettingsMenuPickerRow(
                     icon: "calendar",
                     tint: themeManager.accentColor.color,
                     title: "Calendar",
@@ -443,6 +457,13 @@ struct SettingsView: View {
         Binding(
             get: { Double(appPreferences.defaultTextSize.step) },
             set: { appPreferences.defaultTextSize = FlashcardTextSize(step: Int($0.rounded())) }
+        )
+    }
+
+    private var zoneSurfaceStyleBinding: Binding<AppZoneSurfaceStyle> {
+        Binding(
+            get: { appPreferences.zoneSurfaceStyle },
+            set: { appPreferences.zoneSurfaceStyle = $0 }
         )
     }
 

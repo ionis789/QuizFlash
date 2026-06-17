@@ -375,7 +375,6 @@ private struct QuizModeSessionView: View {
                         availableWidth: contentWidth,
                         centersLeafBlocks: true,
                         alignLeafBlocksToGroupLeading: false,
-                        showsZoneSurfaces: false,
                         textVerticalPadding: 0,
                         textHorizontalPaddingOverride: 0,
                         showsLayoutDebug: showsQuizLayoutDebug,

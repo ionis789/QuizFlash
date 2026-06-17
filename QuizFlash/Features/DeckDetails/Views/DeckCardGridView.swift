@@ -532,7 +532,7 @@ private struct DeckGridGamePreview: View {
                         zone: choice.contentZone,
                         availableWidth: max(availableWidth - 26, 1),
                         fontScale: 0.68,
-                        showsZoneSurfaces: false
+                        showsZoneSurfaces: true
                     )
                 }
             }

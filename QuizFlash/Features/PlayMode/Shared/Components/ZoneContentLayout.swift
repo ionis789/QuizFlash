@@ -883,6 +883,7 @@ private struct ZoneContentTreePreview: View {
 // MARK: - Zone Content Leaf Preview
 
 private struct ZoneContentLeafPreview: View {
+    @Environment(AppPreferences.self) private var appPreferences
     @Environment(\.zoneContentSurfaceCornerRadius) private var zoneSurfaceCornerRadius
 
     let zone: ZoneModel
@@ -1165,7 +1166,9 @@ private struct ZoneContentLeafPreview: View {
     }
 
     private var shouldRenderZoneBlockSurface: Bool {
-        showsZoneSurfaces && (!rendersCodeBlock || showsCodeBlockZoneSurfaces || zone.highlightColor != .none)
+        showsZoneSurfaces
+            && appPreferences.zoneSurfaceStyle.showsZoneSurfaces
+            && (!rendersCodeBlock || showsCodeBlockZoneSurfaces || zone.highlightColor != .none)
     }
 
     private var zoneSurfaceFill: Color {
