@@ -300,7 +300,21 @@ struct QuizCardEditorView: View {
         .swipeBack(enabled: canUseInteractiveDismiss) {
             dismiss()
         }
+        .onAppear {
+            ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(AppFeatures.current.showsVisualDebugOverlays)
+            recordQuizScroll(
+                "quiz.editor-appear",
+                pathID: currentSelectedPath?.id,
+                details: quizScrollDetails(proposedDelta: nil)
+            )
+        }
         .onDisappear {
+            recordQuizScroll(
+                "quiz.editor-disappear",
+                pathID: currentSelectedPath?.id,
+                details: quizScrollDetails(proposedDelta: nil)
+            )
+            ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(false)
             markedCorrectIndicatorTask?.cancel()
             markedCorrectIndicatorTask = nil
             pendingDeleteTask?.cancel()
@@ -1061,14 +1075,47 @@ struct QuizCardEditorView: View {
             )
             return
         }
+        if scheduledCaretScrollTask != nil {
+            recordQuizScroll(
+                "quiz.scroll-task-cancel",
+                pathID: activeQuizCaretPathID,
+                details: "reason=reschedule delays=\(debugDurations(delays)) \(quizScrollDetails(proposedDelta: nil))"
+            )
+        }
+        recordQuizScroll(
+            "quiz.scroll-schedule",
+            pathID: activeQuizCaretPathID,
+            details: "delays=\(debugDurations(delays)) \(quizScrollDetails(proposedDelta: nil))"
+        )
 
         scheduledCaretScrollTask?.cancel()
         scheduledCaretScrollTask = Task { @MainActor in
-            for delay in delays {
+            for (index, delay) in delays.enumerated() {
                 try? await Task.sleep(for: delay)
-                guard !Task.isCancelled,
-                      keyboardMonitor.isVisible,
-                      focusManager.focusedZoneID == currentSelectedZoneID else { return }
+                guard !Task.isCancelled else {
+                    recordQuizScroll(
+                        "quiz.scroll-run-cancelled",
+                        pathID: activeQuizCaretPathID,
+                        details: "pass=\(index + 1) delay=\(debugDuration(delay)) \(quizScrollDetails(proposedDelta: nil))"
+                    )
+                    return
+                }
+
+                guard keyboardMonitor.isVisible,
+                      focusManager.focusedZoneID == currentSelectedZoneID else {
+                    recordQuizScroll(
+                        "quiz.scroll-run-abort",
+                        pathID: activeQuizCaretPathID,
+                        details: "pass=\(index + 1) delay=\(debugDuration(delay)) focused=\(shortDebugID(focusManager.focusedZoneID)) currentZone=\(shortDebugID(currentSelectedZoneID)) \(quizScrollDetails(proposedDelta: nil))"
+                    )
+                    return
+                }
+
+                recordQuizScroll(
+                    "quiz.scroll-run",
+                    pathID: activeQuizCaretPathID,
+                    details: "pass=\(index + 1) delay=\(debugDuration(delay)) rect=\(activeQuizCaretWindowRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
+                )
 
                 guard let pathID = activeQuizCaretPathID,
                       currentSelectedPath?.id == pathID else {
@@ -1162,6 +1209,10 @@ struct QuizCardEditorView: View {
 
     private func quizScrollDetails(proposedDelta: CGFloat?) -> String {
         "target=\(debugTargetID(activeEditor)) kb=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) toolbar=\(debugValue(floatingToolbarAccessoryHeight)) offset=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) delta=\(debugOptionalValue(proposedDelta)) selected=\(currentSelectedPath?.id ?? "nil")"
+    }
+
+    private func debugDurations(_ durations: [Duration]) -> String {
+        durations.map(debugDuration).joined(separator: ",")
     }
 
     private func shortDebugID(_ id: UUID?) -> String {
