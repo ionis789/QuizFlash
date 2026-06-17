@@ -311,7 +311,6 @@ struct QuizCardEditorView: View {
             Color.clear
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.82), value: currentSelectedPath)
-        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: keyboardMonitor.isVisible)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: previewDirection)
         .swipeBack(enabled: canUseInteractiveDismiss) {
             dismiss()
