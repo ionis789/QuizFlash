@@ -196,6 +196,7 @@ struct QuizCardEditorView: View {
     var body: some View {
         GeometryReader { proxy in
             let safeTopInset = proxy.safeAreaInsets.top
+            let contentWidth = max(proxy.size.width - 16, 1)
 
             ZStack(alignment: .top) {
                 editorBackground.ignoresSafeArea()
@@ -203,11 +204,11 @@ struct QuizCardEditorView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
                         questionEntryIndicator
-                        questionSection
+                        questionSection(availableWidth: contentWidth)
                         quizZoneSeparator
-                        answersSection
+                        answersSection(availableWidth: contentWidth)
                         quizZoneSeparator
-                        explanationSection
+                        explanationSection(availableWidth: contentWidth)
                     }
                     .padding(.horizontal, 8)
                     .padding(.top, UIConstants.Layout.deckNavigationTopPadding + UIConstants.Size.actionButton + UIConstants.Spacing.large)
@@ -683,12 +684,13 @@ struct QuizCardEditorView: View {
             .accessibilityLabel(localized("Preview"))
     }
 
-    private var questionSection: some View {
+    private func questionSection(availableWidth: CGFloat) -> some View {
         QuizZoneSectionCard(
             content: questionContent,
             selectedPath: binding(for: .question),
             highlightContext: highlightContext,
             fontScale: editorTextScale,
+            availableWidth: availableWidth,
             previewDirection: $previewDirection
         ) {
             activateEditor(.question)
@@ -709,7 +711,7 @@ struct QuizCardEditorView: View {
             .accessibilityHidden(true)
     }
 
-    private var answersSection: some View {
+    private func answersSection(availableWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
 
             ForEach(Array(choices.enumerated()), id: \.element.id) { index, choice in
@@ -738,6 +740,7 @@ struct QuizCardEditorView: View {
                         choice: choice,
                         highlightContext: highlightContext,
                         fontScale: editorTextScale,
+                        availableWidth: availableWidth,
                         previewDirection: $previewDirection,
                         onActivate: {
                             activateEditor(.choice(choice.id))
@@ -855,7 +858,7 @@ struct QuizCardEditorView: View {
     }
 
     @ViewBuilder
-    private var explanationSection: some View {
+    private func explanationSection(availableWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
             if let explanationContent {
                 if isExplanationExpanded {
@@ -864,6 +867,7 @@ struct QuizCardEditorView: View {
                         selectedPath: binding(for: .explanation),
                         highlightContext: highlightContext,
                         fontScale: editorTextScale,
+                        availableWidth: availableWidth,
                         previewDirection: $previewDirection,
                         trailingContent: {
                             Button(role: .destructive) {
@@ -1285,6 +1289,7 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
     @Binding var selectedPath: ZonePath?
     var highlightContext: HighlightContext?
     let fontScale: CGFloat
+    let availableWidth: CGFloat
     @Binding var previewDirection: AddDirection?
     @ViewBuilder var trailingContent: () -> TrailingContent
     let onActivate: () -> Void
@@ -1294,6 +1299,7 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
         selectedPath: Binding<ZonePath?>,
         highlightContext: HighlightContext?,
         fontScale: CGFloat,
+        availableWidth: CGFloat,
         previewDirection: Binding<AddDirection?>,
         @ViewBuilder trailingContent: @escaping () -> TrailingContent = { EmptyView() },
         onActivate: @escaping () -> Void
@@ -1302,6 +1308,7 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
         self._selectedPath = selectedPath
         self.highlightContext = highlightContext
         self.fontScale = fontScale
+        self.availableWidth = availableWidth
         self._previewDirection = previewDirection
         self.trailingContent = trailingContent
         self.onActivate = onActivate
@@ -1315,8 +1322,11 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
                 selectedPath: $selectedPath,
                 highlightContext: highlightContext,
                 fontScale: fontScale,
+                availableWidth: availableWidth,
+                measurementWidth: availableWidth,
                 previewDirection: $previewDirection
             )
+                .frame(width: availableWidth, alignment: .topLeading)
                 .frame(minHeight: 88, alignment: .top)
 
             trailingContent()
@@ -1335,6 +1345,7 @@ private struct QuizChoiceCard: View {
     @Bindable var choice: QuizChoiceEditorItem
     var highlightContext: HighlightContext?
     let fontScale: CGFloat
+    let availableWidth: CGFloat
     @Binding var previewDirection: AddDirection?
     let onActivate: () -> Void
     let onSelectionChange: () -> Void
@@ -1359,8 +1370,11 @@ private struct QuizChoiceCard: View {
                 selectedPath: $choice.selectedPath,
                 highlightContext: highlightContext,
                 fontScale: fontScale,
+                availableWidth: availableWidth,
+                measurementWidth: availableWidth,
                 previewDirection: $previewDirection
             )
+                .frame(width: availableWidth, alignment: .topLeading)
                 .frame(minHeight: 72, alignment: .top)
         }
             .onTapGesture {
