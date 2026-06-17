@@ -269,7 +269,7 @@ final class ZoneEditorScrollDriver {
                 targetY,
                 in: scrollView,
                 zoneID: zoneID,
-                passes: [.milliseconds(80), .milliseconds(180), .milliseconds(320)]
+                passes: [.milliseconds(320)]
             )
         }
         return true
@@ -389,13 +389,21 @@ final class ZoneEditorScrollDriver {
                     zoneID: zoneID,
                     details: "pass=\(index + 1) current=\(debugValue(currentY)) target=\(debugValue(clampedTargetY)) inset=\(debugInsets(scrollView.adjustedContentInset)) content=\(debugSize(scrollView.contentSize)) bounds=\(debugSize(scrollView.bounds.size))"
                 )
-                UIView.performWithoutAnimation {
-                    scrollView.layer.removeAllAnimations()
-                    scrollView.setContentOffset(
-                        CGPoint(x: scrollView.contentOffset.x, y: clampedTargetY),
-                        animated: false
-                    )
-                    scrollView.layoutIfNeeded()
+                scrollView.layer.removeAllAnimations()
+                let targetOffset = CGPoint(x: scrollView.contentOffset.x, y: clampedTargetY)
+                if abs(currentY - clampedTargetY) > 8 {
+                    UIView.animate(
+                        withDuration: 0.14,
+                        delay: 0,
+                        options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]
+                    ) {
+                        scrollView.setContentOffset(targetOffset, animated: false)
+                    }
+                } else {
+                    UIView.performWithoutAnimation {
+                        scrollView.setContentOffset(targetOffset, animated: false)
+                        scrollView.layoutIfNeeded()
+                    }
                 }
                 reportScrollOffset(in: scrollView, force: true)
             }
