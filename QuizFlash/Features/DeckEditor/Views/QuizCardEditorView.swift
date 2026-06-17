@@ -64,7 +64,9 @@ struct QuizCardEditorView: View {
     }
     private var isFormatBarVisible: Bool { isFloatingFormatBarVisible }
     private var bottomContentPadding: CGFloat {
-        isFloatingFormatBarVisible ? 148 : 96
+        let chromePadding: CGFloat = isFloatingFormatBarVisible ? 148 : 96
+        let keyboardPadding = keyboardMonitor.isVisible ? max(keyboardMonitor.visibleHeight, 0) : 0
+        return chromePadding + keyboardPadding
     }
 
     private func localized(_ value: String.LocalizationValue) -> String {
@@ -1189,19 +1191,10 @@ struct QuizCardEditorView: View {
             extra: "probe=\(probeID) rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta))"
         )
 
-        let resolvedBottomInset = quizScrollDriver.ensureBottomInsetAllowsWindowRectScroll(
-            windowRect: caretRect,
-            bottomChromeTopY: nil,
-            keyboardHeight: keyboardMonitor.visibleHeight,
-            bottomAccessoryHeight: floatingToolbarAccessoryHeight,
-            bottomBuffer: quizCaretBottomChromeBuffer,
-            minimumBottomInset: bottomContentPadding,
-            zoneID: currentSelectedZoneID
-        )
         recordQuizScrollState(
             "quiz.scroll-probe-after-inset",
             pathID: pathID,
-            extra: "probe=\(probeID) resolvedInset=\(debugValue(resolvedBottomInset))"
+            extra: "probe=\(probeID) resolvedInset=content-padding"
         )
 
         let didScroll = quizScrollDriver.scrollWindowRectAboveBottomChromeIfNeeded(
@@ -1225,7 +1218,7 @@ struct QuizCardEditorView: View {
         recordQuizScroll(
             didScroll ? "quiz.scroll-apply-down" : skippedStage,
             pathID: pathID,
-            details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) resolvedInset=\(debugValue(resolvedBottomInset)) didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+            details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) resolvedInset=content-padding didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: proposedDelta))"
         )
         return didScroll
     }
