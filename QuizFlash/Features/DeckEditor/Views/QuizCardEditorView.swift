@@ -272,7 +272,7 @@ struct QuizCardEditorView: View {
             )
             updateFloatingFormatBarPresentation(isKeyboardVisible: isVisible)
             if isVisible {
-                scheduleStoredQuizCaretScroll(delays: [.milliseconds(24), .milliseconds(104)])
+                scheduleStoredQuizCaretScroll(delays: keyboardOpeningCaretScrollDelays)
             } else {
                 scheduledCaretScrollTask?.cancel()
                 scheduledCaretScrollTask = nil
@@ -285,7 +285,7 @@ struct QuizCardEditorView: View {
                 details: "height=\(debugValue(keyboardMonitor.visibleHeight)) \(toolbarLifecycleDetails())"
             )
             updateFloatingFormatBarKeyboardHeight()
-            scheduleStoredQuizCaretScroll(delays: [.milliseconds(24), .milliseconds(104)])
+            scheduleStoredQuizCaretScroll(delays: keyboardOpeningCaretScrollDelays)
         }
         .fullScreenCover(isPresented: $showSketchModal) {
             CanvasModalView { data in
@@ -1076,7 +1076,7 @@ struct QuizCardEditorView: View {
             return
         }
 
-        scheduleStoredQuizCaretScroll(delays: [.milliseconds(16), .milliseconds(96)])
+        scheduleStoredQuizCaretScroll(delays: caretMovementScrollDelays)
     }
 
     private func scheduleStoredQuizCaretScroll(delays: [Duration]) {
@@ -1170,6 +1170,17 @@ struct QuizCardEditorView: View {
     private func scrollQuizCaretDownIfNeeded(_ caretRect: CGRect, pathID: String) -> Bool {
         let visibleBottomY = quizVisibleBottomWindowY()
         let proposedDelta = caretRect.maxY - visibleBottomY
+
+        guard quizScrollDriver.isAdjustedBottomInsetReady(
+            forKeyboardHeight: keyboardMonitor.visibleHeight
+        ) else {
+            recordQuizScroll(
+                "quiz.scroll-wait-keyboard-inset",
+                pathID: pathID,
+                details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) \(quizScrollDetails(proposedDelta: proposedDelta)) \(quizScrollDriver.debugScrollSnapshotDetails())"
+            )
+            return false
+        }
 
         let resolvedBottomInset = quizScrollDriver.ensureBottomInsetAllowsWindowRectScroll(
             windowRect: caretRect,
@@ -1311,6 +1322,14 @@ struct QuizCardEditorView: View {
     private var quizCaretScrollAnimationDuration: TimeInterval {
         guard keyboardMonitor.isVisible else { return 0.16 }
         return min(max(keyboardMonitor.animationDuration, 0.12), 0.28)
+    }
+
+    private var keyboardOpeningCaretScrollDelays: [Duration] {
+        [.milliseconds(24), .milliseconds(104), .milliseconds(240), .milliseconds(420), .milliseconds(620)]
+    }
+
+    private var caretMovementScrollDelays: [Duration] {
+        [.milliseconds(16), .milliseconds(96), .milliseconds(240), .milliseconds(420)]
     }
 
     private func recordQuizScroll(_ stage: String, pathID: String?, details: String) {

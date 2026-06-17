@@ -151,6 +151,22 @@ final class ZoneEditorScrollDriver {
         setBottomInset(0, reason: reason)
     }
 
+    func isAdjustedBottomInsetReady(
+        forKeyboardHeight keyboardHeight: CGFloat,
+        tolerance: CGFloat = 24
+    ) -> Bool {
+        guard keyboardHeight > 0 else { return true }
+        guard let scrollView else { return false }
+        captureInsetDebugState(in: scrollView)
+        let requiredInset = max(0, keyboardHeight - tolerance)
+        return scrollView.adjustedContentInset.bottom >= requiredInset
+    }
+
+    func debugScrollSnapshotDetails() -> String {
+        guard let scrollView else { return "scrollView=nil" }
+        return scrollSnapshotDetails(in: scrollView)
+    }
+
     @discardableResult
     func ensureBottomInsetAllowsWindowRectScroll(
         windowRect: CGRect,
