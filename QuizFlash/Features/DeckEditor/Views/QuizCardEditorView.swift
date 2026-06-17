@@ -260,7 +260,7 @@ struct QuizCardEditorView: View {
             )
             updateFloatingFormatBarPresentation(isKeyboardVisible: isVisible)
             if isVisible {
-                scheduleStoredQuizCaretScroll(delay: .milliseconds(24))
+                scheduleStoredQuizCaretScroll(delays: [.milliseconds(24), .milliseconds(104)])
             } else {
                 scheduledCaretScrollTask?.cancel()
                 scheduledCaretScrollTask = nil
@@ -272,7 +272,7 @@ struct QuizCardEditorView: View {
                 details: "height=\(debugValue(keyboardMonitor.visibleHeight)) \(toolbarLifecycleDetails())"
             )
             updateFloatingFormatBarKeyboardHeight()
-            scheduleStoredQuizCaretScroll(delay: .milliseconds(24))
+            scheduleStoredQuizCaretScroll(delays: [.milliseconds(24), .milliseconds(104)])
         }
         .fullScreenCover(isPresented: $showSketchModal) {
             CanvasModalView { data in
@@ -1040,40 +1040,67 @@ struct QuizCardEditorView: View {
             return
         }
 
-        scheduleStoredQuizCaretScroll(delay: .milliseconds(16))
+        scheduleStoredQuizCaretScroll(delays: [.milliseconds(16), .milliseconds(96)])
     }
 
-    private func scheduleStoredQuizCaretScroll(delay: Duration) {
-        guard let pathID = activeQuizCaretPathID,
-              let caretRect = activeQuizCaretWindowRect,
-              currentSelectedPath?.id == pathID,
-              focusManager.focusedZoneID == currentSelectedZoneID,
-              keyboardMonitor.isVisible else { return }
-
-        scheduledCaretScrollTask?.cancel()
-        scheduledCaretScrollTask = Task { @MainActor in
-            try? await Task.sleep(for: delay)
-            guard !Task.isCancelled,
-                  currentSelectedPath?.id == pathID,
-                  focusManager.focusedZoneID == currentSelectedZoneID,
-                  keyboardMonitor.isVisible else { return }
-
-            scrollQuizCaretDownIfNeeded(caretRect, pathID: pathID)
-        }
-    }
-
-    private func scrollQuizCaretDownIfNeeded(_ caretRect: CGRect, pathID: String) {
-        let visibleBottomY = quizVisibleBottomWindowY()
-        let proposedDelta = caretRect.maxY - visibleBottomY
-        guard proposedDelta > 0 else {
-            let stage = proposedDelta < -140 ? "quiz.scroll-skip-upward" : "quiz.scroll-skip-visible"
+    private func scheduleStoredQuizCaretScroll(delays: [Duration]) {
+        guard !delays.isEmpty else { return }
+        guard keyboardMonitor.isVisible else {
             recordQuizScroll(
-                stage,
-                pathID: pathID,
-                details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+                "quiz.scroll-schedule-skip",
+                pathID: activeQuizCaretPathID,
+                details: "reason=keyboard-hidden \(quizScrollDetails(proposedDelta: nil))"
             )
             return
         }
+        guard activeQuizCaretPathID != nil else {
+            recordQuizScroll(
+                "quiz.scroll-schedule-skip",
+                pathID: nil,
+                details: "reason=no-active-caret \(quizScrollDetails(proposedDelta: nil))"
+            )
+            return
+        }
+
+        scheduledCaretScrollTask?.cancel()
+        scheduledCaretScrollTask = Task { @MainActor in
+            for delay in delays {
+                try? await Task.sleep(for: delay)
+                guard !Task.isCancelled,
+                      keyboardMonitor.isVisible,
+                      focusManager.focusedZoneID == currentSelectedZoneID else { return }
+
+                guard let pathID = activeQuizCaretPathID,
+                      currentSelectedPath?.id == pathID else {
+                    recordQuizScroll(
+                        "quiz.scroll-skip-not-active-path",
+                        pathID: activeQuizCaretPathID,
+                        details: "activeSelected=\(currentSelectedPath?.id ?? "nil") focused=\(shortDebugID(focusManager.focusedZoneID)) currentZone=\(shortDebugID(currentSelectedZoneID)) \(quizScrollDetails(proposedDelta: nil))"
+                    )
+                    return
+                }
+
+                guard let caretRect = activeQuizCaretWindowRect else {
+                    recordQuizScroll(
+                        "quiz.scroll-skip-visible",
+                        pathID: pathID,
+                        details: "reason=no-caret-rect \(quizScrollDetails(proposedDelta: nil))"
+                    )
+                    continue
+                }
+
+                if scrollQuizCaretDownIfNeeded(caretRect, pathID: pathID) {
+                    activeQuizCaretWindowRect = nil
+                    return
+                }
+            }
+        }
+    }
+
+    @discardableResult
+    private func scrollQuizCaretDownIfNeeded(_ caretRect: CGRect, pathID: String) -> Bool {
+        let visibleBottomY = quizVisibleBottomWindowY()
+        let proposedDelta = caretRect.maxY - visibleBottomY
 
         let didScroll = quizScrollDriver.scrollWindowRectAboveBottomChromeIfNeeded(
             windowRect: caretRect,
@@ -1086,11 +1113,13 @@ struct QuizCardEditorView: View {
             zoneID: currentSelectedZoneID
         )
 
+        let skippedStage = proposedDelta < -140 ? "quiz.scroll-skip-upward" : "quiz.scroll-skip-visible"
         recordQuizScroll(
-            didScroll ? "quiz.scroll-apply-down" : "quiz.scroll-skip-visible",
+            didScroll ? "quiz.scroll-apply-down" : skippedStage,
             pathID: pathID,
             details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: proposedDelta))"
         )
+        return didScroll
     }
 
     private func caretWindowRect(from notification: Notification) -> CGRect? {
