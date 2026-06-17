@@ -24,6 +24,8 @@ final class ZoneEditorScrollDriver {
     private var tapProbe: ZoneEditorTapProbe?
     private(set) var tapProbeStatus = "not-configured"
     private(set) var currentNormalizedOffsetY: CGFloat = 0
+    private(set) var currentContentInsetBottom: CGFloat = 0
+    private(set) var currentAdjustedContentInsetBottom: CGFloat = 0
 
     func attach(_ scrollView: UIScrollView?) {
         guard self.scrollView !== scrollView else { return }
@@ -48,6 +50,8 @@ final class ZoneEditorScrollDriver {
         onScrollOffsetChange = nil
         lastReportedScrollOffsetY = nil
         currentNormalizedOffsetY = 0
+        currentContentInsetBottom = 0
+        currentAdjustedContentInsetBottom = 0
         tapProbe?.detach()
         tapProbe = nil
         tapProbeStatus = "detached"
@@ -113,6 +117,69 @@ final class ZoneEditorScrollDriver {
 
     func resetBottomInset() {
         setBottomInset(0)
+    }
+
+    @discardableResult
+    func ensureBottomInsetAllowsWindowRectScroll(
+        windowRect: CGRect,
+        bottomChromeTopY: CGFloat?,
+        keyboardHeight: CGFloat,
+        bottomAccessoryHeight: CGFloat,
+        bottomBuffer: CGFloat,
+        minimumBottomInset: CGFloat,
+        zoneID: UUID?
+    ) -> CGFloat {
+        guard let scrollView,
+              scrollView.window != nil,
+              scrollView.bounds.height > 0
+        else {
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-inset-skip",
+                zoneID: zoneID,
+                details: "reason=no-scroll-view rect=\(debugRect(windowRect)) minimum=\(debugValue(minimumBottomInset))"
+            )
+            return pendingBottomInset
+        }
+
+        scrollView.layoutIfNeeded()
+        captureInsetDebugState(in: scrollView)
+
+        let currentY = scrollView.contentOffset.y
+        let visibleBottomY = visibleBottomWindowY(
+            in: scrollView,
+            bottomChromeTopY: bottomChromeTopY,
+            keyboardHeight: keyboardHeight,
+            bottomAccessoryHeight: bottomAccessoryHeight,
+            bottomBuffer: bottomBuffer
+        )
+        let overlap = windowRect.maxY - visibleBottomY
+        guard overlap > 0 else {
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-inset-skip",
+                zoneID: zoneID,
+                details: "reason=visible rect=\(debugRect(windowRect)) visibleBottom=\(debugValue(visibleBottomY)) overlap=\(debugValue(overlap)) current=\(debugValue(currentY)) inset=\(debugInsets(scrollView.adjustedContentInset)) pendingBottom=\(debugValue(pendingBottomInset))"
+            )
+            return pendingBottomInset
+        }
+
+        let desiredTargetY = currentY + overlap
+        let contentScrollableHeight = scrollView.contentSize.height - scrollView.bounds.height
+        let systemBottomAdjustment = scrollView.adjustedContentInset.bottom - scrollView.contentInset.bottom
+        let requiredContentInset = max(
+            minimumBottomInset,
+            desiredTargetY - contentScrollableHeight - systemBottomAdjustment
+        )
+        let resolvedBottomInset = max(pendingBottomInset, requiredContentInset, 0)
+
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-inset-resolve",
+            zoneID: zoneID,
+            details: "rect=\(debugRect(windowRect)) visibleBottom=\(debugValue(visibleBottomY)) overlap=\(debugValue(overlap)) current=\(debugValue(currentY)) desiredTarget=\(debugValue(desiredTargetY)) scrollable=\(debugValue(contentScrollableHeight)) systemBottom=\(debugValue(systemBottomAdjustment)) required=\(debugValue(requiredContentInset)) resolved=\(debugValue(resolvedBottomInset)) currentInset=\(debugInsets(scrollView.contentInset)) adjusted=\(debugInsets(scrollView.adjustedContentInset))"
+        )
+
+        setBottomInset(resolvedBottomInset)
+        captureInsetDebugState(in: scrollView)
+        return resolvedBottomInset
     }
 
     func resetToTop(duration: TimeInterval = 0) {
@@ -367,9 +434,10 @@ final class ZoneEditorScrollDriver {
     }
 
     private func reportScrollOffset(in scrollView: UIScrollView, force: Bool = false) {
-        guard let onScrollOffsetChange else { return }
         let normalizedOffsetY = max(0, scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
         currentNormalizedOffsetY = normalizedOffsetY
+        captureInsetDebugState(in: scrollView)
+        guard let onScrollOffsetChange else { return }
         if !force,
            let lastReportedScrollOffsetY,
            abs(lastReportedScrollOffsetY - normalizedOffsetY) < 2 {
@@ -432,6 +500,7 @@ final class ZoneEditorScrollDriver {
             scrollView.contentInset = contentInset
             scrollView.verticalScrollIndicatorInsets = verticalIndicatorInsets
             scrollView.layoutIfNeeded()
+            captureInsetDebugState(in: scrollView)
 
             let newMinOffsetY = -scrollView.adjustedContentInset.top
             if shouldKeepPinnedToTop || scrollView.contentOffset.y < newMinOffsetY {
@@ -441,6 +510,12 @@ final class ZoneEditorScrollDriver {
                 )
             }
         }
+        captureInsetDebugState(in: scrollView)
+    }
+
+    private func captureInsetDebugState(in scrollView: UIScrollView) {
+        currentContentInsetBottom = scrollView.contentInset.bottom
+        currentAdjustedContentInsetBottom = scrollView.adjustedContentInset.bottom
     }
 
     private func visibleBottomWindowY(

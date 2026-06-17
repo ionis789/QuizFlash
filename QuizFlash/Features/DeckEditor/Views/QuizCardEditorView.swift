@@ -276,6 +276,7 @@ struct QuizCardEditorView: View {
             } else {
                 scheduledCaretScrollTask?.cancel()
                 scheduledCaretScrollTask = nil
+                quizScrollDriver.resetBottomInset()
             }
         }
         .onChange(of: keyboardMonitor.visibleHeight) { _, _ in
@@ -1170,6 +1171,16 @@ struct QuizCardEditorView: View {
         let visibleBottomY = quizVisibleBottomWindowY()
         let proposedDelta = caretRect.maxY - visibleBottomY
 
+        let resolvedBottomInset = quizScrollDriver.ensureBottomInsetAllowsWindowRectScroll(
+            windowRect: caretRect,
+            bottomChromeTopY: nil,
+            keyboardHeight: keyboardMonitor.visibleHeight,
+            bottomAccessoryHeight: floatingToolbarAccessoryHeight,
+            bottomBuffer: quizCaretBottomChromeBuffer,
+            minimumBottomInset: bottomContentPadding,
+            zoneID: currentSelectedZoneID
+        )
+
         let didScroll = quizScrollDriver.scrollWindowRectAboveBottomChromeIfNeeded(
             windowRect: caretRect,
             bottomChromeTopY: nil,
@@ -1185,7 +1196,7 @@ struct QuizCardEditorView: View {
         recordQuizScroll(
             didScroll ? "quiz.scroll-apply-down" : skippedStage,
             pathID: pathID,
-            details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+            details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) resolvedInset=\(debugValue(resolvedBottomInset)) didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: proposedDelta))"
         )
         return didScroll
     }
@@ -1247,6 +1258,7 @@ struct QuizCardEditorView: View {
                     Text("offset \(debugValue(quizScrollDriver.currentNormalizedOffsetY))")
                     Text("kb \(debugValue(keyboardMonitor.visibleHeight)) toolbar \(debugValue(floatingToolbarAccessoryHeight))")
                     Text("visible \(debugValue(quizVisibleBottomWindowY())) padding \(debugValue(bottomContentPadding))")
+                    Text("inset \(debugValue(quizScrollDriver.currentContentInsetBottom))/\(debugValue(quizScrollDriver.currentAdjustedContentInsetBottom))")
                 }
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.white)
@@ -1311,7 +1323,7 @@ struct QuizCardEditorView: View {
     }
 
     private func quizScrollDetails(proposedDelta: CGFloat?) -> String {
-        "target=\(debugTargetID(activeEditor)) kb=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) toolbar=\(debugValue(floatingToolbarAccessoryHeight)) offset=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) visibleBottom=\(debugValue(quizVisibleBottomWindowY())) viewport=\(debugRect(quizViewportScreenFrame)) bottomPadding=\(debugValue(bottomContentPadding)) delta=\(debugOptionalValue(proposedDelta)) selected=\(currentSelectedPath?.id ?? "nil")"
+        "target=\(debugTargetID(activeEditor)) kb=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) toolbar=\(debugValue(floatingToolbarAccessoryHeight)) offset=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) visibleBottom=\(debugValue(quizVisibleBottomWindowY())) viewport=\(debugRect(quizViewportScreenFrame)) bottomPadding=\(debugValue(bottomContentPadding)) scrollInset=\(debugValue(quizScrollDriver.currentContentInsetBottom))/\(debugValue(quizScrollDriver.currentAdjustedContentInsetBottom)) delta=\(debugOptionalValue(proposedDelta)) selected=\(currentSelectedPath?.id ?? "nil")"
     }
 
     private func debugDurations(_ durations: [Duration]) -> String {
