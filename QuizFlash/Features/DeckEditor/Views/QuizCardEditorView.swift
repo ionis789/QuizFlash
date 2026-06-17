@@ -203,7 +203,6 @@ struct QuizCardEditorView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: UIConstants.Spacing.large) {
-                        questionEntryIndicator
                         questionSection(availableWidth: contentWidth)
                         quizZoneSeparator
                         answersSection(availableWidth: contentWidth)
@@ -697,13 +696,6 @@ struct QuizCardEditorView: View {
         }
     }
 
-    private var questionEntryIndicator: some View {
-        Rectangle()
-            .fill(accent)
-            .frame(height: 3)
-            .accessibilityHidden(true)
-    }
-
     private var quizZoneSeparator: some View {
         Rectangle()
             .fill(Color(uiColor: .separator))
@@ -735,8 +727,6 @@ struct QuizCardEditorView: View {
                     )
 
                     QuizChoiceCard(
-                        index: index,
-                        canMoveDown: index < choices.count - 1,
                         choice: choice,
                         highlightContext: highlightContext,
                         fontScale: editorTextScale,
@@ -747,12 +737,6 @@ struct QuizCardEditorView: View {
                         },
                         onSelectionChange: {
                             handleSelectedPathChange(source: "choice:\(String(choice.id.uuidString.prefix(6)))")
-                        },
-                        onMoveUp: {
-                            moveChoice(choice.id, direction: -1)
-                        },
-                        onMoveDown: {
-                            moveChoice(choice.id, direction: 1)
                         }
                     )
                 }
@@ -814,21 +798,16 @@ struct QuizCardEditorView: View {
 
     private func deleteConfirmationButton(isPending: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .fill(isPending ? Color.red.opacity(0.18) : Color(uiColor: .tertiarySystemFill))
+
                 Image(systemName: "trash")
                     .font(.caption.weight(.bold))
-
-                if isPending {
-                    Text(localized("Delete?"))
-                        .font(.caption.weight(.bold))
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
+                    .foregroundStyle(.red)
             }
-            .foregroundStyle(.red)
-            .frame(minWidth: 28, minHeight: 28)
-            .padding(.horizontal, isPending ? 10 : 0)
-            .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-            .contentShape(Capsule())
+            .frame(width: 26, height: 26)
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .animation(.spring(response: 0.24, dampingFraction: 0.84), value: isPending)
@@ -1072,16 +1051,6 @@ struct QuizCardEditorView: View {
             }
         } else {
             clear()
-        }
-    }
-
-    private func moveChoice(_ choiceID: UUID, direction: Int) {
-        guard let index = indexOfChoice(choiceID) else { return }
-        let newIndex = index + direction
-        guard choices.indices.contains(newIndex) else { return }
-
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) {
-            choices.swapAt(index, newIndex)
         }
     }
 
@@ -1340,8 +1309,6 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
 
 /// One answer row with correctness controls and a mini zone editor.
 private struct QuizChoiceCard: View {
-    let index: Int
-    let canMoveDown: Bool
     @Bindable var choice: QuizChoiceEditorItem
     var highlightContext: HighlightContext?
     let fontScale: CGFloat
@@ -1349,21 +1316,9 @@ private struct QuizChoiceCard: View {
     @Binding var previewDirection: AddDirection?
     let onActivate: () -> Void
     let onSelectionChange: () -> Void
-    let onMoveUp: () -> Void
-    let onMoveDown: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
-
-            HStack(alignment: .center, spacing: UIConstants.Spacing.small) {
-                Spacer()
-
-                HStack(spacing: UIConstants.Spacing.small) {
-                    QuizChoiceActionButton(symbol: "arrow.up", isEnabled: index > 0, action: onMoveUp)
-                    QuizChoiceActionButton(symbol: "arrow.down", isEnabled: canMoveDown, action: onMoveDown)
-                }
-            }
-
             ZoneEditorView(
                 content: choice.content,
                 path: .root,
@@ -1385,25 +1340,4 @@ private struct QuizChoiceCard: View {
         }
     }
 
-}
-
-/// Small chrome button used for answer reordering and deletion.
-private struct QuizChoiceActionButton: View {
-    let symbol: String
-    var isEnabled: Bool = true
-    var tint: Color = .secondary
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(tint)
-                .frame(width: 28, height: 28)
-                .background(Color(uiColor: .tertiarySystemFill), in: Circle())
-        }
-            .buttonStyle(.plain)
-            .disabled(!isEnabled)
-            .opacity(isEnabled ? 1 : 0.35)
-    }
 }
