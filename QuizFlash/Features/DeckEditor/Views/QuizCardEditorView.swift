@@ -704,16 +704,11 @@ struct QuizCardEditorView: View {
     }
 
     private func answersSection(availableWidth: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: UIConstants.Spacing.standard) {
+        VStack(alignment: .leading, spacing: 0) {
 
             ForEach(Array(choices.enumerated()), id: \.element.id) { index, choice in
 
-                VStack(spacing: 0) {
-                    if index > 0 {
-                        quizZoneSeparator
-                            .padding(.bottom, UIConstants.Spacing.standard)
-                    }
-
+                VStack(spacing: UIConstants.Spacing.standard) {
                     choiceHeader(
                         index: index,
                         choiceID: choice.id,
@@ -741,6 +736,11 @@ struct QuizCardEditorView: View {
                         }
                     )
                 }
+
+                if index < choices.count - 1 {
+                    quizZoneSeparator
+                        .padding(.vertical, UIConstants.Spacing.standard)
+                }
             }
 
             Button {
@@ -761,6 +761,7 @@ struct QuizCardEditorView: View {
                 }
             }
                 .buttonStyle(.plain)
+                .padding(.top, UIConstants.Spacing.standard)
         }
     }
 
@@ -800,15 +801,15 @@ struct QuizCardEditorView: View {
     private func deleteConfirmationButton(isPending: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: isPending ? "arrow.up.trash.fill" : "trash.fill")
-                .font(.system(size: isPending ? 18 : 17, weight: .bold))
+                .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(.red)
             .frame(width: 26, height: 26)
             .contentShape(Circle())
-            .scaleEffect(isPending ? 1.18 : 1)
+            .scaleEffect(isPending ? 1.28 : 1)
             .symbolEffect(.bounce, value: isPending)
         }
         .buttonStyle(.plain)
-        .animation(.spring(response: 0.28, dampingFraction: 0.62), value: isPending)
+        .animation(.spring(response: 0.28, dampingFraction: 0.72), value: isPending)
         .accessibilityLabel(isPending ? localized("Delete?") : localized("Delete"))
     }
 
