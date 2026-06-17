@@ -223,7 +223,7 @@ struct QuizCardEditorView: View {
                     ZoneEditorScrollViewLocator { scrollView in
                         quizScrollDriver.attach(scrollView)
                         quizScrollDriver.setTopInset(0)
-                        quizScrollDriver.resetBottomInset()
+                        refreshQuizBottomScrollInset()
                     }
                 }
                 .scrollDismissesKeyboard(.interactively)
@@ -259,6 +259,7 @@ struct QuizCardEditorView: View {
                 details: "visible=\(debugFlag(isVisible)) \(toolbarLifecycleDetails())"
             )
             updateFloatingFormatBarPresentation(isKeyboardVisible: isVisible)
+            refreshQuizBottomScrollInset()
             if isVisible {
                 scheduleStoredQuizCaretScroll(delays: [.milliseconds(24), .milliseconds(104)])
             } else {
@@ -272,6 +273,7 @@ struct QuizCardEditorView: View {
                 details: "height=\(debugValue(keyboardMonitor.visibleHeight)) \(toolbarLifecycleDetails())"
             )
             updateFloatingFormatBarKeyboardHeight()
+            refreshQuizBottomScrollInset()
             scheduleStoredQuizCaretScroll(delays: [.milliseconds(24), .milliseconds(104)])
         }
         .fullScreenCover(isPresented: $showSketchModal) {
@@ -567,6 +569,7 @@ struct QuizCardEditorView: View {
             details: "source=\(source) \(toolbarLifecycleDetails())"
         )
         updateFloatingFormatBarPresentation(isKeyboardVisible: keyboardMonitor.isVisible)
+        refreshQuizBottomScrollInset()
     }
 
     private func updateFloatingFormatBarKeyboardHeight() {
@@ -1155,6 +1158,7 @@ struct QuizCardEditorView: View {
 
     @discardableResult
     private func scrollQuizCaretDownIfNeeded(_ caretRect: CGRect, pathID: String) -> Bool {
+        refreshQuizBottomScrollInset()
         let visibleBottomY = quizVisibleBottomWindowY()
         let proposedDelta = caretRect.maxY - visibleBottomY
 
@@ -1200,6 +1204,30 @@ struct QuizCardEditorView: View {
 
     private var quizCaretBottomChromeBuffer: CGFloat {
         100
+    }
+
+    private func refreshQuizBottomScrollInset() {
+        let inset = quizDynamicBottomScrollInset
+        if inset > 0 {
+            quizScrollDriver.setBottomInset(inset)
+        } else {
+            quizScrollDriver.resetBottomInset()
+        }
+    }
+
+    private var quizDynamicBottomScrollInset: CGFloat {
+        let accessoryHeight = floatingToolbarAccessoryHeight
+        guard keyboardMonitor.isVisible || accessoryHeight > 0 else {
+            return 0
+        }
+
+        let keyboardClearance = keyboardMonitor.isVisible
+            ? max(keyboardMonitor.visibleHeight, 0)
+            : 0
+        return max(
+            keyboardClearance + max(accessoryHeight, 0),
+            max(accessoryHeight, 0)
+        ) + quizCaretBottomChromeBuffer
     }
 
     private var quizCaretScrollAnimationDuration: TimeInterval {
