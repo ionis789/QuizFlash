@@ -43,6 +43,7 @@ struct QuizCardEditorView: View {
     @State private var scheduledCaretScrollTask: Task<Void, Never>?
     @State private var activeQuizCaretPathID: String?
     @State private var activeQuizCaretWindowRect: CGRect?
+    @State private var quizViewportScreenFrame: CGRect = .zero
 
     private let textSize: FlashcardTextSize
     private let onSave: (QuizCardContent) -> Void
@@ -225,6 +226,14 @@ struct QuizCardEditorView: View {
                         quizScrollDriver.setTopInset(0)
                         quizScrollDriver.resetBottomInset()
                     }
+                    GeometryReader { geometry in
+                        Color.clear
+                            .onGeometryChange(for: CGRect.self) { proxy in
+                                proxy.frame(in: .global)
+                            } action: { frame in
+                                quizViewportScreenFrame = frame
+                            }
+                    }
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .screenEdgeShadow(
@@ -237,6 +246,9 @@ struct QuizCardEditorView: View {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .zoneEditorCaretMoved)) { notification in
                     handleCaretMovedNotification(notification)
+                }
+                .overlay(alignment: .topLeading) {
+                    quizScrollDebugOverlay
                 }
 
                 topChrome
@@ -1198,6 +1210,88 @@ struct QuizCardEditorView: View {
         return min(viewportBottomY, chromeTopY - quizCaretBottomChromeBuffer)
     }
 
+    @ViewBuilder
+    private var quizScrollDebugOverlay: some View {
+        if AppFeatures.current.showsVisualDebugOverlays {
+            ZStack(alignment: .topLeading) {
+                quizDebugHorizontalLine(
+                    screenY: quizViewportScreenFrame.maxY,
+                    color: .blue,
+                    title: "viewport bottom"
+                )
+                quizDebugHorizontalLine(
+                    screenY: quizKeyboardTopScreenY,
+                    color: .orange,
+                    title: "keyboard top"
+                )
+                quizDebugHorizontalLine(
+                    screenY: quizToolbarTopScreenY,
+                    color: .purple,
+                    title: "toolbar top"
+                )
+                quizDebugHorizontalLine(
+                    screenY: quizVisibleBottomWindowY(),
+                    color: .green,
+                    title: "visible bottom"
+                )
+                if let activeQuizCaretWindowRect {
+                    quizDebugHorizontalLine(
+                        screenY: activeQuizCaretWindowRect.maxY,
+                        color: .red,
+                        title: "caret bottom"
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("quiz scroll")
+                    Text("offset \(debugValue(quizScrollDriver.currentNormalizedOffsetY))")
+                    Text("kb \(debugValue(keyboardMonitor.visibleHeight)) toolbar \(debugValue(floatingToolbarAccessoryHeight))")
+                    Text("visible \(debugValue(quizVisibleBottomWindowY())) padding \(debugValue(bottomContentPadding))")
+                }
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white)
+                .padding(6)
+                .background(.black.opacity(0.66), in: RoundedRectangle(cornerRadius: 6))
+                .padding(.leading, 8)
+                .padding(.top, max(quizViewportScreenFrame.height - 132, 0))
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    @ViewBuilder
+    private func quizDebugHorizontalLine(screenY: CGFloat, color: Color, title: String) -> some View {
+        let localY = screenY - quizViewportScreenFrame.minY
+        if quizViewportScreenFrame.height > 0,
+           localY >= 0,
+           localY <= quizViewportScreenFrame.height {
+            HStack(spacing: 4) {
+                Rectangle()
+                    .stroke(
+                        color.opacity(0.95),
+                        style: StrokeStyle(lineWidth: 1.5, dash: [7, 5])
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 1.5, maxHeight: 1.5)
+
+                Text(title)
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(color)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 4))
+            }
+            .offset(y: localY)
+        }
+    }
+
+    private var quizKeyboardTopScreenY: CGFloat {
+        UIScreen.main.bounds.maxY - max(keyboardMonitor.visibleHeight, 0)
+    }
+
+    private var quizToolbarTopScreenY: CGFloat {
+        quizKeyboardTopScreenY - max(floatingToolbarAccessoryHeight, 0)
+    }
+
     private var quizCaretBottomChromeBuffer: CGFloat {
         100
     }
@@ -1217,7 +1311,7 @@ struct QuizCardEditorView: View {
     }
 
     private func quizScrollDetails(proposedDelta: CGFloat?) -> String {
-        "target=\(debugTargetID(activeEditor)) kb=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) toolbar=\(debugValue(floatingToolbarAccessoryHeight)) offset=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) delta=\(debugOptionalValue(proposedDelta)) selected=\(currentSelectedPath?.id ?? "nil")"
+        "target=\(debugTargetID(activeEditor)) kb=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) toolbar=\(debugValue(floatingToolbarAccessoryHeight)) offset=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) visibleBottom=\(debugValue(quizVisibleBottomWindowY())) viewport=\(debugRect(quizViewportScreenFrame)) bottomPadding=\(debugValue(bottomContentPadding)) delta=\(debugOptionalValue(proposedDelta)) selected=\(currentSelectedPath?.id ?? "nil")"
     }
 
     private func debugDurations(_ durations: [Duration]) -> String {
