@@ -261,7 +261,7 @@ struct QuizCardEditorView: View {
             updateFloatingFormatBarPresentation(isKeyboardVisible: isVisible)
             refreshQuizBottomScrollInset()
             if isVisible {
-                scheduleStoredQuizCaretScroll(delays: [.milliseconds(24), .milliseconds(104)])
+                scheduleStoredQuizCaretScroll(delays: quizCaretScrollDelays())
             } else {
                 scheduledCaretScrollTask?.cancel()
                 scheduledCaretScrollTask = nil
@@ -274,7 +274,7 @@ struct QuizCardEditorView: View {
             )
             updateFloatingFormatBarKeyboardHeight()
             refreshQuizBottomScrollInset()
-            scheduleStoredQuizCaretScroll(delays: [.milliseconds(24), .milliseconds(104)])
+            scheduleStoredQuizCaretScroll(delays: quizCaretScrollDelays())
         }
         .fullScreenCover(isPresented: $showSketchModal) {
             CanvasModalView { data in
@@ -536,6 +536,8 @@ struct QuizCardEditorView: View {
                     }
                     toolbarVisibilityDebugRevision += 1
                     recordToolbarLifecycle("appear-presented", details: toolbarLifecycleDetails())
+                    refreshQuizBottomScrollInset()
+                    scheduleStoredQuizCaretScroll(delays: [.milliseconds(16), .milliseconds(96)])
                 }
             } else {
                 recordToolbarLifecycle("appear-immediate-start", details: toolbarLifecycleDetails())
@@ -544,6 +546,8 @@ struct QuizCardEditorView: View {
                 }
                 toolbarVisibilityDebugRevision += 1
                 recordToolbarLifecycle("appear-immediate-presented", details: toolbarLifecycleDetails())
+                refreshQuizBottomScrollInset()
+                scheduleStoredQuizCaretScroll(delays: [.milliseconds(16), .milliseconds(96)])
             }
         } else {
             recordToolbarLifecycle("hide-animation-start", details: toolbarLifecycleDetails())
@@ -1066,7 +1070,15 @@ struct QuizCardEditorView: View {
             return
         }
 
-        scheduleStoredQuizCaretScroll(delays: [.milliseconds(16), .milliseconds(96)])
+        scheduleStoredQuizCaretScroll(delays: quizCaretScrollDelays())
+    }
+
+    private func quizCaretScrollDelays() -> [Duration] {
+        if isFloatingFormatBarPresented || !keyboardMonitor.isVisible {
+            return [.milliseconds(16), .milliseconds(96)]
+        }
+
+        return [.milliseconds(140), .milliseconds(260)]
     }
 
     private func scheduleStoredQuizCaretScroll(delays: [Duration]) {
