@@ -537,7 +537,7 @@ struct QuizCardEditorView: View {
                     toolbarVisibilityDebugRevision += 1
                     recordToolbarLifecycle("appear-presented", details: toolbarLifecycleDetails())
                     refreshQuizBottomScrollInset()
-                    scheduleStoredQuizCaretScroll(delays: [.milliseconds(16), .milliseconds(96)])
+                    scheduleStoredQuizCaretScroll(delays: quizInitialCaretScrollDelays())
                 }
             } else {
                 recordToolbarLifecycle("appear-immediate-start", details: toolbarLifecycleDetails())
@@ -547,7 +547,7 @@ struct QuizCardEditorView: View {
                 toolbarVisibilityDebugRevision += 1
                 recordToolbarLifecycle("appear-immediate-presented", details: toolbarLifecycleDetails())
                 refreshQuizBottomScrollInset()
-                scheduleStoredQuizCaretScroll(delays: [.milliseconds(16), .milliseconds(96)])
+                scheduleStoredQuizCaretScroll(delays: quizInitialCaretScrollDelays())
             }
         } else {
             recordToolbarLifecycle("hide-animation-start", details: toolbarLifecycleDetails())
@@ -1078,7 +1078,11 @@ struct QuizCardEditorView: View {
             return [.milliseconds(16), .milliseconds(96)]
         }
 
-        return [.milliseconds(140), .milliseconds(260)]
+        return quizInitialCaretScrollDelays()
+    }
+
+    private func quizInitialCaretScrollDelays() -> [Duration] {
+        [.milliseconds(320)]
     }
 
     private func scheduleStoredQuizCaretScroll(delays: [Duration]) {
@@ -1182,8 +1186,7 @@ struct QuizCardEditorView: View {
             bottomBuffer: quizCaretBottomChromeBuffer,
             animationDuration: quizCaretScrollAnimationDuration,
             animationOptions: keyboardMonitor.animationOptions,
-            zoneID: currentSelectedZoneID,
-            enforcesFinalOffset: true
+            zoneID: currentSelectedZoneID
         )
 
         let skippedStage = proposedDelta < -140 ? "quiz.scroll-skip-upward" : "quiz.scroll-skip-visible"

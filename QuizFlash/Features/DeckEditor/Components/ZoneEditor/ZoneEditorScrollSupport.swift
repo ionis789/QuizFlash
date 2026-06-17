@@ -204,8 +204,7 @@ final class ZoneEditorScrollDriver {
         bottomBuffer: CGFloat,
         animationDuration: TimeInterval,
         animationOptions: UIView.AnimationOptions,
-        zoneID: UUID?,
-        enforcesFinalOffset: Bool = false
+        zoneID: UUID?
     ) -> Bool {
         guard let scrollView,
               scrollView.window != nil,
@@ -264,14 +263,6 @@ final class ZoneEditorScrollDriver {
             duration: animationDuration,
             options: animationOptions
         )
-        if enforcesFinalOffset {
-            enforceContentOffsetY(
-                targetY,
-                in: scrollView,
-                zoneID: zoneID,
-                passes: [.milliseconds(320)]
-            )
-        }
         return true
     }
 
@@ -349,64 +340,6 @@ final class ZoneEditorScrollDriver {
             options: resolvedOptions
         ) {
             scrollView.setContentOffset(offset, animated: false)
-        }
-    }
-
-    private func enforceContentOffsetY(
-        _ targetY: CGFloat,
-        in scrollView: UIScrollView,
-        zoneID: UUID?,
-        passes: [Duration]
-    ) {
-        for (index, delay) in passes.enumerated() {
-            Task { @MainActor [weak scrollView] in
-                try? await Task.sleep(for: delay)
-                guard let scrollView, scrollView.window != nil else { return }
-                guard !scrollView.isTracking,
-                      !scrollView.isDragging,
-                      !scrollView.isDecelerating else {
-                    ZoneEditorDebugStore.shared.recordScrollDecision(
-                        "scroll-enforce-skip",
-                        zoneID: zoneID,
-                        details: "reason=user-scroll pass=\(index + 1) target=\(debugValue(targetY))"
-                    )
-                    return
-                }
-
-                let clampedTargetY = clampedOffsetY(targetY, in: scrollView)
-                let currentY = scrollView.contentOffset.y
-                guard abs(currentY - clampedTargetY) > 1 else {
-                    ZoneEditorDebugStore.shared.recordScrollDecision(
-                        "scroll-enforce-ok",
-                        zoneID: zoneID,
-                        details: "pass=\(index + 1) current=\(debugValue(currentY)) target=\(debugValue(clampedTargetY)) inset=\(debugInsets(scrollView.adjustedContentInset)) content=\(debugSize(scrollView.contentSize)) bounds=\(debugSize(scrollView.bounds.size))"
-                    )
-                    return
-                }
-
-                ZoneEditorDebugStore.shared.recordScrollDecision(
-                    "scroll-enforce-apply",
-                    zoneID: zoneID,
-                    details: "pass=\(index + 1) current=\(debugValue(currentY)) target=\(debugValue(clampedTargetY)) inset=\(debugInsets(scrollView.adjustedContentInset)) content=\(debugSize(scrollView.contentSize)) bounds=\(debugSize(scrollView.bounds.size))"
-                )
-                scrollView.layer.removeAllAnimations()
-                let targetOffset = CGPoint(x: scrollView.contentOffset.x, y: clampedTargetY)
-                if abs(currentY - clampedTargetY) > 8 {
-                    UIView.animate(
-                        withDuration: 0.14,
-                        delay: 0,
-                        options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]
-                    ) {
-                        scrollView.setContentOffset(targetOffset, animated: false)
-                    }
-                } else {
-                    UIView.performWithoutAnimation {
-                        scrollView.setContentOffset(targetOffset, animated: false)
-                        scrollView.layoutIfNeeded()
-                    }
-                }
-                reportScrollOffset(in: scrollView, force: true)
-            }
         }
     }
 
