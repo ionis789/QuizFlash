@@ -1787,7 +1787,7 @@ struct ZoneEditorCanvas: View {
     }
 
     private var caretBottomChromeBuffer: CGFloat {
-        100
+        24
     }
 
     private var dynamicBottomScrollInset: CGFloat {
