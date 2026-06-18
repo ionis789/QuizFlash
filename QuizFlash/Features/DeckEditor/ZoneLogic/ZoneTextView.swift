@@ -13,7 +13,15 @@ private enum ZoneTextViewEmptyCaret {
 
     static func displayText(for modelText: String) -> String {
         guard !modelText.isEmpty else { return placeholder }
-        return ZoneForcedLineBreak.editorDisplayText(modelText)
+        let displayText = ZoneForcedLineBreak.editorDisplayText(modelText)
+        guard modelText.hasSuffix(ZoneForcedLineBreak.marker) else {
+            return displayText
+        }
+
+        // TextKit can temporarily report the caret for a trailing marker-newline
+        // at the top of the text view. Keep an invisible glyph on that final
+        // editor-only line so caret geometry has a real layout fragment.
+        return displayText + placeholder
     }
 
     static func modelText(from displayText: String) -> String {
@@ -56,11 +64,32 @@ private enum ZoneTextViewEmptyCaret {
         let selectedText = nsText.substring(with: NSRange(location: clampedLocation, length: clampedEnd - clampedLocation))
         let markersBefore = markerCount(in: prefix)
         let markersInSelection = markerCount(in: selectedText)
+        let trailingAnchorOffset = trailingAnchorOffset(
+            modelText: modelText,
+            clampedLocation: clampedLocation,
+            clampedEnd: clampedEnd
+        )
 
         return NSRange(
-            location: clampedLocation + markersBefore,
+            location: clampedLocation + markersBefore + trailingAnchorOffset,
             length: (clampedEnd - clampedLocation) + markersInSelection
         )
+    }
+
+    private static func trailingAnchorOffset(
+        modelText: String,
+        clampedLocation: Int,
+        clampedEnd: Int
+    ) -> Int {
+        let modelLength = (modelText as NSString).length
+        guard modelLength > 0,
+              modelText.hasSuffix(ZoneForcedLineBreak.marker),
+              clampedLocation == modelLength,
+              clampedEnd == modelLength else {
+            return 0
+        }
+
+        return 1
     }
 
     private static func placeholderCount(in text: String) -> Int {
