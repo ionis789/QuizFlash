@@ -42,6 +42,7 @@ struct QuizCardEditorView: View {
     @State private var activeQuizCaretPathID: String?
     @State private var activeQuizCaretWindowRect: CGRect?
     @State private var quizViewportScreenFrame: CGRect = .zero
+    @State private var quizCaretScrollGate = QuizCaretScrollGate()
 
     private let textSize: FlashcardTextSize
     private let onSave: (QuizCardContent) -> Void
@@ -1151,6 +1152,16 @@ struct QuizCardEditorView: View {
             return
         }
 
+        if let caretRect,
+           quizCaretScrollGate.shouldIgnoreCaretUpdate(pathID: notificationPathID, rect: caretRect) {
+            recordQuizScroll(
+                "quiz.scroll-skip-duplicate-caret",
+                pathID: notificationPathID,
+                details: "rect=\(debugRect(caretRect)) \(quizScrollDetails(proposedDelta: nil))"
+            )
+            return
+        }
+
         activeQuizCaretPathID = notificationPathID
         activeQuizCaretWindowRect = caretRect
 
@@ -1285,6 +1296,31 @@ struct QuizCardEditorView: View {
             extra: "probe=\(probeID ?? "off") resolvedInset=content-padding"
         )
 
+        guard proposedDelta > 1 else {
+            recordQuizScroll(
+                "quiz.scroll-skip-visible",
+                pathID: pathID,
+                details: "reason=already-visible rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+            )
+            return false
+        }
+
+        if quizCaretScrollGate.shouldSuppressScrollRequest(
+            pathID: pathID,
+            rect: caretRect,
+            visibleBottomY: visibleBottomY,
+            proposedDelta: proposedDelta,
+            normalizedOffsetY: quizScrollDriver.currentNormalizedOffsetY,
+            animationDuration: quizCaretScrollAnimationDuration
+        ) {
+            recordQuizScroll(
+                "quiz.scroll-skip-duplicate-request",
+                pathID: pathID,
+                details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+            )
+            return false
+        }
+
         let didScroll = quizScrollDriver.scrollWindowRectAboveBottomChromeIfNeeded(
             windowRect: caretRect,
             bottomChromeTopY: nil,
@@ -1294,6 +1330,14 @@ struct QuizCardEditorView: View {
             animationDuration: quizCaretScrollAnimationDuration,
             animationOptions: keyboardMonitor.animationOptions,
             zoneID: currentSelectedZoneID
+        )
+        quizCaretScrollGate.recordScrollResult(
+            didScroll: didScroll,
+            pathID: pathID,
+            rect: caretRect,
+            visibleBottomY: visibleBottomY,
+            proposedDelta: proposedDelta,
+            normalizedOffsetY: quizScrollDriver.currentNormalizedOffsetY
         )
         recordQuizScrollState(
             "quiz.scroll-probe-after-request",
@@ -1932,4 +1976,82 @@ private struct QuizChoiceCard: View {
         }
     }
 
+}
+
+@MainActor
+private final class QuizCaretScrollGate {
+    private struct ScrollRequest {
+        let pathID: String
+        let rect: CGRect
+        let visibleBottomY: CGFloat
+        let proposedDelta: CGFloat
+        let normalizedOffsetY: CGFloat
+        let timestamp: CFTimeInterval
+    }
+
+    private var lastCaretPathID: String?
+    private var lastCaretRect: CGRect?
+    private var lastAppliedRequest: ScrollRequest?
+
+    func shouldIgnoreCaretUpdate(pathID: String, rect: CGRect) -> Bool {
+        defer {
+            lastCaretPathID = pathID
+            lastCaretRect = rect
+        }
+
+        guard lastCaretPathID == pathID,
+              let lastCaretRect else {
+            return false
+        }
+
+        return abs(lastCaretRect.minY - rect.minY) < 0.75
+            && abs(lastCaretRect.maxY - rect.maxY) < 0.75
+            && abs(lastCaretRect.minX - rect.minX) < 0.75
+            && abs(lastCaretRect.width - rect.width) < 0.75
+    }
+
+    func shouldSuppressScrollRequest(
+        pathID: String,
+        rect: CGRect,
+        visibleBottomY: CGFloat,
+        proposedDelta: CGFloat,
+        normalizedOffsetY: CGFloat,
+        animationDuration: TimeInterval
+    ) -> Bool {
+        guard let lastAppliedRequest,
+              lastAppliedRequest.pathID == pathID else {
+            return false
+        }
+
+        let elapsed = CACurrentMediaTime() - lastAppliedRequest.timestamp
+        let holdWindow = max(animationDuration + 0.08, 0.22)
+        guard elapsed <= holdWindow else { return false }
+
+        let sameCaretBand = abs(lastAppliedRequest.rect.maxY - rect.maxY) < 18
+            && abs(lastAppliedRequest.rect.minY - rect.minY) < 18
+        let sameTargetBand = abs(lastAppliedRequest.visibleBottomY - visibleBottomY) < 12
+            && abs(lastAppliedRequest.proposedDelta - proposedDelta) < 36
+        let scrollStillSettling = abs(lastAppliedRequest.normalizedOffsetY - normalizedOffsetY) > 1
+
+        return sameCaretBand && (sameTargetBand || scrollStillSettling)
+    }
+
+    func recordScrollResult(
+        didScroll: Bool,
+        pathID: String,
+        rect: CGRect,
+        visibleBottomY: CGFloat,
+        proposedDelta: CGFloat,
+        normalizedOffsetY: CGFloat
+    ) {
+        guard didScroll else { return }
+        lastAppliedRequest = ScrollRequest(
+            pathID: pathID,
+            rect: rect,
+            visibleBottomY: visibleBottomY,
+            proposedDelta: proposedDelta,
+            normalizedOffsetY: normalizedOffsetY,
+            timestamp: CACurrentMediaTime()
+        )
+    }
 }
