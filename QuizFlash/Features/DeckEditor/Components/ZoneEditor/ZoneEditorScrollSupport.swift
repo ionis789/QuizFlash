@@ -375,55 +375,6 @@ final class ZoneEditorScrollDriver {
     }
 
     @discardableResult
-    func scrollBy(
-        deltaY: CGFloat,
-        reason: String,
-        animationDuration: TimeInterval,
-        animationOptions: UIView.AnimationOptions,
-        zoneID: UUID?
-    ) -> Bool {
-        guard let scrollView,
-              scrollView.window != nil,
-              scrollView.bounds.height > 0,
-              abs(deltaY) > 0.5
-        else {
-            ZoneEditorDebugStore.shared.recordScrollDecision(
-                "scroll-delta-skip",
-                zoneID: zoneID,
-                details: "reason=\(reason) delta=\(debugValue(deltaY)) scrollView=\(scrollView == nil ? 0 : 1)"
-            )
-            return false
-        }
-
-        scrollView.layoutIfNeeded()
-        let currentY = scrollView.contentOffset.y
-        let targetY = clampedOffsetY(currentY + deltaY, in: scrollView)
-        guard abs(targetY - currentY) > 0.5 else {
-            ZoneEditorDebugStore.shared.recordScrollDecision(
-                "scroll-delta-skip",
-                zoneID: zoneID,
-                details: "reason=\(reason) delta=\(debugValue(deltaY)) current=\(debugValue(currentY)) target=\(debugValue(targetY)) inset=\(debugInsets(scrollView.adjustedContentInset)) content=\(debugSize(scrollView.contentSize)) bounds=\(debugSize(scrollView.bounds.size))"
-            )
-            return false
-        }
-
-        clearOffsetLock()
-        ZoneEditorDebugStore.shared.recordScrollDecision(
-            "scroll-delta-apply",
-            zoneID: zoneID,
-            details: "reason=\(reason) delta=\(debugValue(deltaY)) current=\(debugValue(currentY)) target=\(debugValue(targetY)) inset=\(debugInsets(scrollView.adjustedContentInset)) content=\(debugSize(scrollView.contentSize)) bounds=\(debugSize(scrollView.bounds.size))"
-        )
-        setContentOffset(
-            CGPoint(x: scrollView.contentOffset.x, y: targetY),
-            in: scrollView,
-            duration: animationDuration,
-            options: animationOptions
-        )
-        reportScrollOffset(in: scrollView, force: true)
-        return true
-    }
-
-    @discardableResult
     func scrollContentRectAboveBottomChromeIfNeeded(
         contentRect: CGRect,
         contentTopOffset: CGFloat,
