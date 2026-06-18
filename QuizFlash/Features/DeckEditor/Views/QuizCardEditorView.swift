@@ -819,7 +819,10 @@ struct QuizCardEditorView: View {
             highlightContext: highlightContext,
             fontScale: editorTextScale,
             availableWidth: availableWidth,
-            previewDirection: $previewDirection
+            previewDirection: $previewDirection,
+            onSelectionChange: {
+                activateEditor(.question)
+            }
         ) {
             activateEditor(.question)
         }
@@ -859,7 +862,11 @@ struct QuizCardEditorView: View {
                             activateEditor(.choice(choice.id))
                         },
                         onSelectionChange: {
-                            handleSelectedPathChange(source: "choice:\(String(choice.id.uuidString.prefix(6)))")
+                            if choice.selectedPath != nil {
+                                activateEditor(.choice(choice.id))
+                            } else {
+                                handleSelectedPathChange(source: "choice:\(String(choice.id.uuidString.prefix(6)))")
+                            }
                         }
                     )
                 }
@@ -1001,7 +1008,10 @@ struct QuizCardEditorView: View {
                         highlightContext: highlightContext,
                         fontScale: editorTextScale,
                         availableWidth: availableWidth,
-                        previewDirection: $previewDirection
+                        previewDirection: $previewDirection,
+                        onSelectionChange: {
+                            activateEditor(.explanation)
+                        }
                     ) {
                         activateEditor(.explanation)
                     }
@@ -1804,6 +1814,7 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
     let availableWidth: CGFloat
     @Binding var previewDirection: AddDirection?
     @ViewBuilder var trailingContent: () -> TrailingContent
+    let onSelectionChange: () -> Void
     let onActivate: () -> Void
 
     init(
@@ -1813,6 +1824,7 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
         fontScale: CGFloat,
         availableWidth: CGFloat,
         previewDirection: Binding<AddDirection?>,
+        onSelectionChange: @escaping () -> Void = {},
         @ViewBuilder trailingContent: @escaping () -> TrailingContent = { EmptyView() },
         onActivate: @escaping () -> Void
     ) {
@@ -1823,6 +1835,7 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
         self.availableWidth = availableWidth
         self._previewDirection = previewDirection
         self.trailingContent = trailingContent
+        self.onSelectionChange = onSelectionChange
         self.onActivate = onActivate
     }
 
@@ -1844,8 +1857,12 @@ private struct QuizZoneSectionCard<TrailingContent: View>: View {
             trailingContent()
         }
             .onTapGesture {
-            onActivate()
-        }
+                onActivate()
+            }
+            .onChange(of: selectedPath) { _, newPath in
+                guard newPath != nil else { return }
+                onSelectionChange()
+            }
     }
 
 }
