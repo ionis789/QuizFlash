@@ -1308,27 +1308,28 @@ struct QuizCardEditorView: View {
 
     @discardableResult
     private func scrollQuizCaretDownIfNeeded(_ caretRect: CGRect, pathID: String) -> Bool {
-        let visibleBottomY = quizVisibleBottomWindowY()
+        let bottomBuffer = quizCaretBottomChromeBuffer(forSource: activeQuizCaretSource)
+        let visibleBottomY = quizVisibleBottomWindowY(bottomBuffer: bottomBuffer)
         let proposedDelta = caretRect.maxY - visibleBottomY
         let probeID = isQuizDebugRecordingActive ? "\(pathID)-\(Int(Date().timeIntervalSince1970 * 1_000))" : nil
 
         recordQuizScrollState(
             "quiz.scroll-probe-start",
             pathID: pathID,
-            extra: "probe=\(probeID ?? "off") rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta))"
+            extra: "probe=\(probeID ?? "off") source=\(activeQuizCaretSource?.rawValue ?? "nil") rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) bottomBuffer=\(debugValue(bottomBuffer)) proposedDelta=\(debugOptionalValue(proposedDelta))"
         )
 
         recordQuizScrollState(
             "quiz.scroll-probe-after-inset",
             pathID: pathID,
-            extra: "probe=\(probeID ?? "off") resolvedInset=content-padding"
+            extra: "probe=\(probeID ?? "off") resolvedInset=content-padding bottomBuffer=\(debugValue(bottomBuffer))"
         )
 
         guard proposedDelta > 1 else {
             recordQuizScroll(
                 "quiz.scroll-skip-visible",
                 pathID: pathID,
-                details: "reason=already-visible rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+                details: "reason=already-visible source=\(activeQuizCaretSource?.rawValue ?? "nil") rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) bottomBuffer=\(debugValue(bottomBuffer)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
             )
             return false
         }
@@ -1344,7 +1345,7 @@ struct QuizCardEditorView: View {
             recordQuizScroll(
                 "quiz.scroll-skip-duplicate-request",
                 pathID: pathID,
-                details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+                details: "source=\(activeQuizCaretSource?.rawValue ?? "nil") rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) bottomBuffer=\(debugValue(bottomBuffer)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
             )
             return false
         }
@@ -1354,7 +1355,7 @@ struct QuizCardEditorView: View {
             bottomChromeTopY: nil,
             keyboardHeight: keyboardMonitor.visibleHeight,
             bottomAccessoryHeight: floatingToolbarAccessoryHeight,
-            bottomBuffer: quizCaretBottomChromeBuffer,
+            bottomBuffer: bottomBuffer,
             animationDuration: quizCaretScrollAnimationDuration,
             animationOptions: keyboardMonitor.animationOptions,
             zoneID: currentSelectedZoneID
@@ -1391,7 +1392,7 @@ struct QuizCardEditorView: View {
         recordQuizScroll(
             didScroll ? sourceStage : skippedStage,
             pathID: pathID,
-            details: "source=\(activeQuizCaretSource?.rawValue ?? "nil") rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) resolvedInset=content-padding didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+            details: "source=\(activeQuizCaretSource?.rawValue ?? "nil") rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) bottomBuffer=\(debugValue(bottomBuffer)) resolvedInset=content-padding didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: proposedDelta))"
         )
         return didScroll
     }
@@ -1440,12 +1441,19 @@ struct QuizCardEditorView: View {
         source == .focus || source == .selectionTap || source == .newline
     }
 
-    private func quizVisibleBottomWindowY() -> CGFloat {
-        let viewportBottomY = UIScreen.main.bounds.maxY - quizCaretBottomChromeBuffer
+    private func quizCaretBottomChromeBuffer(forSource source: ZoneEditorCaretScrollSource?) -> CGFloat {
+        source == .newline ? quizNewlineCaretBottomChromeBuffer : quizCaretBottomChromeBuffer
+    }
+
+    private func quizVisibleBottomWindowY(
+        bottomBuffer: CGFloat? = nil
+    ) -> CGFloat {
+        let resolvedBottomBuffer = bottomBuffer ?? quizCaretBottomChromeBuffer(forSource: activeQuizCaretSource)
+        let viewportBottomY = UIScreen.main.bounds.maxY - resolvedBottomBuffer
         let chromeTopY = UIScreen.main.bounds.maxY
             - max(keyboardMonitor.visibleHeight, 0)
             - max(floatingToolbarAccessoryHeight, 0)
-        return min(viewportBottomY, chromeTopY - quizCaretBottomChromeBuffer)
+        return min(viewportBottomY, chromeTopY - resolvedBottomBuffer)
     }
 
     @ViewBuilder
@@ -1484,7 +1492,8 @@ struct QuizCardEditorView: View {
                     Text("quiz scroll")
                     Text("offset \(debugValue(quizScrollDriver.currentNormalizedOffsetY))")
                     Text("kb \(debugValue(keyboardMonitor.visibleHeight)) toolbar \(debugValue(floatingToolbarAccessoryHeight))")
-                    Text("visible \(debugValue(quizVisibleBottomWindowY())) padding \(debugValue(bottomContentPadding))")
+                    Text("visible \(debugValue(quizVisibleBottomWindowY())) buffer \(debugValue(quizCaretBottomChromeBuffer(forSource: activeQuizCaretSource)))")
+                    Text("padding \(debugValue(bottomContentPadding))")
                     Text("inset \(debugValue(quizScrollDriver.currentContentInsetBottom))/\(debugValue(quizScrollDriver.currentAdjustedContentInsetBottom))")
                 }
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
@@ -1533,6 +1542,10 @@ struct QuizCardEditorView: View {
 
     private var quizCaretBottomChromeBuffer: CGFloat {
         100
+    }
+
+    private var quizNewlineCaretBottomChromeBuffer: CGFloat {
+        16
     }
 
     private var quizCaretScrollAnimationDuration: TimeInterval {
