@@ -65,7 +65,10 @@ struct QuizCardEditorView: View {
     private var isFormatBarVisible: Bool { isFloatingFormatBarVisible }
     private var bottomContentPadding: CGFloat {
         let chromePadding: CGFloat = isFloatingFormatBarVisible ? 148 : 96
-        let keyboardPadding = keyboardMonitor.isVisible ? max(keyboardMonitor.visibleHeight, 0) : 0
+        let keyboardSettlePadding: CGFloat = 64
+        let keyboardPadding = keyboardMonitor.isVisible
+            ? max(keyboardMonitor.visibleHeight + keyboardSettlePadding, 0)
+            : 0
         return chromePadding + keyboardPadding
     }
 
