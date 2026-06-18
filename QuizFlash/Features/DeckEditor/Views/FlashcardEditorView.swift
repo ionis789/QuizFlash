@@ -373,6 +373,18 @@ struct FlashcardEditorView: View {
                         .padding(.vertical, 4)
                         .padding(.horizontal, isCompact ? 16 : topChromeHorizontalInset)
                         .padding(.bottom, floatingToolbarBaseBottomInset)
+                        .background {
+                            GeometryReader { proxy in
+                                Color.clear
+                                    .onGeometryChange(for: CGFloat.self) { _ in
+                                        proxy.frame(in: .global).minY
+                                    } action: { topY in
+                                        guard abs((floatingFormatBarTopY ?? topY) - topY) > 0.5 else { return }
+                                        floatingFormatBarTopY = topY
+                                        floatingFormatBarTopUpdateCount += 1
+                                    }
+                            }
+                        }
                         .offset(y: floatingFormatBarYOffset)
                         .modifier(
                             EditorKeyboardAccessoryVisibilityModifier(
@@ -441,17 +453,7 @@ struct FlashcardEditorView: View {
     }
 
     private var floatingToolbarAccessoryHeight: CGFloat {
-        if isFloatingFormatBarVisible {
-            return 96
-        }
-
-        guard keyboardMonitor.isVisible,
-              selectedPath != nil,
-              !selectedZoneIsMedia else {
-            return 0
-        }
-
-        return 96
+        isFloatingFormatBarVisible ? 96 : 0
     }
 
     private var selectedZoneIsMedia: Bool {
@@ -825,7 +827,7 @@ struct FlashcardEditorView: View {
             verticalAlignmentFallback: verticalAlignmentFallback,
             topContentInset: editorTopContentInset(safeTopInset: safeTopInset),
             bottomAccessoryHeight: floatingToolbarAccessoryHeight,
-            bottomAccessoryTopY: nil,
+            bottomAccessoryTopY: isFloatingFormatBarVisible ? floatingFormatBarRenderedTopY : nil,
             scrollResetToken: activeSide,
             scrollRestorationRequest: activeSide == side ? scrollRestorationRequest : nil,
             rendersRichText: rendersRichText,
@@ -1621,8 +1623,8 @@ struct FlashcardEditorView: View {
 }
 
 private enum EditorKeyboardAccessoryMotion {
-    static let appearAnimation: Animation = .easeOut(duration: 0.12)
-    static let dismissAnimation: Animation = .easeOut(duration: 0.10)
+    static let appearAnimation: Animation = .selectionToolbarSpring
+    static let dismissAnimation: Animation = .selectionToolbarSpring
     static let cleanupDelay: Duration = .milliseconds(140)
     static let keyboardDismissDelay: Duration = .milliseconds(105)
 
@@ -1637,8 +1639,8 @@ private struct EditorKeyboardAccessoryVisibilityModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(isVisible ? 1 : 0.001)
-            .blur(radius: isVisible ? 0 : 4)
-            .scaleEffect(isVisible ? 1 : 0.985, anchor: .bottom)
+            .blur(radius: isVisible ? 0 : 3)
+            .scaleEffect(isVisible ? 1 : 0.94, anchor: .bottom)
             .allowsHitTesting(isVisible)
             .animation(
                 isVisible

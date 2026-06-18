@@ -1749,8 +1749,8 @@ private struct QuizEditorAddButtonStyle: ButtonStyle {
 }
 
 private enum EditorKeyboardAccessoryMotion {
-    static let appearAnimation: Animation = .easeOut(duration: 0.12)
-    static let dismissAnimation: Animation = .easeOut(duration: 0.10)
+    static let appearAnimation: Animation = .selectionToolbarSpring
+    static let dismissAnimation: Animation = .selectionToolbarSpring
     static let keyboardPaddingDismissAnimation: Animation = .easeOut(duration: 0.24)
     static let cleanupDelay: Duration = .milliseconds(140)
     static let keyboardDismissDelay: Duration = .milliseconds(105)
@@ -1766,8 +1766,8 @@ private struct EditorKeyboardAccessoryVisibilityModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(isVisible ? 1 : 0.001)
-            .blur(radius: isVisible ? 0 : 4)
-            .scaleEffect(isVisible ? 1 : 0.985, anchor: .bottom)
+            .blur(radius: isVisible ? 0 : 3)
+            .scaleEffect(isVisible ? 1 : 0.94, anchor: .bottom)
             .allowsHitTesting(isVisible)
             .animation(
                 isVisible
