@@ -278,6 +278,7 @@ struct QuizCardEditorView: View {
             addPhoto(item)
         }
         .onChange(of: keyboardMonitor.isVisible) { _, isVisible in
+            quizCaretScrollGate.reset()
             keyboardDebugRevision += 1
             toolbarVisibilityDebugRevision += 1
             recordToolbarLifecycle(
@@ -300,6 +301,7 @@ struct QuizCardEditorView: View {
             }
         }
         .onChange(of: keyboardMonitor.visibleHeight) { _, _ in
+            quizCaretScrollGate.reset()
             recordToolbarLifecycle(
                 "keyboard-height-change",
                 details: "height=\(debugValue(keyboardMonitor.visibleHeight)) \(toolbarLifecycleDetails())"
@@ -1114,6 +1116,7 @@ struct QuizCardEditorView: View {
 
     private func activateEditor(_ target: QuizEditorTarget) {
         if activeEditor != target {
+            quizCaretScrollGate.reset()
             setSelectedPath(nil, for: activeEditor, recordsSelection: false)
             previewDirection = nil
         }
@@ -1305,7 +1308,7 @@ struct QuizCardEditorView: View {
             return false
         }
 
-        if quizCaretScrollGate.shouldSuppressScrollRequest(
+        if let suppressionStage = quizCaretScrollGate.scrollSuppressionStage(
             pathID: pathID,
             rect: caretRect,
             visibleBottomY: visibleBottomY,
@@ -1314,7 +1317,7 @@ struct QuizCardEditorView: View {
             animationDuration: quizCaretScrollAnimationDuration
         ) {
             recordQuizScroll(
-                "quiz.scroll-skip-duplicate-request",
+                suppressionStage,
                 pathID: pathID,
                 details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
             )
@@ -1992,6 +1995,14 @@ private final class QuizCaretScrollGate {
     private var lastCaretPathID: String?
     private var lastCaretRect: CGRect?
     private var lastAppliedRequest: ScrollRequest?
+    private var oversizedRepeatLock: ScrollRequest?
+
+    func reset() {
+        lastCaretPathID = nil
+        lastCaretRect = nil
+        lastAppliedRequest = nil
+        oversizedRepeatLock = nil
+    }
 
     func shouldIgnoreCaretUpdate(pathID: String, rect: CGRect) -> Bool {
         defer {
@@ -2010,30 +2021,50 @@ private final class QuizCaretScrollGate {
             && abs(lastCaretRect.width - rect.width) < 0.75
     }
 
-    func shouldSuppressScrollRequest(
+    func scrollSuppressionStage(
         pathID: String,
         rect: CGRect,
         visibleBottomY: CGFloat,
         proposedDelta: CGFloat,
         normalizedOffsetY: CGFloat,
         animationDuration: TimeInterval
-    ) -> Bool {
+    ) -> String? {
         guard let lastAppliedRequest,
               lastAppliedRequest.pathID == pathID else {
-            return false
+            return nil
         }
 
         let elapsed = CACurrentMediaTime() - lastAppliedRequest.timestamp
         let holdWindow = max(animationDuration + 0.08, 0.22)
-        guard elapsed <= holdWindow else { return false }
-
         let sameCaretBand = abs(lastAppliedRequest.rect.maxY - rect.maxY) < 18
             && abs(lastAppliedRequest.rect.minY - rect.minY) < 18
         let sameTargetBand = abs(lastAppliedRequest.visibleBottomY - visibleBottomY) < 12
             && abs(lastAppliedRequest.proposedDelta - proposedDelta) < 36
         let scrollStillSettling = abs(lastAppliedRequest.normalizedOffsetY - normalizedOffsetY) > 1
 
-        return sameCaretBand && (sameTargetBand || scrollStillSettling)
+        if elapsed <= holdWindow,
+           sameCaretBand,
+           (sameTargetBand || scrollStillSettling) {
+            return "quiz.scroll-skip-duplicate-request"
+        }
+
+        if let oversizedRepeatLock,
+           oversizedRepeatLock.pathID == pathID {
+            let sameOversizedCaretBand = abs(oversizedRepeatLock.rect.maxY - rect.maxY) < 24
+                && abs(oversizedRepeatLock.rect.minY - rect.minY) < 24
+            let sameOversizedTarget = abs(oversizedRepeatLock.visibleBottomY - visibleBottomY) < 12
+                && abs(oversizedRepeatLock.proposedDelta - proposedDelta) < 48
+            let sameOversizedRequest = oversizedRepeatLock.proposedDelta > 96 && proposedDelta > 96
+            let offsetSnappedBack = normalizedOffsetY < oversizedRepeatLock.normalizedOffsetY - 64
+
+            if sameOversizedCaretBand,
+               sameOversizedTarget,
+               (sameOversizedRequest || offsetSnappedBack) {
+                return "quiz.scroll-skip-oversized-repeat"
+            }
+        }
+
+        return nil
     }
 
     func recordScrollResult(
@@ -2053,5 +2084,11 @@ private final class QuizCaretScrollGate {
             normalizedOffsetY: normalizedOffsetY,
             timestamp: CACurrentMediaTime()
         )
+
+        if proposedDelta > 96 {
+            oversizedRepeatLock = lastAppliedRequest
+        } else {
+            oversizedRepeatLock = nil
+        }
     }
 }
