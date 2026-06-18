@@ -456,16 +456,7 @@ struct QuizCardEditorView: View {
     }
 
     private var floatingToolbarAccessoryHeight: CGFloat {
-        if isFloatingFormatBarVisible {
-            return 96
-        }
-
-        guard keyboardMonitor.isVisible,
-              currentSelectedPath != nil else {
-            return 0
-        }
-
-        return 96
+        isFloatingFormatBarVisible ? 96 : 0
     }
 
     private var selectedZoneIsMedia: Bool {
@@ -616,6 +607,24 @@ struct QuizCardEditorView: View {
 
     private func handleSelectedPathChange(source: String) {
         toolbarVisibilityDebugRevision += 1
+
+        if selectedZoneIsMedia {
+            prepareForMediaZoneSelection()
+            recordToolbarLifecycle("media-selection-present", details: "source=\(source) \(toolbarLifecycleDetails())")
+            withAnimation(EditorKeyboardAccessoryMotion.appearAnimation) {
+                isFloatingFormatBarPresented = true
+                floatingFormatBarKeyboardHeight = 0
+            }
+            toolbarVisibilityDebugRevision += 1
+        } else if !keyboardMonitor.isVisible {
+            recordToolbarLifecycle("selection-hide-no-keyboard", details: "source=\(source) \(toolbarLifecycleDetails())")
+            withAnimation(EditorKeyboardAccessoryMotion.dismissAnimation) {
+                isFloatingFormatBarPresented = false
+                floatingFormatBarKeyboardHeight = 0
+            }
+            toolbarVisibilityDebugRevision += 1
+        }
+
         recordToolbarLifecycle(
             "selection-change",
             details: "source=\(source) \(toolbarLifecycleDetails())"
@@ -1622,6 +1631,18 @@ struct QuizCardEditorView: View {
         applyMedia(data: data, as: .sketch)
     }
 
+    private func prepareForMediaZoneSelection() {
+        scheduledCaretScrollTask?.cancel()
+        scheduledCaretScrollTask = nil
+        previewDirection = nil
+        focusManager.suppressFocusRequests(for: 0.9)
+        focusManager.forceReleaseKeyboard()
+        zoneController.forceReleaseKeyboard()
+        zoneController.updateFocusedZone(nil)
+        activeQuizCaretPathID = nil
+        activeQuizCaretWindowRect = nil
+    }
+
     private func applyMedia(data: Data, as contentType: ZoneContentType) {
         guard let content = currentContent else { return }
 
@@ -1632,6 +1653,8 @@ struct QuizCardEditorView: View {
             zone.contentType = contentType
             zone.imageData = data
         }
+        prepareForMediaZoneSelection()
+        updateFloatingFormatBarPresentation(isKeyboardVisible: false)
     }
 
     private func openPreview() {
