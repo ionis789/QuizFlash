@@ -1156,14 +1156,14 @@ struct QuizCardEditorView: View {
             return
         }
 
-        guard source == .focus || source == .selectionTap else {
+        guard shouldScrollQuizCaret(for: source) else {
             scheduledCaretScrollTask?.cancel()
             scheduledCaretScrollTask = nil
             activeQuizCaretPathID = notificationPathID
             activeQuizCaretWindowRect = caretRect
             activeQuizCaretSource = source
             recordQuizScroll(
-                source == .newline ? "quiz.scroll-skip-native-newline" : "quiz.scroll-skip-text-input",
+                "quiz.scroll-skip-text-input",
                 pathID: notificationPathID,
                 details: "source=\(source.rawValue) rect=\(caretRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
             )
@@ -1223,9 +1223,9 @@ struct QuizCardEditorView: View {
             )
             return
         }
-        guard activeQuizCaretSource == .focus || activeQuizCaretSource == .selectionTap else {
+        guard activeQuizCaretSource.map(shouldScrollQuizCaret) == true else {
             recordQuizScroll(
-                activeQuizCaretSource == .newline ? "quiz.scroll-skip-native-newline" : "quiz.scroll-schedule-skip",
+                "quiz.scroll-schedule-skip",
                 pathID: activeQuizCaretPathID,
                 details: "reason=source source=\(activeQuizCaretSource?.rawValue ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
             )
@@ -1383,6 +1383,8 @@ struct QuizCardEditorView: View {
             sourceStage = "quiz.scroll-apply-focus"
         case .selectionTap:
             sourceStage = "quiz.scroll-apply-selection-tap"
+        case .newline:
+            sourceStage = "quiz.scroll-apply-newline"
         default:
             sourceStage = "quiz.scroll-apply-down"
         }
@@ -1432,6 +1434,10 @@ struct QuizCardEditorView: View {
         }
 
         return source
+    }
+
+    private func shouldScrollQuizCaret(for source: ZoneEditorCaretScrollSource) -> Bool {
+        source == .focus || source == .selectionTap || source == .newline
     }
 
     private func quizVisibleBottomWindowY() -> CGFloat {
