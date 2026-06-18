@@ -456,7 +456,17 @@ struct QuizCardEditorView: View {
     }
 
     private var floatingToolbarAccessoryHeight: CGFloat {
-        isFloatingFormatBarVisible ? 96 : 0
+        if isFloatingFormatBarVisible {
+            return 96
+        }
+
+        guard keyboardMonitor.isVisible,
+              currentSelectedPath != nil,
+              !selectedZoneIsMedia else {
+            return 0
+        }
+
+        return 96
     }
 
     private var selectedZoneIsMedia: Bool {

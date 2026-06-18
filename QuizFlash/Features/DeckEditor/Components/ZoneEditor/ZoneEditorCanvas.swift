@@ -1758,6 +1758,26 @@ struct ZoneEditorCanvas: View {
         return value as? CGRect
     }
 
+    private var keyboardTopDebugScreenY: CGFloat? {
+        guard keyboardMonitor.isVisible || keyboardMonitor.visibleHeight > 0 else { return nil }
+        return UIScreen.main.bounds.maxY - max(keyboardMonitor.visibleHeight, 0)
+    }
+
+    private var toolbarTopDebugScreenY: CGFloat? {
+        let viewportBottomY = viewportScreenFrame.height > 0
+            ? viewportScreenFrame.maxY
+            : UIScreen.main.bounds.maxY
+        return bottomAccessoryTopY ?? fallbackBottomChromeTopY(viewportBottomY: viewportBottomY)
+    }
+
+    private var visibleBottomDebugScreenY: CGFloat? {
+        let viewportBottomY = viewportScreenFrame.height > 0
+            ? viewportScreenFrame.maxY - caretBottomChromeBuffer
+            : UIScreen.main.bounds.maxY - caretBottomChromeBuffer
+        guard let toolbarTopDebugScreenY else { return viewportBottomY }
+        return min(viewportBottomY, toolbarTopDebugScreenY - caretBottomChromeBuffer)
+    }
+
     private var activeBottomChromeClearance: CGFloat {
         dynamicBottomScrollInset
     }
@@ -1864,10 +1884,40 @@ struct ZoneEditorCanvas: View {
 
                 layoutDebugLine(snapshot: rawLayoutDebugSnapshot, color: .green)
                 layoutDebugLine(snapshot: renderLayoutDebugSnapshot, color: .pink)
+                scrollDebugLine(
+                    screenY: keyboardTopDebugScreenY,
+                    color: .orange,
+                    title: "keyboard top"
+                )
+                scrollDebugLine(
+                    screenY: toolbarTopDebugScreenY,
+                    color: .purple,
+                    title: "toolbar top"
+                )
+                scrollDebugLine(
+                    screenY: visibleBottomDebugScreenY,
+                    color: .green,
+                    title: "visible bottom"
+                )
+                if let activeCaretWindowRect {
+                    scrollDebugLine(
+                        screenY: activeCaretWindowRect.maxY,
+                        color: .red,
+                        title: "caret bottom"
+                    )
+                }
 
                 VStack(alignment: .leading, spacing: 3) {
                     layoutDebugSummary(snapshot: rawLayoutDebugSnapshot, color: .green)
                     layoutDebugSummary(snapshot: renderLayoutDebugSnapshot, color: .pink)
+                    Text(scrollDebugSummaryText)
+                        .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.55)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 3))
                 }
                 .padding(4)
             }
@@ -1885,6 +1935,34 @@ struct ZoneEditorCanvas: View {
                 .fill(color)
                 .frame(height: 2)
                 .offset(y: snapshot.screenY - viewportScreenFrame.minY)
+        }
+    }
+
+    @ViewBuilder
+    private func scrollDebugLine(
+        screenY: CGFloat?,
+        color: Color,
+        title: String
+    ) -> some View {
+        if let screenY,
+           viewportScreenFrame.height > 0,
+           screenY.isFinite {
+            let localY = screenY - viewportScreenFrame.minY
+            Rectangle()
+                .stroke(
+                    color,
+                    style: StrokeStyle(lineWidth: 2, dash: [7, 5])
+                )
+                .frame(height: 2)
+                .offset(y: localY)
+                .overlay(alignment: .trailing) {
+                    Text(title)
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(color)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 3))
+                }
         }
     }
 
@@ -1910,8 +1988,17 @@ struct ZoneEditorCanvas: View {
         return "\(snapshot.mode) screenY=\(debugNumber(snapshot.screenY)) contentY=\(debugNumber(snapshot.contentY)) scrollY=\(debugNumber(snapshot.scrollY))\nframe=(\(debugNumber(frame.minX)),\(debugNumber(frame.minY)),\(debugNumber(frame.width)),\(debugNumber(frame.height))) topInset=\(debugNumber(snapshot.topInset)) padding=(\(debugNumber(snapshot.horizontalPadding)),\(debugNumber(snapshot.verticalPadding))) path=\(snapshot.path)"
     }
 
+    private var scrollDebugSummaryText: String {
+        "offset=\(debugNumber(scrollDriver.currentNormalizedOffsetY)) kb=\(debugNumber(keyboardMonitor.visibleHeight)) toolbar=\(debugNumber(bottomAccessoryHeight))\nvisible=\(debugOptionalNumber(visibleBottomDebugScreenY)) caret=\(debugOptionalNumber(activeCaretWindowRect?.maxY))"
+    }
+
     private func debugNumber(_ value: CGFloat) -> String {
         String(format: "%.1f", value)
+    }
+
+    private func debugOptionalNumber(_ value: CGFloat?) -> String {
+        guard let value else { return "nil" }
+        return debugNumber(value)
     }
 
     private func handleScrollOffsetChange(_ offsetY: CGFloat) {
