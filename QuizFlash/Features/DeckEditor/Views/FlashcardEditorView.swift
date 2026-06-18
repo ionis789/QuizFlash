@@ -1647,7 +1647,7 @@ private struct EditorKeyboardAccessoryVisibilityModifier: ViewModifier {
         content
             .opacity(isVisible ? 1 : 0.001)
             .blur(radius: isVisible ? 0 : 3)
-            .scaleEffect(isVisible ? 1 : 0.94, anchor: .bottom)
+            .scaleEffect(isVisible ? 1 : 0.7, anchor: .bottom)
             .allowsHitTesting(isVisible)
             .animation(
                 isVisible

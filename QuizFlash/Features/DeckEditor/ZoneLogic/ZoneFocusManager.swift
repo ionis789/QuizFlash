@@ -26,6 +26,14 @@ enum ZoneEditorCaretScrollNotification {
     static let pathIDKey = "pathID"
     static let anchorYKey = "anchorY"
     static let caretRectInWindowKey = "caretRectInWindow"
+    static let sourceKey = "source"
+}
+
+enum ZoneEditorCaretScrollSource: String {
+    case focus
+    case selectionTap
+    case textInput
+    case newline
 }
 
 // MARK: - Zone Focus Manager

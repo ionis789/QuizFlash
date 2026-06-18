@@ -540,7 +540,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
-    var onCaretGeometryChange: ((CGFloat, CGRect) -> Void)?
+    var onCaretGeometryChange: ((CGFloat, CGRect, ZoneEditorCaretScrollSource) -> Void)?
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
     var font: UIFont = .preferredFont(forTextStyle: .body)
@@ -565,6 +565,8 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     private var lastReportedCaretWindowRect: CGRect?
     private var caretReportGeneration = 0
     private var waitsForSettledTextLayoutCaret = false
+    private var pendingTextEditCaretSource: ZoneEditorCaretScrollSource?
+    private var settlingTextEditCaretSource: ZoneEditorCaretScrollSource?
     fileprivate var focusSyncState: FocusSyncState = .idle
     
     override init() {
@@ -835,7 +837,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             recordCaretProbe("caret.reject-overflow-before-restore", textView: textView)
             restoreLastAcceptedText(in: textView)
             recordCaretProbe("caret.reject-overflow-after-restore", textView: textView)
-            reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
+            reportCursorPosition(
+                from: textView,
+                includeCaretAnchor: true,
+                forceCaretGeometry: true,
+                source: .textInput
+            )
             return
         }
 
@@ -844,9 +851,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         resetTextStyling(in: textView)
         recordCaretProbe("caret.did-change-after-style", textView: textView)
         waitsForSettledTextLayoutCaret = true
+        let caretSource = pendingTextEditCaretSource ?? .textInput
+        settlingTextEditCaretSource = caretSource
+        pendingTextEditCaretSource = nil
         onTextChange?(modelText)
-        reportCursorPosition(from: textView, includeCaretAnchor: false)
-        scheduleSettledCaretReport(from: textView)
+        reportCursorPosition(from: textView, includeCaretAnchor: false, source: caretSource)
+        scheduleSettledCaretReport(from: textView, source: caretSource)
     }
     
     func textViewDidChangeSelection(_ textView: UITextView) {
@@ -856,14 +866,15 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         normalizeTypingAttributes(in: textView)
 
         guard !waitsForSettledTextLayoutCaret else {
+            let caretSource = settlingTextEditCaretSource ?? pendingTextEditCaretSource ?? .textInput
             recordCaretProbe("caret.selection-change-waiting-layout", textView: textView)
-            reportCursorPosition(from: textView, includeCaretAnchor: false)
-            scheduleSettledCaretReport(from: textView)
+            reportCursorPosition(from: textView, includeCaretAnchor: false, source: caretSource)
+            scheduleSettledCaretReport(from: textView, source: caretSource)
             return
         }
 
-        reportCursorPosition(from: textView, includeCaretAnchor: true)
-        scheduleSettledCaretReport(from: textView)
+        reportCursorPosition(from: textView, includeCaretAnchor: true, source: .selectionTap)
+        scheduleSettledCaretReport(from: textView, source: .selectionTap)
     }
 
     func textViewDidBeginEditing(_ textView: UITextView) {
@@ -880,8 +891,8 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             ZoneTextViewEmptyCaret.modelText(from: textView.text ?? ""),
             selectedRange: textView.selectedRange
         )
-        reportCursorPosition(from: textView, includeCaretAnchor: true)
-        scheduleSettledCaretReport(from: textView)
+        reportCursorPosition(from: textView, includeCaretAnchor: true, source: .focus)
+        scheduleSettledCaretReport(from: textView, source: .focus)
     }
 
     func textViewDidEndEditing(_ textView: UITextView) {
@@ -902,7 +913,8 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     private func reportCursorPosition(
         from textView: UITextView,
         includeCaretAnchor: Bool,
-        forceCaretGeometry: Bool = false
+        forceCaretGeometry: Bool = false,
+        source: ZoneEditorCaretScrollSource
     ) {
         guard let displayText = textView.text else { return }
         let text = ZoneTextViewEmptyCaret.modelText(from: displayText)
@@ -972,7 +984,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                 textView: textView,
                 extra: "anchor=\(debugValue(anchorY)) windowMaxY=\(debugValue(caretRectInWindow.maxY))"
             )
-            onCaretGeometryChange?(anchorY, caretRectInWindow)
+            onCaretGeometryChange?(anchorY, caretRectInWindow, source)
         }
     }
 
@@ -1060,7 +1072,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         }
     }
 
-    private func scheduleSettledCaretReport(from textView: UITextView) {
+    private func scheduleSettledCaretReport(from textView: UITextView, source: ZoneEditorCaretScrollSource) {
         guard textView.isFirstResponder else { return }
         caretReportGeneration += 1
         let generation = caretReportGeneration
@@ -1084,6 +1096,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             textView.window?.layoutIfNeeded()
             textView.superview?.layoutIfNeeded()
             self.waitsForSettledTextLayoutCaret = false
+            self.settlingTextEditCaretSource = nil
             self.recordCaretProbe(
                 "caret.settled-runloop-after-layout",
                 textView: textView,
@@ -1092,7 +1105,8 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             self.reportCursorPosition(
                 from: textView,
                 includeCaretAnchor: true,
-                forceCaretGeometry: true
+                forceCaretGeometry: true,
+                source: source
             )
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self, weak textView] in
@@ -1116,7 +1130,8 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                 self.reportCursorPosition(
                     from: textView,
                     includeCaretAnchor: true,
-                    forceCaretGeometry: true
+                    forceCaretGeometry: true,
+                    source: source
                 )
             }
         }
@@ -1132,8 +1147,8 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         textView.selectedRange = ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text)
             ? NSRange(location: 0, length: 0)
             : range
-        reportCursorPosition(from: textView, includeCaretAnchor: true)
-        scheduleSettledCaretReport(from: textView)
+        reportCursorPosition(from: textView, includeCaretAnchor: true, source: .selectionTap)
+        scheduleSettledCaretReport(from: textView, source: .selectionTap)
     }
 
     private func insertForcedLineBreak(in textView: UITextView) {
@@ -1174,7 +1189,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                 extra: "modelRange=\(selectedModelRange.location):\(selectedModelRange.length)"
             )
             UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
-            reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
+            reportCursorPosition(
+                from: textView,
+                includeCaretAnchor: true,
+                forceCaretGeometry: true,
+                source: .newline
+            )
             return
         }
 
@@ -1211,9 +1231,15 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
 
         applyForcedLineBreakMarkerStyle(to: textView)
         recordCaretProbe("caret.forced-break-after-marker-style", textView: textView)
+        pendingTextEditCaretSource = .newline
         textViewDidChange(textView)
         recordCaretProbe("caret.forced-break-after-did-change", textView: textView)
-        reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
+        reportCursorPosition(
+            from: textView,
+            includeCaretAnchor: true,
+            forceCaretGeometry: true,
+            source: .newline
+        )
         recordCaretProbe("caret.forced-break-after-report", textView: textView)
     }
 
@@ -1260,7 +1286,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
            range.location >= marker.length,
            nsText.substring(with: NSRange(location: range.location - marker.length, length: marker.length)) == marker as String {
             textView.selectedRange = NSRange(location: range.location, length: 0)
-            reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
+            reportCursorPosition(
+                from: textView,
+                includeCaretAnchor: true,
+                forceCaretGeometry: true,
+                source: .textInput
+            )
             return true
         }
 
@@ -1284,7 +1315,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             )
             resetTextStyling(in: textView)
             textViewDidChange(textView)
-            reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
+            reportCursorPosition(
+                from: textView,
+                includeCaretAnchor: true,
+                forceCaretGeometry: true,
+                source: .textInput
+            )
             return true
         }
 
@@ -1369,7 +1405,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
-    var onCaretGeometryChange: ((CGFloat, CGRect) -> Void)?
+    var onCaretGeometryChange: ((CGFloat, CGRect, ZoneEditorCaretScrollSource) -> Void)?
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
     
