@@ -41,6 +41,7 @@ struct QuizCardEditorView: View {
     @State private var toolbarVisibilityDebugRevision = 0
     @State private var quizScrollDriver = ZoneEditorScrollDriver()
     @State private var scheduledCaretScrollTask: Task<Void, Never>?
+    @State private var keyboardDismissPadding: CGFloat = 0
     @State private var activeQuizCaretPathID: String?
     @State private var activeQuizCaretWindowRect: CGRect?
     @State private var quizViewportScreenFrame: CGRect = .zero
@@ -65,11 +66,13 @@ struct QuizCardEditorView: View {
     private var isFormatBarVisible: Bool { isFloatingFormatBarVisible }
     private var bottomContentPadding: CGFloat {
         let chromePadding: CGFloat = isFloatingFormatBarVisible ? 148 : 96
+        return chromePadding + keyboardDismissPadding
+    }
+
+    private var keyboardContentPadding: CGFloat {
+        guard keyboardMonitor.isVisible else { return 0 }
         let keyboardSettlePadding: CGFloat = 64
-        let keyboardPadding = keyboardMonitor.isVisible
-            ? max(keyboardMonitor.visibleHeight + keyboardSettlePadding, 0)
-            : 0
-        return chromePadding + keyboardPadding
+        return max(keyboardMonitor.visibleHeight + keyboardSettlePadding, 0)
     }
 
     private func localized(_ value: String.LocalizationValue) -> String {
@@ -278,11 +281,17 @@ struct QuizCardEditorView: View {
             )
             updateFloatingFormatBarPresentation(isKeyboardVisible: isVisible)
             if isVisible {
+                withTransaction(Transaction(animation: nil)) {
+                    keyboardDismissPadding = keyboardContentPadding
+                }
                 scheduleStoredQuizCaretScroll(delays: [.milliseconds(24), .milliseconds(104)])
             } else {
                 scheduledCaretScrollTask?.cancel()
                 scheduledCaretScrollTask = nil
                 quizScrollDriver.resetBottomInset()
+                withAnimation(EditorKeyboardAccessoryMotion.keyboardPaddingDismissAnimation) {
+                    keyboardDismissPadding = 0
+                }
             }
         }
         .onChange(of: keyboardMonitor.visibleHeight) { _, _ in
@@ -290,6 +299,11 @@ struct QuizCardEditorView: View {
                 "keyboard-height-change",
                 details: "height=\(debugValue(keyboardMonitor.visibleHeight)) \(toolbarLifecycleDetails())"
             )
+            if keyboardMonitor.isVisible {
+                withTransaction(Transaction(animation: nil)) {
+                    keyboardDismissPadding = keyboardContentPadding
+                }
+            }
             updateFloatingFormatBarKeyboardHeight()
             scheduleStoredQuizCaretScroll(delays: [.milliseconds(24), .milliseconds(104)])
         }
@@ -341,6 +355,7 @@ struct QuizCardEditorView: View {
             floatingFormatBarPresentationTask = nil
             scheduledCaretScrollTask?.cancel()
             scheduledCaretScrollTask = nil
+            keyboardDismissPadding = 0
             activeQuizCaretPathID = nil
             activeQuizCaretWindowRect = nil
             quizScrollDriver.detach()
@@ -1646,6 +1661,7 @@ private struct QuizEditorAddButtonStyle: ButtonStyle {
 private enum EditorKeyboardAccessoryMotion {
     static let appearAnimation: Animation = .easeOut(duration: 0.12)
     static let dismissAnimation: Animation = .easeOut(duration: 0.10)
+    static let keyboardPaddingDismissAnimation: Animation = .easeOut(duration: 0.24)
     static let cleanupDelay: Duration = .milliseconds(140)
     static let keyboardDismissDelay: Duration = .milliseconds(105)
 
