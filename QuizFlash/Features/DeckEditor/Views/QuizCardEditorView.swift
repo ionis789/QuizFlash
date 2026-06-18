@@ -1156,27 +1156,36 @@ struct QuizCardEditorView: View {
             return
         }
 
+        activeQuizCaretPathID = notificationPathID
+        activeQuizCaretWindowRect = caretRect
+
+        if isForcedLineBreakSettling {
+            let compensationDelta = quizCaretScrollGate.beginNewlineNaturalScrollLock(
+                pathID: notificationPathID,
+                rect: caretRect
+            )
+            scheduledCaretScrollTask?.cancel()
+            scheduledCaretScrollTask = nil
+            if let compensationDelta {
+                scheduleQuizNewlineScrollCompensation(
+                    pathID: notificationPathID,
+                    deltaY: compensationDelta
+                )
+            }
+            recordQuizScroll(
+                "quiz.scroll-skip-forced-newline-settle",
+                pathID: notificationPathID,
+                details: "rect=\(caretRect.map(debugRect) ?? "nil") lineDelta=\(debugOptionalValue(compensationDelta)) \(quizScrollDetails(proposedDelta: nil))"
+            )
+            return
+        }
+
         if let caretRect,
            quizCaretScrollGate.shouldIgnoreCaretUpdate(pathID: notificationPathID, rect: caretRect) {
             recordQuizScroll(
                 "quiz.scroll-skip-duplicate-caret",
                 pathID: notificationPathID,
                 details: "rect=\(debugRect(caretRect)) \(quizScrollDetails(proposedDelta: nil))"
-            )
-            return
-        }
-
-        activeQuizCaretPathID = notificationPathID
-        activeQuizCaretWindowRect = caretRect
-
-        if isForcedLineBreakSettling {
-            quizCaretScrollGate.beginNewlineNaturalScrollLock(pathID: notificationPathID)
-            scheduledCaretScrollTask?.cancel()
-            scheduledCaretScrollTask = nil
-            recordQuizScroll(
-                "quiz.scroll-skip-forced-newline-settle",
-                pathID: notificationPathID,
-                details: "rect=\(caretRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
             )
             return
         }
@@ -1200,6 +1209,45 @@ struct QuizCardEditorView: View {
         }
 
         scheduleStoredQuizCaretScroll(delays: [.milliseconds(16), .milliseconds(96)])
+    }
+
+    private func scheduleQuizNewlineScrollCompensation(pathID: String, deltaY: CGFloat) {
+        guard keyboardMonitor.isVisible else {
+            recordQuizScroll(
+                "quiz.scroll-newline-compensation-skip",
+                pathID: pathID,
+                details: "reason=keyboard-hidden lineDelta=\(debugValue(deltaY)) \(quizScrollDetails(proposedDelta: nil))"
+            )
+            return
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(16))
+            guard keyboardMonitor.isVisible,
+                  activeQuizCaretPathID == pathID,
+                  currentSelectedPath?.id == pathID,
+                  focusManager.focusedZoneID == currentSelectedZoneID else {
+                recordQuizScroll(
+                    "quiz.scroll-newline-compensation-skip",
+                    pathID: pathID,
+                    details: "reason=stale lineDelta=\(debugValue(deltaY)) \(quizScrollDetails(proposedDelta: nil))"
+                )
+                return
+            }
+
+            let didScroll = quizScrollDriver.scrollBy(
+                deltaY: deltaY,
+                reason: "quiz-newline-line-height",
+                animationDuration: 0,
+                animationOptions: keyboardMonitor.animationOptions,
+                zoneID: currentSelectedZoneID
+            )
+            recordQuizScroll(
+                didScroll ? "quiz.scroll-newline-compensation-apply" : "quiz.scroll-newline-compensation-skip",
+                pathID: pathID,
+                details: "lineDelta=\(debugValue(deltaY)) didScroll=\(debugFlag(didScroll)) \(quizScrollDetails(proposedDelta: nil))"
+            )
+        }
     }
 
     private func scheduleStoredQuizCaretScroll(delays: [Duration]) {
@@ -2018,17 +2066,32 @@ private final class QuizCaretScrollGate {
     private var lastCaretRect: CGRect?
     private var lastAppliedRequest: ScrollRequest?
     private var newlineNaturalScrollPathID: String?
+    private var lastNewlineCompensationMaxY: CGFloat?
 
     func reset() {
         lastCaretPathID = nil
         lastCaretRect = nil
         lastAppliedRequest = nil
         newlineNaturalScrollPathID = nil
+        lastNewlineCompensationMaxY = nil
     }
 
-    func beginNewlineNaturalScrollLock(pathID: String) {
+    func beginNewlineNaturalScrollLock(pathID: String, rect: CGRect?) -> CGFloat? {
+        if newlineNaturalScrollPathID != pathID {
+            lastNewlineCompensationMaxY = nil
+        }
         newlineNaturalScrollPathID = pathID
         lastAppliedRequest = nil
+
+        guard let rect else { return nil }
+        let lineDelta = min(max(rect.height, 18), 44)
+        if let lastNewlineCompensationMaxY,
+           abs(lastNewlineCompensationMaxY - rect.maxY) < lineDelta * 0.55 {
+            return nil
+        }
+
+        lastNewlineCompensationMaxY = rect.maxY
+        return lineDelta
     }
 
     func shouldPreserveNaturalNewlineScroll(pathID: String) -> Bool {
