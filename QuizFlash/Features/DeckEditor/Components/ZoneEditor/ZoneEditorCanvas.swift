@@ -1787,7 +1787,7 @@ struct ZoneEditorCanvas: View {
     }
 
     private var caretBottomChromeBuffer: CGFloat {
-        24
+        100
     }
 
     private var dynamicBottomScrollInset: CGFloat {
@@ -1882,8 +1882,6 @@ struct ZoneEditorCanvas: View {
                         style: StrokeStyle(lineWidth: 1.5, dash: [7, 5])
                     )
 
-                layoutDebugLine(snapshot: rawLayoutDebugSnapshot, color: .green)
-                layoutDebugLine(snapshot: renderLayoutDebugSnapshot, color: .pink)
                 scrollDebugLine(
                     screenY: keyboardTopDebugScreenY,
                     color: .orange,
