@@ -8,6 +8,7 @@
 import SwiftUI
 import PhotosUI
 import UIKit
+import Combine
 
 /// A type-aware editor for manual quiz authoring inside the deck editor flow.
 struct QuizCardEditorView: View {
@@ -18,12 +19,7 @@ struct QuizCardEditorView: View {
     @Environment(KeyboardMonitor.self) private var keyboardMonitor
 
     @State private var highlightContext: HighlightContext?
-    @State private var questionContent: ZoneCardContent
-    @State private var questionSelectedPath: ZonePath?
-    @State private var choices: [QuizChoiceEditorItem]
-    @State private var explanationContent: ZoneCardContent?
-    @State private var explanationSelectedPath: ZonePath?
-    @State private var isExplanationExpanded: Bool
+    @StateObject private var session: QuizEditorSession
     @State private var activeEditor: QuizEditorTarget = .question
     @State private var previewDirection: AddDirection? = nil
     @State private var showSketchModal = false
@@ -42,6 +38,7 @@ struct QuizCardEditorView: View {
     @State private var quizScrollDriver = ZoneEditorScrollDriver()
     @State private var scheduledCaretScrollTask: Task<Void, Never>?
     @State private var keyboardDismissPadding: CGFloat = 0
+    @State private var isQuizDebugEnabled = false
     @State private var activeQuizCaretPathID: String?
     @State private var activeQuizCaretWindowRect: CGRect?
     @State private var quizViewportScreenFrame: CGRect = .zero
@@ -64,6 +61,8 @@ struct QuizCardEditorView: View {
         isCompact ? UIConstants.Layout.compactScreenEdgeInset : UIConstants.Layout.screenEdgeInset
     }
     private var isFormatBarVisible: Bool { isFloatingFormatBarVisible }
+    private var isQuizDebugAvailable: Bool { AppFeatures.current.showsVisualDebugOverlays }
+    private var isQuizDebugRecordingActive: Bool { isQuizDebugAvailable && isQuizDebugEnabled }
     private var bottomContentPadding: CGFloat {
         let chromePadding: CGFloat = isFloatingFormatBarVisible ? 148 : 96
         return chromePadding + keyboardDismissPadding
@@ -91,29 +90,7 @@ struct QuizCardEditorView: View {
         onSave: @escaping (QuizCardContent) -> Void
     ) {
         self.textSize = textSize
-        _questionContent = State(initialValue: ZoneCardContent(rootZone: initialContent.questionZone))
-
-        var seededChoices = initialContent.choices.map {
-            QuizChoiceEditorItem(
-                id: $0.id,
-                content: ZoneCardContent(rootZone: $0.contentZone),
-                isCorrect: $0.isCorrect,
-                selectedPath: nil
-            )
-        }
-        if seededChoices.count < 2 {
-            let missingCount = 2 - seededChoices.count
-            seededChoices.append(contentsOf: (0..<missingCount).map { _ in QuizChoiceEditorItem() })
-        }
-        _choices = State(initialValue: seededChoices)
-
-        if let explanationZone = initialContent.explanationZone {
-            _explanationContent = State(initialValue: ZoneCardContent(rootZone: explanationZone))
-            _isExplanationExpanded = State(initialValue: explanationZone.hasContent)
-        } else {
-            _explanationContent = State(initialValue: nil)
-            _isExplanationExpanded = State(initialValue: false)
-        }
+        _session = StateObject(wrappedValue: QuizEditorSession(initialContent: initialContent))
 
         if let query = searchQuery, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             _highlightContext = State(initialValue: HighlightContext(query: query))
@@ -122,6 +99,33 @@ struct QuizCardEditorView: View {
         }
 
         self.onSave = onSave
+    }
+
+    private var questionContent: ZoneCardContent { session.questionContent }
+
+    private var questionSelectedPath: ZonePath? {
+        get { session.questionSelectedPath }
+        nonmutating set { session.questionSelectedPath = newValue }
+    }
+
+    private var choices: [QuizChoiceEditorItem] {
+        get { session.choices }
+        nonmutating set { session.choices = newValue }
+    }
+
+    private var explanationContent: ZoneCardContent? {
+        get { session.explanationContent }
+        nonmutating set { session.explanationContent = newValue }
+    }
+
+    private var explanationSelectedPath: ZonePath? {
+        get { session.explanationSelectedPath }
+        nonmutating set { session.explanationSelectedPath = newValue }
+    }
+
+    private var isExplanationExpanded: Bool {
+        get { session.isExplanationExpanded }
+        nonmutating set { session.isExplanationExpanded = newValue }
     }
 
     private var currentContent: ZoneCardContent? {
@@ -264,7 +268,7 @@ struct QuizCardEditorView: View {
                     .zIndex(20)
 
                 floatingFormatBar
-                copyDebugButton(safeTopInset: safeTopInset)
+                quizDebugControls(safeTopInset: safeTopInset)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -307,6 +311,23 @@ struct QuizCardEditorView: View {
             updateFloatingFormatBarKeyboardHeight()
             scheduleStoredQuizCaretScroll(delays: [.milliseconds(24), .milliseconds(104)])
         }
+        .onChange(of: isQuizDebugEnabled) { _, isEnabled in
+            if isEnabled {
+                ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(true)
+                recordQuizScroll(
+                    "quiz.debug-toggle-on",
+                    pathID: currentSelectedPath?.id,
+                    details: quizScrollDetails(proposedDelta: nil)
+                )
+            } else {
+                recordQuizScroll(
+                    "quiz.debug-toggle-off",
+                    pathID: currentSelectedPath?.id,
+                    details: quizScrollDetails(proposedDelta: nil)
+                )
+                ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(false)
+            }
+        }
         .fullScreenCover(isPresented: $showSketchModal) {
             CanvasModalView { data in
                 addSketch(data)
@@ -333,7 +354,7 @@ struct QuizCardEditorView: View {
             dismiss()
         }
         .onAppear {
-            ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(AppFeatures.current.showsVisualDebugOverlays)
+            ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(isQuizDebugRecordingActive)
             recordQuizScroll(
                 "quiz.editor-appear",
                 pathID: currentSelectedPath?.id,
@@ -623,13 +644,14 @@ struct QuizCardEditorView: View {
         )
     }
 
-    private func recordToolbarLifecycle(_ stage: String, details: String) {
+    private func recordToolbarLifecycle(_ stage: String, details: @autoclosure () -> String) {
+        guard isQuizDebugRecordingActive else { return }
         ZoneEditorDebugStore.shared.recordToolbarLifecycle(
             editor: "quiz",
             stage: stage,
             zoneID: currentSelectedZoneID,
             pathID: currentSelectedPath?.id,
-            details: details
+            details: details()
         )
     }
 
@@ -705,23 +727,43 @@ struct QuizCardEditorView: View {
     }
 
     @ViewBuilder
-    private func copyDebugButton(safeTopInset: CGFloat) -> some View {
-        if AppFeatures.current.showsVisualDebugOverlays {
+    private func quizDebugControls(safeTopInset: CGFloat) -> some View {
+        if isQuizDebugAvailable {
             VStack {
                 HStack {
                     Spacer(minLength: 0)
                     Button {
-                        UIPasteboard.general.string = quizDebugReport
+                        withAnimation(.easeInOut(duration: 0.14)) {
+                            isQuizDebugEnabled.toggle()
+                        }
                     } label: {
-                        Text("COPY DEBUG")
+                        Text(isQuizDebugEnabled ? "DBG ON" : "DBG")
                             .font(.caption2.monospaced().weight(.bold))
-                            .foregroundStyle(.black)
+                            .foregroundStyle(isQuizDebugEnabled ? .black : .orange)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 4)
-                            .background(Color.orange, in: Capsule(style: .continuous))
+                            .background(
+                                isQuizDebugEnabled ? Color.orange : Color.black.opacity(0.62),
+                                in: Capsule(style: .continuous)
+                            )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Copy quiz editor debug")
+                    .accessibilityLabel(isQuizDebugEnabled ? "Disable quiz editor debug" : "Enable quiz editor debug")
+
+                    if isQuizDebugEnabled {
+                        Button {
+                            UIPasteboard.general.string = quizDebugReport
+                        } label: {
+                            Text("COPY DEBUG")
+                                .font(.caption2.monospaced().weight(.bold))
+                                .foregroundStyle(.black)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 4)
+                                .background(Color.orange, in: Capsule(style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Copy quiz editor debug")
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -1092,7 +1134,7 @@ struct QuizCardEditorView: View {
             return
         }
 
-        guard let caretRect else {
+        guard caretRect != nil else {
             recordQuizScroll(
                 "quiz.scroll-skip-visible",
                 pathID: notificationPathID,
@@ -1200,18 +1242,18 @@ struct QuizCardEditorView: View {
     private func scrollQuizCaretDownIfNeeded(_ caretRect: CGRect, pathID: String) -> Bool {
         let visibleBottomY = quizVisibleBottomWindowY()
         let proposedDelta = caretRect.maxY - visibleBottomY
-        let probeID = "\(pathID)-\(Int(Date().timeIntervalSince1970 * 1_000))"
+        let probeID = isQuizDebugRecordingActive ? "\(pathID)-\(Int(Date().timeIntervalSince1970 * 1_000))" : nil
 
         recordQuizScrollState(
             "quiz.scroll-probe-start",
             pathID: pathID,
-            extra: "probe=\(probeID) rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta))"
+            extra: "probe=\(probeID ?? "off") rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta))"
         )
 
         recordQuizScrollState(
             "quiz.scroll-probe-after-inset",
             pathID: pathID,
-            extra: "probe=\(probeID) resolvedInset=content-padding"
+            extra: "probe=\(probeID ?? "off") resolvedInset=content-padding"
         )
 
         let didScroll = quizScrollDriver.scrollWindowRectAboveBottomChromeIfNeeded(
@@ -1227,9 +1269,11 @@ struct QuizCardEditorView: View {
         recordQuizScrollState(
             "quiz.scroll-probe-after-request",
             pathID: pathID,
-            extra: "probe=\(probeID) didScroll=\(debugFlag(didScroll))"
+            extra: "probe=\(probeID ?? "off") didScroll=\(debugFlag(didScroll))"
         )
-        scheduleQuizScrollStateProbe(probeID: probeID, pathID: pathID)
+        if let probeID {
+            scheduleQuizScrollStateProbe(probeID: probeID, pathID: pathID)
+        }
 
         let skippedStage = proposedDelta < -140 ? "quiz.scroll-skip-upward" : "quiz.scroll-skip-visible"
         recordQuizScroll(
@@ -1240,20 +1284,22 @@ struct QuizCardEditorView: View {
         return didScroll
     }
 
-    private func recordQuizScrollState(_ stage: String, pathID: String?, extra: String) {
-        quizScrollDriver.recordDebugSnapshot(
-            stage,
-            zoneID: currentSelectedZoneID,
-            extra: "path=\(pathID ?? "nil") \(extra) \(quizScrollDetails(proposedDelta: nil))"
-        )
-    }
-
     private func scheduleQuizScrollStateProbe(probeID: String, pathID: String) {
+        guard isQuizDebugRecordingActive else { return }
         quizScrollDriver.scheduleDebugSnapshots(
             prefix: "quiz.scroll-probe-\(probeID)",
             delays: [0.016, 0.05, 0.10, 0.18, 0.30, 0.50],
             zoneID: currentSelectedZoneID,
             extra: "path=\(pathID) target=\(debugTargetID(activeEditor))"
+        )
+    }
+
+    private func recordQuizScrollState(_ stage: String, pathID: String?, extra: @autoclosure () -> String) {
+        guard isQuizDebugRecordingActive else { return }
+        quizScrollDriver.recordDebugSnapshot(
+            stage,
+            zoneID: currentSelectedZoneID,
+            extra: "path=\(pathID ?? "nil") \(extra()) \(quizScrollDetails(proposedDelta: nil))"
         )
     }
 
@@ -1279,7 +1325,7 @@ struct QuizCardEditorView: View {
 
     @ViewBuilder
     private var quizScrollDebugOverlay: some View {
-        if AppFeatures.current.showsVisualDebugOverlays {
+        if isQuizDebugRecordingActive {
             ZStack(alignment: .topLeading) {
                 quizDebugHorizontalLine(
                     screenY: quizViewportScreenFrame.maxY,
@@ -1369,12 +1415,13 @@ struct QuizCardEditorView: View {
         return min(max(keyboardMonitor.animationDuration, 0.12), 0.28)
     }
 
-    private func recordQuizScroll(_ stage: String, pathID: String?, details: String) {
+    private func recordQuizScroll(_ stage: String, pathID: String?, details: @autoclosure () -> String) {
+        guard isQuizDebugRecordingActive else { return }
         ZoneEditorDebugStore.shared.recordLayoutEvent(
             stage,
             zoneID: currentSelectedZoneID,
             pathID: pathID,
-            details: details
+            details: details()
         )
     }
 
@@ -1685,6 +1732,45 @@ private struct EditorKeyboardAccessoryVisibilityModifier: ViewModifier {
                     : EditorKeyboardAccessoryMotion.dismissAnimation,
                 value: isVisible
             )
+    }
+}
+
+/// Mutable quiz editor session retained across parent redraws.
+@MainActor
+private final class QuizEditorSession: ObservableObject {
+    @Published var questionContent: ZoneCardContent
+    @Published var questionSelectedPath: ZonePath?
+    @Published var choices: [QuizChoiceEditorItem]
+    @Published var explanationContent: ZoneCardContent?
+    @Published var explanationSelectedPath: ZonePath?
+    @Published var isExplanationExpanded: Bool
+
+    init(initialContent: QuizCardContent) {
+        questionContent = ZoneCardContent(rootZone: initialContent.questionZone)
+        questionSelectedPath = nil
+
+        var seededChoices = initialContent.choices.map {
+            QuizChoiceEditorItem(
+                id: $0.id,
+                content: ZoneCardContent(rootZone: $0.contentZone),
+                isCorrect: $0.isCorrect,
+                selectedPath: nil
+            )
+        }
+        if seededChoices.count < 2 {
+            let missingCount = 2 - seededChoices.count
+            seededChoices.append(contentsOf: (0..<missingCount).map { _ in QuizChoiceEditorItem() })
+        }
+        choices = seededChoices
+
+        if let explanationZone = initialContent.explanationZone {
+            explanationContent = ZoneCardContent(rootZone: explanationZone)
+            isExplanationExpanded = explanationZone.hasContent
+        } else {
+            explanationContent = nil
+            isExplanationExpanded = false
+        }
+        explanationSelectedPath = nil
     }
 }
 
