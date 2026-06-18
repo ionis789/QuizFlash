@@ -1170,7 +1170,6 @@ struct QuizCardEditorView: View {
         activeQuizCaretWindowRect = caretRect
 
         if isForcedLineBreakSettling {
-            quizCaretScrollGate.beginNewlineNaturalScrollLock(pathID: notificationPathID)
             scheduledCaretScrollTask?.cancel()
             scheduledCaretScrollTask = nil
             recordQuizScroll(
@@ -1317,15 +1316,6 @@ struct QuizCardEditorView: View {
                 "quiz.scroll-skip-visible",
                 pathID: pathID,
                 details: "reason=already-visible rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
-            )
-            return false
-        }
-
-        if quizCaretScrollGate.shouldPreserveNaturalNewlineScroll(pathID: pathID) {
-            recordQuizScroll(
-                "quiz.scroll-skip-newline-natural-lock",
-                pathID: pathID,
-                details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
             )
             return false
         }
@@ -2017,22 +2007,11 @@ private final class QuizCaretScrollGate {
     private var lastCaretPathID: String?
     private var lastCaretRect: CGRect?
     private var lastAppliedRequest: ScrollRequest?
-    private var newlineNaturalScrollPathID: String?
 
     func reset() {
         lastCaretPathID = nil
         lastCaretRect = nil
         lastAppliedRequest = nil
-        newlineNaturalScrollPathID = nil
-    }
-
-    func beginNewlineNaturalScrollLock(pathID: String) {
-        newlineNaturalScrollPathID = pathID
-        lastAppliedRequest = nil
-    }
-
-    func shouldPreserveNaturalNewlineScroll(pathID: String) -> Bool {
-        newlineNaturalScrollPathID == pathID
     }
 
     func shouldIgnoreCaretUpdate(pathID: String, rect: CGRect) -> Bool {
