@@ -213,8 +213,8 @@ final class ZoneEditorDebugStore {
         let path = pathID.map { " path=\($0)" } ?? ""
         let line = "L\(layoutEventIndex) +\(elapsedMS)ms \(stage) zone=\(shortID(zoneID))\(path) \(details)"
         layoutEvents.append(line)
-        if layoutEvents.count > 260 {
-            layoutEvents.removeFirst(layoutEvents.count - 260)
+        if layoutEvents.count > 420 {
+            layoutEvents.removeFirst(layoutEvents.count - 420)
         }
     }
 
@@ -588,6 +588,131 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     static let selectionCollapseTapRecognizerName = "ZoneTextViewSelectionCollapseTapRecognizer"
     static let doubleTapPassthroughRecognizerName = "ZoneTextViewDoubleTapPassthroughRecognizer"
 
+    fileprivate func recordCaretProbe(
+        _ stage: String,
+        textView: UITextView,
+        changedRange: NSRange? = nil,
+        replacementText: String? = nil,
+        extra: String = ""
+    ) {
+        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+
+        let displayText = textView.text ?? ""
+        let modelText = ZoneTextViewEmptyCaret.modelText(from: displayText)
+        let displayRange = textView.selectedRange
+        let modelRange = ZoneTextViewEmptyCaret.modelRange(
+            from: displayRange,
+            displayText: displayText
+        )
+        let usedRect = textView.layoutManager.usedRect(for: textView.textContainer)
+        let caretRects = caretDebugRects(in: textView)
+        let changed = changedRange.map { "\($0.location):\($0.length)" } ?? "nil"
+        let replacement = replacementText.map(debugReplacementText) ?? "nil"
+        let tail = debugTextWindow(around: displayRange.location, in: displayText)
+        let details = [
+            "displaySel=\(displayRange.location):\(displayRange.length)",
+            "modelSel=\(modelRange.location):\(modelRange.length)",
+            "change=\(changed)",
+            "repl=\(replacement)",
+            "displayLen=\((displayText as NSString).length)",
+            "modelLen=\((modelText as NSString).length)",
+            "storageLen=\(textView.textStorage.length)",
+            "markers=\(markerCount(in: displayText))",
+            "newlines=\(newlineCount(in: displayText))",
+            "fr=\(textView.isFirstResponder ? 1 : 0)",
+            "updating=\(isUpdating ? 1 : 0)",
+            "waiting=\(waitsForSettledTextLayoutCaret ? 1 : 0)",
+            "marked=\(textView.markedTextRange == nil ? 0 : 1)",
+            "bounds=\(debugRect(textView.bounds))",
+            "content=\(debugSize(textView.contentSize))",
+            "offset=\(debugPoint(textView.contentOffset))",
+            "inset=\(debugInsets(textView.textContainerInset))",
+            "container=\(debugSize(textView.textContainer.size))",
+            "used=\(debugRect(usedRect))",
+            "extraLine=\(debugRect(textView.layoutManager.extraLineFragmentRect))",
+            "caret=\(caretRects.local)",
+            "caretWin=\(caretRects.window)",
+            "first=\(caretRects.first)",
+            "tail=\(tail)",
+            extra
+        ]
+        .filter { !$0.isEmpty }
+        .joined(separator: " ")
+
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            stage,
+            zoneID: zoneID,
+            details: details
+        )
+    }
+
+    private func caretDebugRects(in textView: UITextView) -> (local: String, window: String, first: String) {
+        guard let selectedTextRange = textView.selectedTextRange else {
+            return ("nil", "nil", "nil")
+        }
+
+        let caretRect = textView.caretRect(for: selectedTextRange.start)
+        let caretWindowRect = textView.convert(caretRect, to: nil)
+        let firstRect = textView.firstRect(for: selectedTextRange)
+        return (
+            debugRect(caretRect),
+            debugRect(caretWindowRect),
+            debugRect(firstRect)
+        )
+    }
+
+    private func markerCount(in text: String) -> Int {
+        text.components(separatedBy: ZoneForcedLineBreak.marker).count - 1
+    }
+
+    private func newlineCount(in text: String) -> Int {
+        text.components(separatedBy: "\n").count - 1
+    }
+
+    private func debugReplacementText(_ text: String) -> String {
+        if text == "\n" { return "\\n" }
+        if text.isEmpty { return "<delete>" }
+        return debugEscaped(text)
+    }
+
+    private func debugTextWindow(around location: Int, in text: String) -> String {
+        let nsText = text as NSString
+        guard nsText.length > 0 else { return "\"\"" }
+
+        let clamped = min(max(location, 0), nsText.length)
+        let start = max(clamped - 8, 0)
+        let end = min(clamped + 8, nsText.length)
+        let snippet = nsText.substring(with: NSRange(location: start, length: end - start))
+        return "\"\(debugEscaped(snippet))\"@\(start)-\(end)"
+    }
+
+    private func debugEscaped(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: ZoneForcedLineBreak.marker, with: "<marker>")
+            .replacingOccurrences(of: ZoneTextViewEmptyCaret.placeholder, with: "<zwsp>")
+    }
+
+    private func debugRect(_ rect: CGRect) -> String {
+        "\(debugValue(rect.minX)),\(debugValue(rect.minY)),\(debugValue(rect.width))x\(debugValue(rect.height))"
+    }
+
+    private func debugSize(_ size: CGSize) -> String {
+        "\(debugValue(size.width))x\(debugValue(size.height))"
+    }
+
+    private func debugPoint(_ point: CGPoint) -> String {
+        "\(debugValue(point.x)),\(debugValue(point.y))"
+    }
+
+    private func debugInsets(_ insets: UIEdgeInsets) -> String {
+        "\(debugValue(insets.top)),\(debugValue(insets.left)),\(debugValue(insets.bottom)),\(debugValue(insets.right))"
+    }
+
+    private func debugValue(_ value: CGFloat) -> String {
+        String(format: "%.1f", Double(value))
+    }
+
     func textViewShouldBeginEditing(_ textView: UITextView) -> Bool {
         guard !ZoneFocusManager.shared.isSuppressingFocusRequests else {
             ZoneEditorDebugStore.shared.recordFocusEvent("textView shouldBegin ignored", zoneID: zoneID)
@@ -604,8 +729,21 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         shouldChangeTextIn range: NSRange,
         replacementText text: String
     ) -> Bool {
+        recordCaretProbe(
+            "caret.should-change",
+            textView: textView,
+            changedRange: range,
+            replacementText: text
+        )
+
         if text.isEmpty,
            handleForcedLineBreakBackspace(in: textView, range: range) {
+            recordCaretProbe(
+                "caret.backspace-forced-break-handled",
+                textView: textView,
+                changedRange: range,
+                replacementText: text
+            )
             return false
         }
 
@@ -616,13 +754,16 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     func textViewDidChange(_ textView: UITextView) {
+        recordCaretProbe("caret.did-change-start", textView: textView)
         normalizePlaceholderIfNeeded(in: textView)
         guard let displayText = textView.text else { return }
         guard !isUpdating else { return }
 
         let modelText = ZoneTextViewEmptyCaret.modelText(from: displayText)
         if shouldRejectCurrentText(modelText, in: textView) {
+            recordCaretProbe("caret.reject-overflow-before-restore", textView: textView)
             restoreLastAcceptedText(in: textView)
+            recordCaretProbe("caret.reject-overflow-after-restore", textView: textView)
             reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
             return
         }
@@ -630,6 +771,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         lastText = modelText
         rememberAcceptedText(modelText, selectedRange: textView.selectedRange)
         resetTextStyling(in: textView)
+        recordCaretProbe("caret.did-change-after-style", textView: textView)
         waitsForSettledTextLayoutCaret = true
         onTextChange?(modelText)
         reportCursorPosition(from: textView, includeCaretAnchor: false)
@@ -637,11 +779,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
     
     func textViewDidChangeSelection(_ textView: UITextView) {
+        recordCaretProbe("caret.selection-change-start", textView: textView)
         guard !isUpdating else { return }
         guard textView.isFirstResponder else { return }
         normalizeTypingAttributes(in: textView)
 
         guard !waitsForSettledTextLayoutCaret else {
+            recordCaretProbe("caret.selection-change-waiting-layout", textView: textView)
             reportCursorPosition(from: textView, includeCaretAnchor: false)
             scheduleSettledCaretReport(from: textView)
             return
@@ -650,10 +794,11 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         reportCursorPosition(from: textView, includeCaretAnchor: true)
         scheduleSettledCaretReport(from: textView)
     }
-    
+
     func textViewDidBeginEditing(_ textView: UITextView) {
         focusSyncState = .idle
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didBegin", zoneID: zoneID)
+        recordCaretProbe("caret.did-begin-editing", textView: textView)
         if let zoneID {
             Task { @MainActor in
                 ZoneFocusManager.shared.completeFocus(for: zoneID)
@@ -667,10 +812,11 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         reportCursorPosition(from: textView, includeCaretAnchor: true)
         scheduleSettledCaretReport(from: textView)
     }
-    
+
     func textViewDidEndEditing(_ textView: UITextView) {
         focusSyncState = .idle
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didEnd", zoneID: zoneID)
+        recordCaretProbe("caret.did-end-editing", textView: textView)
         onFocusChange?(false)
     }
 
@@ -711,8 +857,18 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         guard textView.window != nil else { return }
 
         if let selectedTextRange = textView.selectedTextRange {
+            recordCaretProbe(
+                "caret.geometry-before-layout",
+                textView: textView,
+                extra: "force=\(forceCaretGeometry ? 1 : 0)"
+            )
             textView.layoutIfNeeded()
             textView.layoutManager.ensureLayout(for: textView.textContainer)
+            recordCaretProbe(
+                "caret.geometry-after-layout",
+                textView: textView,
+                extra: "force=\(forceCaretGeometry ? 1 : 0)"
+            )
             let caretRect = textView.caretRect(for: selectedTextRange.start)
             let caretRectInWindow = textView.convert(caretRect, to: nil)
             let anchorY = min(
@@ -724,6 +880,11 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                let lastReportedCaretWindowRect,
                abs(lastReportedCaretAnchorY - anchorY) < 0.02,
                lastReportedCaretWindowRect.isNearlyEqual(to: caretRectInWindow, tolerance: 1) {
+                recordCaretProbe(
+                    "caret.geometry-skip-same",
+                    textView: textView,
+                    extra: "anchor=\(debugValue(anchorY)) lastAnchor=\(debugValue(lastReportedCaretAnchorY))"
+                )
                 return
             }
 
@@ -734,6 +895,11 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                 selectedRange: nsRange,
                 anchorY: anchorY,
                 windowRect: caretRectInWindow
+            )
+            recordCaretProbe(
+                "caret.geometry-emit",
+                textView: textView,
+                extra: "anchor=\(debugValue(anchorY)) windowMaxY=\(debugValue(caretRectInWindow.maxY))"
             )
             onCaretGeometryChange?(anchorY, caretRectInWindow)
         }
@@ -827,6 +993,11 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         guard textView.isFirstResponder else { return }
         caretReportGeneration += 1
         let generation = caretReportGeneration
+        recordCaretProbe(
+            "caret.settled-schedule",
+            textView: textView,
+            extra: "generation=\(generation)"
+        )
 
         DispatchQueue.main.async { [weak self, weak textView] in
             guard let self,
@@ -834,9 +1005,19 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                   self.caretReportGeneration == generation,
                   textView.window != nil else { return }
 
+            self.recordCaretProbe(
+                "caret.settled-runloop-before-layout",
+                textView: textView,
+                extra: "generation=\(generation)"
+            )
             textView.window?.layoutIfNeeded()
             textView.superview?.layoutIfNeeded()
             self.waitsForSettledTextLayoutCaret = false
+            self.recordCaretProbe(
+                "caret.settled-runloop-after-layout",
+                textView: textView,
+                extra: "generation=\(generation)"
+            )
             self.reportCursorPosition(
                 from: textView,
                 includeCaretAnchor: true,
@@ -849,8 +1030,18 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                       self.caretReportGeneration == generation,
                       textView.window != nil else { return }
 
+                self.recordCaretProbe(
+                    "caret.settled-80ms-before-layout",
+                    textView: textView,
+                    extra: "generation=\(generation)"
+                )
                 textView.window?.layoutIfNeeded()
                 textView.superview?.layoutIfNeeded()
+                self.recordCaretProbe(
+                    "caret.settled-80ms-after-layout",
+                    textView: textView,
+                    extra: "generation=\(generation)"
+                )
                 self.reportCursorPosition(
                     from: textView,
                     includeCaretAnchor: true,
@@ -875,6 +1066,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     private func insertForcedLineBreak(in textView: UITextView) {
+        recordCaretProbe("caret.forced-break-start", textView: textView)
         if let zoneID, !textView.isFirstResponder {
             postWillFocusNotification(for: zoneID)
             _ = textView.becomeFirstResponder()
@@ -903,6 +1095,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             in: currentModelText,
             selectedRange: selectedModelRange
         ) else {
+            recordCaretProbe(
+                "caret.forced-break-rejected-adjacent-marker",
+                textView: textView,
+                changedRange: selectedRange,
+                replacementText: "\n",
+                extra: "modelRange=\(selectedModelRange.location):\(selectedModelRange.length)"
+            )
             UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
             reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
             return
@@ -917,6 +1116,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             length: 0
         )
 
+        recordCaretProbe(
+            "caret.forced-break-before-apply",
+            textView: textView,
+            changedRange: selectedRange,
+            replacementText: "\n",
+            extra: "modelRange=\(selectedModelRange.location):\(selectedModelRange.length) nextModelCaret=\(modelCaretRange.location):\(modelCaretRange.length)"
+        )
         isUpdating = true
         textView.text = displayText
         textView.selectedRange = ZoneTextViewEmptyCaret.displayRange(
@@ -924,10 +1130,20 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             modelText: modelText
         )
         isUpdating = false
+        recordCaretProbe(
+            "caret.forced-break-after-text-set",
+            textView: textView,
+            changedRange: selectedRange,
+            replacementText: "\n",
+            extra: "modelRange=\(selectedModelRange.location):\(selectedModelRange.length) nextModelCaret=\(modelCaretRange.location):\(modelCaretRange.length)"
+        )
 
         applyForcedLineBreakMarkerStyle(to: textView)
+        recordCaretProbe("caret.forced-break-after-marker-style", textView: textView)
         textViewDidChange(textView)
+        recordCaretProbe("caret.forced-break-after-did-change", textView: textView)
         reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
+        recordCaretProbe("caret.forced-break-after-report", textView: textView)
     }
 
     private func canInsertForcedLineBreak(in text: String, selectedRange: NSRange) -> Bool {
@@ -989,6 +1205,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             textView.selectedRange = NSRange(location: min(range.location, (textView.text as NSString?)?.length ?? 0), length: 0)
             isUpdating = false
 
+            recordCaretProbe(
+                "caret.forced-break-backspace-after-text-set",
+                textView: textView,
+                changedRange: range,
+                replacementText: ""
+            )
             resetTextStyling(in: textView)
             textViewDidChange(textView)
             reportCursorPosition(from: textView, includeCaretAnchor: true, forceCaretGeometry: true)
@@ -1034,11 +1256,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     func applyForcedLineBreakMarkerStyle(to textView: UITextView) {
+        recordCaretProbe("caret.marker-style-before", textView: textView)
         ZoneForcedLineBreak.applyMarkerStyle(
             to: textView.textStorage,
             baseAttributes: textAttributes,
             markerColor: forcedLineBreakTintColor
         )
+        recordCaretProbe("caret.marker-style-after", textView: textView)
     }
 
     private var textAttributes: [NSAttributedString.Key: Any] {
@@ -1189,6 +1413,11 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
                 updateStyling(of: textView)
                 context.coordinator.lastAppliedStylingSignature = stylingSignature
             }
+            context.coordinator.recordCaretProbe(
+                "caret.ui-update-unchanged",
+                textView: textView,
+                extra: "needsStyle=\(needsStylingUpdate ? 1 : 0)"
+            )
             ZoneEditorDebugStore.shared.recordTextSync(
                 "ui-sync",
                 zoneID: zoneID,
@@ -1214,6 +1443,11 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
                 updateStyling(of: textView)
                 context.coordinator.lastAppliedStylingSignature = stylingSignature
             }
+            context.coordinator.recordCaretProbe(
+                "caret.ui-update-defer-live-ui",
+                textView: textView,
+                extra: "needsStyle=\(needsStylingUpdate ? 1 : 0)"
+            )
             ZoneEditorDebugStore.shared.recordTextSync(
                 "ui-sync",
                 zoneID: zoneID,
@@ -1233,6 +1467,11 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             from: textView.selectedRange,
             displayText: textView.text ?? ""
         )
+        context.coordinator.recordCaretProbe(
+            "caret.ui-update-before-apply-model",
+            textView: textView,
+            extra: "incomingModelLen=\((text as NSString).length) selectedModel=\(selectedRange.location):\(selectedRange.length)"
+        )
         context.coordinator.isUpdating = true
         textView.text = displayText
         context.coordinator.isUpdating = false
@@ -1246,11 +1485,21 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
            textView.selectedRange != displayRange {
             textView.selectedRange = displayRange
         }
+        context.coordinator.recordCaretProbe(
+            "caret.ui-update-after-apply-model",
+            textView: textView,
+            extra: "incomingModelLen=\((text as NSString).length) appliedDisplay=\(displayRange.location):\(displayRange.length)"
+        )
 
         if needsStylingUpdate || displayText.contains(ZoneForcedLineBreak.marker) {
             updateStyling(of: textView)
             context.coordinator.lastAppliedStylingSignature = stylingSignature
         }
+        context.coordinator.recordCaretProbe(
+            "caret.ui-update-after-style",
+            textView: textView,
+            extra: "needsStyle=\(needsStylingUpdate ? 1 : 0) containsMarker=\(displayText.contains(ZoneForcedLineBreak.marker) ? 1 : 0)"
+        )
         ZoneEditorDebugStore.shared.recordTextSync(
             "ui-sync",
             zoneID: zoneID,
