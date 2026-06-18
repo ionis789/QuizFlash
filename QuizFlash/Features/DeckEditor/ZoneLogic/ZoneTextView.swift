@@ -540,7 +540,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
-    var onCaretGeometryChange: ((CGFloat, CGRect) -> Void)?
+    var onCaretGeometryChange: ((CGFloat, CGRect, Bool) -> Void)?
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
     var font: UIFont = .preferredFont(forTextStyle: .body)
@@ -565,6 +565,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     private var lastReportedCaretWindowRect: CGRect?
     private var caretReportGeneration = 0
     private var waitsForSettledTextLayoutCaret = false
+    private var forcedLineBreakScrollSuppressionUntil: CFTimeInterval = 0
     fileprivate var focusSyncState: FocusSyncState = .idle
     
     override init() {
@@ -972,8 +973,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                 textView: textView,
                 extra: "anchor=\(debugValue(anchorY)) windowMaxY=\(debugValue(caretRectInWindow.maxY))"
             )
-            onCaretGeometryChange?(anchorY, caretRectInWindow)
+            onCaretGeometryChange?(anchorY, caretRectInWindow, isForcedLineBreakSettlingForScroll)
         }
+    }
+
+    private var isForcedLineBreakSettlingForScroll: Bool {
+        CACurrentMediaTime() < forcedLineBreakScrollSuppressionUntil
     }
 
     func rememberAcceptedText(_ modelText: String, selectedRange: NSRange) {
@@ -1138,6 +1143,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
 
     private func insertForcedLineBreak(in textView: UITextView) {
         recordCaretProbe("caret.forced-break-start", textView: textView)
+        forcedLineBreakScrollSuppressionUntil = CACurrentMediaTime() + 0.26
         if let zoneID, !textView.isFirstResponder {
             postWillFocusNotification(for: zoneID)
             _ = textView.becomeFirstResponder()
@@ -1369,7 +1375,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
-    var onCaretGeometryChange: ((CGFloat, CGRect) -> Void)?
+    var onCaretGeometryChange: ((CGFloat, CGRect, Bool) -> Void)?
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
     
