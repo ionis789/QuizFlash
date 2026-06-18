@@ -1133,16 +1133,15 @@ struct QuizCardEditorView: View {
     private func handleCaretMovedNotification(_ notification: Notification) {
         let notificationPathID = notification.userInfo?[ZoneEditorCaretScrollNotification.pathIDKey] as? String
         let caretRect = caretWindowRect(from: notification)
-        let isForcedLineBreakSettling = notification.userInfo?[ZoneEditorCaretScrollNotification.isForcedLineBreakSettlingKey] as? Bool ?? false
         recordQuizScroll(
             "quiz.scroll-caret-received",
             pathID: notificationPathID,
-            details: "rect=\(caretRect.map(debugRect) ?? "nil") forcedBreakSettle=\(debugFlag(isForcedLineBreakSettling)) \(quizScrollDetails(proposedDelta: nil))"
+            details: "rect=\(caretRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
         )
         recordQuizScrollState(
             "quiz.scroll-state-caret-received",
             pathID: notificationPathID,
-            extra: "rect=\(caretRect.map(debugRect) ?? "nil") forcedBreakSettle=\(debugFlag(isForcedLineBreakSettling))"
+            extra: "rect=\(caretRect.map(debugRect) ?? "nil")"
         )
 
         guard let notificationPathID,
@@ -1168,17 +1167,6 @@ struct QuizCardEditorView: View {
 
         activeQuizCaretPathID = notificationPathID
         activeQuizCaretWindowRect = caretRect
-
-        if isForcedLineBreakSettling {
-            scheduledCaretScrollTask?.cancel()
-            scheduledCaretScrollTask = nil
-            recordQuizScroll(
-                "quiz.scroll-skip-forced-newline-settle",
-                pathID: notificationPathID,
-                details: "rect=\(caretRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
-            )
-            return
-        }
 
         guard keyboardMonitor.isVisible else {
             recordQuizScroll(
@@ -2007,11 +1995,13 @@ private final class QuizCaretScrollGate {
     private var lastCaretPathID: String?
     private var lastCaretRect: CGRect?
     private var lastAppliedRequest: ScrollRequest?
+    private var oversizedRepeatLock: ScrollRequest?
 
     func reset() {
         lastCaretPathID = nil
         lastCaretRect = nil
         lastAppliedRequest = nil
+        oversizedRepeatLock = nil
     }
 
     func shouldIgnoreCaretUpdate(pathID: String, rect: CGRect) -> Bool {
@@ -2058,6 +2048,22 @@ private final class QuizCaretScrollGate {
             return "quiz.scroll-skip-duplicate-request"
         }
 
+        if let oversizedRepeatLock,
+           oversizedRepeatLock.pathID == pathID {
+            let sameOversizedCaretBand = abs(oversizedRepeatLock.rect.maxY - rect.maxY) < 24
+                && abs(oversizedRepeatLock.rect.minY - rect.minY) < 24
+            let sameOversizedTarget = abs(oversizedRepeatLock.visibleBottomY - visibleBottomY) < 12
+                && abs(oversizedRepeatLock.proposedDelta - proposedDelta) < 48
+            let sameOversizedRequest = oversizedRepeatLock.proposedDelta > 96 && proposedDelta > 96
+            let offsetSnappedBack = normalizedOffsetY < oversizedRepeatLock.normalizedOffsetY - 64
+
+            if sameOversizedCaretBand,
+               sameOversizedTarget,
+               (sameOversizedRequest || offsetSnappedBack) {
+                return "quiz.scroll-skip-oversized-repeat"
+            }
+        }
+
         return nil
     }
 
@@ -2079,5 +2085,10 @@ private final class QuizCaretScrollGate {
             timestamp: CACurrentMediaTime()
         )
 
+        if proposedDelta > 96 {
+            oversizedRepeatLock = lastAppliedRequest
+        } else {
+            oversizedRepeatLock = nil
+        }
     }
 }
