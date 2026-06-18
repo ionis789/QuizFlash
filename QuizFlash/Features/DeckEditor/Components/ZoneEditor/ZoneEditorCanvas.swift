@@ -1764,16 +1764,14 @@ struct ZoneEditorCanvas: View {
     }
 
     private var toolbarTopDebugScreenY: CGFloat? {
-        let viewportBottomY = viewportScreenFrame.height > 0
-            ? viewportScreenFrame.maxY
-            : UIScreen.main.bounds.maxY
-        return bottomAccessoryTopY ?? fallbackBottomChromeTopY(viewportBottomY: viewportBottomY)
+        let fallbackTopY = fallbackBottomChromeTopY(viewportBottomY: UIScreen.main.bounds.maxY)
+        guard let bottomAccessoryTopY else { return fallbackTopY }
+        guard let fallbackTopY else { return bottomAccessoryTopY }
+        return min(bottomAccessoryTopY, fallbackTopY)
     }
 
     private var visibleBottomDebugScreenY: CGFloat? {
-        let viewportBottomY = viewportScreenFrame.height > 0
-            ? viewportScreenFrame.maxY - caretBottomChromeBuffer
-            : UIScreen.main.bounds.maxY - caretBottomChromeBuffer
+        let viewportBottomY = UIScreen.main.bounds.maxY - caretBottomChromeBuffer
         guard let toolbarTopDebugScreenY else { return viewportBottomY }
         return min(viewportBottomY, toolbarTopDebugScreenY - caretBottomChromeBuffer)
     }
@@ -1946,21 +1944,25 @@ struct ZoneEditorCanvas: View {
            viewportScreenFrame.height > 0,
            screenY.isFinite {
             let localY = screenY - viewportScreenFrame.minY
-            Rectangle()
-                .stroke(
-                    color,
-                    style: StrokeStyle(lineWidth: 2, dash: [7, 5])
-                )
-                .frame(height: 2)
-                .offset(y: localY)
-                .overlay(alignment: .trailing) {
+            if localY >= 0,
+               localY <= viewportScreenFrame.height {
+                HStack(spacing: 4) {
+                    Rectangle()
+                        .stroke(
+                            color.opacity(0.95),
+                            style: StrokeStyle(lineWidth: 1.5, dash: [7, 5])
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 1.5, maxHeight: 1.5)
+
                     Text(title)
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundStyle(color)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 3))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 4))
                 }
+                .offset(y: localY)
+            }
         }
     }
 
