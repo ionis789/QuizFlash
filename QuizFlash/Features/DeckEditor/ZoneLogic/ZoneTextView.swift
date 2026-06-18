@@ -110,13 +110,55 @@ private enum ZoneTextViewEmptyCaret {
 final class FullHitTextView: UITextView {
     var usesCompactCaret: Bool = true
     var debugZoneID: UUID?
+    private var lastStableCaretRect: CGRect?
 
     override func caretRect(for position: UITextPosition) -> CGRect {
-        var rect = super.caretRect(for: position)
-        guard usesCompactCaret else { return rect }
+        let proposedRect = super.caretRect(for: position)
+        var rect = proposedRect
+        guard usesCompactCaret else { return proposedRect }
 
         rect.size.width = 2.1
+        guard isStableCaretRect(proposedRect) else {
+            if let lastStableCaretRect {
+                if AppFeatures.current.showsVisualDebugOverlays {
+                    ZoneEditorDebugStore.shared.recordLayoutEvent(
+                        "caret.invalid-rect-reused",
+                        zoneID: debugZoneID,
+                        details: "proposed=\(debugRect(proposedRect)) reused=\(debugRect(lastStableCaretRect)) bounds=\(debugSize(bounds.size)) content=\(debugSize(contentSize))"
+                    )
+                }
+                var stableRect = lastStableCaretRect
+                stableRect.size.width = 2.1
+                return stableRect
+            }
+
+            if AppFeatures.current.showsVisualDebugOverlays {
+                ZoneEditorDebugStore.shared.recordLayoutEvent(
+                    "caret.invalid-rect-no-stable",
+                    zoneID: debugZoneID,
+                    details: "proposed=\(debugRect(proposedRect)) bounds=\(debugSize(bounds.size)) content=\(debugSize(contentSize))"
+                )
+            }
+            return rect
+        }
+
+        lastStableCaretRect = rect
         return rect
+    }
+
+    private func isStableCaretRect(_ rect: CGRect) -> Bool {
+        let minimumHeight = max(4, (font?.lineHeight ?? 0) * 0.2)
+        guard rect.minX.isFinite,
+              rect.minY.isFinite,
+              rect.width.isFinite,
+              rect.height.isFinite,
+              rect.height >= minimumHeight,
+              rect.minY >= textContainerInset.top - 1 else {
+            return false
+        }
+
+        let maximumY = max(bounds.height, contentSize.height) + textContainerInset.bottom + 1
+        return rect.maxY <= maximumY
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
