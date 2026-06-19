@@ -57,6 +57,7 @@ struct QuizCardEditorView: View {
     @State private var lastQuizNewlineScrollProbe: QuizNewlineScrollProbe?
     @State private var quizViewportScreenFrame: CGRect = .zero
     @State private var quizCaretScrollGate = QuizCaretScrollGate()
+    @State private var quizCaretScrollScheduleSequence = 0
 
     private let textSize: FlashcardTextSize
     private let onSave: (QuizCardContent) -> Void
@@ -1212,6 +1213,11 @@ struct QuizCardEditorView: View {
 
             scheduledCaretScrollTask?.cancel()
             scheduledCaretScrollTask = nil
+            recordQuizScroll(
+                "quiz.scroll-task-cancel-nonscroll-source",
+                pathID: notificationPathID,
+                details: "source=\(source.rawValue) schedule=\(quizCaretScrollScheduleSequence) \(quizScrollDetails(proposedDelta: nil))"
+            )
             activeQuizCaretPathID = notificationPathID
             activeQuizCaretWindowRect = caretRect
             activeQuizCaretSource = source
@@ -1288,17 +1294,19 @@ struct QuizCardEditorView: View {
             )
             return
         }
+        quizCaretScrollScheduleSequence += 1
+        let scheduleID = quizCaretScrollScheduleSequence
         if scheduledCaretScrollTask != nil {
             recordQuizScroll(
                 "quiz.scroll-task-cancel",
                 pathID: activeQuizCaretPathID,
-                details: "reason=reschedule delays=\(debugDurations(delays)) \(quizScrollDetails(proposedDelta: nil))"
+                details: "reason=reschedule newSchedule=\(scheduleID) delays=\(debugDurations(delays)) \(quizScrollDetails(proposedDelta: nil))"
             )
         }
         recordQuizScroll(
             "quiz.scroll-schedule",
             pathID: activeQuizCaretPathID,
-            details: "delays=\(debugDurations(delays)) \(quizScrollDetails(proposedDelta: nil))"
+            details: "schedule=\(scheduleID) source=\(activeQuizCaretSource?.rawValue ?? "nil") delays=\(debugDurations(delays)) \(quizScrollDetails(proposedDelta: nil))"
         )
 
         scheduledCaretScrollTask?.cancel()
@@ -1309,7 +1317,7 @@ struct QuizCardEditorView: View {
                     recordQuizScroll(
                         "quiz.scroll-run-cancelled",
                         pathID: activeQuizCaretPathID,
-                        details: "pass=\(index + 1) delay=\(debugDuration(delay)) \(quizScrollDetails(proposedDelta: nil))"
+                        details: "schedule=\(scheduleID) currentSchedule=\(quizCaretScrollScheduleSequence) pass=\(index + 1) delay=\(debugDuration(delay)) \(quizScrollDetails(proposedDelta: nil))"
                     )
                     return
                 }
@@ -1319,7 +1327,7 @@ struct QuizCardEditorView: View {
                     recordQuizScroll(
                         "quiz.scroll-run-abort",
                         pathID: activeQuizCaretPathID,
-                        details: "pass=\(index + 1) delay=\(debugDuration(delay)) focused=\(shortDebugID(focusManager.focusedZoneID)) currentZone=\(shortDebugID(currentSelectedZoneID)) \(quizScrollDetails(proposedDelta: nil))"
+                        details: "schedule=\(scheduleID) currentSchedule=\(quizCaretScrollScheduleSequence) pass=\(index + 1) delay=\(debugDuration(delay)) focused=\(shortDebugID(focusManager.focusedZoneID)) currentZone=\(shortDebugID(currentSelectedZoneID)) \(quizScrollDetails(proposedDelta: nil))"
                     )
                     return
                 }
@@ -1327,7 +1335,7 @@ struct QuizCardEditorView: View {
                 recordQuizScroll(
                     "quiz.scroll-run",
                     pathID: activeQuizCaretPathID,
-                    details: "pass=\(index + 1) delay=\(debugDuration(delay)) rect=\(activeQuizCaretWindowRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
+                    details: "schedule=\(scheduleID) currentSchedule=\(quizCaretScrollScheduleSequence) pass=\(index + 1) delay=\(debugDuration(delay)) rect=\(activeQuizCaretWindowRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
                 )
                 recordQuizScrollState(
                     "quiz.scroll-state-run",

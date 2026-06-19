@@ -10,6 +10,13 @@ import UIKit
 
 @MainActor
 final class ZoneEditorScrollDriver {
+    private struct DebugOffsetCommand {
+        let token: Int
+        let requestID: Int?
+        let target: CGPoint
+        let zoneID: UUID?
+    }
+
     private weak var scrollView: UIScrollView?
     private var pendingTopInset: CGFloat = 0
     private var pendingBottomInset: CGFloat = 0
@@ -22,9 +29,11 @@ final class ZoneEditorScrollDriver {
     private var onScrollOffsetChange: ((CGFloat) -> Void)?
     private var lastReportedScrollOffsetY: CGFloat?
     private var debugScrollRequestSequence = 0
+    private var debugOffsetCommandSequence = 0
     private var lastDebugScrollRequestID: Int?
     private var lastDebugScrollRequestZoneID: UUID?
     private var lastDebugObservedRawOffsetY: CGFloat?
+    private var activeDebugOffsetCommand: DebugOffsetCommand?
     private var tapProbe: ZoneEditorTapProbe?
     private(set) var tapProbeStatus = "not-configured"
     private(set) var currentNormalizedOffsetY: CGFloat = 0
@@ -72,6 +81,7 @@ final class ZoneEditorScrollDriver {
         lastDebugScrollRequestID = nil
         lastDebugScrollRequestZoneID = nil
         lastDebugObservedRawOffsetY = nil
+        activeDebugOffsetCommand = nil
         scrollView = nil
     }
 
@@ -459,10 +469,18 @@ final class ZoneEditorScrollDriver {
         debugZoneID: UUID?
     ) {
         let before = scrollView.contentOffset
+        debugOffsetCommandSequence += 1
+        let command = DebugOffsetCommand(
+            token: debugOffsetCommandSequence,
+            requestID: debugRequestID,
+            target: offset,
+            zoneID: debugZoneID
+        )
+        activeDebugOffsetCommand = command
         ZoneEditorDebugStore.shared.recordScrollDecision(
             "scroll-set-offset-start",
             zoneID: debugZoneID,
-            details: "request=\(debugRequestID.map(String.init) ?? "nil") from=\(debugPoint(before)) to=\(debugPoint(offset)) duration=\(debugValue(duration)) animated=\(duration > 0.02 ? 1 : 0) layerKeys=\((scrollView.layer.animationKeys() ?? []).joined(separator: ",")) \(scrollSnapshotDetails(in: scrollView))"
+            details: "command=\(command.token) request=\(debugRequestID.map(String.init) ?? "nil") from=\(debugPoint(before)) to=\(debugPoint(offset)) duration=\(debugValue(duration)) animated=\(duration > 0.02 ? 1 : 0) layerKeys=\((scrollView.layer.animationKeys() ?? []).joined(separator: ",")) \(scrollSnapshotDetails(in: scrollView))"
         )
         scrollView.layer.removeAllAnimations()
         guard duration > 0.02 else {
@@ -470,8 +488,11 @@ final class ZoneEditorScrollDriver {
             ZoneEditorDebugStore.shared.recordScrollDecision(
                 "scroll-set-offset-immediate",
                 zoneID: debugZoneID,
-                details: "request=\(debugRequestID.map(String.init) ?? "nil") after=\(debugPoint(scrollView.contentOffset)) \(scrollSnapshotDetails(in: scrollView))"
+                details: "command=\(command.token) request=\(debugRequestID.map(String.init) ?? "nil") after=\(debugPoint(scrollView.contentOffset)) \(scrollSnapshotDetails(in: scrollView))"
             )
+            if activeDebugOffsetCommand?.token == command.token {
+                activeDebugOffsetCommand = nil
+            }
             return
         }
 
@@ -487,11 +508,15 @@ final class ZoneEditorScrollDriver {
         ) {
             scrollView.setContentOffset(offset, animated: false)
         } completion: { _ in
+            let isCurrentCommand = self.activeDebugOffsetCommand?.token == command.token
             ZoneEditorDebugStore.shared.recordScrollDecision(
                 "scroll-set-offset-complete",
                 zoneID: debugZoneID,
-                details: "request=\(debugRequestID.map(String.init) ?? "nil") final=\(self.debugPoint(scrollView.contentOffset)) presentationY=\(self.debugValue(scrollView.layer.presentation()?.bounds.origin.y ?? scrollView.bounds.origin.y)) \(self.scrollSnapshotDetails(in: scrollView))"
+                details: "command=\(command.token) request=\(debugRequestID.map(String.init) ?? "nil") current=\(isCurrentCommand ? 1 : 0) final=\(self.debugPoint(scrollView.contentOffset)) presentationY=\(self.debugValue(scrollView.layer.presentation()?.bounds.origin.y ?? scrollView.bounds.origin.y)) \(self.scrollSnapshotDetails(in: scrollView))"
             )
+            if isCurrentCommand {
+                self.activeDebugOffsetCommand = nil
+            }
         }
     }
 
@@ -525,10 +550,20 @@ final class ZoneEditorScrollDriver {
         if force
             || lastDebugObservedRawOffsetY.map({ abs($0 - scrollView.contentOffset.y) > 8 }) != false {
             lastDebugObservedRawOffsetY = scrollView.contentOffset.y
+            let command = activeDebugOffsetCommand
+            let panState = scrollView.panGestureRecognizer.state
+            let origin: String
+            if scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating {
+                origin = "user-or-uikit-pan"
+            } else if command != nil {
+                origin = "driver-command"
+            } else {
+                origin = "unowned-uikit-or-swiftui"
+            }
             ZoneEditorDebugStore.shared.recordScrollDecision(
                 "scroll-offset-observed",
-                zoneID: lastDebugScrollRequestZoneID,
-                details: "request=\(lastDebugScrollRequestID.map(String.init) ?? "nil") raw=\(debugPoint(scrollView.contentOffset)) normalized=\(debugValue(normalizedOffsetY)) force=\(force ? 1 : 0) tracking=\(scrollView.isTracking ? 1 : 0) dragging=\(scrollView.isDragging ? 1 : 0) decel=\(scrollView.isDecelerating ? 1 : 0) anim=\(hasActiveBoundsOriginAnimation ? 1 : 0) \(scrollSnapshotDetails(in: scrollView))"
+                zoneID: command?.zoneID ?? lastDebugScrollRequestZoneID,
+                details: "origin=\(origin) command=\(command.map { String($0.token) } ?? "nil") commandRequest=\(command?.requestID.map(String.init) ?? "nil") commandTargetY=\(command.map { debugValue($0.target.y) } ?? "nil") request=\(lastDebugScrollRequestID.map(String.init) ?? "nil") raw=\(debugPoint(scrollView.contentOffset)) normalized=\(debugValue(normalizedOffsetY)) force=\(force ? 1 : 0) pan=\(panState.rawValue) tracking=\(scrollView.isTracking ? 1 : 0) dragging=\(scrollView.isDragging ? 1 : 0) decel=\(scrollView.isDecelerating ? 1 : 0) anim=\(hasActiveBoundsOriginAnimation ? 1 : 0) \(scrollSnapshotDetails(in: scrollView))"
             )
         }
         guard let onScrollOffsetChange else { return }
