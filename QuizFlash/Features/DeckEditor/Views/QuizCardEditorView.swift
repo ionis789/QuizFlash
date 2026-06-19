@@ -1315,25 +1315,26 @@ struct QuizCardEditorView: View {
         let visibleBottomY = quizVisibleBottomWindowY(bottomBuffer: bottomBuffer)
         let predictedCaretBottom = (caretRect ?? activeQuizCaretWindowRect).map { $0.maxY + deltaY }
         let proposedDelta = predictedCaretBottom.map { $0 - visibleBottomY }
+        let appliedDeltaY = proposedDelta.map { max($0, 0) } ?? deltaY
 
-        guard proposedDelta.map({ $0 > 1 }) ?? true else {
+        guard appliedDeltaY > 1 else {
             recordQuizScroll(
                 "quiz.scroll-precompensate-newline-skip",
                 pathID: pathID,
-                details: "reason=predicted-visible forcedBreakID=\(forcedBreakID.map(String.init) ?? "nil") delta=\(debugValue(deltaY)) caret=\(caretRect.map(debugRect) ?? "nil") visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+                details: "reason=predicted-visible forcedBreakID=\(forcedBreakID.map(String.init) ?? "nil") layoutDelta=\(debugValue(deltaY)) appliedDelta=\(debugValue(appliedDeltaY)) caret=\(caretRect.map(debugRect) ?? "nil") visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
             )
             return
         }
 
         let didApply = quizScrollDriver.applyImmediateLayoutShiftCompensation(
-            deltaY: deltaY,
+            deltaY: appliedDeltaY,
             zoneID: notificationZoneID,
             reason: "newline-prelayout"
         )
         recordQuizScroll(
             "quiz.scroll-precompensate-newline",
             pathID: pathID,
-            details: "forcedBreakID=\(forcedBreakID.map(String.init) ?? "nil") didApply=\(debugFlag(didApply)) delta=\(debugValue(deltaY)) caret=\(caretRect.map(debugRect) ?? "nil") predictedCaretBottom=\(debugOptionalValue(predictedCaretBottom)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+            details: "forcedBreakID=\(forcedBreakID.map(String.init) ?? "nil") didApply=\(debugFlag(didApply)) layoutDelta=\(debugValue(deltaY)) appliedDelta=\(debugValue(appliedDeltaY)) caret=\(caretRect.map(debugRect) ?? "nil") predictedCaretBottom=\(debugOptionalValue(predictedCaretBottom)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
         )
     }
 
