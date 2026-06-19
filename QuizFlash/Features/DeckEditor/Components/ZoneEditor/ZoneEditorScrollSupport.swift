@@ -339,6 +339,34 @@ final class ZoneEditorScrollDriver {
         clearOffsetLock()
     }
 
+    func restoreActiveCommandPresentationOffsetIfNeeded(reason: String) {
+        guard let scrollView,
+              let command = activeDebugOffsetCommand,
+              !scrollView.isTracking,
+              !scrollView.isDragging,
+              !scrollView.isDecelerating
+        else { return }
+
+        let presentationY = scrollView.layer.presentation()?.bounds.origin.y ?? scrollView.bounds.origin.y
+        let targetY = clampedOffsetY(presentationY, in: scrollView)
+        guard abs(scrollView.contentOffset.y - targetY) > 0.5 else { return }
+
+        let before = scrollView.contentOffset
+        UIView.performWithoutAnimation {
+            scrollView.setContentOffset(
+                CGPoint(x: scrollView.contentOffset.x, y: targetY),
+                animated: false
+            )
+            scrollView.layoutIfNeeded()
+        }
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-restore-active-command-presentation",
+            zoneID: command.zoneID,
+            details: "reason=\(reason) command=\(command.token) request=\(command.requestID.map(String.init) ?? "nil") from=\(debugPoint(before)) restored=\(debugPoint(scrollView.contentOffset)) commandTarget=\(debugPoint(command.target)) \(scrollSnapshotDetails(in: scrollView))"
+        )
+        reportScrollOffset(in: scrollView, force: true)
+    }
+
     @discardableResult
     func scrollWindowRectAboveBottomChromeIfNeeded(
         windowRect: CGRect,
@@ -547,6 +575,13 @@ final class ZoneEditorScrollDriver {
                     CGPoint(x: offset.x, y: self.clampedOffsetY(offset.y, in: scrollView)),
                     animated: false
                 )
+                self.lockOffset(
+                    scrollView.contentOffset,
+                    in: scrollView,
+                    duration: .milliseconds(360),
+                    reason: "programmatic-scroll-complete",
+                    zoneID: debugZoneID
+                )
             }
             ZoneEditorDebugStore.shared.recordScrollDecision(
                 "scroll-set-offset-complete",
@@ -642,6 +677,37 @@ final class ZoneEditorScrollDriver {
         lockedOffset = nil
         offsetLockTask?.cancel()
         offsetLockTask = nil
+    }
+
+    private func lockOffset(
+        _ offset: CGPoint,
+        in scrollView: UIScrollView,
+        duration: Duration,
+        reason: String,
+        zoneID: UUID?
+    ) {
+        if scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating {
+            clearOffsetLock()
+            return
+        }
+
+        lockedOffset = CGPoint(
+            x: offset.x,
+            y: clampedOffsetY(offset.y, in: scrollView)
+        )
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-offset-lock-start",
+            zoneID: zoneID,
+            details: "reason=\(reason) duration=\(duration) target=\(debugPoint(lockedOffset ?? offset)) \(scrollSnapshotDetails(in: scrollView))"
+        )
+        restoreLockedOffsetIfNeeded(in: scrollView)
+
+        offsetLockTask?.cancel()
+        offsetLockTask = Task { @MainActor in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            self.clearOffsetLock()
+        }
     }
 
     private func applyContentInsetsIfNeeded() {

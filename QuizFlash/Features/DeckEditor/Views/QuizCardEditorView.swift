@@ -1194,6 +1194,13 @@ struct QuizCardEditorView: View {
         )
 
         guard shouldScrollQuizCaret(for: source) else {
+            if activeQuizCaretSource == .newline,
+               source == .rejectedTextEdit || source == .textInput {
+                quizScrollDriver.restoreActiveCommandPresentationOffsetIfNeeded(
+                    reason: "quiz-\(source.rawValue)-during-newline"
+                )
+            }
+
             if source == .textInput,
                activeQuizCaretSource == .newline,
                keyboardMonitor.isVisible,
