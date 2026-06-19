@@ -173,6 +173,7 @@ final class FullHitTextView: UITextView {
             "text.scroll-rect-to-visible",
             details: "rect=\(debugRect(rect)) animated=\(animated ? 1 : 0)"
         )
+        guard isScrollEnabled else { return }
         super.scrollRectToVisible(rect, animated: animated)
     }
 
@@ -181,6 +182,7 @@ final class FullHitTextView: UITextView {
             "text.scroll-range-to-visible",
             details: "range=\(range.location):\(range.length)"
         )
+        guard isScrollEnabled else { return }
         super.scrollRangeToVisible(range)
     }
 
