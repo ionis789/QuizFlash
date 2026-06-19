@@ -781,17 +781,55 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     private func caretDebugRects(in textView: UITextView) -> (local: String, window: String, first: String) {
-        guard let selectedTextRange = textView.selectedTextRange else {
+        guard let caretRect = textKitCaretRect(in: textView) else {
             return ("nil", "nil", "nil")
         }
 
-        let caretRect = textView.caretRect(for: selectedTextRange.start)
         let caretWindowRect = textView.convert(caretRect, to: nil)
-        let firstRect = textView.firstRect(for: selectedTextRange)
         return (
             debugRect(caretRect),
             debugRect(caretWindowRect),
-            debugRect(firstRect)
+            "textKit=\(debugRect(caretRect))"
+        )
+    }
+
+    /// Computes the insertion line directly from TextKit. Querying UITextView's
+    /// selection rect for a terminal marker can ask the ancestor scroll view to
+    /// reveal the zone's top edge before that line has finished laying out.
+    private func textKitCaretRect(in textView: UITextView) -> CGRect? {
+        let layoutManager = textView.layoutManager
+        let textContainer = textView.textContainer
+        let storageLength = textView.textStorage.length
+        guard storageLength > 0 else { return nil }
+
+        layoutManager.ensureLayout(for: textContainer)
+
+        let selectedLocation = min(max(textView.selectedRange.location, 0), storageLength)
+        let glyphIndex: Int
+        let insertionAtEnd = selectedLocation >= storageLength
+
+        if insertionAtEnd {
+            glyphIndex = max(layoutManager.numberOfGlyphs - 1, 0)
+        } else {
+            glyphIndex = layoutManager.glyphIndexForCharacter(at: selectedLocation)
+        }
+
+        guard glyphIndex < layoutManager.numberOfGlyphs else { return nil }
+
+        let glyphRange = NSRange(location: glyphIndex, length: 1)
+        let glyphRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        let lineRect = layoutManager.lineFragmentRect(
+            forGlyphAt: glyphIndex,
+            effectiveRange: nil
+        )
+        let height = max(lineRect.height, textView.font?.lineHeight ?? 0)
+        let x = insertionAtEnd ? glyphRect.maxX : glyphRect.minX
+
+        return CGRect(
+            x: textView.textContainerInset.left + x,
+            y: textView.textContainerInset.top + lineRect.minY,
+            width: 2.1,
+            height: height
         )
     }
 
@@ -1028,7 +1066,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         guard includeCaretAnchor else { return }
         guard textView.window != nil else { return }
 
-        if let selectedTextRange = textView.selectedTextRange {
+        if textView.selectedTextRange != nil {
             recordCaretProbe(
                 "caret.geometry-before-layout",
                 textView: textView,
@@ -1041,7 +1079,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                 textView: textView,
                 extra: "force=\(forceCaretGeometry ? 1 : 0)"
             )
-            let caretRect = textView.caretRect(for: selectedTextRange.start)
+            guard let caretRect = textKitCaretRect(in: textView) else { return }
             let caretRectInWindow = textView.convert(caretRect, to: nil)
             let anchorY = min(
                 max(caretRect.midY / max(textView.bounds.height, 1), 0.08),
@@ -1325,11 +1363,15 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             replacementText: "\n",
             extra: "forcedBreakID=\(forcedBreakID) modelRange=\(selectedModelRange.location):\(selectedModelRange.length) nextModelCaret=\(modelCaretRange.location):\(modelCaretRange.length)"
         )
-        isUpdating = true
-        textView.text = displayText
-        textView.selectedRange = ZoneTextViewEmptyCaret.displayRange(
+        let nextDisplayRange = ZoneTextViewEmptyCaret.displayRange(
             fromModelRange: modelCaretRange,
             modelText: modelText
+        )
+        isUpdating = true
+        replaceDisplayTextIncrementally(
+            in: textView,
+            with: displayText,
+            selectedRange: nextDisplayRange
         )
         isUpdating = false
         recordCaretProbe(
@@ -1373,6 +1415,55 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             textView: textView,
             extra: "forcedBreakID=\(forcedBreakID)"
         )
+    }
+
+    private func replaceDisplayTextIncrementally(
+        in textView: UITextView,
+        with displayText: String,
+        selectedRange: NSRange
+    ) {
+        let currentText = textView.text ?? ""
+        let currentNSString = currentText as NSString
+        let nextNSString = displayText as NSString
+        let sharedLength = min(currentNSString.length, nextNSString.length)
+        var prefixLength = 0
+
+        while prefixLength < sharedLength,
+              currentNSString.character(at: prefixLength) == nextNSString.character(at: prefixLength) {
+            prefixLength += 1
+        }
+
+        var currentEnd = currentNSString.length
+        var nextEnd = nextNSString.length
+        while currentEnd > prefixLength,
+              nextEnd > prefixLength,
+              currentNSString.character(at: currentEnd - 1) == nextNSString.character(at: nextEnd - 1) {
+            currentEnd -= 1
+            nextEnd -= 1
+        }
+
+        let changedRange = NSRange(location: prefixLength, length: currentEnd - prefixLength)
+        let replacementRange = NSRange(location: prefixLength, length: nextEnd - prefixLength)
+        let replacement = nextNSString.substring(with: replacementRange)
+
+        textView.textStorage.beginEditing()
+        textView.textStorage.replaceCharacters(
+            in: changedRange,
+            with: NSAttributedString(string: replacement, attributes: textAttributes)
+        )
+        ZoneForcedLineBreak.applyMarkerStyle(
+            to: textView.textStorage,
+            baseAttributes: textAttributes,
+            markerColor: forcedLineBreakTintColor
+        )
+        textView.textStorage.endEditing()
+
+        let clampedLocation = min(max(selectedRange.location, 0), textView.textStorage.length)
+        let clampedLength = min(
+            max(selectedRange.length, 0),
+            textView.textStorage.length - clampedLocation
+        )
+        textView.selectedRange = NSRange(location: clampedLocation, length: clampedLength)
     }
 
     private func canInsertForcedLineBreak(in text: String, selectedRange: NSRange) -> Bool {
