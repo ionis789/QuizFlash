@@ -168,6 +168,33 @@ final class FullHitTextView: UITextView {
         return super.hitTest(point, with: event)
     }
 
+    override func scrollRectToVisible(_ rect: CGRect, animated: Bool) {
+        recordNativeScrollRequest(
+            "text.scroll-rect-to-visible",
+            details: "rect=\(debugRect(rect)) animated=\(animated ? 1 : 0)"
+        )
+        super.scrollRectToVisible(rect, animated: animated)
+    }
+
+    override func scrollRangeToVisible(_ range: NSRange) {
+        recordNativeScrollRequest(
+            "text.scroll-range-to-visible",
+            details: "range=\(range.location):\(range.length)"
+        )
+        super.scrollRangeToVisible(range)
+    }
+
+    override func setContentOffset(_ contentOffset: CGPoint, animated: Bool) {
+        if AppFeatures.current.showsVisualDebugOverlays,
+           abs(contentOffset.y - self.contentOffset.y) > 0.5 {
+            recordNativeScrollRequest(
+                "text.set-content-offset",
+                details: "from=\(debugPoint(self.contentOffset)) to=\(debugPoint(contentOffset)) animated=\(animated ? 1 : 0)"
+            )
+        }
+        super.setContentOffset(contentOffset, animated: animated)
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
 
@@ -181,12 +208,39 @@ final class FullHitTextView: UITextView {
         )
     }
 
+    private func recordNativeScrollRequest(_ stage: String, details: String) {
+        guard AppFeatures.current.showsVisualDebugOverlays else { return }
+        let parentScroll = nearestParentScrollView()
+        let parentType = parentScroll.map { String(describing: type(of: $0)) } ?? "nil"
+        let parentOffset = parentScroll.map { debugPoint($0.contentOffset) } ?? "nil"
+        ZoneEditorDebugStore.shared.recordLayoutEvent(
+            stage,
+            zoneID: debugZoneID,
+            details: "\(details) ownOffset=\(debugPoint(contentOffset)) ownBounds=\(debugRect(bounds)) ownContent=\(debugSize(contentSize)) scrollEnabled=\(isScrollEnabled ? 1 : 0) parent=\(parentType) parentOffset=\(parentOffset)"
+        )
+    }
+
+    private func nearestParentScrollView() -> UIScrollView? {
+        var candidate = superview
+        while let view = candidate {
+            if let scrollView = view as? UIScrollView {
+                return scrollView
+            }
+            candidate = view.superview
+        }
+        return nil
+    }
+
     private func debugRect(_ rect: CGRect) -> String {
         "\(debugValue(rect.minX)),\(debugValue(rect.minY)),\(debugValue(rect.width))x\(debugValue(rect.height))"
     }
 
     private func debugSize(_ size: CGSize) -> String {
         "\(debugValue(size.width))x\(debugValue(size.height))"
+    }
+
+    private func debugPoint(_ point: CGPoint) -> String {
+        "\(debugValue(point.x)),\(debugValue(point.y))"
     }
 
     private func debugInsets(_ insets: UIEdgeInsets) -> String {
