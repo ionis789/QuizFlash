@@ -1403,14 +1403,8 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             lastTextChangeWasRejected = false
             return
         }
-        reportCursorPosition(
-            from: textView,
-            includeCaretAnchor: true,
-            forceCaretGeometry: true,
-            source: .newline
-        )
         recordCaretProbe(
-            "caret.forced-break-after-report",
+            "caret.forced-break-awaiting-settled-layout",
             textView: textView,
             extra: "forcedBreakID=\(forcedBreakID)"
         )
