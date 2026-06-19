@@ -540,7 +540,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
-    var onCaretGeometryChange: ((CGFloat, CGRect, ZoneEditorCaretScrollSource) -> Void)?
+    var onCaretGeometryChange: ((CGFloat, CGRect, CGFloat, ZoneEditorCaretScrollSource) -> Void)?
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
     var font: UIFont = .preferredFont(forTextStyle: .body)
@@ -999,7 +999,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                 textView: textView,
                 extra: "anchor=\(debugValue(anchorY)) windowMaxY=\(debugValue(caretRectInWindow.maxY))"
             )
-            onCaretGeometryChange?(anchorY, caretRectInWindow, source)
+            onCaretGeometryChange?(anchorY, caretRectInWindow, textView.bounds.height, source)
         }
     }
 
@@ -1420,7 +1420,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
-    var onCaretGeometryChange: ((CGFloat, CGRect, ZoneEditorCaretScrollSource) -> Void)?
+    var onCaretGeometryChange: ((CGFloat, CGRect, CGFloat, ZoneEditorCaretScrollSource) -> Void)?
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
     

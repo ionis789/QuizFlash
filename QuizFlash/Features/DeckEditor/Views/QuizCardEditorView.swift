@@ -42,6 +42,8 @@ struct QuizCardEditorView: View {
     @State private var activeQuizCaretPathID: String?
     @State private var activeQuizCaretWindowRect: CGRect?
     @State private var activeQuizCaretSource: ZoneEditorCaretScrollSource?
+    @State private var activeQuizCaretAnchorY: CGFloat?
+    @State private var activeQuizCaretEditorHeight: CGFloat?
     @State private var quizViewportScreenFrame: CGRect = .zero
     @State private var quizCaretScrollGate = QuizCaretScrollGate()
 
@@ -295,6 +297,8 @@ struct QuizCardEditorView: View {
                 scheduledCaretScrollTask?.cancel()
                 scheduledCaretScrollTask = nil
                 activeQuizCaretSource = nil
+                activeQuizCaretAnchorY = nil
+                activeQuizCaretEditorHeight = nil
                 quizScrollDriver.resetBottomInset()
                 withAnimation(EditorKeyboardAccessoryMotion.keyboardPaddingDismissAnimation) {
                     keyboardDismissPadding = 0
@@ -383,6 +387,8 @@ struct QuizCardEditorView: View {
             activeQuizCaretPathID = nil
             activeQuizCaretWindowRect = nil
             activeQuizCaretSource = nil
+            activeQuizCaretAnchorY = nil
+            activeQuizCaretEditorHeight = nil
             quizScrollDriver.detach()
         }
     }
@@ -1134,15 +1140,17 @@ struct QuizCardEditorView: View {
         let notificationPathID = notification.userInfo?[ZoneEditorCaretScrollNotification.pathIDKey] as? String
         let caretRect = caretWindowRect(from: notification)
         let source = caretScrollSource(from: notification)
+        let caretAnchorY = caretAnchorY(from: notification)
+        let caretEditorHeight = caretEditorHeight(from: notification)
         recordQuizScroll(
             "quiz.scroll-caret-received",
             pathID: notificationPathID,
-            details: "source=\(source.rawValue) rect=\(caretRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
+            details: "source=\(source.rawValue) rect=\(caretRect.map(debugRect) ?? "nil") anchor=\(debugOptionalValue(caretAnchorY)) editorHeight=\(debugOptionalValue(caretEditorHeight)) \(quizScrollDetails(proposedDelta: nil))"
         )
         recordQuizScrollState(
             "quiz.scroll-state-caret-received",
             pathID: notificationPathID,
-            extra: "source=\(source.rawValue) rect=\(caretRect.map(debugRect) ?? "nil")"
+            extra: "source=\(source.rawValue) rect=\(caretRect.map(debugRect) ?? "nil") anchor=\(debugOptionalValue(caretAnchorY)) editorHeight=\(debugOptionalValue(caretEditorHeight))"
         )
 
         guard let notificationPathID,
@@ -1162,6 +1170,8 @@ struct QuizCardEditorView: View {
             activeQuizCaretPathID = notificationPathID
             activeQuizCaretWindowRect = caretRect
             activeQuizCaretSource = source
+            activeQuizCaretAnchorY = caretAnchorY
+            activeQuizCaretEditorHeight = caretEditorHeight
             recordQuizScroll(
                 "quiz.scroll-skip-text-input",
                 pathID: notificationPathID,
@@ -1183,6 +1193,8 @@ struct QuizCardEditorView: View {
         activeQuizCaretPathID = notificationPathID
         activeQuizCaretWindowRect = caretRect
         activeQuizCaretSource = source
+        activeQuizCaretAnchorY = caretAnchorY
+        activeQuizCaretEditorHeight = caretEditorHeight
 
         guard keyboardMonitor.isVisible else {
             recordQuizScroll(
@@ -1300,6 +1312,8 @@ struct QuizCardEditorView: View {
                 if scrollQuizCaretDownIfNeeded(caretRect, pathID: pathID) {
                     activeQuizCaretWindowRect = nil
                     activeQuizCaretSource = nil
+                    activeQuizCaretAnchorY = nil
+                    activeQuizCaretEditorHeight = nil
                     return
                 }
             }
@@ -1330,6 +1344,16 @@ struct QuizCardEditorView: View {
                 "quiz.scroll-skip-visible",
                 pathID: pathID,
                 details: "reason=already-visible source=\(activeQuizCaretSource?.rawValue ?? "nil") rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) bottomBuffer=\(debugValue(bottomBuffer)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+            )
+            return false
+        }
+
+        if activeQuizCaretSource == .newline,
+           let oversizeDetails = oversizedNewlineEditorDetails(caretRect: caretRect) {
+            recordQuizScroll(
+                "quiz.scroll-skip-oversized-newline",
+                pathID: pathID,
+                details: "source=newline rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) bottomBuffer=\(debugValue(bottomBuffer)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(oversizeDetails) \(quizScrollDetails(proposedDelta: proposedDelta))"
             )
             return false
         }
@@ -1407,6 +1431,23 @@ struct QuizCardEditorView: View {
         return didScroll
     }
 
+    private func oversizedNewlineEditorDetails(caretRect: CGRect) -> String? {
+        guard let anchorY = activeQuizCaretAnchorY,
+              let editorHeight = activeQuizCaretEditorHeight,
+              editorHeight > 1 else {
+            return nil
+        }
+
+        let editorTopY = caretRect.midY - (anchorY * editorHeight)
+        let availableHeight = quizVisibleBottomWindowY(bottomBuffer: 0) - editorTopY
+        guard availableHeight > 1,
+              editorHeight > availableHeight + 1 else {
+            return nil
+        }
+
+        return "editorHeight=\(debugValue(editorHeight)) availableHeight=\(debugValue(availableHeight)) editorTop=\(debugValue(editorTopY)) anchor=\(debugValue(anchorY))"
+    }
+
     private func scheduleQuizScrollStateProbe(probeID: String, pathID: String) {
         guard isQuizDebugRecordingActive else { return }
         quizScrollDriver.scheduleDebugSnapshots(
@@ -1445,6 +1486,14 @@ struct QuizCardEditorView: View {
         }
 
         return source
+    }
+
+    private func caretAnchorY(from notification: Notification) -> CGFloat? {
+        notification.userInfo?[ZoneEditorCaretScrollNotification.anchorYKey] as? CGFloat
+    }
+
+    private func caretEditorHeight(from notification: Notification) -> CGFloat? {
+        notification.userInfo?[ZoneEditorCaretScrollNotification.editorHeightKey] as? CGFloat
     }
 
     private func shouldScrollQuizCaret(for source: ZoneEditorCaretScrollSource) -> Bool {
@@ -1777,6 +1826,8 @@ struct QuizCardEditorView: View {
         activeQuizCaretPathID = nil
         activeQuizCaretWindowRect = nil
         activeQuizCaretSource = nil
+        activeQuizCaretAnchorY = nil
+        activeQuizCaretEditorHeight = nil
     }
 
     private func applyMedia(data: Data, as contentType: ZoneContentType) {

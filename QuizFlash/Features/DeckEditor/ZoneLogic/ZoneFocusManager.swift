@@ -27,6 +27,7 @@ enum ZoneEditorCaretScrollNotification {
     static let anchorYKey = "anchorY"
     static let caretRectInWindowKey = "caretRectInWindow"
     static let sourceKey = "source"
+    static let editorHeightKey = "editorHeight"
 }
 
 enum ZoneEditorCaretScrollSource: String {

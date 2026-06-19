@@ -1221,10 +1221,11 @@ struct ZoneContentView: View {
                     lineTracker.updateFocusedLine(for: zoneID, lineIndex: lineIndex, totalLines: totalLines)
                     zoneController.updateZoneHeightInfo(for: zoneID, lineCount: totalLines, focusedLineIndex: lineIndex)
                 },
-                onCaretGeometryChange: { anchorY, caretRectInWindow, source in
+                onCaretGeometryChange: { anchorY, caretRectInWindow, editorHeight, source in
                     postCaretScrollHint(
                         anchorY: anchorY,
                         caretRectInWindow: caretRectInWindow,
+                        editorHeight: editorHeight,
                         source: source
                     )
                 },
@@ -1336,6 +1337,7 @@ struct ZoneContentView: View {
     private func postCaretScrollHint(
         anchorY: CGFloat,
         caretRectInWindow: CGRect,
+        editorHeight: CGFloat,
         source: ZoneEditorCaretScrollSource
     ) {
         let normalizedAnchorY = min(max(anchorY, 0.08), 0.92)
@@ -1348,7 +1350,8 @@ struct ZoneContentView: View {
                 ZoneEditorCaretScrollNotification.pathIDKey: path.id,
                 ZoneEditorCaretScrollNotification.anchorYKey: normalizedAnchorY,
                 ZoneEditorCaretScrollNotification.caretRectInWindowKey: NSValue(cgRect: caretRectInWindow),
-                ZoneEditorCaretScrollNotification.sourceKey: source.rawValue
+                ZoneEditorCaretScrollNotification.sourceKey: source.rawValue,
+                ZoneEditorCaretScrollNotification.editorHeightKey: editorHeight
             ]
         )
     }
