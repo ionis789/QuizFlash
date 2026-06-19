@@ -1404,10 +1404,11 @@ struct QuizCardEditorView: View {
             proposedDelta: proposedDelta
            ) {
             let offsetBefore = quizScrollDriver.currentNormalizedOffsetY
+            let resolvesAsNormalCaret = oversizedCandidate.projectsAboveTop
             recordQuizScrollState(
                 "quiz.scroll-oversized-newline-decision",
                 pathID: pathID,
-                extra: "probe=\(probeID ?? "off") rect=\(debugRect(oversizedCandidate.rect)) rawRect=\(debugRect(caretRect)) proposedDelta=\(debugOptionalValue(oversizedCandidate.delta)) \(oversizedCandidate.details)"
+                extra: "probe=\(probeID ?? "off") rect=\(debugRect(oversizedCandidate.rect)) rawRect=\(debugRect(caretRect)) proposedDelta=\(debugOptionalValue(oversizedCandidate.delta)) resolvesAsNormalCaret=\(debugFlag(resolvesAsNormalCaret)) \(oversizedCandidate.details)"
             )
             if quizCaretScrollGate.shouldSuppressScrollRequest(
                 pathID: pathID,
@@ -1428,15 +1429,15 @@ struct QuizCardEditorView: View {
             recordQuizScrollState(
                 "quiz.scroll-before-oversized-request",
                 pathID: pathID,
-                extra: "probe=\(probeID ?? "off") requestedDelta=\(debugValue(oversizedCandidate.delta))"
+                extra: "probe=\(probeID ?? "off") requestedDelta=\(debugValue(oversizedCandidate.delta)) resolvesAsNormalCaret=\(debugFlag(resolvesAsNormalCaret))"
             )
             let didScroll = quizScrollDriver.scrollWindowRectAboveBottomChromeIfNeeded(
-                windowRect: oversizedCandidate.rect,
+                windowRect: resolvesAsNormalCaret ? caretRect : oversizedCandidate.rect,
                 bottomChromeTopY: nil,
                 keyboardHeight: keyboardMonitor.visibleHeight,
                 bottomAccessoryHeight: floatingToolbarAccessoryHeight,
                 bottomBuffer: bottomBuffer,
-                animationDuration: quizCaretScrollAnimationDuration,
+                animationDuration: resolvesAsNormalCaret ? 0 : quizCaretScrollAnimationDuration,
                 animationOptions: keyboardMonitor.animationOptions,
                 zoneID: currentSelectedZoneID
             )
@@ -1473,9 +1474,11 @@ struct QuizCardEditorView: View {
                 scheduleQuizScrollStateProbe(probeID: probeID, pathID: pathID)
             }
             recordQuizScroll(
-                didScroll ? "quiz.scroll-apply-oversized-newline" : "quiz.scroll-skip-oversized-newline",
+                didScroll
+                    ? (resolvesAsNormalCaret ? "quiz.scroll-apply-newline-normalized-oversized" : "quiz.scroll-apply-oversized-newline")
+                    : "quiz.scroll-skip-oversized-newline",
                 pathID: pathID,
-                details: "source=newline rect=\(debugRect(oversizedCandidate.rect)) rawRect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) bottomBuffer=\(debugValue(bottomBuffer)) proposedDelta=\(debugOptionalValue(oversizedCandidate.delta)) didScroll=\(debugFlag(didScroll)) \(oversizedCandidate.details) \(quizScrollDetails(proposedDelta: oversizedCandidate.delta))"
+                details: "source=newline rect=\(debugRect(resolvesAsNormalCaret ? caretRect : oversizedCandidate.rect)) rawRect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) bottomBuffer=\(debugValue(bottomBuffer)) proposedDelta=\(debugOptionalValue(oversizedCandidate.delta)) didScroll=\(debugFlag(didScroll)) resolvesAsNormalCaret=\(debugFlag(resolvesAsNormalCaret)) \(oversizedCandidate.details) \(quizScrollDetails(proposedDelta: oversizedCandidate.delta))"
             )
             return didScroll
         }
@@ -1601,7 +1604,7 @@ struct QuizCardEditorView: View {
         caretRect: CGRect,
         visibleBottomY: CGFloat,
         proposedDelta: CGFloat
-    ) -> (rect: CGRect, delta: CGFloat, editorTopY: CGFloat, editorHeight: CGFloat, details: String)? {
+    ) -> (rect: CGRect, delta: CGFloat, editorTopY: CGFloat, editorHeight: CGFloat, projectsAboveTop: Bool, details: String)? {
         guard let anchorY = activeQuizCaretAnchorY,
               let editorHeight = activeQuizCaretEditorHeight,
               editorHeight > 1 else {
@@ -1625,8 +1628,9 @@ struct QuizCardEditorView: View {
         let projectedEditorTopY = editorTopY - resolvedDelta
         let projectedCaretMaxY = caretRect.maxY - resolvedDelta
         let viewportTopY = quizViewportScreenFrame.minY
-        let details = "rawDelta=\(debugValue(proposedDelta)) resolvedDelta=\(debugValue(resolvedDelta)) editorHeight=\(debugValue(editorHeight)) availableHeight=\(debugValue(availableHeight)) editorTop=\(debugValue(editorTopY)) projectedEditorTop=\(debugValue(projectedEditorTopY)) viewportTop=\(debugValue(viewportTopY)) projectsAboveTop=\(debugFlag(projectedEditorTopY < viewportTopY)) projectedCaretMax=\(debugValue(projectedCaretMaxY)) anchor=\(debugValue(anchorY))"
-        return (resolvedRect, resolvedDelta, editorTopY, editorHeight, details)
+        let projectsAboveTop = projectedEditorTopY < viewportTopY
+        let details = "rawDelta=\(debugValue(proposedDelta)) resolvedDelta=\(debugValue(resolvedDelta)) editorHeight=\(debugValue(editorHeight)) availableHeight=\(debugValue(availableHeight)) editorTop=\(debugValue(editorTopY)) projectedEditorTop=\(debugValue(projectedEditorTopY)) viewportTop=\(debugValue(viewportTopY)) projectsAboveTop=\(debugFlag(projectsAboveTop)) projectedCaretMax=\(debugValue(projectedCaretMaxY)) anchor=\(debugValue(anchorY))"
+        return (resolvedRect, resolvedDelta, editorTopY, editorHeight, projectsAboveTop, details)
     }
 
     private func scheduleQuizScrollStateProbe(probeID: String, pathID: String) {
