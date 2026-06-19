@@ -10,22 +10,18 @@ import Foundation
 
 private enum ZoneTextViewEmptyCaret {
     static let placeholder = "\u{200B}"
+    private static let terminalBuffer = "\n" + placeholder
 
     static func displayText(for modelText: String) -> String {
-        guard !modelText.isEmpty else { return placeholder }
-        let displayText = ZoneForcedLineBreak.editorDisplayText(modelText)
-        guard modelText.hasSuffix(ZoneForcedLineBreak.marker) else {
-            return displayText
-        }
-
-        // TextKit can temporarily report the caret for a trailing marker-newline
-        // at the top of the text view. Keep an invisible glyph on that final
-        // editor-only line so caret geometry has a real layout fragment.
-        return displayText + placeholder
+        // Keep one final editor-only line after every editable position. The
+        // selection is clamped before it, so TextKit never has to place a
+        // terminal caret on the last physical line of an expanding zone.
+        ZoneForcedLineBreak.editorDisplayText(modelText) + terminalBuffer
     }
 
     static func modelText(from displayText: String) -> String {
-        ZoneForcedLineBreak.editorModelText(displayText)
+        let editableText = stripTerminalBuffer(from: displayText)
+        return ZoneForcedLineBreak.editorModelText(editableText)
             .replacingOccurrences(of: placeholder, with: "")
     }
 
@@ -33,12 +29,17 @@ private enum ZoneTextViewEmptyCaret {
         displayText == placeholder
     }
 
-    static func modelRange(from displayRange: NSRange, displayText: String) -> NSRange {
-        guard !isPlaceholderDisplay(displayText) else {
-            return NSRange(location: 0, length: 0)
-        }
+    static func editableDisplayLength(in displayText: String) -> Int {
+        (stripTerminalBuffer(from: displayText) as NSString).length
+    }
 
-        let nsText = displayText as NSString
+    static func hasTerminalBuffer(_ displayText: String) -> Bool {
+        displayText.hasSuffix(terminalBuffer)
+    }
+
+    static func modelRange(from displayRange: NSRange, displayText: String) -> NSRange {
+        let editableText = stripTerminalBuffer(from: displayText)
+        let nsText = editableText as NSString
         let clampedLocation = min(max(displayRange.location, 0), nsText.length)
         let clampedEnd = min(max(displayRange.location + displayRange.length, clampedLocation), nsText.length)
         let prefix = nsText.substring(to: clampedLocation)
@@ -55,8 +56,6 @@ private enum ZoneTextViewEmptyCaret {
     }
 
     static func displayRange(fromModelRange range: NSRange, modelText: String) -> NSRange {
-        guard !modelText.isEmpty else { return NSRange(location: 0, length: 0) }
-
         let nsText = modelText as NSString
         let clampedLocation = min(max(range.location, 0), nsText.length)
         let clampedEnd = min(max(range.location + range.length, clampedLocation), nsText.length)
@@ -64,32 +63,15 @@ private enum ZoneTextViewEmptyCaret {
         let selectedText = nsText.substring(with: NSRange(location: clampedLocation, length: clampedEnd - clampedLocation))
         let markersBefore = markerCount(in: prefix)
         let markersInSelection = markerCount(in: selectedText)
-        let trailingAnchorOffset = trailingAnchorOffset(
-            modelText: modelText,
-            clampedLocation: clampedLocation,
-            clampedEnd: clampedEnd
-        )
-
         return NSRange(
-            location: clampedLocation + markersBefore + trailingAnchorOffset,
+            location: clampedLocation + markersBefore,
             length: (clampedEnd - clampedLocation) + markersInSelection
         )
     }
 
-    private static func trailingAnchorOffset(
-        modelText: String,
-        clampedLocation: Int,
-        clampedEnd: Int
-    ) -> Int {
-        let modelLength = (modelText as NSString).length
-        guard modelLength > 0,
-              modelText.hasSuffix(ZoneForcedLineBreak.marker),
-              clampedLocation == modelLength,
-              clampedEnd == modelLength else {
-            return 0
-        }
-
-        return 1
+    private static func stripTerminalBuffer(from displayText: String) -> String {
+        guard displayText.hasSuffix(terminalBuffer) else { return displayText }
+        return String(displayText.dropLast(terminalBuffer.count))
     }
 
     private static func placeholderCount(in text: String) -> Int {
@@ -984,6 +966,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         recordCaretProbe("caret.selection-change-start", textView: textView)
         guard !isUpdating else { return }
         guard textView.isFirstResponder else { return }
+        guard !clampSelectionToEditableContent(in: textView) else { return }
         normalizeTypingAttributes(in: textView)
 
         if let caretSource = pendingTextEditCaretSource {
@@ -1008,6 +991,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         focusSyncState = .idle
         ZoneEditorDebugStore.shared.recordFocusEvent("textView didBegin", zoneID: zoneID)
         recordCaretProbe("caret.did-begin-editing", textView: textView)
+        _ = clampSelectionToEditableContent(in: textView)
         if let zoneID {
             Task { @MainActor in
                 ZoneFocusManager.shared.completeFocus(for: zoneID)
@@ -1156,6 +1140,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
 
     private func normalizePlaceholderIfNeeded(in textView: UITextView) {
         guard let displayText = textView.text,
+              !ZoneTextViewEmptyCaret.hasTerminalBuffer(displayText),
               !ZoneTextViewEmptyCaret.isPlaceholderDisplay(displayText),
               displayText.contains(ZoneTextViewEmptyCaret.placeholder) else {
             return
@@ -1288,7 +1273,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         guard let position = textView.closestPosition(to: point) else { return }
 
         let location = textView.offset(from: textView.beginningOfDocument, to: position)
-        let textLength = ((textView.text ?? "") as NSString).length
+        let textLength = ZoneTextViewEmptyCaret.editableDisplayLength(in: textView.text ?? "")
         let clampedLocation = min(max(location, 0), textLength)
         let range = NSRange(location: clampedLocation, length: 0)
         textView.selectedRange = ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text)
@@ -1296,6 +1281,20 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             : range
         reportCursorPosition(from: textView, includeCaretAnchor: true, source: .selectionTap)
         scheduleSettledCaretReport(from: textView, source: .selectionTap)
+    }
+
+    private func clampSelectionToEditableContent(in textView: UITextView) -> Bool {
+        let editableLength = ZoneTextViewEmptyCaret.editableDisplayLength(in: textView.text ?? "")
+        let selection = textView.selectedRange
+        let location = min(max(selection.location, 0), editableLength)
+        let length = min(max(selection.length, 0), editableLength - location)
+        let clampedRange = NSRange(location: location, length: length)
+        guard clampedRange != selection else { return false }
+
+        isUpdating = true
+        textView.selectedRange = clampedRange
+        isUpdating = false
+        return true
     }
 
     private func insertForcedLineBreak(in textView: UITextView) {
@@ -1320,7 +1319,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             : (textView.text ?? "")
         let currentModelText = ZoneTextViewEmptyCaret.modelText(from: currentText)
         let currentDisplayText = ZoneTextViewEmptyCaret.displayText(for: currentModelText)
-        let textLength = (currentDisplayText as NSString).length
+        let textLength = ZoneTextViewEmptyCaret.editableDisplayLength(in: currentDisplayText)
         let selectedRange = ZoneTextViewEmptyCaret.isPlaceholderDisplay(textView.text)
             ? NSRange(location: 0, length: 0)
             : NSRange(
