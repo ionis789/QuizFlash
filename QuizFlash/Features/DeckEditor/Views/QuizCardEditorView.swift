@@ -1440,7 +1440,8 @@ struct QuizCardEditorView: View {
             visibleBottomY: visibleBottomY,
             proposedDelta: proposedDelta,
             normalizedOffsetY: quizScrollDriver.currentNormalizedOffsetY,
-            animationDuration: quizCaretScrollAnimationDuration
+            animationDuration: quizCaretScrollAnimationDuration,
+            source: activeQuizCaretSource
         ) {
             recordQuizScroll(
                 "quiz.scroll-skip-duplicate-request",
@@ -1664,7 +1665,7 @@ struct QuizCardEditorView: View {
     }
 
     private var quizNewlineCaretBottomChromeBuffer: CGFloat {
-        32
+        44
     }
 
     private var quizNewlineCaretSettlingDuration: TimeInterval {
@@ -2212,10 +2213,16 @@ private final class QuizCaretScrollGate {
         visibleBottomY: CGFloat,
         proposedDelta: CGFloat,
         normalizedOffsetY: CGFloat,
-        animationDuration: TimeInterval
+        animationDuration: TimeInterval,
+        source: ZoneEditorCaretScrollSource?
     ) -> Bool {
         guard let lastAppliedRequest,
               lastAppliedRequest.pathID == pathID else {
+            return false
+        }
+
+        if source == .newline,
+           proposedDelta > 6 {
             return false
         }
 
