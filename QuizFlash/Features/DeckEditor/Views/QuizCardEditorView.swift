@@ -10,6 +10,16 @@ import PhotosUI
 import UIKit
 import Combine
 
+private struct QuizNewlineScrollProbe {
+    let pathID: String
+    let rawCaretRect: CGRect
+    let requestedDelta: CGFloat
+    let editorTopY: CGFloat
+    let editorHeight: CGFloat
+    let offsetBefore: CGFloat
+    let timestamp: CFTimeInterval
+}
+
 /// A type-aware editor for manual quiz authoring inside the deck editor flow.
 struct QuizCardEditorView: View {
     @Environment(\.dismiss) private var dismiss
@@ -44,6 +54,7 @@ struct QuizCardEditorView: View {
     @State private var activeQuizCaretSource: ZoneEditorCaretScrollSource?
     @State private var activeQuizCaretAnchorY: CGFloat?
     @State private var activeQuizCaretEditorHeight: CGFloat?
+    @State private var lastQuizNewlineScrollProbe: QuizNewlineScrollProbe?
     @State private var quizViewportScreenFrame: CGRect = .zero
     @State private var quizCaretScrollGate = QuizCaretScrollGate()
 
@@ -299,6 +310,7 @@ struct QuizCardEditorView: View {
                 activeQuizCaretSource = nil
                 activeQuizCaretAnchorY = nil
                 activeQuizCaretEditorHeight = nil
+                lastQuizNewlineScrollProbe = nil
                 quizScrollDriver.resetBottomInset()
                 withAnimation(EditorKeyboardAccessoryMotion.keyboardPaddingDismissAnimation) {
                     keyboardDismissPadding = 0
@@ -389,6 +401,7 @@ struct QuizCardEditorView: View {
             activeQuizCaretSource = nil
             activeQuizCaretAnchorY = nil
             activeQuizCaretEditorHeight = nil
+            lastQuizNewlineScrollProbe = nil
             quizScrollDriver.detach()
         }
     }
@@ -1164,6 +1177,14 @@ struct QuizCardEditorView: View {
             return
         }
 
+        recordNewlineScrollProbeObservation(
+            pathID: notificationPathID,
+            caretRect: caretRect,
+            anchorY: caretAnchorY,
+            editorHeight: caretEditorHeight,
+            source: source
+        )
+
         guard shouldScrollQuizCaret(for: source) else {
             if source == .textInput,
                activeQuizCaretSource == .newline,
@@ -1331,6 +1352,7 @@ struct QuizCardEditorView: View {
                     activeQuizCaretSource = nil
                     activeQuizCaretAnchorY = nil
                     activeQuizCaretEditorHeight = nil
+                    lastQuizNewlineScrollProbe = nil
                     return
                 }
             }
@@ -1381,6 +1403,7 @@ struct QuizCardEditorView: View {
             visibleBottomY: visibleBottomY,
             proposedDelta: proposedDelta
            ) {
+            let offsetBefore = quizScrollDriver.currentNormalizedOffsetY
             if quizCaretScrollGate.shouldSuppressScrollRequest(
                 pathID: pathID,
                 rect: oversizedCandidate.rect,
@@ -1407,6 +1430,17 @@ struct QuizCardEditorView: View {
                 animationOptions: keyboardMonitor.animationOptions,
                 zoneID: currentSelectedZoneID
             )
+            if didScroll {
+                lastQuizNewlineScrollProbe = QuizNewlineScrollProbe(
+                    pathID: pathID,
+                    rawCaretRect: caretRect,
+                    requestedDelta: oversizedCandidate.delta,
+                    editorTopY: oversizedCandidate.editorTopY,
+                    editorHeight: oversizedCandidate.editorHeight,
+                    offsetBefore: offsetBefore,
+                    timestamp: CACurrentMediaTime()
+                )
+            }
             quizCaretScrollGate.recordScrollResult(
                 didScroll: didScroll,
                 pathID: pathID,
@@ -1494,11 +1528,63 @@ struct QuizCardEditorView: View {
         return didScroll
     }
 
+    private func recordNewlineScrollProbeObservation(
+        pathID: String,
+        caretRect: CGRect?,
+        anchorY: CGFloat?,
+        editorHeight: CGFloat?,
+        source: ZoneEditorCaretScrollSource
+    ) {
+        guard isQuizDebugRecordingActive,
+              let probe = lastQuizNewlineScrollProbe,
+              probe.pathID == pathID else {
+            return
+        }
+
+        let elapsed = CACurrentMediaTime() - probe.timestamp
+        guard elapsed <= 1.2 else {
+            recordQuizScroll(
+                "quiz.scroll-newline-probe-expired",
+                pathID: pathID,
+                details: "elapsed=\(debugValue(elapsed)) requestedDelta=\(debugValue(probe.requestedDelta))"
+            )
+            lastQuizNewlineScrollProbe = nil
+            return
+        }
+
+        guard let caretRect else {
+            recordQuizScroll(
+                "quiz.scroll-newline-probe-missing-caret",
+                pathID: pathID,
+                details: "source=\(source.rawValue) elapsed=\(debugValue(elapsed)) requestedDelta=\(debugValue(probe.requestedDelta))"
+            )
+            return
+        }
+
+        let expectedCaretMaxY = probe.rawCaretRect.maxY - probe.requestedDelta
+        let caretError = caretRect.maxY - expectedCaretMaxY
+        let resolvedAnchorY = anchorY ?? activeQuizCaretAnchorY
+        let resolvedEditorHeight = editorHeight ?? activeQuizCaretEditorHeight
+        let observedEditorTopY = resolvedAnchorY.flatMap { anchor in
+            resolvedEditorHeight.map { height in
+                caretRect.midY - (anchor * height)
+            }
+        }
+        let expectedEditorTopY = probe.editorTopY - probe.requestedDelta
+        let editorTopError = observedEditorTopY.map { $0 - expectedEditorTopY }
+
+        recordQuizScroll(
+            "quiz.scroll-newline-probe-observed",
+            pathID: pathID,
+            details: "source=\(source.rawValue) elapsed=\(debugValue(elapsed)) rawCaret=\(debugRect(probe.rawCaretRect)) observedCaret=\(debugRect(caretRect)) requestedDelta=\(debugValue(probe.requestedDelta)) expectedCaretMax=\(debugValue(expectedCaretMaxY)) caretError=\(debugValue(caretError)) editorHeightBefore=\(debugValue(probe.editorHeight)) editorHeightNow=\(debugOptionalValue(resolvedEditorHeight)) editorTopBefore=\(debugValue(probe.editorTopY)) expectedEditorTop=\(debugValue(expectedEditorTopY)) observedEditorTop=\(debugOptionalValue(observedEditorTopY)) editorTopError=\(debugOptionalValue(editorTopError)) offsetBefore=\(debugValue(probe.offsetBefore)) offsetNow=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) viewportTop=\(debugValue(quizViewportScreenFrame.minY))"
+        )
+    }
+
     private func oversizedNewlineScrollCandidate(
         caretRect: CGRect,
         visibleBottomY: CGFloat,
         proposedDelta: CGFloat
-    ) -> (rect: CGRect, delta: CGFloat, details: String)? {
+    ) -> (rect: CGRect, delta: CGFloat, editorTopY: CGFloat, editorHeight: CGFloat, details: String)? {
         guard let anchorY = activeQuizCaretAnchorY,
               let editorHeight = activeQuizCaretEditorHeight,
               editorHeight > 1 else {
@@ -1519,8 +1605,11 @@ struct QuizCardEditorView: View {
 
         var resolvedRect = caretRect
         resolvedRect.origin.y = visibleBottomY + resolvedDelta - caretRect.height
-        let details = "rawDelta=\(debugValue(proposedDelta)) resolvedDelta=\(debugValue(resolvedDelta)) editorHeight=\(debugValue(editorHeight)) availableHeight=\(debugValue(availableHeight)) editorTop=\(debugValue(editorTopY)) anchor=\(debugValue(anchorY))"
-        return (resolvedRect, resolvedDelta, details)
+        let projectedEditorTopY = editorTopY - resolvedDelta
+        let projectedCaretMaxY = caretRect.maxY - resolvedDelta
+        let viewportTopY = quizViewportScreenFrame.minY
+        let details = "rawDelta=\(debugValue(proposedDelta)) resolvedDelta=\(debugValue(resolvedDelta)) editorHeight=\(debugValue(editorHeight)) availableHeight=\(debugValue(availableHeight)) editorTop=\(debugValue(editorTopY)) projectedEditorTop=\(debugValue(projectedEditorTopY)) viewportTop=\(debugValue(viewportTopY)) projectsAboveTop=\(debugFlag(projectedEditorTopY < viewportTopY)) projectedCaretMax=\(debugValue(projectedCaretMaxY)) anchor=\(debugValue(anchorY))"
+        return (resolvedRect, resolvedDelta, editorTopY, editorHeight, details)
     }
 
     private func scheduleQuizScrollStateProbe(probeID: String, pathID: String) {
@@ -1903,6 +1992,7 @@ struct QuizCardEditorView: View {
         activeQuizCaretSource = nil
         activeQuizCaretAnchorY = nil
         activeQuizCaretEditorHeight = nil
+        lastQuizNewlineScrollProbe = nil
     }
 
     private func applyMedia(data: Data, as contentType: ZoneContentType) {
