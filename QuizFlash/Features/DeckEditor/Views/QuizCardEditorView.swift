@@ -1674,7 +1674,7 @@ struct QuizCardEditorView: View {
 
     private var quizCaretScrollAnimationDuration: TimeInterval {
         if activeQuizCaretSource == .newline {
-            return 0.10
+            return 0
         }
         guard keyboardMonitor.isVisible else { return 0.16 }
         return min(max(keyboardMonitor.animationDuration, 0.12), 0.28)
