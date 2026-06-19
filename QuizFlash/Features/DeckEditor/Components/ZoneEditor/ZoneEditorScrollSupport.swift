@@ -339,62 +339,6 @@ final class ZoneEditorScrollDriver {
     }
 
     @discardableResult
-    func adjustContentOffsetBy(deltaY: CGFloat, reason: String, zoneID: UUID?) -> Bool {
-        guard let scrollView,
-              scrollView.window != nil,
-              scrollView.bounds.height > 0 else {
-            ZoneEditorDebugStore.shared.recordScrollDecision(
-                "scroll-adjust-skip",
-                zoneID: zoneID,
-                details: "reason=no-scroll-view requested=\(debugValue(deltaY)) context=\(debugTraceContext ?? "none")"
-            )
-            return false
-        }
-
-        guard abs(deltaY) > 0.5 else {
-            ZoneEditorDebugStore.shared.recordScrollDecision(
-                "scroll-adjust-skip",
-                zoneID: zoneID,
-                details: "reason=tiny requested=\(debugValue(deltaY)) \(scrollSnapshotDetails(in: scrollView))"
-            )
-            return false
-        }
-
-        scrollView.layoutIfNeeded()
-        let currentY = scrollView.contentOffset.y
-        let targetY = clampedOffsetY(currentY + deltaY, in: scrollView)
-        guard abs(targetY - currentY) > 0.5 else {
-            ZoneEditorDebugStore.shared.recordScrollDecision(
-                "scroll-adjust-skip",
-                zoneID: zoneID,
-                details: "reason=clamped requested=\(debugValue(deltaY)) current=\(debugValue(currentY)) target=\(debugValue(targetY)) \(scrollSnapshotDetails(in: scrollView))"
-            )
-            return false
-        }
-
-        clearOffsetLock()
-        debugScrollRequestSequence += 1
-        let requestID = debugScrollRequestSequence
-        lastDebugScrollRequestID = requestID
-        lastDebugScrollRequestZoneID = zoneID
-        ZoneEditorDebugStore.shared.recordScrollDecision(
-            "scroll-adjust-apply",
-            zoneID: zoneID,
-            details: "request=\(requestID) reason=\(reason) requested=\(debugValue(deltaY)) current=\(debugValue(currentY)) target=\(debugValue(targetY)) context=\(debugTraceContext ?? "none") \(scrollSnapshotDetails(in: scrollView))"
-        )
-        setContentOffset(
-            CGPoint(x: scrollView.contentOffset.x, y: targetY),
-            in: scrollView,
-            duration: 0,
-            options: [],
-            debugRequestID: requestID,
-            debugZoneID: zoneID,
-            keepsOffsetLocked: false
-        )
-        return true
-    }
-
-    @discardableResult
     func ensureBottomInsetAllowsWindowRectScroll(
         windowRect: CGRect,
         bottomChromeTopY: CGFloat?,
