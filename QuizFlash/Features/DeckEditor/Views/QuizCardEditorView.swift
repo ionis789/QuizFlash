@@ -1199,6 +1199,10 @@ struct QuizCardEditorView: View {
                 quizScrollDriver.restoreActiveCommandPresentationOffsetIfNeeded(
                     reason: "quiz-\(source.rawValue)-during-newline"
                 )
+                quizScrollDriver.restoreLockedOffsetIfNeeded(
+                    reason: "quiz-\(source.rawValue)-during-newline",
+                    zoneID: currentSelectedZoneID
+                )
             }
 
             if source == .textInput,

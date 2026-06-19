@@ -325,7 +325,7 @@ final class ZoneEditorScrollDriver {
             lockedOffset = scrollView.contentOffset
         }
 
-        restoreLockedOffsetIfNeeded(in: scrollView)
+        restoreLockedOffsetIfNeeded(in: scrollView, reason: "non-user-focus", zoneID: nil)
 
         offsetLockTask?.cancel()
         offsetLockTask = Task { @MainActor in
@@ -365,6 +365,17 @@ final class ZoneEditorScrollDriver {
             details: "reason=\(reason) command=\(command.token) request=\(command.requestID.map(String.init) ?? "nil") from=\(debugPoint(before)) restored=\(debugPoint(scrollView.contentOffset)) commandTarget=\(debugPoint(command.target)) \(scrollSnapshotDetails(in: scrollView))"
         )
         reportScrollOffset(in: scrollView, force: true)
+    }
+
+    func restoreLockedOffsetIfNeeded(reason: String, zoneID: UUID?) {
+        guard let scrollView,
+              lockedOffset != nil,
+              !scrollView.isTracking,
+              !scrollView.isDragging,
+              !scrollView.isDecelerating
+        else { return }
+
+        restoreLockedOffsetIfNeeded(in: scrollView, reason: reason, zoneID: zoneID)
     }
 
     @discardableResult
@@ -578,7 +589,7 @@ final class ZoneEditorScrollDriver {
                 self.lockOffset(
                     scrollView.contentOffset,
                     in: scrollView,
-                    duration: .milliseconds(360),
+                    duration: .milliseconds(1400),
                     reason: "programmatic-scroll-complete",
                     zoneID: debugZoneID
                 )
@@ -615,7 +626,7 @@ final class ZoneEditorScrollDriver {
             return
         }
 
-        restoreLockedOffsetIfNeeded(in: scrollView)
+        restoreLockedOffsetIfNeeded(in: scrollView, reason: "observed-offset", zoneID: nil)
     }
 
     private func reportScrollOffset(in scrollView: UIScrollView, force: Bool = false) {
@@ -652,7 +663,11 @@ final class ZoneEditorScrollDriver {
         onScrollOffsetChange(normalizedOffsetY)
     }
 
-    private func restoreLockedOffsetIfNeeded(in scrollView: UIScrollView) {
+    private func restoreLockedOffsetIfNeeded(
+        in scrollView: UIScrollView,
+        reason: String,
+        zoneID: UUID?
+    ) {
         guard let lockedOffset else { return }
 
         let targetOffset = CGPoint(
@@ -671,6 +686,11 @@ final class ZoneEditorScrollDriver {
             scrollView.layoutIfNeeded()
         }
         isRestoringLockedOffset = false
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-offset-lock-restore",
+            zoneID: zoneID ?? lastDebugScrollRequestZoneID,
+            details: "reason=\(reason) target=\(debugPoint(targetOffset)) \(scrollSnapshotDetails(in: scrollView))"
+        )
     }
 
     private func clearOffsetLock() {
@@ -700,7 +720,7 @@ final class ZoneEditorScrollDriver {
             zoneID: zoneID,
             details: "reason=\(reason) duration=\(duration) target=\(debugPoint(lockedOffset ?? offset)) \(scrollSnapshotDetails(in: scrollView))"
         )
-        restoreLockedOffsetIfNeeded(in: scrollView)
+        restoreLockedOffsetIfNeeded(in: scrollView, reason: reason, zoneID: zoneID)
 
         offsetLockTask?.cancel()
         offsetLockTask = Task { @MainActor in
