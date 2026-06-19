@@ -48,6 +48,7 @@ struct QuizCardEditorView: View {
     @State private var newlineCaretSettlingPathID: String?
     @State private var newlineCaretSettlingDeadline: Date?
     @State private var quizViewportScreenFrame: CGRect = .zero
+    @State private var quizZoneFrameByID: [UUID: CGRect] = [:]
     @State private var quizCaretScrollGate = QuizCaretScrollGate()
     @State private var quizCaretScrollScheduleSequence = 0
 
@@ -254,6 +255,23 @@ struct QuizCardEditorView: View {
                                 quizViewportScreenFrame = frame
                             }
                     }
+                }
+                .overlayPreferenceValue(ZoneEditorZoneBoundsPreferenceKey.self) { bounds in
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: ZoneEditorResolvedZoneFramePreferenceKey.self,
+                            value: bounds.map {
+                                ZoneEditorResolvedZoneFrame(
+                                    path: $0.path,
+                                    zoneID: $0.zoneID,
+                                    frame: proxy[$0.bounds]
+                                )
+                            }
+                        )
+                    }
+                }
+                .onPreferenceChange(ZoneEditorResolvedZoneFramePreferenceKey.self) { frames in
+                    handleQuizZoneFrameChange(frames)
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -1296,6 +1314,105 @@ struct QuizCardEditorView: View {
         return "\(max(Int(deadline.timeIntervalSinceNow * 1_000), 0))ms"
     }
 
+    private func handleQuizZoneFrameChange(_ frames: [ZoneEditorResolvedZoneFrame]) {
+        var nextFrames: [UUID: CGRect] = [:]
+        for frame in frames {
+            nextFrames[frame.zoneID] = frame.frame
+        }
+        defer {
+            quizZoneFrameByID = nextFrames
+        }
+
+        guard let selectedZoneID = currentSelectedZoneID,
+              let selectedPathID = currentSelectedPath?.id,
+              let currentFrame = frames.first(where: {
+                  $0.zoneID == selectedZoneID && $0.path.id == selectedPathID
+              }) ?? frames.first(where: { $0.zoneID == selectedZoneID }) else {
+            return
+        }
+
+        let previousFrame = quizZoneFrameByID[selectedZoneID]
+        let heightDelta = currentFrame.frame.height - (previousFrame?.height ?? currentFrame.frame.height)
+        guard abs(heightDelta) > 0.5 else { return }
+
+        recordQuizScroll(
+            "quiz.zone-frame-change",
+            pathID: currentFrame.path.id,
+            details: "zone=\(shortDebugID(selectedZoneID)) old=\(previousFrame.map(debugRect) ?? "nil") new=\(debugRect(currentFrame.frame)) heightDelta=\(debugValue(heightDelta)) \(quizScrollDetails(proposedDelta: nil))"
+        )
+
+        guard heightDelta > 0.5 else { return }
+        applyFocusedZoneGrowthCompensation(
+            heightDelta,
+            framePathID: currentFrame.path.id,
+            zoneID: selectedZoneID
+        )
+    }
+
+    private func applyFocusedZoneGrowthCompensation(
+        _ heightDelta: CGFloat,
+        framePathID: String,
+        zoneID: UUID
+    ) {
+        guard keyboardMonitor.isVisible else {
+            recordQuizScroll(
+                "quiz.zone-growth-skip",
+                pathID: framePathID,
+                details: "reason=keyboard-hidden heightDelta=\(debugValue(heightDelta)) \(quizScrollDetails(proposedDelta: nil))"
+            )
+            return
+        }
+
+        guard focusManager.focusedZoneID == zoneID else {
+            recordQuizScroll(
+                "quiz.zone-growth-skip",
+                pathID: framePathID,
+                details: "reason=not-focused focused=\(shortDebugID(focusManager.focusedZoneID)) zone=\(shortDebugID(zoneID)) heightDelta=\(debugValue(heightDelta)) \(quizScrollDetails(proposedDelta: nil))"
+            )
+            return
+        }
+
+        guard activeQuizCaretPathID == nil || activeQuizCaretPathID == framePathID else {
+            recordQuizScroll(
+                "quiz.zone-growth-skip",
+                pathID: framePathID,
+                details: "reason=caret-path active=\(activeQuizCaretPathID ?? "nil") heightDelta=\(debugValue(heightDelta)) \(quizScrollDetails(proposedDelta: nil))"
+            )
+            return
+        }
+
+        let visibleBottomY = quizVisibleBottomWindowY(bottomBuffer: quizNewlineCaretBottomChromeBuffer)
+        guard let caretRect = activeQuizCaretWindowRect else {
+            recordQuizScroll(
+                "quiz.zone-growth-skip",
+                pathID: framePathID,
+                details: "reason=no-caret-rect visibleBottom=\(debugValue(visibleBottomY)) heightDelta=\(debugValue(heightDelta)) \(quizScrollDetails(proposedDelta: nil))"
+            )
+            return
+        }
+
+        let lowerBandTop = visibleBottomY - quizZoneGrowthCompensationActivationBand
+        guard caretRect.maxY >= lowerBandTop else {
+            recordQuizScroll(
+                "quiz.zone-growth-skip",
+                pathID: framePathID,
+                details: "reason=caret-not-low rect=\(debugRect(caretRect)) lowerBandTop=\(debugValue(lowerBandTop)) visibleBottom=\(debugValue(visibleBottomY)) heightDelta=\(debugValue(heightDelta)) \(quizScrollDetails(proposedDelta: nil))"
+            )
+            return
+        }
+
+        let didCompensate = quizScrollDriver.adjustContentOffsetBy(
+            deltaY: heightDelta,
+            reason: "focused-zone-growth",
+            zoneID: zoneID
+        )
+        recordQuizScroll(
+            didCompensate ? "quiz.scroll-apply-zone-growth" : "quiz.scroll-skip-zone-growth",
+            pathID: framePathID,
+            details: "rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) heightDelta=\(debugValue(heightDelta)) didCompensate=\(debugFlag(didCompensate)) \(quizScrollDetails(proposedDelta: heightDelta))"
+        )
+    }
+
     private func scheduleStoredQuizCaretScroll(delays: [Duration]) {
         guard !delays.isEmpty else { return }
         guard keyboardMonitor.isVisible else {
@@ -1666,6 +1783,10 @@ struct QuizCardEditorView: View {
 
     private var quizNewlineCaretBottomChromeBuffer: CGFloat {
         44
+    }
+
+    private var quizZoneGrowthCompensationActivationBand: CGFloat {
+        180
     }
 
     private var quizNewlineCaretSettlingDuration: TimeInterval {
