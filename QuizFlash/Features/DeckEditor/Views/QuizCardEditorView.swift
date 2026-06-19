@@ -45,6 +45,8 @@ struct QuizCardEditorView: View {
     @State private var activeQuizCaretTraceID: String?
     @State private var activeQuizCaretAnchorY: CGFloat?
     @State private var activeQuizCaretEditorHeight: CGFloat?
+    @State private var newlineCaretSettlingPathID: String?
+    @State private var newlineCaretSettlingDeadline: Date?
     @State private var quizViewportScreenFrame: CGRect = .zero
     @State private var quizCaretScrollGate = QuizCaretScrollGate()
     @State private var quizCaretScrollScheduleSequence = 0
@@ -301,6 +303,8 @@ struct QuizCardEditorView: View {
                 activeQuizCaretSource = nil
                 activeQuizCaretAnchorY = nil
                 activeQuizCaretEditorHeight = nil
+                newlineCaretSettlingPathID = nil
+                newlineCaretSettlingDeadline = nil
                 quizScrollDriver.resetBottomInset()
                 withAnimation(EditorKeyboardAccessoryMotion.keyboardPaddingDismissAnimation) {
                     keyboardDismissPadding = 0
@@ -393,6 +397,8 @@ struct QuizCardEditorView: View {
             activeQuizCaretSource = nil
             activeQuizCaretAnchorY = nil
             activeQuizCaretEditorHeight = nil
+            newlineCaretSettlingPathID = nil
+            newlineCaretSettlingDeadline = nil
             quizScrollDriver.detach()
         }
     }
@@ -1183,6 +1189,7 @@ struct QuizCardEditorView: View {
         )
 
         if source == .newline {
+            beginNewlineCaretSettling(for: notificationPathID)
             quizScrollDriver.releaseOffsetLock()
             recordQuizScroll(
                 "quiz.scroll-release-newline-lock",
@@ -1191,23 +1198,20 @@ struct QuizCardEditorView: View {
             )
         }
 
-        guard shouldScrollQuizCaret(for: source) else {
-            if source == .textInput,
-               activeQuizCaretSource == .newline,
-               keyboardMonitor.isVisible,
-               let caretRect,
-               caretRect.maxY > quizVisibleBottomWindowY(bottomBuffer: quizNewlineCaretBottomChromeBuffer) + 1 {
-                activeQuizCaretPathID = notificationPathID
-                activeQuizCaretWindowRect = caretRect
-                activeQuizCaretAnchorY = caretAnchorY
-                activeQuizCaretEditorHeight = caretEditorHeight
-                recordQuizScroll(
-                    "quiz.scroll-continue-newline-after-text-input",
-                    pathID: notificationPathID,
-                    details: "source=textInput rect=\(debugRect(caretRect)) \(quizScrollDetails(proposedDelta: nil))"
-                )
-                return
-            }
+        let continuesNativeNewline = source == .textInput
+            && keyboardMonitor.isVisible
+            && isNewlineCaretSettling(for: notificationPathID)
+        let scrollSource: ZoneEditorCaretScrollSource = continuesNativeNewline ? .newline : source
+
+        if continuesNativeNewline {
+            recordQuizScroll(
+                "quiz.scroll-continue-newline-after-text-input",
+                pathID: notificationPathID,
+                details: "source=textInput effectiveSource=newline remaining=\(debugNewlineCaretSettlingDuration()) rect=\(caretRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
+            )
+        }
+
+        guard shouldScrollQuizCaret(for: scrollSource) else {
 
             scheduledCaretScrollTask?.cancel()
             scheduledCaretScrollTask = nil
@@ -1218,14 +1222,14 @@ struct QuizCardEditorView: View {
             )
             activeQuizCaretPathID = notificationPathID
             activeQuizCaretWindowRect = caretRect
-            activeQuizCaretSource = source
+            activeQuizCaretSource = scrollSource
             activeQuizCaretTraceID = traceID
             activeQuizCaretAnchorY = caretAnchorY
             activeQuizCaretEditorHeight = caretEditorHeight
             recordQuizScroll(
                 "quiz.scroll-skip-text-input",
                 pathID: notificationPathID,
-                details: "source=\(source.rawValue) rect=\(caretRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
+                details: "source=\(source.rawValue) effectiveSource=\(scrollSource.rawValue) rect=\(caretRect.map(debugRect) ?? "nil") \(quizScrollDetails(proposedDelta: nil))"
             )
             return
         }
@@ -1242,7 +1246,7 @@ struct QuizCardEditorView: View {
 
         activeQuizCaretPathID = notificationPathID
         activeQuizCaretWindowRect = caretRect
-        activeQuizCaretSource = source
+        activeQuizCaretSource = scrollSource
         activeQuizCaretTraceID = traceID
         activeQuizCaretAnchorY = caretAnchorY
         activeQuizCaretEditorHeight = caretEditorHeight
@@ -1265,7 +1269,31 @@ struct QuizCardEditorView: View {
             return
         }
 
-        scheduleStoredQuizCaretScroll(delays: quizCaretScrollDelays(for: source))
+        scheduleStoredQuizCaretScroll(delays: quizCaretScrollDelays(for: scrollSource))
+    }
+
+    private func beginNewlineCaretSettling(for pathID: String) {
+        newlineCaretSettlingPathID = pathID
+        newlineCaretSettlingDeadline = Date().addingTimeInterval(quizNewlineCaretSettlingDuration)
+    }
+
+    private func isNewlineCaretSettling(for pathID: String) -> Bool {
+        guard newlineCaretSettlingPathID == pathID,
+              let deadline = newlineCaretSettlingDeadline else {
+            return false
+        }
+
+        guard deadline > Date() else {
+            newlineCaretSettlingPathID = nil
+            newlineCaretSettlingDeadline = nil
+            return false
+        }
+        return true
+    }
+
+    private func debugNewlineCaretSettlingDuration() -> String {
+        guard let deadline = newlineCaretSettlingDeadline else { return "0ms" }
+        return "\(max(Int(deadline.timeIntervalSinceNow * 1_000), 0))ms"
     }
 
     private func scheduleStoredQuizCaretScroll(delays: [Duration]) {
@@ -1639,6 +1667,10 @@ struct QuizCardEditorView: View {
         32
     }
 
+    private var quizNewlineCaretSettlingDuration: TimeInterval {
+        0.18
+    }
+
     private var quizCaretScrollAnimationDuration: TimeInterval {
         if activeQuizCaretSource == .newline {
             return 0.10
@@ -1857,6 +1889,8 @@ struct QuizCardEditorView: View {
         activeQuizCaretSource = nil
         activeQuizCaretAnchorY = nil
         activeQuizCaretEditorHeight = nil
+        newlineCaretSettlingPathID = nil
+        newlineCaretSettlingDeadline = nil
     }
 
     private func applyMedia(data: Data, as contentType: ZoneContentType) {
