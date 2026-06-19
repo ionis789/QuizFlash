@@ -540,7 +540,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
-    var onCaretGeometryChange: ((CGFloat, CGRect, CGFloat, ZoneEditorCaretScrollSource) -> Void)?
+    var onCaretGeometryChange: ((CGFloat, CGRect, CGFloat, ZoneEditorCaretScrollSource, String) -> Void)?
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
     var font: UIFont = .preferredFont(forTextStyle: .body)
@@ -569,6 +569,8 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     private var settlingTextEditCaretSource: ZoneEditorCaretScrollSource?
     private var lastTextChangeWasRejected = false
     private var forcedLineBreakDebugSequence = 0
+    private var caretTraceSequence = 0
+    private var lastForcedLineBreakTrace: (id: Int, timestamp: CFTimeInterval)?
     fileprivate var focusSyncState: FocusSyncState = .idle
     
     override init() {
@@ -1004,6 +1006,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
 
             lastReportedCaretAnchorY = anchorY
             lastReportedCaretWindowRect = caretRectInWindow
+            let traceID = nextCaretTraceID(source: source)
             ZoneEditorDebugStore.shared.recordCaret(
                 zoneID: zoneID,
                 selectedRange: nsRange,
@@ -1013,10 +1016,23 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             recordCaretProbe(
                 "caret.geometry-emit",
                 textView: textView,
-                extra: "anchor=\(debugValue(anchorY)) windowMaxY=\(debugValue(caretRectInWindow.maxY))"
+                extra: "trace=\(traceID) source=\(source.rawValue) anchor=\(debugValue(anchorY)) windowMaxY=\(debugValue(caretRectInWindow.maxY))"
             )
-            onCaretGeometryChange?(anchorY, caretRectInWindow, textView.bounds.height, source)
+            onCaretGeometryChange?(anchorY, caretRectInWindow, textView.bounds.height, source, traceID)
         }
+    }
+
+    private func nextCaretTraceID(source: ZoneEditorCaretScrollSource) -> String {
+        caretTraceSequence += 1
+        let zone = zoneID.map { String($0.uuidString.prefix(6)) } ?? "none"
+        let forcedBreak: String
+        if let trace = lastForcedLineBreakTrace,
+           CACurrentMediaTime() - trace.timestamp <= 1.5 {
+            forcedBreak = "forced-\(trace.id)"
+        } else {
+            forcedBreak = "none"
+        }
+        return "\(zone)-\(caretTraceSequence)-\(source.rawValue)-\(forcedBreak)"
     }
 
     func rememberAcceptedText(_ modelText: String, selectedRange: NSRange) {
@@ -1191,6 +1207,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     private func insertForcedLineBreak(in textView: UITextView) {
         forcedLineBreakDebugSequence += 1
         let forcedBreakID = forcedLineBreakDebugSequence
+        lastForcedLineBreakTrace = (id: forcedBreakID, timestamp: CACurrentMediaTime())
         recordCaretProbe(
             "caret.forced-break-start",
             textView: textView,
@@ -1464,7 +1481,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((NSRange, String) -> Void)?
     var onFocusLineChange: ((Int, Int) -> Void)?
-    var onCaretGeometryChange: ((CGFloat, CGRect, CGFloat, ZoneEditorCaretScrollSource) -> Void)?
+    var onCaretGeometryChange: ((CGFloat, CGRect, CGFloat, ZoneEditorCaretScrollSource, String) -> Void)?
     var onCommit: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
     

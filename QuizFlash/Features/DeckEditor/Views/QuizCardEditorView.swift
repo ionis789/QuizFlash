@@ -52,6 +52,7 @@ struct QuizCardEditorView: View {
     @State private var activeQuizCaretPathID: String?
     @State private var activeQuizCaretWindowRect: CGRect?
     @State private var activeQuizCaretSource: ZoneEditorCaretScrollSource?
+    @State private var activeQuizCaretTraceID: String?
     @State private var activeQuizCaretAnchorY: CGFloat?
     @State private var activeQuizCaretEditorHeight: CGFloat?
     @State private var lastQuizNewlineScrollProbe: QuizNewlineScrollProbe?
@@ -1161,17 +1162,18 @@ struct QuizCardEditorView: View {
         let notificationPathID = notification.userInfo?[ZoneEditorCaretScrollNotification.pathIDKey] as? String
         let caretRect = caretWindowRect(from: notification)
         let source = caretScrollSource(from: notification)
+        let traceID = caretTraceID(from: notification)
         let caretAnchorY = caretAnchorY(from: notification)
         let caretEditorHeight = caretEditorHeight(from: notification)
         recordQuizScroll(
             "quiz.scroll-caret-received",
             pathID: notificationPathID,
-            details: "source=\(source.rawValue) rect=\(caretRect.map(debugRect) ?? "nil") anchor=\(debugOptionalValue(caretAnchorY)) editorHeight=\(debugOptionalValue(caretEditorHeight)) \(quizScrollDetails(proposedDelta: nil))"
+            details: "trace=\(traceID) source=\(source.rawValue) rect=\(caretRect.map(debugRect) ?? "nil") anchor=\(debugOptionalValue(caretAnchorY)) editorHeight=\(debugOptionalValue(caretEditorHeight)) \(quizScrollDetails(proposedDelta: nil))"
         )
         recordQuizScrollState(
             "quiz.scroll-state-caret-received",
             pathID: notificationPathID,
-            extra: "source=\(source.rawValue) rect=\(caretRect.map(debugRect) ?? "nil") anchor=\(debugOptionalValue(caretAnchorY)) editorHeight=\(debugOptionalValue(caretEditorHeight))"
+            extra: "trace=\(traceID) source=\(source.rawValue) rect=\(caretRect.map(debugRect) ?? "nil") anchor=\(debugOptionalValue(caretAnchorY)) editorHeight=\(debugOptionalValue(caretEditorHeight))"
         )
 
         guard let notificationPathID,
@@ -1232,6 +1234,7 @@ struct QuizCardEditorView: View {
             activeQuizCaretPathID = notificationPathID
             activeQuizCaretWindowRect = caretRect
             activeQuizCaretSource = source
+            activeQuizCaretTraceID = traceID
             activeQuizCaretAnchorY = caretAnchorY
             activeQuizCaretEditorHeight = caretEditorHeight
             recordQuizScroll(
@@ -1255,6 +1258,7 @@ struct QuizCardEditorView: View {
         activeQuizCaretPathID = notificationPathID
         activeQuizCaretWindowRect = caretRect
         activeQuizCaretSource = source
+        activeQuizCaretTraceID = traceID
         activeQuizCaretAnchorY = caretAnchorY
         activeQuizCaretEditorHeight = caretEditorHeight
 
@@ -1695,6 +1699,10 @@ struct QuizCardEditorView: View {
         return source
     }
 
+    private func caretTraceID(from notification: Notification) -> String {
+        notification.userInfo?[ZoneEditorCaretScrollNotification.traceIDKey] as? String ?? "missing"
+    }
+
     private func caretAnchorY(from notification: Notification) -> CGFloat? {
         notification.userInfo?[ZoneEditorCaretScrollNotification.anchorYKey] as? CGFloat
     }
@@ -1836,7 +1844,7 @@ struct QuizCardEditorView: View {
     }
 
     private func quizScrollDetails(proposedDelta: CGFloat?) -> String {
-        "target=\(debugTargetID(activeEditor)) kb=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) toolbar=\(debugValue(floatingToolbarAccessoryHeight)) offset=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) visibleBottom=\(debugValue(quizVisibleBottomWindowY())) viewport=\(debugRect(quizViewportScreenFrame)) bottomPadding=\(debugValue(bottomContentPadding)) scrollInset=\(debugValue(quizScrollDriver.currentContentInsetBottom))/\(debugValue(quizScrollDriver.currentAdjustedContentInsetBottom)) delta=\(debugOptionalValue(proposedDelta)) selected=\(currentSelectedPath?.id ?? "nil")"
+        "trace=\(activeQuizCaretTraceID ?? "nil") target=\(debugTargetID(activeEditor)) kb=\(debugFlag(keyboardMonitor.isVisible)):\(debugValue(keyboardMonitor.visibleHeight)) toolbar=\(debugValue(floatingToolbarAccessoryHeight)) offset=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) visibleBottom=\(debugValue(quizVisibleBottomWindowY())) viewport=\(debugRect(quizViewportScreenFrame)) bottomPadding=\(debugValue(bottomContentPadding)) scrollInset=\(debugValue(quizScrollDriver.currentContentInsetBottom))/\(debugValue(quizScrollDriver.currentAdjustedContentInsetBottom)) delta=\(debugOptionalValue(proposedDelta)) selected=\(currentSelectedPath?.id ?? "nil")"
     }
 
     private func debugDurations(_ durations: [Duration]) -> String {
