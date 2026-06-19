@@ -838,26 +838,11 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
 
         lastTextChangeWasRejected = false
         let modelText = ZoneTextViewEmptyCaret.modelText(from: displayText)
-        if shouldRejectCurrentText(modelText, in: textView) {
-            lastTextChangeWasRejected = true
-            pendingTextEditCaretSource = nil
-            settlingTextEditCaretSource = nil
-            waitsForSettledTextLayoutCaret = false
-            recordCaretProbe("caret.reject-overflow-before-restore", textView: textView)
-            restoreLastAcceptedText(in: textView)
-            recordCaretProbe("caret.reject-overflow-after-restore", textView: textView)
-            reportCursorPosition(
-                from: textView,
-                includeCaretAnchor: true,
-                forceCaretGeometry: true,
-                source: .textInput
-            )
-            return
-        }
 
         lastText = modelText
         rememberAcceptedText(modelText, selectedRange: textView.selectedRange)
         resetTextStyling(in: textView)
+        updateInternalScrollingIfNeeded(in: textView, reason: "did-change")
         recordCaretProbe("caret.did-change-after-style", textView: textView)
         waitsForSettledTextLayoutCaret = true
         let caretSource = pendingTextEditCaretSource ?? .textInput
@@ -1054,21 +1039,48 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         }
     }
 
-    private func shouldRejectCurrentText(_ modelText: String, in textView: UITextView) -> Bool {
+    func updateInternalScrollingIfNeeded(in textView: UITextView, reason: String) {
         guard let maximumVisibleHeight,
               maximumVisibleHeight > 0,
-              textView.bounds.width > 1,
-              (modelText as NSString).length > (lastAcceptedText as NSString).length else {
-            return false
+              textView.bounds.width > 1 else {
+            if textView.isScrollEnabled {
+                textView.isScrollEnabled = false
+                textView.showsVerticalScrollIndicator = false
+                textView.setContentOffset(.zero, animated: false)
+            }
+            return
         }
 
         textView.layoutIfNeeded()
+        let requiredHeight = measuredRequiredHeight(in: textView)
+        let shouldScrollInternally = requiredHeight > ceil(maximumVisibleHeight) + 0.5
+        if textView.isScrollEnabled != shouldScrollInternally {
+            textView.isScrollEnabled = shouldScrollInternally
+            textView.showsVerticalScrollIndicator = shouldScrollInternally
+            if !shouldScrollInternally {
+                textView.setContentOffset(.zero, animated: false)
+            }
+            recordCaretProbe(
+                shouldScrollInternally ? "caret.internal-scroll-enabled" : "caret.internal-scroll-disabled",
+                textView: textView,
+                extra: "reason=\(reason) required=\(debugValue(requiredHeight)) maxVisible=\(debugValue(maximumVisibleHeight))"
+            )
+        }
+
+        guard shouldScrollInternally,
+              textView.selectedRange.location <= (textView.text as NSString).length else {
+            return
+        }
+
+        textView.scrollRangeToVisible(textView.selectedRange)
+    }
+
+    private func measuredRequiredHeight(in textView: UITextView) -> CGFloat {
         let targetSize = CGSize(
             width: textView.bounds.width,
             height: UIView.layoutFittingCompressedSize.height
         )
-        let requiredHeight = ceil(textView.sizeThatFits(targetSize).height)
-        return requiredHeight > ceil(maximumVisibleHeight) + 0.5
+        return ceil(textView.sizeThatFits(targetSize).height)
     }
 
     private func restoreLastAcceptedText(in textView: UITextView) {
@@ -1453,6 +1465,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         textView.isEditable = true
         textView.isSelectable = true
         textView.isScrollEnabled = false
+        textView.alwaysBounceVertical = false
         textView.textContainer.lineFragmentPadding = 0
         textView.textContainerInset = contentInset
         textView.allowsEditingTextAttributes = false
@@ -1535,6 +1548,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
                 updateStyling(of: textView)
                 context.coordinator.lastAppliedStylingSignature = stylingSignature
             }
+            context.coordinator.updateInternalScrollingIfNeeded(in: textView, reason: "ui-unchanged")
             context.coordinator.recordCaretProbe(
                 "caret.ui-update-unchanged",
                 textView: textView,
@@ -1565,6 +1579,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
                 updateStyling(of: textView)
                 context.coordinator.lastAppliedStylingSignature = stylingSignature
             }
+            context.coordinator.updateInternalScrollingIfNeeded(in: textView, reason: "ui-defer")
             context.coordinator.recordCaretProbe(
                 "caret.ui-update-defer-live-ui",
                 textView: textView,
@@ -1617,6 +1632,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             updateStyling(of: textView)
             context.coordinator.lastAppliedStylingSignature = stylingSignature
         }
+        context.coordinator.updateInternalScrollingIfNeeded(in: textView, reason: "ui-apply-model")
         context.coordinator.recordCaretProbe(
             "caret.ui-update-after-style",
             textView: textView,
