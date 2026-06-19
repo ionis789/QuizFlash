@@ -100,13 +100,13 @@ final class FullHitTextView: UITextView {
         guard usesCompactCaret else { return proposedRect }
 
         rect.size.width = 2.1
-        guard isStableCaretRect(proposedRect) else {
+        if let invalidReason = unstableCaretRectReason(proposedRect) {
             if let lastStableCaretRect {
                 if AppFeatures.current.showsVisualDebugOverlays {
                     ZoneEditorDebugStore.shared.recordLayoutEvent(
                         "caret.invalid-rect-reused",
                         zoneID: debugZoneID,
-                        details: "proposed=\(debugRect(proposedRect)) reused=\(debugRect(lastStableCaretRect)) bounds=\(debugSize(bounds.size)) content=\(debugSize(contentSize))"
+                        details: "reason=\(invalidReason) selected=\(selectedRange.location):\(selectedRange.length) textLen=\(((text ?? "") as NSString).length) proposed=\(debugRect(proposedRect)) reused=\(debugRect(lastStableCaretRect)) bounds=\(debugSize(bounds.size)) content=\(debugSize(contentSize))"
                     )
                 }
                 var stableRect = lastStableCaretRect
@@ -118,7 +118,7 @@ final class FullHitTextView: UITextView {
                 ZoneEditorDebugStore.shared.recordLayoutEvent(
                     "caret.invalid-rect-no-stable",
                     zoneID: debugZoneID,
-                    details: "proposed=\(debugRect(proposedRect)) bounds=\(debugSize(bounds.size)) content=\(debugSize(contentSize))"
+                    details: "reason=\(invalidReason) selected=\(selectedRange.location):\(selectedRange.length) textLen=\(((text ?? "") as NSString).length) proposed=\(debugRect(proposedRect)) bounds=\(debugSize(bounds.size)) content=\(debugSize(contentSize))"
                 )
             }
             return rect
@@ -141,6 +141,26 @@ final class FullHitTextView: UITextView {
 
         let maximumY = max(bounds.height, contentSize.height) + textContainerInset.bottom + 1
         return rect.maxY <= maximumY
+    }
+
+    private func unstableCaretRectReason(_ rect: CGRect) -> String? {
+        guard isStableCaretRect(rect) else { return "geometry" }
+        guard isTransientTailResetCaretRect(rect) else { return nil }
+        return "tail-reset"
+    }
+
+    private func isTransientTailResetCaretRect(_ rect: CGRect) -> Bool {
+        guard lastStableCaretRect != nil else { return false }
+        let textLength = ((text ?? "") as NSString).length
+        guard textLength >= 8 else { return false }
+        guard selectedRange.length == 0,
+              selectedRange.location >= max(textLength - 6, 0) else {
+            return false
+        }
+
+        let resetTopLimit = textContainerInset.top + 2
+        let resetLeadingLimit = textContainerInset.left + 2
+        return rect.minY <= resetTopLimit && rect.minX <= resetLeadingLimit
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
