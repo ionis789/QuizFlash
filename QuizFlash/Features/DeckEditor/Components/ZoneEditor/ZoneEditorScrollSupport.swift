@@ -576,7 +576,7 @@ final class ZoneEditorScrollDriver {
                 scrollView.setContentOffset(frameOffset, animated: false)
 
                 guard progress < 1 else { break }
-                try? await Task.sleep(for: .milliseconds(16))
+                try? await Task.sleep(for: .milliseconds(8))
             }
 
             guard let self, let scrollView else { return }

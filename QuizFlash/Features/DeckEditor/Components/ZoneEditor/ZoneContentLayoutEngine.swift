@@ -201,12 +201,8 @@ enum ZoneContentLayoutEngine {
             let resolvedHeight = fixedHeightCanScaleContent(for: zone)
                 ? fixedHeight
             : max(fixedHeight, contentHeight)
-            return min(resolvedHeight, maximumFixedHeight(forAvailableWidth: availableWidth))
+            return resolvedHeight
         }
-    }
-
-    private static func maximumFixedHeight(forAvailableWidth availableWidth: CGFloat) -> CGFloat {
-        max(ceil(availableWidth * 1.75), 520)
     }
 
     private static func fixedHeightCanScaleContent(for zone: ZoneModel) -> Bool {
