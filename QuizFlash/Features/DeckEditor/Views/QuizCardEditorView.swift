@@ -1165,6 +1165,23 @@ struct QuizCardEditorView: View {
         }
 
         guard shouldScrollQuizCaret(for: source) else {
+            if source == .textInput,
+               activeQuizCaretSource == .newline,
+               keyboardMonitor.isVisible,
+               let caretRect,
+               caretRect.maxY > quizVisibleBottomWindowY(bottomBuffer: quizNewlineCaretBottomChromeBuffer) + 1 {
+                activeQuizCaretPathID = notificationPathID
+                activeQuizCaretWindowRect = caretRect
+                activeQuizCaretAnchorY = caretAnchorY
+                activeQuizCaretEditorHeight = caretEditorHeight
+                recordQuizScroll(
+                    "quiz.scroll-continue-newline-after-text-input",
+                    pathID: notificationPathID,
+                    details: "source=textInput rect=\(debugRect(caretRect)) \(quizScrollDetails(proposedDelta: nil))"
+                )
+                return
+            }
+
             scheduledCaretScrollTask?.cancel()
             scheduledCaretScrollTask = nil
             activeQuizCaretPathID = notificationPathID
@@ -1495,16 +1512,15 @@ struct QuizCardEditorView: View {
             return nil
         }
 
-        let lineStep = min(max(caretRect.height + 6, 34), 44)
-        let cappedDelta = min(max(proposedDelta, 0), lineStep)
-        guard cappedDelta > 1 else {
+        let resolvedDelta = max(proposedDelta, 0)
+        guard resolvedDelta > 1 else {
             return nil
         }
 
-        var cappedRect = caretRect
-        cappedRect.origin.y = visibleBottomY + cappedDelta - caretRect.height
-        let details = "rawDelta=\(debugValue(proposedDelta)) cappedDelta=\(debugValue(cappedDelta)) editorHeight=\(debugValue(editorHeight)) availableHeight=\(debugValue(availableHeight)) editorTop=\(debugValue(editorTopY)) anchor=\(debugValue(anchorY))"
-        return (cappedRect, cappedDelta, details)
+        var resolvedRect = caretRect
+        resolvedRect.origin.y = visibleBottomY + resolvedDelta - caretRect.height
+        let details = "rawDelta=\(debugValue(proposedDelta)) resolvedDelta=\(debugValue(resolvedDelta)) editorHeight=\(debugValue(editorHeight)) availableHeight=\(debugValue(availableHeight)) editorTop=\(debugValue(editorTopY)) anchor=\(debugValue(anchorY))"
+        return (resolvedRect, resolvedDelta, details)
     }
 
     private func scheduleQuizScrollStateProbe(probeID: String, pathID: String) {
