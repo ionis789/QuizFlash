@@ -455,6 +455,57 @@ final class ZoneEditorScrollDriver {
         reportScrollOffset(in: scrollView, force: true)
     }
 
+    @discardableResult
+    func applyImmediateLayoutShiftCompensation(
+        deltaY: CGFloat,
+        zoneID: UUID?,
+        reason: String
+    ) -> Bool {
+        guard deltaY > 1,
+              let scrollView,
+              scrollView.window != nil,
+              scrollView.bounds.height > 0
+        else {
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-layout-shift-skip",
+                zoneID: zoneID,
+                details: "reason=\(reason)-invalid delta=\(debugValue(deltaY)) scrollView=\(scrollView == nil ? "nil" : "present")"
+            )
+            return false
+        }
+
+        guard !scrollView.isTracking,
+              !scrollView.isDragging,
+              !scrollView.isDecelerating else {
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-layout-shift-skip",
+                zoneID: zoneID,
+                details: "reason=\(reason)-user-scroll delta=\(debugValue(deltaY)) \(scrollSnapshotDetails(in: scrollView))"
+            )
+            return false
+        }
+
+        clearOffsetLock()
+        let current = scrollView.contentOffset
+        let target = CGPoint(x: current.x, y: current.y + deltaY)
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-layout-shift-apply",
+            zoneID: zoneID,
+            details: "reason=\(reason) delta=\(debugValue(deltaY)) from=\(debugPoint(current)) to=\(debugPoint(target)) \(scrollSnapshotDetails(in: scrollView))"
+        )
+        setContentOffset(
+            target,
+            in: scrollView,
+            duration: 0,
+            options: [],
+            debugRequestID: nil,
+            debugZoneID: zoneID,
+            keepsOffsetLocked: false
+        )
+        reportScrollOffset(in: scrollView, force: true)
+        return true
+    }
+
     func preserveCurrentOffsetDuringNonUserFocus(
         duration: Duration = .milliseconds(850)
     ) {

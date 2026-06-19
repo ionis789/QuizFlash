@@ -1382,6 +1382,8 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             replacementText: "\n",
             extra: "forcedBreakID=\(forcedBreakID) modelRange=\(selectedModelRange.location):\(selectedModelRange.length) nextModelCaret=\(modelCaretRange.location):\(modelCaretRange.length)"
         )
+        let previousMeasuredHeight = measuredTextHeight(in: textView)
+        let preChangeCaretWindowRect = textKitCaretRect(in: textView).map { textView.convert($0, to: nil) }
         let nextDisplayRange = ZoneTextViewEmptyCaret.displayRange(
             fromModelRange: modelCaretRange,
             modelText: modelText
@@ -1402,6 +1404,12 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         )
 
         applyForcedLineBreakMarkerStyle(to: textView)
+        let nextMeasuredHeight = measuredTextHeight(in: textView)
+        postNewlineLayoutShiftIfNeeded(
+            deltaY: max(nextMeasuredHeight - previousMeasuredHeight, 0),
+            caretRectInWindow: preChangeCaretWindowRect,
+            forcedBreakID: forcedBreakID
+        )
         recordCaretProbe(
             "caret.forced-break-after-marker-style",
             textView: textView,
@@ -1427,6 +1435,50 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             "caret.forced-break-awaiting-settled-layout",
             textView: textView,
             extra: "forcedBreakID=\(forcedBreakID)"
+        )
+    }
+
+    private func measuredTextHeight(in textView: UITextView) -> CGFloat {
+        let width = textView.bounds.width > 1
+            ? textView.bounds.width
+            : textView.textContainer.size.width
+                + textView.textContainerInset.left
+                + textView.textContainerInset.right
+        let targetSize = CGSize(
+            width: max(width, 1),
+            height: UIView.layoutFittingCompressedSize.height
+        )
+        return ceil(textView.sizeThatFits(targetSize).height)
+    }
+
+    private func postNewlineLayoutShiftIfNeeded(
+        deltaY: CGFloat,
+        caretRectInWindow: CGRect?,
+        forcedBreakID: Int
+    ) {
+        guard let zoneID else { return }
+
+        if AppFeatures.current.showsVisualDebugOverlays {
+            ZoneEditorDebugStore.shared.recordLayoutEvent(
+                "caret.forced-break-prelayout-shift",
+                zoneID: zoneID,
+                details: "forcedBreakID=\(forcedBreakID) delta=\(debugValue(deltaY)) caretWin=\(caretRectInWindow.map(debugRect) ?? "nil")"
+            )
+        }
+
+        guard deltaY > 1 else { return }
+
+        var userInfo: [String: Any] = [
+            ZoneEditorNewlineLayoutShiftNotification.layoutDeltaYKey: deltaY,
+            ZoneEditorNewlineLayoutShiftNotification.forcedBreakIDKey: forcedBreakID
+        ]
+        if let caretRectInWindow {
+            userInfo[ZoneEditorNewlineLayoutShiftNotification.caretRectInWindowKey] = NSValue(cgRect: caretRectInWindow)
+        }
+        NotificationCenter.default.post(
+            name: .zoneEditorWillApplyNewlineLayoutShift,
+            object: zoneID,
+            userInfo: userInfo
         )
     }
 

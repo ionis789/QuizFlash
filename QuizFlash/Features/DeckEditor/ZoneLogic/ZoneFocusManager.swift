@@ -20,6 +20,7 @@ extension Notification.Name {
     static let zoneEditorZoneTapped = Notification.Name("zoneEditorZoneTapped")
     static let zoneEditorWillFocusTextView = Notification.Name("zoneEditorWillFocusTextView")
     static let zoneEditorInsertForcedLineBreak = Notification.Name("zoneEditorInsertForcedLineBreak")
+    static let zoneEditorWillApplyNewlineLayoutShift = Notification.Name("zoneEditorWillApplyNewlineLayoutShift")
 }
 
 enum ZoneEditorCaretScrollNotification {
@@ -37,6 +38,12 @@ enum ZoneEditorCaretScrollSource: String {
     case textInput
     case newline
     case rejectedTextEdit
+}
+
+enum ZoneEditorNewlineLayoutShiftNotification {
+    static let layoutDeltaYKey = "layoutDeltaY"
+    static let caretRectInWindowKey = "caretRectInWindow"
+    static let forcedBreakIDKey = "forcedBreakID"
 }
 
 // MARK: - Zone Focus Manager

@@ -268,6 +268,9 @@ struct QuizCardEditorView: View {
                 .onReceive(NotificationCenter.default.publisher(for: .zoneEditorCaretMoved)) { notification in
                     handleCaretMovedNotification(notification)
                 }
+                .onReceive(NotificationCenter.default.publisher(for: .zoneEditorWillApplyNewlineLayoutShift)) { notification in
+                    handleNewlineLayoutShiftNotification(notification)
+                }
                 .overlay(alignment: .topLeading) {
                     quizScrollDebugOverlay
                 }
@@ -1272,6 +1275,68 @@ struct QuizCardEditorView: View {
         scheduleStoredQuizCaretScroll(delays: quizCaretScrollDelays(for: scrollSource))
     }
 
+    private func handleNewlineLayoutShiftNotification(_ notification: Notification) {
+        let notificationZoneID = notification.object as? UUID
+        let deltaY = newlineLayoutDeltaY(from: notification)
+        let caretRect = newlineLayoutCaretWindowRect(from: notification)
+        let forcedBreakID = notification.userInfo?[ZoneEditorNewlineLayoutShiftNotification.forcedBreakIDKey] as? Int
+        let pathID = currentSelectedPath?.id
+
+        guard keyboardMonitor.isVisible else {
+            recordQuizScroll(
+                "quiz.scroll-precompensate-newline-skip",
+                pathID: pathID,
+                details: "reason=keyboard-hidden forcedBreakID=\(forcedBreakID.map(String.init) ?? "nil") delta=\(debugOptionalValue(deltaY))"
+            )
+            return
+        }
+
+        guard let notificationZoneID,
+              notificationZoneID == currentSelectedZoneID,
+              focusManager.focusedZoneID == currentSelectedZoneID else {
+            recordQuizScroll(
+                "quiz.scroll-precompensate-newline-skip",
+                pathID: pathID,
+                details: "reason=not-focused notificationZone=\(shortDebugID(notificationZoneID)) focused=\(shortDebugID(focusManager.focusedZoneID)) current=\(shortDebugID(currentSelectedZoneID)) forcedBreakID=\(forcedBreakID.map(String.init) ?? "nil") delta=\(debugOptionalValue(deltaY))"
+            )
+            return
+        }
+
+        guard let deltaY, deltaY > 1 else {
+            recordQuizScroll(
+                "quiz.scroll-precompensate-newline-skip",
+                pathID: pathID,
+                details: "reason=no-delta forcedBreakID=\(forcedBreakID.map(String.init) ?? "nil") delta=\(debugOptionalValue(deltaY))"
+            )
+            return
+        }
+
+        let bottomBuffer = quizCaretBottomChromeBuffer(forSource: .newline)
+        let visibleBottomY = quizVisibleBottomWindowY(bottomBuffer: bottomBuffer)
+        let predictedCaretBottom = (caretRect ?? activeQuizCaretWindowRect).map { $0.maxY + deltaY }
+        let proposedDelta = predictedCaretBottom.map { $0 - visibleBottomY }
+
+        guard proposedDelta.map({ $0 > 1 }) ?? true else {
+            recordQuizScroll(
+                "quiz.scroll-precompensate-newline-skip",
+                pathID: pathID,
+                details: "reason=predicted-visible forcedBreakID=\(forcedBreakID.map(String.init) ?? "nil") delta=\(debugValue(deltaY)) caret=\(caretRect.map(debugRect) ?? "nil") visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+            )
+            return
+        }
+
+        let didApply = quizScrollDriver.applyImmediateLayoutShiftCompensation(
+            deltaY: deltaY,
+            zoneID: notificationZoneID,
+            reason: "newline-prelayout"
+        )
+        recordQuizScroll(
+            "quiz.scroll-precompensate-newline",
+            pathID: pathID,
+            details: "forcedBreakID=\(forcedBreakID.map(String.init) ?? "nil") didApply=\(debugFlag(didApply)) delta=\(debugValue(deltaY)) caret=\(caretRect.map(debugRect) ?? "nil") predictedCaretBottom=\(debugOptionalValue(predictedCaretBottom)) visibleBottom=\(debugValue(visibleBottomY)) proposedDelta=\(debugOptionalValue(proposedDelta)) \(quizScrollDetails(proposedDelta: proposedDelta))"
+        )
+    }
+
     private func beginNewlineCaretSettling(for pathID: String) {
         newlineCaretSettlingPathID = pathID
         newlineCaretSettlingDeadline = Date().addingTimeInterval(quizNewlineCaretSettlingDuration)
@@ -1549,6 +1614,22 @@ struct QuizCardEditorView: View {
 
     private func caretEditorHeight(from notification: Notification) -> CGFloat? {
         notification.userInfo?[ZoneEditorCaretScrollNotification.editorHeightKey] as? CGFloat
+    }
+
+    private func newlineLayoutDeltaY(from notification: Notification) -> CGFloat? {
+        notification.userInfo?[ZoneEditorNewlineLayoutShiftNotification.layoutDeltaYKey] as? CGFloat
+    }
+
+    private func newlineLayoutCaretWindowRect(from notification: Notification) -> CGRect? {
+        guard let value = notification.userInfo?[ZoneEditorNewlineLayoutShiftNotification.caretRectInWindowKey] else {
+            return nil
+        }
+
+        if let rectValue = value as? NSValue {
+            return rectValue.cgRectValue
+        }
+
+        return value as? CGRect
     }
 
     private func shouldScrollQuizCaret(for source: ZoneEditorCaretScrollSource) -> Bool {
