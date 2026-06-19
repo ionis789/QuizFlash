@@ -707,29 +707,28 @@ struct ZoneContentView: View {
         }
     }
 
+    @ViewBuilder
     private func selectionOutline(
         layout: ZoneContentLayoutResult,
         zone: ZoneModel,
         active: Bool,
         visible: Bool
     ) -> some View {
-        let outset = visualZoneOutset(for: zone)
-        let isMedia = zone.isEditorMediaLeaf
+        if zone.isEditorMediaLeaf {
+            let outset = visualZoneOutset(for: zone)
 
-        return RoundedRectangle(cornerRadius: selectionOutlineCornerRadius(for: zone), style: .continuous)
-            .stroke(
-                isMedia ? accent.opacity(0.86) : (active ? accent.opacity(0.35) : Color.gray.opacity(0.18)),
-                lineWidth: 1
-            )
-            .frame(
-                width: layout.blockSize.width + (outset.horizontal * 2),
-                height: layout.blockSize.height + (outset.vertical * 2)
-            )
-            .offset(x: layout.leadingInset - outset.horizontal, y: -outset.vertical)
-            .opacity(visible ? 1 : 0)
-            .animation(.easeInOut(duration: 0.16), value: visible)
-            .animation(.easeInOut(duration: 0.12), value: active)
-            .allowsHitTesting(false)
+            RoundedRectangle(cornerRadius: selectionOutlineCornerRadius(for: zone), style: .continuous)
+                .stroke(accent.opacity(0.86), lineWidth: 1)
+                .frame(
+                    width: layout.blockSize.width + (outset.horizontal * 2),
+                    height: layout.blockSize.height + (outset.vertical * 2)
+                )
+                .offset(x: layout.leadingInset - outset.horizontal, y: -outset.vertical)
+                .opacity(visible ? 1 : 0)
+                .animation(.easeInOut(duration: 0.16), value: visible)
+                .animation(.easeInOut(duration: 0.12), value: active)
+                .allowsHitTesting(false)
+        }
     }
 
     private func blockFrameReporter(layout: ZoneContentLayoutResult, zone: ZoneModel) -> some View {
@@ -747,28 +746,38 @@ struct ZoneContentView: View {
             }
     }
 
+    @ViewBuilder
     private func blockSurface(layout: ZoneContentLayoutResult, zone: ZoneModel) -> some View {
         let outset = visualZoneOutset(for: zone)
-        let highlightTint = zone.highlightColor.zoneSurfaceTint
 
-        return ZStack {
-            RoundedRectangle(cornerRadius: selectionOutlineCornerRadius(for: zone), style: .continuous)
-                .fill(editorZoneFill(for: zone))
-                .overlay(idleZoneStroke(for: zone))
-                .overlay {
-                    if let highlightTint {
-                        RoundedRectangle(cornerRadius: selectionOutlineCornerRadius(for: zone), style: .continuous)
-                            .stroke(highlightTint.opacity(0.86), lineWidth: 2)
+        if zone.isEditorMediaLeaf {
+            let highlightTint = zone.highlightColor.zoneSurfaceTint
+
+            ZStack {
+                RoundedRectangle(cornerRadius: selectionOutlineCornerRadius(for: zone), style: .continuous)
+                    .fill(editorZoneFill(for: zone))
+                    .overlay(idleZoneStroke(for: zone))
+                    .overlay {
+                        if let highlightTint {
+                            RoundedRectangle(cornerRadius: selectionOutlineCornerRadius(for: zone), style: .continuous)
+                                .stroke(highlightTint.opacity(0.86), lineWidth: 2)
+                        }
                     }
-                }
-                .shadow(color: highlightTint?.opacity(0.34) ?? .clear, radius: highlightTint == nil ? 0 : 10)
+                    .shadow(color: highlightTint?.opacity(0.34) ?? .clear, radius: highlightTint == nil ? 0 : 10)
+            }
+            .frame(
+                width: layout.blockSize.width + (outset.horizontal * 2),
+                height: layout.blockSize.height + (outset.vertical * 2)
+            )
+            .offset(x: layout.leadingInset - outset.horizontal, y: -outset.vertical)
+            .allowsHitTesting(false)
+        } else {
+            Rectangle()
+                .fill(editorZoneHeightGuideColor(for: zone))
+                .frame(width: 1, height: layout.blockSize.height)
+                .offset(x: 0, y: 0)
+                .allowsHitTesting(false)
         }
-        .frame(
-            width: layout.blockSize.width + (outset.horizontal * 2),
-            height: layout.blockSize.height + (outset.vertical * 2)
-        )
-        .offset(x: layout.leadingInset - outset.horizontal, y: -outset.vertical)
-        .allowsHitTesting(false)
     }
 
     private func normalizedLayoutZone(_ zone: ZoneModel) -> ZoneModel {
@@ -857,7 +866,7 @@ struct ZoneContentView: View {
 
         return CGSize(
             width: max(contentWidth, 1),
-            height: min(max(rawHeight, baseMinimumResizableHeight(for: zone)), maximumResizableHeight)
+            height: max(rawHeight, baseMinimumResizableHeight(for: zone))
         )
     }
 
@@ -1005,7 +1014,7 @@ struct ZoneContentView: View {
         }
 
         let measuredHeight = measuredTextHeight(for: zone, width: width)
-        return min(max(baseHeight, measuredHeight), maximumResizableHeight)
+        return max(baseHeight, measuredHeight)
     }
 
     private func measuredTextHeight(for zone: ZoneModel, width: CGFloat) -> CGFloat {
@@ -1562,6 +1571,18 @@ struct ZoneContentView: View {
 
     private func editorZoneFill(for zone: ZoneModel) -> Color {
         zone.highlightColor.zoneSurfaceFill
+    }
+
+    private func editorZoneHeightGuideColor(for zone: ZoneModel) -> Color {
+        if isTextViewFirstResponder {
+            return accent.opacity(0.72)
+        }
+
+        if isSelected {
+            return accent.opacity(0.42)
+        }
+
+        return zone.highlightColor.zoneSurfaceTint?.opacity(0.72) ?? Color.white.opacity(0.18)
     }
 
     // MARK: - Image View
