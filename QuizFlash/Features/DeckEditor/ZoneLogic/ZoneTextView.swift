@@ -284,8 +284,8 @@ final class ZoneEditorDebugStore {
         let path = pathID.map { " path=\($0)" } ?? ""
         let line = "L\(layoutEventIndex) +\(elapsedMS)ms \(stage) zone=\(shortID(zoneID))\(path) \(details)"
         layoutEvents.append(line)
-        if layoutEvents.count > 420 {
-            layoutEvents.removeFirst(layoutEvents.count - 420)
+        if layoutEvents.count > 900 {
+            layoutEvents.removeFirst(layoutEvents.count - 900)
         }
     }
 
@@ -568,6 +568,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     private var pendingTextEditCaretSource: ZoneEditorCaretScrollSource?
     private var settlingTextEditCaretSource: ZoneEditorCaretScrollSource?
     private var lastTextChangeWasRejected = false
+    private var forcedLineBreakDebugSequence = 0
     fileprivate var focusSyncState: FocusSyncState = .idle
     
     override init() {
@@ -839,14 +840,28 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
 
         lastTextChangeWasRejected = false
         let modelText = ZoneTextViewEmptyCaret.modelText(from: displayText)
-        if shouldRejectCurrentText(modelText, in: textView) {
+        let overflowDecision = textOverflowRejectionDetails(modelText, in: textView)
+        recordCaretProbe(
+            "caret.overflow-decision",
+            textView: textView,
+            extra: overflowDecision.details
+        )
+        if overflowDecision.rejects {
             lastTextChangeWasRejected = true
             pendingTextEditCaretSource = nil
             settlingTextEditCaretSource = nil
             waitsForSettledTextLayoutCaret = false
-            recordCaretProbe("caret.reject-overflow-before-restore", textView: textView)
+            recordCaretProbe(
+                "caret.reject-overflow-before-restore",
+                textView: textView,
+                extra: overflowDecision.details
+            )
             restoreLastAcceptedText(in: textView)
-            recordCaretProbe("caret.reject-overflow-after-restore", textView: textView)
+            recordCaretProbe(
+                "caret.reject-overflow-after-restore",
+                textView: textView,
+                extra: overflowDecision.details
+            )
             reportCursorPosition(
                 from: textView,
                 includeCaretAnchor: true,
@@ -1055,12 +1070,16 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
         }
     }
 
-    private func shouldRejectCurrentText(_ modelText: String, in textView: UITextView) -> Bool {
+    private func textOverflowRejectionDetails(_ modelText: String, in textView: UITextView) -> (rejects: Bool, details: String) {
         guard let maximumVisibleHeight,
               maximumVisibleHeight > 0,
               textView.bounds.width > 1,
               (modelText as NSString).length > (lastAcceptedText as NSString).length else {
-            return false
+            let maximumVisibleHeightText = maximumVisibleHeight.map(debugValue) ?? "nil"
+            return (
+                false,
+                "overflowCheck=skipped max=\(maximumVisibleHeightText) boundsW=\(debugValue(textView.bounds.width)) lastAcceptedLen=\((lastAcceptedText as NSString).length) newLen=\((modelText as NSString).length)"
+            )
         }
 
         textView.layoutIfNeeded()
@@ -1069,7 +1088,9 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             height: UIView.layoutFittingCompressedSize.height
         )
         let requiredHeight = ceil(textView.sizeThatFits(targetSize).height)
-        return requiredHeight > ceil(maximumVisibleHeight) + 0.5
+        let rejects = requiredHeight > ceil(maximumVisibleHeight) + 0.5
+        let details = "overflowCheck=\(rejects ? "reject" : "accept") required=\(debugValue(requiredHeight)) max=\(debugValue(maximumVisibleHeight)) bounds=\(debugSize(textView.bounds.size)) content=\(debugSize(textView.contentSize)) used=\(debugRect(textView.layoutManager.usedRect(for: textView.textContainer))) lastAcceptedLen=\((lastAcceptedText as NSString).length) newLen=\((modelText as NSString).length)"
+        return (rejects, details)
     }
 
     private func restoreLastAcceptedText(in textView: UITextView) {
@@ -1168,7 +1189,13 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
     }
 
     private func insertForcedLineBreak(in textView: UITextView) {
-        recordCaretProbe("caret.forced-break-start", textView: textView)
+        forcedLineBreakDebugSequence += 1
+        let forcedBreakID = forcedLineBreakDebugSequence
+        recordCaretProbe(
+            "caret.forced-break-start",
+            textView: textView,
+            extra: "forcedBreakID=\(forcedBreakID)"
+        )
         if let zoneID, !textView.isFirstResponder {
             postWillFocusNotification(for: zoneID)
             _ = textView.becomeFirstResponder()
@@ -1223,7 +1250,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             textView: textView,
             changedRange: selectedRange,
             replacementText: "\n",
-            extra: "modelRange=\(selectedModelRange.location):\(selectedModelRange.length) nextModelCaret=\(modelCaretRange.location):\(modelCaretRange.length)"
+            extra: "forcedBreakID=\(forcedBreakID) modelRange=\(selectedModelRange.location):\(selectedModelRange.length) nextModelCaret=\(modelCaretRange.location):\(modelCaretRange.length)"
         )
         isUpdating = true
         textView.text = displayText
@@ -1237,16 +1264,28 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             textView: textView,
             changedRange: selectedRange,
             replacementText: "\n",
-            extra: "modelRange=\(selectedModelRange.location):\(selectedModelRange.length) nextModelCaret=\(modelCaretRange.location):\(modelCaretRange.length)"
+            extra: "forcedBreakID=\(forcedBreakID) modelRange=\(selectedModelRange.location):\(selectedModelRange.length) nextModelCaret=\(modelCaretRange.location):\(modelCaretRange.length)"
         )
 
         applyForcedLineBreakMarkerStyle(to: textView)
-        recordCaretProbe("caret.forced-break-after-marker-style", textView: textView)
+        recordCaretProbe(
+            "caret.forced-break-after-marker-style",
+            textView: textView,
+            extra: "forcedBreakID=\(forcedBreakID)"
+        )
         pendingTextEditCaretSource = .newline
         textViewDidChange(textView)
-        recordCaretProbe("caret.forced-break-after-did-change", textView: textView)
+        recordCaretProbe(
+            "caret.forced-break-after-did-change",
+            textView: textView,
+            extra: "forcedBreakID=\(forcedBreakID) rejected=\(lastTextChangeWasRejected ? 1 : 0)"
+        )
         guard !lastTextChangeWasRejected else {
-            recordCaretProbe("caret.forced-break-report-skipped-rejected", textView: textView)
+            recordCaretProbe(
+                "caret.forced-break-report-skipped-rejected",
+                textView: textView,
+                extra: "forcedBreakID=\(forcedBreakID)"
+            )
             lastTextChangeWasRejected = false
             return
         }
@@ -1256,7 +1295,11 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             forceCaretGeometry: true,
             source: .newline
         )
-        recordCaretProbe("caret.forced-break-after-report", textView: textView)
+        recordCaretProbe(
+            "caret.forced-break-after-report",
+            textView: textView,
+            extra: "forcedBreakID=\(forcedBreakID)"
+        )
     }
 
     private func canInsertForcedLineBreak(in text: String, selectedRange: NSRange) -> Bool {

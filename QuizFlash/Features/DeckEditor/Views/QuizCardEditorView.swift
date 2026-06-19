@@ -822,6 +822,13 @@ struct QuizCardEditorView: View {
         timestamp: \(ISO8601DateFormatter().string(from: Date()))
         target: \(debugTargetID(activeEditor))
         selectedPath: \(currentSelectedPath?.id ?? "nil")
+        selectedZone: \(shortDebugID(currentSelectedZoneID))
+        focusedZone: \(shortDebugID(focusManager.focusedZoneID))
+        keyboard: visible=\(debugFlag(keyboardMonitor.isVisible)) height=\(debugValue(keyboardMonitor.visibleHeight)) duration=\(debugValue(keyboardMonitor.animationDuration))
+        toolbar: accessory=\(debugValue(floatingToolbarAccessoryHeight))
+        viewport: \(debugRect(quizViewportScreenFrame))
+        scroll: offset=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) insetBottom=\(debugValue(quizScrollDriver.currentContentInsetBottom)) adjustedBottom=\(debugValue(quizScrollDriver.currentAdjustedContentInsetBottom))
+        caret: path=\(activeQuizCaretPathID ?? "nil") source=\(activeQuizCaretSource?.rawValue ?? "nil") rect=\(activeQuizCaretWindowRect.map(debugRect) ?? "nil") anchor=\(debugOptionalValue(activeQuizCaretAnchorY)) editorHeight=\(debugOptionalValue(activeQuizCaretEditorHeight))
 
         LAYOUT / RENDER TIMELINE
         \(ZoneEditorDebugStore.shared.layoutTraceReport)

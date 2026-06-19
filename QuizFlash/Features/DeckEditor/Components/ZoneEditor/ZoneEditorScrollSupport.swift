@@ -21,6 +21,10 @@ final class ZoneEditorScrollDriver {
     private var isRestoringLockedOffset = false
     private var onScrollOffsetChange: ((CGFloat) -> Void)?
     private var lastReportedScrollOffsetY: CGFloat?
+    private var debugScrollRequestSequence = 0
+    private var lastDebugScrollRequestID: Int?
+    private var lastDebugScrollRequestZoneID: UUID?
+    private var lastDebugObservedRawOffsetY: CGFloat?
     private var tapProbe: ZoneEditorTapProbe?
     private(set) var tapProbeStatus = "not-configured"
     private(set) var currentNormalizedOffsetY: CGFloat = 0
@@ -65,6 +69,9 @@ final class ZoneEditorScrollDriver {
         tapProbe?.detach()
         tapProbe = nil
         tapProbeStatus = "detached"
+        lastDebugScrollRequestID = nil
+        lastDebugScrollRequestZoneID = nil
+        lastDebugObservedRawOffsetY = nil
         scrollView = nil
     }
 
@@ -256,7 +263,9 @@ final class ZoneEditorScrollDriver {
             CGPoint(x: scrollView.contentOffset.x, y: minOffsetY),
             in: scrollView,
             duration: duration,
-            options: [.curveEaseOut]
+            options: [.curveEaseOut],
+            debugRequestID: nil,
+            debugZoneID: nil
         )
         reportScrollOffset(in: scrollView, force: true)
     }
@@ -370,16 +379,22 @@ final class ZoneEditorScrollDriver {
         }
 
         clearOffsetLock()
+        debugScrollRequestSequence += 1
+        let requestID = debugScrollRequestSequence
+        lastDebugScrollRequestID = requestID
+        lastDebugScrollRequestZoneID = zoneID
         ZoneEditorDebugStore.shared.recordScrollDecision(
             "scroll-apply",
             zoneID: zoneID,
-            details: "rect=\(debugRect(windowRect)) visibleBottom=\(debugValue(visibleBottomY)) overlap=\(debugValue(overlap)) current=\(debugValue(currentY)) target=\(debugValue(targetY)) chromeTop=\(debugOptionalValue(bottomChromeTopY)) keyboard=\(debugValue(keyboardHeight)) accessory=\(debugValue(bottomAccessoryHeight)) buffer=\(debugValue(bottomBuffer)) inset=\(debugInsets(scrollView.adjustedContentInset)) content=\(debugSize(scrollView.contentSize)) bounds=\(debugSize(scrollView.bounds.size))"
+            details: "request=\(requestID) rect=\(debugRect(windowRect)) visibleBottom=\(debugValue(visibleBottomY)) overlap=\(debugValue(overlap)) current=\(debugValue(currentY)) target=\(debugValue(targetY)) chromeTop=\(debugOptionalValue(bottomChromeTopY)) keyboard=\(debugValue(keyboardHeight)) accessory=\(debugValue(bottomAccessoryHeight)) buffer=\(debugValue(bottomBuffer)) inset=\(debugInsets(scrollView.adjustedContentInset)) content=\(debugSize(scrollView.contentSize)) bounds=\(debugSize(scrollView.bounds.size))"
         )
         setContentOffset(
             CGPoint(x: scrollView.contentOffset.x, y: targetY),
             in: scrollView,
             duration: animationDuration,
-            options: animationOptions
+            options: animationOptions,
+            debugRequestID: requestID,
+            debugZoneID: zoneID
         )
         return true
     }
@@ -439,11 +454,24 @@ final class ZoneEditorScrollDriver {
         _ offset: CGPoint,
         in scrollView: UIScrollView,
         duration: TimeInterval,
-        options: UIView.AnimationOptions
+        options: UIView.AnimationOptions,
+        debugRequestID: Int?,
+        debugZoneID: UUID?
     ) {
+        let before = scrollView.contentOffset
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-set-offset-start",
+            zoneID: debugZoneID,
+            details: "request=\(debugRequestID.map(String.init) ?? "nil") from=\(debugPoint(before)) to=\(debugPoint(offset)) duration=\(debugValue(duration)) animated=\(duration > 0.02 ? 1 : 0) layerKeys=\((scrollView.layer.animationKeys() ?? []).joined(separator: ",")) \(scrollSnapshotDetails(in: scrollView))"
+        )
         scrollView.layer.removeAllAnimations()
         guard duration > 0.02 else {
             scrollView.setContentOffset(offset, animated: false)
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-set-offset-immediate",
+                zoneID: debugZoneID,
+                details: "request=\(debugRequestID.map(String.init) ?? "nil") after=\(debugPoint(scrollView.contentOffset)) \(scrollSnapshotDetails(in: scrollView))"
+            )
             return
         }
 
@@ -458,6 +486,12 @@ final class ZoneEditorScrollDriver {
             options: resolvedOptions
         ) {
             scrollView.setContentOffset(offset, animated: false)
+        } completion: { _ in
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-set-offset-complete",
+                zoneID: debugZoneID,
+                details: "request=\(debugRequestID.map(String.init) ?? "nil") final=\(self.debugPoint(scrollView.contentOffset)) presentationY=\(self.debugValue(scrollView.layer.presentation()?.bounds.origin.y ?? scrollView.bounds.origin.y)) \(self.scrollSnapshotDetails(in: scrollView))"
+            )
         }
     }
 
@@ -488,6 +522,15 @@ final class ZoneEditorScrollDriver {
         let normalizedOffsetY = max(0, scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
         currentNormalizedOffsetY = normalizedOffsetY
         captureInsetDebugState(in: scrollView)
+        if force
+            || lastDebugObservedRawOffsetY.map({ abs($0 - scrollView.contentOffset.y) > 8 }) != false {
+            lastDebugObservedRawOffsetY = scrollView.contentOffset.y
+            ZoneEditorDebugStore.shared.recordScrollDecision(
+                "scroll-offset-observed",
+                zoneID: lastDebugScrollRequestZoneID,
+                details: "request=\(lastDebugScrollRequestID.map(String.init) ?? "nil") raw=\(debugPoint(scrollView.contentOffset)) normalized=\(debugValue(normalizedOffsetY)) force=\(force ? 1 : 0) tracking=\(scrollView.isTracking ? 1 : 0) dragging=\(scrollView.isDragging ? 1 : 0) decel=\(scrollView.isDecelerating ? 1 : 0) anim=\(hasActiveBoundsOriginAnimation ? 1 : 0) \(scrollSnapshotDetails(in: scrollView))"
+            )
+        }
         guard let onScrollOffsetChange else { return }
         if !force,
            let lastReportedScrollOffsetY,
