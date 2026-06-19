@@ -694,6 +694,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             "markers=\(markerCount(in: displayText))",
             "newlines=\(newlineCount(in: displayText))",
             "fr=\(textView.isFirstResponder ? 1 : 0)",
+            "scroll=\(textView.isScrollEnabled ? 1 : 0)",
             "updating=\(isUpdating ? 1 : 0)",
             "waiting=\(waitsForSettledTextLayoutCaret ? 1 : 0)",
             "marked=\(textView.markedTextRange == nil ? 0 : 1)",

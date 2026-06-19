@@ -1404,6 +1404,11 @@ struct QuizCardEditorView: View {
             proposedDelta: proposedDelta
            ) {
             let offsetBefore = quizScrollDriver.currentNormalizedOffsetY
+            recordQuizScrollState(
+                "quiz.scroll-oversized-newline-decision",
+                pathID: pathID,
+                extra: "probe=\(probeID ?? "off") rect=\(debugRect(oversizedCandidate.rect)) rawRect=\(debugRect(caretRect)) proposedDelta=\(debugOptionalValue(oversizedCandidate.delta)) \(oversizedCandidate.details)"
+            )
             if quizCaretScrollGate.shouldSuppressScrollRequest(
                 pathID: pathID,
                 rect: oversizedCandidate.rect,
@@ -1420,6 +1425,11 @@ struct QuizCardEditorView: View {
                 return false
             }
 
+            recordQuizScrollState(
+                "quiz.scroll-before-oversized-request",
+                pathID: pathID,
+                extra: "probe=\(probeID ?? "off") requestedDelta=\(debugValue(oversizedCandidate.delta))"
+            )
             let didScroll = quizScrollDriver.scrollWindowRectAboveBottomChromeIfNeeded(
                 windowRect: oversizedCandidate.rect,
                 bottomChromeTopY: nil,
@@ -1429,6 +1439,11 @@ struct QuizCardEditorView: View {
                 animationDuration: quizCaretScrollAnimationDuration,
                 animationOptions: keyboardMonitor.animationOptions,
                 zoneID: currentSelectedZoneID
+            )
+            recordQuizScrollState(
+                "quiz.scroll-after-oversized-request",
+                pathID: pathID,
+                extra: "probe=\(probeID ?? "off") requestedDelta=\(debugValue(oversizedCandidate.delta)) didScroll=\(debugFlag(didScroll)) offsetBefore=\(debugValue(offsetBefore)) offsetAfter=\(debugValue(quizScrollDriver.currentNormalizedOffsetY))"
             )
             if didScroll {
                 lastQuizNewlineScrollProbe = QuizNewlineScrollProbe(
@@ -1563,6 +1578,8 @@ struct QuizCardEditorView: View {
 
         let expectedCaretMaxY = probe.rawCaretRect.maxY - probe.requestedDelta
         let caretError = caretRect.maxY - expectedCaretMaxY
+        let offsetNow = quizScrollDriver.currentNormalizedOffsetY
+        let offsetDelta = offsetNow - probe.offsetBefore
         let resolvedAnchorY = anchorY ?? activeQuizCaretAnchorY
         let resolvedEditorHeight = editorHeight ?? activeQuizCaretEditorHeight
         let observedEditorTopY = resolvedAnchorY.flatMap { anchor in
@@ -1576,7 +1593,7 @@ struct QuizCardEditorView: View {
         recordQuizScroll(
             "quiz.scroll-newline-probe-observed",
             pathID: pathID,
-            details: "source=\(source.rawValue) elapsed=\(debugValue(elapsed)) rawCaret=\(debugRect(probe.rawCaretRect)) observedCaret=\(debugRect(caretRect)) requestedDelta=\(debugValue(probe.requestedDelta)) expectedCaretMax=\(debugValue(expectedCaretMaxY)) caretError=\(debugValue(caretError)) editorHeightBefore=\(debugValue(probe.editorHeight)) editorHeightNow=\(debugOptionalValue(resolvedEditorHeight)) editorTopBefore=\(debugValue(probe.editorTopY)) expectedEditorTop=\(debugValue(expectedEditorTopY)) observedEditorTop=\(debugOptionalValue(observedEditorTopY)) editorTopError=\(debugOptionalValue(editorTopError)) offsetBefore=\(debugValue(probe.offsetBefore)) offsetNow=\(debugValue(quizScrollDriver.currentNormalizedOffsetY)) viewportTop=\(debugValue(quizViewportScreenFrame.minY))"
+            details: "source=\(source.rawValue) elapsed=\(debugValue(elapsed)) rawCaret=\(debugRect(probe.rawCaretRect)) observedCaret=\(debugRect(caretRect)) requestedDelta=\(debugValue(probe.requestedDelta)) expectedCaretMax=\(debugValue(expectedCaretMaxY)) caretError=\(debugValue(caretError)) editorHeightBefore=\(debugValue(probe.editorHeight)) editorHeightNow=\(debugOptionalValue(resolvedEditorHeight)) editorTopBefore=\(debugValue(probe.editorTopY)) expectedEditorTop=\(debugValue(expectedEditorTopY)) observedEditorTop=\(debugOptionalValue(observedEditorTopY)) editorTopError=\(debugOptionalValue(editorTopError)) offsetBefore=\(debugValue(probe.offsetBefore)) offsetNow=\(debugValue(offsetNow)) offsetDelta=\(debugValue(offsetDelta)) viewportTop=\(debugValue(quizViewportScreenFrame.minY))"
         )
     }
 
@@ -1616,7 +1633,7 @@ struct QuizCardEditorView: View {
         guard isQuizDebugRecordingActive else { return }
         quizScrollDriver.scheduleDebugSnapshots(
             prefix: "quiz.scroll-probe-\(probeID)",
-            delays: [0.016, 0.05, 0.10, 0.18, 0.30, 0.50],
+            delays: [0, 0.008, 0.016, 0.033, 0.05, 0.08, 0.12, 0.18, 0.30, 0.50],
             zoneID: currentSelectedZoneID,
             extra: "path=\(pathID) target=\(debugTargetID(activeEditor))"
         )
