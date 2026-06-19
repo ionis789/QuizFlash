@@ -34,12 +34,15 @@ final class ZoneEditorScrollDriver {
     private var lastDebugScrollRequestZoneID: UUID?
     private var lastDebugObservedRawOffsetY: CGFloat?
     private var activeDebugOffsetCommand: DebugOffsetCommand?
+    private var offsetAnimationTask: Task<Void, Never>?
     private var tapProbe: ZoneEditorTapProbe?
     private(set) var tapProbeStatus = "not-configured"
     private(set) var currentNormalizedOffsetY: CGFloat = 0
     private(set) var currentContentInsetBottom: CGFloat = 0
     private(set) var currentAdjustedContentInsetBottom: CGFloat = 0
     var hasActiveBoundsOriginAnimation: Bool {
+        if offsetAnimationTask != nil { return true }
+
         guard let scrollView else { return false }
         let animationKeys = scrollView.layer.animationKeys() ?? []
         if animationKeys.contains("bounds.origin") { return true }
@@ -54,6 +57,8 @@ final class ZoneEditorScrollDriver {
         guard self.scrollView !== scrollView else { return }
         offsetObservation?.invalidate()
         self.scrollView = scrollView
+        offsetAnimationTask?.cancel()
+        offsetAnimationTask = nil
         guard let scrollView else {
             offsetObservation = nil
             lockedOffset = nil
@@ -67,6 +72,8 @@ final class ZoneEditorScrollDriver {
     func detach() {
         offsetObservation?.invalidate()
         offsetObservation = nil
+        offsetAnimationTask?.cancel()
+        offsetAnimationTask = nil
         offsetLockTask?.cancel()
         offsetLockTask = nil
         lockedOffset = nil
@@ -482,6 +489,8 @@ final class ZoneEditorScrollDriver {
             zoneID: debugZoneID,
             details: "command=\(command.token) request=\(debugRequestID.map(String.init) ?? "nil") from=\(debugPoint(before)) to=\(debugPoint(offset)) duration=\(debugValue(duration)) animated=\(duration > 0.02 ? 1 : 0) layerKeys=\((scrollView.layer.animationKeys() ?? []).joined(separator: ",")) \(scrollSnapshotDetails(in: scrollView))"
         )
+        offsetAnimationTask?.cancel()
+        offsetAnimationTask = nil
         scrollView.layer.removeAllAnimations()
         guard duration > 0.02 else {
             scrollView.setContentOffset(offset, animated: false)
@@ -496,19 +505,49 @@ final class ZoneEditorScrollDriver {
             return
         }
 
-        let resolvedOptions: UIView.AnimationOptions = [
-            options,
-            .beginFromCurrentState,
-            .allowUserInteraction
-        ]
-        UIView.animate(
-            withDuration: duration,
-            delay: 0,
-            options: resolvedOptions
-        ) {
-            scrollView.setContentOffset(offset, animated: false)
-        } completion: { _ in
+        let start = scrollView.contentOffset
+        let startTime = CACurrentMediaTime()
+        offsetAnimationTask = Task { @MainActor [weak self, weak scrollView] in
+            while true {
+                guard let self, let scrollView else { return }
+                guard !Task.isCancelled else { return }
+
+                if scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating {
+                    let isCurrentCommand = self.activeDebugOffsetCommand?.token == command.token
+                    ZoneEditorDebugStore.shared.recordScrollDecision(
+                        "scroll-set-offset-cancelled",
+                        zoneID: debugZoneID,
+                        details: "command=\(command.token) request=\(debugRequestID.map(String.init) ?? "nil") reason=user-scroll current=\(isCurrentCommand ? 1 : 0) final=\(self.debugPoint(scrollView.contentOffset)) \(self.scrollSnapshotDetails(in: scrollView))"
+                    )
+                    if isCurrentCommand {
+                        self.activeDebugOffsetCommand = nil
+                        self.offsetAnimationTask = nil
+                    }
+                    return
+                }
+
+                let elapsed = CACurrentMediaTime() - startTime
+                let progress = min(max(elapsed / max(duration, 0.001), 0), 1)
+                let easedProgress = progress * progress * (3 - 2 * progress)
+                let targetY = self.clampedOffsetY(offset.y, in: scrollView)
+                let frameOffset = CGPoint(
+                    x: start.x + ((offset.x - start.x) * easedProgress),
+                    y: start.y + ((targetY - start.y) * easedProgress)
+                )
+                scrollView.setContentOffset(frameOffset, animated: false)
+
+                guard progress < 1 else { break }
+                try? await Task.sleep(for: .milliseconds(16))
+            }
+
+            guard let self, let scrollView else { return }
             let isCurrentCommand = self.activeDebugOffsetCommand?.token == command.token
+            if isCurrentCommand {
+                scrollView.setContentOffset(
+                    CGPoint(x: offset.x, y: self.clampedOffsetY(offset.y, in: scrollView)),
+                    animated: false
+                )
+            }
             ZoneEditorDebugStore.shared.recordScrollDecision(
                 "scroll-set-offset-complete",
                 zoneID: debugZoneID,
@@ -516,6 +555,7 @@ final class ZoneEditorScrollDriver {
             )
             if isCurrentCommand {
                 self.activeDebugOffsetCommand = nil
+                self.offsetAnimationTask = nil
             }
         }
     }
