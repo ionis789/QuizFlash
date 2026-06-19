@@ -1088,9 +1088,9 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
             height: UIView.layoutFittingCompressedSize.height
         )
         let requiredHeight = ceil(textView.sizeThatFits(targetSize).height)
-        let rejects = requiredHeight > ceil(maximumVisibleHeight) + 0.5
-        let details = "overflowCheck=\(rejects ? "reject" : "accept") required=\(debugValue(requiredHeight)) max=\(debugValue(maximumVisibleHeight)) bounds=\(debugSize(textView.bounds.size)) content=\(debugSize(textView.contentSize)) used=\(debugRect(textView.layoutManager.usedRect(for: textView.textContainer))) lastAcceptedLen=\((lastAcceptedText as NSString).length) newLen=\((modelText as NSString).length)"
-        return (rejects, details)
+        let wouldOverflow = requiredHeight > ceil(maximumVisibleHeight) + 0.5
+        let details = "overflowCheck=\(wouldOverflow ? "allow-scroll" : "accept") required=\(debugValue(requiredHeight)) max=\(debugValue(maximumVisibleHeight)) bounds=\(debugSize(textView.bounds.size)) content=\(debugSize(textView.contentSize)) used=\(debugRect(textView.layoutManager.usedRect(for: textView.textContainer))) lastAcceptedLen=\((lastAcceptedText as NSString).length) newLen=\((modelText as NSString).length)"
+        return (false, details)
     }
 
     private func restoreLastAcceptedText(in textView: UITextView) {
@@ -1531,6 +1531,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         )
         context.coordinator.rememberAcceptedText(text, selectedRange: textView.selectedRange)
         updateStyling(of: textView)
+        updateScrollBehavior(of: textView)
         context.coordinator.lastAppliedStylingSignature = stylingSignatureForCurrentState
         
         return textView
@@ -1579,6 +1580,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
                 updateStyling(of: textView)
                 context.coordinator.lastAppliedStylingSignature = stylingSignature
             }
+            updateScrollBehavior(of: textView)
             context.coordinator.recordCaretProbe(
                 "caret.ui-update-unchanged",
                 textView: textView,
@@ -1609,6 +1611,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
                 updateStyling(of: textView)
                 context.coordinator.lastAppliedStylingSignature = stylingSignature
             }
+            updateScrollBehavior(of: textView)
             context.coordinator.recordCaretProbe(
                 "caret.ui-update-defer-live-ui",
                 textView: textView,
@@ -1661,6 +1664,7 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
             updateStyling(of: textView)
             context.coordinator.lastAppliedStylingSignature = stylingSignature
         }
+        updateScrollBehavior(of: textView)
         context.coordinator.recordCaretProbe(
             "caret.ui-update-after-style",
             textView: textView,
@@ -1738,9 +1742,13 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         let width = proposal.width ?? UIView.layoutFittingExpandedSize.width
         let targetSize = CGSize(width: width, height: UIView.layoutFittingCompressedSize.height)
         let calculatedSize = uiView.sizeThatFits(targetSize)
+        let measuredHeight = max(ceil(calculatedSize.height), ceil(font.lineHeight))
+        let cappedHeight = maximumVisibleHeight
+            .map { min(measuredHeight, max(ceil($0), ceil(font.lineHeight))) }
+            ?? measuredHeight
         let result = CGSize(
             width: width,
-            height: max(ceil(calculatedSize.height), ceil(font.lineHeight))
+            height: cappedHeight
         )
 
         if AppFeatures.current.showsVisualDebugOverlays {
@@ -1752,6 +1760,28 @@ struct ZoneTextViewRepresentable: UIViewRepresentable {
         }
 
         return result
+    }
+
+    private func updateScrollBehavior(of textView: UITextView) {
+        guard let maximumVisibleHeight,
+              maximumVisibleHeight > 0,
+              textView.bounds.width > 1 else {
+            if textView.isScrollEnabled {
+                textView.isScrollEnabled = false
+            }
+            return
+        }
+
+        textView.layoutIfNeeded()
+        let targetSize = CGSize(
+            width: textView.bounds.width,
+            height: UIView.layoutFittingCompressedSize.height
+        )
+        let requiredHeight = ceil(textView.sizeThatFits(targetSize).height)
+        let shouldScroll = requiredHeight > ceil(maximumVisibleHeight) + 0.5
+        if textView.isScrollEnabled != shouldScroll {
+            textView.isScrollEnabled = shouldScroll
+        }
     }
 
     private func debugRect(_ rect: CGRect) -> String {
