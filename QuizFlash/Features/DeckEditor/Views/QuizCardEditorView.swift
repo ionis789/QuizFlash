@@ -1202,7 +1202,7 @@ struct QuizCardEditorView: View {
             return
         }
 
-        scheduleStoredQuizCaretScroll(delays: [.milliseconds(16), .milliseconds(96)])
+        scheduleStoredQuizCaretScroll(delays: quizCaretScrollDelays(for: source))
     }
 
     private func scheduleStoredQuizCaretScroll(delays: [Duration]) {
@@ -1334,6 +1334,16 @@ struct QuizCardEditorView: View {
             return false
         }
 
+        if activeQuizCaretSource == .newline,
+           quizScrollDriver.hasActiveBoundsOriginAnimation {
+            recordQuizScrollState(
+                "quiz.scroll-skip-animating-newline",
+                pathID: pathID,
+                extra: "source=newline rect=\(debugRect(caretRect)) visibleBottom=\(debugValue(visibleBottomY)) bottomBuffer=\(debugValue(bottomBuffer)) proposedDelta=\(debugOptionalValue(proposedDelta))"
+            )
+            return false
+        }
+
         if quizCaretScrollGate.shouldSuppressScrollRequest(
             pathID: pathID,
             rect: caretRect,
@@ -1439,6 +1449,12 @@ struct QuizCardEditorView: View {
 
     private func shouldScrollQuizCaret(for source: ZoneEditorCaretScrollSource) -> Bool {
         source == .focus || source == .selectionTap || source == .newline
+    }
+
+    private func quizCaretScrollDelays(for source: ZoneEditorCaretScrollSource) -> [Duration] {
+        source == .newline
+            ? [.milliseconds(16), .milliseconds(96), .milliseconds(220), .milliseconds(360), .milliseconds(520)]
+            : [.milliseconds(16), .milliseconds(96)]
     }
 
     private func quizCaretBottomChromeBuffer(forSource source: ZoneEditorCaretScrollSource?) -> CGFloat {

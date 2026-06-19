@@ -26,6 +26,16 @@ final class ZoneEditorScrollDriver {
     private(set) var currentNormalizedOffsetY: CGFloat = 0
     private(set) var currentContentInsetBottom: CGFloat = 0
     private(set) var currentAdjustedContentInsetBottom: CGFloat = 0
+    var hasActiveBoundsOriginAnimation: Bool {
+        guard let scrollView else { return false }
+        let animationKeys = scrollView.layer.animationKeys() ?? []
+        if animationKeys.contains("bounds.origin") { return true }
+
+        guard let presentationBounds = scrollView.layer.presentation()?.bounds else {
+            return false
+        }
+        return abs(presentationBounds.origin.y - scrollView.bounds.origin.y) > 1
+    }
 
     func attach(_ scrollView: UIScrollView?) {
         guard self.scrollView !== scrollView else { return }
