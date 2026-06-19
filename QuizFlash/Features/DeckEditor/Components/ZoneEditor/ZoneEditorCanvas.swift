@@ -467,6 +467,18 @@ struct ZoneEditorCanvas: View {
                         return
                     }
 
+                    let source = caretScrollSource(from: notification)
+                    guard source != .rejectedTextEdit else {
+                        cancelCaretAvoidanceScroll()
+                        clearActiveCaretGeometry()
+                        debugStore.recordScrollDecision(
+                            "scroll-skip-rejected-text-edit",
+                            zoneID: selectedZone?.id,
+                            details: "source=\(source.rawValue) path=\(selectedPath.id)"
+                        )
+                        return
+                    }
+
                     guard let caretRectInWindow = caretWindowRect(from: notification) else {
                         if shouldMaintainKeyboardAvoidance {
                             scheduleCaretAvoidanceScroll(delay: .milliseconds(16))
@@ -1756,6 +1768,15 @@ struct ZoneEditorCanvas: View {
         }
 
         return value as? CGRect
+    }
+
+    private func caretScrollSource(from notification: Notification) -> ZoneEditorCaretScrollSource {
+        guard let rawValue = notification.userInfo?[ZoneEditorCaretScrollNotification.sourceKey] as? String,
+              let source = ZoneEditorCaretScrollSource(rawValue: rawValue) else {
+            return .selectionTap
+        }
+
+        return source
     }
 
     private var keyboardTopDebugScreenY: CGFloat? {

@@ -866,7 +866,7 @@ final class ZoneTextViewCoordinator: NSObject, UITextViewDelegate, UIGestureReco
                 from: textView,
                 includeCaretAnchor: true,
                 forceCaretGeometry: true,
-                source: .textInput
+                source: .rejectedTextEdit
             )
             return
         }

@@ -35,6 +35,7 @@ enum ZoneEditorCaretScrollSource: String {
     case selectionTap
     case textInput
     case newline
+    case rejectedTextEdit
 }
 
 // MARK: - Zone Focus Manager
