@@ -1528,7 +1528,7 @@ struct QuizCardEditorView: View {
 
     private func quizCaretScrollDelays(for source: ZoneEditorCaretScrollSource) -> [Duration] {
         source == .newline
-            ? [.milliseconds(16)]
+            ? [.zero]
             : [.milliseconds(16), .milliseconds(96)]
     }
 
@@ -1636,10 +1636,13 @@ struct QuizCardEditorView: View {
     }
 
     private var quizNewlineCaretBottomChromeBuffer: CGFloat {
-        16
+        32
     }
 
     private var quizCaretScrollAnimationDuration: TimeInterval {
+        if activeQuizCaretSource == .newline {
+            return 0.10
+        }
         guard keyboardMonitor.isVisible else { return 0.16 }
         return min(max(keyboardMonitor.animationDuration, 0.12), 0.28)
     }
