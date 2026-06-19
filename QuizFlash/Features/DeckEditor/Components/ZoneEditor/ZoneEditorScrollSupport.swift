@@ -17,12 +17,29 @@ final class ZoneEditorScrollDriver {
         let zoneID: UUID?
     }
 
+    private struct DebugOffsetObservation: Sendable {
+        let oldValue: CGPoint?
+        let newValue: CGPoint?
+        let presentationY: CGFloat?
+        let callStack: String?
+    }
+
+    private struct DebugGeometryObservation: Sendable {
+        let property: String
+        let oldValue: String
+        let newValue: String
+        let callStack: String
+    }
+
     private weak var scrollView: UIScrollView?
     private var pendingTopInset: CGFloat = 0
     private var pendingBottomInset: CGFloat = 0
     private var appliedTopInset: CGFloat = 0
     private var appliedBottomInset: CGFloat = 0
     private var offsetObservation: NSKeyValueObservation?
+    private var contentSizeObservation: NSKeyValueObservation?
+    private var contentInsetObservation: NSKeyValueObservation?
+    private var boundsObservation: NSKeyValueObservation?
     private var lockedOffset: CGPoint?
     private var offsetLockTask: Task<Void, Never>?
     private var isRestoringLockedOffset = false
@@ -36,6 +53,7 @@ final class ZoneEditorScrollDriver {
     private var activeDebugOffsetCommand: DebugOffsetCommand?
     private var offsetAnimationTask: Task<Void, Never>?
     private var tapProbe: ZoneEditorTapProbe?
+    private var debugTraceContext: String?
     private(set) var tapProbeStatus = "not-configured"
     private(set) var currentNormalizedOffsetY: CGFloat = 0
     private(set) var currentContentInsetBottom: CGFloat = 0
@@ -55,12 +73,11 @@ final class ZoneEditorScrollDriver {
 
     func attach(_ scrollView: UIScrollView?) {
         guard self.scrollView !== scrollView else { return }
-        offsetObservation?.invalidate()
+        invalidateObservations()
         self.scrollView = scrollView
         offsetAnimationTask?.cancel()
         offsetAnimationTask = nil
         guard let scrollView else {
-            offsetObservation = nil
             lockedOffset = nil
             return
         }
@@ -70,8 +87,7 @@ final class ZoneEditorScrollDriver {
     }
 
     func detach() {
-        offsetObservation?.invalidate()
-        offsetObservation = nil
+        invalidateObservations()
         offsetAnimationTask?.cancel()
         offsetAnimationTask = nil
         offsetLockTask?.cancel()
@@ -89,7 +105,12 @@ final class ZoneEditorScrollDriver {
         lastDebugScrollRequestZoneID = nil
         lastDebugObservedRawOffsetY = nil
         activeDebugOffsetCommand = nil
+        debugTraceContext = nil
         scrollView = nil
+    }
+
+    func setDebugTraceContext(_ context: String?) {
+        debugTraceContext = context
     }
 
     func setScrollOffsetHandler(_ handler: @escaping (CGFloat) -> Void) {
@@ -606,17 +627,124 @@ final class ZoneEditorScrollDriver {
         }
     }
 
+    private func invalidateObservations() {
+        offsetObservation?.invalidate()
+        contentSizeObservation?.invalidate()
+        contentInsetObservation?.invalidate()
+        boundsObservation?.invalidate()
+        offsetObservation = nil
+        contentSizeObservation = nil
+        contentInsetObservation = nil
+        boundsObservation = nil
+    }
+
+    private nonisolated static func captureOffsetObservation(
+        oldValue: CGPoint?,
+        newValue: CGPoint?,
+        presentationY: CGFloat?
+    ) -> DebugOffsetObservation {
+        let offsetDelta = abs((newValue?.y ?? 0) - (oldValue?.y ?? 0))
+        let callStack = offsetDelta > 8 ? compactCallStack() : nil
+        return DebugOffsetObservation(
+            oldValue: oldValue,
+            newValue: newValue,
+            presentationY: presentationY,
+            callStack: callStack
+        )
+    }
+
+    private nonisolated static func captureGeometryObservation(
+        property: String,
+        oldValue: String,
+        newValue: String
+    ) -> DebugGeometryObservation {
+        DebugGeometryObservation(
+            property: property,
+            oldValue: oldValue,
+            newValue: newValue,
+            callStack: compactCallStack()
+        )
+    }
+
+    private nonisolated static func compactCallStack() -> String {
+        Thread.callStackSymbols
+            .prefix(10)
+            .map { $0.replacingOccurrences(of: "\n", with: " ") }
+            .joined(separator: " || ")
+    }
+
+    private nonisolated static func captureDebugSize(_ size: CGSize) -> String {
+        "\(captureDebugValue(size.width))x\(captureDebugValue(size.height))"
+    }
+
+    private nonisolated static func captureDebugInsets(_ insets: UIEdgeInsets) -> String {
+        "\(captureDebugValue(insets.top)),\(captureDebugValue(insets.left)),\(captureDebugValue(insets.bottom)),\(captureDebugValue(insets.right))"
+    }
+
+    private nonisolated static func captureDebugValue(_ value: CGFloat) -> String {
+        guard value.isFinite else { return value.description }
+        return String(format: "%.1f", Double(value))
+    }
+
     private func observeOffset(in scrollView: UIScrollView) {
-        offsetObservation = scrollView.observe(\.contentOffset, options: [.new]) { [weak self, weak scrollView] _, _ in
+        offsetObservation = scrollView.observe(\.contentOffset, options: [.old, .new]) { [weak self, weak scrollView] _, change in
+            let observation = Self.captureOffsetObservation(
+                oldValue: change.oldValue,
+                newValue: change.newValue,
+                presentationY: scrollView?.layer.presentation()?.bounds.origin.y
+            )
             Task { @MainActor [weak self, weak scrollView] in
                 guard let self, let scrollView else { return }
-                self.handleObservedOffset(in: scrollView)
+                self.handleObservedOffset(in: scrollView, observation: observation)
+            }
+        }
+
+        contentSizeObservation = scrollView.observe(\.contentSize, options: [.old, .new]) { [weak self, weak scrollView] _, change in
+            let observation = Self.captureGeometryObservation(
+                property: "contentSize",
+                oldValue: change.oldValue.map(Self.captureDebugSize) ?? "nil",
+                newValue: change.newValue.map(Self.captureDebugSize) ?? "nil"
+            )
+            Task { @MainActor [weak self, weak scrollView] in
+                guard let self, let scrollView else { return }
+                self.handleGeometryObservation(observation, in: scrollView)
+            }
+        }
+
+        contentInsetObservation = scrollView.observe(\.contentInset, options: [.old, .new]) { [weak self, weak scrollView] _, change in
+            let observation = Self.captureGeometryObservation(
+                property: "contentInset",
+                oldValue: change.oldValue.map(Self.captureDebugInsets) ?? "nil",
+                newValue: change.newValue.map(Self.captureDebugInsets) ?? "nil"
+            )
+            Task { @MainActor [weak self, weak scrollView] in
+                guard let self, let scrollView else { return }
+                self.handleGeometryObservation(observation, in: scrollView)
+            }
+        }
+
+        boundsObservation = scrollView.observe(\.bounds, options: [.old, .new]) { [weak self, weak scrollView] _, change in
+            guard let oldBounds = change.oldValue,
+                  let newBounds = change.newValue,
+                  abs(oldBounds.width - newBounds.width) > 0.5 || abs(oldBounds.height - newBounds.height) > 0.5
+            else { return }
+            let observation = Self.captureGeometryObservation(
+                property: "boundsSize",
+                oldValue: Self.captureDebugSize(oldBounds.size),
+                newValue: Self.captureDebugSize(newBounds.size)
+            )
+            Task { @MainActor [weak self, weak scrollView] in
+                guard let self, let scrollView else { return }
+                self.handleGeometryObservation(observation, in: scrollView)
             }
         }
     }
 
-    private func handleObservedOffset(in scrollView: UIScrollView) {
-        reportScrollOffset(in: scrollView)
+    private func handleObservedOffset(
+        in scrollView: UIScrollView,
+        observation: DebugOffsetObservation
+    ) {
+        reportScrollOffset(in: scrollView, observation: observation)
         guard !isRestoringLockedOffset else { return }
 
         guard lockedOffset != nil else { return }
@@ -629,7 +757,23 @@ final class ZoneEditorScrollDriver {
         restoreLockedOffsetIfNeeded(in: scrollView, reason: "observed-offset", zoneID: nil)
     }
 
-    private func reportScrollOffset(in scrollView: UIScrollView, force: Bool = false) {
+    private func handleGeometryObservation(
+        _ observation: DebugGeometryObservation,
+        in scrollView: UIScrollView
+    ) {
+        guard let debugTraceContext else { return }
+        ZoneEditorDebugStore.shared.recordScrollDecision(
+            "scroll-host-geometry-mutation",
+            zoneID: lastDebugScrollRequestZoneID,
+            details: "property=\(observation.property) old=\(observation.oldValue) new=\(observation.newValue) context=\(debugTraceContext) stack=\(observation.callStack) \(scrollSnapshotDetails(in: scrollView))"
+        )
+    }
+
+    private func reportScrollOffset(
+        in scrollView: UIScrollView,
+        force: Bool = false,
+        observation: DebugOffsetObservation? = nil
+    ) {
         let normalizedOffsetY = max(0, scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
         currentNormalizedOffsetY = normalizedOffsetY
         captureInsetDebugState(in: scrollView)
@@ -646,10 +790,13 @@ final class ZoneEditorScrollDriver {
             } else {
                 origin = "unowned-uikit-or-swiftui"
             }
+            let mutationDetails = observation.map {
+                "mutationOld=\(debugOptionalPoint($0.oldValue)) mutationNew=\(debugOptionalPoint($0.newValue)) mutationPresentationY=\(debugOptionalValue($0.presentationY)) mutationStack=\($0.callStack ?? "not-captured")"
+            } ?? "mutation=none"
             ZoneEditorDebugStore.shared.recordScrollDecision(
                 "scroll-offset-observed",
                 zoneID: command?.zoneID ?? lastDebugScrollRequestZoneID,
-                details: "origin=\(origin) command=\(command.map { String($0.token) } ?? "nil") commandRequest=\(command?.requestID.map(String.init) ?? "nil") commandTargetY=\(command.map { debugValue($0.target.y) } ?? "nil") request=\(lastDebugScrollRequestID.map(String.init) ?? "nil") raw=\(debugPoint(scrollView.contentOffset)) normalized=\(debugValue(normalizedOffsetY)) force=\(force ? 1 : 0) pan=\(panState.rawValue) tracking=\(scrollView.isTracking ? 1 : 0) dragging=\(scrollView.isDragging ? 1 : 0) decel=\(scrollView.isDecelerating ? 1 : 0) anim=\(hasActiveBoundsOriginAnimation ? 1 : 0) \(scrollSnapshotDetails(in: scrollView))"
+                details: "origin=\(origin) command=\(command.map { String($0.token) } ?? "nil") commandRequest=\(command?.requestID.map(String.init) ?? "nil") commandTargetY=\(command.map { debugValue($0.target.y) } ?? "nil") request=\(lastDebugScrollRequestID.map(String.init) ?? "nil") context=\(debugTraceContext ?? "none") raw=\(debugPoint(scrollView.contentOffset)) normalized=\(debugValue(normalizedOffsetY)) force=\(force ? 1 : 0) pan=\(panState.rawValue) tracking=\(scrollView.isTracking ? 1 : 0) dragging=\(scrollView.isDragging ? 1 : 0) decel=\(scrollView.isDecelerating ? 1 : 0) anim=\(hasActiveBoundsOriginAnimation ? 1 : 0) \(mutationDetails) \(scrollSnapshotDetails(in: scrollView))"
             )
         }
         guard let onScrollOffsetChange else { return }
@@ -851,6 +998,10 @@ final class ZoneEditorScrollDriver {
 
     private func debugPoint(_ point: CGPoint) -> String {
         "\(debugValue(point.x)),\(debugValue(point.y))"
+    }
+
+    private func debugOptionalPoint(_ point: CGPoint?) -> String {
+        point.map(debugPoint) ?? "nil"
     }
 
     private func debugSize(_ size: CGSize) -> String {

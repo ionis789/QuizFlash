@@ -347,6 +347,7 @@ struct QuizCardEditorView: View {
                     details: quizScrollDetails(proposedDelta: nil)
                 )
                 ZoneEditorDebugStore.shared.setLayoutRecordingEnabled(false)
+                quizScrollDriver.setDebugTraceContext(nil)
             }
         }
         .fullScreenCover(isPresented: $showSketchModal) {
@@ -383,6 +384,7 @@ struct QuizCardEditorView: View {
             )
         }
         .onDisappear {
+            quizScrollDriver.setDebugTraceContext(nil)
             recordQuizScroll(
                 "quiz.editor-disappear",
                 pathID: currentSelectedPath?.id,
@@ -1187,6 +1189,12 @@ struct QuizCardEditorView: View {
             return
         }
 
+        quizScrollDriver.setDebugTraceContext(
+            isQuizDebugRecordingActive
+                ? "caret source=\(source.rawValue) trace=\(traceID) path=\(notificationPathID) rect=\(caretRect.map(debugRect) ?? "nil")"
+                : nil
+        )
+
         recordNewlineScrollProbeObservation(
             pathID: notificationPathID,
             caretRect: caretRect,
@@ -1356,6 +1364,11 @@ struct QuizCardEditorView: View {
                     "quiz.scroll-state-run",
                     pathID: activeQuizCaretPathID,
                     extra: "pass=\(index + 1) delay=\(debugDuration(delay))"
+                )
+                quizScrollDriver.setDebugTraceContext(
+                    isQuizDebugRecordingActive
+                        ? "run schedule=\(scheduleID) pass=\(index + 1) source=\(activeQuizCaretSource?.rawValue ?? "nil") trace=\(activeQuizCaretTraceID ?? "nil") path=\(activeQuizCaretPathID ?? "nil")"
+                        : nil
                 )
 
                 guard let pathID = activeQuizCaretPathID,
